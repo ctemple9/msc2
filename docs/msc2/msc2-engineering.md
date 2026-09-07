@@ -1,6 +1,6 @@
 # MSC 2 — Engineering Specification
 
-**Revision:** 1.5 · **Date:** 2026-09-07 · **Owner:** Cameron Temple
+**Revision:** 1.6 · **Date:** 2026-09-07 · **Owner:** Cameron Temple
 **Baseline:** MSC 1 at commit `fccd61f0ed743086f1f5db6bef58e228a36010f3`
 
 **Companion documents:**
@@ -19,7 +19,7 @@
 
 MSC 2 is the control plane for self-hosted Minecraft servers: creation, runtime management, worlds, backups, mods, players, diagnostics, networking, and updates.
 
-Architecturally it is **one engine with several interfaces**. All server-management behavior lives in a Rust service. Every graphical, mobile, and command-line surface is a client of that service's API. No client implements server-management logic.
+Architecturally it is **one engine with several interfaces**. All server-management behavior lives in a Rust service. Every graphical and command-line surface is a client of that service's API. No client implements server-management logic.
 
 The defining constraint:
 
@@ -95,7 +95,6 @@ Clients display and request. They never become co-owners. This is what keeps rec
 | Progress | `indicatif` | Downloads, installs. |
 | Desktop shell | **Tauri** | Thin. Loads the Svelte bundle. |
 | Frontend | **Svelte + TypeScript** | One bundle, served by the agent and loaded by Tauri. |
-| Phone and tablet access | **Responsive Svelte web client** | Same served bundle as the browser client; no native mobile target in v1. See D-033. |
 | Secret storage | `keyring` crate **+ headless fallback** | Keychain / DPAPI behind one trait. **The crate is not sufficient on headless Linux** — see §8. |
 | Hashing | Rust-native | Replaces CryptoKit usage. |
 | Images | `image` crate | Replaces AppKit `NSImage` skin handling. |
@@ -318,7 +317,7 @@ The Tauri GUI is **optional everywhere** and is never a prerequisite for any cap
 
 Two distribution artifacts per platform: an application bundle and a headless package. Headless packages are **verified in CI to link no GUI framework** (§17).
 
-This is not a Linux-only concern — the current MSC deployment is an always-on Mac managed almost entirely from a phone.
+This is not a Linux-only concern — the current MSC deployment is an always-on Mac managed remotely.
 
 ### Three separate support matrices (D-022)
 
@@ -359,7 +358,6 @@ Bedrock Dedicated Server has no macOS build. MSC 1 solves this with `VMBedrockSe
 | **Browser** | Pairing code → **httpOnly, SameSite session cookie**. Not JS-readable, revocable server-side, survives refresh. |
 | **Tauri desktop, local host** | Shell injects a local token; no login screen. |
 | **Tauri desktop, remote host** | *Unspecified — see below.* |
-| **Phone or tablet browser** | The same browser pairing flow as other web sessions → httpOnly, SameSite session cookie. |
 | **CLI** | Token from per-host config or `--token`; bearer header. |
 
 One permission check behind all of them. **CSRF protection is required for cookie-authenticated mutating requests**; bearer-authenticated requests are exempt.
@@ -369,7 +367,7 @@ One permission check behind all of them. **CSRF protection is required for cooki
 Revision 1.0 described only a desktop app controlling its own computer. Multi-host is a day-one requirement (D-013), so a desktop app connecting to *remote* hosts is a first-class case and was not covered.
 
 1. **Local automatic authorization.** How the agent establishes that a request genuinely originates from the same machine, and what prevents another local process from impersonating the desktop shell.
-2. **Remote desktop pairing.** The desktop equivalent of the browser phone-pairing flow, performed once per remote host.
+2. **Remote desktop pairing.** The desktop equivalent of the browser pairing flow, performed once per remote host.
 3. **Per-host credential storage.** One credential per host in the platform secret store, keyed to match the multi-host client model.
 4. **LAN encryption expectations.** Whether plain HTTP is permitted off-loopback at all; how a locally managed TLS certificate is provisioned and trusted across platforms.
 5. **Tailscale posture.** Default position: tailnet membership relaxes nothing. Traffic is already encrypted, but token authentication remains mandatory. Confirm this rather than assume it.
@@ -552,17 +550,21 @@ Given that MSC 1's remote-client parity gap was itself a months-long project, th
 One row per capability, maintained continuously from the first vertical slice:
 
 ```
-MSC 1 capability → MSC 2 agent operation → Desktop/Web (including responsive phone/tablet) → CLI
+MSC 1 capability → MSC 2 agent operation → Desktop/Web → CLI
 ```
 
 Every cell is **Implemented**, **Planned**, or **Intentional exception**.
 
-**Full mobile capability is an owner requirement, not a status-only target.** The responsive browser experience is the phone and tablet surface. The exception path exists for genuinely inapplicable browser behavior — revealing a file in Finder from a phone, for example — and **not** as a route for omitting a browser workflow because it is difficult to make responsive.
+The matrix covers the supported Tauri desktop, desktop browser, and CLI
+clients. The shared frontend may use responsive layout techniques, but that is
+an implementation detail and does not create a supported mobile management
+client or a separate v1 capability column.
 
 Accordingly:
 
 - An **Intentional exception requires owner approval** and a recorded reason. It is a decision entry, not a note in a table.
-- "Hard to build on a small screen" is not a valid reason. Reshaping a workflow for mobile is the expected answer.
+- A capability omitted from a supported client must have an explicit reason; it
+  cannot be hidden by the matrix.
 - Valid reasons are limited to capabilities that are meaningless or impossible on the platform.
 - Every exception is reviewed at each release rather than inherited indefinitely.
 
@@ -589,7 +591,7 @@ Every megabyte the agent holds on an 8 GB host is a megabyte Java cannot have. T
 
 ## 18. Educational content (D-026)
 
-MSC 1's teaching material is among its largest assets: a 31-topic Server Handbook across 6 categories, a concept guide, an onboarding tour over the live UI, ~18 files of router port-forwarding guides with brand matching and a troubleshooting decision tree, and contextual help throughout. It is also the clearest example of the duplication MSC 2 removes — all of it is Swift compiled into the macOS app, so the former mobile client required a second, separately-written educational surface (`QuickGuideView`, 706 lines).
+MSC 1's teaching material is among its largest assets: a 31-topic Server Handbook across 6 categories, a concept guide, an onboarding tour over the live UI, ~18 files of router port-forwarding guides with brand matching and a troubleshooting decision tree, and contextual help throughout. It is also the clearest example of the duplication MSC 2 removes — all of it is Swift compiled into the macOS app, so the former remote client required a second, separately-written educational surface (`QuickGuideView`, 706 lines).
 
 **Content is data the agent serves. Clients render it; they never author it.**
 

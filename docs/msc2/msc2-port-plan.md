@@ -1,6 +1,6 @@
 # MSC 2 — Port Plan
 
-**Revision:** 1.3 · **Date:** 2026-09-07
+**Revision:** 1.4 · **Date:** 2026-09-07
 **Status:** **Execution document — Proposed, not owner-approved.**
 
 **This document is deliberately separate from the vision.** `msc2-product.md` and `msc2-engineering.md` describe the destination, its guarantees, and its architecture. This document describes a *route*, and routes change. Nothing here constrains the vision; if a phase order proves wrong, this file changes and the vision does not.
@@ -91,7 +91,7 @@ Per-domain Swift extraction happens immediately ahead of each translation.
 
 Versioned HTTP and WebSocket contract generated from the schema. Operation IDs, progress, structured errors, capability advertisement, cancellation. A skeletal agent whose routes can be exercised without real mutation.
 
-**Exit criteria:** the responsive browser client connects and reads status against a stub agent.
+**Exit criteria:** the desktop browser client connects and reads status against a stub agent.
 
 ### Phase 3 — Safety substrate
 
@@ -103,7 +103,7 @@ Approved server roots and path safety · atomic writes · versioned configuratio
 
 ### Phase 4 — Java lifecycle vertical slice
 
-One imported Paper server, end to end: import and detect · start · console · command · status and metrics · graceful stop · restart. Driven from the CLI **and the responsive browser client**.
+One imported Paper server, end to end: import and detect · start · console · command · status and metrics · graceful stop · restart. Driven from the CLI **and the desktop browser client**.
 
 **Exit criteria:** headless service ownership proven on **macOS (LaunchDaemon), Linux (systemd), and Windows (Service)** — all three, not two. Closing every client changes nothing about the running server; on Windows, neither does signing out. This is the first stage that produces genuinely useful software.
 
@@ -167,13 +167,14 @@ Because this is a *design* phase, its verification is deliberately different fro
 
 **Amendment, 2026-08-26 (owner decision, recorded per the exception rule at line 174):** the Packs tab (MSC 1's `DetailsPacksTabView`/`ResourcePacksView`) is an explicit, named exception to this gate. Cameron does not use it in MSC 1 and does not want it rebuilt for MSC 2's redesign. The underlying agent routes (`/v1/resourcepacks/*`) and their capability-matrix rows stay as they are — this is a client-screen scope decision, not an agent capability removal — and CLI access is unaffected. The feature is deferred, not declared permanently out of scope: it can be picked back up as a new step later if wanted. See `rolling-plan.md`'s P12.5 entry, which removed the greyed-out Packs tab placeholder from the running client, for the full reasoning.
 
-**Amendment, 2026-09-07 (D-033):** the native iOS client is retired from
-MSC 2. The Phase 12 client gate covers the Tauri desktop and shared responsive
-browser experience, including phone and tablet layouts; it does not require a
-native iOS UI, App Store package, iOS-specific notifications, or a separate
-iOS capability-parity column. Phase 2 and Phase 4 client evidence uses the
-responsive browser client in place of the retired app. Historical phase records
-and MSC 1 audit evidence remain unchanged.
+**Amendment, 2026-09-07 (D-033/P12.108):** the native iOS client and any
+supported mobile management client are out of v1. The Phase 12 client gate
+covers the Tauri desktop and desktop-browser experience; responsive layout is
+an implementation detail, not a mobile support promise. Phase 2 and Phase 4
+client evidence uses the desktop browser client. The headless CLI remains a
+first-class client, and optional Tailscale may provide remote access for the
+desktop app or desktop browser without becoming a requirement for ordinary MSC
+use. Historical phase records and MSC 1 audit evidence remain unchanged.
 
 ### Phase 13 — Terminal UI
 

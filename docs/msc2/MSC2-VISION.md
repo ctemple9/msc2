@@ -1,6 +1,6 @@
 # MSC 2 — Vision Set
 
-**Set revision:** 1.5 · **Date:** 2026-09-07
+**Set revision:** 1.6 · **Date:** 2026-09-07
 **Owner:** Cameron Temple
 **Baseline:** MSC 1 at commit `fccd61f0ed743086f1f5db6bef58e228a36010f3` (246 production Swift files, 97,357 lines)
 
@@ -12,11 +12,11 @@ This is the entry point. The five documents below are **one controlled set** and
 
 | Document | Revision | Contains | Changes |
 |---|---|---|---|
-| **`MSC2-VISION.md`** (this file) | 1.5 | Index, revision state, owner-confirmed requirements, precedence rules | Rarely |
-| **`msc2-product.md`** | 1.5 | What MSC 2 is in plain language: purpose, audience, experience, guarantees, non-goals | Rarely |
-| **`msc2-engineering.md`** | 1.5 | Architecture, API contract, module boundaries, platform matrices, security, verification guarantees, resource requirements | Occasionally |
-| **`msc2-decisions.md`** | 1.11 | Numbered decision register with origin, approval, rationale, rejected alternatives | Append-only |
-| **`msc2-port-plan.md`** | 1.3 | Execution sequencing and the fixture inventory | **Often — deliberately separated** |
+| **`MSC2-VISION.md`** (this file) | 1.6 | Index, revision state, owner-confirmed requirements, precedence rules | Rarely |
+| **`msc2-product.md`** | 1.6 | What MSC 2 is in plain language: purpose, audience, experience, guarantees, non-goals | Rarely |
+| **`msc2-engineering.md`** | 1.6 | Architecture, API contract, module boundaries, platform matrices, security, verification guarantees, resource requirements | Occasionally |
+| **`msc2-decisions.md`** | 1.12 | Numbered decision register with origin, approval, rationale, rejected alternatives | Append-only |
+| **`msc2-port-plan.md`** | 1.4 | Execution sequencing and the fixture inventory | **Often — deliberately separated** |
 
 **Why the port plan is separate.** The vision defines the destination and its guarantees; the port plan defines a route. Routes change. Keeping them apart means a rescheduled phase never forces an edit to the vision.
 
@@ -32,7 +32,7 @@ Within the same approval status:
 2. **`msc2-engineering.md` wins over `msc2-product.md`** on any technical claim.
 3. **`msc2-product.md` wins over `msc2-engineering.md`** on intent, audience, and what MSC is *for*.
 4. **`msc2-port-plan.md` never wins.** If it conflicts with anything, the port plan is wrong.
-5. **`~/Desktop/msc2.md`** — the original vision written with Codex — is **superseded on architecture**, but remains a valid source of *owner intent*: several requirements in this set (headless everywhere, full mobile capability, the memory objective) originate there and are approved on that basis.
+5. **`~/Desktop/msc2.md`** — the original vision written with Codex — is **superseded on architecture**, but remains a valid source of *owner intent*: several requirements in this set (headless everywhere, resource efficiency, the memory objective) originate there and are approved on that basis.
 
 Any conflict discovered between documents is a defect. Fix it by adding or amending a decision entry, then propagating.
 
@@ -53,7 +53,7 @@ Everything below was decided by the owner directly, not inferred.
 |---|---|---|
 | 1 | MSC 2 runs on macOS, Windows, and Linux, including **native Windows**. This is the requirement that determines the engine language. | D-002 |
 | 2 | The engine is **Rust**; the desktop and web interfaces are **one Svelte frontend**, shipped as a Tauri shell and as a served page. | D-002, D-003 |
-| 3 | Phone and tablet management use the **responsive browser client**; no native iOS app is a v1 deliverable. | D-033 |
+| 3 | MSC 2 v1 has **no supported mobile management client**. The supported control surfaces are Tauri desktop, desktop browser, and headless CLI; optional Tailscale enables remote desktop/browser access. | D-033 |
 | 4 | MSC 2 is a **completely separate app and project**. It never touches MSC 1. Migration is by **import only**. | D-001, D-009 |
 | 5 | Version skew is handled by a **supported-version floor with capability degradation**, and a clear refusal below it. *(The specific N-3 value is proposed, not approved.)* | D-010 |
 | 6 | On desktop, the **app installs and manages the agent**; headless installs separately. | D-011 |
@@ -63,8 +63,8 @@ Everything below was decided by the owner directly, not inferred.
 | 10 | The **v1 non-goals** are approved as written: TUI deferred; no third-party plugin API; no per-person identity yet; no TempleTech-hosted backend, ever; no proxy/network orchestration; no Android. | D-015 |
 | 11 | **Complete headless mode on every platform** — macOS, Windows, and Linux — with the GUI optional everywhere. *(From `msc2.md`.)* | D-011 |
 | 12 | **Resource efficiency is a requirement**, not an aspiration. *(Founding motivation, from `msc2.md`. Specific benchmark values remain proposed.)* | D-021 |
-| 13 | **Full mobile capability** — the phone is not a status-only remote. *(From `msc2.md`. The matrix as tracking mechanism remains proposed.)* | D-023 |
-| 14 | **MSC 2 teaches, in every interface.** The Server Handbook and contextual help reach desktop, web, phone, and CLI. *(From `msc2.md`. Serving it as data rather than client code is the proposed mechanism.)* | D-026 |
+| 13 | **Supported-client capability is tracked explicitly** across desktop, browser, and CLI; mobile management is not a v1 target. *(The matrix as tracking mechanism remains proposed.)* | D-023, D-033 |
+| 14 | **MSC 2 teaches, in every supported interface.** The Server Handbook and contextual help reach desktop, web, and CLI. *(From `msc2.md`. Serving it as data rather than client code is the proposed mechanism.)* | D-026 |
 
 ### Awaiting approval
 
@@ -81,7 +81,7 @@ These are load-bearing but not yet owner-confirmed. Review them before they cons
 | D-019 | Formalizing MSC 1's existing permission model | Corrects a factual error in revision 1.0 |
 | D-021 | The specific memory *targets* (the requirement itself is approved) | Must be measured, not estimated |
 | D-022 | Separate MSC / Java / Bedrock support matrices | Prevents an unsupportable promise |
-| D-023 | The matrix *mechanism* (full capability itself is approved) | Prevents repeating MSC 1's phone parity gap |
+| D-023 | The matrix *mechanism* (supported-client capability is approved) | Prevents capability gaps across retained clients |
 | D-024 | Power management: two policies by host role | Remote-starting a stopped server needs the host awake |
 | D-020 | Repository name and location | **Open, blocks everything** |
 | D-025 | **Service identity and privilege boundaries** | **Open.** Blocks the substrate and the D-012 local-auth design |
@@ -91,7 +91,7 @@ These are load-bearing but not yet owner-confirmed. Review them before they cons
 
 ## The shortest possible summary
 
-MSC 2 extracts MSC's engine into a cross-platform Rust service that runs with or without a screen, wrapped in one interface that ships as a desktop app and a web page, with phone access through the responsive browser client and a CLI as first-class peers — so a modest computer spends its memory on Minecraft instead of on a desktop nobody is looking at.
+MSC 2 extracts MSC's engine into a cross-platform Rust service that runs with or without a screen, wrapped in one interface that ships as a Tauri desktop app and a served desktop browser client, with a headless CLI as a first-class peer. Optional Tailscale can provide remote desktop/browser access; ordinary local use does not require it.
 
 **It is not a blank-slate rewrite.** MSC 1 is the executable specification. Two independent audits agreed at file level on **88.6%** of 246 files, and identified roughly **33,000–36,000 lines** of engine behavior to translate — about one third of the tree. That figure measures preserved behavior only; the genuinely new work (cross-platform services, operation journaling, secret stores, native Bedrock runtimes, client state) may exceed it.
 
@@ -136,6 +136,7 @@ The two CSVs join on `file`. They are **file-level inputs to the future symbol l
 
 | Rev | Date | Change |
 |---|---|---|
+| 1.6 | 2026-09-07 | Amended D-033: native iOS and supported mobile management are both out of v1; retained clients are Tauri desktop, desktop browser, and headless CLI, with optional Tailscale remote access. |
 | 1.5 | 2026-09-07 | Recorded D-033: native iOS is retired from MSC 2; phone access uses the responsive browser client. |
 | 1.0 | 2026-07-29 | Initial three-document set. |
 | 1.4 | 2026-07-30 | Added D-026 and `msc2-engineering.md` §18: MSC 1's teaching material — 31 handbook topics, the concept guide, ~18 router-guide files, contextual help — had no home in MSC 2's architecture. Content becomes agent-served data with a `helpId` on every explainable thing, reaching all four interfaces including the CLI. Must land before the Phase 2 contract freeze. |

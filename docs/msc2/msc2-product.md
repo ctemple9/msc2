@@ -14,7 +14,7 @@ This document describes MSC 2 in plain language: what it does, who it's for, and
 
 ## In one sentence
 
-MSC 2 lets you run a Minecraft server on a computer you own, and manage it from your phone, your laptop, a web browser, or a terminal — without ever learning what a JVM argument is.
+MSC 2 lets you run a Minecraft server on a computer you own, and manage it from a desktop app, a desktop browser, or a terminal — without ever learning what a JVM argument is.
 
 ---
 
@@ -28,7 +28,7 @@ Hosting Minecraft for your friends has two options, and both are bad.
 
 MSC turns the second option into an application. You click things. It explains what's wrong in sentences. Your world stays on your hardware.
 
-MSC 2 does that on **any** computer you own — Mac, Windows, or Linux — and lets you manage it from anywhere.
+MSC 2 does that on **any** computer you own — Mac, Windows, or Linux — with the control surface on that computer or through an optional remote desktop/browser connection.
 
 ---
 
@@ -55,13 +55,9 @@ MSC 2 splits into two halves: a small program that actually runs your server, an
 
 **Your server can live on a machine with no screen.** An old laptop with the lid shut, in a closet, plugged into ethernet. No desktop, no monitor, no keyboard. This matters more than it sounds: on an 8 GB machine, not running a graphical desktop environment can be the difference between a modpack that runs and one that stutters.
 
-**You can manage it from anywhere.** Phone, laptop, browser, terminal — all talking to the same server, all able to reach the same capabilities.
+**You can manage it from the supported control surfaces.** The desktop app, desktop browser, and terminal all talk to the same server and reach the same agent capabilities. Optional Tailscale can carry remote desktop/browser access; ordinary local use does not require it.
 
 **Windows and Linux work too.** Not a lesser version. The same application.
-
-**Your phone is a full management surface.** The responsive browser client uses the same API and capability rules as the desktop and web experience, so it is not a status-only remote. In MSC 1, phone support could only do what had been separately built into the iOS app *and* separately exposed by the Mac — so it always trailed. In MSC 2 there is one copy of "restore a backup," and the browser client can call it.
-
-To be precise about what that does and doesn't promise: it means no capability is architecturally unavailable to the phone because the plumbing is missing. It does not mean every screen ships at once — someone still has to build each one. MSC 2 tracks that in a published capability list, so anything not yet in the responsive browser experience is a recorded decision rather than a surprise. A native iOS app, App Store packaging, and iOS-specific notifications are not v1 deliverables.
 
 ---
 
@@ -88,11 +84,11 @@ The ideal setup for a demanding modpack is a machine that does nothing else — 
 
 All three talk to the same server and can reach the same capabilities. Pick whichever is closest to hand.
 
-Some things are genuinely better suited to one surface than another — editing a large config file is nicer on a big screen than on a phone. Where a capability is deliberately left off a surface, that's recorded as a decision, not left as a gap.
+Some things are genuinely better suited to one surface than another — editing a large config file is nicer in the desktop app than in a browser. Where a capability is deliberately left off a supported surface, that's recorded as a decision, not left as a gap.
 
 **The desktop app.** Mac, Windows, or Linux. Looks and feels like MSC always has — dark, focused, a list of servers on the left, tabs across the top, the console always available at the bottom.
 
-**A web browser.** Any device, no install — including a phone or tablet. This is how you manage the screenless machine in the closet: it runs the server, your browser displays the responsive interface, and you can start and stop, watch the console, manage players and worlds, restore backups, install mods, and fix problems.
+**A web browser.** A desktop browser, no install. This is how you manage the screenless machine in the closet: it runs the server, your browser displays the interface, and you can start and stop, watch the console, manage players and worlds, restore backups, install mods, and fix problems.
 
 **The terminal.** For automation and for people who like terminals. Every action available as a command, with proper output for scripts.
 
@@ -209,7 +205,7 @@ A file browser scoped to your server. View and edit config files, upload and dow
 
 ### Help
 
-The Server Handbook is available inside every interface — desktop, web, phone, and even the terminal (`msc explain port-forwarding`). It's written once and served by the same engine that runs your servers, so every interface shows the same thing and none of them can fall behind.
+The Server Handbook is available inside every supported interface — desktop, web, and the terminal (`msc explain port-forwarding`). It's written once and served by the same engine that runs your servers, so every supported interface shows the same thing.
 
 Help is contextual. Clicking a warning, a setting, or a performance number opens the explanation for that specific thing — because each of those carries a pointer to its own explanation rather than relying on someone having wired help into that particular screen.
 
@@ -251,8 +247,6 @@ MSC is infrastructure for worlds people care about. Reliability comes before con
 - Requires confirmation, and the right permission, for destructive remote actions
 - Keeps enough history to explain what happened and who did it
 
-On a phone, high-risk actions can be protected with Face ID or your passcode.
-
 ---
 
 ## Privacy
@@ -283,7 +277,7 @@ Written down so it stays true.
 - **No MSC-operated cloud service, ever.** No accounts, no hosting, no marketplace, no telemetry, no relay, no subscription. This is permanent. Optional third-party integrations — Tailscale, Playit, DuckDNS, Modrinth, CurseForge — stay fully supported; the rule is about *us* running a backend, not about MSC being offline.
 - **Not a server network.** MSC manages servers on machines you own. It is not a proxy or multi-server network orchestrator.
 - **Not a billing platform or a hosting business.**
-- **No native mobile app in v1.** Phone and tablet access uses the responsive browser client; App Store packaging and iOS-specific notifications are out of scope.
+- **No supported mobile management client in v1.** Native iOS UI, App Store packaging, and mobile-specific notifications are out of scope. The responsive frontend remains a desktop/browser implementation detail, not a mobile product promise.
 - **No third-party plugin system.** Not in v1.
 - **No individual user accounts yet.** The existing access model continues unchanged — admin and guest roles, **named tokens with scoped permissions and expiry dates**, so you can already hand someone limited access. What's deferred is *human identity*: personal logins, invitations, and account recovery.
 - **No terminal dashboard yet.** The command line works fully in v1; the full-screen terminal interface comes in a later release.
@@ -296,13 +290,15 @@ Written down so it stays true.
 
 An old MacBook sits closed on a shelf, plugged into power and ethernet. Nobody is logged in and no graphical session is running — it boots, starts MSC as a background service, and joins your private network. Nobody has looked at its screen in months.
 
-You're on the bus. Your sister texts asking if the server is up.
+You are away from the server host and need to check whether it is ready for
+the evening. From a desktop browser connected through your optional Tailscale
+network, the dashboard shows the modded server is stopped, last night's backup
+is healthy, the modpack has no unresolved dependencies, and there's enough
+memory free. You click **Start**.
 
-You open MSC on your phone. The dashboard shows the modded server is stopped, last night's backup is healthy, the modpack has no unresolved dependencies, and there's enough memory free. You tap **Start**.
-
-MSC checks Java, memory, ports, files, and the active world, then starts it. You watch progress on your phone. Thirty seconds later the state changes to **Running** and the console starts scrolling.
-
-By the time you're home, four people are on. Your phone shows tick rate, memory, and the chat going past.
+MSC checks Java, memory, ports, files, and the active world, then starts it.
+You watch progress in the browser. Thirty seconds later the state changes to
+**Running** and the console starts scrolling.
 
 That evening you open the desktop app on your Mac. It connects to the same machine on the shelf and shows the same familiar layout — same servers, same tabs, same console. You install two mods and schedule a restart for 3 a.m.
 

@@ -1,6 +1,6 @@
 # MSC 2 — Decision Register
 
-**Revision:** 1.10 · **Date:** 2026-09-07
+**Revision:** 1.12 · **Date:** 2026-09-07
 **Owner:** Cameron Temple
 
 **Purpose:** the authoritative record of *what was decided, by whom, and why*. The product and engineering documents describe the destination; this document explains how it was chosen, what was rejected, and when a decision should be reopened.
@@ -51,7 +51,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 | D-020 | Where MSC 2's documents and code live | Open | — |
 | D-021 | Resource efficiency is a measurable requirement | **Approved** (requirement) / Proposed (targets) | 2026-07-29 |
 | D-022 | MSC platform support and Bedrock platform support are separate matrices | Proposed | — |
-| D-023 | Full client capability, tracked by an explicit matrix | **Approved** (requirement) / Proposed (mechanism) | 2026-07-29 |
+| D-023 | Supported-client capability, tracked by an explicit matrix | **Approved** (supported-client capability) / Proposed (mechanism) | 2026-07-29 |
 | D-024 | Power management has two policies, by host role | Proposed | — |
 | D-025 | Service identity and privilege boundaries | Open | — |
 | D-026 | Educational content is served data, not client code | **Approved** (requirement) / Proposed (mechanism) | 2026-07-30 |
@@ -60,7 +60,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 | D-029 | Reset this client is separate from reset this host | **Approved** | 2026-08-28 |
 | D-030 | World-local settings travel with slots; runtime policy stays server-owned | Proposed | — |
 | D-032 | Signed application manifests gate local MSC updates | **Approved** | 2026-09-07 |
-| D-033 | Native iOS client retired; responsive browser is the phone path | **Approved** | 2026-09-07 |
+| D-033 | Native iOS and supported mobile access retired from v1 | **Approved** | 2026-09-07 |
 
 ---
 
@@ -259,7 +259,9 @@ accumulate forever; old clients fail in confusing partial ways).
 | **Linux** | Agent + CLI package with **zero desktop dependencies**; `systemd` unit; installs on a minimal Debian with no X/Wayland present. |
 | **All** | The Tauri GUI is optional everywhere and is never a prerequisite for any capability. |
 
-**Rationale.** The owner already runs MSC on an always-on spare Mac managed mostly from a phone. Treating headless as a Linux-only concern would fail the existing deployment on day one.
+**Rationale.** The owner already runs MSC on an always-on spare Mac managed
+remotely. Treating headless as a Linux-only concern would fail the existing
+deployment on day one.
 
 **Consequences.** Two distribution artifacts per platform: an application bundle and a headless package. Self-update must handle app, agent, and sidecar as a coordinated set on macOS/Windows; use an authorized local package operation for Linux Tauri packages; replace standalone headless archives only through the verified local path; and defer distribution-managed Linux installations to the package manager. Headless packages must be verified to link no GUI frameworks (D-021). D-032 records the full update contract.
 
@@ -274,9 +276,8 @@ accumulate forever; old clients fail in confusing partial ways).
 
 **Approved core.** Browsers authenticate via a pairing code exchanged for an
 **httpOnly, SameSite session cookie** — not JS-readable, revocable server-side,
-surviving refresh. Phone and tablet access uses this same responsive browser
-session. The Tauri shell injects a local token so a desktop app controlling its
-own machine never presents a login.
+surviving refresh. The Tauri shell injects a local token so a desktop app
+controlling its own machine never presents a login.
 
 **Rejected.** Bearer token in browser storage (readable by any script on a page that manages people's worlds) · open-on-loopback (lets anything running locally drive the agent, and headless hosts are browsed remotely anyway).
 
@@ -292,7 +293,7 @@ own machine never presents a login.
 **Until these are specified, treat the auth design as incomplete.**
 
 **Phase 2 scope (P2.3).** Phase 2's own gate (`msc2-port-plan.md` §3) needs
-only "the responsive browser client connects and reads status against a stub
+only "the desktop browser client connects and reads status against a stub
 agent" — one client, one loopback transport, no real mutation behind it. Read
 against MSC 1's actual mechanism (`RemoteAPIServer+HTTP.swift`'s bearer lookup,
 `MSCSettingsView.swift`'s `mscremote://pair` deep link,
@@ -303,14 +304,14 @@ token-issuance and persistent-storage machinery around it, which needs the
 `SecretStore` trait (Phase 3) and does not exist yet. Phase 2 therefore
 implements bearer-token *verification* only — a single fixed dev token from an
 environment variable, checked by `msc-agent`'s middleware, clearly commented
-as a placeholder — and points the responsive browser client at it directly
+as a placeholder — and points the desktop browser client at it directly
 rather than through a real pairing flow. None of the six numbered gaps above
 are closed by this: items 2–6 don't apply to a loopback-only dev loop, and item
 1 (local automatic authorization) is untouched either way. Full scoping and
 source citations in `docs/msc2/api-contract/auth-scope-phase2.md`.
 
 **Phase 4 scope (P4.2).** Phase 4's Java lifecycle slice mutates a real
-imported Paper server from the CLI and responsive browser client, so P2.3's
+imported Paper server from the CLI and desktop browser client, so P2.3's
 `MSC_DEV_TOKEN` stand-in is retired before those routes accept real mutation.
 The scoped design in `docs/msc2/lifecycle/pairing-phase4.md` preserves MSC 1's
 named-token model (admin, guest, named tokens with permission categories and
@@ -542,34 +543,36 @@ MSC 2 is a new project in a new repository (D-001), but that repository does not
 
 ---
 
-## D-023 — Full client capability, tracked by an explicit matrix
+## D-023 — Supported-client capability, tracked by an explicit matrix
 
-**Status:** **Approved** (full mobile capability is required) · **Proposed** (the matrix as the tracking mechanism)
-**Origin:** Owner — `msc2.md`, *"The phone is not a reduced 'status-only' remote"*; tracking mechanism from Codex review · **Approved by:** Cameron Temple · **Date:** 2026-07-29
+**Status:** **Approved** (capability coverage for supported clients) · **Proposed** (the matrix as the tracking mechanism)
+**Origin:** Owner — supported-client capability coverage; tracking mechanism from Codex review · **Approved by:** Cameron Temple · **Date:** 2026-07-29
 
-**Context.** Revision 1.0 claimed the phone "can't fall behind" and that all four interfaces "do the same things." **Those claims are too strong.** A single API eliminates duplicated *engine* logic; it does not build a phone screen. Someone must still implement each surface.
+**Context.** Revision 1.0 claimed that all interfaces "do the same things." **That claim is too strong.** A single API eliminates duplicated *engine* logic; it does not build a client screen. Someone must still implement each supported surface.
 
-Given that MSC 1's phone parity gap was itself a months-long project, overclaiming here risks repeating exactly the mistake MSC 2 is meant to prevent.
+Capability coverage across MSC 2's supported desktop, browser, and CLI clients must be tracked rather than assumed.
 
 **Decision.** Parity is tracked, not asserted. MSC 2 maintains a capability matrix with one row per capability:
 
 ```
-MSC 1 capability → MSC 2 agent operation → Desktop/Web (including responsive phone/tablet) → CLI
+MSC 1 capability → MSC 2 agent operation → Desktop/Web → CLI
 ```
 
 Every cell is Implemented, Planned, or **Intentional exception**.
 
-**Full mobile capability is the owner's requirement, not a stretch goal.** The responsive browser is the phone and tablet surface. The exception path covers behavior that is meaningless or impossible on a platform — revealing a file in Finder from a phone — and is **not** a route for skipping a difficult responsive workflow.
+The matrix covers the supported desktop app, desktop browser, and CLI. A
+responsive layout is an implementation detail of the shared frontend, not a
+supported mobile management client or a separate v1 capability column.
 
 - An Intentional exception **requires owner approval** and becomes its own decision entry.
-- "Difficult on a small screen" is not a valid reason; reshaping the workflow for mobile is the expected answer.
+- A capability omitted from a supported client must have an explicit reason; it
+  cannot be hidden by the matrix.
 - Exceptions are re-reviewed each release rather than inherited.
 
-**Amendment (2026-09-07, D-033).** The approved requirement is full mobile
-capability, not a native iOS implementation. The responsive browser experience
-is the client surface covered by this decision; native iOS UI, App Store
-packaging, iOS-specific notifications, and a native iOS capability column are
-retired from v1.
+**Amendment (2026-09-07, D-033/P12.108).** The earlier full-mobile-capability
+requirement is withdrawn. Native iOS and supported mobile management access are
+both out of v1; the responsive browser may render on a mobile-sized viewport,
+but that is not a supported product target or promise.
 
 **Restated guarantee, accurately.** MSC 2 guarantees that *no capability is architecturally unavailable to a client* — the API exposes everything the agent can do. It does not guarantee that every client has shipped every screen. The matrix is where the difference is visible.
 
@@ -579,7 +582,7 @@ retired from v1.
 
 **Status:** Proposed · **Origin:** Codex review · **Approved by:** —
 
-**Context.** Revision 1.2 carried a single rule — *the host must not sleep while a server is running* — while the product document's day-in-the-life story has the owner **starting a stopped server** from a phone, on a closed MacBook. That only works if the host stays awake and reachable when nothing is running. The two documents contradicted each other.
+**Context.** Revision 1.2 carried a single rule — *the host must not sleep while a server is running* — while the product's remote-management story can include **starting a stopped server** from a desktop or browser client on a closed MacBook. That only works if the host stays awake and reachable when nothing is running. The two documents contradicted each other.
 
 **Decision.** Two policies, selected by an explicit per-host role setting rather than inferred:
 
@@ -670,7 +673,12 @@ closed.
 4. **The onboarding tour splits.** Step content and ordering are data; only the *anchoring* to specific UI elements is client-side, because it is inherently per-client.
 5. **The CLI is a first-class consumer.** `msc explain <topic>` renders the same content as the handbook. Any surface that can display text can teach.
 
-**Rationale.** Write a topic once, and it appears on desktop, web, phone, and terminal. Content updates ship with the agent rather than with four separate clients. And a new setting arrives with its explanation already attached on every surface — which is the same leverage the schema-driven settings contract already demonstrated when Bedrock settings reached iOS with zero iOS changes.
+**Rationale.** Write a topic once, and it appears on desktop, web, and
+terminal. Content updates ship with the agent rather than with separate client
+implementations. And a new setting arrives with its explanation already
+attached on every supported surface — which is the same leverage the
+schema-driven settings contract already demonstrated with the former mobile
+client.
 
 **Consequences.**
 - The content model and `helpId` must be in the API contract **before Phase 2 freezes it.** Retrofitting a help pointer onto every DTO afterwards is far more expensive than including it now.
@@ -705,9 +713,9 @@ Every step of that sequence — the browser, the watched folder, and the server'
 
 **Why this was Open, not Proposed, before Phase 8.** It's a product-shape decision — how much of this convenience MSC 2 keeps, and for which client/agent topologies — not something that falls out of reading MSC 1's code or applying the deletion test. It surfaced while doing ledger bookkeeping (P0.27/P0.31), which is exactly the kind of call that work should record and hand up, not make quietly.
 
-**Decision, 2026-08-21 (P8.1).** Cameron chose **option 1**: the client (not the agent) downloads the blocked file and uploads it through MSC's bounded staged-upload path (`POST /v1/staged-uploads`, Phase 6); the agent verifies the expected file identity against the pending pack operation and resumes it. This is the closest behavioral match to MSC 1's own convenience (open the file's page, get it onto the right machine, don't make the user hunt for a manual path) while working uniformly whether the client is a phone, a laptop, or a headless CLI against a remote agent — it does not require the client and agent to share a filesystem the way MSC 1's Downloads-folder watch does. Consequences for Phase 8's step list are recorded in `docs/msc2/addons/phase8-scope.md`'s "D-027: the CurseForge manual-download workflow, decided" section — in short: one or more new purpose-bound `StagedUploadPurposeDto` cases (P8.9), each upload bound to its own pending operation, expected file identity, and a one-use size ceiling (P8.20), never a general arbitrary-path upload.
+**Decision, 2026-08-21 (P8.1).** Cameron chose **option 1**: the client (not the agent) downloads the blocked file and uploads it through MSC's bounded staged-upload path (`POST /v1/staged-uploads`, Phase 6); the agent verifies the expected file identity against the pending pack operation and resumes it. This is the closest behavioral match to MSC 1's own convenience (open the file's page, get it onto the right machine, don't make the user hunt for a manual path) while working uniformly for the supported desktop/browser clients and a headless CLI against a remote agent — it does not require the client and agent to share a filesystem the way MSC 1's Downloads-folder watch does. Consequences for Phase 8's step list are recorded in `docs/msc2/addons/phase8-scope.md`'s "D-027: the CurseForge manual-download workflow, decided" section — in short: one or more new purpose-bound `StagedUploadPurposeDto` cases (P8.9), each upload bound to its own pending operation, expected file identity, and a one-use size ceiling (P8.20), never a general arbitrary-path upload.
 
-**Revisit if:** a future client/agent topology makes even a client-side download infeasible (e.g., a CLI-only client with no browser of its own) — not expected to arise in v1's supported clients (desktop/web, CLI, and responsive phone/tablet browser all run somewhere with a browser reachable to the user).
+**Revisit if:** a future client/agent topology makes even a client-side download infeasible (e.g., a CLI-only client with no browser of its own) — not expected to arise in v1's supported desktop/browser and CLI clients.
 
 ---
 
@@ -896,31 +904,38 @@ installation shapes, or local service privilege boundary changes.
 
 ---
 
-## D-033 — Native iOS client retired; responsive browser is the phone path
+## D-033 — Native iOS and supported mobile access retired from v1
 
 **Status:** **Approved** · **Origin:** Owner-requested Phase 12 correction (P12.102) · **Approved by:** Cameron Temple · **Date:** 2026-09-07
 
 **Context.** The original product direction retained MSC 1's Swift iOS app,
 but MSC 2 has not shipped that client. Keeping a native iOS target would add a
 separate UI, App Store release path, notification system, and capability-parity
-obligation that are not needed to give phone users a complete management
-surface.
+obligation beyond the supported desktop, desktop-browser, and headless-CLI
+surfaces.
 
-**Decision.** The native iOS client is retired from MSC 2. Phone and tablet
-access remains in scope through the responsive browser version of the shared
-Svelte client. It is a real management surface, not a status-only view, and it
-uses the same agent API and capability rules as desktop and browser sessions.
+**Decision.** The native iOS client is retired from MSC 2. MSC 2 v1 has no
+supported mobile management client. The shared Svelte client remains a desktop
+and desktop-browser product; its responsive layout may technically render on a
+mobile-sized viewport, but mobile use is unsupported and is not a product
+target, capability promise, or release commitment.
 
 Native iOS UI, App Store packaging, iOS-specific notifications, and
-iOS-specific capability-parity work are not v1 deliverables. The Tauri desktop
-client, responsive browser client, Rust agent/API, CLI, and remote-host support
-remain in scope.
+iOS-specific capability-parity work are not v1 deliverables. The Tauri desktop,
+desktop browser, headless CLI, Rust agent/API, and optional Tailscale remote
+access for desktop/browser clients remain in scope. Tailscale is not required
+for ordinary local MSC use, and MSC does not add general-LAN management to
+support mobile clients.
 
 **Consequences.** D-004 is superseded. D-023's full-mobile-capability
-requirement applies to the responsive browser experience; it does not require
-a native iOS implementation. The MSC 2 repository may remove its native iOS
-project and dedicated validation in subsequent steps. Historical phase records,
-MSC 1 audit material, and git history remain factual and are not rewritten.
+requirement is amended to cover supported desktop, desktop-browser, and CLI
+clients only. The MSC 2 repository may remove its native iOS project and
+dedicated validation in subsequent steps. Historical phase records, MSC 1
+audit material, and git history remain factual and are not rewritten.
+
+**Amendment (2026-09-07, P12.108).** This supersedes the responsive-browser
+replacement language recorded by P12.102. The responsive frontend remains
+available to desktop browsers; it is not a supported mobile control surface.
 
 **Revisit if:** the owner explicitly reopens a native mobile application as a
 separate product decision.
@@ -953,6 +968,7 @@ Recorded because each produced a confident wrong answer, and each is the kind of
 
 | Rev | Date | Change |
 |---|---|---|
+| 1.12 | 2026-09-07 | Amended D-033 and D-023: native iOS and supported mobile management are both out of v1; retained clients are Tauri desktop, desktop browser, headless CLI, and optional Tailscale remote access. |
 | 1.11 | 2026-09-07 | Added D-033: retired the native iOS client and set the responsive browser as the phone-access path; D-004 is superseded. |
 | 1.10 | 2026-09-07 | Added D-032: signed application manifests gate local MSC updates, with bounded local installation, rollback, and explicit Linux package/archive distinctions. |
 | 1.9 | 2026-08-29 | Added D-031: native Playit credentials stay inside the host agent, with memory-only sign-in state and host-local idempotent reset. |

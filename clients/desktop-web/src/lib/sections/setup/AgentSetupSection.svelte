@@ -641,7 +641,7 @@
         {#if isDesktopShell}
           <ol class="connection-steps">
             <li>
-              <details class="connection-step" open>
+              <details class="connection-step">
                 <summary>
                   <span class="step-number">1</span>
                   <span class="step-title">Start the agent on the other computer</span>

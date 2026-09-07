@@ -72,7 +72,9 @@ struct PayloadChange {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum InstallationKind {
     Standalone,
+    #[cfg(target_os = "linux")]
     LinuxPackageDeb,
+    #[cfg(target_os = "linux")]
     LinuxPackageRpm,
 }
 
@@ -281,21 +283,21 @@ fn apply_verified_update(
     let changed =
         replace_payload(&payload, installation_root, &rollback).map_err(CliError::internal)?;
 
-    if service_state == ServiceState::Running {
-        if let Err(error) = start_local_service().and_then(|_| wait_for_agent_health()) {
-            let rollback_result = rollback_payload(&changed, installation_root);
-            let _ = stop_local_service();
-            let _ = start_local_service();
-            let detail = match rollback_result {
-                Ok(()) => format!(
-                    "The updated agent failed its health check and the previous payload was restored: {error}"
-                ),
-                Err(rollback_error) => format!(
-                    "The updated agent failed its health check ({error}); restoring the previous payload also failed: {rollback_error}"
-                ),
-            };
-            return Err(CliError::internal(detail));
-        }
+    if service_state == ServiceState::Running
+        && let Err(error) = start_local_service().and_then(|_| wait_for_agent_health())
+    {
+        let rollback_result = rollback_payload(&changed, installation_root);
+        let _ = stop_local_service();
+        let _ = start_local_service();
+        let detail = match rollback_result {
+            Ok(()) => format!(
+                "The updated agent failed its health check and the previous payload was restored: {error}"
+            ),
+            Err(rollback_error) => format!(
+                "The updated agent failed its health check ({error}); restoring the previous payload also failed: {rollback_error}"
+            ),
+        };
+        return Err(CliError::internal(detail));
     }
 
     Ok(InstallOutput {
@@ -324,7 +326,9 @@ fn apply_verified_update(
 fn client_config(installation: InstallationKind) -> Result<UpdateClientConfig, CliError> {
     let channel = match installation {
         InstallationKind::Standalone => UpdateChannel::Headless,
+        #[cfg(target_os = "linux")]
         InstallationKind::LinuxPackageDeb => UpdateChannel::LinuxPackageDeb,
+        #[cfg(target_os = "linux")]
         InstallationKind::LinuxPackageRpm => UpdateChannel::LinuxPackageRpm,
     };
     let trusted_key = option_env!("MSC2_RELEASE_PUBLIC_KEY_HEX").ok_or_else(|| {

@@ -784,3 +784,11 @@ steps.
 **Verify:** `test ! -d crates/msc-agent/src/cli/tui && test ! -d docs/msc2/terminal-ui && git diff --check && if git grep -n -i -E '\bTUI\b|terminal UI|terminal dashboard|ratatui|crossterm|tui_status|P13\.' -- ':!docs/msc2/rolling-plan-archive.md' ':!docs/msc2/audit/**' ':!docs/msc2/msc2-decisions.md' ':!docs/msc2/rolling-plan.md' ':!docs/msc2/worlds/phase6-api.md' ':!docs/msc2/tui-retirement-audit.md'; then exit 1; fi`
 **Commit:** `P12.114: record terminal ui retirement audit`
 **Batch:** stop-after
+
+### P12.115 — Gate Linux package update variants by target
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/src/cli/update.rs`, `docs/msc2/rolling-plan.md`
+**What:** Compile the Debian and RPM installation-kind variants, plus their update-channel match arms, only on Linux. Preserve package-manager detection and update behavior for Linux while preventing macOS and Windows builds from reporting those valid cross-platform variants as dead code.
+**Verify:** `cargo fmt --all -- --check && cargo check -p msc-agent --bin msc && cargo clippy -p msc-agent --bin msc -- -D warnings`
+**Commit:** `P12.115: gate linux package update variants by target`
+**Batch:** solo

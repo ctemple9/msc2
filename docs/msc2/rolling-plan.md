@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 (client redesign) is complete and archived. Phase 12 post-phase corrections continue; the planned Phase 13 full-screen terminal client is retired by D-034.
-> **Next move:** Cameron verifies P12.113 — remove active terminal-client documentation. P12.109 through P12.112 remain awaiting verification; Phase 11 and Phase 12 remain complete, with their historical records in `rolling-plan-archive.md`.
+> **Next move:** Cameron verifies P12.114 — record and verify the terminal UI retirement audit. P12.109 through P12.113 remain awaiting verification; Phase 11 and Phase 12 remain complete, with their historical records in `rolling-plan-archive.md`.
 
 **Previous phases (Setup through Phase 12) and their amendments have moved to `rolling-plan-archive.md`** to keep this file small. That archive is historical only — current status and active work stay here.
 
@@ -770,9 +770,9 @@ steps.
 **Batch:** solo
 
 ### P12.114 — Record and verify the terminal UI retirement audit
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/tui-retirement-audit.md`, `docs/msc2/rolling-plan.md`
 **What:** Record the search terms, source/dependency/test/documentation inventory, extracted CLI boundary, removed artifacts, retained agent/WebSocket behavior, intentionally retained historical references, and the final supported-client set. Confirm that no TUI source, test target, terminal dependency, capability column, bare-launch path, active release promise, or active TUI documentation remains, while noting that the completed implementation remains recoverable through git history and historical planning records remain factual.
-**Verify:** `test ! -d crates/msc-agent/src/cli/tui && test ! -d docs/msc2/terminal-ui && git diff --check && if git grep -n -i -E '\bTUI\b|terminal UI|terminal dashboard|ratatui|crossterm|tui_status|P13\.' -- ':!docs/msc2/rolling-plan-archive.md' ':!docs/msc2/audit/**' ':!docs/msc2/msc2-decisions.md' ':!docs/msc2/rolling-plan.md' ':!docs/msc2/tui-retirement-audit.md'; then exit 1; fi`
+**Verify:** `test ! -d crates/msc-agent/src/cli/tui && test ! -d docs/msc2/terminal-ui && git diff --check && if git grep -n -i -E '\bTUI\b|terminal UI|terminal dashboard|ratatui|crossterm|tui_status|P13\.' -- ':!docs/msc2/rolling-plan-archive.md' ':!docs/msc2/audit/**' ':!docs/msc2/msc2-decisions.md' ':!docs/msc2/rolling-plan.md' ':!docs/msc2/worlds/phase6-api.md' ':!docs/msc2/tui-retirement-audit.md'; then exit 1; fi`
 **Commit:** `P12.114: record terminal ui retirement audit`
 **Batch:** stop-after

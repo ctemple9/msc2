@@ -717,6 +717,66 @@ native or supported mobile control surface.
 **Commit:** `P12.107: record native-mobile retirement audit`
 **Batch:** stop-after
 
+## Product amendment — retire the terminal UI
+
+This owner-approved amendment removes the full-screen terminal client from
+MSC 2 rather than carrying it into a later release. The supported control
+surfaces remain the Tauri desktop app, desktop browser, and scriptable
+headless CLI. The headless agent, authenticated HTTP/WebSocket contract,
+server lifecycle, and remote desktop/browser management remain in scope.
+The completed Phase 13 implementation is historical work: it stays recoverable
+through git history, but no TUI code, dependency, capability column, release
+promise, or active documentation remains in the working tree after these
+steps.
+
+### P12.109 — Record the terminal UI retirement decision
+**Status:** not started
+**Files:** `docs/msc2/msc2-decisions.md`, `docs/msc2/MSC2-VISION.md`, `docs/msc2/msc2-product.md`, `docs/msc2/msc2-engineering.md`, `docs/msc2/msc2-port-plan.md`, `docs/msc2/rolling-plan.md`
+**What:** Add an owner-approved decision that retires the full-screen terminal UI from MSC 2. Supersede the Terminal TUI row in D-015 while preserving D-015's requirement that the scriptable CLI and interactive command confirmations remain. Define the retained boundary in product terms: a headless host still runs the agent, while management happens through the desktop app, desktop browser, or one-shot CLI from another device. Remove any promise that a later TUI release is planned, but do not remove the agent API, WebSocket channels, or headless installation story.
+**Verify:** `git diff --check && rg -n "D-034|terminal UI.*retired|full-screen terminal|scriptable CLI|headless CLI" docs/msc2/msc2-decisions.md docs/msc2/MSC2-VISION.md docs/msc2/msc2-product.md docs/msc2/msc2-engineering.md docs/msc2/msc2-port-plan.md`
+**Commit:** `P12.109: record terminal ui retirement decision`
+**Batch:** solo
+
+### P12.110 — Extract CLI transport and server selection from the TUI namespace
+**Status:** not started
+**Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/cli/transport.rs`, `crates/msc-agent/src/cli/session.rs`, `crates/msc-agent/src/cli/tui/transport.rs`, `crates/msc-agent/src/cli/tui/session.rs`
+**What:** Move the one-shot CLI's HTTP client, bearer-token handling, API error decoding, operation polling support, and active-server resolution out of `cli::tui` into CLI-owned modules. Preserve named-command output, `--json`, exit codes, confirmations, and remote host selection exactly. Keep the agent's server-side WebSocket routes for desktop/browser consumers, but remove client-side WebSocket reconnect machinery if no retained CLI command uses it; do not move terminal presentation state or create a second API.
+**Verify:** `cargo fmt --all -- --check && cargo check -p msc-agent --bin msc && cargo clippy -p msc-agent --bin msc -- -D warnings && if rg -n "tui::(transport|session)|tokio_tungstenite|futures_util" crates/msc-agent/src/cli/mod.rs crates/msc-agent/src/cli/session.rs crates/msc-agent/src/cli/transport.rs; then exit 1; fi`
+**Commit:** `P12.110: extract cli transport from tui`
+**Batch:** solo
+
+### P12.111 — Remove the terminal client, dispatch, tests, and dependencies
+**Status:** not started
+**Files:** `crates/msc-agent/src/cli/tui/`, `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/main.rs`, `crates/msc-agent/src/auth/local_bootstrap.rs`, `crates/msc-agent/Cargo.toml`, `Cargo.lock`, `crates/msc-agent/tests/tui_*.rs`
+**What:** Delete the TUI implementation and its dedicated tests, remove `ratatui`, `crossterm`, and any client-only WebSocket dependencies that P12.110 proves unused, and remove bare-invocation TUI dispatch. Bare `msc` must return the ordinary usage outcome without entering raw mode or emitting terminal control bytes; every named CLI command, `--json`, `--help`, `serve`, and the desktop local-bootstrap path must remain intact. Retain desktop bootstrap authentication while removing the CLI/TUI-only bootstrap client allowance and client code.
+**Verify:** `test ! -d crates/msc-agent/src/cli/tui && test -z "$(find crates/msc-agent/tests -maxdepth 1 -name 'tui_*.rs' -print -quit)" && git diff --check && cargo fmt --all -- --check && cargo check -p msc-agent --bin msc && cargo clippy -p msc-agent --bin msc -- -D warnings`
+**Commit:** `P12.111: remove terminal ui implementation`
+**Batch:** stop-after
+
+### P12.112 — Remove TUI capability-matrix and checker plumbing
+**Status:** not started
+**Files:** `docs/msc2/client-capability-matrix.csv`, `tools/phase6/capability-matrix-check.py`, `tools/phase11/phase11-check.py`, `tools/phase11/scope-check.py`, `tools/release/check-release-workflow.py`
+**What:** Remove the `tui_status` capability column and every checker expectation or release-path exclusion that treats the TUI as a supported client. Keep the matrix's `cli_status` column as the independent one-shot CLI surface. Preserve WebSocket contract validation and desktop/browser client coverage; a WebSocket route is not TUI-specific merely because the deleted TUI consumed it.
+**Verify:** `git diff --check && if git grep -n -i -E 'tui_status|ratatui|crossterm|P13\.' -- docs/msc2/client-capability-matrix.csv tools .github; then exit 1; fi`
+**Commit:** `P12.112: remove tui capability plumbing`
+**Batch:** solo
+
+### P12.113 — Remove active TUI documentation and preserve historical provenance
+**Status:** not started
+**Files:** `docs/msc2/terminal-ui/`, `docs/msc2/rolling-plan.md`, `docs/msc2/rolling-plan-archive.md`, `docs/msc2/clients/phase12-release.md`, `crates/msc-agent/src/ws/notifications.rs`, `AGENTS.md`, `CLAUDE.md`
+**What:** Remove the active Phase 13 scope/gate documents and the live Phase 13 plan block, update release and source comments to describe only the retained desktop, browser, headless-CLI, and agent surfaces, and record a short factual historical note in the rolling-plan archive if needed. Do not rewrite completed Phase 13 history, the MSC 1 audit, or git history. Do not remove generic terminal wording that refers to Minecraft's own console or to terminal-safe server execution rather than the retired client.
+**Verify:** `git diff --check && if git grep -n -i -E '\bTUI\b|terminal UI|terminal dashboard|ratatui|crossterm|P13\.' -- AGENTS.md CLAUDE.md README.md docs/msc2/MSC2-VISION.md docs/msc2/msc2-product.md docs/msc2/msc2-engineering.md docs/msc2/msc2-port-plan.md docs/msc2/clients docs/msc2/networking docs/msc2/addons docs/msc2/bedrock docs/msc2/api-contract crates/msc-agent/src tools .github; then exit 1; fi`
+**Commit:** `P12.113: remove active tui documentation`
+**Batch:** solo
+
+### P12.114 — Record and verify the terminal UI retirement audit
+**Status:** not started
+**Files:** `docs/msc2/tui-retirement-audit.md`, `docs/msc2/rolling-plan.md`
+**What:** Record the search terms, source/dependency/test/documentation inventory, extracted CLI boundary, removed artifacts, retained agent/WebSocket behavior, intentionally retained historical references, and the final supported-client set. Confirm that no TUI source, test target, terminal dependency, capability column, bare-launch path, active release promise, or active TUI documentation remains, while noting that the completed implementation remains recoverable through git history and historical planning records remain factual.
+**Verify:** `test ! -d crates/msc-agent/src/cli/tui && test ! -d docs/msc2/terminal-ui && git diff --check && if git grep -n -i -E '\bTUI\b|terminal UI|terminal dashboard|ratatui|crossterm|tui_status|P13\.' -- ':!docs/msc2/rolling-plan-archive.md' ':!docs/msc2/audit/**' ':!docs/msc2/msc2-decisions.md' ':!docs/msc2/rolling-plan.md' ':!docs/msc2/tui-retirement-audit.md'; then exit 1; fi`
+**Commit:** `P12.114: record terminal ui retirement audit`
+**Batch:** stop-after
+
 ## Phase 13 — Terminal UI
 
 **Entry gate.** Phase 12's redesign gate is complete. Before execution begins,

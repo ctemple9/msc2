@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 12 (client redesign) is complete and archived. Phase 13 (Terminal UI, deferred from v1) is next.
-> **Next move:** Phase 13 is not started. Phase 11 and Phase 12 are complete, with their full records in `rolling-plan-archive.md`.
+> ## STATUS: Phase 12 (client redesign) is complete and archived. A Phase 12 post-phase correction for coordinated release updates is next; Phase 13 (Terminal UI, deferred from v1) remains not started.
+> **Next move:** P12.96 — establish the signed release-update contract. Phase 11 and Phase 12 remain complete, with their historical records in `rolling-plan-archive.md`.
 
 **Previous phases (Setup through Phase 12) and their amendments have moved to `rolling-plan-archive.md`** to keep this file small. That archive is historical only — current status and active work stay here.
 
@@ -11,7 +11,7 @@
 
 This is the **working state** of the build. The vision documents say where we're going; the port plan says in what order; this file says **where we actually are right now**.
 
-Phases are fixed and come from `msc2-port-plan.md`. **Steps are written one phase at a time**, as we reach each phase — not up front. Phase 13 is next and has not started.
+Phases are fixed and come from `msc2-port-plan.md`. **Steps are written one phase at a time**, as we reach each phase — not up front. Phase 13 remains deferred while this owner-requested Phase 12 post-phase correction is completed.
 
 Each phase runs the six-move loop in `CLAUDE.md`: Plan → Read → Execute → Verify → Review → Advance.
 
@@ -586,6 +586,66 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Verify:** `diff <(tail -n +4 AGENTS.md) <(tail -n +4 CLAUDE.md)` → identical instructions after the filename-specific line
 **Commit:** `P12.80: record owner test-execution boundary`
 **Batch:** solo
+
+## Phase 12 post-phase correction — coordinated release updates
+
+This owner-requested correction completes the update foundation that Phase 11
+left staged but not connected to a release source or installer. It covers MSC
+application releases only: the desktop shell, its bundled agent and required
+sidecar, and the independently installed headless agent. It does not update
+Minecraft server jars, worlds, loaders, add-ons, modpacks, or plugins. GitHub
+is the transport and release-note source; a signed MSC manifest remains the
+trust decision. Updates are always local to the computer being updated. A
+remote client can check its own desktop, but it cannot install, start, stop, or
+replace the operating-system service on another host.
+
+### P12.96 — Establish the signed release-update contract
+**Status:** not started
+**Files:** `docs/msc2/clients/phase11-update.md`, `docs/msc2/clients/phase12-release.md`, `packaging/update-release-schema.json`, `docs/msc2/msc2-decisions.md`, `docs/msc2/rolling-plan.md`
+**What:** Amend the release contract for the owner-approved update flow: GitHub release metadata and notes are fetched over HTTPS, but only an Ed25519-signed coordinated manifest can make an update eligible; the manifest identifies the release, compatible API range, platform/architecture, exact desktop/agent/sidecar or package/archive assets, and SHA-256 digests. Define explicit confirmation, staging, rollback, preserved user data, bounded downloads, and the local-only privilege boundary. Replace the current Linux package-manager-only exception with the precise distinction between Tauri package updates, standalone headless archive updates, and distribution-managed installs, while keeping remote service control forbidden.
+**Verify:** `rg -n "signed|Ed25519|GitHub|explicit|rollback|Linux|headless|package manager|remote" docs/msc2/clients/phase11-update.md docs/msc2/clients/phase12-release.md packaging/update-release-schema.json docs/msc2/msc2-decisions.md`
+**Commit:** `P12.96: establish signed release update contract`
+**Batch:** solo
+
+### P12.97 — Publish signed platform release metadata
+**Status:** not started
+**Files:** `.github/workflows/release.yml`, `tools/release/`, `packaging/update-release-schema.json`, `docs/msc2/clients/phase12-release.md`, `docs/msc2/rolling-plan.md`
+**What:** Extend the tag publication workflow to create the signed, canonical update manifest from the final platform assets and release notes, using a GitHub Actions secret for the private signing key that never enters the repository or shipped binaries. Publish one manifest/signature pair whose platform entries distinguish macOS, Windows, Linux desktop packages, and headless archives; fail publication if an asset, digest, signature, or required coordinated member is missing. Keep the existing checksum file as an integrity aid and retain the unsigned-prerelease path as explicitly ineligible for in-app installation until signing is configured.
+**Verify:** `python3 tools/release/check-release-workflow.py .github/workflows/release.yml && python3 tools/release/verify-artifact-manifest.py --help && python3 tools/release/sign-update-manifest.py --help`
+**Commit:** `P12.97: publish signed platform release metadata`
+**Batch:** solo
+
+### P12.98 — Add verified update retrieval and platform installation
+**Status:** not started
+**Files:** `crates/msc-infrastructure/src/{lib.rs,release_update.rs}`, `clients/desktop-web/src-tauri/src/{update.rs,lib.rs}`, `clients/desktop-web/src/lib/platform/{types.ts,tauri.ts,index.ts}`, `packaging/linux/`, `docs/msc2/rolling-plan.md`
+**What:** Turn the existing native signature/hash verifier and immutable staging directory into a complete local update service. Fetch the signed manifest and release notes from the configured GitHub repository with HTTPS, bounded response sizes, release/version comparison, platform/architecture filtering, and no trust in unsigned API fields; download only the selected signed assets, verify before activation, and make interrupted or invalid work discardable. After separate confirmation, hand off to the correct local installer: coordinated desktop replacement on macOS/Windows, authorized `.deb`/`.rpm` installation for Linux desktop, and the appropriate standalone headless replacement path. Stop/restart the local agent only within the verified replacement sequence, preserve configuration/secrets/worlds/server files, run health recovery, and roll back on failure. Browser and remote-host paths report their boundary instead of attempting native installation.
+**Verify:** `cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml && cd clients/desktop-web && npx prettier --check src/lib/platform/types.ts src/lib/platform/tauri.ts src/lib/platform/index.ts && npm run check && npm run build`
+**Commit:** `P12.98: add verified update retrieval and installation`
+**Batch:** solo
+
+### P12.99 — Add the Settings update workflow
+**Status:** not started
+**Files:** `clients/desktop-web/src/lib/sections/app-settings/AppSettingsSheet.svelte`, `clients/desktop-web/src/lib/updates/coordinated.ts`, `clients/desktop-web/src/lib/platform/{types.ts,tauri.ts,browser.ts}`, `clients/desktop-web/src/lib/bundle-identity.ts`, `docs/msc2/rolling-plan.md`
+**What:** Put Updates at the top of MSC Settings with the actual bundled version, a Check for updates action, clear checking/available/current/error states, release notes and release ID, and a second explicit confirmation before installation. Make the section explain when the installed release is unsigned or when the selected host is remote, keep progress and rollback outcomes visible, and make the browser client state that native installation belongs to the local desktop or headless host. Follow the anti-slop law: one compact functional section, plain status text, no decorative update dashboard or automatic background install.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/sections/app-settings/AppSettingsSheet.svelte src/lib/updates/coordinated.ts src/lib/platform/types.ts src/lib/platform/tauri.ts src/lib/platform/browser.ts src/lib/bundle-identity.ts && npm run check && npm run build`
+**Commit:** `P12.99: add settings update workflow`
+**Batch:** solo
+
+### P12.100 — Add headless update commands
+**Status:** not started
+**Files:** `crates/msc-agent/src/cli/{mod.rs,update.rs}`, `crates/msc-infrastructure/src/release_update.rs`, `packaging/linux/`, `docs/msc2/clients/phase12-release.md`, `README.md`, `docs/msc2/rolling-plan.md`
+**What:** Add local CLI commands `msc update check` and `msc update install`, with human-readable and `--json` output, release notes, explicit confirmation, and an explicit non-interactive approval flag for automation. Reuse the same signed-manifest, compatibility, digest, staging, replacement, service-restart, health-check, and rollback rules as the desktop flow. Detect whether the installation is a standalone archive or distribution-managed package: standalone headless installs may replace their own verified binary/resources after authorization, while `.deb`/`.rpm` installations direct the user through the platform package manager. Do not overload `msc status`, do not require a running remote management API for a local self-update, and never allow a remote client request to update another host's service.
+**Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-agent --bin msc -p msc-infrastructure --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && cargo check -p msc-agent --no-default-features && bash -n packaging/linux/install.sh packaging/linux/uninstall.sh && rg -n "msc update check|msc update install|--json|package manager|standalone" crates/msc-agent/src/cli docs/msc2/clients/phase12-release.md README.md`
+**Commit:** `P12.100: add headless update commands`
+**Batch:** solo
+
+### P12.101 — Record the cross-platform update gate
+**Status:** not started
+**Files:** `docs/msc2/clients/phase12-release.md`, `docs/msc2/clients/phase12-release-evidence/`, `tools/release/`, `.github/workflows/release.yml`, `docs/msc2/rolling-plan.md`
+**What:** Record the release/update acceptance evidence and static gate. Cover signed-release publication, current-versus-new version handling, release notes, declined and cancelled updates, invalid signature/digest, interrupted download, already-staged release, macOS/Windows coordinated replacement, Linux desktop package authorization, standalone headless update, package-manager guidance, preserved user data, agent health recovery and rollback, CLI text/JSON behavior, unsigned prerelease refusal, and the rule that remote clients cannot update host services. Leave Cameron's physical macOS, Windows, and Linux runs as the final verification rather than claiming cross-platform support from a local build.
+**Verify:** `python3 tools/release/check-release-workflow.py .github/workflows/release.yml && git diff --check && rg -n "P12\.96|P12\.97|P12\.98|P12\.99|P12\.100|P12\.101" docs/msc2/rolling-plan.md`
+**Commit:** `P12.101: record cross-platform update gate`
+**Batch:** stop-after
 
 ## Phase 13 — Terminal UI
 

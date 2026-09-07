@@ -694,7 +694,7 @@ native or supported mobile control surface.
 **Batch:** solo
 
 ### P12.105 — Remove active native-mobile references
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `AGENTS.md`, `CLAUDE.md`, `README.md`, `clients/desktop-web/src/lib/help/SetupIntro.svelte`, `clients/desktop-web/src/lib/help/TourOverlay.svelte`, `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `clients/desktop-web/src/lib/api/generated.ts`, `content/help/handbook/overview.md`, `content/help/handbook/remote-access.md`, `content/help/handbook/tailscale.md`, `crates/msc-agent/web-ui/assets/`
 **What:** Rewrite active documentation, onboarding/help copy, generated API descriptions, agent setup architecture text, and the built agent bundle so they describe only the supported Tauri desktop, desktop browser, headless CLI, and optional Tailscale remote-access control surfaces. Turn the old MSC Remote help topic into the supported desktop/browser remote-access explanation or retire it if the content contract no longer needs a separate topic. Remove promises of a native or supported mobile management client; retain router `mobile_app` fixtures only when they describe third-party router software, and retain responsive layout wording only when it describes supported desktop/browser window behavior.
 **Verify:** `git diff --check && if git grep -n -i -E 'MSC Remote|iPhone app|phone app|iOS client|native iOS|clients/ios' -- AGENTS.md CLAUDE.md README.md clients/desktop-web/src clients/desktop-web/tests content/help/handbook crates/msc-agent/web-ui/assets; then exit 1; fi`

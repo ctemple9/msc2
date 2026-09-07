@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 8041d0eed4c7f12aee5fb8249033d2c06160aaef4b812e289c127bee236d3b04
+// Contract SHA-256: 20831ab58becf407634ee379d04f6d17476c28cf91bdd176ecb7caed4c019733
 
 export interface paths {
   '/v1/active-server': {
@@ -6819,7 +6819,7 @@ export interface components {
         | null;
       /** @description Optional pointer into GET /v1/help/{helpId} (P2.2). */
       helpId?: string | null;
-      /** @description Human-readable, iOS-visible text. */
+      /** @description Human-readable text for the supported desktop, browser, and CLI clients. */
       message: string;
     } & {
       [key: string]: unknown;

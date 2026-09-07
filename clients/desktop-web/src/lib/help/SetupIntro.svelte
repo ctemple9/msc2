@@ -797,7 +797,10 @@
             A private mesh VPN that connects your devices no matter where they are.
           </p>
           <ul class="feature-list">
-            <li>Access your host’s servers from your phone, another computer, or anywhere</li>
+            <li>
+              Access your host’s servers from the desktop app or a desktop browser on another
+              computer
+            </li>
             <li>Free for personal use — takes about a minute to set up</li>
             <li>Works alongside playit.gg — they solve different problems</li>
           </ul>

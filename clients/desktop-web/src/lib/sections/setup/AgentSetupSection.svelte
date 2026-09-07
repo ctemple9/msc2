@@ -382,7 +382,7 @@
           <div class="architecture-node">
             <span class="node-kicker">What you use</span>
             <strong>Control panel</strong>
-            <span>Desktop · browser · phone · CLI</span>
+            <span>Tauri desktop · desktop browser · CLI</span>
           </div>
           <div class="architecture-link" aria-hidden="true">
             <span>connects to</span>
@@ -514,8 +514,8 @@
               <summary>Pair another client with this agent</summary>
               <div class="secondary-content">
                 <p class="detail">
-                  Start the agent first, then create a one-use code for another desktop, browser, or
-                  phone to connect to {hostLabel}.
+                  Start the agent first, then create a one-use code for another Tauri desktop,
+                  desktop browser, or CLI client to connect to {hostLabel}.
                 </p>
                 {#if localPairingCode}
                   <div class="pairing-code-row">

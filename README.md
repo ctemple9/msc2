@@ -20,7 +20,7 @@ Built by ctemple9
 Choose the installation that matches how you want to use MSC 2.
 
 - Use the **desktop app** if you want to manage the server from the same computer with a graphical interface.
-- Use the **headless agent** if the server computer has no monitor or desktop environment. You can manage it from another computer, phone, or browser.
+- Use the **headless agent** if the server computer has no monitor or desktop environment. You can manage it from another computer with the Tauri desktop app, a desktop browser, or the headless CLI.
 
 The desktop app already includes the MSC 2 agent. You do not need to download both.
 
@@ -140,7 +140,7 @@ systemctl status com.ctemple.msc2.agent.service --no-pager -l
 
 After installing MSC 2:
 
-1. Open the desktop app, or connect to the headless agent from another device.
+1. Open the desktop app, or connect to the headless agent from another computer with the Tauri desktop app, a desktop browser, or the CLI.
 2. Choose **Add Server**.
 3. Select Java or Bedrock.
 4. Choose the Minecraft version and server software.
@@ -165,13 +165,13 @@ You shouldn't need to know a bunch of terminal commands, Java arguments, config 
 
 That's what **MSC 2** is for.
 
-At the center of MSC 2 is a background service that actually runs and manages your Minecraft servers. Then you can control that service however you want: from the desktop app, a web browser, an iPhone, or the command line.
+At the center of MSC 2 is a background service that actually runs and manages your Minecraft servers. Then you can control that service from the Tauri desktop app, a desktop browser, or the headless CLI.
 
-They're all controlling the same thing. The desktop app doesn't have its own version of the server logic, and neither does the web app or CLI. If you start a server from your phone, the desktop app sees it. If you change something from the CLI, the web app sees it.
+They're all controlling the same thing. The desktop app doesn't have its own version of the server logic, and neither does the browser client or CLI. If you start a server from one control surface, the others see it. If you change something from the CLI, the desktop and browser clients see it.
 
 MSC 2 is being built to run on **macOS, Windows, and Linux**, and it does not need a graphical interface to work.
 
-So if you have an old laptop sitting closed in a closet with no monitor attached to it, that's a completely normal way to run MSC 2. You can install the engine there and control it from another computer or your phone.
+So if you have an old laptop sitting closed in a closet with no monitor attached to it, that's a completely normal way to run MSC 2. You can install the engine there and control it from another computer with the desktop app, a desktop browser, or the CLI.
 
 ## What it does
 
@@ -223,7 +223,7 @@ Xboxbroadcast works for players on all Bedrock editions, including Xbox, PlaySta
 
 ### The server doesn't depend on the app being open
 
-That separation matters in practice: closing the desktop app doesn't stop the server. You can manage it from another computer, your phone, or the CLI.
+That separation matters in practice: closing the desktop app doesn't stop the server. You can manage it from another computer with the desktop app, a desktop browser, or the CLI.
 
 The rest — modpacks, backups, crash explanations, world management, networking — isn't me claiming MSC invented some new idea.
 
@@ -268,7 +268,7 @@ If you want to install MSC 2 on a Linux box with no desktop environment and cont
 
 ### There should only be one server engine
 
-The desktop app, web app, iPhone app, and CLI do not each contain their own slightly different implementation of Minecraft server management.
+The Tauri desktop app, desktop browser, and CLI do not each contain their own slightly different implementation of Minecraft server management.
 
 They all talk to the same MSC 2 service.
 
@@ -314,7 +314,7 @@ MSC 1 fundamentally wasn't built that way.
 
 That's where **MSC 2** came from.
 
-MSC 2 separates those two things: the engine runs in the background, while the desktop app, web app, phone, and CLI are just ways to control it.
+MSC 2 separates those two things: the engine runs in the background, while the Tauri desktop app, desktop browser, and CLI are just ways to control it.
 
 And somewhere along the way, this stopped being a nicer way to launch Paper.
 
@@ -404,7 +404,7 @@ If you're interested in how MSC 2 actually works or want to contribute, I've doc
 
 **Rust** · **Tauri** · **Svelte** · **Swift**
 
-Swift is used for the iOS client and the macOS Bedrock runtime.
+Swift is used for the macOS Bedrock runtime.
 
 ## License
 

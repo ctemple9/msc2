@@ -4,12 +4,12 @@ kind: handbook
 title: Overview
 category: concepts
 subtitle: "What this app is and what it can do for you."
-analogy: "Normally in Minecraft, your world lives inside one player's game. A server is like a separate, always-available room that everyone can visit. Minecraft Server Controller is the manager who sets up and runs that room on your Mac — whether it's a Java room or a Bedrock room."
+analogy: "Normally in Minecraft, your world lives inside one player's game. A server is like a separate, always-available room that everyone can visit. MSC 2 is the manager that sets up and runs that room on the computer you choose — whether it's a Java room or a Bedrock room."
 relatedIds: [handbook.first-server, handbook.standard-vs-modded]
 source: {path: "MSCmacOS/MSCmacOS Swift/ServerHandbookTopics.swift", symbol: overviewContent}
 ---
 
-Minecraft Server Controller is a native macOS app that gives you a clean interface for running Minecraft servers. Instead of typing commands in Terminal, you get buttons, toggles, and visual feedback.
+MSC 2 is a cross-platform Minecraft server manager. Its agent runs the servers in the background, while the Tauri desktop app, desktop browser, and headless CLI provide the supported ways to control them.
 
 The app supports a wide range of server types as first-class citizens:
 
@@ -29,7 +29,7 @@ The app supports a wide range of server types as first-class citizens:
 - Handle backups, world conversions, and server transfers
 - Manage world slots, resource packs, and player allowlists
 - Monitor live performance — TPS, CPU, RAM, player health, and in-game time
-- Remote control from iOS via MSC Remote (companion app)
+- Control from the Tauri desktop app, a desktop browser, or the headless CLI — locally or from another computer
 - Watchdog crash recovery keeps your server running overnight
 
 ### Callout: tip
@@ -46,6 +46,6 @@ Fabric modded servers launch from a generated launcher JAR:
 
 NeoForge and Forge modded servers use a generated shell script that passes an @args file to Java — the installer sets all of this up, and MSC runs the resulting script automatically.
 
-Bedrock servers run in a lightweight Linux VM bundled with the app — no Docker or external software needed. The app manages the VM lifecycle entirely — start, stop, console streaming, world file sharing — so you never need to open any external tool.
+Bedrock servers run in a lightweight Linux VM bundled with the agent — no Docker or external software needed. The agent manages the VM lifecycle entirely — start, stop, console streaming, and world file sharing — so you never need to open any external tool.
 
-All server types are fully managed. The complexity lives inside the app, not in front of you.
+All server types are fully managed. The complexity lives inside the agent, not in front of you.

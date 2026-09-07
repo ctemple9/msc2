@@ -360,10 +360,6 @@
     <div class="heading-row">
       <div class="heading-copy">
         <h1>Connect MSC 2 to an agent</h1>
-        <p class="heading-intro">
-          The control panel sends commands. The agent runs on the computer that owns your Minecraft
-          servers.
-        </p>
       </div>
     </div>
   </div>

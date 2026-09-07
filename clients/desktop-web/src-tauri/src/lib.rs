@@ -644,12 +644,21 @@ fn manage_agent_service(action: AgentServiceAction) -> Result<AgentServiceStatus
     Ok(report_status(report))
 }
 
-/// Copies a complete, signed release set into immutable staging. It cannot
-/// install anything; a platform installer is launched only after the shared
-/// client has collected a separate, explicit confirmation for this release.
+/// Fetches and verifies the latest signed local release set into immutable
+/// staging. It cannot install anything; installation is a separate command so
+/// the shared client can collect explicit confirmation for the same release.
 #[tauri::command]
-fn stage_coordinated_update(request: update::StageRequest) -> Result<update::StageResult, String> {
-    update::stage(request, &agent_data_directory()?)
+fn check_for_updates() -> Result<msc_infrastructure::release_update::UpdateResult, String> {
+    update::check(&agent_data_directory()?)
+}
+
+/// Re-verifies the exact staged release before handing it to the local OS
+/// installer or package manager.
+#[tauri::command]
+fn install_coordinated_update(
+    request: update::InstallRequest,
+) -> Result<update::InstallResult, String> {
+    update::install(request, &agent_data_directory()?)
 }
 
 fn service_manager() -> Result<Box<dyn ServiceManager>, String> {
@@ -1211,7 +1220,8 @@ pub fn run() {
             agent_health_check,
             quit_app,
             manage_agent_service,
-            stage_coordinated_update
+            check_for_updates,
+            install_coordinated_update
         ])
         .run(tauri::generate_context!())
         .expect("error while running the MSC 2 desktop shell");

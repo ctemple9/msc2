@@ -7,6 +7,8 @@ import type {
   MenuEntry,
   PickedFile,
   PlatformAdapter,
+  UpdateCheckResult,
+  UpdateInstallResult,
 } from './types';
 
 /** Browser behavior is the fallback for every desktop adapter. */
@@ -93,5 +95,16 @@ export function createBrowserPlatform(): PlatformAdapter {
       detail:
         'Local service controls need the installed desktop shell. The same agent remains manageable from this browser after headless installation.',
     }),
+    checkForUpdates: async (): Promise<UpdateCheckResult> => ({
+      state: 'unavailable',
+      releaseNotes: '',
+      detail:
+        'Native MSC updates are local to the desktop or headless host. This browser can report the release but cannot install it.',
+    }),
+    installUpdate: async (_releaseId: string): Promise<UpdateInstallResult> => {
+      throw new Error(
+        'Native MSC installation is local to the desktop or headless host; a browser cannot install it.',
+      );
+    },
   };
 }

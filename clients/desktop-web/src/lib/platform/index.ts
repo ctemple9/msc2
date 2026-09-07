@@ -50,6 +50,8 @@ export type {
   MenuEntry,
   PickedFile,
   PlatformAdapter,
+  UpdateCheckResult,
+  UpdateInstallResult,
   TauriPlatformDependencies,
 } from './types';
 export { createBrowserPlatform } from './browser';

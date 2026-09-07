@@ -35,6 +35,25 @@ export interface AgentServiceStatus {
   readonly detail: string;
 }
 
+export type UpdateState = 'current' | 'staged' | 'unavailable';
+
+export interface UpdateCheckResult {
+  readonly state: UpdateState;
+  readonly releaseId?: string;
+  readonly releaseNotes: string;
+  readonly installMode?: string;
+  readonly target?: string;
+  readonly artifactFilename?: string;
+  readonly stagedDirectory?: string;
+  readonly detail: string;
+}
+
+export interface UpdateInstallResult {
+  readonly state: 'installer-launched' | 'package-installed';
+  readonly releaseId: string;
+  readonly detail: string;
+}
+
 /**
  * The client calls this small vocabulary instead of reaching into a desktop
  * runtime. Credentials remain intentionally unavailable until P11.23 defines
@@ -76,6 +95,8 @@ export interface PlatformAdapter {
   agentHealthCheck(): Promise<boolean>;
   agentServiceStatus(): Promise<AgentServiceStatus>;
   manageAgentService(action: AgentServiceAction): Promise<AgentServiceStatus>;
+  checkForUpdates(): Promise<UpdateCheckResult>;
+  installUpdate(releaseId: string): Promise<UpdateInstallResult>;
 }
 
 export interface TauriPlatformDependencies {
@@ -95,4 +116,6 @@ export interface TauriPlatformDependencies {
   agentHealthCheck(): Promise<boolean>;
   agentServiceStatus(): Promise<AgentServiceStatus>;
   manageAgentService(action: AgentServiceAction): Promise<AgentServiceStatus>;
+  checkForUpdates?(): Promise<UpdateCheckResult>;
+  installUpdate?(releaseId: string): Promise<UpdateInstallResult>;
 }

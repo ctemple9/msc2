@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 (client redesign) is complete and archived. A Phase 12 post-phase correction for coordinated release updates is next; Phase 13 (Terminal UI, deferred from v1) remains not started.
-> **Next move:** P12.98 — add verified update retrieval and installation. Phase 11 and Phase 12 remain complete, with their historical records in `rolling-plan-archive.md`.
+> **Next move:** P12.99 — add the Settings update workflow. Phase 11 and Phase 12 remain complete, with their historical records in `rolling-plan-archive.md`.
 
 **Previous phases (Setup through Phase 12) and their amendments have moved to `rolling-plan-archive.md`** to keep this file small. That archive is historical only — current status and active work stay here.
 
@@ -616,7 +616,7 @@ replace the operating-system service on another host.
 **Batch:** solo
 
 ### P12.98 — Add verified update retrieval and platform installation
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-infrastructure/src/{lib.rs,release_update.rs}`, `clients/desktop-web/src-tauri/src/{update.rs,lib.rs}`, `clients/desktop-web/src/lib/platform/{types.ts,tauri.ts,index.ts}`, `packaging/linux/`, `docs/msc2/rolling-plan.md`
 **What:** Turn the existing native signature/hash verifier and immutable staging directory into a complete local update service. Fetch the signed manifest and release notes from the configured GitHub repository with HTTPS, bounded response sizes, release/version comparison, platform/architecture filtering, and no trust in unsigned API fields; download only the selected signed assets, verify before activation, and make interrupted or invalid work discardable. After separate confirmation, hand off to the correct local installer: coordinated desktop replacement on macOS/Windows, authorized `.deb`/`.rpm` installation for Linux desktop, and the appropriate standalone headless replacement path. Stop/restart the local agent only within the verified replacement sequence, preserve configuration/secrets/worlds/server files, run health recovery, and roll back on failure. Browser and remote-host paths report their boundary instead of attempting native installation.
 **Verify:** `cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml && cd clients/desktop-web && npx prettier --check src/lib/platform/types.ts src/lib/platform/tauri.ts src/lib/platform/index.ts && npm run check && npm run build`

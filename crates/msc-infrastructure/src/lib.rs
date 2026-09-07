@@ -31,6 +31,7 @@ pub mod port_diagnostics;
 pub mod power;
 pub mod process;
 pub mod public_ip;
+pub mod release_update;
 pub mod resource_pack_store;
 pub mod secret_store;
 pub mod service;

@@ -2286,10 +2286,13 @@ dependencies = [
 name = "msc-infrastructure"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
+ "ed25519-dalek",
  "flate2",
  "msc-domain",
  "serde",
  "serde_json",
+ "sha2",
  "tar",
  "ureq",
  "zip",

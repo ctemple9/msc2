@@ -8,6 +8,8 @@ import type {
   PickedFile,
   PlatformAdapter,
   TauriPlatformDependencies,
+  UpdateCheckResult,
+  UpdateInstallResult,
 } from './types';
 
 /**
@@ -70,6 +72,16 @@ export function createTauriPlatform(dependencies: TauriPlatformDependencies): Pl
     agentHealthCheck: dependencies.agentHealthCheck,
     agentServiceStatus: dependencies.agentServiceStatus,
     manageAgentService: dependencies.manageAgentService,
+    checkForUpdates:
+      dependencies.checkForUpdates ??
+      (async (): Promise<UpdateCheckResult> => {
+        throw new Error('Checking for updates is unavailable in this desktop build.');
+      }),
+    installUpdate:
+      dependencies.installUpdate ??
+      (async (): Promise<UpdateInstallResult> => {
+        throw new Error('Installing updates is unavailable in this desktop build.');
+      }),
   };
 }
 
@@ -161,6 +173,11 @@ export async function loadTauriPlatform(): Promise<PlatformAdapter> {
     agentServiceStatus: () => invoke<AgentServiceStatus>('agent_service_status'),
     manageAgentService: (action: AgentServiceAction) =>
       invoke<AgentServiceStatus>('manage_agent_service', { action }),
+    checkForUpdates: () => invoke<UpdateCheckResult>('check_for_updates'),
+    installUpdate: (releaseId: string) =>
+      invoke<UpdateInstallResult>('install_coordinated_update', {
+        request: { releaseId },
+      }),
   });
 }
 

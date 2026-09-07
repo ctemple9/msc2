@@ -1,19 +1,114 @@
 {
-  "releaseSet": "desktop-agent-sidecar",
+  "schemaVersion": 1,
+  "releaseSet": "msc-application",
   "releasePublicKeyBuildSetting": "MSC2_RELEASE_PUBLIC_KEY_HEX",
-  "manifestSignature": "Ed25519 over the canonical JSON manifest",
-  "macos": {
-    "requiredArtifacts": ["desktop", "agent", "sidecar"],
-    "installer": "signed desktop artifact"
+  "manifestSignature": {
+    "algorithm": "Ed25519",
+    "signedBytes": "canonical UTF-8 JSON manifest",
+    "encoding": "detached base64 signature",
+    "privateKeySource": "GitHub Actions secret only"
   },
-  "windows": {
-    "requiredArtifacts": ["desktop", "agent"],
-    "forbiddenArtifacts": ["sidecar"],
-    "installer": "signed desktop artifact"
+  "manifestFields": {
+    "required": [
+      "schemaVersion",
+      "releaseId",
+      "tag",
+      "api",
+      "platforms"
+    ],
+    "api": {
+      "required": ["major", "minMinor", "maxMinor"],
+      "minorRange": "inclusive"
+    },
+    "platformEntry": {
+      "required": ["target", "installMode", "assets"]
+    },
+    "asset": {
+      "required": ["role", "filename", "bytes", "sha256"],
+      "filename": "exact GitHub release asset filename",
+      "sha256": "64 lowercase hexadecimal characters"
+    }
+  },
+  "platforms": {
+    "macos-x86_64": {
+      "target": "x86_64-apple-darwin",
+      "installMode": "tauri-coordinated",
+      "requiredArtifacts": ["desktop", "agent", "sidecar"],
+      "forbiddenArtifacts": []
+    },
+    "windows-x86_64": {
+      "target": "x86_64-pc-windows-msvc",
+      "installMode": "tauri-coordinated",
+      "requiredArtifacts": ["desktop", "agent"],
+      "forbiddenArtifacts": ["sidecar"]
+    },
+    "linux-desktop-deb-x86_64": {
+      "target": "x86_64-unknown-linux-gnu",
+      "installMode": "authorized-package-install",
+      "requiredArtifacts": ["package-deb"],
+      "forbiddenArtifacts": ["sidecar"]
+    },
+    "linux-desktop-rpm-x86_64": {
+      "target": "x86_64-unknown-linux-gnu",
+      "installMode": "authorized-package-install",
+      "requiredArtifacts": ["package-rpm"],
+      "forbiddenArtifacts": ["sidecar"]
+    },
+    "headless-macos-x86_64": {
+      "target": "x86_64-apple-darwin",
+      "installMode": "standalone-archive",
+      "requiredArtifacts": ["archive", "sidecar"],
+      "forbiddenArtifacts": []
+    },
+    "headless-windows-x86_64": {
+      "target": "x86_64-pc-windows-msvc",
+      "installMode": "standalone-archive",
+      "requiredArtifacts": ["archive"],
+      "forbiddenArtifacts": ["sidecar"]
+    },
+    "headless-linux-x86_64": {
+      "target": "x86_64-unknown-linux-gnu",
+      "installMode": "standalone-archive",
+      "requiredArtifacts": ["archive"],
+      "forbiddenArtifacts": ["sidecar"]
+    }
+  },
+  "downloadLimits": {
+    "manifestBytes": 262144,
+    "signatureBytes": 4096,
+    "releaseNotesBytes": 262144,
+    "assetBytes": 2147483648,
+    "totalBytes": 4294967296
+  },
+  "githubTransport": {
+    "metadata": "discovery-only",
+    "assetUrls": "derived from configured repository, releaseId, and signed filenames",
+    "httpsRequired": true,
+    "redirects": "configured GitHub repository only"
+  },
+  "installation": {
+    "confirmation": "explicit and repeated for the staged releaseId",
+    "staging": "local agent data updates/<releaseId>",
+    "rollback": "restore previous release after failed replacement or health check",
+    "remoteServiceControl": "forbidden"
   },
   "linux": {
-    "installation": "package-manager-only"
+    "tauriDesktop": "authorized .deb/.rpm package installation",
+    "headlessArchive": "local verified replacement after CLI authorization",
+    "distributionManaged": "package manager owns installation; MSC reports guidance only"
   },
-  "preservedData": ["configuration", "secrets", "worlds", "server-files"],
-  "excludedUpdateFamilies": ["minecraft-server", "loader", "add-on", "modpack"]
+  "preservedData": [
+    "configuration",
+    "secrets",
+    "worlds",
+    "server-files"
+  ],
+  "excludedUpdateFamilies": [
+    "minecraft-server",
+    "loader",
+    "component",
+    "add-on",
+    "modpack",
+    "plugin"
+  ]
 }

@@ -600,7 +600,7 @@ remote client can check its own desktop, but it cannot install, start, stop, or
 replace the operating-system service on another host.
 
 ### P12.96 — Establish the signed release-update contract
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/clients/phase11-update.md`, `docs/msc2/clients/phase12-release.md`, `packaging/update-release-schema.json`, `docs/msc2/msc2-decisions.md`, `docs/msc2/rolling-plan.md`
 **What:** Amend the release contract for the owner-approved update flow: GitHub release metadata and notes are fetched over HTTPS, but only an Ed25519-signed coordinated manifest can make an update eligible; the manifest identifies the release, compatible API range, platform/architecture, exact desktop/agent/sidecar or package/archive assets, and SHA-256 digests. Define explicit confirmation, staging, rollback, preserved user data, bounded downloads, and the local-only privilege boundary. Replace the current Linux package-manager-only exception with the precise distinction between Tauri package updates, standalone headless archive updates, and distribution-managed installs, while keeping remote service control forbidden.
 **Verify:** `rg -n "signed|Ed25519|GitHub|explicit|rollback|Linux|headless|package manager|remote" docs/msc2/clients/phase11-update.md docs/msc2/clients/phase12-release.md packaging/update-release-schema.json docs/msc2/msc2-decisions.md`

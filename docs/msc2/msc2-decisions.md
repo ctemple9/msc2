@@ -1,6 +1,6 @@
 # MSC 2 — Decision Register
 
-**Revision:** 1.8 · **Date:** 2026-08-28
+**Revision:** 1.10 · **Date:** 2026-09-07
 **Owner:** Cameron Temple
 
 **Purpose:** the authoritative record of *what was decided, by whom, and why*. The product and engineering documents describe the destination; this document explains how it was chosen, what was rejected, and when a decision should be reopened.
@@ -59,6 +59,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 | D-028 | Bedrock macOS support is Intel-only for Phase 10; Apple Silicon is deferred | **Approved** | 2026-08-22 |
 | D-029 | Reset this client is separate from reset this host | **Approved** | 2026-08-28 |
 | D-030 | World-local settings travel with slots; runtime policy stays server-owned | Proposed | — |
+| D-032 | Signed application manifests gate local MSC updates | **Approved** | 2026-09-07 |
 
 ---
 
@@ -248,7 +249,7 @@ Three things follow, and conflating them is a mistake:
 
 **Rationale.** The owner already runs MSC on an always-on spare Mac managed mostly from iOS. Treating headless as a Linux-only concern would fail the existing deployment on day one.
 
-**Consequences.** Two distribution artifacts per platform: an application bundle and a headless package. Self-update must handle app, agent, and sidecar as a coordinated set on macOS/Windows and defer to the package manager on Linux. Headless packages must be verified to link no GUI frameworks (D-021).
+**Consequences.** Two distribution artifacts per platform: an application bundle and a headless package. Self-update must handle app, agent, and sidecar as a coordinated set on macOS/Windows; use an authorized local package operation for Linux Tauri packages; replace standalone headless archives only through the verified local path; and defer distribution-managed Linux installations to the package manager. Headless packages must be verified to link no GUI frameworks (D-021). D-032 records the full update contract.
 
 **Phase 3 addendum (P3.2).** "A minimal Debian install" (above) didn't pin a release. P3.2's choice of `systemd-creds` for Linux secret storage (§8) requires `systemd` ≥ 250, which Debian 11 "bullseye" (systemd 247) doesn't have. **Confirmed by Cameron Temple, 2026-08-01: MSC 2's Linux minimum is Debian 12 "bookworm"** (systemd 252) or any distribution with `systemd` ≥ 250 — over building a weaker root-owned-file fallback to also cover older releases. Full reasoning in `docs/msc2/substrate/secret-storage.md`.
 
@@ -792,6 +793,50 @@ flow, or the host/client ownership boundary changes.
 
 ---
 
+## D-032 — Signed application manifests gate local MSC updates
+
+**Status:** **Approved** · **Origin:** Owner-requested Phase 12 correction (P12.96) · **Approved by:** Cameron Temple · **Date:** 2026-09-07
+
+**Context.** GitHub Releases is a practical transport and release-note source,
+but its API fields, tags, release body, and checksum file are not publisher
+authentication. MSC also has three different installation shapes: a Tauri
+desktop package, a standalone headless archive, and a Linux installation
+owned by a distribution package manager.
+
+**Decision.** An MSC application update is eligible only when a detached
+Ed25519 signature verifies against the public key shipped with the local
+installation and covers the canonical release manifest. The manifest names
+the immutable release ID and tag, inclusive API compatibility range,
+platform/architecture, exact coordinated desktop/agent/sidecar or
+package/archive assets, byte sizes, and SHA-256 digests. GitHub metadata and
+notes may be fetched over HTTPS for discovery, but unsigned fields never make
+an update eligible.
+
+Checking and staging are bounded and non-installing. Installation requires a
+second explicit confirmation for the same staged release ID. The local
+installer or CLI preserves configuration, secrets, worlds, and server files,
+records the previous release, performs health recovery, and rolls back on
+failure. A remote client may manage Minecraft through the API but can never
+install, start, stop, replace, or uninstall the operating-system service on
+another host.
+
+The platform rules are specific: macOS and Windows Tauri releases replace
+their coordinated local set; Linux Tauri releases use an authorized local
+`.deb`/`.rpm` package operation; standalone headless archives may replace
+their verified local installation after CLI authorization; and
+distribution-managed Linux installations remain owned by the package manager.
+MSC must report package-manager guidance rather than overwrite those files or
+create a second updater.
+
+The manifest cannot contain Minecraft server, loader, component, add-on,
+modpack, or plugin updates. The first beta remains unsigned and therefore
+ineligible for native in-app installation until release signing exists.
+
+**Revisit if:** the release transport, signing key lifecycle, supported
+installation shapes, or local service privilege boundary changes.
+
+---
+
 ## Appendix A — corrections made during planning
 
 Recorded because each produced a confident wrong answer, and each is the kind of mistake likely to recur.
@@ -818,6 +863,7 @@ Recorded because each produced a confident wrong answer, and each is the kind of
 
 | Rev | Date | Change |
 |---|---|---|
+| 1.10 | 2026-09-07 | Added D-032: signed application manifests gate local MSC updates, with bounded local installation, rollback, and explicit Linux package/archive distinctions. |
 | 1.9 | 2026-08-29 | Added D-031: native Playit credentials stay inside the host agent, with memory-only sign-in state and host-local idempotent reset. |
 | 1.8 | 2026-08-28 | Added D-030: world-local profile ownership, server-wide runtime policy, and honest change timing classes. |
 | 1.7 | 2026-08-28 | D-029 added: client-only reset is separate from authenticated host reset, with configuration-only/full-delete modes and local-only service teardown. |

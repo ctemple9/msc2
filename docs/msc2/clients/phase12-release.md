@@ -176,9 +176,9 @@ The first beta is explicitly unsigned for distribution purposes:
 The person installing the beta must obtain it from the intended release page,
 inspect its checksum, and explicitly approve the operating system's warning.
 The beta has no production auto-update path. In particular, an unsigned beta
-must not be presented as a trusted coordinated update set, and the private
-key for a future signed update manifest must not be invented or committed to
-the repository.
+must not be presented as a trusted coordinated update set. The signed update
+contract in `phase11-update.md` is a future eligibility rule; its private key
+must not be invented or committed to the repository.
 
 These limitations are release evidence to record, not failures to hide. A
 successful checksum comparison proves that downloaded bytes match the
@@ -413,3 +413,43 @@ The gate remains open until all of these records are complete:
 The evidence worksheets deliberately contain no fabricated results. A green
 GitHub build or a successful local manifest comparison is necessary, but it
 cannot close the physical Linux/Windows acceptance gate by itself.
+
+## 13. Signed application-update contract (P12.96)
+
+The beta artifact set above is unsigned and therefore ineligible for native
+in-app installation. Once release signing is configured, the update source is
+GitHub Releases over HTTPS, but GitHub metadata, release notes, tags, and
+`SHA256SUMS` remain discovery/integrity data. Only the detached Ed25519
+signature over the canonical manifest can make a release eligible.
+
+The signed manifest carries the immutable release ID and tag, the inclusive
+API major/minor compatibility range, a platform/architecture entry, and an
+exact asset list. Each asset has a role, filename, byte count, and lowercase
+SHA-256 digest. macOS desktop entries require the desktop installer, agent,
+and Intel Bedrock sidecar; Windows desktop entries require the desktop and
+agent and forbid a sidecar. Linux desktop entries identify either the `.deb`
+or `.rpm` package. Headless entries identify the standalone archive and the
+macOS sidecar where required. The schema and fixed response/download limits
+are in `packaging/update-release-schema.json`.
+
+Checking and staging never install anything. A client downloads only the
+selected signed assets into a release-ID staging directory beneath local
+agent data, rejects oversized or incomplete responses, and verifies the
+signature, compatibility, exact filenames, sizes, and digests before showing
+the staged set. Installation requires a second explicit confirmation for the
+same release ID. An interrupted or invalid staging directory is discardable.
+The installer preserves configuration, secrets, worlds, and server files;
+records the previous release; performs local replacement and health recovery;
+and restores the previous release on failure.
+
+The installation boundary is local. macOS and Windows Tauri installs use the
+verified coordinated installer. Linux Tauri installs use an explicitly
+authorized local `.deb`/`.rpm` package operation. Standalone headless archives
+may be replaced by an authorized local CLI using the same verification,
+restart, health-check, and rollback rules. A distribution-managed Linux
+installation remains owned by its package manager, so MSC reports the release
+ID, package name, and package-manager action instead of overwriting files.
+Remote clients can manage Minecraft through the API but can never install,
+start, stop, replace, or uninstall the operating-system service on another
+host. Minecraft server, loader, component, add-on, modpack, and plugin
+updates remain outside the MSC application release manifest.

@@ -647,6 +647,65 @@ replace the operating-system service on another host.
 **Commit:** `P12.101: record cross-platform update gate`
 **Batch:** stop-after
 
+## Product amendment — retire the native iOS client
+
+This owner-approved amendment retires the native iOS application from MSC 2.
+The shared Svelte client remains the desktop and browser product, and its
+responsive browser experience is the remaining phone-access path. The Rust
+agent, HTTP/WebSocket contract, CLI, and Tauri remote-host support remain in
+scope. Historical phase records and MSC 1 audit evidence continue to mention
+the iOS client where that is necessary to describe work that actually happened;
+active product claims, build checks, capability columns, and release paths must
+not continue to imply that MSC 2 ships a native iOS application.
+
+### P12.102 — Record the native iOS retirement decision
+**Status:** not started
+**Files:** `docs/msc2/msc2-decisions.md`, `docs/msc2/MSC2-VISION.md`, `docs/msc2/msc2-product.md`, `docs/msc2/msc2-engineering.md`, `docs/msc2/msc2-port-plan.md`, `docs/msc2/rolling-plan.md`
+**What:** Add an owner-approved decision recording that the native iOS client is retired from MSC 2, amend D-004 as superseded, and define the replacement boundary: phone access may use the responsive browser client, while native iOS UI, App Store packaging, iOS-specific notifications, and iOS-specific capability parity are no longer v1 deliverables. Reconcile the vision, product promise, engineering architecture, port-plan gates, and current plan without rewriting historical archive entries or the read-only MSC 1 oracle.
+**Verify:** `git diff --check && rg -n "D-033|superseded|responsive browser|native iOS|App Store" docs/msc2/msc2-decisions.md docs/msc2/MSC2-VISION.md docs/msc2/msc2-product.md docs/msc2/msc2-engineering.md docs/msc2/msc2-port-plan.md`
+**Commit:** `P12.102: record native ios retirement decision`
+**Batch:** solo
+
+### P12.103 — Remove the native iOS project and dedicated checklists
+**Status:** not started
+**Files:** `clients/ios/`, `tools/phase4/ios-lifecycle-check.md`, `tools/phase7/ios-provisioning-check.md`, `tools/phase10/ios-contract-check.py`
+**What:** Remove the MSC 2-owned iOS application, Xcode project, Swift sources, iOS tests, screenshots, README, and iOS-only phase checklists/checker from the working tree. Do not touch the MSC 1 oracle and do not rewrite git history; the removed client remains recoverable through the repository history.
+**Verify:** `test ! -e clients/ios && test ! -e tools/phase4/ios-lifecycle-check.md && test ! -e tools/phase7/ios-provisioning-check.md && test ! -e tools/phase10/ios-contract-check.py && git diff --check`
+**Commit:** `P12.103: remove native ios client`
+**Batch:** stop-after
+
+### P12.104 — Remove iOS-only validation and capability plumbing
+**Status:** not started
+**Files:** `tools/phase6/capability-matrix-check.py`, `tools/phase8/phase8-check.py`, `tools/phase10/phase10-check.py`, `tools/phase11/phase11-check.py`, `tools/release/check-release-workflow.py`, `docs/msc2/client-capability-matrix.csv`, `docs/msc2/api-contract/`
+**What:** Remove the `ios_status` matrix column and all checker dependencies on an iOS source tree, Xcode target, iOS contract checker, or iOS-specific release exclusion. Update expected client-column sets and contract comments to the remaining clients. Preserve generic mobile-player, router-mobile-app, and responsive-navigation semantics; this step removes only the retired native client surface.
+**Verify:** `git diff --check && if git grep -n -i -E 'ios_status|clients/ios|ios-contract-check|MSCRemoteiOS' -- tools docs/msc2/client-capability-matrix.csv docs/msc2/api-contract .github; then exit 1; fi`
+**Commit:** `P12.104: remove ios validation plumbing`
+**Batch:** solo
+
+### P12.105 — Replace active product and Tauri references to the phone app
+**Status:** not started
+**Files:** `AGENTS.md`, `CLAUDE.md`, `README.md`, `clients/desktop-web/src/lib/help/SetupIntro.svelte`, `clients/desktop-web/src/lib/help/TourOverlay.svelte`, `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `clients/desktop-web/src/lib/api/generated.ts`, `content/help/handbook/overview.md`, `content/help/handbook/remote-access.md`, `content/help/handbook/tailscale.md`, `crates/msc-agent/web-ui/assets/`
+**What:** Rewrite active documentation, onboarding/help copy, generated API descriptions, agent setup architecture text, and the built agent bundle so they describe the supported desktop, browser, and CLI control surfaces rather than a native iOS/phone app. Turn the old MSC Remote help topic into the supported browser/remote-access explanation or retire it if the content contract no longer needs a separate topic. Review desktop tests that mention mobile: retain `Mobile navigation` when it means responsive layout and retain router `mobile_app` fixtures when they describe third-party router software; remove only assertions about the retired MSC app.
+**Verify:** `git diff --check && if git grep -n -i -E 'MSC Remote|iPhone app|phone app|iOS client|native iOS|clients/ios' -- AGENTS.md CLAUDE.md README.md clients/desktop-web/src clients/desktop-web/tests content/help/handbook crates/msc-agent/web-ui/assets; then exit 1; fi`
+**Commit:** `P12.105: remove active phone-app references`
+**Batch:** solo
+
+### P12.106 — Reconcile active phase docs and source provenance
+**Status:** not started
+**Files:** `docs/msc2/addons/phase8-scope.md`, `docs/msc2/networking/phase9-scope.md`, `docs/msc2/bedrock/phase10-scope.md`, `docs/msc2/clients/phase11-scope.md`, `docs/msc2/terminal-ui/phase13-scope.md`, `docs/msc2/api-contract/`, `crates/msc-agent/src/`, `crates/msc-api/src/`, `crates/msc-application/src/`, `crates/msc-domain/src/`, `crates/msc-infrastructure/src/`
+**What:** Remove active scope claims that MSC 2 still has an iOS client, replace implementation comments that describe iOS as a live consumer with accurate shared-client or historical-provenance wording, and keep Rust behavior unchanged. Leave archived rolling-plan history and MSC 1 audit records factual, with the final audit identifying them as historical rather than silently editing the record of completed work.
+**Verify:** `git diff --check && if git grep -n -i -E 'iOS client|MSC Remote|clients/ios|ios_status|SwiftUI.*iOS' -- docs/msc2/addons docs/msc2/networking docs/msc2/bedrock docs/msc2/clients docs/msc2/terminal-ui docs/msc2/api-contract crates/msc-agent/src crates/msc-api/src crates/msc-application/src crates/msc-domain/src crates/msc-infrastructure/src; then exit 1; fi`
+**Commit:** `P12.106: reconcile active ios references`
+**Batch:** solo
+
+### P12.107 — Record and verify the native iOS retirement audit
+**Status:** not started
+**Files:** `docs/msc2/ios-retirement-audit.md`, `docs/msc2/rolling-plan.md`
+**What:** Record the search terms, repository areas, removed artifacts, intentionally retained historical references, and intentionally retained generic mobile meanings. Confirm that no native iOS project, iOS test target, iOS capability column, iOS-only release/check path, or active product claim remains, while noting that git history and the MSC 1 oracle remain available for historical reference.
+**Verify:** `test ! -e clients/ios && git diff --check && if git grep -n -i -E 'clients/ios|MSCRemoteiOS|MSC Remote|iPhone app|iOS client|native iOS|ios_status|ios-contract-check' -- ':!docs/msc2/rolling-plan-archive.md' ':!docs/msc2/audit/**' ':!docs/msc2/msc2-decisions.md' ':!docs/msc2/ios-retirement-audit.md'; then exit 1; fi`
+**Commit:** `P12.107: record native ios retirement audit`
+**Batch:** stop-after
+
 ## Phase 13 — Terminal UI
 
 **Entry gate.** Phase 12's redesign gate is complete. Before execution begins,

@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 (client redesign) is complete and archived. A Phase 12 post-phase correction for coordinated release updates is next; Phase 13 (Terminal UI, deferred from v1) remains not started.
-> **Next move:** P12.96 — establish the signed release-update contract. Phase 11 and Phase 12 remain complete, with their historical records in `rolling-plan-archive.md`.
+> **Next move:** P12.98 — add verified update retrieval and installation. Phase 11 and Phase 12 remain complete, with their historical records in `rolling-plan-archive.md`.
 
 **Previous phases (Setup through Phase 12) and their amendments have moved to `rolling-plan-archive.md`** to keep this file small. That archive is historical only — current status and active work stay here.
 
@@ -608,7 +608,7 @@ replace the operating-system service on another host.
 **Batch:** solo
 
 ### P12.97 — Publish signed platform release metadata
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `.github/workflows/release.yml`, `tools/release/`, `packaging/update-release-schema.json`, `docs/msc2/clients/phase12-release.md`, `docs/msc2/rolling-plan.md`
 **What:** Extend the tag publication workflow to create the signed, canonical update manifest from the final platform assets and release notes, using a GitHub Actions secret for the private signing key that never enters the repository or shipped binaries. Publish one manifest/signature pair whose platform entries distinguish macOS, Windows, Linux desktop packages, and headless archives; fail publication if an asset, digest, signature, or required coordinated member is missing. Keep the existing checksum file as an integrity aid and retain the unsigned-prerelease path as explicitly ineligible for in-app installation until signing is configured.
 **Verify:** `python3 tools/release/check-release-workflow.py .github/workflows/release.yml && python3 tools/release/verify-artifact-manifest.py --help && python3 tools/release/sign-update-manifest.py --help`

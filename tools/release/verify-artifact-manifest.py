@@ -32,6 +32,13 @@ EXPECTED_BETA_ASSETS = {
     ),
 }
 CHUNK_SIZE = 1024 * 1024
+RELEASE_METADATA = {
+    "RELEASE-NOTES.md",
+    "SHA256SUMS",
+    "UNSIGNED-BETA-NOTICE.txt",
+    "msc2-update-manifest.json",
+    "msc2-update-manifest.sig",
+}
 
 
 class ManifestError(Exception):
@@ -50,7 +57,7 @@ def asset_files(artifacts: Path, manifest: Path) -> list[Path]:
 
     assets: list[Path] = []
     for path in files:
-        if path.resolve() == manifest.resolve():
+        if path.resolve() == manifest.resolve() or path.name in RELEASE_METADATA:
             continue
         require(not path.is_symlink(), f"release asset must not be a symlink: {path.name}")
         require(path.is_file(), f"release artifacts must be flat regular files: {path.name}")

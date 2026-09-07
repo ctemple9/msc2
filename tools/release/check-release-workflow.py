@@ -144,6 +144,17 @@ def check_publish_guard(workflow: str) -> None:
     require("actions/download-artifact@v4" in publish_job, "publish job does not collect matrix artifacts")
     require("verify-artifact-manifest.py" in workflow, "manifest verifier is not wired")
     require("--write" in publish_job and "SHA256SUMS" in publish_job, "SHA-256 manifest generation is not wired")
+    require("sign-update-manifest.py" in publish_job, "signed update manifest publisher is not wired")
+    require("packaging/update-release-schema.json" in workflow, "update manifest schema is not referenced")
+    require(
+        "MSC2_RELEASE_SIGNING_KEY_HEX: ${{ secrets.MSC2_RELEASE_SIGNING_KEY_HEX }}" in publish_job,
+        "publish job does not read the release signing key from GitHub Actions secrets",
+    )
+    require("msc2-update-manifest.json" in publish_job, "publish job does not require the signed manifest")
+    require("msc2-update-manifest.sig" in publish_job, "publish job does not require the manifest signature")
+    require("UNSIGNED-BETA-NOTICE.txt" in publish_job, "publish job lacks the unsigned fallback notice")
+    require("RELEASE-NOTES.md" in publish_job, "publish job does not publish release notes")
+    require("if [[ -n \"${MSC2_RELEASE_SIGNING_KEY_HEX:-}\" ]]" in publish_job, "signing path is not conditional")
     require("-name '*.rpm'" in publish_job, "publication does not collect RPM assets")
     require('test "$asset_count" -eq 7' in publish_job, "publication does not require seven release assets")
     require("softprops/action-gh-release@v2" in publish_job, "publish job does not create a GitHub release")

@@ -263,7 +263,62 @@ jobs:
             --artifacts target/release-assets \
             --write
 
-      - name: Publish unsigned GitHub prerelease
+      - name: Prepare release notes
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          release_version="${GITHUB_REF_NAME#v}"
+          cat > target/release-assets/RELEASE-NOTES.md <<EOF
+          # MSC 2 ${GITHUB_REF_NAME}
+
+          This prerelease contains the x86_64 desktop installers and headless
+          archives listed in SHA256SUMS. Verify the checksum file before use.
+
+          Native in-app installation is eligible only when this release also
+          contains msc2-update-manifest.json and its detached Ed25519 signature.
+          An unsigned prerelease is intentionally ineligible for that flow.
+          Release ID: ${release_version}
+          EOF
+
+      - name: Publish signed update metadata when configured
+        shell: bash
+        env:
+          MSC2_RELEASE_SIGNING_KEY_HEX: ${{ secrets.MSC2_RELEASE_SIGNING_KEY_HEX }}
+        run: |
+          set -Eeuo pipefail
+          release_version="${GITHUB_REF_NAME#v}"
+          manifest="target/release-assets/msc2-update-manifest.json"
+          signature="target/release-assets/msc2-update-manifest.sig"
+          python3 -c 'import json; json.load(open("packaging/update-release-schema.json", encoding="utf-8"))'
+
+          if [[ -n "${MSC2_RELEASE_SIGNING_KEY_HEX:-}" ]]; then
+            python3 tools/release/sign-update-manifest.py \
+              --artifacts target/release-assets \
+              --release-id "$release_version" \
+              --tag "$GITHUB_REF_NAME" \
+              --api-major 1 \
+              --api-min-minor 0 \
+              --api-max-minor 0 \
+              --private-key-env MSC2_RELEASE_SIGNING_KEY_HEX \
+              --manifest "$manifest" \
+              --signature "$signature"
+            test -s "$manifest"
+            test -s "$signature"
+            echo "signed update metadata prepared"
+          else
+            cat > target/release-assets/UNSIGNED-BETA-NOTICE.txt <<EOF
+          MSC 2 ${GITHUB_REF_NAME} has no configured release-signing key.
+
+          SHA256SUMS remains an integrity aid. Without the signed manifest and
+          detached signature, this prerelease is not eligible for native
+          in-app installation.
+          EOF
+            test ! -e "$manifest"
+            test ! -e "$signature"
+            echo "release-signing key is not configured; publishing an unsigned, ineligible prerelease"
+          fi
+
+      - name: Publish GitHub prerelease
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
@@ -271,5 +326,6 @@ jobs:
           prerelease: true
           draft: false
           generate_release_notes: false
+          body_path: target/release-assets/RELEASE-NOTES.md
           fail_on_unmatched_files: true
           files: target/release-assets/*

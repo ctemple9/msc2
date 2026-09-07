@@ -425,12 +425,12 @@ signature over the canonical manifest can make a release eligible.
 The signed manifest carries the immutable release ID and tag, the inclusive
 API major/minor compatibility range, a platform/architecture entry, and an
 exact asset list. Each asset has a role, filename, byte count, and lowercase
-SHA-256 digest. macOS desktop entries require the desktop installer, agent,
-and Intel Bedrock sidecar; Windows desktop entries require the desktop and
-agent and forbid a sidecar. Linux desktop entries identify either the `.deb`
-or `.rpm` package. Headless entries identify the standalone archive and the
-macOS sidecar where required. The schema and fixed response/download limits
-are in `packaging/update-release-schema.json`.
+SHA-256 digest. The desktop installer or headless archive is the exact
+downloadable asset; its `includedComponents` records the agent and, where
+required, the Intel Bedrock sidecar carried inside it. Windows entries forbid
+a sidecar. Linux desktop entries identify either the `.deb` or `.rpm` package.
+The schema and fixed response/download limits are in
+`packaging/update-release-schema.json`.
 
 Checking and staging never install anything. A client downloads only the
 selected signed assets into a release-ID staging directory beneath local
@@ -453,3 +453,31 @@ Remote clients can manage Minecraft through the API but can never install,
 start, stop, replace, or uninstall the operating-system service on another
 host. Minecraft server, loader, component, add-on, modpack, and plugin
 updates remain outside the MSC application release manifest.
+
+## 14. Signed metadata publication (P12.97)
+
+The tag publication job assembles the final seven desktop/headless release
+assets before generating `SHA256SUMS`. It then runs
+`tools/release/sign-update-manifest.py`, which rejects missing or duplicate
+platform assets, checks every filename against the release ID, records each
+asset's byte count and SHA-256 digest, and writes the canonical
+`msc2-update-manifest.json` plus its detached base64
+`msc2-update-manifest.sig`. Canonical bytes are compact, UTF-8 JSON with
+sorted object keys; no newline or release-secret material is included in the
+signed payload.
+
+The manifest has one entry for each installable x86_64 shape: macOS and
+Windows desktop installers, Debian and RPM desktop packages, and one headless
+archive for each platform. An installer or archive is the exact downloadable
+asset; `includedComponents` records the agent and, on macOS, the Bedrock
+sidecar carried inside that coordinated asset. Linux package and standalone
+archive entries retain their distinct local installation modes.
+
+The signer reads a 32-byte Ed25519 seed only from the GitHub Actions secret
+`MSC2_RELEASE_SIGNING_KEY_HEX`. It is never committed, printed, uploaded, or
+passed into a shipped binary. When that secret is configured, publication
+fails unless the manifest and signature are both created. Until then, the
+workflow publishes the existing checksum-protected prerelease with an
+explicit unsigned notice; that path is intentionally ineligible for native
+in-app installation. Release notes are published alongside the checksum and,
+when configured, the signed metadata pair.

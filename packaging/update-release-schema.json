@@ -8,6 +8,10 @@
     "encoding": "detached base64 signature",
     "privateKeySource": "GitHub Actions secret only"
   },
+  "manifestFiles": {
+    "manifest": "msc2-update-manifest.json",
+    "signature": "msc2-update-manifest.sig"
+  },
   "manifestFields": {
     "required": [
       "schemaVersion",
@@ -26,20 +30,37 @@
     "asset": {
       "required": ["role", "filename", "bytes", "sha256"],
       "filename": "exact GitHub release asset filename",
-      "sha256": "64 lowercase hexadecimal characters"
+      "sha256": "64 lowercase hexadecimal characters",
+      "role": "desktop, archive, package-deb, or package-rpm"
     }
   },
   "platforms": {
-    "macos-x86_64": {
+    "macos-desktop-x86_64": {
       "target": "x86_64-apple-darwin",
       "installMode": "tauri-coordinated",
-      "requiredArtifacts": ["desktop", "agent", "sidecar"],
+      "requiredArtifacts": ["desktop"],
+      "includedComponents": ["agent", "sidecar"],
       "forbiddenArtifacts": []
     },
-    "windows-x86_64": {
+    "macos-headless-x86_64": {
+      "target": "x86_64-apple-darwin",
+      "installMode": "standalone-archive",
+      "requiredArtifacts": ["archive"],
+      "includedComponents": ["agent", "sidecar"],
+      "forbiddenArtifacts": []
+    },
+    "windows-desktop-x86_64": {
       "target": "x86_64-pc-windows-msvc",
       "installMode": "tauri-coordinated",
-      "requiredArtifacts": ["desktop", "agent"],
+      "requiredArtifacts": ["desktop"],
+      "includedComponents": ["agent"],
+      "forbiddenArtifacts": ["sidecar"]
+    },
+    "windows-headless-x86_64": {
+      "target": "x86_64-pc-windows-msvc",
+      "installMode": "standalone-archive",
+      "requiredArtifacts": ["archive"],
+      "includedComponents": ["agent"],
       "forbiddenArtifacts": ["sidecar"]
     },
     "linux-desktop-deb-x86_64": {
@@ -54,22 +75,11 @@
       "requiredArtifacts": ["package-rpm"],
       "forbiddenArtifacts": ["sidecar"]
     },
-    "headless-macos-x86_64": {
-      "target": "x86_64-apple-darwin",
-      "installMode": "standalone-archive",
-      "requiredArtifacts": ["archive", "sidecar"],
-      "forbiddenArtifacts": []
-    },
-    "headless-windows-x86_64": {
-      "target": "x86_64-pc-windows-msvc",
-      "installMode": "standalone-archive",
-      "requiredArtifacts": ["archive"],
-      "forbiddenArtifacts": ["sidecar"]
-    },
-    "headless-linux-x86_64": {
+    "linux-headless-x86_64": {
       "target": "x86_64-unknown-linux-gnu",
       "installMode": "standalone-archive",
       "requiredArtifacts": ["archive"],
+      "includedComponents": ["agent"],
       "forbiddenArtifacts": ["sidecar"]
     }
   },

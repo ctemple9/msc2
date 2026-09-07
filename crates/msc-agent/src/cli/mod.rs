@@ -3,10 +3,12 @@
 
 pub mod pairing;
 pub mod service;
+pub(crate) mod session;
+pub(crate) mod transport;
 pub mod tui;
 pub mod update;
 
-use self::tui::transport::SharedClient as RemoteClient;
+use self::transport::SharedClient as RemoteClient;
 
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -3222,11 +3224,11 @@ async fn ensure_active_server(
     client: &RemoteClient,
     selector: Option<&str>,
 ) -> Result<ServerDto, CliError> {
-    tui::session::ensure_active_server(client, selector).await
+    session::ensure_active_server(client, selector).await
 }
 
 async fn resolve_server(client: &RemoteClient, selector: &str) -> Result<ServerDto, CliError> {
-    tui::session::resolve_server(client, selector).await
+    session::resolve_server(client, selector).await
 }
 
 async fn wait_for_stopped(client: &RemoteClient) -> Result<(), CliError> {

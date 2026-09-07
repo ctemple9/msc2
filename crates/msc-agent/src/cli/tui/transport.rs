@@ -1,8 +1,7 @@
-//! Authenticated client transport shared by the one-shot CLI and the TUI.
+//! Authenticated client transport for the retiring TUI.
 //!
-//! The CLI originally kept this HTTP code beside command dispatch. Keeping the
-//! same request implementation here gives the TUI the exact bearer, error, and
-//! response behavior without creating a second management API.
+//! The one-shot CLI's HTTP transport now lives in `crate::cli::transport`.
+//! This WebSocket-capable copy remains only until P12.111 removes the TUI.
 
 #![allow(dead_code)]
 

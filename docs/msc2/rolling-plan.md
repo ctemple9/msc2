@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 (client redesign) is complete and archived. Phase 12 post-phase corrections continue; the planned Phase 13 terminal UI is retired by D-034.
-> **Next move:** Cameron verifies P12.109 — record the terminal UI retirement decision. Phase 11 and Phase 12 remain complete, with their historical records in `rolling-plan-archive.md`.
+> **Next move:** Cameron verifies P12.110 — extract CLI transport from TUI. P12.109 remains awaiting verification; Phase 11 and Phase 12 remain complete, with their historical records in `rolling-plan-archive.md`.
 
 **Previous phases (Setup through Phase 12) and their amendments have moved to `rolling-plan-archive.md`** to keep this file small. That archive is historical only — current status and active work stay here.
 
@@ -738,9 +738,9 @@ steps.
 **Batch:** solo
 
 ### P12.110 — Extract CLI transport and server selection from the TUI namespace
-**Status:** not started
-**Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/cli/transport.rs`, `crates/msc-agent/src/cli/session.rs`, `crates/msc-agent/src/cli/tui/transport.rs`, `crates/msc-agent/src/cli/tui/session.rs`
-**What:** Move the one-shot CLI's HTTP client, bearer-token handling, API error decoding, operation polling support, and active-server resolution out of `cli::tui` into CLI-owned modules. Preserve named-command output, `--json`, exit codes, confirmations, and remote host selection exactly. Keep the agent's server-side WebSocket routes for desktop/browser consumers, but remove client-side WebSocket reconnect machinery if no retained CLI command uses it; do not move terminal presentation state or create a second API.
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/cli/transport.rs`, `crates/msc-agent/src/cli/session.rs`, `crates/msc-agent/src/cli/tui/transport.rs`, `crates/msc-agent/src/cli/tui/session.rs`, `docs/msc2/rolling-plan.md`
+**What:** Move the one-shot CLI's HTTP client, bearer-token handling, API error decoding, operation polling support, and active-server resolution out of `cli::tui` into CLI-owned modules. Preserve named-command output, `--json`, exit codes, confirmations, and remote host selection exactly. Keep the agent's server-side WebSocket routes for desktop/browser consumers, but remove client-side WebSocket reconnect machinery from the retained CLI transport; the retiring TUI keeps its temporary stream transport until P12.111 removes it. Do not move terminal presentation state or create a second API.
 **Verify:** `cargo fmt --all -- --check && cargo check -p msc-agent --bin msc && cargo clippy -p msc-agent --bin msc -- -D warnings && if rg -n "tui::(transport|session)|tokio_tungstenite|futures_util" crates/msc-agent/src/cli/mod.rs crates/msc-agent/src/cli/session.rs crates/msc-agent/src/cli/transport.rs; then exit 1; fi`
 **Commit:** `P12.110: extract cli transport from tui`
 **Batch:** solo

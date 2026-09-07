@@ -1,13 +1,12 @@
-//! Active-server selection for the retiring TUI client.
+//! Active-server selection for one-shot CLI commands.
 //!
-//! The one-shot CLI has its own API-owned resolver in `crate::cli::session`.
-//! This temporary adapter remains until P12.111 removes the TUI and its
-//! WebSocket-capable client transport.
+//! Selection remains an API operation: the CLI resolves a local server
+//! identifier or name, then asks the agent to make that server active.
 
 use msc_api::dto::{ActiveServerRequestDto, ServerDto, SimpleResultDto};
 
-use super::transport::SharedClient;
 use crate::cli::CliError;
+use crate::cli::transport::SharedClient;
 
 pub(crate) async fn ensure_active_server(
     client: &SharedClient,
@@ -25,7 +24,10 @@ pub(crate) async fn ensure_active_server(
     Ok(server)
 }
 
-async fn resolve_server(client: &SharedClient, selector: &str) -> Result<ServerDto, CliError> {
+pub(crate) async fn resolve_server(
+    client: &SharedClient,
+    selector: &str,
+) -> Result<ServerDto, CliError> {
     let servers: Vec<ServerDto> = client.get_json("/v1/servers").await?;
     if servers.is_empty() {
         return Err(CliError::usage("the agent reports no imported servers"));

@@ -133,16 +133,17 @@ async fn handle_connection(auth: AuthState, stream: UnixStream) -> Result<(), St
         write_error(&mut writer, "unsupported_version").await?;
         return Err("bootstrap protocol version is unsupported".to_string());
     }
-    let client_kind = hello.client_kind.as_deref().unwrap_or("desktop");
-    if !matches!(client_kind, "desktop" | "cli") {
+    if hello
+        .client_kind
+        .as_deref()
+        .is_some_and(|client_kind| client_kind != "desktop")
+    {
         write_error(&mut writer, "unsupported_client").await?;
         return Err("bootstrap client kind is unsupported".to_string());
     }
-    // Desktop releases still get the stronger signed-code check. A TUI
-    // install has no desktop requirement to record, so its same-user CLI
-    // client relies on the owner-only socket and installation-key proof.
-    if client_kind == "desktop"
-        && let Ok(requirement) = std::env::var("MSC2_MACOS_DESKTOP_REQUIREMENT")
+    // Desktop releases get the stronger signed-code check in addition to the
+    // owner-only socket and installation-key proof.
+    if let Ok(requirement) = std::env::var("MSC2_MACOS_DESKTOP_REQUIREMENT")
         && !requirement.trim().is_empty()
     {
         let pid = peer

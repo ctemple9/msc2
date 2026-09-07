@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 (client redesign) is complete and archived. Phase 12 post-phase corrections continue; the planned Phase 13 terminal UI is retired by D-034.
-> **Next move:** Cameron verifies P12.110 — extract CLI transport from TUI. P12.109 remains awaiting verification; Phase 11 and Phase 12 remain complete, with their historical records in `rolling-plan-archive.md`.
+> **Next move:** Cameron verifies P12.111 — remove the terminal UI implementation. P12.109 and P12.110 remain awaiting verification; Phase 11 and Phase 12 remain complete, with their historical records in `rolling-plan-archive.md`.
 
 **Previous phases (Setup through Phase 12) and their amendments have moved to `rolling-plan-archive.md`** to keep this file small. That archive is historical only — current status and active work stay here.
 
@@ -746,7 +746,7 @@ steps.
 **Batch:** solo
 
 ### P12.111 — Remove the terminal client, dispatch, tests, and dependencies
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/cli/tui/`, `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/main.rs`, `crates/msc-agent/src/auth/local_bootstrap.rs`, `crates/msc-agent/Cargo.toml`, `Cargo.lock`, `crates/msc-agent/tests/tui_*.rs`
 **What:** Delete the TUI implementation and its dedicated tests, remove `ratatui`, `crossterm`, and any client-only WebSocket dependencies that P12.110 proves unused, and remove bare-invocation TUI dispatch. Bare `msc` must return the ordinary usage outcome without entering raw mode or emitting terminal control bytes; every named CLI command, `--json`, `--help`, `serve`, and the desktop local-bootstrap path must remain intact. Retain desktop bootstrap authentication while removing the CLI/TUI-only bootstrap client allowance and client code.
 **Verify:** `test ! -d crates/msc-agent/src/cli/tui && test -z "$(find crates/msc-agent/tests -maxdepth 1 -name 'tui_*.rs' -print -quit)" && git diff --check && cargo fmt --all -- --check && cargo check -p msc-agent --bin msc && cargo clippy -p msc-agent --bin msc -- -D warnings`

@@ -11,7 +11,6 @@ mod routes;
 mod web_ui;
 mod ws;
 
-use std::io::IsTerminal;
 use std::net::SocketAddr;
 use std::process::ExitCode;
 
@@ -34,18 +33,9 @@ struct App {
 #[tokio::main]
 async fn main() -> ExitCode {
     let App { common, command } = App::parse();
-    let target = cli::select_invocation(
-        command.is_some(),
-        common.json,
-        std::io::stdin().is_terminal(),
-        std::io::stdout().is_terminal(),
-        std::env::var_os("TERM").as_deref(),
-    );
+    let target = cli::select_invocation(command.is_some());
     let result = match target {
-        cli::InvocationTarget::Tui => cli::run_tui(common),
-        cli::InvocationTarget::Usage => Err(cli::CliError::usage(
-            "a named command is required unless bare msc is launched interactively without --json",
-        )),
+        cli::InvocationTarget::Usage => Err(cli::CliError::usage("a named command is required")),
         cli::InvocationTarget::Command => match command.expect("command target requires command") {
             cli::Command::Serve { bind } => run_service(bind).await,
             #[cfg(target_os = "linux")]

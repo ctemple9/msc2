@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 12 (client redesign) is complete and archived. A Phase 12 post-phase correction for coordinated release updates is next; Phase 13 (Terminal UI, deferred from v1) remains not started.
-> **Next move:** Cameron verifies P12.108 — amend the mobile-support boundary. Phase 11 and Phase 12 remain complete, with their historical records in `rolling-plan-archive.md`.
+> ## STATUS: Phase 12 (client redesign) is complete and archived. Phase 12 post-phase corrections continue; the planned Phase 13 terminal UI is retired by D-034.
+> **Next move:** Cameron verifies P12.109 — record the terminal UI retirement decision. Phase 11 and Phase 12 remain complete, with their historical records in `rolling-plan-archive.md`.
 
 **Previous phases (Setup through Phase 12) and their amendments have moved to `rolling-plan-archive.md`** to keep this file small. That archive is historical only — current status and active work stay here.
 
@@ -207,7 +207,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | **10** | Bedrock runtimes | complete |
 | **11** | Desktop and web clients | complete |
 | **12** | Client redesign (MSC 1 fidelity, refreshed) | complete |
-| 13 | Terminal UI (deferred from v1) | not started |
+| 13 | Terminal UI | retired by D-034 |
 
 ## Phase 12 amendment — Bedrock checksum metadata
 
@@ -730,7 +730,7 @@ promise, or active documentation remains in the working tree after these
 steps.
 
 ### P12.109 — Record the terminal UI retirement decision
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/msc2-decisions.md`, `docs/msc2/MSC2-VISION.md`, `docs/msc2/msc2-product.md`, `docs/msc2/msc2-engineering.md`, `docs/msc2/msc2-port-plan.md`, `docs/msc2/rolling-plan.md`
 **What:** Add an owner-approved decision that retires the full-screen terminal UI from MSC 2. Supersede the Terminal TUI row in D-015 while preserving D-015's requirement that the scriptable CLI and interactive command confirmations remain. Define the retained boundary in product terms: a headless host still runs the agent, while management happens through the desktop app, desktop browser, or one-shot CLI from another device. Remove any promise that a later TUI release is planned, but do not remove the agent API, WebSocket channels, or headless installation story.
 **Verify:** `git diff --check && rg -n "D-034|terminal UI.*retired|full-screen terminal|scriptable CLI|headless CLI" docs/msc2/msc2-decisions.md docs/msc2/MSC2-VISION.md docs/msc2/msc2-product.md docs/msc2/msc2-engineering.md docs/msc2/msc2-port-plan.md`

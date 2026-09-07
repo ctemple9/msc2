@@ -1,6 +1,6 @@
 # MSC 2 — Decision Register
 
-**Revision:** 1.12 · **Date:** 2026-09-07
+**Revision:** 1.13 · **Date:** 2026-09-07
 **Owner:** Cameron Temple
 
 **Purpose:** the authoritative record of *what was decided, by whom, and why*. The product and engineering documents describe the destination; this document explains how it was chosen, what was rejected, and when a decision should be reopened.
@@ -61,6 +61,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 | D-030 | World-local settings travel with slots; runtime policy stays server-owned | Proposed | — |
 | D-032 | Signed application manifests gate local MSC updates | **Approved** | 2026-09-07 |
 | D-033 | Native iOS and supported mobile access retired from v1 | **Approved** | 2026-09-07 |
+| D-034 | Full-screen terminal UI retired from MSC 2 | **Approved** | 2026-09-07 |
 
 ---
 
@@ -399,7 +400,7 @@ not a retroactive owner approval of the previously Proposed D-012 details.
 
 | Non-goal | Kind | Reasoning |
 |---|---|---|
-| **Terminal TUI** | Deferred to v1.1 | A third client surface on the same API. Built during the port, it must be maintained through every contract change. The scriptable CLI and interactive prompts still ship in v1. |
+| **Terminal TUI** | **Superseded by D-034** | The full-screen terminal client is retired. The scriptable CLI and interactive command confirmations still ship in v1. |
 | **Third-party plugin / extension API** | Deferred indefinitely | No third party exists yet. A stable extension surface with no consumer is pure cost and freezes internals prematurely. |
 | **Per-person user accounts with identity** | Deferred | MSC 1's existing named-token model with permission categories carries forward unchanged — see D-019, which corrects an earlier misdescription of this baseline. What is deferred is *human identity*: invitations, per-person login, account recovery. |
 | **Any TempleTech-hosted account, relay, telemetry, subscription, or cloud backend** | **Permanent** | MSC is local-first. Recorded as permanent so it is never casually revisited. **This does not exclude optional third-party integrations** — Tailscale, Playit.gg, DuckDNS, Modrinth, CurseForge, Adoptium, and Xbox services remain supported. |
@@ -407,6 +408,9 @@ not a retroactive owner approval of the previously Proposed D-012 details.
 | **Android client** | Non-goal | Nothing in the plan assumes it. Recorded to stop it creeping in. |
 
 **Explicitly NOT a non-goal: the Windows GUI.** Windows is a firm requirement and the reason the engine is Rust (D-002). Only its *sequencing* is later (D-017, port plan).
+
+D-034 supersedes only the Terminal TUI row above. The other D-015 non-goals
+remain unchanged.
 
 ---
 
@@ -942,6 +946,39 @@ separate product decision.
 
 ---
 
+## D-034 — Full-screen terminal UI retired from MSC 2
+
+**Status:** **Approved** · **Origin:** Owner-requested Phase 12 correction (P12.109) · **Approved by:** Cameron Temple · **Date:** 2026-09-07
+
+**Context.** D-015 deferred a persistent terminal dashboard to v1.1. That
+would create another client surface to maintain, even though MSC 2 already
+has the Tauri desktop app, desktop browser, and scriptable CLI. The completed
+terminal UI work is historical and remains recoverable through git history;
+it is not a current product commitment.
+
+**Decision.** MSC 2 retires the full-screen terminal UI. There is no planned
+TUI release in v1.1 or a later release. The retained control surfaces are the
+Tauri desktop app, desktop browser, and one-shot scriptable CLI. Interactive
+command confirmations remain part of the CLI. A headless host still runs the
+agent, and it can be managed from the desktop app, desktop browser, or a CLI
+invocation on the same or another device through the authenticated API.
+
+The Rust agent, HTTP/WebSocket API, server lifecycle, headless installation
+story, and WebSocket channels used by retained clients remain in scope. This
+decision retires only the client-side full-screen terminal presentation; it
+does not remove server capabilities or create a second management API.
+
+**Consequences.** D-015's Terminal TUI row is superseded. The supported-client
+capability matrix remains Desktop/Web plus CLI and does not gain a TUI column.
+The planned Phase 13 terminal-UI work is retired, and subsequent cleanup may
+remove its implementation, dependencies, tests, and active documentation;
+historical planning records and git history remain factual.
+
+**Revisit if:** the owner explicitly reopens a full-screen terminal client as
+a new product decision.
+
+---
+
 ## Appendix A — corrections made during planning
 
 Recorded because each produced a confident wrong answer, and each is the kind of mistake likely to recur.
@@ -968,6 +1005,7 @@ Recorded because each produced a confident wrong answer, and each is the kind of
 
 | Rev | Date | Change |
 |---|---|---|
+| 1.13 | 2026-09-07 | Added D-034: the full-screen terminal UI is retired; retained clients are Tauri desktop, desktop browser, and the scriptable headless CLI. |
 | 1.12 | 2026-09-07 | Amended D-033 and D-023: native iOS and supported mobile management are both out of v1; retained clients are Tauri desktop, desktop browser, headless CLI, and optional Tailscale remote access. |
 | 1.11 | 2026-09-07 | Added D-033: retired the native iOS client and set the responsive browser as the phone-access path; D-004 is superseded. |
 | 1.10 | 2026-09-07 | Added D-032: signed application manifests gate local MSC updates, with bounded local installation, rollback, and explicit Linux package/archive distinctions. |

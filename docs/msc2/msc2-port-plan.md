@@ -1,6 +1,6 @@
 # MSC 2 — Port Plan
 
-**Revision:** 1.4 · **Date:** 2026-09-07
+**Revision:** 1.5 · **Date:** 2026-09-07
 **Status:** **Execution document — Proposed, not owner-approved.**
 
 **This document is deliberately separate from the vision.** `msc2-product.md` and `msc2-engineering.md` describe the destination, its guarantees, and its architecture. This document describes a *route*, and routes change. Nothing here constrains the vision; if a phase order proves wrong, this file changes and the vision does not.
@@ -176,9 +176,13 @@ first-class client, and optional Tailscale may provide remote access for the
 desktop app or desktop browser without becoming a requirement for ordinary MSC
 use. Historical phase records and MSC 1 audit evidence remain unchanged.
 
-### Phase 13 — Terminal UI
+### Phase 13 — Terminal UI (retired)
 
-The `ratatui` dashboard. Deferred from v1 (D-015); built only once the API has stopped moving.
+The planned full-screen terminal client is retired by D-034. There is no Phase
+13 implementation gate and no later TUI release promise. The retained terminal
+surface is the scriptable CLI, including interactive command confirmations;
+the agent API, WebSocket channels, and headless installation story remain in
+scope for the supported desktop, browser, and CLI clients.
 
 ### Continuous, from Phase 1 onward
 

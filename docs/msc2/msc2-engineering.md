@@ -1,6 +1,6 @@
 # MSC 2 — Engineering Specification
 
-**Revision:** 1.6 · **Date:** 2026-09-07 · **Owner:** Cameron Temple
+**Revision:** 1.7 · **Date:** 2026-09-07 · **Owner:** Cameron Temple
 **Baseline:** MSC 1 at commit `fccd61f0ed743086f1f5db6bef58e228a36010f3`
 
 **Companion documents:**
@@ -91,7 +91,7 @@ Clients display and request. They never become co-owners. This is what keeps rec
 | HTTP / WebSocket | `axum` + `tokio` | Replaces MSC 1's hand-written socket server. |
 | CLI parsing | `clap` | Generates shell completions. |
 | Interactive prompts | `inquire` | Fuzzy select, confirm. Phase: after core CLI. |
-| Terminal UI | `ratatui` + `crossterm` | **v1 non-goal**, deferred to v1.1 (D-015). |
+| Terminal UI | — | Retired from MSC 2; the supported terminal surface is the scriptable CLI (D-034). |
 | Progress | `indicatif` | Downloads, installs. |
 | Desktop shell | **Tauri** | Thin. Loads the Svelte bundle. |
 | Frontend | **Svelte + TypeScript** | One bundle, served by the agent and loaded by Tauri. |
@@ -125,6 +125,10 @@ msc --host msc-linux server restart "Modded Survival"
 ```
 
 Human-readable by default; `--json` on everything; meaningful exit codes; colors and spinners disabled automatically when stdout is not a TTY.
+
+The CLI is the retained terminal interface: named one-shot commands,
+automation-friendly output, and interactive confirmations where an action is
+destructive. MSC does not ship a persistent full-screen terminal client.
 
 ---
 

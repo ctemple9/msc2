@@ -1,6 +1,6 @@
 # MSC 2 — What It Is
 
-**Revision:** 1.5 · **Date:** 2026-09-07 · **Owner:** Cameron Temple
+**Revision:** 1.6 · **Date:** 2026-09-07 · **Owner:** Cameron Temple
 
 This document describes MSC 2 in plain language: what it does, who it's for, and what using it feels like. No code, no architecture.
 
@@ -55,7 +55,7 @@ MSC 2 splits into two halves: a small program that actually runs your server, an
 
 **Your server can live on a machine with no screen.** An old laptop with the lid shut, in a closet, plugged into ethernet. No desktop, no monitor, no keyboard. This matters more than it sounds: on an 8 GB machine, not running a graphical desktop environment can be the difference between a modpack that runs and one that stutters.
 
-**You can manage it from the supported control surfaces.** The desktop app, desktop browser, and terminal all talk to the same server and reach the same agent capabilities. Optional Tailscale can carry remote desktop/browser access; ordinary local use does not require it.
+**You can manage it from the supported control surfaces.** The desktop app, desktop browser, and scriptable CLI all talk to the same server and reach the same agent capabilities. Optional Tailscale can carry remote desktop/browser access; ordinary local use does not require it.
 
 **Windows and Linux work too.** Not a lesser version. The same application.
 
@@ -280,7 +280,7 @@ Written down so it stays true.
 - **No supported mobile management client in v1.** Native mobile UI, App Store packaging, and mobile-specific notifications are out of scope. The responsive frontend remains a desktop/browser implementation detail, not a mobile product promise.
 - **No third-party plugin system.** Not in v1.
 - **No individual user accounts yet.** The existing access model continues unchanged — admin and guest roles, **named tokens with scoped permissions and expiry dates**, so you can already hand someone limited access. What's deferred is *human identity*: personal logins, invitations, and account recovery.
-- **No terminal dashboard yet.** The command line works fully in v1; the full-screen terminal interface comes in a later release.
+- **No full-screen terminal dashboard.** The scriptable CLI and interactive command confirmations are supported in v1; MSC does not plan a persistent terminal UI in a later release.
 - **Minecraft 1.20 and newer.** Older versions may still work, but aren't tested or supported.
 - **Bedrock only where Mojang supports it.** MSC runs on more machines than Bedrock servers do, and says so plainly rather than failing later.
 

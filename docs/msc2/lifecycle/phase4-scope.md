@@ -18,7 +18,7 @@ In scope:
 - Infer the game port, max players, active world name, Paper jar, and a stable MSC 2 server id where possible.
 - Register the directory as the active server without copying, unzipping, provisioning, or mutating the world.
 - Start it with a validated Java executable, the Phase 4 Paper launch command, bounded console capture, command input, status/performance snapshots, graceful stop, and restart.
-- Drive the same behavior through the HTTP API, CLI, and existing iOS app.
+- Drive the same behavior through the HTTP API, CLI, and the former mobile client as historical evidence.
 - Prove the same server keeps running after every client closes, and prove service ownership on macOS, Linux, and Windows.
 
 Out of scope:
@@ -29,7 +29,7 @@ Out of scope:
 - Moving, copying, repairing, replacing, or backing up worlds.
 - Fabric, Forge, NeoForge, Vanilla, Purpur, Bedrock, mods, plugins, modpacks, networking helpers, and router automation except where a Paper directory happens to contain inert files from those systems.
 - Desktop/Tauri/web UI work.
-- Full D-012 remote desktop pairing, LAN TLS, Tailscale posture, and browser CSRF/browser-cookie design. Phase 4 only does the real credential path needed by the CLI and existing iOS slice.
+- Full D-012 remote desktop pairing, LAN TLS, Tailscale posture, and browser CSRF/browser-cookie design. Phase 4 only does the real credential path needed by the CLI and former mobile slice.
 
 If the directory's EULA is not accepted, Phase 4 should report that clearly and refuse to start rather than silently editing it. EULA acceptance UX belongs to the later configuration/import work unless a Phase 4 live test cannot proceed without a narrow explicit command.
 
@@ -85,7 +85,7 @@ Why this matches the controlled set:
 - D-002 says the engine, service, API, and CLI ship as a single binary per platform.
 - `msc2-engineering.md` already describes `msc serve` and CLI mode as two modes of the same program.
 - One binary gives headless installs one artifact to place, sign, update, verify for GUI-free linkage, and register with the platform service manager.
-- CLI subcommands should talk through the HTTP API path the iOS client uses, so the CLI does not become a privileged shortcut around route validation, auth, audit, operation journaling, or API conformance.
+- CLI subcommands should talk through the same public HTTP API path used by other clients, so the CLI does not become a privileged shortcut around route validation, auth, audit, operation journaling, or API conformance.
 
 Practical shape:
 
@@ -120,9 +120,9 @@ Phase 4 CLI commands are limited to the vertical slice:
 
 No CLI commands for creation, backups, worlds, mods, players, networking, Bedrock, desktop install UX, or TUI behavior are in this phase.
 
-## iOS Slice
+## Historical Mobile Slice
 
-The existing Swift iOS client is a Phase 4 driver, not a status-only observer.
+The former Swift mobile client was a Phase 4 driver, not a status-only observer.
 
 Screens/files expected to move in this phase:
 
@@ -131,7 +131,7 @@ Screens/files expected to move in this phase:
 - Console/commands: recent console tail/live stream where available and command send.
 - Shared networking/model files: only the DTOs and calls required for the route set above.
 
-No iOS worlds, backups, mods, players, settings editor, router, or Bedrock screens are required by Phase 4 unless a missing minimal field blocks the imported Paper lifecycle gate.
+No mobile worlds, backups, mods, players, settings editor, router, or Bedrock screens were required by Phase 4 unless a missing minimal field blocked the imported Paper lifecycle gate.
 
 ## MSC 1 Oracle Symbols
 
@@ -178,7 +178,7 @@ Windows proof:
 - Register a Windows Service that logs on as the installing user's account, not `LocalSystem`.
 - Start the agent through the Service Control Manager.
 - Start the Paper server through the API/CLI.
-- Verify closing CLI/iOS clients does not stop the server.
+- Verify closing clients does not stop the server.
 - Verify lifecycle-owned Java processes are assigned to Job Objects where Phase 4 uses them for cleanup.
 - Record a sign-out checkpoint, have Cameron sign out and back in, then verify the service and server survived.
 - Stop and uninstall cleanly.
@@ -203,7 +203,7 @@ The phase gate holds only when all of this evidence exists:
 
 - Contract checks pass for the Phase 4 route set.
 - A live imported Paper server can be imported, selected, started, observed, commanded, stopped, restarted, and stopped again through public API/CLI paths.
-- The existing iOS app drives the same lifecycle path.
+- The former mobile app drove the same lifecycle path.
 - macOS LaunchDaemon, Linux systemd, and Windows Service runs each prove client closure does not stop the server.
 - macOS LaunchDaemon, Linux systemd, and Windows Service runs each prove service-process credential persistence across a real agent restart with the bootstrap token removed.
 - Windows sign-out survival is recorded.

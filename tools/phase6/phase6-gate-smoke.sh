@@ -4,7 +4,7 @@ set -euo pipefail
 # Phase 6 restart-sensitive public-path smoke (P6.25).
 #
 # Drives a real foreground msc-agent through nothing but the CLI/API
-# (the same surface the iOS client and any other public caller uses):
+# (the same public surface every retained client uses):
 # import a Java multi-folder world, reconcile it into the formal slot
 # model (P6.1/P6.4/P6.11), exercise slot CRUD, activate with a
 # mandatory safety backup, take manual backups (both the confirmed and

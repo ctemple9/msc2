@@ -138,7 +138,7 @@ A versioned **OpenAPI** description plus explicit **WebSocket event schemas** is
 
 Three distinct things follow from this, and conflating them is a mistake:
 
-1. **Baseline.** Where MSC 1's API already covers a capability, its externally observable behavior is normative. Retained MSC 2 clients must keep working, while the old iOS client remains historical compatibility evidence rather than a shipped target.
+1. **Baseline.** Where MSC 1's API already covers a capability, its externally observable behavior is normative. Retained MSC 2 clients must keep working, while the former mobile client remains historical compatibility evidence rather than a shipped target.
 2. **Extension.** MSC 2's API is a **superset**. MSC 1 has desktop capabilities its Remote API never exposed; the parity work identified these, and MSC 2 must add endpoints for them. The baseline defines what may not break, not what may not be added.
 3. **Correction.** Documented bugs, security weaknesses, and genuinely wrong semantics **may be fixed** rather than preserved forever. A quirk is not a contract simply because it shipped. Corrections are recorded explicitly, versioned per D-010, and never made silently.
 
@@ -146,7 +146,7 @@ Measured baseline surface:
 
 - **49 POST routes**, **38 GET routes**
 - 8 files, 5,652 lines
-- `RemoteAPIServerDTOs.swift` alone is ~55 KB of wire schema, historically exercised daily by MSC 1's iOS client
+- `RemoteAPIServerDTOs.swift` alone is ~55 KB of wire schema, historically exercised daily by MSC 1's former mobile client
 - Existing auth, roles, rate limiting, audit logging, WebSocket support
 
 Route families: `servers/{create,import,delete,rename,eula}` · `settings` · `worlds/{create,rename,replace,repair,activate}` · `components/{install,remove,update,version}` · `backups/{now,restore,config}` · `config/{ram,java-runtime,geyser}` · `users/{create,update,revoke}` · `health/repair` · `playit/*` · `broadcast/*` · `resourcepacks/*` · `watchdog/*` · `command` · `start` · `stop` · `allowlist` · `players/*` · `duckdns` · `templates`

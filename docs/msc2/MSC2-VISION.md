@@ -136,8 +136,8 @@ The two CSVs join on `file`. They are **file-level inputs to the future symbol l
 
 | Rev | Date | Change |
 |---|---|---|
-| 1.6 | 2026-09-07 | Amended D-033: native iOS and supported mobile management are both out of v1; retained clients are Tauri desktop, desktop browser, and headless CLI, with optional Tailscale remote access. |
-| 1.5 | 2026-09-07 | Recorded D-033: native iOS is retired from MSC 2; phone access uses the responsive browser client. |
+| 1.6 | 2026-09-07 | Amended D-033: native mobile and supported mobile management are both out of v1; retained clients are Tauri desktop, desktop browser, and headless CLI, with optional Tailscale remote access. |
+| 1.5 | 2026-09-07 | Recorded D-033: the native mobile client is retired from MSC 2; the responsive browser remains a desktop/browser implementation detail. |
 | 1.0 | 2026-07-29 | Initial three-document set. |
 | 1.4 | 2026-07-30 | Added D-026 and `msc2-engineering.md` §18: MSC 1's teaching material — 31 handbook topics, the concept guide, ~18 router-guide files, contextual help — had no home in MSC 2's architecture. Content becomes agent-served data with a `helpId` on every explainable thing, reaching all four interfaces including the CLI. Must land before the Phase 2 contract freeze. |
 | 1.3 | 2026-07-29 | Third Codex review: symbol-ledger contradiction removed set-wide; Phase 0 reduced to baseline + harness + ledger with per-domain characterization moved next to each translation; cross-platform tests moved out of MSC 1 characterization; product permissions corrected to name scoped tokens; D-024 (power management) and D-025 (service identity, Open) added; wording polished — graphical desktop environment, unmeasured memory figure removed, drift claim softened. |

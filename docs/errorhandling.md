@@ -99,7 +99,7 @@ The server can also be surrounded by:
 - **Tailscale** — private tailnet connectivity and, depending on setup, subnet routing;
 - **Modrinth and CurseForge** — add-on/modpack metadata and download providers;
 - **GitHub releases and other direct providers** — helper and server artifact acquisition sources;
-- **MSC agent, desktop/web client, iOS client, and CLI** — API and process-observation surfaces that can themselves fail.
+- **MSC agent, desktop/browser client, and CLI** — API and process-observation surfaces that can themselves fail.
 
 An error sheet should identify which layer failed. “The server failed” is too broad when the actual issue is “the server is running, but Playit cannot establish its tunnel.”
 
@@ -1253,4 +1253,3 @@ The sources below are intentionally mixed: official documentation for formats/co
 13. Treat warnings as warnings unless evidence shows they blocked startup.
 14. When a repair fixes one issue but reveals another, explain the sequence.
 15. Keep raw logs available for users who want them, but never make raw logs the only path to understanding the problem.
-

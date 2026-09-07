@@ -99,7 +99,7 @@ Restated from `rolling-plan.md`'s Phase 6 "Not in this phase" list so this note 
 - **Bedrock `level.dat` repair and production online-backup command delivery** stay **Phase 10** — both require a real Bedrock runtime, which doesn't exist until then. `repairWorldLevelDat` and the Bedrock half of the online-consistency backup protocol port their file-layout/NBT rules and fake-runtime protocol tests now, but return an explicit capability-unavailable error for imported Bedrock records in production rather than pretending the operation ran.
 - **Provisioning a new server from a backup** (`duplicateBackupToNewServer`) stays **Phase 7** with server-family provisioning. Phase 6 can restore a backup into the current server or import it as a world slot; it does not construct a new runtime.
 - **Installing or updating Chunker** is not folded into world mutation — an absent converter is an advertised unavailable capability, not an implicit download. Helper acquisition belongs with later helper/provisioning work.
-- **Desktop/web screens** stay **Phase 11**. The copied iOS client and CLI are this phase's client surfaces.
+- **Desktop/web screens** stay **Phase 11**. The former mobile client is historical evidence; the CLI is this phase's retained client surface.
 - **Arbitrary host filesystem browsing** stays outside the world API; import/export use bounded, operation-scoped staging under approved roots.
 
 ## Not resolved by this note

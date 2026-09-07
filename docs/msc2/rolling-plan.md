@@ -710,10 +710,10 @@ native or supported mobile control surface.
 **Batch:** solo
 
 ### P12.107 — Record and verify the native-mobile retirement audit
-**Status:** not started
-**Files:** `docs/msc2/ios-retirement-audit.md`, `docs/msc2/rolling-plan.md`
+**Status:** awaiting verification
+**Files:** `docs/msc2/ios-retirement-audit.md`, `docs/msc2/rolling-plan.md`, `docs/errorhandling.md`, `docs/msc2/MSC2-VISION.md`, `docs/msc2/families/phase7-api.md`, `docs/msc2/lifecycle/pairing-phase4.md`, `docs/msc2/lifecycle/phase4-scope.md`, `docs/msc2/msc2-engineering.md`, `docs/msc2/msc2-port-plan.md`, `docs/msc2/msc2-product.md`, `docs/msc2/worlds/phase6-api.md`, `docs/msc2/worlds/phase6-scope.md`, `tools/phase6/phase6-gate-smoke.sh`, `tools/phase7/phase7-gate-smoke.sh`
 **What:** Record the search terms, repository areas, removed artifacts, intentionally retained historical references, and intentionally retained third-party mobile meanings. Confirm that no native iOS project, iOS test target, iOS capability column, iOS-only release/check path, or active native/supported-mobile product claim remains, while noting that git history and the MSC 1 oracle remain available for historical reference. Do not treat responsive desktop/browser layout as supported mobile access.
-**Verify:** `test ! -e clients/ios && git diff --check && if git grep -n -i -E 'clients/ios|MSCRemoteiOS|MSC Remote|iPhone app|iOS client|native iOS|ios_status|ios-contract-check' -- ':!docs/msc2/rolling-plan-archive.md' ':!docs/msc2/audit/**' ':!docs/msc2/msc2-decisions.md' ':!docs/msc2/ios-retirement-audit.md'; then exit 1; fi`
+**Verify:** `test ! -e clients/ios && git diff --check && if git grep -n -i -E 'clients/ios|MSCRemoteiOS|MSC Remote|iPhone app|iOS client|native iOS|ios_status|ios-contract-check' -- ':!docs/msc2/rolling-plan.md' ':!docs/msc2/rolling-plan-archive.md' ':!docs/msc2/audit/**' ':!docs/msc2/msc2-decisions.md' ':!docs/msc2/ios-retirement-audit.md'; then exit 1; fi`
 **Commit:** `P12.107: record native-mobile retirement audit`
 **Batch:** stop-after
 

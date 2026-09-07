@@ -167,7 +167,7 @@ Because this is a *design* phase, its verification is deliberately different fro
 
 **Amendment, 2026-08-26 (owner decision, recorded per the exception rule at line 174):** the Packs tab (MSC 1's `DetailsPacksTabView`/`ResourcePacksView`) is an explicit, named exception to this gate. Cameron does not use it in MSC 1 and does not want it rebuilt for MSC 2's redesign. The underlying agent routes (`/v1/resourcepacks/*`) and their capability-matrix rows stay as they are — this is a client-screen scope decision, not an agent capability removal — and CLI access is unaffected. The feature is deferred, not declared permanently out of scope: it can be picked back up as a new step later if wanted. See `rolling-plan.md`'s P12.5 entry, which removed the greyed-out Packs tab placeholder from the running client, for the full reasoning.
 
-**Amendment, 2026-09-07 (D-033/P12.108):** the native iOS client and any
+**Amendment, 2026-09-07 (D-033/P12.108):** the native mobile client and any
 supported mobile management client are out of v1. The Phase 12 client gate
 covers the Tauri desktop and desktop-browser experience; responsive layout is
 an implementation detail, not a mobile support promise. Phase 2 and Phase 4

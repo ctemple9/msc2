@@ -277,7 +277,7 @@ Written down so it stays true.
 - **No MSC-operated cloud service, ever.** No accounts, no hosting, no marketplace, no telemetry, no relay, no subscription. This is permanent. Optional third-party integrations — Tailscale, Playit, DuckDNS, Modrinth, CurseForge — stay fully supported; the rule is about *us* running a backend, not about MSC being offline.
 - **Not a server network.** MSC manages servers on machines you own. It is not a proxy or multi-server network orchestrator.
 - **Not a billing platform or a hosting business.**
-- **No supported mobile management client in v1.** Native iOS UI, App Store packaging, and mobile-specific notifications are out of scope. The responsive frontend remains a desktop/browser implementation detail, not a mobile product promise.
+- **No supported mobile management client in v1.** Native mobile UI, App Store packaging, and mobile-specific notifications are out of scope. The responsive frontend remains a desktop/browser implementation detail, not a mobile product promise.
 - **No third-party plugin system.** Not in v1.
 - **No individual user accounts yet.** The existing access model continues unchanged — admin and guest roles, **named tokens with scoped permissions and expiry dates**, so you can already hand someone limited access. What's deferred is *human identity*: personal logins, invitations, and account recovery.
 - **No terminal dashboard yet.** The command line works fully in v1; the full-screen terminal interface comes in a later release.

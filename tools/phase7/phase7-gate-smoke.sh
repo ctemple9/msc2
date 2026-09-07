@@ -4,7 +4,7 @@ set -euo pipefail
 # Phase 7 portable six-family provisioning and launch smoke (P7.27).
 #
 # Drives a real foreground `msc-agent` through nothing but the CLI and
-# API -- the same public surface the copied iOS client and any other
+# API -- the same public surface every retained client and any other
 # caller uses -- to create all six create-flow families (Vanilla, Paper,
 # Purpur, Fabric, NeoForge, Forge), start each one, and prove the thing
 # the port plan's own later-audit clause asks for: that Forge/NeoForge

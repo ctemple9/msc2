@@ -115,6 +115,21 @@ Run `install.sh` as your normal user. It requests administrator permission when 
 
 After installation, the agent starts automatically and is configured to start again after reboot.
 
+### Update a headless installation
+
+Signed releases can be checked and staged locally from the agent binary:
+
+```sh
+msc update check
+msc update install --release-id 0.1.2
+```
+
+The install command asks for a second confirmation. For automation, pass
+`--yes`; for scripts, add `--json` to either command. A standalone archive can
+replace its verified agent and recover the local service if needed. If MSC was
+installed as a Debian or RPM package, the command prints the package-manager
+command to run instead, because the operating system owns those files.
+
 Check its status with:
 
 ```sh

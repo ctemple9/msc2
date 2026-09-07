@@ -632,7 +632,7 @@ replace the operating-system service on another host.
 **Batch:** solo
 
 ### P12.100 — Add headless update commands
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/cli/{mod.rs,update.rs}`, `crates/msc-infrastructure/src/release_update.rs`, `packaging/linux/`, `docs/msc2/clients/phase12-release.md`, `README.md`, `docs/msc2/rolling-plan.md`
 **What:** Add local CLI commands `msc update check` and `msc update install`, with human-readable and `--json` output, release notes, explicit confirmation, and an explicit non-interactive approval flag for automation. Reuse the same signed-manifest, compatibility, digest, staging, replacement, service-restart, health-check, and rollback rules as the desktop flow. Detect whether the installation is a standalone archive or distribution-managed package: standalone headless installs may replace their own verified binary/resources after authorization, while `.deb`/`.rpm` installations direct the user through the platform package manager. Do not overload `msc status`, do not require a running remote management API for a local self-update, and never allow a remote client request to update another host's service.
 **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-agent --bin msc -p msc-infrastructure --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && cargo check -p msc-agent --no-default-features && bash -n packaging/linux/install.sh packaging/linux/uninstall.sh && rg -n "msc update check|msc update install|--json|package manager|standalone" crates/msc-agent/src/cli docs/msc2/clients/phase12-release.md README.md`

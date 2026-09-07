@@ -3,6 +3,7 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_BIN="/usr/lib/msc2/msc"
+INSTALL_MODE_MARKER="/usr/lib/msc2/.msc2-installation-mode"
 UNIT_DIR="/etc/systemd/system"
 TMPFILES_DIR="/usr/lib/tmpfiles.d"
 AGENT_UNIT="com.ctemple.msc2.agent.service"
@@ -136,6 +137,9 @@ systemctl disable "$AGENT_UNIT" "$HELPER_SERVICE_UNIT" "$HELPER_SOCKET_UNIT" >/d
 
 install -d -m 0755 -o root -g root "$(dirname "$INSTALL_BIN")"
 install -m 0755 -o root -g root "$SCRIPT_DIR/msc" "$INSTALL_BIN"
+printf 'standalone-archive\n' > "$INSTALL_MODE_MARKER"
+chown root:root "$INSTALL_MODE_MARKER"
+chmod 0644 "$INSTALL_MODE_MARKER"
 
 # These directories belong to the installing user. Do not recursively chown
 # an existing data directory: an upgrade must not rewrite ownership inside a

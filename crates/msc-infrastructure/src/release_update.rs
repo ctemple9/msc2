@@ -23,6 +23,20 @@ pub const RELEASE_NOTES_MAX_BYTES: u64 = 256 * 1024;
 pub const ASSET_MAX_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 pub const TOTAL_DOWNLOAD_MAX_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 
+/// Selects the release artifact family for a local updater.
+///
+/// A headless agent must not accidentally select a desktop installer. Linux
+/// package installs are the one deliberate exception: the package manager
+/// owns the files, so the CLI stages the matching package and reports the
+/// command the operator must run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UpdateChannel {
+    Desktop,
+    Headless,
+    LinuxPackageDeb,
+    LinuxPackageRpm,
+}
+
 const CURRENT_API_MAJOR: u32 = 1;
 const RELEASE_SET: &str = "msc-application";
 const MANIFEST_FILE: &str = "msc2-update-manifest.json";
@@ -39,6 +53,7 @@ pub struct UpdateClientConfig {
     pub api_minor: u32,
     pub target: String,
     pub trusted_key: [u8; 32],
+    pub channel: UpdateChannel,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -107,7 +122,7 @@ struct GithubLatestRelease {
     tag_name: String,
 }
 
-/// Fetches, verifies, and atomically stages the current desktop platform's
+/// Fetches, verifies, and atomically stages the current local platform's
 /// signed release set beneath data_directory/updates/<release-id>.
 pub fn check_and_stage(
     config: &UpdateClientConfig,
@@ -164,7 +179,7 @@ pub fn check_and_stage(
     let manifest: ReleaseManifest = serde_json::from_value(manifest_value)
         .map_err(|error| format!("Update manifest has an invalid shape: {error}"))?;
     verify_manifest(&manifest, &signature_bytes, &canonical, config, &latest_id)?;
-    let platform_key = platform_key(&config.target)?;
+    let platform_key = platform_key(&config.target, config.channel)?;
     let platform = manifest
         .platforms
         .get(platform_key)
@@ -263,7 +278,7 @@ pub fn verify_staged(
     let manifest: ReleaseManifest = serde_json::from_value(manifest_value)
         .map_err(|error| format!("The staged update manifest has an invalid shape: {error}"))?;
     verify_manifest(&manifest, &signature_bytes, &canonical, config, release_id)?;
-    let key = platform_key(&config.target)?;
+    let key = platform_key(&config.target, config.channel)?;
     let platform = manifest
         .platforms
         .get(key)
@@ -361,6 +376,8 @@ fn verify_platform(
     }
     let expected_mode = if platform_key.starts_with("linux-desktop-") {
         "authorized-package-install"
+    } else if platform_key.ends_with("-headless-x86_64") {
+        "standalone-archive"
     } else {
         "tauri-coordinated"
     };
@@ -377,6 +394,8 @@ fn verify_platform(
         "package-deb"
     } else if platform_key.ends_with("-rpm-x86_64") {
         "package-rpm"
+    } else if platform_key.ends_with("-headless-x86_64") {
+        "archive"
     } else {
         "desktop"
     };
@@ -585,14 +604,20 @@ fn release_base_url(repository: &str, release_id: &str) -> String {
     format!("https://github.com/{repository}/releases/download/{release_id}")
 }
 
-fn platform_key(target: &str) -> Result<&'static str, String> {
+fn platform_key(target: &str, channel: UpdateChannel) -> Result<&'static str, String> {
     if std::env::consts::ARCH != "x86_64" {
-        return Err("This MSC release supports x86_64 desktop updates only.".to_string());
+        return Err("This MSC release supports x86_64 updates only.".to_string());
     }
-    match (std::env::consts::OS, target) {
-        ("macos", "x86_64-apple-darwin") => Ok("macos-desktop-x86_64"),
-        ("windows", "x86_64-pc-windows-msvc") => Ok("windows-desktop-x86_64"),
-        ("linux", "x86_64-unknown-linux-gnu") => {
+    match (std::env::consts::OS, target, channel) {
+        ("macos", "x86_64-apple-darwin", UpdateChannel::Desktop) => Ok("macos-desktop-x86_64"),
+        ("macos", "x86_64-apple-darwin", UpdateChannel::Headless) => Ok("macos-headless-x86_64"),
+        ("windows", "x86_64-pc-windows-msvc", UpdateChannel::Desktop) => {
+            Ok("windows-desktop-x86_64")
+        }
+        ("windows", "x86_64-pc-windows-msvc", UpdateChannel::Headless) => {
+            Ok("windows-headless-x86_64")
+        }
+        ("linux", "x86_64-unknown-linux-gnu", UpdateChannel::Desktop) => {
             if std::env::var("MSC2_LINUX_PACKAGE_FORMAT")
                 .map(|value| value.eq_ignore_ascii_case("rpm"))
                 .unwrap_or(false)
@@ -602,8 +627,106 @@ fn platform_key(target: &str) -> Result<&'static str, String> {
                 Ok("linux-desktop-deb-x86_64")
             }
         }
-        _ => Err("This desktop platform is not supported by the MSC updater.".to_string()),
+        ("linux", "x86_64-unknown-linux-gnu", UpdateChannel::Headless) => {
+            Ok("linux-headless-x86_64")
+        }
+        ("linux", "x86_64-unknown-linux-gnu", UpdateChannel::LinuxPackageDeb) => {
+            Ok("linux-desktop-deb-x86_64")
+        }
+        ("linux", "x86_64-unknown-linux-gnu", UpdateChannel::LinuxPackageRpm) => {
+            Ok("linux-desktop-rpm-x86_64")
+        }
+        _ => Err("This platform is not supported by the MSC updater.".to_string()),
     }
+}
+
+/// Extracts a verified standalone headless archive into a fresh directory.
+///
+/// The archive has already passed the signed byte-count and SHA-256 checks.
+/// We still validate every path and reject links because archive contents are
+/// an installation input, not trusted merely because the container is signed.
+pub fn extract_standalone_archive(archive_path: &Path, destination: &Path) -> Result<(), String> {
+    if destination.exists() {
+        return Err(format!(
+            "The temporary update directory already exists: {}",
+            destination.display()
+        ));
+    }
+    fs::create_dir_all(destination)
+        .map_err(|error| format!("Could not create the update extraction directory: {error}"))?;
+
+    let result = if archive_path.extension().and_then(|value| value.to_str()) == Some("zip") {
+        crate::archive::extract_zip(archive_path, destination)
+            .map_err(|error| format!("Could not extract the Windows headless archive: {error}"))
+    } else {
+        extract_tar_gz(archive_path, destination)
+    };
+    if let Err(error) = result {
+        let _ = fs::remove_dir_all(destination);
+        return Err(error);
+    }
+    Ok(())
+}
+
+fn extract_tar_gz(archive_path: &Path, destination: &Path) -> Result<(), String> {
+    let file = File::open(archive_path)
+        .map_err(|error| format!("Could not open the macOS/Linux headless archive: {error}"))?;
+    let decoder = flate2::read::GzDecoder::new(file);
+    let mut archive = tar::Archive::new(decoder);
+    let entries = archive
+        .entries()
+        .map_err(|error| format!("Could not read the headless archive: {error}"))?;
+    for entry in entries {
+        let mut entry = entry.map_err(|error| format!("Could not read archive entry: {error}"))?;
+        let entry_type = entry.header().entry_type();
+        if !entry_type.is_file() && !entry_type.is_dir() {
+            return Err(
+                "The headless archive contains an unsupported link or special file.".into(),
+            );
+        }
+        let relative = entry
+            .path()
+            .map_err(|error| format!("Could not read archive path: {error}"))?;
+        validate_archive_relative_path(&relative)?;
+        let destination_path = destination.join(&relative);
+        if entry_type.is_dir() {
+            fs::create_dir_all(&destination_path)
+                .map_err(|error| format!("Could not create archive directory: {error}"))?;
+        } else {
+            if let Some(parent) = destination_path.parent() {
+                fs::create_dir_all(parent)
+                    .map_err(|error| format!("Could not create archive parent: {error}"))?;
+            }
+            let mut output = File::create(&destination_path)
+                .map_err(|error| format!("Could not create extracted archive file: {error}"))?;
+            std::io::copy(&mut entry, &mut output)
+                .map_err(|error| format!("Could not extract archive file: {error}"))?;
+            #[cfg(unix)]
+            if let Ok(mode) = entry.header().mode() {
+                use std::os::unix::fs::PermissionsExt;
+                fs::set_permissions(&destination_path, fs::Permissions::from_mode(mode))
+                    .map_err(|error| format!("Could not preserve archive permissions: {error}"))?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_archive_relative_path(path: &Path) -> Result<(), String> {
+    if path.is_absolute()
+        || path.components().any(|component| {
+            matches!(
+                component,
+                Component::ParentDir | Component::RootDir | Component::Prefix(_)
+            )
+        })
+    {
+        return Err(format!(
+            "The headless archive contains an unsafe path: {}",
+            path.display()
+        ));
+    }
+    Ok(())
 }
 
 fn validate_repository(repository: &str) -> Result<(), String> {

@@ -3,6 +3,7 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_BIN="/usr/lib/msc2/msc"
+INSTALL_MODE_MARKER="/usr/lib/msc2/.msc2-installation-mode"
 UNIT_DIR="/etc/systemd/system"
 TMPFILES_DIR="/usr/lib/tmpfiles.d"
 AGENT_UNIT="com.ctemple.msc2.agent.service"
@@ -46,7 +47,8 @@ rm -f \
   "$UNIT_DIR/$HELPER_SOCKET_UNIT" \
   "$UNIT_DIR/$HELPER_SERVICE_UNIT" \
   "$TMPFILES_DIR/$TMPFILES_UNIT" \
-  "$INSTALL_BIN"
+  "$INSTALL_BIN" \
+  "$INSTALL_MODE_MARKER"
 
 systemd-tmpfiles --remove "$TMPFILES_DIR/$TMPFILES_UNIT" >/dev/null 2>&1 || true
 systemctl daemon-reload

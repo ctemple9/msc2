@@ -1,5 +1,5 @@
 use msc_infrastructure::release_update::{
-    self, StagedUpdate, UpdateClientConfig, UpdateResult,
+    self, StagedUpdate, UpdateChannel, UpdateClientConfig, UpdateResult,
 };
 use serde::{Deserialize, Serialize};
 use std::{path::Path, process::Command};
@@ -54,6 +54,7 @@ fn client_config() -> Result<UpdateClientConfig, String> {
         api_minor: 0,
         target: current_target()?,
         trusted_key,
+        channel: UpdateChannel::Desktop,
     })
 }
 

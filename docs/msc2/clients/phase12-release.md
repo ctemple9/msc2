@@ -481,3 +481,32 @@ workflow publishes the existing checksum-protected prerelease with an
 explicit unsigned notice; that path is intentionally ineligible for native
 in-app installation. Release notes are published alongside the checksum and,
 when configured, the signed metadata pair.
+
+## 15. Headless CLI updates (P12.100)
+
+Headless updates are local CLI operations. `msc update check` downloads the
+latest release metadata and release notes, verifies the detached Ed25519
+manifest, checks the local API compatibility window and target, verifies the
+asset digest, and stages the exact archive or package beneath the local MSC
+data directory. It does not call the remote management API and it never
+updates another host.
+
+Install the exact staged release with:
+
+```text
+msc update install --release-id 0.1.2
+```
+
+The command asks for a second confirmation. Automation must make that approval
+explicit with `--yes` (or `--non-interactive`); a non-interactive invocation
+without it is refused. Add `--json` for one machine-readable result containing
+the state, release ID, installation mode, detail, and release notes.
+
+Standalone headless archives replace only the verified agent payload and its
+packaged resources. If the local service was running, the CLI stops and starts
+that same local service, probes `/v1/healthz`, and restores the previous
+payload if recovery fails. A Linux `.deb` or `.rpm` installation remains
+owned by the distribution package manager: the CLI verifies and stages the
+package, then prints the appropriate local `apt` or `dnf` command instead of
+overwriting package-owned files. The Linux archive installer records its
+standalone mode marker so this distinction remains explicit after reboot.

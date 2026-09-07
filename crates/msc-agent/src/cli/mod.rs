@@ -4,6 +4,7 @@
 pub mod pairing;
 pub mod service;
 pub mod tui;
+pub mod update;
 
 use self::tui::transport::SharedClient as RemoteClient;
 
@@ -163,6 +164,12 @@ pub enum Command {
     Service {
         #[command(subcommand)]
         command: service::ServiceCommand,
+    },
+    /// Check for or install a signed update for this local MSC installation.
+    /// These commands never use the remote management API.
+    Update {
+        #[command(subcommand)]
+        command: update::UpdateCommand,
     },
     /// Create a local one-use code for remote recovery pairing.
     Pairing {
@@ -1018,6 +1025,7 @@ pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
         Command::Broadcast { command } => run_broadcast(common, command).await,
         Command::ResourcePack { command } => run_resource_pack(common, command).await,
         Command::Service { command } => service::run(common, command).await,
+        Command::Update { command } => update::run(common, command),
         Command::Pairing { command } => pairing::run(common, command),
         Command::Server { command } => run_server(common, command).await,
         Command::Send(args) => run_command(common, args).await,

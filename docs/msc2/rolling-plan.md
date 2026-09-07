@@ -678,7 +678,7 @@ native or supported mobile control surface.
 **Batch:** stop-after
 
 ### P12.103 — Remove the native iOS project and dedicated checklists
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `clients/ios/`, `tools/phase4/ios-lifecycle-check.md`, `tools/phase7/ios-provisioning-check.md`, `tools/phase10/ios-contract-check.py`
 **What:** Remove the MSC 2-owned native iOS application, Xcode project, Swift sources, iOS tests, screenshots, README, and iOS-only phase checklists/checker from the working tree. Do not replace them with a phone/browser client or mobile support promise. Do not touch the MSC 1 oracle and do not rewrite git history; the removed client remains recoverable through the repository history.
 **Verify:** `test ! -e clients/ios && test ! -e tools/phase4/ios-lifecycle-check.md && test ! -e tools/phase7/ios-provisioning-check.md && test ! -e tools/phase10/ios-contract-check.py && git diff --check`

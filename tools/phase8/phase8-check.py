@@ -147,8 +147,9 @@ CAPABILITY_MATRIX_PATH = Path("docs/msc2/client-capability-matrix.csv")
 
 # These are the public paths Phase 8 promises through every client that has
 # a corresponding copied workflow.  Modpack inspect/import/manual completion
-# intentionally remain iOS-Planned: the copied app has no screen for them,
-# and P8.26 records that limitation instead of claiming parity.
+# intentionally remain outside this phase's client-coverage claim: the copied
+# workflow has no screen for them, and P8.26 records that limitation instead
+# of claiming parity.
 PUBLIC_CLIENT_ROWS = {
     ("GET", "/v1/addons"): ("Implemented", "Implemented", "Implemented"),
     ("GET", "/v1/catalog/search"): ("Implemented", "Implemented", "Implemented"),
@@ -667,7 +668,7 @@ def check_exit_gate() -> str:
         row = rows.get(key)
         if row is None:
             raise CheckError(f"{CAPABILITY_MATRIX_PATH}: missing {key[0]} {key[1]} row")
-        actual = (row["agent_status"], row["ios_status"], row["cli_status"])
+        actual = (row["agent_status"], row["desktop_web_status"], row["cli_status"])
         if actual != expected:
             raise CheckError(
                 f"{CAPABILITY_MATRIX_PATH}: {key[0]} {key[1]} is {actual}, expected {expected}"
@@ -676,8 +677,8 @@ def check_exit_gate() -> str:
         row = rows.get(key)
         if row is None:
             raise CheckError(f"{CAPABILITY_MATRIX_PATH}: missing {key[0]} {key[1]} row")
-        actual = (row["agent_status"], row["ios_status"], row["cli_status"])
-        expected = ("Implemented", "Planned", "Implemented")
+        actual = (row["agent_status"], row["desktop_web_status"], row["cli_status"])
+        expected = ("Implemented", "Implemented", "Implemented")
         if actual != expected:
             raise CheckError(
                 f"{CAPABILITY_MATRIX_PATH}: {key[0]} {key[1]} is {actual}, expected {expected}"

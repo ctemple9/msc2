@@ -6,7 +6,7 @@
 
 ### 1. Why this exists
 
-Per §5: "Clients ask the agent what it can do. Capabilities reflect host OS, server type, installed helpers, token permissions, agent version, and server state. One client build controls hosts with different capabilities without assuming feature parity underneath." The same iOS binary talks to a Linux headless agent with no Bedrock support and a macOS agent with the VZ sidecar (§9); it needs one place to ask what's actually available on *this* host, for *this* token, before it renders UI that would otherwise fail against a host that can't do the thing.
+Per §5: "Clients ask the agent what it can do. Capabilities reflect host OS, server type, installed helpers, token permissions, agent version, and server state. One client build controls hosts with different capabilities without assuming feature parity underneath." The Tauri desktop, desktop-browser, and headless-CLI clients can talk to Linux, Windows, and macOS agents with different Bedrock support (§9); each needs one place to ask what's actually available on *this* host, for *this* token, before it renders or attempts a workflow that the host can't support.
 
 This document designs the route and response shape only. The detection logic behind most fields — real installed-helper probing, real per-server-type support checks — is Phase 3/4/10 infrastructure work; see §6.
 

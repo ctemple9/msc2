@@ -11540,7 +11540,7 @@
           },
           "message": {
             "type": "string",
-            "description": "Human-readable, iOS-visible text."
+            "description": "Human-readable text for the supported desktop, browser, and CLI clients."
           },
           "helpId": {
             "type": "string",

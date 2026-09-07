@@ -120,7 +120,6 @@ def check_candidate_workflow(workflow: str) -> None:
         re.search(r"platform:\s+linux-x86_64", workflow) is not None,
         "Linux artifact must be labelled x86_64",
     )
-    require("clients/ios" not in workflow, "release workflow must not build iOS outputs")
     require("src/cli/tui" not in workflow, "release workflow must not build TUI outputs")
     require("gh release" not in workflow, "candidate workflow must not publish a GitHub release")
     require("softprops/action-gh-release" not in workflow, "candidate workflow must not publish a GitHub release")

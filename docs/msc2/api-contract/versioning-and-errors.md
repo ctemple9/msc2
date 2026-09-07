@@ -30,7 +30,7 @@ Both report the same two numbers; `/v1/capabilities` is the one with the actual 
 D-010's degrade-within-window behavior needs the agent to know what the *client* was built against, not just what it's asking for right now. **Every request may carry `X-MSC-Client-Api-Version: <major>.<minor>`** — the API version the client was built against, set once at build time, not derived from anything dynamic.
 
 - **Header present:** the agent evaluates skew (§4) against the declared minor.
-- **Header absent:** the agent assumes the caller is not participating in the skew protocol (a dev tool, `curl`, an internal test) and skips skew evaluation entirely — full current behavior, no degradation, no refusal. The real iOS client always sends this header once P2.18/P2.20 wire it; omission is the exception, not the norm, so defaulting it to "most permissive" rather than "assume oldest" avoids punishing tooling that has no opinion about versioning.
+- **Header absent:** the agent assumes the caller is not participating in the skew protocol (a dev tool, `curl`, an internal test) and skips skew evaluation entirely — full current behavior, no degradation, no refusal. Supported desktop, browser, and CLI clients send this header; omission is the exception, not the norm, so defaulting it to "most permissive" rather than "assume oldest" avoids punishing tooling that has no opinion about versioning.
 
 ### 4. Skew behavior within a major version
 
@@ -57,7 +57,7 @@ A **major mismatch** (client hard-codes `/v2/...`, agent only serves `/v1`) is h
 ```
 
 - **`code`** — a stable, machine-readable snake_case identifier. Small closed-ish vocabulary per failure kind (`invalid_body`, `missing_field`, `not_found`, `conflict`, `forbidden`, `unauthorized`, `rate_limited`, `client_version_unsupported`, `internal_error`, …), not one-off per route — a client branches on `code`, never on `message` text.
-- **`message`** — human-readable, iOS-visible (D-006's preserved-semantics list: "iOS-visible error semantics"). This is the string MSC 1's existing UI-facing error text maps onto; wording is preserved where a baseline route already has one, per D-006 point 1.
+- **`message`** — human-readable and client-visible. This preserves D-006's intent that the existing UI-facing error semantics remain understandable across the supported desktop, browser, and CLI clients; wording is preserved where a baseline route already has one, per D-006 point 1.
 - **`helpId?`** — optional, resolves through P2.2's `GET /v1/help/{helpId}` when the failure has associated educational content (e.g. why a Java version guard rejected a runtime). Absent when there's nothing more to say than `message` already says.
 - **`details?`** — optional, free-form structured object for whatever route-specific context used to live inside a typed failure DTO (§6) — validation field names, conflicting version strings, retry-after seconds for a 429, etc. Structured, not prose; `message` carries the prose.
 
@@ -72,7 +72,7 @@ P0.32 read every mutation handler in MSC 1 and found the baseline doesn't have o
 
 A client integrating against the baseline has to know, per route and per status code, which of two unrelated shapes to expect for the same "this failed" event — 68 status-code entries' worth of that, per P0.32's count. That's DTO nesting driven by *which line of Swift happened to produce the response*, which is exactly the category D-006 names as **not preserved**: "DTO nesting that exists only for Swift file organization." `ErrorDTO` collapses both cases into one shape; whatever route-specific payload the old typed DTO carried moves into `details`.
 
-This is recorded here as a conscious D-006-point-3 correction — MSC 1's own behavior is not carried forward on this one point — rather than silently diverging from "preserve iOS-visible error semantics." The *text and status codes* stay recognizable (§5's `message` field); only the shape wrapping them is unified.
+This is recorded here as a conscious D-006-point-3 correction — MSC 1's own behavior is not carried forward on this one point — rather than silently diverging from preserving client-visible error semantics. The *text and status codes* stay recognizable (§5's `message` field); only the shape wrapping them is unified.
 
 ### 7. What's still open beyond this step
 

@@ -8,7 +8,7 @@ by an explicit matrix") and rolling-plan.md's Phase 6 header calls "the
 overdue D-023 matrix", against the two things it must stay true to:
 
   1. Shape: the header is exact, every row has all ten fields, every status
-     cell (agent/desktop_web/ios/cli) is one of D-023's own three values
+     cell (agent/desktop_web/cli) is one of D-023's own three values
      (Implemented, Planned, Intentional exception), and an Intentional
      exception cell names the D-0xx decision that approved it (D-023: "An
      Intentional exception requires owner approval and becomes its own
@@ -42,13 +42,13 @@ HEADER = [
     "permission_category",
     "agent_status",
     "desktop_web_status",
-    "ios_status",
     "cli_status",
     "notes",
+    "tui_status",
 ]
 
 STATUS_VALUES = {"Implemented", "Planned", "Intentional exception"}
-STATUS_COLUMNS = ["agent_status", "desktop_web_status", "ios_status", "cli_status"]
+STATUS_COLUMNS = ["agent_status", "desktop_web_status", "cli_status", "tui_status"]
 # operation_id is blank for the two WS channels (no OpenAPI operationId concept
 # applies to them) and notes is blank whenever a row has nothing to add --
 # both legitimately optional, unlike every other column.
@@ -144,10 +144,10 @@ CLEAN_OPS = {("GET", "/v1/x"), ("POST", "/v1/x"), ("WS", "/v1/y/stream")}
 def _clean_rows():
     return [
         HEADER,
-        ["GET", "/v1/x", "getX", "list Xs", "none", "Implemented", "Planned", "Implemented", "Planned", ""],
-        ["POST", "/v1/x", "createX", "create an X", "worlds", "Planned", "Planned", "Planned",
-         "Intentional exception", "CLI has no batch-create UI, approved D-999"],
-        ["WS", "/v1/y/stream", "", "stream Ys", "none", "Planned", "Planned", "Planned", "Planned", ""],
+        ["GET", "/v1/x", "getX", "list Xs", "none", "Implemented", "Planned", "Planned", "", "Planned"],
+        ["POST", "/v1/x", "createX", "create an X", "worlds", "Planned", "Planned",
+         "Intentional exception", "CLI has no batch-create UI, approved D-999", "Planned"],
+        ["WS", "/v1/y/stream", "", "stream Ys", "none", "Planned", "Planned", "Planned", "", "Planned"],
     ]
 
 
@@ -156,11 +156,11 @@ def _dirty_rows():
         HEADER,
         # blank field, bad status value, desktop_web not Planned, exception with no decision ref,
         # duplicate, missing the WS row entirely, and one orphan row.
-        ["GET", "/v1/x", "getX", "", "none", "Implemented", "Planned", "Implemented", "Planned", ""],
-        ["GET", "/v1/x", "getX", "list Xs", "none", "Implemented", "Planned", "Implemented", "Planned", ""],
+        ["GET", "/v1/x", "getX", "", "none", "Implemented", "Planned", "Planned", "", "Planned"],
+        ["GET", "/v1/x", "getX", "list Xs", "none", "Implemented", "Planned", "Planned", "", "Planned"],
         ["POST", "/v1/x", "createX", "create an X", "worlds", "sorta", "Implemented",
-         "Intentional exception", "Planned", "no decision cited here"],
-        ["POST", "/v1/nonexistent", "ghost", "not real", "none", "Planned", "Planned", "Planned", "Planned", ""],
+         "Planned", "no decision cited here", "Planned"],
+        ["POST", "/v1/nonexistent", "ghost", "not real", "none", "Planned", "Planned", "Planned", "", "Planned"],
     ]
 
 

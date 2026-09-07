@@ -686,7 +686,7 @@ native or supported mobile control surface.
 **Batch:** stop-after
 
 ### P12.104 — Remove iOS-only validation and capability plumbing
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `tools/phase6/capability-matrix-check.py`, `tools/phase8/phase8-check.py`, `tools/phase10/phase10-check.py`, `tools/phase11/phase11-check.py`, `tools/release/check-release-workflow.py`, `docs/msc2/client-capability-matrix.csv`, `docs/msc2/api-contract/`
 **What:** Remove the `ios_status` matrix column and all checker dependencies on an iOS source tree, Xcode target, iOS contract checker, or iOS-specific release exclusion. Update expected client-column sets and contract comments to the remaining supported clients: Tauri desktop, desktop browser, and headless CLI. Do not add a mobile client column or replace the retired app with a phone-browser promise; retain only generic third-party router `mobile_app` meanings and supported desktop/browser responsive layout behavior where those are implementation details.
 **Verify:** `git diff --check && if git grep -n -i -E 'ios_status|clients/ios|ios-contract-check|MSCRemoteiOS' -- tools docs/msc2/client-capability-matrix.csv docs/msc2/api-contract .github; then exit 1; fi`

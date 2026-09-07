@@ -53,7 +53,7 @@ GET /v1/help/{helpId}
 
 ## 4. Where `helpId` attaches — every DTO field `msc2-engineering.md` §18 names
 
-§18 names six categories in prose ("settings fields, health cards, diagnostics, performance metrics, connection methods, crash-analysis findings"). Read against the actual MSC 1 DTOs (`RemoteAPIModels.swift`, the iOS mirror of the wire format), each maps onto a concrete existing field:
+§18 names six categories in prose ("settings fields, health cards, diagnostics, performance metrics, connection methods, crash-analysis findings"). Read against the actual MSC 1 DTOs (`RemoteAPIModels.swift`, the historical client mirror of the wire format), each maps onto a concrete existing field:
 
 | §18 category | MSC 1 DTO (today) | Field carrying the pointer | `helpId` namespace | Example |
 |---|---|---|---|---|

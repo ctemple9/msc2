@@ -6,20 +6,20 @@
 
 ## 1. What Phase 2's gate actually requires
 
-Per `msc2-port-plan.md` §3, Phase 2's exit criterion is: **"the existing iOS app connects and reads status against a stub agent."** Not a Tauri desktop app connecting to a remote host. Not a browser. One client, one transport, one machine:
+Per `msc2-port-plan.md` §3, Phase 2's historical exit criterion was: **"the existing iOS app connects and reads status against a stub agent."** That client was a characterization harness, not a supported MSC 2 surface; D-033 retires the native mobile management surface. The supported surfaces are now Tauri desktop, desktop browser, and headless CLI:
 
-- The iOS app running against an agent on the **same local network as the Mac it's paired with today** — in Phase 2's case, simplified further to **loopback** (`127.0.0.1:48001`, per P2.18/P2.20), since no real host is being provisioned yet and the skeletal agent runs on the developer's own machine.
-- D-016 ("UI never gates correctness") argues against solving Tauri/browser auth just to satisfy an iOS-only gate — that's Phase 11's client, Phase 11's problem.
+- The historical client ran against an agent on the **same local network as the Mac it was paired with** — in Phase 2's case, simplified further to **loopback** (`127.0.0.1:48001`, per P2.18/P2.20), since no real host was being provisioned yet and the skeletal agent ran on the developer's own machine.
+- D-016 ("UI never gates correctness") keeps transport and authentication correctness independent of any one client; the current Tauri/browser and CLI surfaces use the same agent contract.
 
 Everything below scopes Phase 2's auth work to exactly that one path.
 
 ## 2. MSC 1's baseline mechanism, read from source
 
-D-012's "Approved core" describes iOS auth as "QR pairing → durable keychain token → bearer header." Read literally against MSC 1:
+D-012's "Approved core" describes the historical mobile auth path as "QR pairing → durable keychain token → bearer header." Read literally against MSC 1:
 
 - **The token is not derived from a cryptographic exchange.** An admin or named token is created on the Mac side (`RemoteAPIServer+HTTP.swift`'s `TokenRole` / `RemoteAPISharedAccessEntry` in `AppConfig.swift:470`) and is the *same string* embedded in the pairing artifact — there is no separate ephemeral "pairing secret" that gets exchanged for a longer-lived token afterward.
 - **The pairing artifact is a deep link**, built in `MSCSettingsView.swift:686` (`buildPairingLink(token:)`): `mscremote://pair?base=<http://host:port>&token=<token>`, rendered either as a QR code or copied as a link. The comment at `MSCSettingsView.swift:684` is explicit that a loopback fallback is disallowed here ("callers must never fall through to 127.0.0.1 (U1)") — that rule is about the *macOS pairing-link generator* offering a reachable LAN address to a *different* device, not about whether loopback is a valid transport in general; it doesn't apply to Phase 2's single-machine dev loop.
-- **The iOS app stores the scanned token in Keychain** (`KeychainTokenStore.swift`, `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`) and sends it as `Authorization: Bearer <token>` on every request thereafter (confirmed in `RemoteAPIClient.swift` and verified server-side at `RemoteAPIServer+HTTP.swift:378-389`).
+- **The historical mobile client stored the scanned token in Keychain** (`KeychainTokenStore.swift`, `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`) and sent it as `Authorization: Bearer <token>` on every request thereafter (confirmed in `RemoteAPIClient.swift` and verified server-side at `RemoteAPIServer+HTTP.swift:378-389`).
 - **Verification is a flat dictionary lookup**, not a cryptographic check: `respond(to:clientFD:)` strips the `Bearer ` prefix, looks the presented string up in a `[String: TokenRole]` map, and treats an unknown or missing token as `401 unauthorized` (rate-limited to `429` after repeated failures from the same client IP, per `checkAndRecordAuthFail`).
 
 This confirms the "minus the real pairing-secret exchange" framing in the step brief is accurate: what's actually missing for Phase 2 isn't a cryptographic protocol MSC 1 has and MSC 2 lacks — it's the **token-issuance and persistent-storage machinery** (creating named tokens, writing them to versioned config, exposing the pairing-link/QR UI, keeping the Mac-side token map in sync). That machinery depends on a config/secrets substrate (`SecretStore` trait, `msc2-engineering.md` §8) that is Phase 3 scope and does not exist yet.
@@ -28,7 +28,7 @@ This confirms the "minus the real pairing-secret exchange" framing in the step b
 
 1. **Bearer-token verification middleware in `msc-agent`.** Every route except `GET /v1/health` requires `Authorization: Bearer <token>`; a missing or wrong token gets P2.4's structured `ErrorDTO` 401 — the same status MSC 1 returns today, expressed in the new envelope.
 2. **A single fixed dev token**, sourced from an environment variable (e.g. `MSC_DEV_TOKEN`), checked with a constant string comparison. Code comments mark this plainly as a development stand-in, not a preview of the real flow — matching P2.12's own description in `rolling-plan.md`.
-3. **The iOS client re-pointed to send that fixed token** (P2.18/P2.20) — manually configured for Phase 2's purposes, not scanned through the real QR flow, since there is no real pairing-link generator on the Rust side yet.
+3. **The historical client re-pointed to send that fixed token** (P2.18/P2.20) — manually configured for Phase 2's purposes, not scanned through the real QR flow, since there was no real pairing-link generator on the Rust side yet.
 4. **Loopback-only binding.** `msc-agent` binds `127.0.0.1` by default (`msc2-engineering.md` §10), so there is no LAN-exposure surface to secure this phase in the first place.
 
 ## 4. Explicitly deferred — not solved by this phase
@@ -59,4 +59,4 @@ default management bind, with an explicitly configured Tailscale path as the
 only off-loopback exception. General-LAN binding, remote desktop pairing,
 browser cookie/origin/CSP/CSRF mechanics, and TLS certificate/trust setup are
 all Phase 11 work. This does not change Phase 2's loopback-only stub or the
-Phase 4 CLI/iOS per-host bearer-token flow.
+Phase 4 per-host bearer-token flow, now consumed by the supported CLI and desktop/browser clients.

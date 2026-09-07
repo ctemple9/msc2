@@ -6,7 +6,7 @@
 
 ### 1. Why this exists
 
-Modpack installs, Java downloads, world conversions, backup restores, and loader installations take minutes, not milliseconds. A request that blocks an HTTP connection for that long is hostile to every client (iOS backgrounding, a flaky LAN link, a desktop app the user closes mid-install). §5's answer: return an ID immediately, let the client poll or subscribe for progress, and let it disconnect and reconnect without losing the operation. This document designs the wire shape only — `OperationDTO`, the state machine, and the three HTTP routes that create, read, and cancel one. It does not design how operations survive an agent restart; see §6.
+Modpack installs, Java downloads, world conversions, backup restores, and loader installations take minutes, not milliseconds. A request that blocks an HTTP connection for that long is hostile to every client (a suspended browser tab, a flaky LAN link, or a desktop/CLI process the user closes mid-install). §5's answer: return an ID immediately, let the client poll or subscribe for progress, and let it disconnect and reconnect without losing the operation. This document designs the wire shape only — `OperationDTO`, the state machine, and the three HTTP routes that create, read, and cancel one. It does not design how operations survive an agent restart; see §6.
 
 ### 2. `OperationDTO`
 

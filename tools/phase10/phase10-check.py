@@ -228,12 +228,6 @@ def check_gate() -> list[str]:
     )
     messages.append(
         run_check(
-            "iOS Bedrock contract",
-            [sys.executable, "tools/phase10/ios-contract-check.py"],
-        )
-    )
-    messages.append(
-        run_check(
             "Bedrock compatibility matrix",
             [
                 sys.executable,

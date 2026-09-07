@@ -100,10 +100,6 @@ def check_candidate_workflow(workflow: str) -> None:
         "workflow is missing the targeted msc-agent binary clippy check",
     )
     require(
-        "-D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format" in workflow,
-        "workflow does not isolate the deferred TUI clippy diagnostics",
-    )
-    require(
         '"bundle":{"icon":["icons/icon.ico"]}' in workflow,
         "Windows Tauri build does not select the prepared ICO resource",
     )
@@ -120,7 +116,6 @@ def check_candidate_workflow(workflow: str) -> None:
         re.search(r"platform:\s+linux-x86_64", workflow) is not None,
         "Linux artifact must be labelled x86_64",
     )
-    require("src/cli/tui" not in workflow, "release workflow must not build TUI outputs")
     require("gh release" not in workflow, "candidate workflow must not publish a GitHub release")
     require("softprops/action-gh-release" not in workflow, "candidate workflow must not publish a GitHub release")
     require("notarytool" not in workflow, "candidate workflow must not invoke notarization")

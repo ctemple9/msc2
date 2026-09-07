@@ -754,7 +754,7 @@ steps.
 **Batch:** stop-after
 
 ### P12.112 — Remove TUI capability-matrix and checker plumbing
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/client-capability-matrix.csv`, `tools/phase6/capability-matrix-check.py`, `tools/phase11/phase11-check.py`, `tools/phase11/scope-check.py`, `tools/release/check-release-workflow.py`
 **What:** Remove the `tui_status` capability column and every checker expectation or release-path exclusion that treats the TUI as a supported client. Keep the matrix's `cli_status` column as the independent one-shot CLI surface. Preserve WebSocket contract validation and desktop/browser client coverage; a WebSocket route is not TUI-specific merely because the deleted TUI consumed it.
 **Verify:** `git diff --check && if git grep -n -i -E 'tui_status|ratatui|crossterm|P13\.' -- docs/msc2/client-capability-matrix.csv tools .github; then exit 1; fi`

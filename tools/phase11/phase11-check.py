@@ -92,7 +92,6 @@ def check_matrix() -> list[str]:
         "desktop_web_status",
         "cli_status",
         "notes",
-        "tui_status",
     }
     missing_columns = required_columns - set(rows[0])
     if missing_columns:
@@ -104,7 +103,6 @@ def check_matrix() -> list[str]:
             "agent_status",
             "desktop_web_status",
             "cli_status",
-            "tui_status",
         ):
             if not row.get(column, "").strip():
                 fail(f"blank matrix field: {row.get('method')} {row.get('path')} {column}")

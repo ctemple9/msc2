@@ -26,7 +26,7 @@ before the restoration guarantees exist.
 ## Client/agent boundary
 
 The TUI is a client of the same authenticated HTTP and WebSocket contract used
-by the desktop, web, iOS, and one-shot CLI surfaces.
+by the desktop, web, and one-shot CLI surfaces.
 
 - The agent remains authoritative for capability advertisement, bearer
   authentication, host scoping, role and permission checks, confirmations,

@@ -174,7 +174,7 @@ oracle already proved them:
 - the separate Bedrock compatibility matrix and evidence checker;
 - reconciling an imported Bedrock record with actual host/runtime capability
   before presenting it as runnable; and
-- additive public API, CLI, and copied-iOS capability disclosure needed to
+- additive public API and CLI capability disclosure needed to
   expose those runtime states.
 
 ## Download and provisioning provenance
@@ -257,11 +257,11 @@ management listener. It does not reimplement Playit, Geyser/Floodgate, or
 management authentication. The direct native UDP bind and the VM relay are
 runtime internals with separate evidence, as resolved above.
 
-The copied iOS client already consumes the shared `/start`, `/stop`,
+The supported desktop, browser, and CLI clients consume the shared `/start`, `/stop`,
 `/command`, `/allowlist`, `/worlds/*`, `/backups*`, version, settings, and
 capability surfaces, using `serverType` to decide when Bedrock controls are
 shown. P10 therefore extends or fills those shared contracts additively; it
-does not invent a parallel Bedrock-only management API or make iOS infer
+does not invent a parallel Bedrock-only management API or make clients infer
 runtime support from the server type alone.
 
 ## Owned symbol-ledger rows
@@ -287,7 +287,7 @@ rows: `BedrockPropertiesManager.swift`, `BedrockProvisioner.swift`,
 `BedrockPlayerDataManager.swift`, `BedrockNameCache.swift`,
 `BedrockHiddenProfiles.swift`, `BedrockLevelDB.swift`,
 `BedrockNBTReader.swift`, `UDPRelay.swift`, the listed `AppViewModel` files,
-the embedded `RemoteAPIServer` routes, and their copied iOS consumers.
+the embedded `RemoteAPIServer` routes, and their shared-client consumers.
 
 ## Explicit exclusions and unresolved decisions
 
@@ -314,7 +314,7 @@ download BDS, start a live Bedrock server or VM, require a Mojang account, or
 make a public-network reachability claim.
 
 P10.28's gate checker validates the exact fixture counts, additive API and
-copied-iOS contract, native Linux/native Windows/Intel-macOS-sidecar boundary,
+shared-client contract, native Linux/native Windows/Intel-macOS-sidecar boundary,
 separate compatibility matrix, real-or-unavailable distribution and runtime
 records, synthetic smoke wiring, and this exact CI candidate. Its Verify line
 then runs the synthetic public path and the workspace regression suite once;

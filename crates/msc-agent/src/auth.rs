@@ -1024,7 +1024,7 @@ pub async fn require_bearer_token(
 }
 
 /// Authenticates an existing management route. Bearer credentials take
-/// precedence over a browser cookie so a desktop/iOS/CLI request keeps its
+/// precedence over a browser cookie so a desktop/CLI request keeps its
 /// established behavior even if a browser session happens to be present.
 pub(crate) async fn require_management_auth(
     State(auth): State<AuthState>,

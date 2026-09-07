@@ -8,10 +8,10 @@ an implementation plan for individual screens. The frozen OpenAPI and
 WebSocket contracts and `client-capability-matrix.csv` are the route inventory;
 this document says where each row belongs.
 
-The copied iOS client is the primary behavioral reference. It is the closest
-existing client to the API and contains the real workflows, loading/error
-states, operation polling, reconnect behavior, and mobile reshaping that must
-survive in the shared client. The MSC 1 macOS views are used only for desktop
+The historical MSC 1 client sources are the primary behavioral reference. They
+are the closest existing clients to the API and contain the real workflows,
+loading/error states, operation polling, reconnect behavior, and compact-window
+reshaping that must survive in the shared client. The MSC 1 macOS views are used only for desktop
 information architecture and visual language: a server-list/sidebar control
 surface, an always-available console, an editor organized by general/settings,
 worlds, backups, components, and broadcast, and handbook/help readers. macOS
@@ -29,9 +29,9 @@ The repository contains the 53 Swift files copied in P2.18, plus
 `ConvertWorldView.swift` and `ImportWorldView.swift` added by P6.24. The
 following responsibilities are carried forward from those files:
 
-| iOS source area | Behavior to preserve in the shared client |
+| MSC 1 source area | Behavior to preserve in the shared client |
 |---|---|
-| `RootView.swift`, `MSCRemoteApp.swift`, `MSCStyles.swift`, `AppIconMark.swift` | Five top-level destinations, iPhone tab versus iPad sidebar adaptation, shared colors/cards/status treatment, splash and first-launch guide timing. The web shell uses responsive navigation rather than duplicating a desktop-only screen. |
+| `RootView.swift`, `MSCRemoteApp.swift`, `MSCStyles.swift`, `AppIconMark.swift` | Five top-level destinations, compact versus wide navigation adaptation, shared colors/cards/status treatment, splash and first-launch guide timing. The shared client uses responsive navigation rather than duplicating a desktop-only screen. |
 | `DashboardView.swift`, `DashboardViewModel*.swift`, and dashboard cards | Host connection state, active-server selection, create/import/rename/delete/EULA flows, start/stop/restart, bounded status polling, console WebSocket reconnect, operation polling, performance history, player summary, notifications, and truthful error states. |
 | `RemoteAPIClient.swift`, `RemoteAPIModels.swift` | The existing request paths, query/body shapes, optional-field tolerance, `ErrorDTO` handling, operation terminal polling, staged-transfer calls, and console framing are behavioral evidence. These hand-maintained DTOs are not copied into TypeScript; P11.3 generates the TypeScript surface from OpenAPI. |
 | `ConsoleView.swift`, `ConsoleFilterBar.swift`, `CommandsView.swift`, `CommandPickerSheet.swift` | Bounded console history, search/filter/pause/clear behavior, command history/favorites, quick-command categories, and Java-versus-Bedrock command vocabulary. Phase 11 ships the generic console; Bedrock-specific sections wait for the later capability extension. |
@@ -120,8 +120,8 @@ tree, so D-003's same-screen rule is structural rather than a test convention.
 * **D-023 matrix discipline:** a route is not `Implemented` because a button or
   disabled placeholder exists. The Desktop/Web cell changes only with a tested
   screen or shared infrastructure path. No intentional exception is invented
-  here, and no iOS parity requirement is weakened because a workflow is hard
-  on a small screen.
+  here, and no source-workflow parity requirement is weakened because a workflow
+  is hard to express in a smaller window.
 * **D-026 help ownership:** handbook, concept, router-guide, troubleshooting,
   onboarding text, and contextual explanations are served data. Screens render
   `helpId` and structured content; they do not carry a second prose corpus.

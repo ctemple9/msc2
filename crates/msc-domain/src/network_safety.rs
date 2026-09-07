@@ -1,12 +1,12 @@
 //! Local/private host classification, used to decide whether plain HTTP
 //! (rather than HTTPS) is safe to allow for a given host.
 //!
-//! Ported from `NetworkSafety.swift` (iOS) — but pinned to the verbatim copy
-//! `NetworkSafetyTests.swift` carries as its own oracle (see that file's
-//! header comment: "this suite pins a VERBATIM PORT of the iOS NetworkSafety
-//! rule set... as the oracle instead"), not the iOS source's `IPv4Address`
-//! struct directly. The two diverge on Tailscale's CGNAT range
-//! (100.64.0.0/10): the iOS struct folds it into `isPrivateOrLocal`, but the
+//! Ported from MSC 1's historical `NetworkSafety.swift` source — but pinned to
+//! the verbatim copy `NetworkSafetyTests.swift` carries as its own oracle (see
+//! that file's header comment: "this suite pins a VERBATIM PORT of the
+//! NetworkSafety rule set... as the oracle instead"), not the source's
+//! `IPv4Address` struct directly. The two diverge on Tailscale's CGNAT range
+//! (100.64.0.0/10): MSC 1's struct folds it into `isPrivateOrLocal`, but the
 //! test suite's copy deliberately does not, since a separate function
 //! (`preferredPairingHost`) handles `100.*` as a first-choice pairing host
 //! instead. The 13 extracted fixtures (`fixtures/network-safety/`, from

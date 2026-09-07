@@ -60,8 +60,8 @@ use crate::routes::lifecycle::{
 
 /// `"green"|"yellow"|"red"|"gray"` — not this route's own free choice
 /// (`openapi.json` pins no enum for `HealthCardDTO.severity`/
-/// `HealthResponseDTO.overallSeverity`): the already-shipped iOS
-/// `HealthView.swift.severityColor(_:)` switches on exactly these four
+/// `HealthResponseDTO.overallSeverity`): the historical MSC 1 SwiftUI
+/// `HealthView.swift.severityColor(_:)` source switches on exactly these four
 /// literal strings (`case "red"`/`"yellow"`/`"green"`, `default` for
 /// everything else including any other spelling), found by P7.26's own
 /// cross-check against that file. A `"critical"/"warning"/"ok"/

@@ -11,7 +11,7 @@ MSC management is never open merely because a request came from the same
 computer, a tailnet, or an MSC-looking page. Every management request is one
 of two authenticated forms:
 
-- A bearer credential, used by the CLI, iOS, and the Tauri desktop backend.
+- A bearer credential, used by the CLI and the Tauri desktop backend.
 - A browser session cookie, issued only after a short-lived pairing code has
   been exchanged by the agent-served frontend.
 

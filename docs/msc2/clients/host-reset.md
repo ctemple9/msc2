@@ -59,7 +59,7 @@ directory that contains it.
 
 The reset clears host setup/configuration, removes full-reset helper artifacts,
 revokes all existing browser,
-desktop, iOS, CLI, and named-token credentials, expires outstanding pairing
+desktop, browser, CLI, and named-token credentials, expires outstanding pairing
 challenges, and creates a new host identity. No old credential remains valid
 after the reset is committed. The reset result identifies whether the agent
 will restart, is unavailable, or remains installed but needs pairing; clients

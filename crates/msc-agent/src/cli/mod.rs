@@ -1,5 +1,5 @@
 //! Phase 4 CLI commands. Every subcommand except `serve` talks to the
-//! same HTTP API the iOS client uses.
+//! same HTTP API the supported desktop and browser clients use.
 
 pub mod pairing;
 pub mod service;

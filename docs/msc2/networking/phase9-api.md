@@ -90,7 +90,7 @@ Phase 9 capabilities.
 
 ## 5. Capability matrix and count
 
-Every newly added Phase 9 row remains `Planned` for agent, iOS, and CLI at
+Every newly added Phase 9 row remains `Planned` for agent and CLI at
 this contract-only point. The older generic `components` routes retain their
 existing `Implemented` status, but their Phase 9 Geyser/Floodgate behavior is
 still planned. Desktop/web remains `Planned`, because Phase 11 owns that

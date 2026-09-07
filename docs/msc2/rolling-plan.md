@@ -702,7 +702,7 @@ native or supported mobile control surface.
 **Batch:** solo
 
 ### P12.106 — Reconcile active client references and source provenance
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/addons/phase8-scope.md`, `docs/msc2/networking/phase9-scope.md`, `docs/msc2/bedrock/phase10-scope.md`, `docs/msc2/clients/phase11-scope.md`, `docs/msc2/terminal-ui/phase13-scope.md`, `docs/msc2/api-contract/`, `crates/msc-agent/src/`, `crates/msc-api/src/`, `crates/msc-application/src/`, `crates/msc-domain/src/`, `crates/msc-infrastructure/src/`
 **What:** Remove active scope claims that MSC 2 still has an iOS or supported mobile client, replace implementation comments that describe either as a live consumer with accurate Tauri desktop, desktop-browser, headless-CLI, or historical-provenance wording, and keep Rust behavior unchanged. Keep optional Tailscale remote desktop/browser access distinct from ordinary local use and do not add general-LAN management. Leave archived rolling-plan history and MSC 1 audit records factual, with the final audit identifying them as historical rather than silently editing the record of completed work.
 **Verify:** `git diff --check && if git grep -n -i -E 'iOS client|MSC Remote|clients/ios|ios_status|SwiftUI.*iOS' -- docs/msc2/addons docs/msc2/networking docs/msc2/bedrock docs/msc2/clients docs/msc2/terminal-ui docs/msc2/api-contract crates/msc-agent/src crates/msc-api/src crates/msc-application/src crates/msc-domain/src crates/msc-infrastructure/src; then exit 1; fi`

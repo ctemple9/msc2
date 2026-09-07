@@ -2,8 +2,8 @@
 //!
 //! This crate is where MSC 1's view-model-owned lifecycle behavior starts
 //! becoming an application service: it owns server state and calls injected
-//! dependencies, but it does not know about HTTP routes, CLI commands, iOS,
-//! or any other client surface.
+//! dependencies, but it does not know about HTTP routes, CLI commands, or any
+//! other client surface.
 
 use msc_domain::crash_analysis;
 use msc_domain::identity::{AddOnKind, JavaServerFlavor};

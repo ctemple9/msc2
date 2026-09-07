@@ -235,8 +235,8 @@ pub struct WorldSettingsCapabilitiesDto {
 }
 
 /// Additive extension of the original `CapabilitiesDTO`. Keeping the base
-/// value as a nested field means existing typed Rust fixtures and older iOS
-/// clients retain their original construction/decoding surface while the
+/// value as a nested field means existing typed Rust fixtures and historical
+/// client decoders retain their original construction/decoding surface while the
 /// wire response gains version-aware world settings.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CapabilitiesResponseDto {

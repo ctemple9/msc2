@@ -10,7 +10,7 @@ pub struct ErrorDto {
     /// `conflict`, `invalid_body`, … Clients branch on this, never on
     /// `message` text.
     pub code: String,
-    /// Human-readable, iOS-visible.
+    /// Human-readable and visible to every supported client.
     pub message: String,
     #[serde(rename = "helpId", default, skip_serializing_if = "Option::is_none")]
     pub help_id: Option<String>,

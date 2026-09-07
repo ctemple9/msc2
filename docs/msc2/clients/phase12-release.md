@@ -24,9 +24,9 @@ The beta artifact set includes:
 - on macOS, the Intel Bedrock sidecar and its appliance resources wherever a
   desktop or headless package includes the macOS agent.
 
-iOS is not a beta release artifact. The existing iOS client remains a
-supported client of the API, but it is not built, uploaded, or versioned by
-this release set. The full-screen terminal UI (TUI) is also not a beta
+No mobile management client is a beta release artifact. The supported control
+surfaces are the Tauri desktop, desktop browser, and headless CLI. The
+full-screen terminal UI (TUI) is also not a beta
 artifact; the command-line interface in `msc` is included.
 
 This boundary does not remove any agent route or change the API contract. In

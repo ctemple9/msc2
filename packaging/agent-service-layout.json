@@ -43,7 +43,7 @@
     },
     "linux": {
       "manager": "systemd",
-      "agentPath": "../lib/msc2-desktop-web/agent/msc",
+      "agentPath": "../lib/MSC 2/agent/msc",
       "sidecarPath": null,
       "bedrock": {
         "backend": "native",

@@ -13,7 +13,7 @@ Built by ctemple9
 > The release is unsigned, so macOS, Windows, or Linux may show a security
 > warning the first time you open or install it.
 >
-> [Download MSC 2 v0.1.1](https://github.com/ctemple9/msc2/releases/tag/v0.1.1)
+> [Download MSC 2 v0.1.2](https://github.com/ctemple9/msc2/releases/tag/v0.1.2)
 
 ## Download and install
 
@@ -29,14 +29,14 @@ The desktop app already includes the MSC 2 agent. You do not need to download bo
 Download the disk image:
 
 ```sh
-curl -fL -o msc2-0.1.1-macos-x86_64.dmg \
-  https://github.com/ctemple9/msc2/releases/download/v0.1.1/msc2-0.1.1-macos-x86_64.dmg
+curl -fL -o msc2-0.1.2-macos-x86_64.dmg \
+  https://github.com/ctemple9/msc2/releases/download/v0.1.2/msc2-0.1.2-macos-x86_64.dmg
 ```
 
 Then open the downloaded `.dmg` file and drag MSC 2 into your Applications folder.
 
 ```sh
-open msc2-0.1.1-macos-x86_64.dmg
+open msc2-0.1.2-macos-x86_64.dmg
 ```
 
 ### Windows desktop — 64-bit Windows
@@ -44,8 +44,8 @@ open msc2-0.1.1-macos-x86_64.dmg
 Download the installer:
 
 ```powershell
-curl.exe -fL -o msc2-0.1.1-windows-x86_64.msi `
-  https://github.com/ctemple9/msc2/releases/download/v0.1.1/msc2-0.1.1-windows-x86_64.msi
+curl.exe -fL -o msc2-0.1.2-windows-x86_64.msi `
+  https://github.com/ctemple9/msc2/releases/download/v0.1.2/msc2-0.1.2-windows-x86_64.msi
 ```
 
 Open the `.msi` file and follow the installation prompts.
@@ -55,14 +55,14 @@ Open the `.msi` file and follow the installation prompts.
 Download the `.deb` package:
 
 ```sh
-curl -fL -o msc2-0.1.1-linux-x86_64.deb \
-  https://github.com/ctemple9/msc2/releases/download/v0.1.1/msc2-0.1.1-linux-x86_64.deb
+curl -fL -o msc2-0.1.2-linux-x86_64.deb \
+  https://github.com/ctemple9/msc2/releases/download/v0.1.2/msc2-0.1.2-linux-x86_64.deb
 ```
 
 Install it with:
 
 ```sh
-sudo apt install ./msc2-0.1.1-linux-x86_64.deb
+sudo apt install ./msc2-0.1.2-linux-x86_64.deb
 ```
 
 ### Fedora or other RPM-based Linux
@@ -70,14 +70,14 @@ sudo apt install ./msc2-0.1.1-linux-x86_64.deb
 Download the `.rpm` package:
 
 ```sh
-curl -fL -o msc2-0.1.1-linux-x86_64.rpm \
-  https://github.com/ctemple9/msc2/releases/download/v0.1.1/msc2-0.1.1-linux-x86_64.rpm
+curl -fL -o msc2-0.1.2-linux-x86_64.rpm \
+  https://github.com/ctemple9/msc2/releases/download/v0.1.2/msc2-0.1.2-linux-x86_64.rpm
 ```
 
 Install it with:
 
 ```sh
-sudo dnf install ./msc2-0.1.1-linux-x86_64.rpm
+sudo dnf install ./msc2-0.1.2-linux-x86_64.rpm
 ```
 
 ### Linux headless agent
@@ -90,10 +90,10 @@ Download the archive and checksum file:
 
 ```sh
 curl -fLO \
-  https://github.com/ctemple9/msc2/releases/download/v0.1.1/msc2-headless-0.1.1-linux-x86_64.tar.gz
+  https://github.com/ctemple9/msc2/releases/download/v0.1.2/msc2-headless-0.1.2-linux-x86_64.tar.gz
 
 curl -fLO \
-  https://github.com/ctemple9/msc2/releases/download/v0.1.1/SHA256SUMS
+  https://github.com/ctemple9/msc2/releases/download/v0.1.2/SHA256SUMS
 ```
 
 Verify the download:
@@ -106,7 +106,7 @@ Install MSC 2:
 
 ```sh
 mkdir msc2-headless
-tar -xzf msc2-headless-0.1.1-linux-x86_64.tar.gz -C msc2-headless
+tar -xzf msc2-headless-0.1.2-linux-x86_64.tar.gz -C msc2-headless
 cd msc2-headless
 ./install.sh
 ```

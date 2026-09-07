@@ -5,6 +5,7 @@ use msc_infrastructure::service::{
     ServiceInstallRequest, ServiceManager, ServiceManagerCommand, ServiceName, ServiceState,
     ServiceStatusReport,
 };
+#[cfg(target_os = "macos")]
 use rand::RngCore;
 use reqwest::{header, Method, Url};
 use serde::{Deserialize, Serialize};
@@ -20,8 +21,11 @@ const AGENT_SERVICE_NAME: &str = "com.ctemple.msc2.agent";
 const AGENT_PORT: u16 = 48001;
 const LOCAL_AGENT_BROWSER_ORIGIN: &str = "http://127.0.0.1:48001";
 const LOCAL_BOOTSTRAP_SOCKET: &str = "bootstrap.sock";
+#[cfg(target_os = "macos")]
 const BEDROCK_SIDECAR_DIRECTORY_ENV: &str = "MSC2_BEDROCK_SIDECAR_DIR";
+#[cfg(target_os = "macos")]
 const PROTOCOL_VERSION: u32 = 1;
+#[cfg(target_os = "macos")]
 const PROOF_DOMAIN: &[u8] = b"msc2-local-bootstrap-v1\0";
 static STAGED_PACKAGED_AGENT_PATH: PackagedAgentPathCache = PackagedAgentPathCache::new();
 
@@ -832,7 +836,28 @@ fn packaged_agent_path() -> Result<PathBuf, String> {
         if development_path.is_file() {
             return Ok(development_path);
         }
-        return Ok(directory.join("../lib/msc2-desktop-web/agent/msc"));
+        // Tauri v2 installs Debian/RPM resources under /usr/lib/<productName>,
+        // which is `MSC 2` here rather than the Rust executable name. Keep
+        // the executable-name path as a fallback for development/AppImage
+        // layouts, whose resource directory follows a different convention.
+        let packaged_paths = [
+            directory.join("../lib/MSC 2/agent/msc"),
+            directory.join("../lib/msc2-desktop-web/agent/msc"),
+        ];
+        return packaged_paths
+            .iter()
+            .find(|path| path.is_file())
+            .cloned()
+            .ok_or_else(|| {
+                format!(
+                    "The compatible agent package is missing; searched {}",
+                    packaged_paths
+                        .iter()
+                        .map(|path| path.display().to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            });
     }
     #[allow(unreachable_code)]
     Err("This desktop platform has no agent-package layout.".to_string())

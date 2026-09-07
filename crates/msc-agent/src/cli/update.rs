@@ -224,11 +224,7 @@ fn apply(
         release_update::verify_staged(&client_config(installation)?, &data_directory, release_id)
             .map_err(CliError::internal)?;
 
-    // The parent only prints its confirmation after this process is spawned.
-    // A short handoff window avoids replacing the executable while the parent
-    // is still unwinding its stdout and stderr handles.
-    let _ = parent_pid;
-    std::thread::sleep(Duration::from_millis(750));
+    wait_for_parent(parent_pid)?;
     let output = apply_verified_update(&staged, &data_directory)?;
     if common.json {
         print_json(&output)
@@ -236,6 +232,35 @@ fn apply(
         print_install_output(&output);
         Ok(())
     }
+}
+
+#[cfg(target_os = "windows")]
+fn wait_for_parent(parent_pid: u32) -> Result<(), CliError> {
+    // Windows keeps an executable locked while its process is alive. The
+    // helper must wait for the confirming CLI to exit before replacing msc.exe.
+    let script = format!(
+        "$process = Get-Process -Id {parent_pid} -ErrorAction SilentlyContinue; if ($process) {{ $process.WaitForExit() }}"
+    );
+    let status = Command::new("powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+        .status()
+        .map_err(|error| {
+            CliError::internal(format!("could not wait for the parent process: {error}"))
+        })?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(CliError::internal(
+            "could not wait for the confirming update process to exit",
+        ))
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn wait_for_parent(_parent_pid: u32) -> Result<(), CliError> {
+    // The parent has already handed off the update. Unix permits replacing an
+    // executing binary, so no file-lock wait is required for this path.
+    Ok(())
 }
 
 fn apply_verified_update(
@@ -344,6 +369,7 @@ fn client_config(installation: InstallationKind) -> Result<UpdateClientConfig, C
         target: current_target(),
         trusted_key,
         channel,
+        linux_package_format: None,
     })
 }
 

@@ -23,6 +23,8 @@ jobs:
   build:
     name: Build ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
+    env:
+      MSC2_RELEASE_PUBLIC_KEY_HEX: ${{ vars.MSC2_RELEASE_PUBLIC_KEY_HEX }}
     strategy:
       fail-fast: false
       matrix:
@@ -92,10 +94,14 @@ jobs:
           package_version="$(node -p "require('./clients/desktop-web/package.json').version")"
           tauri_version="$(node -p "require('./clients/desktop-web/src-tauri/tauri.conf.json').version")"
           shell_version="$(awk -F'"' '/^[[:space:]]*version[[:space:]]*=/ { print $2; exit }' clients/desktop-web/src-tauri/Cargo.toml)"
+          bundle_version="$(sed -n "s/^[[:space:]]*version: '\([^']*\)',$/\1/p" clients/desktop-web/src/lib/bundle-identity.ts | head -n 1)"
           test -n "$agent_version"
           test "$agent_version" = "$package_version"
           test "$agent_version" = "$tauri_version"
           test "$agent_version" = "$shell_version"
+          test "$agent_version" = "$bundle_version"
+          test "${#MSC2_RELEASE_PUBLIC_KEY_HEX}" -eq 64
+          [[ "$MSC2_RELEASE_PUBLIC_KEY_HEX" =~ ^[0-9A-Fa-f]{64}$ ]]
 
           if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
             test "${GITHUB_REF_NAME}" = "v${agent_version}" || {
@@ -279,9 +285,8 @@ jobs:
           This prerelease contains the x86_64 desktop installers and headless
           archives listed in SHA256SUMS. Verify the checksum file before use.
 
-          Native in-app installation is eligible only when this release also
-          contains msc2-update-manifest.json and its detached Ed25519 signature.
-          An unsigned prerelease is intentionally ineligible for that flow.
+          This release includes the signed manifest and detached Ed25519
+          signature required for native in-app installation.
           Release ID: ${release_version}
           EOF
 
@@ -289,6 +294,7 @@ jobs:
         shell: bash
         env:
           MSC2_RELEASE_SIGNING_KEY_HEX: ${{ secrets.MSC2_RELEASE_SIGNING_KEY_HEX }}
+          MSC2_RELEASE_PUBLIC_KEY_HEX: ${{ vars.MSC2_RELEASE_PUBLIC_KEY_HEX }}
         run: |
           set -Eeuo pipefail
           release_version="${GITHUB_REF_NAME#v}"
@@ -296,32 +302,26 @@ jobs:
           signature="target/release-assets/msc2-update-manifest.sig"
           python3 -c 'import json; json.load(open("packaging/update-release-schema.json", encoding="utf-8"))'
 
-          if [[ -n "${MSC2_RELEASE_SIGNING_KEY_HEX:-}" ]]; then
-            python3 tools/release/sign-update-manifest.py \
-              --artifacts target/release-assets \
-              --release-id "$release_version" \
-              --tag "$GITHUB_REF_NAME" \
-              --api-major 1 \
-              --api-min-minor 0 \
-              --api-max-minor 0 \
-              --private-key-env MSC2_RELEASE_SIGNING_KEY_HEX \
-              --manifest "$manifest" \
-              --signature "$signature"
-            test -s "$manifest"
-            test -s "$signature"
-            echo "signed update metadata prepared"
-          else
-            cat > target/release-assets/UNSIGNED-BETA-NOTICE.txt <<EOF
-          MSC 2 ${GITHUB_REF_NAME} has no configured release-signing key.
-
-          SHA256SUMS remains an integrity aid. Without the signed manifest and
-          detached signature, this prerelease is not eligible for native
-          in-app installation.
-          EOF
-            test ! -e "$manifest"
-            test ! -e "$signature"
-            echo "release-signing key is not configured; publishing an unsigned, ineligible prerelease"
-          fi
+          test -n "${MSC2_RELEASE_SIGNING_KEY_HEX:-}" || {
+            echo "MSC2_RELEASE_SIGNING_KEY_HEX must be configured before publishing updates" >&2
+            exit 1
+          }
+          test "${#MSC2_RELEASE_PUBLIC_KEY_HEX}" -eq 64
+          [[ "$MSC2_RELEASE_PUBLIC_KEY_HEX" =~ ^[0-9A-Fa-f]{64}$ ]]
+          python3 tools/release/sign-update-manifest.py \
+            --artifacts target/release-assets \
+            --release-id "$release_version" \
+            --tag "$GITHUB_REF_NAME" \
+            --api-major 1 \
+            --api-min-minor 0 \
+            --api-max-minor 0 \
+            --private-key-env MSC2_RELEASE_SIGNING_KEY_HEX \
+            --public-key-env MSC2_RELEASE_PUBLIC_KEY_HEX \
+            --manifest "$manifest" \
+            --signature "$signature"
+          test -s "$manifest"
+          test -s "$signature"
+          echo "signed update metadata prepared"
 
       - name: Publish GitHub prerelease
         uses: softprops/action-gh-release@v2

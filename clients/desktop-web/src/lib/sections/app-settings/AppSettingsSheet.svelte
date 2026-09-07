@@ -380,7 +380,7 @@
                   <div class="row-text">
                     <span class="name">Install this release?</span>
                     <span class="hint"
-                      >MSC will hand the already verified release to the local installer. A failed
+                      >MSC will close, install the already verified release, and relaunch. A failed
                       replacement can be rolled back.</span
                     >
                   </div>
@@ -404,8 +404,8 @@
             <p class="update-status" role="status">{updateNotice}</p>
           {:else if updateState === 'installing'}
             <p class="update-status" role="status">
-              Installing the verified release locally… The installer will report whether recovery or
-              rollback was needed.
+              Installing the verified release locally… MSC 2 will relaunch when the installer
+              finishes.
             </p>
           {:else if updateState === 'error'}
             <p class="update-status error" role="alert">{updateNotice}</p>
@@ -738,6 +738,9 @@
   .update-status {
     font-size: 12px;
     color: var(--msc2-text-tertiary);
+  }
+  .update-status {
+    padding-bottom: 12px;
   }
   .update-status.error {
     color: var(--msc2-status-error);

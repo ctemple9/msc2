@@ -660,9 +660,17 @@ fn check_for_updates() -> Result<msc_infrastructure::release_update::UpdateResul
 /// installer or package manager.
 #[tauri::command]
 fn install_coordinated_update(
+    app: tauri::AppHandle,
     request: update::InstallRequest,
 ) -> Result<update::InstallResult, String> {
-    update::install(request, &agent_data_directory()?)
+    let result = update::install(request, &agent_data_directory()?)?;
+    if result.state == "scheduled" {
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(250));
+            app.exit(0);
+        });
+    }
+    Ok(result)
 }
 
 fn service_manager() -> Result<Box<dyn ServiceManager>, String> {
@@ -1226,6 +1234,9 @@ fn reveal_command(path: &Path) -> std::process::Command {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    if update::run_desktop_update_helper() {
+        return;
+    }
     #[cfg(target_os = "macos")]
     ensure_ad_hoc_signed_or_reexec();
 

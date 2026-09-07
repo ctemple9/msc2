@@ -132,11 +132,11 @@ def signing_key_bytes(value: str) -> bytes:
 
 
 def sign(seed: bytes, message: bytes) -> bytes:
+    public = public_key(seed)
     digest = hashlib.sha512(seed).digest()
     scalar = int.from_bytes(digest[:32], "little")
     scalar &= (1 << 254) - 8
     scalar |= 1 << 254
-    public = encode_point(scalar_mult(B, scalar))
     nonce = int.from_bytes(hashlib.sha512(digest[32:] + message).digest(), "little") % L
     encoded_nonce = encode_point(scalar_mult(B, nonce))
     challenge = int.from_bytes(
@@ -144,6 +144,14 @@ def sign(seed: bytes, message: bytes) -> bytes:
     ) % L
     response = (nonce + challenge * scalar) % L
     return encoded_nonce + response.to_bytes(32, "little")
+
+
+def public_key(seed: bytes) -> bytes:
+    digest = hashlib.sha512(seed).digest()
+    scalar = int.from_bytes(digest[:32], "little")
+    scalar &= (1 << 254) - 8
+    scalar |= 1 << 254
+    return encode_point(scalar_mult(B, scalar))
 
 
 def match_assets(artifacts: Path, release_id: str) -> dict[str, Path]:
@@ -284,6 +292,11 @@ def main() -> int:
         default="MSC2_RELEASE_SIGNING_KEY_HEX",
         help="environment variable containing the 32-byte Ed25519 seed in hex",
     )
+    parser.add_argument(
+        "--public-key-env",
+        default="MSC2_RELEASE_PUBLIC_KEY_HEX",
+        help="environment variable containing the matching Ed25519 public key in hex",
+    )
     parser.add_argument("--manifest", type=Path, required=True, help="canonical manifest output")
     parser.add_argument("--signature", type=Path, required=True, help="detached base64 signature output")
     args = parser.parse_args()
@@ -300,7 +313,14 @@ def main() -> int:
         )
         key_value = os.environ.get(args.private_key_env, "").strip()
         require(key_value, f"{args.private_key_env} is not configured")
-        signature = sign(signing_key_bytes(key_value), canonical_json(manifest))
+        seed = signing_key_bytes(key_value)
+        public_value = os.environ.get(args.public_key_env, "").strip().lower()
+        require(public_value, f"{args.public_key_env} is not configured")
+        require(
+            public_value == public_key(seed).hex(),
+            f"{args.public_key_env} does not match {args.private_key_env}",
+        )
+        signature = sign(seed, canonical_json(manifest))
         args.manifest.parent.mkdir(parents=True, exist_ok=True)
         args.signature.parent.mkdir(parents=True, exist_ok=True)
         args.manifest.write_bytes(canonical_json(manifest))

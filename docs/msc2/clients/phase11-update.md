@@ -5,6 +5,37 @@ bundled agent and required sidecar, and the independently installed headless
 agent. It does not update Minecraft server jars, worlds, loaders, add-ons,
 modpacks, or plugins.
 
+## One-time release signing setup
+
+The release owner generates one key pair locally:
+
+```sh
+python3 tools/release/generate-update-key.py
+```
+
+Copy `MSC2_RELEASE_SIGNING_KEY_HEX` into the GitHub Actions repository secret
+with that exact name. Copy `MSC2_RELEASE_PUBLIC_KEY_HEX` into the GitHub
+Actions repository variable with that exact name. The private seed must never
+be committed, pasted into an issue, or added to a release asset. The public
+key is intentionally embedded in every official build so any user who
+downloads the app can verify the same publisher signature.
+
+For a local `npx tauri dev` build, set only the public value in the shell
+before starting it if you want that development build to check signed
+releases:
+
+```sh
+MSC2_RELEASE_PUBLIC_KEY_HEX=<public-key-from-the-repository-variable> npx tauri dev
+```
+
+Without that setting, a development build refuses updates instead of trusting
+an unknown signing key.
+
+The release workflow enforces that these two values remain a matching pair on
+every publication. The public value is embedded in each build so installed
+clients can verify releases; the private seed is used only while signing the
+manifest and is never shipped.
+
 ## Release source and trust decision
 
 GitHub Releases is the transport and release-note source. The client fetches
@@ -98,7 +129,7 @@ process control, not service management.
 
 | Installation | Update action |
 |---|---|
-| macOS or Windows Tauri desktop | After local confirmation, launch the exact verified coordinated installer. Replace the desktop, bundled agent, and macOS sidecar together where applicable. Stop/restart the local agent only within that verified replacement and health-recovery sequence. |
+| macOS or Windows Tauri desktop | After local confirmation, close MSC 2 and hand the exact verified coordinated installer to a short-lived local helper. Replace the desktop, bundled agent, and macOS sidecar together where applicable, then relaunch MSC 2. |
 | Linux Tauri desktop `.deb` or `.rpm` | After local confirmation, hand the exact verified package to an authorized local package-install operation. The updater does not overwrite package-owned files directly and does not manage a remote host's service. |
 | Standalone headless archive on macOS, Windows, or Linux | After local CLI authorization, replace only the verified local binary/resources from the matching archive, using the same previous-release, service-restart, health-check, and rollback rules. The local service definition is changed only through the local installer privilege boundary. |
 | Distribution-managed Linux installation | Report the release ID, package name, and package-manager action. The distribution package manager remains the owner of installation; MSC does not silently replace files or create a second updater. |

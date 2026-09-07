@@ -49,7 +49,7 @@ export interface UpdateCheckResult {
 }
 
 export interface UpdateInstallResult {
-  readonly state: 'installer-launched' | 'package-installed';
+  readonly state: 'scheduled' | 'installer-launched' | 'package-installed';
   readonly releaseId: string;
   readonly detail: string;
 }

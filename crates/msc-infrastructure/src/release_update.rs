@@ -37,6 +37,12 @@ pub enum UpdateChannel {
     LinuxPackageRpm,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LinuxPackageFormat {
+    Deb,
+    Rpm,
+}
+
 const CURRENT_API_MAJOR: u32 = 1;
 const RELEASE_SET: &str = "msc-application";
 const MANIFEST_FILE: &str = "msc2-update-manifest.json";
@@ -54,6 +60,7 @@ pub struct UpdateClientConfig {
     pub target: String,
     pub trusted_key: [u8; 32],
     pub channel: UpdateChannel,
+    pub linux_package_format: Option<LinuxPackageFormat>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -118,8 +125,9 @@ pub struct StagedUpdate {
 }
 
 #[derive(Debug, Deserialize)]
-struct GithubLatestRelease {
+struct GithubRelease {
     tag_name: String,
+    draft: bool,
 }
 
 /// Fetches, verifies, and atomically stages the current local platform's
@@ -179,7 +187,7 @@ pub fn check_and_stage(
     let manifest: ReleaseManifest = serde_json::from_value(manifest_value)
         .map_err(|error| format!("Update manifest has an invalid shape: {error}"))?;
     verify_manifest(&manifest, &signature_bytes, &canonical, config, &latest_id)?;
-    let platform_key = platform_key(&config.target, config.channel)?;
+    let platform_key = platform_key(&config.target, config.channel, config.linux_package_format)?;
     let platform = manifest
         .platforms
         .get(platform_key)
@@ -278,7 +286,7 @@ pub fn verify_staged(
     let manifest: ReleaseManifest = serde_json::from_value(manifest_value)
         .map_err(|error| format!("The staged update manifest has an invalid shape: {error}"))?;
     verify_manifest(&manifest, &signature_bytes, &canonical, config, release_id)?;
-    let key = platform_key(&config.target, config.channel)?;
+    let key = platform_key(&config.target, config.channel, config.linux_package_format)?;
     let platform = manifest
         .platforms
         .get(key)
@@ -421,17 +429,31 @@ fn verify_platform(
     Ok(())
 }
 
-fn latest_release(agent: &ureq::Agent, repository: &str) -> Result<GithubLatestRelease, String> {
-    let url = format!("https://api.github.com/repos/{repository}/releases/latest");
-    let bytes = download_bytes(
+fn latest_release(agent: &ureq::Agent, repository: &str) -> Result<GithubRelease, String> {
+    let url = format!("https://api.github.com/repos/{repository}/releases?per_page=100");
+    let bytes = download_bytes_with_accept(
         agent,
         &url,
         MANIFEST_MAX_BYTES,
         &github_hosts(false),
         "GitHub release",
+        "application/vnd.github+json",
     )?;
-    serde_json::from_slice(&bytes)
-        .map_err(|error| format!("GitHub release metadata is invalid: {error}"))
+    let releases: Vec<GithubRelease> = serde_json::from_slice(&bytes)
+        .map_err(|error| format!("GitHub release metadata is invalid: {error}"))?;
+    releases
+        .into_iter()
+        .filter(|release| !release.draft)
+        .filter_map(|release| {
+            release_id_from_tag(&release.tag_name)
+                .ok()
+                .map(|release_id| (release_id, release))
+        })
+        .max_by(|(left_id, _), (right_id, _)| {
+            compare_versions(left_id, right_id).unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .map(|(_, release)| release)
+        .ok_or_else(|| "GitHub has no published MSC release with a supported v tag.".to_string())
 }
 
 fn http_agent() -> ureq::Agent {
@@ -453,10 +475,28 @@ fn download_bytes(
     allowed_hosts: &[&str],
     what: &str,
 ) -> Result<Vec<u8>, String> {
+    download_bytes_with_accept(
+        agent,
+        url,
+        max_bytes,
+        allowed_hosts,
+        what,
+        "application/octet-stream",
+    )
+}
+
+fn download_bytes_with_accept(
+    agent: &ureq::Agent,
+    url: &str,
+    max_bytes: u64,
+    allowed_hosts: &[&str],
+    what: &str,
+    accept: &str,
+) -> Result<Vec<u8>, String> {
     let mut response = agent
         .get(url)
         .header("User-Agent", USER_AGENT)
-        .header("Accept", "application/octet-stream")
+        .header("Accept", accept)
         .call()
         .map_err(|error| format!("Could not fetch {what}: {error}"))?;
     verify_response_url(&response, allowed_hosts, what)?;
@@ -601,10 +641,14 @@ fn github_hosts(allow_asset_cdn: bool) -> Vec<&'static str> {
 }
 
 fn release_base_url(repository: &str, release_id: &str) -> String {
-    format!("https://github.com/{repository}/releases/download/{release_id}")
+    format!("https://github.com/{repository}/releases/download/v{release_id}")
 }
 
-fn platform_key(target: &str, channel: UpdateChannel) -> Result<&'static str, String> {
+fn platform_key(
+    target: &str,
+    channel: UpdateChannel,
+    linux_package_format: Option<LinuxPackageFormat>,
+) -> Result<&'static str, String> {
     if std::env::consts::ARCH != "x86_64" {
         return Err("This MSC release supports x86_64 updates only.".to_string());
     }
@@ -617,16 +661,15 @@ fn platform_key(target: &str, channel: UpdateChannel) -> Result<&'static str, St
         ("windows", "x86_64-pc-windows-msvc", UpdateChannel::Headless) => {
             Ok("windows-headless-x86_64")
         }
-        ("linux", "x86_64-unknown-linux-gnu", UpdateChannel::Desktop) => {
-            if std::env::var("MSC2_LINUX_PACKAGE_FORMAT")
-                .map(|value| value.eq_ignore_ascii_case("rpm"))
-                .unwrap_or(false)
-            {
-                Ok("linux-desktop-rpm-x86_64")
-            } else {
-                Ok("linux-desktop-deb-x86_64")
-            }
-        }
+        ("linux", "x86_64-unknown-linux-gnu", UpdateChannel::Desktop) => match linux_package_format
+        {
+            Some(LinuxPackageFormat::Deb) => Ok("linux-desktop-deb-x86_64"),
+            Some(LinuxPackageFormat::Rpm) => Ok("linux-desktop-rpm-x86_64"),
+            None => Err(
+                "Could not determine whether this Linux desktop uses DEB or RPM packages."
+                    .to_string(),
+            ),
+        },
         ("linux", "x86_64-unknown-linux-gnu", UpdateChannel::Headless) => {
             Ok("linux-headless-x86_64")
         }

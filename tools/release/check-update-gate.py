@@ -125,7 +125,7 @@ def check_source_contract() -> None:
             "Release notes",
             "Cancel",
             "Nothing installs automatically.",
-            "rollback was needed",
+            "can be rolled back.",
             "not update the remote host's service.",
         ),
     )

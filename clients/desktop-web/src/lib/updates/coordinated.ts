@@ -40,9 +40,19 @@ export type UpdateWorkflowState =
 
 /** Keeps native updater errors useful at the presentation boundary. */
 export function updateErrorMessage(error: unknown): string {
-  const message = error instanceof Error ? error.message : 'The update request did not complete.';
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : error &&
+            typeof error === 'object' &&
+            'message' in error &&
+            typeof error.message === 'string'
+          ? error.message
+          : 'The update request did not complete.';
   if (message.toLowerCase().includes('no configured release-signing key')) {
-    return 'This installed release is unsigned, so MSC cannot verify an update for it.';
+    return 'This build has no release-signing key, so MSC cannot verify updates for it.';
   }
   return message;
 }

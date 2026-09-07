@@ -624,7 +624,7 @@ replace the operating-system service on another host.
 **Batch:** solo
 
 ### P12.99 — Add the Settings update workflow
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `clients/desktop-web/src/lib/sections/app-settings/AppSettingsSheet.svelte`, `clients/desktop-web/src/lib/updates/coordinated.ts`, `clients/desktop-web/src/lib/platform/{types.ts,tauri.ts,browser.ts}`, `clients/desktop-web/src/lib/bundle-identity.ts`, `docs/msc2/rolling-plan.md`
 **What:** Put Updates at the top of MSC Settings with the actual bundled version, a Check for updates action, clear checking/available/current/error states, release notes and release ID, and a second explicit confirmation before installation. Make the section explain when the installed release is unsigned or when the selected host is remote, keep progress and rollback outcomes visible, and make the browser client state that native installation belongs to the local desktop or headless host. Follow the anti-slop law: one compact functional section, plain status text, no decorative update dashboard or automatic background install.
 **Verify:** `cd clients/desktop-web && npx prettier --check src/lib/sections/app-settings/AppSettingsSheet.svelte src/lib/updates/coordinated.ts src/lib/platform/types.ts src/lib/platform/tauri.ts src/lib/platform/browser.ts src/lib/bundle-identity.ts && npm run check && npm run build`

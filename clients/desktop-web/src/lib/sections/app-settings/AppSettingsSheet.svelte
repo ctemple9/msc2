@@ -32,6 +32,9 @@
   import VisibilityIcon from '../../components/base/VisibilityIcon.svelte';
   import PlayitSetupSheet from '../server-editor/PlayitSetupSheet.svelte';
   import { getPlatform } from '../../platform';
+  import type { UpdateCheckResult } from '../../platform';
+  import { updateErrorMessage, type UpdateWorkflowState } from '../../updates/coordinated';
+  import { bundleIdentity } from '../../bundle-identity';
   import { bannerColorFor, setBannerColorFor, clampBannerColor } from '../../styles/bannerColor';
   import type { Schema, ScreenApi } from '../shared/types';
   import { call, errorMessage, mutate } from '../shared/types';
@@ -85,6 +88,11 @@
   let duckHost = '';
   let duckBusy = false;
   let duckdnsNotice = '';
+
+  let updateState: UpdateWorkflowState = 'idle';
+  let updateResult: UpdateCheckResult | undefined;
+  let updateNotice = '';
+  let confirmUpdateInstall = false;
 
   $: showDuckDns = serverUsesPlayit === false;
 
@@ -267,10 +275,149 @@
       playit = await call(api, playit, '/v1/playit');
     })();
   }
+
+  async function checkForUpdates(): Promise<void> {
+    if (updateState === 'checking' || updateState === 'installing') return;
+    updateState = 'checking';
+    updateResult = undefined;
+    updateNotice = '';
+    confirmUpdateInstall = false;
+    try {
+      updateResult = await (await getPlatform()).checkForUpdates();
+      updateState =
+        updateResult.state === 'current'
+          ? 'current'
+          : updateResult.state === 'staged'
+            ? 'available'
+            : 'unavailable';
+    } catch (error) {
+      updateState = 'error';
+      updateNotice = updateErrorMessage(error);
+    }
+  }
+
+  async function installAvailableUpdate(): Promise<void> {
+    if (!updateResult?.releaseId || updateState !== 'available') return;
+    const releaseId = updateResult.releaseId;
+    updateState = 'installing';
+    confirmUpdateInstall = false;
+    updateNotice = '';
+    try {
+      const result = await (await getPlatform()).installUpdate(releaseId);
+      updateState = 'installed';
+      updateNotice = result.detail;
+    } catch (error) {
+      updateState = 'error';
+      updateNotice = updateErrorMessage(error);
+    }
+  }
 </script>
 
 <Sheet title="MSC Settings" size="md" {onClose}>
   <div class="settings">
+    <section class="zone">
+      <p class="msc2-type-overline">Updates</p>
+      <Card padding="0">
+        <div class="update-block">
+          <div class="row update-summary">
+            <div class="row-text">
+              <span class="name">MSC 2</span>
+              <span class="hint">Installed bundle v{bundleIdentity.version}</span>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={updateState === 'checking' || updateState === 'installing'}
+              onclick={() => void checkForUpdates()}
+              >{updateState === 'checking'
+                ? 'Checking…'
+                : updateState === 'installing'
+                  ? 'Installing…'
+                  : 'Check for updates'}</Button
+            >
+          </div>
+
+          {#if hostId !== 'local-agent'}
+            <p class="update-boundary">
+              The selected host is remote. This checks or installs MSC on this desktop only; it does
+              not update the remote host's service.
+            </p>
+          {/if}
+
+          {#if updateState === 'current'}
+            <p class="update-status" role="status">
+              You are up to date{updateResult?.releaseId ? ` · ${updateResult.releaseId}` : ''}.
+            </p>
+          {:else if updateState === 'unavailable'}
+            <p class="update-status" role="status">
+              {updateResult?.detail ||
+                'Native installation is local to the desktop or headless host; a browser cannot install it.'}
+            </p>
+          {:else if updateState === 'available' && updateResult}
+            <div class="update-details" aria-live="polite">
+              <div class="update-detail-row">
+                <span class="name">Available release</span>
+                <span class="release-id mono">{updateResult.releaseId}</span>
+              </div>
+              {#if updateResult.installMode}
+                <p class="hint">Installation: {updateResult.installMode}</p>
+              {/if}
+              <p class="hint">{updateResult.detail}</p>
+              {#if updateResult.releaseNotes}
+                <div class="release-notes">
+                  <span class="notes-label">Release notes</span>
+                  <pre>{updateResult.releaseNotes}</pre>
+                </div>
+              {/if}
+              {#if !confirmUpdateInstall}
+                <div class="update-actions">
+                  <Button variant="primary" size="sm" onclick={() => (confirmUpdateInstall = true)}
+                    >Install {updateResult.releaseId}…</Button
+                  >
+                </div>
+              {:else}
+                <div class="update-confirmation" role="alert">
+                  <div class="row-text">
+                    <span class="name">Install this release?</span>
+                    <span class="hint"
+                      >MSC will hand the already verified release to the local installer. A failed
+                      replacement can be rolled back.</span
+                    >
+                  </div>
+                  <div class="update-actions">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onclick={() => (confirmUpdateInstall = false)}>Cancel</Button
+                    >
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onclick={() => void installAvailableUpdate()}
+                      >Install {updateResult.releaseId}</Button
+                    >
+                  </div>
+                </div>
+              {/if}
+            </div>
+          {:else if updateState === 'installed'}
+            <p class="update-status" role="status">{updateNotice}</p>
+          {:else if updateState === 'installing'}
+            <p class="update-status" role="status">
+              Installing the verified release locally… The installer will report whether recovery or
+              rollback was needed.
+            </p>
+          {:else if updateState === 'error'}
+            <p class="update-status error" role="alert">{updateNotice}</p>
+          {:else if updateState === 'idle'}
+            <p class="update-status">
+              Check for a signed release when you are ready. Nothing installs automatically.
+            </p>
+          {/if}
+        </div>
+      </Card>
+    </section>
+
     <section class="zone">
       <p class="msc2-type-overline">Appearance</p>
       <Card padding="0">
@@ -572,6 +719,78 @@
     justify-content: space-between;
     gap: 12px;
     padding: 11px 14px;
+  }
+  .update-block {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .update-summary {
+    padding-bottom: 2px;
+  }
+  .update-boundary,
+  .update-status,
+  .update-details,
+  .update-confirmation {
+    margin: 0 14px;
+  }
+  .update-boundary,
+  .update-status {
+    font-size: 12px;
+    color: var(--msc2-text-tertiary);
+  }
+  .update-status.error {
+    color: var(--msc2-status-error);
+  }
+  .update-details {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 0 12px;
+  }
+  .update-detail-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .release-id {
+    color: var(--msc2-text-secondary);
+    font-size: 12px;
+  }
+  .release-notes {
+    padding-top: 4px;
+  }
+  .notes-label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--msc2-text-secondary);
+  }
+  .release-notes pre {
+    max-height: 160px;
+    margin: 0;
+    overflow: auto;
+    white-space: pre-wrap;
+    font-family: inherit;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--msc2-text-tertiary);
+  }
+  .update-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-top: 3px;
+  }
+  .update-confirmation {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 0 2px;
+    border-top: 1px solid var(--msc2-hairline-faint);
   }
   .service-form {
     display: flex;

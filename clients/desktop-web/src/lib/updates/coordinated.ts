@@ -28,6 +28,25 @@ export interface InstallConfirmation {
   readonly explicitlyApproved: boolean;
 }
 
+export type UpdateWorkflowState =
+  | 'idle'
+  | 'checking'
+  | 'current'
+  | 'available'
+  | 'installing'
+  | 'installed'
+  | 'unavailable'
+  | 'error';
+
+/** Keeps native updater errors useful at the presentation boundary. */
+export function updateErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : 'The update request did not complete.';
+  if (message.toLowerCase().includes('no configured release-signing key')) {
+    return 'This installed release is unsigned, so MSC cannot verify an update for it.';
+  }
+  return message;
+}
+
 const EXPECTED_API_MAJOR = 1;
 
 /**

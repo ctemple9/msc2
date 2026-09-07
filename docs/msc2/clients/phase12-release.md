@@ -26,8 +26,8 @@ The beta artifact set includes:
 
 No mobile management client is a beta release artifact. The supported control
 surfaces are the Tauri desktop, desktop browser, and headless CLI. The
-full-screen terminal UI (TUI) is also not a beta
-artifact; the command-line interface in `msc` is included.
+scriptable command-line interface in `msc` is included; no full-screen terminal
+client is part of this beta.
 
 This boundary does not remove any agent route or change the API contract. In
 particular, a remote Tauri client may manage Minecraft servers through the

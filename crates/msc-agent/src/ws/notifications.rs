@@ -53,9 +53,9 @@ impl NotificationState {
         let _ = self.sender.send(event);
     }
 
-    /// Connects the lifecycle producer to the same agent-owned feed used by
-    /// the TUI and other clients. The event is deliberately the frozen
-    /// NotificationEventDto shape; no terminal-specific event is introduced.
+    /// Connects the lifecycle producer to the agent-owned feed used by desktop,
+    /// browser, and CLI clients. The event is deliberately the frozen
+    /// NotificationEventDto shape; no client-specific event is introduced.
     pub fn push_lifecycle(&self, server_id: &str, server_name: &str, started: bool) {
         self.push(NotificationEventDto {
             id: format!(

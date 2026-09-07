@@ -60,7 +60,7 @@ Everything below was decided by the owner directly, not inferred.
 | 7 | Browser sessions use an **httpOnly cookie**; the desktop shell injects a **local token**. *(The rest of the auth design is proposed.)* | D-012 |
 | 8 | The client is **multi-host from day one** — state keyed by host, minimal switcher in v1. | D-013 |
 | 9 | **Minecraft 1.20** is the version floor. | D-014 |
-| 10 | The **v1 non-goals** are approved as written: no full-screen terminal UI; no third-party plugin API; no per-person identity yet; no TempleTech-hosted backend, ever; no proxy/network orchestration; no Android. The scriptable CLI and interactive command confirmations remain supported. | D-015, D-034 |
+| 10 | The **v1 non-goals** are approved as written: no full-screen terminal client; no third-party plugin API; no per-person identity yet; no TempleTech-hosted backend, ever; no proxy/network orchestration; no Android. The scriptable CLI and interactive command confirmations remain supported. | D-015, D-034 |
 | 11 | **Complete headless mode on every platform** — macOS, Windows, and Linux — with the GUI optional everywhere. *(From `msc2.md`.)* | D-011 |
 | 12 | **Resource efficiency is a requirement**, not an aspiration. *(Founding motivation, from `msc2.md`. Specific benchmark values remain proposed.)* | D-021 |
 | 13 | **Supported-client capability is tracked explicitly** across desktop, browser, and CLI; mobile management is not a v1 target. *(The matrix as tracking mechanism remains proposed.)* | D-023, D-033 |
@@ -136,7 +136,7 @@ The two CSVs join on `file`. They are **file-level inputs to the future symbol l
 
 | Rev | Date | Change |
 |---|---|---|
-| 1.7 | 2026-09-07 | Added D-034: the full-screen terminal UI is retired; the retained terminal surface is the scriptable headless CLI. |
+| 1.7 | 2026-09-07 | Added D-034: the full-screen terminal client is retired; the retained terminal surface is the scriptable headless CLI. |
 | 1.6 | 2026-09-07 | Amended D-033: native mobile and supported mobile management are both out of v1; retained clients are Tauri desktop, desktop browser, and headless CLI, with optional Tailscale remote access. |
 | 1.5 | 2026-09-07 | Recorded D-033: the native mobile client is retired from MSC 2; the responsive browser remains a desktop/browser implementation detail. |
 | 1.0 | 2026-07-29 | Initial three-document set. |

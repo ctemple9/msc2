@@ -280,7 +280,7 @@ Written down so it stays true.
 - **No supported mobile management client in v1.** Native mobile UI, App Store packaging, and mobile-specific notifications are out of scope. The responsive frontend remains a desktop/browser implementation detail, not a mobile product promise.
 - **No third-party plugin system.** Not in v1.
 - **No individual user accounts yet.** The existing access model continues unchanged — admin and guest roles, **named tokens with scoped permissions and expiry dates**, so you can already hand someone limited access. What's deferred is *human identity*: personal logins, invitations, and account recovery.
-- **No full-screen terminal dashboard.** The scriptable CLI and interactive command confirmations are supported in v1; MSC does not plan a persistent terminal UI in a later release.
+- **No full-screen terminal client.** The scriptable CLI and interactive command confirmations are supported in v1; MSC does not plan a persistent terminal client in a later release.
 - **Minecraft 1.20 and newer.** Older versions may still work, but aren't tested or supported.
 - **Bedrock only where Mojang supports it.** MSC runs on more machines than Bedrock servers do, and says so plainly rather than failing later.
 

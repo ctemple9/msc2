@@ -91,7 +91,7 @@ Clients display and request. They never become co-owners. This is what keeps rec
 | HTTP / WebSocket | `axum` + `tokio` | Replaces MSC 1's hand-written socket server. |
 | CLI parsing | `clap` | Generates shell completions. |
 | Interactive prompts | `inquire` | Fuzzy select, confirm. Phase: after core CLI. |
-| Terminal UI | — | Retired from MSC 2; the supported terminal surface is the scriptable CLI (D-034). |
+| Full-screen terminal client | — | Retired from MSC 2; the supported terminal surface is the scriptable CLI (D-034). |
 | Progress | `indicatif` | Downloads, installs. |
 | Desktop shell | **Tauri** | Thin. Loads the Svelte bundle. |
 | Frontend | **Svelte + TypeScript** | One bundle, served by the agent and loaded by Tauri. |

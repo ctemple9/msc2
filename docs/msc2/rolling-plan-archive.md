@@ -2,6 +2,14 @@
 
 Completed phases moved out of `rolling-plan.md` to keep that file small — see `rolling-plan.md`'s own header for current status and where active work resumes. Everything here is historical: Setup and Phases 0 through 12 in full, plus amendments and gate-review records. The active working state and next phase stay in `rolling-plan.md`.
 
+## Retired full-screen terminal client record
+
+Phase 13 was planned and implemented as a full-screen terminal client before
+D-034 retired that surface on 2026-09-07. Its implementation remains
+recoverable from git history; the active scope and gate documents were removed
+after the retirement decision. The retained control surfaces are the Tauri
+desktop app, desktop browser, headless agent, and scriptable CLI.
+
 ---
 
 ## Setup

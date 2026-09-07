@@ -176,10 +176,10 @@ first-class client, and optional Tailscale may provide remote access for the
 desktop app or desktop browser without becoming a requirement for ordinary MSC
 use. Historical phase records and MSC 1 audit evidence remain unchanged.
 
-### Phase 13 — Terminal UI (retired)
+### Phase 13 — Full-screen terminal client (retired)
 
 The planned full-screen terminal client is retired by D-034. There is no Phase
-13 implementation gate and no later TUI release promise. The retained terminal
+13 implementation gate and no later full-screen client release promise. The retained terminal
 surface is the scriptable CLI, including interactive command confirmations;
 the agent API, WebSocket channels, and headless installation story remain in
 scope for the supported desktop, browser, and CLI clients.

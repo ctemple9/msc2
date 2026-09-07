@@ -126,7 +126,7 @@
       </Button>
     </div>
     {#if !playit?.playitEnabled}
-      <p class="hint">Enable in Edit Server → Broadcast</p>
+      <p class="hint">Enable in Edit Server → Services</p>
     {/if}
   </div>
 

@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 (client redesign) is complete and archived. A Phase 12 post-phase correction for coordinated release updates is next; Phase 13 (Terminal UI, deferred from v1) remains not started.
-> **Next move:** Cameron verifies P12.101 — record the cross-platform update gate. Phase 11 and Phase 12 remain complete, with their historical records in `rolling-plan-archive.md`.
+> **Next move:** Cameron verifies P12.102 — record the native iOS retirement decision. Phase 11 and Phase 12 remain complete, with their historical records in `rolling-plan-archive.md`.
 
 **Previous phases (Setup through Phase 12) and their amendments have moved to `rolling-plan-archive.md`** to keep this file small. That archive is historical only — current status and active work stay here.
 
@@ -659,7 +659,7 @@ active product claims, build checks, capability columns, and release paths must
 not continue to imply that MSC 2 ships a native iOS application.
 
 ### P12.102 — Record the native iOS retirement decision
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/msc2-decisions.md`, `docs/msc2/MSC2-VISION.md`, `docs/msc2/msc2-product.md`, `docs/msc2/msc2-engineering.md`, `docs/msc2/msc2-port-plan.md`, `docs/msc2/rolling-plan.md`
 **What:** Add an owner-approved decision recording that the native iOS client is retired from MSC 2, amend D-004 as superseded, and define the replacement boundary: phone access may use the responsive browser client, while native iOS UI, App Store packaging, iOS-specific notifications, and iOS-specific capability parity are no longer v1 deliverables. Reconcile the vision, product promise, engineering architecture, port-plan gates, and current plan without rewriting historical archive entries or the read-only MSC 1 oracle.
 **Verify:** `git diff --check && rg -n "D-033|superseded|responsive browser|native iOS|App Store" docs/msc2/msc2-decisions.md docs/msc2/MSC2-VISION.md docs/msc2/msc2-product.md docs/msc2/msc2-engineering.md docs/msc2/msc2-port-plan.md`

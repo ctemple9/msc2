@@ -32,7 +32,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 | D-001 | MSC 2 is a separate product, not a refactor of MSC 1 | **Approved** | 2026-07-29 |
 | D-002 | Rust for the engine | **Approved** | 2026-07-29 |
 | D-003 | Tauri shell over a shared Svelte frontend | **Approved** | 2026-07-29 |
-| D-004 | The iOS app is evolved, not rewritten | **Approved** | 2026-07-29 |
+| D-004 | The iOS app is evolved, not rewritten | **Superseded by D-033** | 2026-07-29 |
 | D-005 | Behavior is ported, not reimagined | Proposed | — |
 | D-006 | MSC 1's API is the compatibility baseline (not the whole API) | Proposed | — |
 | D-007 | macOS Bedrock stays Swift behind a sidecar | Proposed | — |
@@ -60,6 +60,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 | D-029 | Reset this client is separate from reset this host | **Approved** | 2026-08-28 |
 | D-030 | World-local settings travel with slots; runtime policy stays server-owned | Proposed | — |
 | D-032 | Signed application manifests gate local MSC updates | **Approved** | 2026-09-07 |
+| D-033 | Native iOS client retired; responsive browser is the phone path | **Approved** | 2026-09-07 |
 
 ---
 
@@ -113,9 +114,9 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 
 ---
 
-## D-004 — The iOS app is evolved, not rewritten
+## D-004 — The iOS app is evolved, not rewritten (superseded)
 
-**Status:** Approved · **Origin:** Owner (with Codex, in `msc2.md`) · **Approved by:** Cameron Temple · **Date:** 2026-07-29
+**Status:** Superseded by D-033 · **Origin:** Owner (with Codex, in `msc2.md`) · **Approved by:** Cameron Temple · **Date:** 2026-07-29
 
 **Decision.** The existing SwiftUI iOS client is retained and re-pointed at the MSC 2 API.
 
@@ -124,6 +125,10 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 **Consequences.** The iOS app must speak both APIs during transition, or be branched. Its models should become generated code (D-006), retiring the hand-maintained mirror tests.
 
 **Important caveat.** Retaining the app does not mean retaining feature coverage automatically. See D-023.
+
+**Supersession note (2026-09-07).** D-033 replaces this decision before the
+native client is shipped. The original decision remains here as the record of
+the earlier product direction; it no longer describes an MSC 2 deliverable.
 
 ---
 
@@ -220,13 +225,20 @@ Three things follow, and conflating them is a mistake:
 **Status:** **Approved** (mechanism) · **Proposed** (the specific N-3 value)
 **Origin:** Claude proposal, mechanism selected by owner · **Approved by:** Cameron Temple · **Date:** 2026-07-29
 
-**Context.** The iOS client ships through App Store review and users do not update promptly. Client and agent will routinely differ.
+**Context.** Client and agent will differ. The desktop bundle, responsive
+browser client, CLI, and agent do not all update through the same release path,
+so skew remains normal even without a native mobile application.
 
 **Approved mechanism.** A supported-version floor, capability degradation within the window, clear refusal below it, and a new major route namespace for breaking changes. New fields additive and optional. The agent reports API major/minor and its capability set on connect.
 
-**Proposed, not yet approved: the floor is three minor versions.** N-3 is an analysis estimate, not an owner decision. It should be set from real App Store update-adoption data once MSC 2 ships, not guessed now.
+**Proposed, not yet approved: the floor is three minor versions.** N-3 is an
+analysis estimate, not an owner decision. It should be set from real update
+adoption data across MSC 2's supported distribution channels once it ships, not
+guessed now.
 
-**Alternatives rejected.** Lockstep versioning (App Store review latency would routinely brick the phone client) · indefinite compatibility (shims accumulate forever; old clients fail in confusing partial ways).
+**Alternatives rejected.** Lockstep versioning (independent client and agent
+release paths would make it brittle) · indefinite compatibility (shims
+accumulate forever; old clients fail in confusing partial ways).
 
 **Consequences.** Old-client/new-agent and new-client/old-agent compatibility fixtures are required test assets.
 
@@ -247,7 +259,7 @@ Three things follow, and conflating them is a mistake:
 | **Linux** | Agent + CLI package with **zero desktop dependencies**; `systemd` unit; installs on a minimal Debian with no X/Wayland present. |
 | **All** | The Tauri GUI is optional everywhere and is never a prerequisite for any capability. |
 
-**Rationale.** The owner already runs MSC on an always-on spare Mac managed mostly from iOS. Treating headless as a Linux-only concern would fail the existing deployment on day one.
+**Rationale.** The owner already runs MSC on an always-on spare Mac managed mostly from a phone. Treating headless as a Linux-only concern would fail the existing deployment on day one.
 
 **Consequences.** Two distribution artifacts per platform: an application bundle and a headless package. Self-update must handle app, agent, and sidecar as a coordinated set on macOS/Windows; use an authorized local package operation for Linux Tauri packages; replace standalone headless archives only through the verified local path; and defer distribution-managed Linux installations to the package manager. Headless packages must be verified to link no GUI frameworks (D-021). D-032 records the full update contract.
 
@@ -260,14 +272,18 @@ Three things follow, and conflating them is a mistake:
 **Status:** **Approved** (browser cookie + injected desktop-local token) · **Proposed** (everything else below)
 **Origin:** Claude proposal, transport model selected by owner; expansion from Codex review · **Approved by:** Cameron Temple · **Date:** 2026-07-29
 
-**Approved core.** Browsers authenticate via a pairing code exchanged for an **httpOnly, SameSite session cookie** — not JS-readable, revocable server-side, surviving refresh. The Tauri shell injects a local token so a desktop app controlling its own machine never presents a login. iOS keeps QR pairing → durable keychain token → bearer header.
+**Approved core.** Browsers authenticate via a pairing code exchanged for an
+**httpOnly, SameSite session cookie** — not JS-readable, revocable server-side,
+surviving refresh. Phone and tablet access uses this same responsive browser
+session. The Tauri shell injects a local token so a desktop app controlling its
+own machine never presents a login.
 
 **Rejected.** Bearer token in browser storage (readable by any script on a page that manages people's worlds) · open-on-loopback (lets anything running locally drive the agent, and headless hosts are browsed remotely anyway).
 
 **Gap identified by Codex review.** "Tauri injects a local token" only covers a desktop app talking to its own computer. Given multi-host from day one (D-013), a desktop app connecting to *remote* hosts is a first-class case and was unspecified. The following must be designed before this entry can be Approved in full:
 
 1. **Local automatic authorization** — how the agent proves a request originates from the same machine, and what stops another local process from impersonating the shell.
-2. **Remote desktop pairing** — the desktop app's equivalent of the iOS QR flow, for each remote host.
+2. **Remote desktop pairing** — the desktop app's equivalent of the browser pairing flow, for each remote host.
 3. **Per-host credential storage** — one credential per host in the platform secret store, keyed to match the multi-host client model.
 4. **LAN encryption expectations** — whether plain HTTP is permitted off-loopback at all; certificate provisioning and trust for a locally managed TLS certificate.
 5. **Tailscale connections** — whether tailnet membership may relax any requirement (default position: no; token authentication remains mandatory over Tailscale).
@@ -275,16 +291,53 @@ Three things follow, and conflating them is a mistake:
 
 **Until these are specified, treat the auth design as incomplete.**
 
-**Phase 2 scope (P2.3).** Phase 2's own gate (`msc2-port-plan.md` §3) needs only "the existing iOS app connects and reads status against a stub agent" — one client, one loopback transport, no real mutation behind it. Read against MSC 1's actual mechanism (`RemoteAPIServer+HTTP.swift`'s bearer lookup, `MSCSettingsView.swift`'s `mscremote://pair` deep link, `KeychainTokenStore.swift`), the token in that flow is not the product of a cryptographic pairing exchange — it's the same string created on the Mac side and embedded directly in the QR/link. What Phase 2 genuinely lacks is the token-issuance and persistent-storage machinery around it, which needs the `SecretStore` trait (Phase 3) and does not exist yet. Phase 2 therefore implements bearer-token *verification* only — a single fixed dev token from an environment variable, checked by `msc-agent`'s middleware, clearly commented as a placeholder — and points the re-hosted iOS client at it directly rather than through a real pairing flow. None of the six numbered gaps above are closed by this: items 2–6 don't apply to a loopback-only, iOS-only dev loop, and item 1 (local automatic authorization) is untouched either way. Full scoping and source citations in `docs/msc2/api-contract/auth-scope-phase2.md`.
+**Phase 2 scope (P2.3).** Phase 2's own gate (`msc2-port-plan.md` §3) needs
+only "the responsive browser client connects and reads status against a stub
+agent" — one client, one loopback transport, no real mutation behind it. Read
+against MSC 1's actual mechanism (`RemoteAPIServer+HTTP.swift`'s bearer lookup,
+`MSCSettingsView.swift`'s `mscremote://pair` deep link,
+`KeychainTokenStore.swift`), the legacy token in that flow was not the product
+of a cryptographic pairing exchange — it was the same string created on the Mac
+side and embedded directly in the QR/link. What Phase 2 genuinely lacks is the
+token-issuance and persistent-storage machinery around it, which needs the
+`SecretStore` trait (Phase 3) and does not exist yet. Phase 2 therefore
+implements bearer-token *verification* only — a single fixed dev token from an
+environment variable, checked by `msc-agent`'s middleware, clearly commented
+as a placeholder — and points the responsive browser client at it directly
+rather than through a real pairing flow. None of the six numbered gaps above
+are closed by this: items 2–6 don't apply to a loopback-only dev loop, and item
+1 (local automatic authorization) is untouched either way. Full scoping and
+source citations in `docs/msc2/api-contract/auth-scope-phase2.md`.
 
-**Phase 4 scope (P4.2).** Phase 4's Java lifecycle slice mutates a real imported Paper server from the CLI and existing iOS app, so P2.3's `MSC_DEV_TOKEN` stand-in is retired before those routes accept real mutation. The scoped design in `docs/msc2/lifecycle/pairing-phase4.md` preserves MSC 1's named-token model (admin, guest, named tokens with permission categories and optional expiry), stores server-side token verifier records in `SecretStore` under `remote-api.token.<credential-id>`, uses bearer tokens shaped as `msc2_<credential-id>_<secret>` so lookup does not require listing the secret store, stores only a hash/verifier rather than the raw bearer token, and keeps client-side tokens under per-host keys (`client.host-token.<agent-host-id>` for the CLI, `host-token.<agent-host-id>` in the iOS Keychain). Pairing for this phase is CLI-admin-created and iOS-exchanged: an already-authenticated admin CLI command creates a short-lived one-use pairing challenge, iOS exchanges it for a durable bearer token, and the challenge is immediately invalidated. Auth failures keep MSC 1's rate limit shape (10 failures per 60 seconds from one IP, then 429), sensitive POSTs keep MSC 1's 10-per-5-seconds shape, and audit records attribute auth failures, forbidden/rate-limited requests, token creation/revocation, and lifecycle mutations. P4.2 also records the P2.20 copied-iOS bug fix requirement: a missing Keychain item must mean "not paired," not an empty token that bypasses fallback behavior. This closes only the CLI/iOS credential path needed for Phase 4; local Tauri automatic authorization, remote desktop pairing, LAN TLS, Tailscale posture, browser cookies, origin policy, CSP, and CSRF remain open D-012 work.
+**Phase 4 scope (P4.2).** Phase 4's Java lifecycle slice mutates a real
+imported Paper server from the CLI and responsive browser client, so P2.3's
+`MSC_DEV_TOKEN` stand-in is retired before those routes accept real mutation.
+The scoped design in `docs/msc2/lifecycle/pairing-phase4.md` preserves MSC 1's
+named-token model (admin, guest, named tokens with permission categories and
+optional expiry), stores server-side token verifier records in `SecretStore`
+under `remote-api.token.<credential-id>`, uses bearer tokens shaped as
+`msc2_<credential-id>_<secret>` so lookup does not require listing the secret
+store, stores only a hash/verifier rather than the raw bearer token, and keeps
+CLI credentials under per-host keys. Pairing for this phase is CLI-admin-created
+and browser-exchanged: an already-authenticated admin CLI command creates a
+short-lived one-use pairing challenge, the browser exchanges it for a durable
+httpOnly session, and the challenge is immediately invalidated. Auth failures
+keep MSC 1's rate limit shape (10 failures per 60 seconds from one IP, then
+429), sensitive POSTs keep MSC 1's 10-per-5-seconds shape, and audit records
+attribute auth failures, forbidden/rate-limited requests, token
+creation/revocation, and lifecycle mutations. P4.2 also records the P2.20
+copied-client bug fix requirement: a missing browser session must mean "not
+paired," not an empty credential that bypasses fallback behavior. This closes
+only the CLI/browser credential path needed for Phase 4; local Tauri automatic
+authorization, remote desktop pairing, LAN TLS, Tailscale posture, browser
+cookies, origin policy, CSP, and CSRF remain open D-012 work.
 
 **Phase 9 access-posture addendum (P9.3).** **Approved by Cameron Temple,
 2026-08-22:** Phase 9 keeps management loopback-only by default and permits
 only an explicit Tailscale management path; it does not permit a general-LAN
 management bind, off-loopback HTTP, or TLS certificate provisioning. Tailscale
 membership never replaces bearer authentication and permission checks. The
-Phase 4 per-host CLI/iOS credential storage is retained, and Phase 9 adds
+Phase 4 per-host CLI/browser credential storage is retained, and Phase 9 adds
 durable named-token administration, but remote desktop pairing, desktop-local
 automatic authorization, browser cookie issuance, allowed origins/CSP, and
 CSRF are deferred to Phase 11. The required invariant is that an unconfigured
@@ -491,26 +544,32 @@ MSC 2 is a new project in a new repository (D-001), but that repository does not
 
 ## D-023 — Full client capability, tracked by an explicit matrix
 
-**Status:** **Approved** (full iOS capability is required) · **Proposed** (the matrix as the tracking mechanism)
+**Status:** **Approved** (full mobile capability is required) · **Proposed** (the matrix as the tracking mechanism)
 **Origin:** Owner — `msc2.md`, *"The phone is not a reduced 'status-only' remote"*; tracking mechanism from Codex review · **Approved by:** Cameron Temple · **Date:** 2026-07-29
 
-**Context.** Revision 1.0 claimed the phone "can't fall behind" and that all four interfaces "do the same things." **Those claims are too strong.** A single API eliminates duplicated *engine* logic; it does not build an iOS screen. Someone must still implement each surface.
+**Context.** Revision 1.0 claimed the phone "can't fall behind" and that all four interfaces "do the same things." **Those claims are too strong.** A single API eliminates duplicated *engine* logic; it does not build a phone screen. Someone must still implement each surface.
 
-Given that MSC 1's iOS parity gap was itself a months-long project, overclaiming here risks repeating exactly the mistake MSC 2 is meant to prevent.
+Given that MSC 1's phone parity gap was itself a months-long project, overclaiming here risks repeating exactly the mistake MSC 2 is meant to prevent.
 
 **Decision.** Parity is tracked, not asserted. MSC 2 maintains a capability matrix with one row per capability:
 
 ```
-MSC 1 capability → MSC 2 agent operation → Desktop/Web → iOS → CLI
+MSC 1 capability → MSC 2 agent operation → Desktop/Web (including responsive phone/tablet) → CLI
 ```
 
 Every cell is Implemented, Planned, or **Intentional exception**.
 
-**Full iOS capability is the owner's requirement, not a stretch goal.** The exception path covers behavior that is meaningless or impossible on a platform — revealing a file in Finder from a phone — and is **not** a route for skipping a hard iOS screen.
+**Full mobile capability is the owner's requirement, not a stretch goal.** The responsive browser is the phone and tablet surface. The exception path covers behavior that is meaningless or impossible on a platform — revealing a file in Finder from a phone — and is **not** a route for skipping a difficult responsive workflow.
 
 - An Intentional exception **requires owner approval** and becomes its own decision entry.
 - "Difficult on a small screen" is not a valid reason; reshaping the workflow for mobile is the expected answer.
 - Exceptions are re-reviewed each release rather than inherited.
+
+**Amendment (2026-09-07, D-033).** The approved requirement is full mobile
+capability, not a native iOS implementation. The responsive browser experience
+is the client surface covered by this decision; native iOS UI, App Store
+packaging, iOS-specific notifications, and a native iOS capability column are
+retired from v1.
 
 **Restated guarantee, accurately.** MSC 2 guarantees that *no capability is architecturally unavailable to a client* — the API exposes everything the agent can do. It does not guarantee that every client has shipped every screen. The matrix is where the difference is visible.
 
@@ -648,7 +707,7 @@ Every step of that sequence — the browser, the watched folder, and the server'
 
 **Decision, 2026-08-21 (P8.1).** Cameron chose **option 1**: the client (not the agent) downloads the blocked file and uploads it through MSC's bounded staged-upload path (`POST /v1/staged-uploads`, Phase 6); the agent verifies the expected file identity against the pending pack operation and resumes it. This is the closest behavioral match to MSC 1's own convenience (open the file's page, get it onto the right machine, don't make the user hunt for a manual path) while working uniformly whether the client is a phone, a laptop, or a headless CLI against a remote agent — it does not require the client and agent to share a filesystem the way MSC 1's Downloads-folder watch does. Consequences for Phase 8's step list are recorded in `docs/msc2/addons/phase8-scope.md`'s "D-027: the CurseForge manual-download workflow, decided" section — in short: one or more new purpose-bound `StagedUploadPurposeDto` cases (P8.9), each upload bound to its own pending operation, expected file identity, and a one-use size ceiling (P8.20), never a general arbitrary-path upload.
 
-**Revisit if:** a future client/agent topology makes even a client-side download infeasible (e.g., a CLI-only client with no browser of its own) — not expected to arise in v1's supported clients (desktop/web, iOS, CLI all run somewhere with a browser reachable to the user).
+**Revisit if:** a future client/agent topology makes even a client-side download infeasible (e.g., a CLI-only client with no browser of its own) — not expected to arise in v1's supported clients (desktop/web, CLI, and responsive phone/tablet browser all run somewhere with a browser reachable to the user).
 
 ---
 
@@ -837,6 +896,37 @@ installation shapes, or local service privilege boundary changes.
 
 ---
 
+## D-033 — Native iOS client retired; responsive browser is the phone path
+
+**Status:** **Approved** · **Origin:** Owner-requested Phase 12 correction (P12.102) · **Approved by:** Cameron Temple · **Date:** 2026-09-07
+
+**Context.** The original product direction retained MSC 1's Swift iOS app,
+but MSC 2 has not shipped that client. Keeping a native iOS target would add a
+separate UI, App Store release path, notification system, and capability-parity
+obligation that are not needed to give phone users a complete management
+surface.
+
+**Decision.** The native iOS client is retired from MSC 2. Phone and tablet
+access remains in scope through the responsive browser version of the shared
+Svelte client. It is a real management surface, not a status-only view, and it
+uses the same agent API and capability rules as desktop and browser sessions.
+
+Native iOS UI, App Store packaging, iOS-specific notifications, and
+iOS-specific capability-parity work are not v1 deliverables. The Tauri desktop
+client, responsive browser client, Rust agent/API, CLI, and remote-host support
+remain in scope.
+
+**Consequences.** D-004 is superseded. D-023's full-mobile-capability
+requirement applies to the responsive browser experience; it does not require
+a native iOS implementation. The MSC 2 repository may remove its native iOS
+project and dedicated validation in subsequent steps. Historical phase records,
+MSC 1 audit material, and git history remain factual and are not rewritten.
+
+**Revisit if:** the owner explicitly reopens a native mobile application as a
+separate product decision.
+
+---
+
 ## Appendix A — corrections made during planning
 
 Recorded because each produced a confident wrong answer, and each is the kind of mistake likely to recur.
@@ -863,6 +953,7 @@ Recorded because each produced a confident wrong answer, and each is the kind of
 
 | Rev | Date | Change |
 |---|---|---|
+| 1.11 | 2026-09-07 | Added D-033: retired the native iOS client and set the responsive browser as the phone-access path; D-004 is superseded. |
 | 1.10 | 2026-09-07 | Added D-032: signed application manifests gate local MSC updates, with bounded local installation, rollback, and explicit Linux package/archive distinctions. |
 | 1.9 | 2026-08-29 | Added D-031: native Playit credentials stay inside the host agent, with memory-only sign-in state and host-local idempotent reset. |
 | 1.8 | 2026-08-28 | Added D-030: world-local profile ownership, server-wide runtime policy, and honest change timing classes. |

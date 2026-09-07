@@ -1,6 +1,6 @@
 # MSC 2 — Engineering Specification
 
-**Revision:** 1.4 · **Date:** 2026-07-30 · **Owner:** Cameron Temple
+**Revision:** 1.5 · **Date:** 2026-09-07 · **Owner:** Cameron Temple
 **Baseline:** MSC 1 at commit `fccd61f0ed743086f1f5db6bef58e228a36010f3`
 
 **Companion documents:**
@@ -29,7 +29,7 @@ This is not aspirational. It is enforced structurally: there is only one impleme
 
 ### Why this shape
 
-MSC 1 fused engine and UI. Server-management logic lives inside SwiftUI view models, so running MSC requires running a macOS GUI session. Every limitation follows from that: no Linux host, no true headless mode, no Windows, and an iOS client that could only do what someone had hand-exported to the Remote API.
+MSC 1 fused engine and UI. Server-management logic lives inside SwiftUI view models, so running MSC requires running a macOS GUI session. Every limitation follows from that: no Linux host, no true headless mode, no Windows, and a remote client that could only do what someone had hand-exported to the Remote API.
 
 Splitting engine from interface removes all of them at once, and makes client parity a property of the architecture rather than a project that must be repeated.
 
@@ -42,7 +42,6 @@ flowchart TB
     subgraph clients["Clients"]
         Desktop["MSC Desktop<br/>Tauri shell"]
         Web["MSC Web<br/>any browser"]
-        IOS["MSC Remote<br/>iOS / iPadOS"]
         CLI["msc CLI<br/>local or remote"]
     end
 
@@ -51,7 +50,6 @@ flowchart TB
     Desktop --> Svelte
     Web --> Svelte
     Svelte --> API
-    IOS --> API
     CLI --> API
 
     API["MSC API<br/>HTTP + WebSocket, versioned"]
@@ -97,7 +95,7 @@ Clients display and request. They never become co-owners. This is what keeps rec
 | Progress | `indicatif` | Downloads, installs. |
 | Desktop shell | **Tauri** | Thin. Loads the Svelte bundle. |
 | Frontend | **Svelte + TypeScript** | One bundle, served by the agent and loaded by Tauri. |
-| iOS client | **Swift / SwiftUI** | Existing app, re-pointed. See D-004. |
+| Phone and tablet access | **Responsive Svelte web client** | Same served bundle as the browser client; no native mobile target in v1. See D-033. |
 | Secret storage | `keyring` crate **+ headless fallback** | Keychain / DPAPI behind one trait. **The crate is not sufficient on headless Linux** — see §8. |
 | Hashing | Rust-native | Replaces CryptoKit usage. |
 | Images | `image` crate | Replaces AppKit `NSImage` skin handling. |
@@ -135,13 +133,13 @@ Human-readable by default; `--json` on everything; meaningful exit codes; colors
 
 ### Source of truth
 
-A versioned **OpenAPI** description plus explicit **WebSocket event schemas** is the single source of truth. It generates the Rust server types and the Swift iOS client models. Hand-written client models are not permitted — that is what `MSCmacOSTests/iOSModelMirrors.swift` exists to guard against today, and code generation retires the problem.
+A versioned **OpenAPI** description plus explicit **WebSocket event schemas** is the single source of truth. It generates the Rust server types and the shared client types used by the desktop and responsive browser clients. Hand-written client models are not permitted — the old `MSCmacOSTests/iOSModelMirrors.swift` check is historical evidence of the problem, and code generation retires it.
 
 ### MSC 1's API is the compatibility **baseline**, not the whole of MSC 2's API
 
 Three distinct things follow from this, and conflating them is a mistake:
 
-1. **Baseline.** Where MSC 1's API already covers a capability, its externally observable behavior is normative. Existing clients — above all the shipped iOS app — must keep working.
+1. **Baseline.** Where MSC 1's API already covers a capability, its externally observable behavior is normative. Retained MSC 2 clients must keep working, while the old iOS client remains historical compatibility evidence rather than a shipped target.
 2. **Extension.** MSC 2's API is a **superset**. MSC 1 has desktop capabilities its Remote API never exposed; the parity work identified these, and MSC 2 must add endpoints for them. The baseline defines what may not break, not what may not be added.
 3. **Correction.** Documented bugs, security weaknesses, and genuinely wrong semantics **may be fixed** rather than preserved forever. A quirk is not a contract simply because it shipped. Corrections are recorded explicitly, versioned per D-010, and never made silently.
 
@@ -149,12 +147,12 @@ Measured baseline surface:
 
 - **49 POST routes**, **38 GET routes**
 - 8 files, 5,652 lines
-- `RemoteAPIServerDTOs.swift` alone is ~55 KB of wire schema, exercised daily by the iOS client
+- `RemoteAPIServerDTOs.swift` alone is ~55 KB of wire schema, historically exercised daily by MSC 1's iOS client
 - Existing auth, roles, rate limiting, audit logging, WebSocket support
 
 Route families: `servers/{create,import,delete,rename,eula}` · `settings` · `worlds/{create,rename,replace,repair,activate}` · `components/{install,remove,update,version}` · `backups/{now,restore,config}` · `config/{ram,java-runtime,geyser}` · `users/{create,update,revoke}` · `health/repair` · `playit/*` · `broadcast/*` · `resourcepacks/*` · `watchdog/*` · `command` · `start` · `stop` · `allowlist` · `players/*` · `duckdns` · `templates`
 
-**Preserved unless deliberately corrected:** field names, optional/default behavior, route meanings, role and permission behavior, rate-limiting intent, request-size limits, 404-vs-405 semantics, audit records, WebSocket authentication and delivery, iOS-visible error semantics.
+**Preserved unless deliberately corrected:** field names, optional/default behavior, route meanings, role and permission behavior, rate-limiting intent, request-size limits, 404-vs-405 semantics, audit records, WebSocket authentication and delivery, and the error semantics established by the legacy remote client.
 
 **Not preserved:** hand-written socket parsing, mutable provider-closure storage, `AppViewModel` as provider owner, DTO nesting that exists only for Swift file organization.
 
@@ -172,7 +170,7 @@ Clients ask the agent what it can do. Capabilities reflect host OS, server type,
 
 Per D-010: the agent supports clients back a defined number of minor versions, with capability degradation inside that window, clear refusal below it, a new major route namespace for breaking changes, and additive/optional new fields.
 
-**The specific floor value is not yet decided.** An earlier draft asserted N-3; that was an analysis estimate, not a decision. The floor must be set from real App Store update-adoption data once MSC 2 ships.
+**The specific floor value is not yet decided.** An earlier draft asserted N-3; that was an analysis estimate, not a decision. The floor must be set from real update-adoption data across MSC 2's supported distribution channels once it ships.
 
 ### WebSocket channels
 
@@ -320,7 +318,7 @@ The Tauri GUI is **optional everywhere** and is never a prerequisite for any cap
 
 Two distribution artifacts per platform: an application bundle and a headless package. Headless packages are **verified in CI to link no GUI framework** (§17).
 
-This is not a Linux-only concern — the current MSC deployment is an always-on Mac managed almost entirely from iOS.
+This is not a Linux-only concern — the current MSC deployment is an always-on Mac managed almost entirely from a phone.
 
 ### Three separate support matrices (D-022)
 
@@ -361,7 +359,7 @@ Bedrock Dedicated Server has no macOS build. MSC 1 solves this with `VMBedrockSe
 | **Browser** | Pairing code → **httpOnly, SameSite session cookie**. Not JS-readable, revocable server-side, survives refresh. |
 | **Tauri desktop, local host** | Shell injects a local token; no login screen. |
 | **Tauri desktop, remote host** | *Unspecified — see below.* |
-| **iOS** | QR pairing → durable device token in the keychain → bearer header. |
+| **Phone or tablet browser** | The same browser pairing flow as other web sessions → httpOnly, SameSite session cookie. |
 | **CLI** | Token from per-host config or `--token`; bearer header. |
 
 One permission check behind all of them. **CSRF protection is required for cookie-authenticated mutating requests**; bearer-authenticated requests are exempt.
@@ -371,7 +369,7 @@ One permission check behind all of them. **CSRF protection is required for cooki
 Revision 1.0 described only a desktop app controlling its own computer. Multi-host is a day-one requirement (D-013), so a desktop app connecting to *remote* hosts is a first-class case and was not covered.
 
 1. **Local automatic authorization.** How the agent establishes that a request genuinely originates from the same machine, and what prevents another local process from impersonating the desktop shell.
-2. **Remote desktop pairing.** The desktop equivalent of the iOS QR flow, performed once per remote host.
+2. **Remote desktop pairing.** The desktop equivalent of the browser phone-pairing flow, performed once per remote host.
 3. **Per-host credential storage.** One credential per host in the platform secret store, keyed to match the multi-host client model.
 4. **LAN encryption expectations.** Whether plain HTTP is permitted off-loopback at all; how a locally managed TLS certificate is provisioned and trusted across platforms.
 5. **Tailscale posture.** Default position: tailnet membership relaxes nothing. Traffic is already encrypted, but token authentication remains mandatory. Confirm this rather than assume it.
@@ -539,9 +537,9 @@ A SwiftUI file containing filesystem or network calls is not automatically Mixed
 
 ## 16. Client capability matrix (D-023)
 
-**A single API does not deliver client parity by itself.** It eliminates duplicated *engine* logic; it does not build an iOS screen. Someone must still implement each surface.
+**A single API does not deliver client parity by itself.** It eliminates duplicated *engine* logic; it does not build a client screen. Someone must still implement each surface.
 
-Given that MSC 1's iOS parity gap was itself a months-long project, this must be tracked rather than assumed.
+Given that MSC 1's remote-client parity gap was itself a months-long project, this must be tracked rather than assumed.
 
 ### The guarantee, stated accurately
 
@@ -554,12 +552,12 @@ Given that MSC 1's iOS parity gap was itself a months-long project, this must be
 One row per capability, maintained continuously from the first vertical slice:
 
 ```
-MSC 1 capability → MSC 2 agent operation → Desktop/Web → iOS → CLI
+MSC 1 capability → MSC 2 agent operation → Desktop/Web (including responsive phone/tablet) → CLI
 ```
 
 Every cell is **Implemented**, **Planned**, or **Intentional exception**.
 
-**Full iOS capability is an owner requirement, not a target.** The original vision states the phone is *"not a reduced status-only remote."* The exception path exists for genuinely inapplicable platform behavior — revealing a file in Finder from a phone, a terminal dashboard on iOS — and **not** as a route for omitting an iOS screen because it is difficult to build.
+**Full mobile capability is an owner requirement, not a status-only target.** The responsive browser experience is the phone and tablet surface. The exception path exists for genuinely inapplicable browser behavior — revealing a file in Finder from a phone, for example — and **not** as a route for omitting a browser workflow because it is difficult to make responsive.
 
 Accordingly:
 
@@ -591,7 +589,7 @@ Every megabyte the agent holds on an 8 GB host is a megabyte Java cannot have. T
 
 ## 18. Educational content (D-026)
 
-MSC 1's teaching material is among its largest assets: a 31-topic Server Handbook across 6 categories, a concept guide, an onboarding tour over the live UI, ~18 files of router port-forwarding guides with brand matching and a troubleshooting decision tree, and contextual help throughout. It is also the clearest example of the duplication MSC 2 removes — all of it is Swift compiled into the macOS app, so iOS required a second, separately-written educational surface (`QuickGuideView`, 706 lines).
+MSC 1's teaching material is among its largest assets: a 31-topic Server Handbook across 6 categories, a concept guide, an onboarding tour over the live UI, ~18 files of router port-forwarding guides with brand matching and a troubleshooting decision tree, and contextual help throughout. It is also the clearest example of the duplication MSC 2 removes — all of it is Swift compiled into the macOS app, so the former mobile client required a second, separately-written educational surface (`QuickGuideView`, 706 lines).
 
 **Content is data the agent serves. Clients render it; they never author it.**
 
@@ -610,7 +608,7 @@ MSC 1's teaching material is among its largest assets: a 31-topic Server Handboo
 
 Every explainable thing carries a pointer to its explanation: settings fields, health cards, diagnostics, performance metrics, connection methods, crash-analysis findings.
 
-This extends a pattern that already works. MSC 1's schema-driven settings contract has the agent describe fields and clients render them generically — which is why Bedrock settings reached iOS with **zero iOS changes**. Adding `helpId` to that description means a new setting arrives with its explanation already attached, on every client, without client work.
+This extends a pattern that already works. MSC 1's schema-driven settings contract has the agent describe fields and clients render them generically — which is why Bedrock settings reached the former mobile client with **zero mobile-client changes**. Adding `helpId` to that description means a new setting arrives with its explanation already attached, on every client, without client work.
 
 ```
 SettingFieldDTO {

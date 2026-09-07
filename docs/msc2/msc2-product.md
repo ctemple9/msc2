@@ -1,6 +1,6 @@
 # MSC 2 — What It Is
 
-**Revision:** 1.4 · **Date:** 2026-07-30 · **Owner:** Cameron Temple
+**Revision:** 1.5 · **Date:** 2026-09-07 · **Owner:** Cameron Temple
 
 This document describes MSC 2 in plain language: what it does, who it's for, and what using it feels like. No code, no architecture.
 
@@ -59,9 +59,9 @@ MSC 2 splits into two halves: a small program that actually runs your server, an
 
 **Windows and Linux work too.** Not a lesser version. The same application.
 
-**Your phone stops being structurally limited.** In MSC 1, the iOS app could only do what had been separately built into it *and* separately exposed by the Mac — so it always trailed. In MSC 2 there is one copy of "restore a backup," and every interface calls it.
+**Your phone is a full management surface.** The responsive browser client uses the same API and capability rules as the desktop and web experience, so it is not a status-only remote. In MSC 1, phone support could only do what had been separately built into the iOS app *and* separately exposed by the Mac — so it always trailed. In MSC 2 there is one copy of "restore a backup," and the browser client can call it.
 
-To be precise about what that does and doesn't promise: it means no capability is ever *unavailable* to the phone because the plumbing is missing. It does not mean every screen ships at once — someone still has to build each one. MSC 2 tracks that in a published capability list, so anything not yet on the phone is a recorded decision rather than a surprise.
+To be precise about what that does and doesn't promise: it means no capability is architecturally unavailable to the phone because the plumbing is missing. It does not mean every screen ships at once — someone still has to build each one. MSC 2 tracks that in a published capability list, so anything not yet in the responsive browser experience is a recorded decision rather than a surprise. A native iOS app, App Store packaging, and iOS-specific notifications are not v1 deliverables.
 
 ---
 
@@ -84,17 +84,15 @@ The ideal setup for a demanding modpack is a machine that does nothing else — 
 
 ---
 
-## The four ways to use it
+## The three ways to use it
 
-All four talk to the same server and can reach the same capabilities. Pick whichever is closest to hand.
+All three talk to the same server and can reach the same capabilities. Pick whichever is closest to hand.
 
 Some things are genuinely better suited to one surface than another — editing a large config file is nicer on a big screen than on a phone. Where a capability is deliberately left off a surface, that's recorded as a decision, not left as a gap.
 
 **The desktop app.** Mac, Windows, or Linux. Looks and feels like MSC always has — dark, focused, a list of servers on the left, tabs across the top, the console always available at the bottom.
 
-**A web browser.** Any device, no install. This is how you manage the screenless machine in the closet: it runs the server, your laptop or tablet just displays the interface.
-
-**Your iPhone or iPad.** A real management app, not a status widget. Start and stop, watch the console, manage players and worlds, restore backups, install mods, fix problems.
+**A web browser.** Any device, no install — including a phone or tablet. This is how you manage the screenless machine in the closet: it runs the server, your browser displays the responsive interface, and you can start and stop, watch the console, manage players and worlds, restore backups, install mods, and fix problems.
 
 **The terminal.** For automation and for people who like terminals. Every action available as a command, with proper output for scripts.
 
@@ -285,7 +283,7 @@ Written down so it stays true.
 - **No MSC-operated cloud service, ever.** No accounts, no hosting, no marketplace, no telemetry, no relay, no subscription. This is permanent. Optional third-party integrations — Tailscale, Playit, DuckDNS, Modrinth, CurseForge — stay fully supported; the rule is about *us* running a backend, not about MSC being offline.
 - **Not a server network.** MSC manages servers on machines you own. It is not a proxy or multi-server network orchestrator.
 - **Not a billing platform or a hosting business.**
-- **No Android app.** iPhone and iPad only.
+- **No native mobile app in v1.** Phone and tablet access uses the responsive browser client; App Store packaging and iOS-specific notifications are out of scope.
 - **No third-party plugin system.** Not in v1.
 - **No individual user accounts yet.** The existing access model continues unchanged — admin and guest roles, **named tokens with scoped permissions and expiry dates**, so you can already hand someone limited access. What's deferred is *human identity*: personal logins, invitations, and account recovery.
 - **No terminal dashboard yet.** The command line works fully in v1; the full-screen terminal interface comes in a later release.

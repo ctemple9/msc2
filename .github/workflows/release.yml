@@ -46,6 +46,11 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
+      - name: Validate release and update gate
+        run: |
+          python3 tools/release/check-release-workflow.py .github/workflows/release.yml --expect-publish-guard
+          python3 tools/release/check-update-gate.py
+
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:

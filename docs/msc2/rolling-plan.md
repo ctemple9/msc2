@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 (client redesign) is complete and archived. A Phase 12 post-phase correction for coordinated release updates is next; Phase 13 (Terminal UI, deferred from v1) remains not started.
-> **Next move:** P12.99 — add the Settings update workflow. Phase 11 and Phase 12 remain complete, with their historical records in `rolling-plan-archive.md`.
+> **Next move:** Cameron verifies P12.101 — record the cross-platform update gate. Phase 11 and Phase 12 remain complete, with their historical records in `rolling-plan-archive.md`.
 
 **Previous phases (Setup through Phase 12) and their amendments have moved to `rolling-plan-archive.md`** to keep this file small. That archive is historical only — current status and active work stay here.
 
@@ -640,10 +640,10 @@ replace the operating-system service on another host.
 **Batch:** solo
 
 ### P12.101 — Record the cross-platform update gate
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/clients/phase12-release.md`, `docs/msc2/clients/phase12-release-evidence/`, `tools/release/`, `.github/workflows/release.yml`, `docs/msc2/rolling-plan.md`
 **What:** Record the release/update acceptance evidence and static gate. Cover signed-release publication, current-versus-new version handling, release notes, declined and cancelled updates, invalid signature/digest, interrupted download, already-staged release, macOS/Windows coordinated replacement, Linux desktop package authorization, standalone headless update, package-manager guidance, preserved user data, agent health recovery and rollback, CLI text/JSON behavior, unsigned prerelease refusal, and the rule that remote clients cannot update host services. Leave Cameron's physical macOS, Windows, and Linux runs as the final verification rather than claiming cross-platform support from a local build.
-**Verify:** `python3 tools/release/check-release-workflow.py .github/workflows/release.yml && git diff --check && rg -n "P12\.96|P12\.97|P12\.98|P12\.99|P12\.100|P12\.101" docs/msc2/rolling-plan.md`
+**Verify:** `python3 tools/release/check-release-workflow.py .github/workflows/release.yml --expect-publish-guard && python3 tools/release/check-update-gate.py && git diff --check && rg -n "P12\.96|P12\.97|P12\.98|P12\.99|P12\.100|P12\.101" docs/msc2/rolling-plan.md`
 **Commit:** `P12.101: record cross-platform update gate`
 **Batch:** stop-after
 

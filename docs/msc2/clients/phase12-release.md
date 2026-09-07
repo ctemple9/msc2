@@ -510,3 +510,31 @@ owned by the distribution package manager: the CLI verifies and stages the
 package, then prints the appropriate local `apt` or `dnf` command instead of
 overwriting package-owned files. The Linux archive installer records its
 standalone mode marker so this distinction remains explicit after reboot.
+
+## 16. Cross-platform update gate (P12.101)
+
+The acceptance packet at
+`docs/msc2/clients/phase12-release-evidence/update-gate.md` maps each release
+and update promise to its static implementation evidence and its final
+physical-run evidence. It covers signed publication, version comparison,
+release notes, declined and cancelled updates, signature and digest refusal,
+interrupted and already-staged work, coordinated desktop replacement, Linux
+package authorization and guidance, standalone headless replacement,
+preserved user data, health recovery and rollback, CLI text/JSON output,
+unsigned-prerelease refusal, and the prohibition on remote host-service
+updates.
+
+The repository-side gate is:
+
+```text
+python3 tools/release/check-release-workflow.py \
+  .github/workflows/release.yml --expect-publish-guard
+python3 tools/release/check-update-gate.py
+git diff --check
+```
+
+The release workflow runs the same static gate before its platform matrix.
+This establishes that the workflow and source still express the contract; it
+does not claim that a local build is cross-platform acceptance. Cameron's
+physical macOS, Windows, and Linux runs remain the final evidence for
+installer launch, service behavior, recovery, and preserved data.

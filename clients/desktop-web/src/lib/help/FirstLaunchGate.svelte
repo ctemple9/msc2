@@ -52,6 +52,10 @@
     writeState({ ...state, tourComplete: true });
     window.dispatchEvent(new CustomEvent('msc:tour-complete'));
   }
+  function completeSetup(): void {
+    writeState({ ...state, setupComplete: true });
+    window.dispatchEvent(new CustomEvent('msc:setup-complete'));
+  }
   function restart(): void {
     tourIndex = 0;
     writeState({ ...state, tourComplete: false });
@@ -105,7 +109,7 @@
         aria-labelledby="first-launch-title"
         data-onboarding-stage={stage}
       >
-        <SetupIntro {api} onComplete={() => writeState({ ...state, setupComplete: true })} />
+        <SetupIntro {api} onComplete={completeSetup} />
       </section>
     </div>
   {:else if stage === 'tour'}

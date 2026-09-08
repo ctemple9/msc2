@@ -69,11 +69,18 @@
   }
 
   onMount(() => {
+    const refreshAfterSetup = () => {
+      launchState = { ...launchState, setupComplete: true };
+    };
     const refreshAfterTour = () => {
       if (onboarding) launchState = readLaunchState(launchState.setupComplete);
     };
+    window.addEventListener('msc:setup-complete', refreshAfterSetup);
     window.addEventListener('msc:tour-complete', refreshAfterTour);
-    return () => window.removeEventListener('msc:tour-complete', refreshAfterTour);
+    return () => {
+      window.removeEventListener('msc:setup-complete', refreshAfterSetup);
+      window.removeEventListener('msc:tour-complete', refreshAfterTour);
+    };
   });
 
   onMount(async () => {

@@ -22,7 +22,7 @@ x86_64/Intel computers:
 - 64-bit Windows
 - 64-bit Linux
 
-Apple Silicon macOS and ARM Linux/Windows are not part of this prerelease. The
+Apple Silicon macOS and ARM Linux/Windows are not part of this prerelease, The
 release is unsigned, so macOS, Windows, or Linux may show a security warning
 the first time you open or install it.
 
@@ -36,7 +36,7 @@ MSC 2 helps you create, install, start, stop, and maintain both major
 Minecraft server editions:
 
 - **Java Edition:** Vanilla, Paper, Purpur, Fabric, NeoForge, and Forge
-- **Bedrock Edition:** Bedrock Dedicated Server where Mojang supports it
+- **Bedrock Edition:** Bedrock Dedicated Server where Mojang supports it (no Docker needed!)
 
 MSC 2 manages the server, not the Minecraft game installed on each player's
 device. A player can join from a computer, Xbox, PlayStation 5, Nintendo
@@ -46,17 +46,20 @@ Switch, or mobile device when the server and connection method support it.
 
 Java and Bedrock players normally use different server systems. MSC 2 can set
 up the tools that allow them to play together, including Geyser and Floodgate,
-where the selected server version and platform support that setup.
+where the selected server version and platform support that setup. To be clear, 
+these tools allow for Bedrock players to join Java (Paper) worlds, not the other
+way around. (Java is better though, try to get everyone on Java anyway lol)
 
 That means you can run a world for a group where one person plays Java on a
 computer, someone else plays Bedrock on an Xbox, and someone else joins from a
-Switch. You do not have to build the cross-play setup by hand.
+Switch. 
 
 ### Keeps your worlds safe
 
 MSC 2 treats worlds as something you manage, not just folders on a disk. You
 can create, import, duplicate, rename, activate, export, repair, and remove
-worlds. It can also convert worlds between Java and Bedrock where supported.
+worlds. It can also convert worlds between Java and Bedrock where supported
+with Chunker, in app.
 
 Backups can run manually, on a schedule, or before risky changes. MSC 2 does
 not call a backup successful until it has finished writing and passed its
@@ -106,8 +109,8 @@ The raw log is still available when you want it. It just is not the only answer.
 ### Shows how the server and computer are doing
 
 MSC 2 watches the numbers that matter to a Minecraft server, including CPU,
-memory, disk space, player activity, and tick rate. It explains what those
-numbers mean and warns when the computer is running out of room for Minecraft.
+memory, disk space, player activity, and tick rate and warns when the computer 
+is running out of room for Minecraft.
 
 ## How it works
 

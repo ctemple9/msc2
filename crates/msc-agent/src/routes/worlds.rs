@@ -2544,6 +2544,43 @@ pub async fn convert(
     let running = lifecycle.status_snapshot().running;
     let is_target_running = target_server.id == source_server.id && running;
 
+    // A server can be reconciled before its first start. In that case Paper
+    // may have since generated the live world while the active slot still
+    // has no saved archive. Snapshot that stopped active world through the
+    // existing atomic world writer so conversion does not require a hidden
+    // manual "Save current world" prerequisite. Non-active archive-less
+    // slots remain a hard not-found error inside the conversion operation.
+    let source_slot = if !running
+        && !matches!(
+            std::fs::metadata(msc_infrastructure::world_store::zip_path(
+                &source_server_dir,
+                &source_slot.id,
+            )),
+            Ok(metadata) if metadata.is_file()
+        )
+        && resolved_active_slot_id(&source_server_dir).as_deref() == Some(source_slot.id.as_str())
+    {
+        match worlds::update_active_slot_from_current_world(
+            &StdFileSystem,
+            &source_server_dir,
+            source_server.server_type,
+            None,
+            &source_slot,
+        ) {
+            Ok(updated) => updated,
+            Err(WorldError::NoWorldFolders) => {
+                return error_response(
+                    StatusCode::NOT_FOUND,
+                    "source_world_not_ready",
+                    "Start the source server once so it can generate a world, then stop it before converting.",
+                );
+            }
+            Err(error) => return world_error_response(error),
+        }
+    } else {
+        source_slot
+    };
+
     // Journaled against the *target* server, not the source: conversion
     // writes a new/replaced slot into the target, while the source is
     // only ever read (its zip is extracted, never mutated) — exclusivity

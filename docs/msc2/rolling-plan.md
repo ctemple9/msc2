@@ -566,3 +566,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check && cd clients/desktop-web && npx prettier --check src/lib/components/shell/ShellIcon.svelte src/lib/components/shell/ControlSidebar.svelte && npm run check`
 **Commit:** `P12.188: use a stop icon for the running server action`
 **Batch:** solo
+
+### P12.189 — Snapshot a newly generated conversion source
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/src/routes/worlds.rs`, `docs/msc2/rolling-plan.md`
+**What:** Repair the first-start edge case where reconciliation completed before a server generated its first world, leaving the active source slot without `world.zip`. Before conversion, snapshot the stopped active world through the existing atomic writer when needed; report a clear start-once instruction when no live world exists, while preserving the existing hard failure for non-active archive-less slots.
+**Verify:** `git diff --check && cargo fmt --all -- --check && cargo check --workspace && cargo clippy --workspace --all-targets -- -D warnings -A dead-code`
+**Commit:** `P12.189: snapshot a newly generated conversion source`
+**Batch:** solo

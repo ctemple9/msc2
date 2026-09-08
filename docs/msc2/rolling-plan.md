@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 client redesign and its post-phase corrections are complete. The planned Phase 13 full-screen terminal client is retired by D-034.
-> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.131 is the current CI-maintenance step awaiting verification.
+> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.132 is the current CI-maintenance step awaiting verification.
 
 Previous phases and completed work remain in `rolling-plan-archive.md`. The archive is historical; this file contains only the current state and the next move.
 
@@ -109,4 +109,12 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **What:** Align the existing add-on fixture with the approved mutable-imported-pack behavior, prevent the offline Bedrock production smoke from attempting a live manifest lookup by seeding its version marker, and make the Windows update-install branch compile without unreachable-code warnings. This addresses the recurring Phase 8 smoke failure, the Ubuntu Bedrock smoke timeout, and the Windows clippy failure without weakening any workflow gate.
 **Verify:** `git diff --check && cargo fmt --all -- --check && cargo check --workspace && cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && python3 tools/release/check-release-workflow.py .github/workflows/release.yml --expect-publish-guard`
 **Commit:** `P12.131: repair recurring CI workflow failures`
+**Batch:** solo
+
+### P12.132 — Complete mutable modpack CI fixtures
+**Status:** awaiting verification
+**Files:** `crates/msc-application/tests/addons.rs`, `docs/msc2/rolling-plan.md`
+**What:** Update the remaining add-on and plugin mutation fixtures that still expect pack-managed servers to reject staged installs, updates, toggles, removals, and direct plugin-source downloads. The implementation already follows P12.53 and permits those ordinary mutations; the fixtures now assert the successful disk changes instead.
+**Verify:** `git diff --check && cargo fmt --all -- --check && cargo check --workspace && cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format`
+**Commit:** `P12.132: complete mutable modpack CI fixtures`
 **Batch:** solo

@@ -239,7 +239,7 @@ fn install_from_staged_local_jar_copies_verbatim() {
 }
 
 #[test]
-fn install_from_staged_local_jar_refused_on_pack_managed_server() {
+fn install_from_staged_local_jar_allowed_on_pack_managed_server() {
     let fs = FakeFileSystem::new();
     fs.create_dir_all(Path::new("/staging")).unwrap();
     fs.write(Path::new("/staging/upload.jar"), b"x").unwrap();
@@ -250,8 +250,10 @@ fn install_from_staged_local_jar_refused_on_pack_managed_server() {
         Path::new("/staging/upload.jar"),
         "MyMod-1.0.jar",
         true,
-    );
-    assert!(matches!(result, Err(AddonMutationError::PackManaged)));
+    )
+    .unwrap();
+    assert_eq!(result, Path::new("/server/mods/MyMod-1.0.jar"));
+    assert_eq!(fs.read(&result).unwrap(), b"x");
 }
 
 // --- update_one / update_all ---
@@ -385,7 +387,7 @@ fn update_one_preserves_disabled_state_across_replacement() {
 }
 
 #[test]
-fn update_one_refused_on_pack_managed_server() {
+fn update_one_allowed_on_pack_managed_server() {
     let fs = FakeFileSystem::new();
     let v = version(
         "v2",
@@ -395,7 +397,11 @@ fn update_one_refused_on_pack_managed_server() {
         "https://cdn.example.invalid/x.jar",
     );
     let item = item_with_update("x.jar", true, v);
-    let transport = FakeTransport::new();
+    let transport = FakeTransport::new().with_get(
+        "https://cdn.example.invalid/x.jar",
+        200,
+        b"new bytes".to_vec(),
+    );
     let result = addons::update_one(
         &transport,
         &fs,
@@ -406,8 +412,10 @@ fn update_one_refused_on_pack_managed_server() {
         &[],
         true,
         &|| false,
-    );
-    assert!(matches!(result, Err(AddonMutationError::PackManaged)));
+    )
+    .unwrap();
+    assert_eq!(result.installed_path, Path::new("/server/mods/x.jar"));
+    assert_eq!(fs.read(&result.installed_path).unwrap(), b"new bytes");
 }
 
 #[test]
@@ -516,13 +524,12 @@ fn toggle_flips_disabled_addon_back_to_enabled() {
 }
 
 #[test]
-fn toggle_refused_on_pack_managed_server() {
+fn toggle_allowed_on_pack_managed_server() {
     let fs = FakeFileSystem::new();
     write_jar(&fs, Path::new("/server/mods"), "x.jar", b"bytes");
-    let result = addons::toggle(&fs, Path::new("/server/mods/x.jar"), true);
-    assert!(matches!(result, Err(AddonMutationError::PackManaged)));
-    // Untouched.
-    assert!(fs.stat(Path::new("/server/mods/x.jar")).is_ok());
+    let result = addons::toggle(&fs, Path::new("/server/mods/x.jar"), true).unwrap();
+    assert_eq!(result, Path::new("/server/mods/x.jar.disabled"));
+    assert!(fs.stat(Path::new("/server/mods/x.jar")).is_err());
 }
 
 #[test]
@@ -534,12 +541,11 @@ fn remove_deletes_the_jar() {
 }
 
 #[test]
-fn remove_refused_on_pack_managed_server() {
+fn remove_allowed_on_pack_managed_server() {
     let fs = FakeFileSystem::new();
     write_jar(&fs, Path::new("/server/mods"), "x.jar", b"bytes");
-    let result = addons::remove(&fs, Path::new("/server/mods/x.jar"), true);
-    assert!(matches!(result, Err(AddonMutationError::PackManaged)));
-    assert!(fs.stat(Path::new("/server/mods/x.jar")).is_ok());
+    addons::remove(&fs, Path::new("/server/mods/x.jar"), true).unwrap();
+    assert!(fs.stat(Path::new("/server/mods/x.jar")).is_err());
 }
 
 // --- manual Modrinth link / plugin-source set-remove ---
@@ -626,16 +632,20 @@ fn update_plugin_from_source_direct_downloads_and_rekeys() {
 }
 
 #[test]
-fn update_plugin_from_source_refused_on_pack_managed_server() {
+fn update_plugin_from_source_allowed_on_pack_managed_server() {
     let fs = FakeFileSystem::new();
     let plugins_dir = Path::new("/server/plugins");
     let mut sources = HashMap::new();
     let source = PluginSourceConfig {
-        url: "https://example.invalid/x.jar".to_string(),
+        url: "https://cdn.example.invalid/x.jar".to_string(),
         source_type: PluginSourceKind::Direct,
         extra: Default::default(),
     };
-    let transport = FakeTransport::new();
+    let transport = FakeTransport::new().with_get(
+        "https://cdn.example.invalid/x.jar",
+        200,
+        b"plugin bytes".to_vec(),
+    );
     let result = addons::update_plugin_from_source(
         &transport,
         &fs,
@@ -648,8 +658,10 @@ fn update_plugin_from_source_refused_on_pack_managed_server() {
         &[],
         true,
         &mut sources,
-    );
-    assert!(matches!(result, Err(AddonMutationError::PackManaged)));
+    )
+    .unwrap();
+    assert!(result.installed_path.ends_with(".jar"));
+    assert_eq!(fs.read(&result.installed_path).unwrap(), b"plugin bytes");
 }
 
 #[test]

@@ -968,16 +968,10 @@
     font-size: 15px;
     font-weight: 500;
   }
-  .heading-intro,
   .detail,
   .quiet-label,
   .service-explanation {
     color: var(--msc2-text-secondary);
-  }
-  .heading-intro {
-    max-width: 640px;
-    font-size: 13px;
-    line-height: 1.5;
   }
   .detail,
   .service-explanation {

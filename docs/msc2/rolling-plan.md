@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 client redesign and its post-phase corrections are complete. The planned Phase 13 full-screen terminal client is retired by D-034.
-> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.142 is the current CI-maintenance step awaiting verification.
+> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.143 is the current CI-maintenance step awaiting verification.
 
 Previous phases and completed work remain in `rolling-plan-archive.md`. The archive is historical; this file contains only the current state and the next move.
 
@@ -197,4 +197,12 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **What:** Increase the existing production smoke’s bounded operation and lifecycle polling window from 20 to 60 seconds. The full workspace suite now runs serially before this smoke, and hosted runners can leave a valid Bedrock create operation running just beyond the old deadline; the smoke still fails closed if it does not reach a terminal state within the larger bounded budget.
 **Verify:** `git diff --check && cargo fmt --all -- --check && cargo check --workspace`
 **Commit:** `P12.142: give the production bedrock smoke a hosted-runner budget`
+**Batch:** solo
+
+### P12.143 — Declare the Linux Tauri test runner types
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/tsconfig.json`, `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Declare the existing Mocha globals used by the WebdriverIO Linux Tauri smoke in the shared client type configuration, while keeping runtime ownership with WebdriverIO’s injected globals. Remove the two unused setup-screen CSS selectors reported by Svelte’s checker.
+**Verify:** `cd clients/desktop-web && npm run format:check && npm run check`
+**Commit:** `P12.143: declare the linux tauri test runner types`
 **Batch:** solo

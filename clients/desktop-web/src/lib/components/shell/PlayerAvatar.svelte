@@ -223,7 +223,7 @@
   .edition-switcher {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
   }
   .link {
     flex-shrink: 0;

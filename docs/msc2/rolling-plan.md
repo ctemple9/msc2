@@ -526,3 +526,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check && npm run bundle:package-agent`
 **Commit:** `P12.183: add first-run setup roadmap`
 **Batch:** solo
+
+### P12.184 — Align avatar edition switcher
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/components/shell/PlayerAvatar.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Align the Java/Bedrock edition switcher with the left edge of the Your Avatar heading in the control sidebar.
+**Verify:** `git diff --check && cd clients/desktop-web && npx prettier --check src/lib/components/shell/PlayerAvatar.svelte && npm run check`
+**Commit:** `P12.184: align avatar edition switcher`
+**Batch:** solo

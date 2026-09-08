@@ -1,12 +1,13 @@
 # Bedrock implementation readiness
 
-**Status:** implementation-ready · **Date:** 2026-08-29 · **Step:** P12.33
+**Status:** implementation complete; live Bedrock operation owner-confirmed · **Date:** 2026-09-08 · **Step:** P12.33
 
 This record closes the Bedrock implementation boundary. It proves that the
 production code, verified provisioning path, public API, and distributable
-layouts agree. It does not claim live Bedrock support: the separate
-compatibility matrix remains `unavailable` for every runtime cell until the
-owner performs the real host runs.
+layouts agree. Cameron has also confirmed that MSC 2 creates and runs Bedrock
+servers successfully. The separate compatibility matrix remains a
+machine-checkable evidence record and is not rewritten with details that are
+not transcribed into reproducible host/package records.
 
 ## What is implemented
 
@@ -74,6 +75,18 @@ These are package/layout and source-contract checks, not live installer runs.
 They do not prove that a particular host's service manager, kernel, Windows
 installation, or Virtualization.framework will execute successfully.
 
+## Owner acceptance
+
+On 2026-09-08, Cameron confirmed successful creation and operation of Bedrock
+servers through the implemented MSC 2 path. This closes the product-development
+and owner-acceptance boundary for the Bedrock implementation. It does not
+change D-028: Apple Silicon remains unavailable because the Intel-only
+appliance has no supported arm64 or Rosetta-for-Linux path.
+
+The acceptance statement is recorded separately in
+[`evidence/owner-acceptance.md`](evidence/owner-acceptance.md). It intentionally
+does not reproduce private host details, credentials, or package hashes.
+
 ## Evidence boundary
 
 The P12.33 checker validates the source seams, package paths, release schema,
@@ -83,15 +96,19 @@ also verifies that every current Bedrock compatibility-matrix row remains
 adapter tests and fixture-backed API tests remain implementation evidence; they
 are not runtime support claims.
 
-No compatibility-matrix cell is promoted by this step. In particular, the
-existing Linux, Windows, and Intel-macOS evidence still says that native BDS,
-Windows BDS, or a real Intel VM/sidecar has not been run with the exact
-distribution artifacts. Apple Silicon remains unavailable under D-028.
+The existing compatibility-matrix cells remain conservative because their
+committed runtime records still lack the exact distribution identity and
+reproducible host details required for a `supported` status. The owner
+acceptance above closes the implementation/product boundary; it is not a
+replacement for that machine-checkable evidence. Apple Silicon remains
+unavailable under D-028.
 
 ## P12.33 handoff
 
-The next evidence step belongs to Cameron and must be performed separately on
-each available host:
+The owner handoff described below has been completed for the Bedrock servers
+Cameron ran. The detailed host/package values were not transcribed into this
+repository, so the compatibility matrix remains conservative until that
+reproducible evidence record exists:
 
 1. Prepare a disposable Bedrock server directory and an exact verified BDS
    distribution for the host's selected backend.
@@ -110,6 +127,6 @@ each available host:
    only the matching matrix cells. Keep every untested cell `unavailable`;
    synthetic results cannot promote one.
 
-No real server, VM boot, Windows run, or macOS run is required here. P12.33 is
-complete when `bedrock-package-check.py --readiness` passes; live execution and
-matrix promotion are intentionally left to that later handoff.
+The implementation readiness check remains satisfied when
+`bedrock-package-check.py --readiness` passes. Live Bedrock operation is now
+owner-accepted; matrix promotion remains a separate evidence-record action.

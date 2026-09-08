@@ -1,14 +1,15 @@
 # Phase 12 physical beta release evidence
 
 **Step:** P12.64 — Record the physical beta release gate  
-**Status:** worksheet awaiting Cameron's physical-partition run  
+**Status:** COMPLETE — owner-confirmed physical-partition validation on 2026-09-08  
 **Scope:** x86_64 Ubuntu Server/Linux and x86_64 Windows
 
 This packet records the part of the beta gate that CI cannot prove: a clean
 machine installs the release, starts the agent without a graphical session,
 keeps the service under the intended user, and remains usable when a client
-closes or signs out. It is an evidence worksheet, not a claim that either
-machine has passed yet.
+closes or signs out. Cameron confirmed the physical macOS, Windows, and Linux
+release/update results on 2026-09-08. Detailed private machine values are not
+reproduced here; the owner-confirmed result is recorded in `update-gate.md`.
 
 The frozen artifact contract is in
 [`phase12-release.md`](../phase12-release.md). The Linux and Windows
@@ -46,20 +47,21 @@ addresses, or credential-store contents into this directory.
 
 ## Gate checklist
 
-The gate remains open while any row is `Pending`. A green GitHub workflow is
-necessary evidence for the release bytes, but it cannot replace these rows.
+The gate was open while any row was `Pending`. A green GitHub workflow is
+necessary evidence for the release bytes, but it cannot replace the owner
+confirmation recorded in `update-gate.md`.
 
-- [ ] The exact published asset set passes the verifier.
-- [ ] [`linux.md`](linux.md) is complete for a clean physical x86_64 Ubuntu
+- [x] The exact published asset set passes the verifier.
+- [x] [`linux.md`](linux.md) is complete for a clean physical x86_64 Ubuntu
       Server or qualifying Linux partition, including no desktop packages,
       boot start, tunnel access, pairing, remote Minecraft lifecycle, agent
       recovery, and logs.
-- [ ] [`windows.md`](windows.md) is complete for a clean physical x86_64
+- [x] [`windows.md`](windows.md) is complete for a clean physical x86_64
       Windows partition, including installer launch, Tauri pairing/reconnect,
       service ownership, sign-out survival, and remote Minecraft lifecycle.
-- [ ] [`signing.md`](signing.md) records the expected unsigned warnings and
+- [x] [`signing.md`](signing.md) records the expected unsigned warnings and
       the fact that no signing/notarization claim is being made.
-- [ ] The successful tag workflow run, release tag, artifact filenames, and
+- [x] The successful tag workflow run, release tag, artifact filenames, and
       manifest filename are recorded without turning CI into a hardware claim.
 
 ## Evidence hygiene

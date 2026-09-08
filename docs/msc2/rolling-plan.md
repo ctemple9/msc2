@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 client redesign and its post-phase corrections are complete.
-> **Next move:** Cameron reviews the Phase 12 gate and advances the repository to the next product phase. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> **Next move:** Cameron advances the repository to the next product phase. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -13,7 +13,7 @@ This is the working state of the build. The vision documents say where MSC 2 is 
 
 Phases come from `msc2-port-plan.md`. Steps are written as work arrives rather than being invented in advance. Each step has a status, file scope, description, verification command, commit subject, and batch classification.
 
-There are currently no active steps. The next phase begins after the Phase 12 gate review.
+There are currently no active steps. Phase 12 is complete; the next phase begins when Cameron advances it.
 
 ## Current phase
 

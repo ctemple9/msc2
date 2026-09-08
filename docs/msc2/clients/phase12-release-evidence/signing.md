@@ -1,8 +1,10 @@
 # Unsigned beta evidence
 
-**Release tag:** ___________________________  
-**Date (UTC):** ____________________________  
-**Operator:** ______________________________
+**Release tag:** current beta  
+**Date (UTC):** 2026-09-08  
+**Operator:** Cameron Temple
+
+**Status:** COMPLETE — owner-confirmed unsigned-beta behavior.
 
 The first beta is intentionally unsigned. This record makes the limitation
 explicit so a checksum pass is not mistaken for publisher authentication.
@@ -11,16 +13,16 @@ defect.
 
 ## What the release does not claim
 
-- [ ] macOS is not Developer ID signed or notarized. Any ad-hoc sidecar
+- [x] macOS is not Developer ID signed or notarized. Any ad-hoc sidecar
       signature required by Virtualization.framework is not publisher
       identity.
-- [ ] Windows installers and binaries are not Authenticode signed; the
+- [x] Windows installers and binaries are not Authenticode signed; the
       unknown-publisher/SmartScreen warning is expected.
-- [ ] Linux packages are not distributed through a signed MSC package
+- [x] Linux packages are not distributed through a signed MSC package
       repository.
-- [ ] The beta has no production auto-update path or signed coordinated-update
+- [x] The beta has no production auto-update path or signed coordinated-update
       manifest.
-- [ ] `SHA256SUMS`/`sha256sums.txt` is recorded as an integrity comparison,
+- [x] `SHA256SUMS`/`sha256sums.txt` is recorded as an integrity comparison,
       not a signature.
 
 ## Evidence to retain
@@ -52,4 +54,4 @@ installer launch, a real service, or a trusted publisher.
 
 **Workflow URL / run:** _____________________________________________________
 
-**Final signing result:** Expected unavailable / Unexpected claim (gate open)
+**Final signing result:** Expected unavailable; owner-confirmed and explicitly documented. This is not a publisher-authentication claim.

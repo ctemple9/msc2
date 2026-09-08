@@ -1,12 +1,16 @@
 # Reset and first-launch recovery evidence
 
 **Step:** P12.19d — Resume first launch and prove reset recovery end to end
+**Status:** COMPLETE — owner-confirmed on 2026-09-08
 
 This worksheet separates deterministic checks from Cameron's real host
 walkthroughs. The automated checks prove that the shared client keeps reset
 local, carries a rotated remote host identity through pairing, and never calls
 server creation as a side effect of recovery. The real walkthroughs below are
 the evidence for service behavior, filesystem preservation, and visual flow.
+Cameron confirmed the real-agent first-launch and reset walkthroughs on
+2026-09-08; private host values are intentionally omitted from this
+repository.
 
 ## Automated evidence
 
@@ -31,12 +35,12 @@ result for each row. Do not paste bearer credentials or pairing codes here.
 
 | Walkthrough | Procedure | Evidence to record | Result |
 |---|---|---|---|
-| Client-only reset | Complete first launch on a client with a configured host. Open Preferences → Reset this client, confirm, then reconnect. | Host configuration and server files unchanged; local host records and onboarding flags cleared; setup and the guided tour reopen; no server is created. | Pending |
-| Remote configuration reset | Pair a second desktop to a remote host. Stop every Minecraft server. Reset the remote host with **Configuration only**. | Existing server folder/worlds/jars/logs remain; old credential is rejected; agent service remains installed; a fresh `msc pairing create` code completes **Pair Again** and reopens host setup. | Pending |
-| Remote full reset | On the same remote host with all servers stopped, reset with **Everything**. | Managed server folder is removed; agent service remains installed; old credential is rejected; fresh pairing is required and succeeds; no server is created. | Pending |
-| Local full reset | On the desktop host with all servers stopped, reset with **Everything**. | Host state, managed server folder, and downloaded helper cache are removed; the desktop uninstalls its local service; the agent screen shows **Install and Continue**; install bootstraps a new credential, reacquires helpers when selected, and opens host setup. | Pending |
-| Running-server refusal | Start a managed server, then attempt both reset modes. | Both reset confirmations are refused with `409 server_running`; files, service, credentials, and host identity remain unchanged. | Pending |
-| Confirmation boundary | Try an incorrect phrase and the exact `RESET AGENT` value. | The incorrect phrase is rejected; only the exact phrase is accepted. | Pending |
+| Client-only reset | Complete first launch on a client with a configured host. Open Preferences → Reset this client, confirm, then reconnect. | Host configuration and server files unchanged; local host records and onboarding flags cleared; setup and the guided tour reopen; no server is created. | Complete — owner-confirmed 2026-09-08 |
+| Remote configuration reset | Pair a second desktop to a remote host. Stop every Minecraft server. Reset the remote host with **Configuration only**. | Existing server folder/worlds/jars/logs remain; old credential is rejected; agent service remains installed; a fresh `msc pairing create` code completes **Pair Again** and reopens host setup. | Complete — owner-confirmed 2026-09-08 |
+| Remote full reset | On the same remote host with all servers stopped, reset with **Everything**. | Managed server folder is removed; agent service remains installed; old credential is rejected; fresh pairing is required and succeeds; no server is created. | Complete — owner-confirmed 2026-09-08 |
+| Local full reset | On the desktop host with all servers stopped, reset with **Everything**. | Host state, managed server folder, and downloaded helper cache are removed; the desktop uninstalls its local service; the agent screen shows **Install and Continue**; install bootstraps a new credential, reacquires helpers when selected, and opens host setup. | Complete — owner-confirmed 2026-09-08 |
+| Running-server refusal | Start a managed server, then attempt both reset modes. | Both reset confirmations are refused with `409 server_running`; files, service, credentials, and host identity remain unchanged. | Complete — owner-confirmed 2026-09-08 |
+| Confirmation boundary | Try an incorrect phrase and the exact `RESET AGENT` value. | The incorrect phrase is rejected; only the exact phrase is accepted. | Complete — owner-confirmed 2026-09-08 |
 
 The first-server handoff is verified separately after recovery: walk SetupIntro
 → guided tour, use the highlighted Add Server action, complete the wizard, and

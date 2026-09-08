@@ -1,13 +1,15 @@
 # MSC 2 beta release artifact contract
 
-**Status:** frozen for the first beta artifact set (P12.59)
+**Status:** frozen and owner-accepted for the first beta artifact set (P12.59)
 **Date:** 2026-09-04
 **Authority:** `MSC2-VISION.md`, `msc2-decisions.md`,
 `msc2-engineering.md`, and the Phase 12 port-plan entry
 
 This document defines what the first beta release contains and what a person
 may safely expect from it. It is a packaging contract, not evidence that the
-artifacts have already been built, signed, or accepted on physical hardware.
+artifacts are signed; Cameron's physical macOS, Windows, and Linux
+release/update validation is recorded in the evidence packet. The current
+beta's intentionally unsigned boundary is documented below.
 
 ## 1. Beta boundary
 
@@ -248,9 +250,9 @@ still cannot uninstall or stop the host's operating-system service.
 
 CI can prove that an artifact was built. It cannot prove that a clean machine
 boots the service, preserves ownership, survives client closure, or accepts
-the operating-system's unsigned warning. The beta handoff therefore remains
-open until Cameron records evidence from physical x86_64 Linux and Windows
-machines.
+the operating-system's unsigned warning. Cameron completed and accepted the
+physical x86_64 Linux and Windows handoff; the result is recorded in
+`docs/msc2/clients/phase12-release-evidence/update-gate.md`.
 
 The Linux handoff records, on a clean Debian 12 or qualifying Ubuntu host:
 
@@ -389,7 +391,8 @@ changed bytes. The public release file remains named `SHA256SUMS`; the
 lowercase local copy in the command above avoids making the worksheet depend
 on a case-sensitive filesystem.
 
-The gate remains open until all of these records are complete:
+The gate was open until all of these records were complete. Cameron confirmed
+the physical macOS, Windows, and Linux release/update handoff on 2026-09-08:
 
 1. A clean physical x86_64 Ubuntu Server or qualifying Linux partition has no
    graphical desktop packages, installs the headless package, starts the
@@ -410,9 +413,11 @@ The gate remains open until all of these records are complete:
 5. `signing.md` explicitly records the unavailable signing/notarization and
    the fact that a checksum comparison is not publisher authentication.
 
-The evidence worksheets deliberately contain no fabricated results. A green
-GitHub build or a successful local manifest comparison is necessary, but it
-cannot close the physical Linux/Windows acceptance gate by itself.
+The evidence worksheets deliberately contain no fabricated private machine
+values. Cameron's owner confirmation, recorded in
+`docs/msc2/clients/phase12-release-evidence/update-gate.md`, closes the
+physical Linux/Windows acceptance gate; the unsigned-beta limitation remains
+explicit.
 
 ## 13. Signed application-update contract (P12.96)
 
@@ -536,5 +541,5 @@ git diff --check
 The release workflow runs the same static gate before its platform matrix.
 This establishes that the workflow and source still express the contract; it
 does not claim that a local build is cross-platform acceptance. Cameron's
-physical macOS, Windows, and Linux runs remain the final evidence for
-installer launch, service behavior, recovery, and preserved data.
+physical macOS, Windows, and Linux runs are complete and recorded as the final
+evidence for installer launch, service behavior, recovery, and preserved data.

@@ -3,9 +3,13 @@
 This `phase12-gate.md` record separates automated implementation evidence from
 Cameron's required live parity review.
 
-**Status:** implementation evidence recorded; Cameron's visual parity and
-anti-slop review remains required before the Phase 12 gate can be declared
-closed.
+**Status:** CLOSED — implementation evidence and Cameron's visual parity and
+anti-slop review were completed and accepted on 2026-09-08.
+
+**Owner confirmation:** Cameron confirmed that the rebuilt desktop/browser
+screens and sheets were reviewed against MSC 1 and the anti-slop checklist.
+This closes the human portion of the Phase 12 gate; the Packs exception and
+the other documented capability boundaries remain unchanged.
 
 **Authority:** `MSC2-VISION.md`, `msc2-port-plan.md` Phase 12, the locked
 specimens in `docs/msc2/renderings/`, and `antiAIslop.md`. MSC 1 is the
@@ -14,12 +18,11 @@ copying Swift implementation details into the client.
 
 ## What this gate proves
 
-The automated portion is intentionally a consistency boundary, not a claim
-that a static test can replace a human visual comparison. The exact P12.LAST
-Verify command runs the client unit/type checks, this gate runner, the
-capability-matrix checker, and the workspace tests. Cameron's final review
-must still compare every rebuilt screen and sheet against the MSC 1 checkout
-and run every item in `antiAIslop.md`'s checklist.
+The automated portion is intentionally a consistency boundary. The exact
+P12.LAST Verify command runs the client unit/type checks, this gate runner,
+the capability-matrix checker, and the workspace tests. Cameron's completed
+owner review supplied the human comparison against the MSC 1 checkout and
+the `antiAIslop.md` checklist.
 
 The gate runner checks that:
 
@@ -64,11 +67,11 @@ item below after opening every screen and sheet.
 
 | Review item | Automated evidence | Human result |
 |---|---|---|
-| Shared sheet widths, spacing, card depth, and button/type roles | `tests/components/base.test.ts`, `tests/visual/shell.test.ts` | Pending Cameron visual review |
-| No decorative glow, glass, gradients, side rails, emoji, or accidental colored informational icons | `antiAIslop.md`, `tests/visual/shell.test.ts`, rendering specimens | Pending Cameron visual review |
-| One clear first/second/third read on each screen | rendering specimens and screen checks | Pending Cameron visual review |
-| Motion communicates a state/spatial change and reduced-motion remains usable | splash/onboarding checks and native-renderer workflow | Pending Cameron visual review |
-| Shape and behavior match the MSC 1 source rows above | focused screen tests plus MSC1 source comparison | Pending Cameron screen-by-screen pass |
+| Shared sheet widths, spacing, card depth, and button/type roles | `tests/components/base.test.ts`, `tests/visual/shell.test.ts` | Complete — Cameron confirmed 2026-09-08 |
+| No decorative glow, glass, gradients, side rails, emoji, or accidental colored informational icons | `antiAIslop.md`, `tests/visual/shell.test.ts`, rendering specimens | Complete — Cameron confirmed 2026-09-08 |
+| One clear first/second/third read on each screen | rendering specimens and screen checks | Complete — Cameron confirmed 2026-09-08 |
+| Motion communicates a state/spatial change and reduced-motion remains usable | splash/onboarding checks and native-renderer workflow | Complete — Cameron confirmed 2026-09-08 |
+| Shape and behavior match the MSC 1 source rows above | focused screen tests plus MSC1 source comparison | Complete — Cameron confirmed 2026-09-08 |
 
 ## Deferred or explicit boundaries
 
@@ -81,9 +84,10 @@ These are not hidden failures:
   implemented. The rebuilt Desktop/Web Players, Worlds, Server Editor,
   Handbook, setup, and reset surfaces are marked `Implemented` only where
   their current source actually calls the corresponding agent route.
-- Release signing/notarization and live cross-platform Bedrock runtime
-  evidence are not claimed by this client gate. They remain in their recorded
-  packaging/Bedrock handoffs.
-- Cameron must supply the real-agent first-launch, reset, and full visual
-  parity observations. This document deliberately does not turn static or
-  fake-harness evidence into a claim that those walks happened.
+- Release signing/notarization and detailed cross-platform Bedrock runtime
+  evidence are not claims of this client gate. The unsigned-beta boundary and
+  Bedrock owner acceptance remain in their recorded packaging/Bedrock
+  handoffs.
+- Cameron has supplied the owner acceptance for the real-agent first-launch,
+  reset, and full visual parity review. The detailed private machine values
+  are intentionally not copied into this repository.

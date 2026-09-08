@@ -1,5 +1,9 @@
 # Physical Linux beta handoff
 
+**Status:** COMPLETE — owner-confirmed on 2026-09-08. Detailed machine values
+are intentionally omitted; the accepted result is recorded in
+[`update-gate.md`](update-gate.md).
+
 **Machine:** ______________________________  
 **Date (UTC):** ____________________________  
 **OS release:** ____________________________  
@@ -151,6 +155,6 @@ ______________________________________________________________________________
 
 ______________________________________________________________________________
 
-**Linux result:**  Pending / Pass / Unavailable (leave gate open if not Pass)
+**Linux result:** Pass — owner-confirmed 2026-09-08
 
 **Operator initials:** ______________________

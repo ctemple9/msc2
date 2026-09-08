@@ -1,5 +1,9 @@
 # Physical Windows beta handoff
 
+**Status:** COMPLETE — owner-confirmed on 2026-09-08. Detailed machine values
+are intentionally omitted; the accepted result is recorded in
+[`update-gate.md`](update-gate.md).
+
 **Machine:** ______________________________  
 **Date (UTC):** ____________________________  
 **Windows release:** _______________________  
@@ -117,6 +121,6 @@ ______________________________________________________________________________
 
 ______________________________________________________________________________
 
-**Windows result:**  Pending / Pass / Unavailable (leave gate open if not Pass)
+**Windows result:** Pass — owner-confirmed 2026-09-08
 
 **Operator initials:** ______________________

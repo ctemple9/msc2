@@ -10256,3 +10256,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check && cargo fmt --all -- --check && cargo check --workspace && cargo clippy --workspace --all-targets -- -D warnings -A dead-code`
 **Commit:** `P12.189: snapshot a newly generated conversion source`
 **Batch:** solo
+
+### P12.191 — Record owner acceptance
+**Status:** DONE
+**Files:** `docs/msc2/clients/phase12-gate.md`, `docs/msc2/clients/phase12-release.md`, `docs/msc2/clients/phase12-release-evidence/`, `docs/msc2/clients/evidence/reset-recovery.md`, `docs/msc2/bedrock/phase12-readiness.md`, `docs/msc2/bedrock/evidence/owner-acceptance.md`, `docs/msc2/rolling-plan.md`, `docs/msc2/rolling-plan-archive.md`
+**What:** Record Cameron's completed visual parity and anti-slop review, physical release/update handoff, reset walkthroughs, and Bedrock product acceptance. Preserve the unsigned-beta boundary and keep the Bedrock compatibility matrix conservative because exact reproducible package/runtime evidence was not transcribed.
+**Verify:** `git diff --check`
+**Commit:** `P12.191: record owner acceptance`
+**Batch:** solo

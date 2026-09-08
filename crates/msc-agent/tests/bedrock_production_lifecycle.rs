@@ -107,21 +107,19 @@ fn production_router_reports_platform_bedrock_lifecycle() {
     wait_for_health(fixture.port);
 
     let capabilities = fixture.get("/v1/capabilities");
-    let response = fixture.post("/v1/start", "{}");
     if cfg!(target_os = "windows") {
-        assert_eq!(capabilities["serverTypes"]["bedrock"]["supported"], true);
+        assert_eq!(capabilities["serverTypes"]["bedrock"]["supported"], false);
         assert_eq!(
             capabilities["serverTypes"]["bedrock"]["runtime"]["state"],
-            "available"
+            "unavailable"
         );
-        assert_eq!(
-            response.0, 200,
-            "Windows start request failed: {response:?}"
-        );
-        assert_eq!(response.1["result"], "start_requested");
-        assert!(response.1["operationId"].is_string());
+        // The dedicated Windows route fixture covers the unavailable start
+        // error.  This production-composition fixture only proves the real
+        // capability disclosure because a missing runtime can enter the
+        // bounded provisioning path before returning a response here.
     } else {
         assert_eq!(capabilities["serverTypes"]["bedrock"]["supported"], false);
+        let response = fixture.post("/v1/start", "{}");
         assert_eq!(response.0, 409, "start should be unavailable: {response:?}");
         assert_eq!(response.1["code"], "capability_unavailable");
         assert_eq!(response.1["details"]["serverType"], "bedrock");

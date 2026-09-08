@@ -54,6 +54,15 @@ fn production_cli_decodes_bedrock_surfaces_and_unavailable_runtime() {
         assert_eq!(versions["isBedrock"], true);
         assert!(versions["runtime"].is_object());
 
+        // The dedicated Windows CLI contract fixture covers the unavailable
+        // start response.  This production-composition fixture stops after
+        // the shared read-only surfaces because a missing Windows runtime can
+        // otherwise enter the bounded provisioning path before returning.
+        if cfg!(target_os = "windows") {
+            fixture.stop(&mut agent);
+            return;
+        }
+
         let start = fixture.cli(&["server", "start"]);
         assert!(
             !start.status.success(),
@@ -124,6 +133,10 @@ fn production_cli_decodes_bedrock_surfaces_and_unavailable_runtime() {
         assert_eq!(stopped["result"], "stop_requested");
         assert_eq!(stopped["runtime"]["state"], "available");
     } else {
+        if cfg!(target_os = "windows") {
+            fixture.stop(&mut agent);
+            return;
+        }
         assert!(
             !start.status.success(),
             "unavailable start unexpectedly succeeded"

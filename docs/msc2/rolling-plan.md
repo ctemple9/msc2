@@ -816,3 +816,11 @@ steps.
 **Verify:** `cargo check --workspace && cd clients/desktop-web && npm run check && npm run build && cd ../.. && if rg -n -i 'paper.?templates|plugin.?templates|_paper_templates|_plugin_templates|save_downloaded_jars|/v1/templates|TemplateItemDTO|TemplatesResponseDTO|TemplateMutation' crates/msc-agent/src crates/msc-api/src crates/msc-application/src crates/msc-domain/src crates/msc-infrastructure/src clients/desktop-web/src clients/desktop-web/tests content/help/handbook tools crates/msc-agent/web-ui/assets; then exit 1; fi`
 **Commit:** `P12.117: remove obsolete server template storage`
 **Batch:** solo
+
+### P12.119 — Normalize handbook paragraph spacing
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/help/markdown.ts`, `clients/desktop-web/src/lib/sections/handbook/HandbookBrowser.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Treat consecutive non-empty Markdown lines as one paragraph, so source files may use readable hard-wrapped prose without rendering each line as a separate block. Give handbook `##` subsection headings deliberate spacing and a smaller hierarchy than the topic title.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/help/markdown.ts src/lib/sections/handbook/HandbookBrowser.svelte && npm run check`
+**Commit:** `P12.119: normalize handbook paragraph spacing`
+**Batch:** solo

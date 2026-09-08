@@ -259,6 +259,11 @@
     color: var(--msc2-text-primary);
     font-weight: 500;
   }
+  .markdown :global(h2) {
+    margin: 18px 0 10px;
+    font-size: 1.1em;
+    line-height: 1.3;
+  }
   .markdown :global(a) {
     color: var(--msc2-text-primary);
     text-decoration: underline;

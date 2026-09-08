@@ -39,14 +39,22 @@ export function renderMarkdown(markdown: string): string {
   const output: string[] = [];
   let inList = false;
   let inCode = false;
+  let paragraphLines: string[] = [];
 
   const closeList = () => {
     if (inList) output.push('</ul>');
     inList = false;
   };
+  const closeParagraph = () => {
+    if (paragraphLines.length > 0) {
+      output.push(`<p>${inline(paragraphLines.join(' '))}</p>`);
+      paragraphLines = [];
+    }
+  };
 
   for (const line of lines) {
     if (line.startsWith('```')) {
+      closeParagraph();
       closeList();
       output.push(inCode ? '</code></pre>' : '<pre><code>');
       inCode = !inCode;
@@ -58,21 +66,28 @@ export function renderMarkdown(markdown: string): string {
     }
     const heading = /^(#{1,3})\s+(.+)$/.exec(line);
     if (heading) {
+      closeParagraph();
       closeList();
       output.push(`<h${heading[1].length}>${inline(heading[2])}</h${heading[1].length}>`);
       continue;
     }
     const item = /^[-*]\s+(.+)$/.exec(line);
     if (item) {
+      closeParagraph();
       if (!inList) output.push('<ul>');
       inList = true;
       output.push(`<li>${inline(item[1])}</li>`);
       continue;
     }
     closeList();
-    if (line.trim()) output.push(`<p>${inline(line)}</p>`);
+    if (line.trim()) {
+      paragraphLines.push(line.trim());
+    } else {
+      closeParagraph();
+    }
   }
   closeList();
+  closeParagraph();
   if (inCode) output.push('</code></pre>');
   return output.join('');
 }

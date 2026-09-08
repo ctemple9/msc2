@@ -390,3 +390,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
 **Commit:** `P12.166: repair cross-platform client paths`
 **Batch:** solo
+
+### P12.167 — Repair hosted browser and native text harnesses
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/tests/e2e/browser/contract-harness.mjs`, `clients/desktop-web/tests/e2e/tauri-linux/native-renderer.test.ts`, `docs/msc2/rolling-plan.md`
+**What:** Convert the browser contract server's dist URL with `fileURLToPath` on Windows and read native-renderer assertions from DOM text content, because the hosted Windows server received a doubled drive prefix and WebKitGTK's WebDriver text endpoint returned an empty value for visible picker text.
+**Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
+**Commit:** `P12.167: repair hosted browser and native text harnesses`
+**Batch:** solo

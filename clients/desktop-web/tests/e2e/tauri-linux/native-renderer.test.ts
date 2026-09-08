@@ -7,10 +7,19 @@ const motionMode = process.env.MSC_EXPECT_MOTION ?? 'fallback';
 async function waitForText(selector: string, expected: string): Promise<void> {
   const element = await $(selector);
   await element.waitForDisplayed();
-  await browser.waitUntil(async () => (await element.getText()).includes(expected), {
-    timeout: 15_000,
-    timeoutMsg: `Timed out waiting for ${selector} to include ${expected}.`,
-  });
+  await browser.waitUntil(
+    async () =>
+      (
+        await browser.execute(
+          (target) => document.querySelector(target)?.textContent ?? '',
+          selector,
+        )
+      ).includes(expected),
+    {
+      timeout: 15_000,
+      timeoutMsg: `Timed out waiting for ${selector} to include ${expected}.`,
+    },
+  );
 }
 
 describe('Linux WebKitGTK native Tauri renderer', () => {
@@ -56,9 +65,7 @@ describe('Linux WebKitGTK native Tauri renderer', () => {
     const visibleSectionLabels = await browser.execute(() =>
       Array.from(
         document.querySelectorAll('[role="tablist"][aria-label="Server sections"] button'),
-      ).map(
-        (button) => button.textContent?.trim() ?? '',
-      ),
+      ).map((button) => button.textContent?.trim() ?? ''),
     );
     if (screenshotPath) await browser.saveScreenshot(`${screenshotPath}.bootstrap.png`);
     assert.ok(
@@ -123,7 +130,11 @@ describe('Linux WebKitGTK native Tauri renderer', () => {
     );
     if (motionMode === 'reduced') {
       assert.equal(reducedMotion, true, 'the native WebKitGTK renderer reports reduced motion');
-      assert.equal(await $('.splash').isExisting(), false, 'reduced motion omits the splash animation');
+      assert.equal(
+        await $('.splash').isExisting(),
+        false,
+        'reduced motion omits the splash animation',
+      );
     } else {
       assert.equal(reducedMotion, false, 'the fallback run keeps native motion enabled');
     }

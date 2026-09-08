@@ -422,3 +422,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check && cargo fmt --all -- --check && cd clients/desktop-web && npx prettier --check tests/e2e/browser/contract-harness.mjs tests/e2e/tauri-linux/native-renderer.test.ts && npm run format:check && npm run check`
 **Commit:** `P12.170: fall back to native harness request identity`
 **Batch:** solo
+
+### P12.171 — Isolate native harness identity from browser fixtures
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/tests/e2e/browser/contract-harness.mjs`, `clients/desktop-web/tests/e2e/tauri-linux/native-renderer.test.ts`, `docs/msc2/rolling-plan.md`
+**What:** Register a user-agent fallback only when the Linux native smoke explicitly marks its host-setup reset request, so WebKitGTK can retain its fixture state without allowing browser workflow requests to inherit the native override.
+**Verify:** `git diff --check && cargo fmt --all -- --check && cd clients/desktop-web && npx prettier --check tests/e2e/browser/contract-harness.mjs tests/e2e/tauri-linux/native-renderer.test.ts && npm run format:check && npm run check`
+**Commit:** `P12.171: isolate native harness identity from browser fixtures`
+**Batch:** solo

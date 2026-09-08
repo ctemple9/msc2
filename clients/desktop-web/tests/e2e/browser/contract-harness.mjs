@@ -342,6 +342,7 @@ const worlds = [
 const reconnectStatusRequests = new Map();
 const broadcastJars = new Map();
 const hostSetupOverrides = new Map();
+const nativeHarnessUserAgents = new Set();
 let broadcastClientSequence = 0;
 let serverCreateRequests = 0;
 
@@ -366,7 +367,7 @@ async function readJsonBody(request) {
 
 function hostSetupComplete(request) {
   const origin = request.headers.origin;
-  const requestKey = origin ?? request.headers['user-agent'];
+  const requestKey = origin ? `origin:${origin}` : nativeHarnessRequestKey(request);
   if (requestKey && hostSetupOverrides.has(requestKey)) {
     return hostSetupOverrides.get(requestKey);
   }
@@ -375,6 +376,11 @@ function hostSetupComplete(request) {
     .split(';')
     .some((part) => part.trim() === 'msc_test_host_setup=false');
   return !cookieSaysIncomplete;
+}
+
+function nativeHarnessRequestKey(request) {
+  const userAgent = request.headers['user-agent'];
+  return userAgent && nativeHarnessUserAgents.has(userAgent) ? `user-agent:${userAgent}` : null;
 }
 
 function cookieValue(request, name) {
@@ -424,7 +430,12 @@ createServer(async (request, response) => {
       expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
     });
   if (url.pathname === '/__test/host-setup' && request.method === 'POST') {
-    const requestKey = request.headers.origin ?? request.headers['user-agent'];
+    if (url.searchParams.get('native') === '1' && request.headers['user-agent']) {
+      nativeHarnessUserAgents.add(request.headers['user-agent']);
+    }
+    const requestKey = request.headers.origin
+      ? `origin:${request.headers.origin}`
+      : nativeHarnessRequestKey(request);
     if (requestKey) hostSetupOverrides.set(requestKey, false);
     response.setHeader('set-cookie', 'msc_test_host_setup=false; Path=/; SameSite=Lax');
     return json(response, { complete: false });
@@ -434,7 +445,9 @@ createServer(async (request, response) => {
   if (url.pathname === '/v1/config/host-setup' && request.method === 'GET')
     return json(response, { complete: hostSetupComplete(request) });
   if (url.pathname === '/v1/config/host-setup/complete' && request.method === 'POST') {
-    const requestKey = request.headers.origin ?? request.headers['user-agent'];
+    const requestKey = request.headers.origin
+      ? `origin:${request.headers.origin}`
+      : nativeHarnessRequestKey(request);
     if (requestKey) hostSetupOverrides.set(requestKey, true);
     response.setHeader('set-cookie', 'msc_test_host_setup=true; Path=/; SameSite=Lax');
     return json(response, { complete: true });

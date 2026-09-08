@@ -43,7 +43,7 @@ describe('Linux WebKitGTK native Tauri renderer', () => {
     );
     await browser.execute(() => localStorage.clear());
     await browser.execute(async () => {
-      await fetch('http://127.0.0.1:4173/__test/host-setup', {
+      await fetch('http://127.0.0.1:4173/__test/host-setup?native=1', {
         method: 'POST',
         credentials: 'include',
       });

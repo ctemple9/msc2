@@ -14,15 +14,15 @@ fn powershell(script: &str) -> ProcessSpawnRequest {
     ])
 }
 
-/// 30s, not 10s: P7.29's CI runs found real `powershell.exe` spawns here
-/// occasionally missed a 10s budget under heavy concurrent nextest load
+/// 60s, not 30s: P7.29's CI runs found real `powershell.exe` spawns here
+/// occasionally missed the shorter budgets under heavy concurrent nextest load
 /// on GitHub's hosted `windows-latest` runners -- a real scheduling/
 /// startup-latency false failure under load, not a hang.
 fn drain_until_exit(
     supervisor: &WindowsJavaProcessSupervisor,
     pid: ProcessId,
 ) -> Vec<ProcessEvent> {
-    let deadline = Instant::now() + Duration::from_secs(30);
+    let deadline = Instant::now() + Duration::from_secs(60);
     let mut events = Vec::new();
     while Instant::now() < deadline {
         events.extend(supervisor.drain_events(pid).unwrap());

@@ -111,7 +111,7 @@ fn production_router_reports_platform_bedrock_lifecycle() {
         assert_eq!(capabilities["serverTypes"]["bedrock"]["supported"], false);
         assert_eq!(
             capabilities["serverTypes"]["bedrock"]["runtime"]["state"],
-            "unavailable"
+            "provisioning_required"
         );
         // The dedicated Windows route fixture covers the unavailable start
         // error.  This production-composition fixture only proves the real

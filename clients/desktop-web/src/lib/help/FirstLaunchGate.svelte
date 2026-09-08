@@ -59,12 +59,12 @@
   function advance(userActionCompleted = false): void {
     if (!onboarding) return;
     if (tourSteps.length === 0) {
-      writeState({ ...state, tourComplete: true });
+      completeTour();
       return;
     }
     const next = nextTourStep(tourSteps, tourIndex, userActionCompleted);
     if (next === tourIndex && tourIndex === tourSteps.length - 1) {
-      writeState({ ...state, tourComplete: true });
+      completeTour();
     } else {
       tourIndex = next;
     }

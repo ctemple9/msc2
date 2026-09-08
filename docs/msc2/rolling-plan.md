@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 client redesign and its post-phase corrections are complete. The planned Phase 13 full-screen terminal client is retired by D-034.
-> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.141 is the current CI-maintenance step awaiting verification.
+> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.142 is the current CI-maintenance step awaiting verification.
 
 Previous phases and completed work remain in `rolling-plan-archive.md`. The archive is historical; this file contains only the current state and the next move.
 
@@ -189,4 +189,12 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **What:** Align the existing desktop-client source assertions with the current Phase 12 copy, layout, bundle identity, Playit ownership, and editor structure. Correct the Linux Tauri smoke’s test-runner import so WebdriverIO supplies the Mocha globals at runtime. No new tests are added.
 **Verify:** `cd clients/desktop-web && npm run format:check && npm run check`
 **Commit:** `P12.141: reconcile stale desktop client CI fixtures`
+**Batch:** solo
+
+### P12.142 — Give the production Bedrock smoke a hosted-runner budget
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/tests/bedrock_production_smoke.rs`, `docs/msc2/rolling-plan.md`
+**What:** Increase the existing production smoke’s bounded operation and lifecycle polling window from 20 to 60 seconds. The full workspace suite now runs serially before this smoke, and hosted runners can leave a valid Bedrock create operation running just beyond the old deadline; the smoke still fails closed if it does not reach a terminal state within the larger bounded budget.
+**Verify:** `git diff --check && cargo fmt --all -- --check && cargo check --workspace`
+**Commit:** `P12.142: give the production bedrock smoke a hosted-runner budget`
 **Batch:** solo

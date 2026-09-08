@@ -31,7 +31,7 @@ fn output_json(output: std::process::Output, label: &str) -> Value {
 }
 
 fn wait_for_operation(fixture: &bedrock_smoke::ProductionFixture, id: &str) -> Value {
-    let deadline = Instant::now() + Duration::from_secs(20);
+    let deadline = Instant::now() + Duration::from_secs(60);
     loop {
         let (status, operation) = fixture.http("GET", &format!("/v1/operations/{id}"), None);
         assert_eq!(status, 200, "operation lookup: {operation}");
@@ -48,7 +48,7 @@ fn wait_for_operation(fixture: &bedrock_smoke::ProductionFixture, id: &str) -> V
 }
 
 fn wait_for_status(fixture: &bedrock_smoke::ProductionFixture, expected_running: bool) -> Value {
-    let deadline = Instant::now() + Duration::from_secs(20);
+    let deadline = Instant::now() + Duration::from_secs(60);
     loop {
         let (status, snapshot) = fixture.http("GET", "/v1/status", None);
         assert_eq!(status, 200, "status lookup: {snapshot}");

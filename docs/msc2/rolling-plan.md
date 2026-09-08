@@ -374,3 +374,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
 **Commit:** `P12.164: normalize source line endings across hosted runners`
 **Batch:** solo
+
+### P12.165 — Reconcile Linux native renderer selectors
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/tests/e2e/tauri-linux/native-renderer.test.ts`, `docs/msc2/rolling-plan.md`
+**What:** Update the existing Linux WebKitGTK smoke to use the current shared shell, handbook, fleet-management, and console controls. The hosted runner showed the native window was reached, but the harness still searched for retired `nav[aria-label="Sections"]` and `.application-shell` markup.
+**Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
+**Commit:** `P12.165: reconcile Linux native renderer selectors`
+**Batch:** solo

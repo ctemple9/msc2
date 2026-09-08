@@ -15,10 +15,13 @@ async function waitForText(selector: string, expected: string): Promise<void> {
 
 describe('Linux WebKitGTK native Tauri renderer', () => {
   it('renders and drives the production desktop bundle through the native driver', async () => {
-    await browser.waitUntil(async () => await $('nav[aria-label="Sections"]').isDisplayed(), {
-      timeout: 15_000,
-      timeoutMsg: 'The native Tauri window did not render the shared navigation shell.',
-    });
+    await browser.waitUntil(
+      async () => await $('[role="tablist"][aria-label="Server sections"]').isDisplayed(),
+      {
+        timeout: 15_000,
+        timeoutMsg: 'The native Tauri window did not render the shared navigation shell.',
+      },
+    );
     await browser.execute(() => localStorage.clear());
     await browser.execute(async () => {
       await fetch('http://127.0.0.1:4173/__test/host-setup', {
@@ -27,11 +30,14 @@ describe('Linux WebKitGTK native Tauri renderer', () => {
       });
     });
     await browser.refresh();
-    await browser.waitUntil(async () => await $('nav[aria-label="Sections"]').isDisplayed(), {
-      timeout: 15_000,
-      timeoutMsg: 'The native Tauri window did not render after clearing its profile.',
-    });
-    await waitForText('header', 'Local agent');
+    await browser.waitUntil(
+      async () => await $('[role="tablist"][aria-label="Server sections"]').isDisplayed(),
+      {
+        timeout: 15_000,
+        timeoutMsg: 'The native Tauri window did not render after clearing its profile.',
+      },
+    );
+    await waitForText('.picker', 'Local agent');
     if (motionMode === 'fallback') {
       await browser.waitUntil(async () => !(await $('.splash').isExisting()), {
         timeout: 15_000,
@@ -40,21 +46,23 @@ describe('Linux WebKitGTK native Tauri renderer', () => {
     }
 
     const shellLayout = await browser.execute(() => {
-      const shell = document.querySelector('.application-shell');
+      const shell = document.querySelector('.shell');
       const style = shell ? getComputedStyle(shell) : null;
       return { display: style?.display, width: shell?.getBoundingClientRect().width ?? 0 };
     });
-    assert.equal(shellLayout.display, 'grid');
+    assert.equal(shellLayout.display, 'flex');
     assert.ok(shellLayout.width >= 320, 'the native shell respects the configured minimum width');
 
     const visibleSectionLabels = await browser.execute(() =>
-      Array.from(document.querySelectorAll('nav[aria-label="Sections"] button')).map(
+      Array.from(
+        document.querySelectorAll('[role="tablist"][aria-label="Server sections"] button'),
+      ).map(
         (button) => button.textContent?.trim() ?? '',
       ),
     );
     if (screenshotPath) await browser.saveScreenshot(`${screenshotPath}.bootstrap.png`);
     assert.ok(
-      visibleSectionLabels.includes('Handbook handbook'),
+      visibleSectionLabels.includes('Overview'),
       `the native shell did not load capability-filtered sections: ${visibleSectionLabels.join(', ')}`,
     );
 
@@ -82,36 +90,40 @@ describe('Linux WebKitGTK native Tauri renderer', () => {
       await browser.waitUntil(async () => !(await $('.splash').isExisting()), { timeout: 15_000 });
     }
 
-    await (await $('//nav[@aria-label="Sections"]//button[contains(., "Handbook")]')).click();
-    await waitForText('main', 'Help and guides');
+    await (await $('[aria-label="Help & guides"]')).click();
+    await waitForText('.help-screen', 'Guides');
 
-    await (await $('//nav[@aria-label="Sections"]//button[contains(., "Fleet")]')).click();
-    await waitForText('main', 'Servers');
-    await (await $('[aria-label="Delete server"]')).click();
-    await waitForText('[role="alertdialog"]', 'HOST: LOCAL-AGENT · SERVER: SURVIVAL');
+    await (await $('.picker')).click();
+    await (await $('//*[@role="menuitem" and normalize-space() = "Manage…"]')).click();
+    const manage = await $('[role="dialog"][aria-label="Manage Servers"]');
+    await manage.waitForDisplayed();
+    await (await manage.$('[aria-label="More actions"]')).click();
+    await (await $('//*[@role="menuitem" and normalize-space() = "Remove…"]')).click();
+    await waitForText('.confirm-row', 'Remove "Survival" from this controller?');
     await (
-      await $('//dialog[@role="alertdialog"]//button[normalize-space() = "Delete server"]')
+      await $('//*[@role="dialog"]//button[normalize-space() = "Remove from Controller"]')
     ).click();
-    await waitForText('main', 'Server record removed.');
+    await waitForText('.notice', 'Server record removed.');
+    await (await manage.$('[aria-label="Close"]')).click();
 
-    await (await $('//nav[@aria-label="Sections"]//button[contains(., "Console")]')).click();
-    await waitForText('main', 'Console');
     await browser.execute(() => {
       history.pushState({}, '', '/hosts/local-agent/servers/survival/handbook');
       dispatchEvent(new PopStateEvent('popstate'));
     });
-    await waitForText('main', 'Help and guides');
+    await waitForText('.help-screen', 'Guides');
+
+    await browser.execute(() => {
+      history.pushState({}, '', '/hosts/local-agent/servers/survival/console');
+      dispatchEvent(new PopStateEvent('popstate'));
+    });
+    await waitForText('.screen-header', 'Console');
 
     const reducedMotion = await browser.execute(
       () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
     );
     if (motionMode === 'reduced') {
       assert.equal(reducedMotion, true, 'the native WebKitGTK renderer reports reduced motion');
-      assert.equal(
-        await $('.splash').isExisting(),
-        false,
-        'reduced motion omits the splash animation',
-      );
+      assert.equal(await $('.splash').isExisting(), false, 'reduced motion omits the splash animation');
     } else {
       assert.equal(reducedMotion, false, 'the fallback run keeps native motion enabled');
     }

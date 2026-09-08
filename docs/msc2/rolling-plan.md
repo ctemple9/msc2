@@ -824,3 +824,11 @@ steps.
 **Verify:** `cd clients/desktop-web && npx prettier --check src/lib/help/markdown.ts src/lib/sections/handbook/HandbookBrowser.svelte && npm run check`
 **Commit:** `P12.119: normalize handbook paragraph spacing`
 **Batch:** solo
+
+### P12.120 — Move onboarding into the guides tabs
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/sections/handbook/HelpSection.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Add an `Onboard` tab beside Handbook and Router Guide, move the existing guided server creation panel into it, replace the completed-state copy and action with “The guided server creation flow is here whenever you need it.” and “Restart the guide,” and remove the separate page-level onboarding section and its “Restart this tour” button.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/sections/handbook/HelpSection.svelte && npm run check`
+**Commit:** `P12.120: move onboarding into the guides tabs`
+**Batch:** solo

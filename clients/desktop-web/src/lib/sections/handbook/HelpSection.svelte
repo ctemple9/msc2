@@ -30,10 +30,11 @@
   import RouterGuidePanel from './RouterGuidePanel.svelte';
 
   export let api: ScreenProps['api'] = undefined;
-  type View = 'handbook' | 'router';
+  type View = 'handbook' | 'router' | 'onboard';
   const viewOptions: { value: View; label: string }[] = [
     { value: 'handbook', label: 'Handbook' },
     { value: 'router', label: 'Router Guide' },
+    { value: 'onboard', label: 'Onboard' },
   ];
 
   let activeView: View = 'handbook';
@@ -126,67 +127,54 @@
       <Card padding="18px">
         {#if activeView === 'handbook'}
           <HandbookBrowser {catalog} {topic} {topicId} onSelect={(id) => void selectTopic(id)} />
-        {:else}
+        {:else if activeView === 'router'}
           <RouterGuidePanel {api} catalog={routerGuides} />
+        {:else if onboarding}
+          <div class="onboarding-panel">
+            <div class="overline">
+              <Icon name="seal-check" size={13} />
+              <span class="msc2-type-overline">Onboarding</span>
+            </div>
+            {#if launchStage === 'setup'}
+              <SetupIntro
+                compact
+                headingId="handbook-first-launch-title"
+                {api}
+                onComplete={completeSetup}
+              />
+            {:else if launchStage === 'tour'}
+              {@const step = tourSteps[tourIndex]}
+              {#if step}
+                <h3 class="msc2-type-section">{step.title}</h3>
+                <p class="msc2-type-body muted">{step.body}</p>
+                {#if !step.hideCard}
+                  <div class="tour-card msc2-type-meta">{step.actionLabel ?? 'Continue'}</div>
+                {/if}
+                <div class="onboarding-actions">
+                  <Button size="sm" variant="secondary" onclick={skipTour}
+                    >{onboarding.skip.label}</Button
+                  >
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onclick={() => advanceTour(step.requiresUserAction)}
+                  >
+                    {step.requiresUserAction ? 'I did that' : (step.actionLabel ?? 'Continue')}
+                  </Button>
+                </div>
+              {/if}
+            {:else}
+              <p class="msc2-type-body muted">
+                The guided server creation flow is here whenever you need it.
+              </p>
+              <Button size="sm" variant="secondary" onclick={restartTour}>Restart the guide</Button>
+            {/if}
+          </div>
+        {:else}
+          <p class="msc2-type-meta" role="status">Onboarding is not available on this agent.</p>
         {/if}
       </Card>
     </section>
-
-    {#if onboarding}
-      <section class="zone">
-        <div class="section-header">
-          <div class="overline">
-            <Icon name="seal-check" size={13} />
-            <span class="msc2-type-overline">Onboarding</span>
-          </div>
-          <Button size="sm" variant="secondary" onclick={restartTour}
-            >{onboarding.reopen.label}</Button
-          >
-        </div>
-        <Card padding="18px" as="section">
-          {#if launchStage === 'setup'}
-            <SetupIntro
-              compact
-              headingId="handbook-first-launch-title"
-              {api}
-              onComplete={completeSetup}
-            />
-          {:else if launchStage === 'tour'}
-            {@const step = tourSteps[tourIndex]}
-            {#if step}
-              <h3 class="msc2-type-section">{step.title}</h3>
-              <p class="msc2-type-body muted">{step.body}</p>
-              {#if !step.hideCard}
-                <div class="tour-card msc2-type-meta">{step.actionLabel ?? 'Continue'}</div>
-              {/if}
-              <div class="onboarding-actions">
-                <Button size="sm" variant="secondary" onclick={skipTour}
-                  >{onboarding.skip.label}</Button
-                >
-                <Button
-                  size="sm"
-                  variant="primary"
-                  onclick={() => advanceTour(step.requiresUserAction)}
-                >
-                  {step.requiresUserAction ? 'I did that' : (step.actionLabel ?? 'Continue')}
-                </Button>
-              </div>
-            {/if}
-          {:else}
-            <p class="msc2-type-body muted">
-              The Server Handbook stays available whenever you need it.
-            </p>
-            <Button
-              size="sm"
-              variant="secondary"
-              onclick={() => void selectTopic('handbook.overview')}
-            >
-              Open Handbook
-            </Button>
-          {/if}
-        </Card>
-      </section>
-    {/if}
   {/if}
 </div>
 
@@ -221,6 +209,11 @@
   .onboarding-actions {
     display: flex;
     gap: 8px;
+  }
+  .onboarding-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
   }
   .tour-card {
     margin: 0 0 10px;

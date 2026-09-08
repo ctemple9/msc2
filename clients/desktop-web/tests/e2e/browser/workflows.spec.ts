@@ -65,6 +65,7 @@ test('uses the bounded splash fallback and removes it for reduced motion', async
 
 test('keeps the local host identity and presents reconnect fallback', async ({ page }) => {
   await skipFirstLaunch(page);
+  await page.setExtraHTTPHeaders({ 'x-msc-test-reconnect': 'true' });
   await page.goto('/');
   await expect(page.getByText('Local agent', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Refresh host' }).click();

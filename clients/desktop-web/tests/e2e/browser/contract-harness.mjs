@@ -338,7 +338,7 @@ const worlds = [
     zipSizeBytes: 1024,
   },
 ];
-const statusRequests = new Map();
+const reconnectStatusRequests = new Map();
 const hostSetupOverrides = new Map();
 let broadcastJar = { installed: false, filename: null };
 let serverCreateRequests = 0;
@@ -404,11 +404,6 @@ createServer(async (request, response) => {
   if (url.pathname === '/__test/host-setup' && request.method === 'POST') {
     const client = request.headers['user-agent'] ?? 'unknown';
     hostSetupOverrides.set(client, false);
-    // The first status request after setup must succeed so the fresh-profile
-    // workflow can reach the client shell.  The reconnect workflow, which
-    // does not call this helper, uses its second status request for the
-    // deliberate reconnect-pending response below.
-    statusRequests.set(client, 2);
     response.setHeader('set-cookie', 'msc_test_host_setup=false; Path=/; SameSite=Lax');
     return json(response, { complete: false });
   }
@@ -565,15 +560,17 @@ createServer(async (request, response) => {
     });
   }
   if (url.pathname === '/v1/status') {
-    const client = request.headers['user-agent'] ?? 'unknown';
-    const count = (statusRequests.get(client) ?? 0) + 1;
-    statusRequests.set(client, count);
-    if (count === 2)
-      return json(
-        response,
-        { code: 'unavailable', message: 'Reconnect pending', helpId: null },
-        503,
-      );
+    if (request.headers['x-msc-test-reconnect'] === 'true') {
+      const client = request.headers['user-agent'] ?? 'unknown';
+      const count = (reconnectStatusRequests.get(client) ?? 0) + 1;
+      reconnectStatusRequests.set(client, count);
+      if (count === 2)
+        return json(
+          response,
+          { code: 'unavailable', message: 'Reconnect pending', helpId: null },
+          503,
+        );
+    }
     return json(response, { activeServerId: 'survival', running: false, serverType: 'paper' });
   }
   if (url.pathname === '/v1/servers' && request.method === 'GET') return json(response, servers);

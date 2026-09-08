@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 client redesign and its post-phase corrections are complete. The planned Phase 13 full-screen terminal client is retired by D-034.
-> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.147 is the current CI-maintenance step awaiting verification.
+> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.148 is the current CI-maintenance step awaiting verification.
 
 Previous phases and completed work remain in `rolling-plan-archive.md`. The archive is historical; this file contains only the current state and the next move.
 
@@ -237,4 +237,12 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **What:** Make the browser contract harness return a successful initial status for normal and fresh-profile workflows, then reserve its simulated reconnect-pending response for the reconnect test's second status request. The prior counter returned `503` before the shared shell could render, causing the macOS browser smoke to fail across both engines.
 **Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
 **Commit:** `P12.147: sequence browser reconnect harness responses`
+**Batch:** solo
+
+### P12.148 — Scope browser reconnect simulation to its workflow
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/tests/e2e/browser/contract-harness.mjs`, `clients/desktop-web/tests/e2e/browser/workflows.spec.ts`, `docs/msc2/rolling-plan.md`
+**What:** Restrict the contract harness's simulated reconnect response to the existing reconnect workflow's explicit test header. The prior user-agent counter was shared by multiple Playwright contexts, so unrelated browser tests could receive the deliberate `503` response and never render the client shell.
+**Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
+**Commit:** `P12.148: scope browser reconnect simulation to its workflow`
 **Batch:** solo

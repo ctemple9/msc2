@@ -86,3 +86,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `cargo check --workspace && cd clients/desktop-web && npx tauri dev`
 **Commit:** `P12.128: repair Bedrock picker configuration-error reporting`
 **Batch:** solo
+
+### P12.129 — Update the desktop top-bar byline
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/components/shell/TopBar.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Apply the owner-requested top-bar copy change from `TempleTech` to `ctemple9h`.
+**Verify:** `git diff --check && grep -q 'by ctemple9h' clients/desktop-web/src/lib/components/shell/TopBar.svelte`
+**Commit:** `P12.129: update the desktop top-bar byline`
+**Batch:** solo

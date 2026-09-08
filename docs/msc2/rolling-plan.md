@@ -534,3 +534,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check && cd clients/desktop-web && npx prettier --check src/lib/components/shell/PlayerAvatar.svelte && npm run check`
 **Commit:** `P12.184: align avatar edition switcher`
 **Batch:** solo
+
+### P12.185 — Toggle avatar edition switcher
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/components/shell/PlayerAvatar.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Let the rendered avatar hide or reveal the Java/Bedrock edition switcher while keeping the existing edit action available.
+**Verify:** `git diff --check && cd clients/desktop-web && npx prettier --check src/lib/components/shell/PlayerAvatar.svelte && npm run check`
+**Commit:** `P12.185: toggle avatar edition switcher`
+**Batch:** solo

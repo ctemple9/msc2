@@ -478,3 +478,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check && ruby -e "require 'yaml'; YAML.load_file('.github/workflows/ci.yml'); puts 'workflow YAML parses'"`
 **Commit:** `P12.177: install nextest for platform smokes`
 **Batch:** solo
+
+### P12.178 — Add Windows Tauri icon asset
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src-tauri/icons/icon.ico`, `clients/desktop-web/src-tauri/tauri.conf.json`, `docs/msc2/rolling-plan.md`
+**What:** Add the Windows ICO resource generated from the existing MSC icon and declare it in the Tauri bundle icon list so the native Windows candidate can complete its resource build.
+**Verify:** `git diff --check && cd clients/desktop-web && npx prettier --check src-tauri/tauri.conf.json`
+**Commit:** `P12.178: add windows tauri icon asset`
+**Batch:** solo

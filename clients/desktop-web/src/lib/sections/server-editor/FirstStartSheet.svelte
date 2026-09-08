@@ -668,7 +668,9 @@
           </div>
           {#if serverType === 'java' && localBedrockPort}
             <div>
-              <span>Bedrock — same Wi-Fi</span><code>local address:{localBedrockPort}</code>
+              <span>Bedrock — same Wi-Fi</span><code
+                >{localEndpoint(hostAddress, localBedrockPort)}</code
+              >
             </div>
           {/if}
           {#if playit?.javaAddress && serverType === 'java'}

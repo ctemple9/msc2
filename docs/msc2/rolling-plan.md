@@ -800,3 +800,19 @@ steps.
 **Verify:** `git diff --check && if rg -n -i -P '\\bTUI\\b|terminal UI|terminal dashboard|ratatui|crossterm|tui_status' .github .vscode crates/msc-agent/src docs/msc2/client-capability-matrix.csv docs/msc2/lifecycle/phase4-scope.md; then exit 1; fi`
 **Commit:** `P12.116: remove stale terminal-client references`
 **Batch:** solo
+
+### P12.118 — Show the Geyser LAN address in first start
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/sections/server-editor/FirstStartSheet.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Use the detected host address when rendering the Bedrock same-Wi-Fi row for Java servers with Geyser. Keep the configured Bedrock port, IPv6 formatting, and the existing fallback when the host address is unavailable.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/sections/server-editor/FirstStartSheet.svelte && npm run check`
+**Commit:** `P12.118: show the geyser lan address in first start`
+**Batch:** solo
+
+### P12.117 — Remove obsolete server template storage
+**Status:** awaiting verification
+**Files:** `crates/msc-domain/src/app_config_schema.rs`, `crates/msc-application/src/provisioning.rs`, `crates/msc-agent/src/`, `crates/msc-api/src/`, `crates/msc-infrastructure/src/`, `clients/desktop-web/`, `content/help/handbook/`, `fixtures/`, `docs/msc2/api-contract/`
+**What:** Remove the Paper/plugin template subsystem and its API/CLI/configuration surfaces. Server JARs are downloaded directly into their owning server directory and version changes replace that server-owned JAR; cross-play add-ons remain per-server files under `plugins/`. Preserve existing user directories rather than deleting files during migration, but stop creating, reading, or writing the obsolete template directories.
+**Verify:** `cargo check --workspace && cd clients/desktop-web && npm run check && npm run build && cd ../.. && if rg -n -i 'paper.?templates|plugin.?templates|_paper_templates|_plugin_templates|save_downloaded_jars|/v1/templates|TemplateItemDTO|TemplatesResponseDTO|TemplateMutation' crates/msc-agent/src crates/msc-api/src crates/msc-application/src crates/msc-domain/src crates/msc-infrastructure/src clients/desktop-web/src clients/desktop-web/tests content/help/handbook tools crates/msc-agent/web-ui/assets; then exit 1; fi`
+**Commit:** `P12.117: remove obsolete server template storage`
+**Batch:** solo

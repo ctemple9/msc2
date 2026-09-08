@@ -50,7 +50,6 @@
   export let onToggleAddresses: () => void = () => undefined;
 
   const SIDEBAR_KEY = 'msc2.sidebarCollapsed';
-  const CONSOLE_KEY = 'msc2.consoleHidden';
 
   // Mirrors MSC 1 ContentView.swift's consoleDivider: drag resizes within a
   // floor, and releasing well past that floor collapses the console instead.
@@ -61,8 +60,7 @@
 
   let sidebarCollapsed =
     typeof localStorage !== 'undefined' && localStorage.getItem(SIDEBAR_KEY) === '1';
-  let consoleCollapsed =
-    typeof localStorage !== 'undefined' && localStorage.getItem(CONSOLE_KEY) === '1';
+  let consoleCollapsed = true;
   let consoleHeight = DEFAULT_CONSOLE_HEIGHT;
 
   let dragStartY: number | null = null;
@@ -78,13 +76,15 @@
 
   function setConsoleCollapsed(value: boolean): void {
     consoleCollapsed = value;
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(CONSOLE_KEY, consoleCollapsed ? '1' : '0');
-    }
   }
 
   function toggleConsole(): void {
     setConsoleCollapsed(!consoleCollapsed);
+  }
+
+  function handleLifecycle(action: 'start' | 'stop'): void {
+    if (action === 'start') setConsoleCollapsed(false);
+    onLifecycle(action);
   }
 
   function startConsoleResize(event: PointerEvent): void {
@@ -143,7 +143,7 @@
         {bannerColor}
         {onSelectServer}
         {onSwitchHost}
-        {onLifecycle}
+        onLifecycle={handleLifecycle}
         {onInitiate}
         {initiationHidden}
         {initiationServerId}

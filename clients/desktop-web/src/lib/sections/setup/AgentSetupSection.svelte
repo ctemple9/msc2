@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import Badge from '../../components/base/Badge.svelte';
   import Button from '../../components/base/Button.svelte';
   import Card from '../../components/base/Card.svelte';
@@ -59,10 +58,6 @@
     'msc service start --service-name msc-agent',
     'msc service stop --service-name msc-agent',
   ];
-  const howItWorksStorageKey = 'msc2.agents.how-it-works-expanded';
-  const manageLocalStorageKey = 'msc2.agents.manage-local-expanded';
-  const connectAnotherStorageKey = 'msc2.agents.connect-another-expanded';
-  const savedHostsStorageKey = 'msc2.agents.saved-hosts-expanded';
   const pairingCommand = 'msc pairing create --client-kind desktop';
   const sshTunnelCommand = 'ssh -N -L 48002:127.0.0.1:48001 username@ip-address';
   const linuxServiceName = '<agent-service-name>';
@@ -98,10 +93,10 @@
   let removeHostBusy = false;
   let disconnectBusy = false;
   let copiedCommand = '';
-  let howItWorksExpanded = true;
-  let manageLocalExpanded = true;
-  let connectAnotherExpanded = true;
-  let savedHostsExpanded = true;
+  let howItWorksExpanded = false;
+  let manageLocalExpanded = false;
+  let connectAnotherExpanded = false;
+  let savedHostsExpanded = false;
   let readinessTone: 'ok' | 'warn' | 'error' = 'warn';
   let statusTone: 'ok' | 'warn' | 'error' = 'warn';
   let inspectedHostId: string | undefined;
@@ -120,41 +115,20 @@
   $: serviceState = status?.state ?? 'checking';
   $: savedHosts = hosts.filter((host) => host.id !== 'local-agent');
 
-  onMount(() => {
-    const stored = localStorage.getItem(howItWorksStorageKey);
-    if (stored === 'true' || stored === 'false') howItWorksExpanded = stored === 'true';
-    const storedManageLocal = localStorage.getItem(manageLocalStorageKey);
-    if (storedManageLocal === 'true' || storedManageLocal === 'false') {
-      manageLocalExpanded = storedManageLocal === 'true';
-    }
-    const storedConnectAnother = localStorage.getItem(connectAnotherStorageKey);
-    if (storedConnectAnother === 'true' || storedConnectAnother === 'false') {
-      connectAnotherExpanded = storedConnectAnother === 'true';
-    }
-    const storedSavedHosts = localStorage.getItem(savedHostsStorageKey);
-    if (storedSavedHosts === 'true' || storedSavedHosts === 'false') {
-      savedHostsExpanded = storedSavedHosts === 'true';
-    }
-  });
-
   function toggleHowItWorks(): void {
     howItWorksExpanded = !howItWorksExpanded;
-    localStorage.setItem(howItWorksStorageKey, String(howItWorksExpanded));
   }
 
   function toggleManageLocal(): void {
     manageLocalExpanded = !manageLocalExpanded;
-    localStorage.setItem(manageLocalStorageKey, String(manageLocalExpanded));
   }
 
   function toggleConnectAnother(): void {
     connectAnotherExpanded = !connectAnotherExpanded;
-    localStorage.setItem(connectAnotherStorageKey, String(connectAnotherExpanded));
   }
 
   function toggleSavedHosts(): void {
     savedHostsExpanded = !savedHostsExpanded;
-    localStorage.setItem(savedHostsStorageKey, String(savedHostsExpanded));
   }
 
   $: {

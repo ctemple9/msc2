@@ -486,3 +486,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check && cd clients/desktop-web && npx prettier --check src-tauri/tauri.conf.json`
 **Commit:** `P12.178: add windows tauri icon asset`
 **Batch:** solo
+
+### P12.179 — Reset agent disclosures and console on launch
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/components/ApplicationShell.svelte`, `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Start each app window with the agent setup disclosures and docked console collapsed, without restoring those temporary UI states from local storage. Opening the console remains an explicit user choice, while a server start request opens it automatically so startup output is visible.
+**Verify:** `git diff --check && cd clients/desktop-web && npx prettier --check src/lib/components/ApplicationShell.svelte src/lib/sections/setup/AgentSetupSection.svelte && npm run check && npm run build`
+**Commit:** `P12.179: reset agent disclosures and console on launch`
+**Batch:** solo

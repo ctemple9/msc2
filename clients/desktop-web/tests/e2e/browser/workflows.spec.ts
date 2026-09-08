@@ -46,7 +46,9 @@ test('walks a fresh profile through setup, tour pauses, handoff, and reopen', as
   await expect(page.getByRole('button', { name: 'Add Server…', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Add Server…', exact: true }).click();
   await expect(page.locator('button.path-card.selected')).toContainText('Start Fresh');
-  await expect(page.getByRole('button', { name: 'Import Existing', exact: true })).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Import or Create from Modpack', exact: true }),
+  ).toBeDisabled();
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await expect(page.getByRole('heading', { name: "You're All Set", level: 2 })).toBeVisible();
   await page.getByRole('dialog').getByRole('button', { name: 'Finish', exact: true }).click();
@@ -83,14 +85,15 @@ test('names destructive targets and completes bounded upload and download workfl
   const sections = page.getByRole('tablist', { name: 'Server sections' });
   await page.getByRole('button', { name: /Local agent/ }).click();
   await page.getByRole('menuitem', { name: 'Manage…', exact: true }).click();
-  await expect(page.getByRole('dialog', { name: 'Manage Servers' })).toBeVisible();
-  await page.getByRole('button', { name: 'Delete server' }).first().click();
-  const dialog = page.getByRole('alertdialog');
-  await expect(dialog.getByText('Host: local-agent · Server: Survival')).toBeVisible();
-  await dialog.getByRole('button', { name: 'Delete server' }).click();
+  const manage = page.getByRole('dialog', { name: 'Manage Servers' });
+  await expect(manage).toBeVisible();
+  await manage.getByRole('button', { name: 'More actions' }).first().click();
+  await page.getByRole('menuitem', { name: 'Remove…', exact: true }).click();
+  await expect(manage.getByText(/Remove "Survival" from this controller/)).toBeVisible();
+  await manage.getByRole('button', { name: 'Remove from Controller' }).click();
   await expect(page.getByText('Server record removed.')).toBeVisible();
 
-  await page.getByRole('dialog', { name: 'Manage Servers' }).getByRole('button', { name: 'Close' }).click();
+  await manage.getByRole('button', { name: 'Close' }).click();
   await sections.getByRole('tab', { name: 'Worlds', exact: true }).click();
   await page.locator('input[type=file]').setInputFiles('tests/e2e/browser/fixtures/world.zip');
   await page.getByRole('button', { name: 'Stage file' }).click();

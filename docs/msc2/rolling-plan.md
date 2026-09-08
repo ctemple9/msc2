@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 client redesign and its post-phase corrections are complete. The planned Phase 13 full-screen terminal client is retired by D-034.
-> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.153 is the current CI-maintenance step awaiting verification.
+> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.154 is the current CI-maintenance step awaiting verification.
 
 Previous phases and completed work remain in `rolling-plan-archive.md`. The archive is historical; this file contains only the current state and the next move.
 
@@ -285,4 +285,12 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **What:** Return the fixed broadcast-helper filename from the isolated download fixture instead of the removed process-wide state object. The stale reference terminated the browser harness after the first download request, making the remaining browser cases appear as connection failures.
 **Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
 **Commit:** `P12.153: correct isolated broadcast fixture response`
+**Batch:** solo
+
+### P12.154 — Reconcile browser workflow actions with current fleet controls
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/tests/e2e/browser/workflows.spec.ts`, `docs/msc2/rolling-plan.md`
+**What:** Match the existing browser smoke to the current Add Server and Manage Servers controls: the import path is labeled “Import or Create from Modpack,” and server removal is opened through More actions and confirmed with Remove from Controller rather than the retired Delete server alert.
+**Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
+**Commit:** `P12.154: reconcile browser workflow actions with current fleet controls`
 **Batch:** solo

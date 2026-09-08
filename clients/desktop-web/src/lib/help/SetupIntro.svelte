@@ -483,6 +483,24 @@
             <li>Schedule backups and manage multiple worlds</li>
           </ul>
         </Card>
+        <div class="setup-preview">
+          <p class="msc2-type-overline">What you’ll do</p>
+          <ol class="preview-steps">
+            <li>
+              <strong>Choose a platform</strong>
+              <span>Pick Java or Bedrock for your servers.</span>
+            </li>
+            <li>
+              <strong>Set up the host</strong>
+              <span>Choose where servers live and how they run.</span>
+            </li>
+            <li>
+              <strong>Review access</strong>
+              <span>Look over optional playit.gg, Xbox Broadcast, and Tailscale setup.</span>
+            </li>
+          </ol>
+          <p class="hint">You can change these choices later.</p>
+        </div>
         <p class="setup-time">This setup takes about 2 minutes.</p>
       {:else if setupPage === 1}
         <div class="type-grid">
@@ -998,6 +1016,43 @@
   .feature-list li::marker {
     color: var(--msc2-text-tertiary);
   }
+  .setup-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 2px 4px 0;
+  }
+  .setup-preview > p {
+    margin: 0;
+  }
+  .preview-steps {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin: 0;
+    padding: 0 0 0 18px;
+    color: var(--msc2-text-secondary);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .preview-steps li {
+    padding-left: 2px;
+  }
+  .preview-steps li::marker {
+    color: var(--msc2-text-tertiary);
+  }
+  .preview-steps strong,
+  .preview-steps span {
+    display: block;
+  }
+  .preview-steps strong {
+    color: var(--msc2-text-primary);
+    font-weight: 500;
+  }
+  .preview-steps span {
+    margin-top: 3px;
+    color: var(--msc2-text-tertiary);
+  }
   .type-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1294,6 +1349,10 @@
     }
     .type-grid {
       grid-template-columns: 1fr;
+    }
+    .preview-steps {
+      grid-template-columns: 1fr;
+      gap: 8px;
     }
     .field-row {
       flex-wrap: wrap;

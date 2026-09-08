@@ -518,3 +518,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check && npm run bundle:package-agent`
 **Commit:** `P12.182: hold first-run setup sheet size steady`
 **Batch:** solo
+
+### P12.183 — Add first-run setup roadmap
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/help/SetupIntro.svelte`, `crates/msc-agent/web-ui/`, `docs/msc2/rolling-plan.md`
+**What:** Use the spare space on the first setup page for a quiet three-part roadmap covering platform choice, host configuration, and optional access tools, with a reminder that the choices can change later. Keep the roadmap flat and text-led rather than adding decorative cards.
+**Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check && npm run bundle:package-agent`
+**Commit:** `P12.183: add first-run setup roadmap`
+**Batch:** solo

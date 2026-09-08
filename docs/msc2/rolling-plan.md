@@ -502,3 +502,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check && cd clients/desktop-web && npx prettier --check src/lib/sections/setup/AgentSetupSection.svelte`
 **Commit:** `P12.180: clarify agent setup instructions`
 **Batch:** solo
+
+### P12.181 — Remove accent color setup controls
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/help/SetupIntro.svelte`, `clients/desktop-web/src/lib/sections/app-settings/AppSettingsSheet.svelte`, `clients/desktop-web/src/lib/styles/bannerColor.ts`, `clients/desktop-web/tests/screens/help.test.ts`, `crates/msc-agent/web-ui/`, `docs/msc2/rolling-plan.md`
+**What:** Remove the accent-color picker from the first-run setup page and Preferences, remove the obsolete save plumbing, change the setup feature copy to mention Xbox Broadcast, update the existing screen assertion, and refresh the embedded agent web bundle.
+**Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check && npm run bundle:package-agent`
+**Commit:** `P12.181: remove accent color setup controls`
+**Batch:** solo

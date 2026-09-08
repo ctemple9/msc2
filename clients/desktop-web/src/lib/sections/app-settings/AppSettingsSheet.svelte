@@ -16,13 +16,10 @@
   // outright -- the former has no backend and reads as a dev-only escape
   // hatch, the latter has no meaning for a possibly-remote agent host.
   //
-  // What's left and real: Appearance (the per-server accent banner --
-  // client-local by design, see styles/bannerColor.ts, which already had
-  // save/read helpers with zero call sites until this sheet) and Open
-  // Server Folder (GET /v1/config/servers-root + the revealInFileManager
-  // seam P12.9 built for the Files tab), plus host-wide service configuration
-  // below. This remains one flat sheet because the app-level settings are
-  // intentionally small and concrete.
+  // What's left and real: Open Server Folder (GET /v1/config/servers-root +
+  // the revealInFileManager seam P12.9 built for the Files tab), plus
+  // host-wide service configuration below. This remains one flat sheet because
+  // the app-level settings are intentionally small and concrete.
   import { onMount } from 'svelte';
   import Sheet from '../../components/base/Sheet.svelte';
   import Card from '../../components/base/Card.svelte';
@@ -35,24 +32,17 @@
   import type { UpdateCheckResult } from '../../platform';
   import { updateErrorMessage, type UpdateWorkflowState } from '../../updates/coordinated';
   import { bundleIdentity } from '../../bundle-identity';
-  import { bannerColorFor, setBannerColorFor, clampBannerColor } from '../../styles/bannerColor';
   import type { Schema, ScreenApi } from '../shared/types';
   import { call, errorMessage, mutate } from '../shared/types';
   import { pollOperation } from '../server-editor/model';
 
   export let api: ScreenApi | undefined = undefined;
   export let hostId: string;
-  export let serverId: string | undefined = undefined;
-  export let serverLabel: string | undefined = undefined;
   export let serverUsesPlayit: boolean | undefined = undefined;
   export let onClose: () => void;
-  export let onAccentColorSaved: () => void = () => {};
   export let preloadTabs = true;
   export let onPreloadTabsChanged: (enabled: boolean) => void = () => {};
   export let onOpenReset: () => void = () => {};
-
-  let colorDraft = serverId ? bannerColorFor(hostId, serverId) : clampBannerColor('');
-  let colorNotice = '';
 
   let serversRootPath = '';
   let revealBusy = false;
@@ -96,8 +86,6 @@
 
   $: showDuckDns = serverUsesPlayit === false;
 
-  $: colorDirty = !!serverId && colorDraft !== bannerColorFor(hostId, serverId);
-
   onMount(async () => {
     const [root, credentials, autostart, jar, playitStatus, duckdnsStatus, curseforgeStatus] =
       await Promise.all([
@@ -128,18 +116,6 @@
     duckHost = duckdnsStatus.hostname ?? '';
     curseforge = curseforgeStatus;
   });
-
-  function handleColorInput(event: Event): void {
-    colorDraft = (event.currentTarget as HTMLInputElement).value;
-  }
-
-  function saveColor(): void {
-    if (!serverId || !colorDirty) return;
-    setBannerColorFor(hostId, serverId, colorDraft);
-    colorDraft = bannerColorFor(hostId, serverId);
-    colorNotice = 'Accent color saved on this device.';
-    onAccentColorSaved();
-  }
 
   function updatePreloadTabs(enabled: boolean): void {
     preloadTabs = enabled;
@@ -416,33 +392,6 @@
           {/if}
         </div>
       </Card>
-    </section>
-
-    <section class="zone">
-      <p class="msc2-type-overline">Appearance</p>
-      <Card padding="0">
-        <div class="row">
-          <div class="row-text">
-            <span class="name">Accent Color{serverLabel ? ` — ${serverLabel}` : ''}</span>
-            <span class="hint">Colors the running-state banner. Saved on this device only.</span>
-          </div>
-          <div class="control">
-            <input
-              type="color"
-              class="swatch"
-              value={clampBannerColor(colorDraft)}
-              disabled={!serverId}
-              oninput={handleColorInput}
-              aria-label="Accent color"
-            />
-            <Button variant="secondary" size="sm" disabled={!colorDirty} onclick={saveColor}
-              >Save</Button
-            >
-          </div>
-        </div>
-      </Card>
-      {#if colorNotice}<p class="hint">{colorNotice}</p>{/if}
-      {#if !serverId}<p class="hint">Select a server to set its accent color.</p>{/if}
     </section>
 
     <section class="zone">
@@ -856,27 +805,6 @@
     outline: 2px solid var(--msc2-hairline);
     outline-offset: 2px;
     border-radius: 3px;
-  }
-  .swatch {
-    box-sizing: border-box;
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    background: none;
-    border: 1px solid var(--msc2-hairline-field);
-    border-radius: 8px;
-    cursor: pointer;
-  }
-  .swatch::-webkit-color-swatch-wrapper {
-    padding: 2px;
-  }
-  .swatch::-webkit-color-swatch {
-    border: none;
-    border-radius: 5px;
-  }
-  .swatch:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
   }
   .hint {
     margin: 0;

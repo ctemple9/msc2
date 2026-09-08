@@ -10,13 +10,6 @@
   import { errorMessage, mutate } from '../sections/shared/types';
   import type { Schema, ScreenApi } from '../sections/shared/types';
   import { pollOperation, serverEditorPaths } from '../sections/server-editor/model';
-  import {
-    ACCENT_PRESETS,
-    applyAccent,
-    saveAccent,
-    storedAccent,
-    type AccentChoice,
-  } from '../styles/accent';
 
   export let compact = false;
   export let headingId = 'first-launch-title';
@@ -62,8 +55,6 @@
     { title: 'You’re All Set', subtitle: 'Create your first server to get started.' },
   ] as const;
 
-  let selected = 'green';
-  let customColor = '#22c85a';
   let setupPage = 0;
   let wantsJava = true;
   let wantsBedrock = false;
@@ -151,9 +142,6 @@
           : 'Not checked';
 
   onMount(() => {
-    selected = storedAccent();
-    if (selected.startsWith('#')) customColor = selected;
-    applyAccent(selected);
     void getPlatform().then((platform) => (platformKind = platform.kind));
     if (typeof localStorage !== 'undefined') {
       try {
@@ -265,16 +253,6 @@
     if (platformKind !== 'tauri') return;
     event.preventDefault();
     void openExternal(url);
-  }
-
-  function chooseAccent(choice: AccentChoice): void {
-    selected = choice.id;
-    saveAccent(choice);
-  }
-
-  function chooseCustom(): void {
-    selected = customColor;
-    saveAccent(customColor);
   }
 
   function toggleServerType(type: 'java' | 'bedrock'): void {
@@ -500,38 +478,10 @@
           <p class="card-desc">MSC helps you run and manage Minecraft servers on your computer.</p>
           <ul class="feature-list">
             <li>Start and stop Java and Bedrock servers with one click</li>
-            <li>Invite friends via tunnels, port forwarding, or Tailscale</li>
+            <li>Invite friends via tunnels, port forwarding, or Xbox Broadcast</li>
             <li>Install plugins, mods, and resource packs from Modrinth</li>
             <li>Schedule backups and manage multiple worlds</li>
           </ul>
-        </Card>
-        <Card>
-          <p class="card-title">Pick an Accent Color</p>
-          <p class="card-desc">
-            Tints the app shell and overlays. Change it anytime in Preferences.
-          </p>
-          <div class="accent-choices" aria-label="Accent colors">
-            {#each ACCENT_PRESETS as choice (choice.id)}
-              <button
-                class="accent-choice"
-                class:selected={selected === choice.id}
-                type="button"
-                aria-label={choice.label}
-                aria-pressed={selected === choice.id}
-                style={`--choice-color: ${choice.color}`}
-                onclick={() => chooseAccent(choice)}
-                >{#if selected === choice.id}<span aria-hidden="true">✓</span>{/if}</button
-              >
-            {/each}
-            <label class="custom-accent" title="Pick a custom accent color"
-              ><input
-                aria-label="Custom accent color"
-                type="color"
-                bind:value={customColor}
-                oninput={chooseCustom}
-              /><span aria-hidden="true">+</span></label
-            >
-          </div>
         </Card>
         <p class="setup-time">This setup takes about 2 minutes.</p>
       {:else if setupPage === 1}
@@ -1043,39 +993,6 @@
   }
   .feature-list li::marker {
     color: var(--msc2-text-tertiary);
-  }
-  .accent-choices {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 12px;
-  }
-  .accent-choice,
-  .custom-accent {
-    display: grid;
-    place-items: center;
-    width: 26px;
-    height: 26px;
-    border: 2px solid transparent;
-    border-radius: 50%;
-    color: white;
-    background: var(--choice-color);
-    cursor: pointer;
-  }
-  .accent-choice.selected {
-    border-color: rgba(255, 255, 255, 0.85);
-  }
-  .custom-accent {
-    position: relative;
-    background: conic-gradient(#22c85a, #3b82f6, #8b5cf6, #ef4444, #22c85a);
-  }
-  .custom-accent input {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0;
-    cursor: pointer;
   }
   .type-grid {
     display: grid;

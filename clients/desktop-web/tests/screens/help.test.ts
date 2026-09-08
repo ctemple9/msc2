@@ -144,7 +144,7 @@ describe('shared help and onboarding screens', () => {
     expect(setupText).toContain('Check for Java');
     expect(setupText).toContain('Use PATH');
     expect(setupText).toContain('setup-page-in');
-    expect(setupText).toContain('Pick an Accent Color');
+    expect(setupText).not.toContain('Pick an Accent Color');
     expect(setupText).toContain('This setup takes about 2 minutes.');
     expect(setupText).toContain('aria-pressed');
     expect(gateSource).toContain('max-height: calc(100vh - 2rem)');

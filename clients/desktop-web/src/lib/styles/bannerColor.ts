@@ -49,8 +49,3 @@ export function bannerColorFor(hostId: string, serverId: string): string {
   const stored = localStorage.getItem(storageKey(hostId, serverId));
   return stored ? clampBannerColor(stored) : DEFAULT_BANNER_COLOR;
 }
-
-export function setBannerColorFor(hostId: string, serverId: string, hex: string): void {
-  if (typeof localStorage === 'undefined') return;
-  localStorage.setItem(storageKey(hostId, serverId), clampBannerColor(hex));
-}

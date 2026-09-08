@@ -481,14 +481,10 @@
     ...tab,
     available: visibleSections.some((section) => section.id === tab.id),
   }));
-  // `bannerColorAccentVersion` has no meaning of its own -- it's a parameter
-  // here only so AppSettingsSheet's onAccentColorSaved can force a re-read of
-  // localStorage, which changing hostId/selectedServerId alone wouldn't catch.
-  let bannerColorAccentVersion = 0;
-  function readBannerColor(host: string, server: string, _accentVersion: number): string {
+  function readBannerColor(host: string, server: string): string {
     return bannerColorFor(host, server);
   }
-  $: bannerColor = readBannerColor(hostId, selectedServerId, bannerColorAccentVersion);
+  $: bannerColor = readBannerColor(hostId, selectedServerId);
   // Referencing servers/status/hostId directly (not just through hostSummaries'
   // internals) makes Svelte re-run this when the active host's live state
   // changes, not only when a host is added or removed.
@@ -998,11 +994,8 @@
   <AppSettingsSheet
     api={screenApi}
     {hostId}
-    serverId={selectedServerId || undefined}
-    serverLabel={servers.find((server) => server.id === selectedServerId)?.name}
     serverUsesPlayit={servers.find((server) => server.id === selectedServerId)?.playitEnabled}
     onClose={() => (settingsOpen = false)}
-    onAccentColorSaved={() => (bannerColorAccentVersion += 1)}
     {preloadTabs}
     onPreloadTabsChanged={setPreloadTabs}
     onOpenReset={openReset}

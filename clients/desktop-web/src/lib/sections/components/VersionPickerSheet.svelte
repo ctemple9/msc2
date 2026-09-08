@@ -50,8 +50,8 @@
       selectedId = response.isBedrock
         ? response.versionPolicy === 'latest'
           ? 'LATEST'
-          : response.currentVersion ?? response.versions[0]?.id
-        : response.versions.find((entry) => entry.isLatest)?.id ?? response.versions[0]?.id;
+          : (response.currentVersion ?? response.versions[0]?.id)
+        : (response.versions.find((entry) => entry.isLatest)?.id ?? response.versions[0]?.id);
     } catch (error) {
       state = {
         kind: 'unavailable',
@@ -115,8 +115,8 @@
     {#if state.response.note}<p class="explain">{state.response.note}</p>{/if}
     {#if approvalPending}
       <p class="explain warn">
-        Bedrock {latestEntry?.mcVersion} is available. Approve the download and installation? Your
-        world and server settings will be preserved.
+        Bedrock {latestEntry?.mcVersion} is available. Approve the download and installation? Your world
+        and server settings will be preserved.
       </p>
     {/if}
     {#if state.response.versions.length === 0}

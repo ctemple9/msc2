@@ -63,6 +63,7 @@ test('walks a fresh profile through setup, tour pauses, handoff, and reopen', as
   await expect(
     page.locator('.reader').getByRole('heading', { name: 'Overview' }),
   ).toBeVisible();
+  await page.getByRole('tab', { name: 'Onboard', exact: true }).click();
   await page.getByRole('button', { name: 'Restart the guide' }).click();
   await expect(page.getByText('Begin the guided tour.')).toBeVisible();
 });

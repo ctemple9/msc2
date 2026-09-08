@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 client redesign and its post-phase corrections are complete. The planned Phase 13 full-screen terminal client is retired by D-034.
-> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.158 is the current CI-maintenance step awaiting verification.
+> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.159 is the current CI-maintenance step awaiting verification.
 
 Previous phases and completed work remain in `rolling-plan-archive.md`. The archive is historical; this file contains only the current state and the next move.
 
@@ -325,4 +325,12 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **What:** Use the current handbook action label, “Restart the guide,” when reopening the onboarding tour. The browser workflow had already returned to the current Overview article; only its final restart-button name was retired.
 **Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
 **Commit:** `P12.158: reconcile browser handbook restart label`
+**Batch:** solo
+
+### P12.159 — Open onboarding view before browser tour restart
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/tests/e2e/browser/workflows.spec.ts`, `docs/msc2/rolling-plan.md`
+**What:** Select the handbook’s current Onboard tab before clicking “Restart the guide.” The workflow had reached the correct Overview article, but the restart action belongs to the Onboard view rather than the Handbook reader.
+**Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
+**Commit:** `P12.159: open onboarding view before browser tour restart`
 **Batch:** solo

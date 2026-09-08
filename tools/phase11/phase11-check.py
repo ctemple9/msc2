@@ -36,7 +36,6 @@ ALLOWED_DESKTOP_PLANNED = {
     ("POST", "/v1/resourcepacks/activate"),
     ("POST", "/v1/resourcepacks/remove"),
     ("POST", "/v1/resourcepacks/seturl"),
-    ("POST", "/v1/templates"),
     ("POST", "/v1/watchdog/disable"),
     ("POST", "/v1/watchdog/enable"),
     ("GET", "/v1/watchdog/status"),

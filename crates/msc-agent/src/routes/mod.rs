@@ -23,7 +23,6 @@ pub mod servers;
 pub mod session_log;
 pub mod settings;
 pub mod status;
-pub mod templates;
 pub mod users;
 pub mod versions;
 pub mod worlds;

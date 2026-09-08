@@ -60,10 +60,8 @@ use msc_infrastructure::java_runtime_detection;
 use msc_infrastructure::loader_installer::{
     self, LoaderInstallRequest, LoaderInstallerError, LoaderTarget,
 };
-use msc_infrastructure::path_safety::{self, PathSafetyError};
 use msc_infrastructure::process::{OutputStream, ProcessSupervisor};
 use msc_infrastructure::secret_store::SecretStore;
-use msc_infrastructure::template_store::{self, TemplateStoreError};
 use msc_infrastructure::world_store;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -99,8 +97,6 @@ pub enum CreateServerError {
         version: String,
     },
     CrossPlayInstall(String),
-    TemplateStore(TemplateStoreError),
-    PathSafety(PathSafetyError),
     Io(std::io::Error),
     Archive(ArchiveError),
     /// One of `unzip_world_backup`/`copy_existing_world_folder` returned
@@ -157,8 +153,6 @@ impl fmt::Display for CreateServerError {
             CreateServerError::CrossPlayInstall(message) => {
                 write!(f, "Geyser/Floodgate installation failed: {message}")
             }
-            CreateServerError::TemplateStore(e) => write!(f, "{e}"),
-            CreateServerError::PathSafety(e) => write!(f, "{e}"),
             CreateServerError::Io(e) => write!(f, "{e}"),
             CreateServerError::Archive(e) => write!(f, "{e}"),
             CreateServerError::WorldSourceFailed => {
@@ -186,18 +180,6 @@ impl From<JarProviderError> for CreateServerError {
 impl From<geyser::InstallError> for CreateServerError {
     fn from(error: geyser::InstallError) -> Self {
         Self::CrossPlayInstall(error.to_string())
-    }
-}
-
-impl From<TemplateStoreError> for CreateServerError {
-    fn from(e: TemplateStoreError) -> Self {
-        CreateServerError::TemplateStore(e)
-    }
-}
-
-impl From<PathSafetyError> for CreateServerError {
-    fn from(e: PathSafetyError) -> Self {
-        CreateServerError::PathSafety(e)
     }
 }
 
@@ -352,7 +334,6 @@ pub struct NewServerRequest<'a> {
     /// creation-only values are not lost in a later profile update.
     pub initial_world_profile: Option<&'a WorldProfile>,
     pub world_source: WorldSource<'a>,
-    pub save_downloaded_jars: bool,
     pub default_banner_color_hex: &'a str,
 }
 
@@ -514,9 +495,8 @@ pub(crate) struct ResolvedJar {
 
 /// `initialWorldSlotName(forServerName:requestedWorldName:)`
 /// (`AppViewModel+ServerCreation.swift:18-24`). `pub(crate)`: P7.21's
-/// `templates::create_server_from_template` needs the identical
-/// slot-name derivation for its own, jar-source-swapped call into
-/// [`finish_server_creation`].
+/// Server creation and modpack provisioning both use this same slot-name
+/// derivation.
 pub(crate) fn initial_world_slot_name(
     server_name: &str,
     requested_world_name: Option<&str>,
@@ -598,9 +578,8 @@ fn imported_metadata_from_zip(zip_path: &Path, server_type: ServerType) -> Impor
 /// failure here must never break server creation. `now` is an already-
 /// formatted timestamp (the ISO-8601-`now`-threading convention every
 /// other function in this phase already uses), not computed internally.
-/// `pub(crate)`: P7.21's `templates::create_server_from_template` writes
-/// this same sidecar for its own `.template(url)` jar-source branch
-/// (`AppViewModel+ServerCreation.swift:249-253`).
+/// The sidecar stays with the server directory and records the resolved
+/// Paper version for diagnostics and future updates.
 pub(crate) fn write_paper_version_sidecar(
     fs: &dyn FileSystem,
     server_dir: &Path,
@@ -616,39 +595,6 @@ pub(crate) fn write_paper_version_sidecar(
     if let Ok(bytes) = serde_json::to_vec_pretty(&value) {
         let _ = fs.write(&server_dir.join(".msc_paper_version.json"), &bytes);
     }
-}
-
-/// The Paper archive-first shortcut's hit path
-/// (`AppViewModel+ServerCreation.swift:258-271`). `None` on a metadata-
-/// fetch failure (swallowed by source's own `try?`) or an archive miss —
-/// either way the caller falls through to a real download, matching
-/// source's `if !usedArchive` continuation exactly.
-fn try_paper_archive_hit(
-    transport: &dyn Transport,
-    fs: &dyn FileSystem,
-    home_dir: &Path,
-    paper_template_dir: &Path,
-    jar_dest: &Path,
-    now: &str,
-) -> Option<ResolvedJar> {
-    let (version, selection) = jar_provider::paper_resolve_latest_stable(transport)
-        .ok()
-        .flatten()?;
-    let archive_filename = format!("paper-{version}-build{}.jar", selection.build_id);
-    let archive_path =
-        path_safety::safe_path(fs, paper_template_dir, Some(&archive_filename), home_dir).ok()?;
-    if fs.stat(&archive_path).is_err() {
-        return None;
-    }
-    let bytes = fs.read(&archive_path).ok()?;
-    fs.write(jar_dest, &bytes).ok()?;
-    let server_dir = jar_dest.parent().unwrap_or(jar_dest);
-    write_paper_version_sidecar(fs, server_dir, &version, selection.build_id, now);
-    Some(ResolvedJar {
-        version,
-        build: selection.build_id.to_string(),
-        loader_version: None,
-    })
 }
 
 /// The real (non-archived) `ServerJarProvider.downloadLatest` dispatch
@@ -759,40 +705,15 @@ pub(crate) fn download_flavor_jar(
     }
 }
 
-fn request_uses_latest_version(specific_version_id: Option<&str>) -> bool {
-    specific_version_id
-        .map(str::trim)
-        .is_none_or(|version| version.is_empty() || version == "__latest__")
-}
-
-/// The whole non-install-step jar acquisition step (source lines 240-
-/// 293): the Paper archive-first shortcut, then a real download,
-/// archiving the freshly-downloaded jar afterward when
-/// `save_downloaded_jars` is set (source line 289-291) — matching
-/// `archiveServerJar`'s own silent-skip behavior for every flavor this
-/// module doesn't handle, which never applies here since this function
-/// only ever calls [`download_flavor_jar`] for the four it does.
-#[allow(clippy::too_many_arguments)]
+/// Downloads the new server JAR directly into the new server directory.
 fn acquire_jar(
     transport: &dyn Transport,
     fs: &dyn FileSystem,
-    home_dir: &Path,
-    paper_template_dir: &Path,
     flavor: JavaServerFlavor,
     specific_version_id: Option<&str>,
     jar_dest: &Path,
-    save_downloaded_jars: bool,
     now: &str,
 ) -> Result<ResolvedJar, CreateServerError> {
-    if flavor == JavaServerFlavor::Paper
-        && save_downloaded_jars
-        && request_uses_latest_version(specific_version_id)
-        && let Some(hit) =
-            try_paper_archive_hit(transport, fs, home_dir, paper_template_dir, jar_dest, now)
-    {
-        return Ok(hit);
-    }
-
     let resolved = download_flavor_jar(transport, fs, flavor, specific_version_id, jar_dest)?;
 
     if flavor == JavaServerFlavor::Paper
@@ -800,18 +721,6 @@ fn acquire_jar(
     {
         let server_dir = jar_dest.parent().unwrap_or(jar_dest);
         write_paper_version_sidecar(fs, server_dir, &resolved.version, build_int, now);
-    }
-
-    if save_downloaded_jars {
-        let _ = template_store::archive_jar(
-            fs,
-            paper_template_dir,
-            home_dir,
-            flavor,
-            &resolved.version,
-            &resolved.build,
-            jar_dest,
-        )?;
     }
 
     Ok(resolved)
@@ -994,10 +903,8 @@ fn slot_with_creation_profile(mut slot: WorldSlot, profile: &WorldProfile) -> Wo
 pub fn create_download_and_go_server(
     fs: &dyn FileSystem,
     transport: &dyn Transport,
-    home_dir: &Path,
+    _home_dir: &Path,
     servers_root: &Path,
-    paper_template_dir: &Path,
-    plugin_template_dir: &Path,
     request: &NewServerRequest,
     now: &str,
     unzip_world_backup: impl FnOnce(&Path, &Path) -> bool,
@@ -1060,12 +967,9 @@ pub fn create_download_and_go_server(
         let resolved = acquire_jar(
             transport,
             fs,
-            home_dir,
-            paper_template_dir,
             request.flavor,
             request.specific_version_id,
             &jar_dest,
-            request.save_downloaded_jars,
             now,
         )?;
         let primary_jar_path = jar_dest.to_string_lossy().into_owned();
@@ -1085,8 +989,6 @@ pub fn create_download_and_go_server(
 
         finish_server_creation(
             fs,
-            home_dir,
-            plugin_template_dir,
             &new_dir,
             request,
             &safe_name,
@@ -1120,19 +1022,11 @@ pub fn create_download_and_go_server(
 ///
 /// `resolved_version`/`resolved_build` are `Option<&str>`, not `&str`:
 /// both download-and-go and install-step callers always have concrete
-/// values, but P7.21's `templates::create_server_from_template` doesn't
-/// — `ComponentVersionParsing.parsePaperJarFilename` only recognizes a
-/// `paper-*` filename (`ComponentVersionParsing.swift:29`), so a
-/// template whose name doesn't match (e.g. a Purpur template) leaves
-/// `resolvedVersion`/`resolvedBuild` `nil` in source too
-/// (`AppViewModel+ServerCreation.swift:249-253`'s `if let parsed = ...`
-/// has no `else`). `pub(crate)` for the same P7.21 reuse reason as
-/// [`initial_world_slot_name`].
+/// values. The version/build values are optional because install-step
+/// loaders record their own loader metadata instead of a Paper build.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn finish_server_creation(
     fs: &dyn FileSystem,
-    _home_dir: &Path,
-    _plugin_template_dir: &Path,
     new_dir: &Path,
     request: &NewServerRequest,
     safe_name: &str,
@@ -1301,9 +1195,8 @@ pub fn create_install_step_server(
     fs: &dyn FileSystem,
     transport: &dyn Transport,
     supervisor: &dyn ProcessSupervisor,
-    home_dir: &Path,
+    _home_dir: &Path,
     servers_root: &Path,
-    plugin_template_dir: &Path,
     request: &NewServerRequest,
     java_executable_path: &str,
     installer_timeout: Duration,
@@ -1471,8 +1364,6 @@ pub fn create_install_step_server(
 
         finish_server_creation(
             fs,
-            home_dir,
-            plugin_template_dir,
             &new_dir,
             request,
             &safe_name,
@@ -1616,9 +1507,7 @@ impl From<CreateServerError> for CreateFromPackError {
 }
 
 /// [`NewServerRequest`] minus `flavor` (derived from the pack — see this
-/// section's own doc) and `save_downloaded_jars` (a pack-driven create has
-/// no single downloaded "the jar" to archive as a reusable template the
-/// way a download-and-go create does).
+/// section's own doc).
 #[derive(Debug, Clone)]
 pub struct PackServerRequest<'a> {
     pub name: &'a str,
@@ -1727,7 +1616,6 @@ pub fn create_server_from_pack(
     supervisor: &dyn ProcessSupervisor,
     home_dir: &Path,
     servers_root: &Path,
-    plugin_template_dir: &Path,
     request: &PackServerRequest,
     inspection: &ModpackInspection,
     java_executable_path: &str,
@@ -1906,8 +1794,6 @@ pub fn create_server_from_pack(
 
         let created = finish_server_creation(
             fs,
-            home_dir,
-            plugin_template_dir,
             &new_dir,
             &NewServerRequest {
                 name: request.name,
@@ -1925,7 +1811,6 @@ pub fn create_server_from_pack(
                 world_seed: request.world_seed,
                 initial_world_profile: request.initial_world_profile,
                 world_source: request.world_source.clone(),
-                save_downloaded_jars: false,
                 default_banner_color_hex: request.default_banner_color_hex,
             },
             &safe_name,

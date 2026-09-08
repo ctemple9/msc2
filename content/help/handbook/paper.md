@@ -28,9 +28,9 @@ Paper maintains full compatibility with vanilla Java clients. Your friends don't
 
 ### In This App
 
-- Each server folder needs a paper.jar file. The app downloads and manages these via Paper Templates.
-- Use Paper Templates → Download latest Paper to grab the newest build.
-- Each server entry stores its own Paper JAR path — different servers can run different Paper versions.
+- Each server folder owns its Paper JAR. MSC downloads it directly into that folder.
+- Use the server's version picker to select a Paper version; the selected JAR replaces the current server JAR.
+- Each server keeps its own Paper JAR, so different servers can run different Paper versions.
 
 ### Advanced Details
 

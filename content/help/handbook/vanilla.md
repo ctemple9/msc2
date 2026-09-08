@@ -38,7 +38,7 @@ Vanilla servers support full vanilla Java Edition clients and all vanilla gamepl
 ### In This App
 
 - Create New Server → Standard → Vanilla.
-- Vanilla doesn’t need a Paper template. MSC downloads the vanilla server JAR directly from Mojang for your chosen Minecraft version.
+- MSC downloads the vanilla server JAR directly from Mojang into the server's folder for your chosen Minecraft version.
 - Edit Server → JARs tab: shows the vanilla server JAR, read-only (no Update button — version changes go through the Versions picker).
 - No EULA accept needed — MSC handles it automatically for Vanilla servers the same as Paper.
 

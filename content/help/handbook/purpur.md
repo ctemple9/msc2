@@ -34,7 +34,7 @@ Start with Paper. Switch to Purpur if you find yourself wanting to tune somethin
 ### In This App
 
 - Create New Server → Standard → Purpur.
-- Purpur uses the same JAR template system as Paper. MSC downloads Purpur builds from purpurmc.org.
+- MSC downloads the selected Purpur build directly into the server's folder from purpurmc.org.
 - Purpur’s extra settings are in purpur.yml inside the server folder (created on first run).
 - Edit Server → JARs tab: shows the Purpur Server JAR with an Update button.
 

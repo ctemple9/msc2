@@ -140,13 +140,6 @@ fn insert_opt_i64(m: &mut Map<String, Value>, key: &str, value: Option<i64>) {
     }
 }
 
-/// Mirrors `(defaultServersRootPath() as NSString).appendingPathComponent(_:)`
-/// closely enough for this port: simple `/`-joining, no `..`/`.`
-/// resolution (MSC 1 never receives those in this path).
-fn join_path(root: &str, component: &str) -> String {
-    format!("{}/{component}", root.trim_end_matches('/'))
-}
-
 // MARK: - XboxBroadcastIPMode
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -899,8 +892,6 @@ pub struct AppConfig {
     pub java_path: String,
     pub extra_flags: String,
     pub servers_root: String,
-    pub plugin_template_dir: String,
-    pub paper_template_dir: String,
     pub servers: Vec<ConfigServer>,
     pub active_server_id: Option<String>,
     pub initial_setup_done: bool,
@@ -933,7 +924,6 @@ pub struct AppConfig {
     pub minecraft_avatar_edition_raw_value: Option<String>,
     pub default_banner_color_hex: Option<String>,
     pub error_popups_enabled: bool,
-    pub save_downloaded_jars: bool,
     /// `LoaderVersionRecord` isn't ported yet; passed through opaquely.
     pub loader_version_records: Vec<Value>,
     pub use_vm_bedrock_backend: bool,
@@ -947,19 +937,14 @@ impl AppConfig {
     /// Pure equivalent of `AppConfig.defaultConfig()`: the caller resolves
     /// `servers_root` (MSC 1 uses the user's home directory, which is I/O
     /// this crate deliberately doesn't perform) and this derives
-    /// `plugin_template_dir`/`paper_template_dir` from it the same way
-    /// `defaultPluginTemplateDirPath()`/`defaultPaperTemplateDirPath()` do.
+    /// the same way MSC 1 derives its server paths.
     pub fn default_config(servers_root: impl Into<String>) -> Self {
         let servers_root = servers_root.into();
-        let plugin_template_dir = join_path(&servers_root, "_plugin_templates");
-        let paper_template_dir = join_path(&servers_root, "_paper_templates");
         Self {
             config_version: Self::LATEST_CONFIG_VERSION,
             java_path: "java".to_string(),
             extra_flags: String::new(),
             servers_root,
-            plugin_template_dir,
-            paper_template_dir,
             servers: Vec::new(),
             active_server_id: None,
             initial_setup_done: false,
@@ -986,7 +971,6 @@ impl AppConfig {
             minecraft_avatar_edition_raw_value: None,
             default_banner_color_hex: None,
             error_popups_enabled: false,
-            save_downloaded_jars: true,
             loader_version_records: Vec::new(),
             use_vm_bedrock_backend: true,
         }
@@ -1007,14 +991,6 @@ impl AppConfig {
             opt_str(v, "extra_flags")?.unwrap_or_else(|| defaults.extra_flags.clone());
         let servers_root =
             opt_str(v, "servers_root")?.unwrap_or_else(|| defaults.servers_root.clone());
-        // Defaults are derived from the servers_root just decoded above,
-        // not from `defaults.plugin_template_dir` — matches source lines
-        // 738-743, which recompute from `self.serversRoot`.
-        let plugin_template_dir = opt_str(v, "plugin_template_dir")?
-            .unwrap_or_else(|| join_path(&servers_root, "_plugin_templates"));
-        let paper_template_dir = opt_str(v, "paper_template_dir")?
-            .unwrap_or_else(|| join_path(&servers_root, "_paper_templates"));
-
         let servers = match present(v, "servers") {
             None => Vec::new(),
             Some(Value::Array(items)) => items
@@ -1134,11 +1110,6 @@ impl AppConfig {
             .or_else(|| defaults.default_banner_color_hex.clone());
         let error_popups_enabled =
             opt_bool(v, "error_popups_enabled", defaults.error_popups_enabled)?;
-        // Literal `true`, not `defaults.save_downloaded_jars` -- matches
-        // source line 838 exactly (same value today, but not the same
-        // expression).
-        let save_downloaded_jars = opt_bool(v, "save_downloaded_jars", true)?;
-
         let loader_version_records = match present(v, "loader_version_records") {
             None => Vec::new(),
             Some(Value::Array(items)) => items.clone(),
@@ -1150,8 +1121,6 @@ impl AppConfig {
             java_path,
             extra_flags,
             servers_root,
-            plugin_template_dir,
-            paper_template_dir,
             servers,
             active_server_id,
             initial_setup_done,
@@ -1176,7 +1145,6 @@ impl AppConfig {
             minecraft_avatar_edition_raw_value,
             default_banner_color_hex,
             error_popups_enabled,
-            save_downloaded_jars,
             loader_version_records,
             use_vm_bedrock_backend,
         })
@@ -1188,8 +1156,6 @@ impl AppConfig {
         insert_str(&mut m, "java_path", &self.java_path);
         insert_str(&mut m, "extra_flags", &self.extra_flags);
         insert_str(&mut m, "servers_root", &self.servers_root);
-        insert_str(&mut m, "plugin_template_dir", &self.plugin_template_dir);
-        insert_str(&mut m, "paper_template_dir", &self.paper_template_dir);
         m.insert(
             "servers".into(),
             Value::Array(self.servers.iter().map(ConfigServer::encode).collect()),
@@ -1277,10 +1243,6 @@ impl AppConfig {
         m.insert(
             "error_popups_enabled".into(),
             Value::Bool(self.error_popups_enabled),
-        );
-        m.insert(
-            "save_downloaded_jars".into(),
-            Value::Bool(self.save_downloaded_jars),
         );
         if !self.loader_version_records.is_empty() {
             m.insert(

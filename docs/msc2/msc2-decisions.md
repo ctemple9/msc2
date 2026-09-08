@@ -62,6 +62,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 | D-032 | Signed application manifests gate local MSC updates | **Approved** | 2026-09-07 |
 | D-033 | Native iOS and supported mobile access retired from v1 | **Approved** | 2026-09-07 |
 | D-034 | Full-screen terminal UI retired from MSC 2 | **Approved** | 2026-09-07 |
+| D-035 | Server-owned jars replace global template storage | **Approved** | 2026-09-07 |
 
 ---
 
@@ -979,6 +980,35 @@ a new product decision.
 
 ---
 
+## D-035 — Server-owned jars replace global template storage
+
+**Status:** **Approved** · **Origin:** Owner-requested Phase 12 correction (P12.117) · **Approved by:** Cameron Temple · **Date:** 2026-09-07
+
+**Context.** MSC 2 originally carried MSC 1's global Paper and plugin template
+directories into the agent, along with a template API and CLI. That made a
+server's downloadable artifacts live in a separate shared store even though
+the product's useful operation is managing the files belonging to one server.
+
+**Decision.** MSC 2 removes the Paper/plugin template stores, their API and
+CLI surfaces, and the configuration fields that point at them. A server JAR is
+downloaded directly into its owning server directory; changing versions
+replaces that server-owned JAR. Geyser and Floodgate remain per-server files
+under that server's `plugins/` directory. Existing template directories are
+left untouched during migration, but MSC 2 no longer creates, reads, or writes
+them.
+
+**Consequences.** The `/v1/templates` route, template DTOs, template CLI
+commands, template capability plumbing, and template-specific client copy are
+not part of the supported MSC 2 contract. Server creation, version changes,
+and add-on updates use the owning server directory directly. The historical
+MSC 1 template behavior remains documented in the audit and phase evidence;
+this decision changes the MSC 2 product boundary, not the read-only oracle.
+
+**Revisit if:** the owner explicitly reopens a shared cross-server artifact
+library as a product capability.
+
+---
+
 ## Appendix A — corrections made during planning
 
 Recorded because each produced a confident wrong answer, and each is the kind of mistake likely to recur.
@@ -1005,6 +1035,7 @@ Recorded because each produced a confident wrong answer, and each is the kind of
 
 | Rev | Date | Change |
 |---|---|---|
+| 1.14 | 2026-09-07 | Added D-035: server-owned JARs replace global Paper/plugin template storage; existing template directories are preserved but no longer used. |
 | 1.13 | 2026-09-07 | Added D-034: the full-screen terminal UI is retired; retained clients are Tauri desktop, desktop browser, and the scriptable headless CLI. |
 | 1.12 | 2026-09-07 | Amended D-033 and D-023: native iOS and supported mobile management are both out of v1; retained clients are Tauri desktop, desktop browser, headless CLI, and optional Tailscale remote access. |
 | 1.11 | 2026-09-07 | Added D-033: retired the native iOS client and set the responsive browser as the phone-access path; D-004 is superseded. |

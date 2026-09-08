@@ -9,6 +9,8 @@
   export let disabled = false;
   export let width = '100%';
   export let multiline = false;
+  export let onblur: ((event: FocusEvent) => void) | undefined = undefined;
+  export let onkeydown: ((event: KeyboardEvent) => void) | undefined = undefined;
   /** Reports this field's rect to the guided tour under this id, when set.
    *  Additive -- most callers leave it unset. See tourAnchors.ts. */
   export let anchorId: string | undefined = undefined;
@@ -22,6 +24,8 @@
     class="field multiline"
     style="width: {width};"
     rows="2"
+    {onblur}
+    {onkeydown}
     use:onboardingAnchor={anchorId}
   ></textarea>
 {:else}
@@ -32,6 +36,8 @@
     {disabled}
     class="field"
     style="width: {width};"
+    {onblur}
+    {onkeydown}
     use:onboardingAnchor={anchorId}
   />
 {/if}

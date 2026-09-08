@@ -1,4 +1,4 @@
-//! Black-box smoke test for P7.23's provisioning/fleet/template routes in
+//! Black-box smoke test for P7.23's provisioning/fleet routes in
 //! `build_app()` (`main.rs`): a real `msc serve` process must come up
 //! healthy with the new routes actually mounted behind the same
 //! bearer-auth gate every other protected route uses.
@@ -7,7 +7,7 @@
 //! file only proves mounting" shape as `tests/world_backup_routes.rs`'s
 //! own doc comment explains — the substantive route-logic coverage lives
 //! inline as `#[cfg(test)]` tests inside `src/routes/servers.rs`/
-//! `src/routes/templates.rs`. A `401 unauthorized` (not `404`) on an
+//! `src/routes/servers.rs`. A `401 unauthorized` (not `404`) on an
 //! unauthenticated request to a new route is proof it's really mounted:
 //! `axum::Router::route_layer`'s bearer-auth gate only runs for a path
 //! that matches a real route. macOS-only for the same reason
@@ -69,14 +69,6 @@ fn provisioning_routes_are_mounted_behind_bearer_auth() {
     );
     wait_for_health(port);
 
-    // Mounted-but-unauthenticated: 401, not 404, on every new GET route.
-    let response = http_get(port, "/v1/templates", None);
-    assert!(
-        response.starts_with("HTTP/1.1 401"),
-        "/v1/templates GET expected 401 (mounted + auth-gated), got: {}",
-        response.lines().next().unwrap_or_default()
-    );
-
     // Same proof for every new POST route.
     for path in [
         "/v1/capabilities",
@@ -84,7 +76,6 @@ fn provisioning_routes_are_mounted_behind_bearer_auth() {
         "/v1/servers/delete",
         "/v1/servers/rename",
         "/v1/servers/eula",
-        "/v1/templates",
     ] {
         let response = http_post(port, path, None);
         assert!(
@@ -147,17 +138,6 @@ fn provisioning_routes_accept_the_bootstrap_token() {
         &log_path,
     );
     wait_for_health(port);
-
-    // An authenticated GET /v1/templates against an empty fleet succeeds
-    // (200), proving the route is really wired to `LifecycleRoutesState`
-    // and not just present-but-unimplemented behind the auth gate.
-    let response = http_get(port, "/v1/templates", Some(TOKEN));
-    assert!(
-        response.starts_with("HTTP/1.1 200"),
-        "authenticated GET /v1/templates expected 200, got: {}",
-        response.lines().next().unwrap_or_default()
-    );
-    assert!(response.contains("\"paperTemplates\""));
 
     // An authenticated create with a blank name is a typed 400, not a
     // 401/500 — proof the route's own validation (not just the auth

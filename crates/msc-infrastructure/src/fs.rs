@@ -302,12 +302,8 @@ impl FakeFileSystem {
         self
     }
 
-    /// Sets an already-seeded file's modification time — P7.21's
-    /// `jar-summary-geyser-floodgate-pick-newest-by-modification-date`
-    /// fixture is the first case that needs one fake file to read as
-    /// newer than another (`msc-application/src/templates.rs`'s
-    /// `jar_summary`); the field's own doc comment is now out of date,
-    /// since a seeding builder exists. Panics if `path` wasn't already
+    /// Sets an already-seeded file's modification time for metadata tests
+    /// that compare two files. Panics if `path` wasn't already
     /// seeded via [`Self::with_file`]/[`Self::from_tree`] — a modified
     /// time on a file that doesn't exist is a test bug, not a case worth
     /// silently ignoring.

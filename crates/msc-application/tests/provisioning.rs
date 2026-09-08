@@ -211,7 +211,6 @@ fn base_request<'a>(
         world_seed: None,
         initial_world_profile: None,
         world_source,
-        save_downloaded_jars: false,
         default_banner_color_hex: "#3366FF",
     }
 }
@@ -321,8 +320,6 @@ fn provisioning_name_trimmed_and_folder_derived() {
         &transport,
         tmp.path(),
         tmp.path(),
-        &tmp.path().join("templates/paper"),
-        &tmp.path().join("templates/plugin"),
         &request,
         "2026-08-18T00:00:00Z",
         always_ok2,
@@ -363,8 +360,6 @@ fn provisioning_empty_name_refused_no_directory_created() {
         &transport,
         tmp.path(),
         tmp.path(),
-        &tmp.path().join("templates/paper"),
-        &tmp.path().join("templates/plugin"),
         &request,
         "2026-08-18T00:00:00Z",
         always_ok2,
@@ -395,8 +390,6 @@ fn provisioning_pre_existing_folder_refused_with_message() {
         &transport,
         tmp.path(),
         tmp.path(),
-        &tmp.path().join("templates/paper"),
-        &tmp.path().join("templates/plugin"),
         &request,
         "2026-08-18T00:00:00Z",
         always_ok2,
@@ -437,8 +430,6 @@ fn provisioning_concurrent_creates_of_same_name_never_both_succeed() {
                 &transport,
                 tmp_path,
                 tmp_path,
-                &tmp_path.join("templates/paper"),
-                &tmp_path.join("templates/plugin"),
                 &request,
                 "2026-08-20T00:00:00Z",
                 always_ok2,
@@ -511,8 +502,6 @@ fn provisioning_download_and_go_branch_writes_paper_jar() {
         &transport,
         tmp.path(),
         tmp.path(),
-        &tmp.path().join("templates/paper"),
-        &tmp.path().join("templates/plugin"),
         &request,
         "2026-08-18T00:00:00Z",
         always_ok2,
@@ -544,8 +533,6 @@ fn provisioning_eula_txt_written_as_eula_false() {
         &transport,
         tmp.path(),
         tmp.path(),
-        &tmp.path().join("templates/paper"),
-        &tmp.path().join("templates/plugin"),
         &request,
         "2026-08-18T00:00:00Z",
         always_ok2,
@@ -579,8 +566,6 @@ fn provisioning_server_properties_exact_key_set_fresh_world() {
         &transport,
         tmp.path(),
         tmp.path(),
-        &tmp.path().join("templates/paper"),
-        &tmp.path().join("templates/plugin"),
         &request,
         "2026-08-18T00:00:00Z",
         always_ok2,
@@ -630,8 +615,6 @@ fn provisioning_addon_folder_none_for_vanilla() {
         &transport,
         tmp.path(),
         tmp.path(),
-        &tmp.path().join("templates/paper"),
-        &tmp.path().join("templates/plugin"),
         &request,
         "2026-08-18T00:00:00Z",
         always_ok2,
@@ -655,8 +638,6 @@ fn provisioning_addon_folder_plugins_for_plugin_flavor() {
         &transport,
         tmp.path(),
         tmp.path(),
-        &tmp.path().join("templates/paper"),
-        &tmp.path().join("templates/plugin"),
         &request,
         "2026-08-18T00:00:00Z",
         always_ok2,
@@ -682,8 +663,6 @@ fn provisioning_addon_folder_mods_for_modded_flavor() {
         &transport,
         tmp.path(),
         tmp.path(),
-        &tmp.path().join("templates/paper"),
-        &tmp.path().join("templates/plugin"),
         &request,
         "2026-08-18T00:00:00Z",
         always_ok2,
@@ -713,8 +692,6 @@ fn provisioning_configserver_field_set() {
         &transport,
         tmp.path(),
         tmp.path(),
-        &tmp.path().join("templates/paper"),
-        &tmp.path().join("templates/plugin"),
         &request,
         "2026-08-18T00:00:00Z",
         always_ok2,
@@ -749,8 +726,6 @@ fn provisioning_ram_default_plugin_2_4gb_vs_modded_3_6gb() {
         &paper_transport,
         tmp.path(),
         &tmp.path().join("paper-root"),
-        &tmp.path().join("templates/paper"),
-        &tmp.path().join("templates/plugin"),
         &paper_request,
         "2026-08-18T00:00:00Z",
         always_ok2,
@@ -767,8 +742,6 @@ fn provisioning_ram_default_plugin_2_4gb_vs_modded_3_6gb() {
         &fabric_transport,
         tmp.path(),
         &tmp.path().join("fabric-root"),
-        &tmp.path().join("templates/paper"),
-        &tmp.path().join("templates/plugin"),
         &fabric_request,
         "2026-08-18T00:00:00Z",
         always_ok2,
@@ -798,8 +771,6 @@ fn provisioning_cross_play_downloads_official_plugins_for_plugin_addon() {
         &transport,
         tmp.path(),
         tmp.path(),
-        &tmp.path().join("templates/paper"),
-        &tmp.path().join("templates/plugin"),
         &request,
         "2026-08-18T00:00:00Z",
         always_ok2,
@@ -836,8 +807,6 @@ fn provisioning_cross_play_refuses_non_plugin_addon() {
         &transport,
         tmp.path(),
         tmp.path(),
-        &tmp.path().join("templates/paper"),
-        &tmp.path().join("templates/plugin"),
         &request,
         "2026-08-18T00:00:00Z",
         always_ok2,
@@ -849,136 +818,6 @@ fn provisioning_cross_play_refuses_non_plugin_addon() {
         err,
         CreateServerError::CrossPlayUnsupported { .. }
     ));
-}
-
-// ---------------------------------------------------------------------
-// fixtures/server-creation/paper-archive-first-shortcut-hit-copies-archived-jar-writes-sidecar.json
-// fixtures/server-creation/paper-archive-first-shortcut-miss-falls-through-to-download.json
-// fixtures/server-creation/archive-shortcut-skipped-when-save-downloaded-jars-disabled-or-non-paper.json
-// ---------------------------------------------------------------------
-
-#[test]
-fn provisioning_paper_archive_first_shortcut_hit() {
-    let tmp = TempDir::new("archive-hit");
-    let template_dir = tmp.path().join("templates/paper");
-    fs::create_dir_all(&template_dir).unwrap();
-    fs::write(
-        template_dir.join("paper-1.21.4-build231.jar"),
-        b"ARCHIVED-PAPER-JAR",
-    )
-    .unwrap();
-
-    // Only the metadata-check URLs are registered — no jar-download URL
-    // at all, so a fall-through to a real download would fail the whole
-    // create with a "no fake response registered" error, proving the
-    // archive path was actually taken.
-    let transport = FakeTransport::new()
-        .with(
-            "https://fill.papermc.io/v3/projects/paper",
-            br#"{"versions":{"1.21":["1.21.4"]}}"#.to_vec(),
-        )
-        .with(
-            "https://fill.papermc.io/v3/projects/paper/versions/1.21.4/builds",
-            br#"[{"id":231,"channel":"STABLE","downloads":{"server:default":{"url":"https://dl/paper-1.21.4-231.jar","checksums":{"sha256":"b90451bf06476ab0348852d0af747a6962e6b648e9a20ba261501e12e0d7b321"}}}}]"#.to_vec(),
-        );
-
-    let mut request = base_request(JavaServerFlavor::Paper, WorldSource::Fresh);
-    request.save_downloaded_jars = true;
-
-    let created = provisioning::create_download_and_go_server(
-        &StdFileSystem,
-        &transport,
-        tmp.path(),
-        tmp.path(),
-        &template_dir,
-        &tmp.path().join("templates/plugin"),
-        &request,
-        "2026-08-18T00:00:00Z",
-        always_ok2,
-        always_ok3,
-    )
-    .unwrap();
-
-    assert_eq!(
-        fs::read(&created.config.paper_jar_path).unwrap(),
-        b"ARCHIVED-PAPER-JAR"
-    );
-    assert_eq!(created.config.minecraft_version.as_deref(), Some("1.21.4"));
-    assert_eq!(created.config.server_build.as_deref(), Some("231"));
-
-    let sidecar_path = PathBuf::from(&created.config.server_dir).join(".msc_paper_version.json");
-    let sidecar: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(sidecar_path).unwrap()).unwrap();
-    assert_eq!(sidecar["mcVersion"], "1.21.4");
-    assert_eq!(sidecar["build"], 231);
-}
-
-#[test]
-fn provisioning_paper_archive_first_shortcut_miss_falls_through() {
-    let tmp = TempDir::new("archive-miss");
-    let template_dir = tmp.path().join("templates/paper");
-    // No archived jar present — the archive check must miss and fall
-    // through to a real download.
-    let transport = paper_transport();
-
-    let mut request = base_request(JavaServerFlavor::Paper, WorldSource::Fresh);
-    request.save_downloaded_jars = true;
-
-    let created = provisioning::create_download_and_go_server(
-        &StdFileSystem,
-        &transport,
-        tmp.path(),
-        tmp.path(),
-        &template_dir,
-        &tmp.path().join("templates/plugin"),
-        &request,
-        "2026-08-18T00:00:00Z",
-        always_ok2,
-        always_ok3,
-    )
-    .unwrap();
-
-    assert_eq!(
-        fs::read(&created.config.paper_jar_path).unwrap(),
-        b"FAKE-PAPER-JAR"
-    );
-    // Archived afterward, so the next server of the same version hits
-    // the shortcut instead.
-    assert!(template_dir.join("paper-1.21.4-build231.jar").is_file());
-}
-
-#[test]
-fn provisioning_archive_shortcut_skipped_for_non_paper() {
-    let tmp = TempDir::new("archive-non-paper");
-    // No Paper URLs registered at all — Purpur's own alignment probe
-    // gracefully falls back (matching source's `try?`), and the
-    // archive-first branch itself is never entered for a non-Paper
-    // flavor regardless of `save_downloaded_jars`.
-    let transport = purpur_transport();
-
-    let mut request = base_request(JavaServerFlavor::Purpur, WorldSource::Fresh);
-    request.save_downloaded_jars = true;
-
-    let created = provisioning::create_download_and_go_server(
-        &StdFileSystem,
-        &transport,
-        tmp.path(),
-        tmp.path(),
-        &tmp.path().join("templates/paper"),
-        &tmp.path().join("templates/plugin"),
-        &request,
-        "2026-08-18T00:00:00Z",
-        always_ok2,
-        always_ok3,
-    )
-    .unwrap();
-
-    assert_eq!(created.config.minecraft_version.as_deref(), Some("1.21.4"));
-    assert_eq!(created.config.server_build.as_deref(), Some("2"));
-    assert_eq!(
-        fs::read(&created.config.paper_jar_path).unwrap(),
-        b"FAKE-PURPUR-JAR"
-    );
 }
 
 // ---------------------------------------------------------------------
@@ -998,8 +837,6 @@ fn provisioning_catch_block_removes_newdir_on_download_failure() {
         &transport,
         tmp.path(),
         tmp.path(),
-        &tmp.path().join("templates/paper"),
-        &tmp.path().join("templates/plugin"),
         &request,
         "2026-08-18T00:00:00Z",
         always_ok2,
@@ -1033,8 +870,6 @@ fn provisioning_world_source_backup_zip_failure_rolls_back() {
         &transport,
         tmp.path(),
         tmp.path(),
-        &tmp.path().join("templates/paper"),
-        &tmp.path().join("templates/plugin"),
         &request,
         "2026-08-18T00:00:00Z",
         always_fail2,
@@ -1062,8 +897,6 @@ fn provisioning_world_source_existing_folder_failure_rolls_back() {
         &transport,
         tmp.path(),
         tmp.path(),
-        &tmp.path().join("templates/paper"),
-        &tmp.path().join("templates/plugin"),
         &request,
         "2026-08-18T00:00:00Z",
         always_ok2,
@@ -1098,8 +931,6 @@ fn provisioning_initial_world_slot_failure_deletes_directory() {
         &transport,
         tmp.path(),
         tmp.path(),
-        &tmp.path().join("templates/paper"),
-        &tmp.path().join("templates/plugin"),
         &request,
         "2026-08-18T00:00:00Z",
         always_ok2,
@@ -1138,8 +969,6 @@ fn provisioning_imported_metadata_overrides_wizard_values() {
         &transport,
         tmp.path(),
         tmp.path(),
-        &tmp.path().join("templates/paper"),
-        &tmp.path().join("templates/plugin"),
         &request,
         "2026-08-18T00:00:00Z",
         real_unzip_world_backup,
@@ -1182,8 +1011,6 @@ fn provisioning_applies_the_first_world_profile_before_first_start() {
         &transport,
         tmp.path(),
         tmp.path(),
-        &tmp.path().join("templates/paper"),
-        &tmp.path().join("templates/plugin"),
         &request,
         "2026-08-18T00:00:00Z",
         always_ok2,
@@ -1234,8 +1061,6 @@ fn provisioning_install_step_flavor_refused() {
         &transport,
         tmp.path(),
         tmp.path(),
-        &tmp.path().join("templates/paper"),
-        &tmp.path().join("templates/plugin"),
         &request,
         "2026-08-18T00:00:00Z",
         always_ok2,
@@ -1269,8 +1094,6 @@ fn provisioning_record_loader_version_only_for_modded_category() {
         &fabric_transport,
         tmp.path(),
         &tmp.path().join("fabric-root"),
-        &tmp.path().join("templates/paper"),
-        &tmp.path().join("templates/plugin"),
         &fabric_request,
         "2026-08-18T00:00:00Z",
         always_ok2,
@@ -1290,8 +1113,6 @@ fn provisioning_record_loader_version_only_for_modded_category() {
         &paper_transport,
         tmp.path(),
         &tmp.path().join("paper-root"),
-        &tmp.path().join("templates/paper"),
-        &tmp.path().join("templates/plugin"),
         &paper_request,
         "2026-08-18T00:00:00Z",
         always_ok2,

@@ -13,8 +13,7 @@
 //!
 //! **Health card dates are not formatted here.** `checkLastStartup`'s
 //! `formatDate` is `DateFormatter`'s locale-dependent medium/short
-//! style — this crate has no locale infrastructure (the same "no locale
-//! infra" boundary `templates.rs`'s `jar_summary` already draws). Every
+//! style — this crate has no locale infrastructure, so every
 //! card here takes an already-formatted date string from the caller
 //! rather than reformatting `LastStartupResult.started_at` itself.
 //!

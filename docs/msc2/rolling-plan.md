@@ -811,7 +811,7 @@ steps.
 
 ### P12.117 — Remove obsolete server template storage
 **Status:** awaiting verification
-**Files:** `crates/msc-domain/src/app_config_schema.rs`, `crates/msc-application/src/provisioning.rs`, `crates/msc-agent/src/`, `crates/msc-api/src/`, `crates/msc-infrastructure/src/`, `clients/desktop-web/`, `content/help/handbook/`, `fixtures/`, `docs/msc2/api-contract/`
+**Files:** `crates/msc-domain/src/app_config_schema.rs`, `crates/msc-application/src/provisioning.rs`, `crates/msc-agent/src/`, `crates/msc-api/src/`, `crates/msc-infrastructure/src/`, `clients/desktop-web/`, `content/help/handbook/`, `fixtures/`, `docs/msc2/api-contract/`, `docs/msc2/msc2-decisions.md`, `docs/msc2/msc2-engineering.md`
 **What:** Remove the Paper/plugin template subsystem and its API/CLI/configuration surfaces. Server JARs are downloaded directly into their owning server directory and version changes replace that server-owned JAR; cross-play add-ons remain per-server files under `plugins/`. Preserve existing user directories rather than deleting files during migration, but stop creating, reading, or writing the obsolete template directories.
 **Verify:** `cargo check --workspace && cd clients/desktop-web && npm run check && npm run build && cd ../.. && if rg -n -i 'paper.?templates|plugin.?templates|_paper_templates|_plugin_templates|save_downloaded_jars|/v1/templates|TemplateItemDTO|TemplatesResponseDTO|TemplateMutation' crates/msc-agent/src crates/msc-api/src crates/msc-application/src crates/msc-domain/src crates/msc-infrastructure/src clients/desktop-web/src clients/desktop-web/tests content/help/handbook tools crates/msc-agent/web-ui/assets; then exit 1; fi`
 **Commit:** `P12.117: remove obsolete server template storage`

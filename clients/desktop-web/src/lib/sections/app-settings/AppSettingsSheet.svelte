@@ -467,11 +467,22 @@
         <div class="service-form">
           <div class="form-row">
             <span class="name">Microsoft account email</span>
-            <Field bind:value={broadcastEmail} type="email" width="220px" />
+            <Field
+              bind:value={broadcastEmail}
+              type="email"
+              width="220px"
+              onblur={() => void saveBroadcastCredentials()}
+              onkeydown={(event) => event.key === 'Enter' && void saveBroadcastCredentials()}
+            />
           </div>
           <div class="form-row">
             <span class="name">Xbox gamertag</span>
-            <Field bind:value={broadcastGamertag} width="220px" />
+            <Field
+              bind:value={broadcastGamertag}
+              width="220px"
+              onblur={() => void saveBroadcastCredentials()}
+              onkeydown={(event) => event.key === 'Enter' && void saveBroadcastCredentials()}
+            />
           </div>
           <div class="form-row">
             <span class="name">Password</span>
@@ -481,6 +492,8 @@
                 type={broadcastPasswordVisible ? 'text' : 'password'}
                 placeholder={broadcastCredentials?.hasPassword ? 'Saved — enter to replace' : ''}
                 width="100%"
+                onblur={() => void saveBroadcastCredentials()}
+                onkeydown={(event) => event.key === 'Enter' && void saveBroadcastCredentials()}
               />
               <button
                 type="button"
@@ -493,18 +506,6 @@
                 <VisibilityIcon visible={broadcastPasswordVisible} />
               </button>
             </div>
-          </div>
-          <div class="form-actions">
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={broadcastSaving ||
-                !broadcastEmail.trim() ||
-                !broadcastGamertag.trim() ||
-                !broadcastPassword}
-              onclick={saveBroadcastCredentials}
-              >{broadcastSaving ? 'Saving…' : 'Save credentials'}</Button
-            >
           </div>
         </div>
         <div class="row bordered">
@@ -549,12 +550,12 @@
         >. The key is stored securely on this agent and is never shown again.
       </p>
       <Card padding="0">
-        <div class="service-form">
-          <div class="form-row">
-            <div class="row-text">
-              <span class="name">CurseForge API key</span>
-              <span class="hint">{curseforge.configured ? 'Configured' : 'Not configured'}</span>
-            </div>
+        <div class="row">
+          <div class="row-text">
+            <span class="name">CurseForge API key</span>
+            <span class="hint">{curseforge.configured ? 'Configured' : 'Not configured'}</span>
+          </div>
+          <div class="control">
             <div class="password-control">
               <Field
                 bind:value={curseforgeApiKey}
@@ -573,8 +574,6 @@
                 <VisibilityIcon visible={curseforgeApiKeyVisible} />
               </button>
             </div>
-          </div>
-          <div class="form-actions">
             <Button
               variant="secondary"
               size="sm"
@@ -807,11 +806,6 @@
     justify-content: space-between;
     gap: 12px;
     padding: 9px 0;
-  }
-  .form-actions {
-    display: flex;
-    justify-content: flex-end;
-    padding-top: 3px;
   }
   .row-text {
     display: flex;

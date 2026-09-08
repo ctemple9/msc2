@@ -40,7 +40,6 @@ export const fleetMutationPaths = {
   runtimes: '/v1/java-runtimes',
   installRuntime: '/v1/java-runtimes/install',
   versions: '/v1/versions',
-  templates: '/v1/templates',
 } as const;
 
 export function selectedServer(

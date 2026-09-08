@@ -34,7 +34,7 @@ Java must be installed on your Mac before a Java server can start. The app recom
 - Preferences → Java Path: tells the app which java executable to use.
 - Manage Servers → Edit: each Java server has its own Paper JAR path (usually paper.jar inside the server folder).
 - Details tab: shows a JAR summary — which Paper, Geyser, and Floodgate builds this server is using and when they were last updated.
-- Update Paper / Update Geyser / Update Floodgate buttons: one-click updates from your saved templates.
+- Update Paper / Update Geyser / Update Floodgate buttons: one-click updates for the selected server. The Paper JAR stays in the server folder, while add-ons stay in that server's `plugins/` folder.
 
 ### Callout: pitfall
 

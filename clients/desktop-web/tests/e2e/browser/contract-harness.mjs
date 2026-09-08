@@ -586,8 +586,6 @@ createServer(async (request, response) => {
       supportsVersions: true,
       versions: [],
     });
-  if (url.pathname === '/v1/templates')
-    return json(response, { paperTemplates: [], pluginTemplates: [], serverRunning: false });
   if (url.pathname === '/v1/servers/delete' && request.method === 'POST')
     return json(response, { message: 'Server record removed.' });
   if (url.pathname === '/v1/servers/import' && request.method === 'POST') {

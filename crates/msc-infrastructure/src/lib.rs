@@ -35,6 +35,5 @@ pub mod release_update;
 pub mod resource_pack_store;
 pub mod secret_store;
 pub mod service;
-pub mod template_store;
 pub mod world_store;
 pub mod xbox_broadcast;

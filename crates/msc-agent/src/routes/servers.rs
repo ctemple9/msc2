@@ -1564,11 +1564,8 @@ pub async fn create(
         .unwrap_or_else(|| cfg.java_path.clone());
     let accept_eula = body.accept_eula.unwrap_or(false);
     let check_addon_updates = body.check_addon_updates.unwrap_or(false);
-    let save_downloaded_jars = cfg.save_downloaded_jars;
     let default_banner_color_hex = cfg.default_banner_color_hex.clone().unwrap_or_default();
     let home_dir = agent_home_dir();
-    let paper_template_dir = PathBuf::from(&cfg.paper_template_dir);
-    let plugin_template_dir = PathBuf::from(&cfg.plugin_template_dir);
     let response_server_name = safe_name.clone();
 
     let worker_state = state.clone();
@@ -1595,15 +1592,12 @@ pub async fn create(
                 world_seed,
                 initial_world_name,
                 initial_world_profile,
-                save_downloaded_jars,
                 default_banner_color_hex,
                 java_path,
                 accept_eula,
                 check_addon_updates,
                 home_dir,
                 servers_root,
-                paper_template_dir,
-                plugin_template_dir,
                 staged_modpack,
             )
         })
@@ -1826,15 +1820,12 @@ fn run_create_server(
     world_seed: Option<String>,
     initial_world_name: Option<String>,
     initial_world_profile: Option<WorldProfile>,
-    save_downloaded_jars: bool,
     default_banner_color_hex: String,
     java_path: String,
     accept_eula: bool,
     check_addon_updates: bool,
     home_dir: PathBuf,
     servers_root: PathBuf,
-    paper_template_dir: PathBuf,
-    plugin_template_dir: PathBuf,
     staged_modpack: Option<StagedUpload>,
 ) {
     let should_cancel = state.operations().cancellation_check(&operation_id);
@@ -1882,7 +1873,6 @@ fn run_create_server(
         world_seed: world_seed.as_deref(),
         initial_world_profile: initial_world_profile.as_ref(),
         world_source: WorldSource::Fresh,
-        save_downloaded_jars,
         default_banner_color_hex: &default_banner_color_hex,
     };
     let transport = HttpTransport::new();
@@ -1942,7 +1932,6 @@ fn run_create_server(
             state.process_supervisor(),
             &home_dir,
             &servers_root,
-            &plugin_template_dir,
             &pack_request,
             &inspection,
             &java_path,
@@ -1988,7 +1977,6 @@ fn run_create_server(
             state.process_supervisor(),
             &home_dir,
             &servers_root,
-            &plugin_template_dir,
             &request,
             &java_path,
             INSTALLER_TIMEOUT,
@@ -2004,8 +1992,6 @@ fn run_create_server(
             &transport,
             &home_dir,
             &servers_root,
-            &paper_template_dir,
-            &plugin_template_dir,
             &request,
             &now,
             provisioning::real_unzip_world_backup,

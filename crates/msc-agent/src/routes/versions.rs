@@ -786,11 +786,6 @@ pub async fn set_servers_root(
     let path_string = path.to_string_lossy().into_owned();
     let result = state.try_mutate_config(|config| {
         config.servers_root = path_string.clone();
-        config.paper_template_dir = path.join("_paper_templates").to_string_lossy().into_owned();
-        config.plugin_template_dir = path
-            .join("_plugin_templates")
-            .to_string_lossy()
-            .into_owned();
         Ok::<(), ()>(())
     });
     match result {

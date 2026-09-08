@@ -1,5 +1,5 @@
 //! Round-trips one representative instance of every P7.23 provisioning/
-//! fleet/template DTO through `serde_json` and checks the result against
+//! fleet DTO through `serde_json` and checks the result against
 //! `docs/msc2/api-contract/openapi.json`'s schema for it — the same
 //! `assert_conforms` depth-check `dto_conformance.rs`/
 //! `world_backup_conformance.rs` already established, duplicated here per
@@ -12,7 +12,6 @@
 use msc_api::dto::{
     ServerCreateRequestDto, ServerCreateResultDto, ServerDeleteRequestDto, ServerDeleteResultDto,
     ServerEulaRequestDto, ServerEulaResultDto, ServerRenameRequestDto, ServerRenameResultDto,
-    TemplateItemDto, TemplateMutationRequestDto, TemplateMutationResultDto, TemplatesResponseDto,
 };
 use serde::Serialize;
 use serde_json::Value;
@@ -223,77 +222,6 @@ fn provisioning_conformance_server_eula() {
             message: "EULA accepted.".to_string(),
             server_id: Some("srv-1".to_string()),
             accepted: Some(true),
-        },
-    );
-}
-
-fn sample_template_item() -> TemplateItemDto {
-    TemplateItemDto {
-        id: "paper:paper-1.21.4-build100.jar".to_string(),
-        kind: "paper".to_string(),
-        filename: "paper-1.21.4-build100.jar".to_string(),
-        display_name: "Paper 1.21.4 (build 100)".to_string(),
-        size_bytes: Some(45_000_000),
-        modified_at: Some("2026-08-01T00:00:00Z".to_string()),
-        version: Some("1.21.4".to_string()),
-        build: Some(100),
-    }
-}
-
-#[test]
-fn provisioning_conformance_templates_response() {
-    check(
-        "TemplatesResponseDTO",
-        &TemplatesResponseDto {
-            server_name: Some("Survival Realm".to_string()),
-            server_running: false,
-            paper_templates: vec![sample_template_item()],
-            plugin_templates: Vec::new(),
-            note: None,
-        },
-    );
-}
-
-#[test]
-fn provisioning_conformance_template_mutation_request() {
-    check(
-        "TemplateMutationRequestDTO",
-        &TemplateMutationRequestDto {
-            action: "createServer".to_string(),
-            server_id: None,
-            name: Some("New Server".to_string()),
-            template_id: Some("paper:paper-1.21.4-build100.jar".to_string()),
-            port: Some(25566),
-            enable_cross_play: Some(false),
-            cross_play_bedrock_port: None,
-            enable_playit: Some(false),
-            difficulty: Some("normal".to_string()),
-            gamemode: Some("survival".to_string()),
-            world_name: Some("World 1".to_string()),
-            world_seed: None,
-            accept_eula: Some(true),
-            include_plugins: Some(true),
-        },
-    );
-}
-
-#[test]
-fn provisioning_conformance_template_mutation_result() {
-    check(
-        "TemplateMutationResultDTO",
-        &TemplateMutationResultDto {
-            success: true,
-            message: "Created server \"New Server\" from template.".to_string(),
-            created_server_id: Some("srv-2".to_string()),
-            created_server_name: Some("New Server".to_string()),
-            exported_count: None,
-            templates: Some(TemplatesResponseDto {
-                server_name: Some("New Server".to_string()),
-                server_running: false,
-                paper_templates: vec![sample_template_item()],
-                plugin_templates: Vec::new(),
-                note: None,
-            }),
         },
     );
 }

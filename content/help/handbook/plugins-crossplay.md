@@ -31,9 +31,8 @@ Geyser/Floodgate doesn't make the experience perfect — some Java-only features
 
 ### In This App
 
-- Plugin Templates: download the latest Geyser and Floodgate JARs once into a global template folder.
-- When creating a server: enable Bedrock Cross-play to automatically copy Geyser and Floodgate into the server's plugins/ folder.
-- Update Geyser / Update Floodgate buttons: one-click to pull the newest version from your templates into the current server.
+- When creating a server: enable Bedrock Cross-play to download Geyser and Floodgate into that server's `plugins/` folder.
+- Update Geyser / Update Floodgate buttons: one-click updates for the current server's installed add-ons.
 - Bedrock Port: configure this in Settings → Network. Default is 19132 (UDP).
 
 ### Callout: pitfall

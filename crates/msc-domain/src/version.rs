@@ -36,7 +36,7 @@ fn split_omitting_empty(s: &str, separator: char) -> Vec<&str> {
     s.split(separator).filter(|p| !p.is_empty()).collect()
 }
 
-/// Parses common Paper template patterns:
+/// Parses common Paper JAR filename patterns:
 /// - paper-<mc>-build<build>.jar
 /// - paper-<mc>-<build>.jar
 pub fn parse_paper_jar_filename(filename: &str) -> Option<PaperJarVersion> {

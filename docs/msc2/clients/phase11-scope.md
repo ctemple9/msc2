@@ -213,8 +213,6 @@ Every current Desktop/Web cell is still `Planned` in this scope step.
 - `[screen]` `GET /v1/status` — current host/server runtime status.
 - `[screen]` `POST /v1/start` — start control.
 - `[screen]` `POST /v1/stop` — stop control.
-- `[screen]` `GET /v1/templates` — Java template inventory.
-- `[screen]` `POST /v1/templates` — template export/create.
 - `[screen]` `GET /v1/java-runtimes` — host Java runtime inventory.
 - `[screen]` `POST /v1/java-runtimes/install` — agent-owned runtime installation observed by the client.
 - `[screen]` `GET /v1/versions` — available versions for the active Java server.

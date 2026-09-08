@@ -221,8 +221,8 @@ fn file_item_dto(entry: server_files::FileEntry) -> ServerFileItemDto {
 
 /// `safe_path`'s required `home_dir` parameter, used only for its
 /// `ForbiddenRoot` check. Duplicated rather than shared, matching
-/// `servers.rs`/`templates.rs`/`versions.rs`'s own `agent_home_dir` copies
-/// -- no shared HOME resolver exists in this crate yet.
+/// `servers.rs`/`versions.rs`'s own `agent_home_dir` copies -- no shared
+/// HOME resolver exists in this crate yet.
 fn agent_home_dir() -> PathBuf {
     std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))

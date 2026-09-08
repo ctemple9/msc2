@@ -13,8 +13,6 @@
       "javaPath": "/usr/local/bin/java",
       "extraFlags": "-XX:+UseG1GC",
       "serversRoot": "/tmp/test-servers",
-      "pluginTemplateDir": "/tmp/test-servers/_plugins",
-      "paperTemplateDir": "/tmp/test-servers/_paper",
       "activeServerId": "test-server-id",
       "initialSetupDone": true,
       "remoteAPIPort": 12345,
@@ -35,7 +33,6 @@
       "minecraftAvatarEditionRawValue": "java",
       "defaultBannerColorHex": "#336633",
       "errorPopupsEnabled": true,
-      "saveDownloadedJars": false,
       "useVMBedrockBackend": true,
       "remoteAPISharedAccess": [
         {
@@ -57,8 +54,6 @@
     "javaPath": "/usr/local/bin/java",
     "extraFlags": "-XX:+UseG1GC",
     "serversRoot": "/tmp/test-servers",
-    "pluginTemplateDir": "/tmp/test-servers/_plugins",
-    "paperTemplateDir": "/tmp/test-servers/_paper",
     "activeServerId": "test-server-id",
     "initialSetupDone": true,
     "remoteAPIPort": 12345,
@@ -79,7 +74,6 @@
     "minecraftAvatarEditionRawValue": "java",
     "defaultBannerColorHex": "#336633",
     "errorPopupsEnabled": true,
-    "saveDownloadedJars": false,
     "useVMBedrockBackend": true,
     "remoteAPISharedAccess": [
       {

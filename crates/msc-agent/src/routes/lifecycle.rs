@@ -782,11 +782,9 @@ impl LifecycleRoutesState {
         }
     }
 
-    /// The full application config, cloned — Phase 7's provisioning/
-    /// version/template/java-runtime routes read `paper_template_dir`/
-    /// `plugin_template_dir`/`java_path`/`save_downloaded_jars`/
-    /// `default_banner_color_hex` off it directly rather than this type
-    /// growing one accessor per field.
+    /// The full application config, cloned — provisioning and version
+    /// routes read the few host-wide settings they need directly rather
+    /// than this type growing one accessor per field.
     pub fn app_config_snapshot(&self) -> AppConfig {
         self.inner.app_config.snapshot()
     }

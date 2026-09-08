@@ -4,19 +4,15 @@
 //! source order: name trim/refusal, folder-name derivation, the add-on
 //! folder per flavor, the modded RAM default, imported-metadata overrides,
 //! the exact `server.properties` key set, the `recordLoaderVersion` guard,
-//! the `ConfigServer` field set, and the archive-first shortcut's gate.
+//! and the `ConfigServer` field set.
 //!
 //! Scope call (P7.12): `fixtures/server-creation/`'s other 13 cases are
 //! filesystem operations -- the pre-existing-folder refusal, the actual
 //! directory/jar/properties writes, the install-step-vs-download-and-go
-//! branch dispatch, the cross-play template copy, both `WorldSource`
+//! branch dispatch, the cross-play add-on install, both `WorldSource`
 //! copy-failure paths, initial-world-slot failure cleanup, and the
 //! top-level `catch` cleanup -- and belong to P7.17/P7.18's application
-//! service, not this domain-only step. `fixtures/jar-templates/`'s 10
-//! cases are entirely about a real template directory (listing, archiving,
-//! reading a template's version from its filename) and belong to P7.15's
-//! infrastructure store; none of them are pure decisions with no
-//! filesystem in the loop, so none are ported here.
+//! service, not this domain-only step.
 
 use crate::identity::{AddOnKind, JavaServerCategory, JavaServerFlavor};
 use std::collections::BTreeMap;
@@ -127,7 +123,7 @@ pub fn effective_world_settings(
 /// The exact `server.properties` key set `createNewServer` writes for a
 /// freshly created server (`AppViewModel+ServerCreation.swift:298-309`,
 /// via `ServerPropertiesManager.writeProperties`, which replaces the whole
-/// file rather than merging with a template -- this is the complete set,
+/// file rather than merging with an existing file -- this is the complete set,
 /// not a subset). `level-seed` is present only when a seed was resolved.
 /// `BTreeMap` gives deterministic iteration for tests; callers write it out
 /// however their properties-file format needs.
@@ -168,17 +164,6 @@ pub fn should_record_loader_version(
     flavor.category() == JavaServerCategory::Modded
         && minecraft_version.is_some()
         && loader_version.is_some()
-}
-
-/// The archive-first shortcut's gate: `flavor == .paper &&
-/// configManager.config.saveDownloadedJars`
-/// (`AppViewModel+ServerCreation.swift:258`). `false` means "skip straight
-/// to `ServerJarProvider.downloadLatest`, no archive/metadata check."
-pub fn should_use_archive_first_shortcut(
-    flavor: JavaServerFlavor,
-    save_downloaded_jars: bool,
-) -> bool {
-    flavor == JavaServerFlavor::Paper && save_downloaded_jars
 }
 
 /// The fields `createNewServer` sets on a newly constructed `ConfigServer`,

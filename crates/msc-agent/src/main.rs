@@ -251,10 +251,6 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
         lifecycle: lifecycle_state.clone(),
         scheduler: backup_scheduler,
     });
-    // P7.23: the template routes get their own small `Router` (matching
-    // `worlds`/`backups`'s own precedent) since `GET /v1/templates` needs
-    // no route param but does need `LifecycleRoutesState`.
-    let templates = routes::templates::router(lifecycle_state.clone());
     let users = Router::new()
         .route(
             "/users",
@@ -392,7 +388,6 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
         .merge(worlds)
         .merge(components)
         .merge(backups)
-        .merge(templates)
         .merge(users)
         .merge(routes::help::router(help_content))
         .merge(browser_protected)

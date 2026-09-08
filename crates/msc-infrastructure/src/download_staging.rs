@@ -6,9 +6,9 @@
 //! active use only after validation. Interrupted downloads are safely
 //! retryable. Cached files record origin and version." Every real MSC 1
 //! download workflow repeats this shape without ever sharing a primitive:
-//! `AppViewModel+PaperTemplateDownload.downloadLatestPaperTemplate`
-//! (temp file in the templates dir, `moveItem` over the final name once
-//! the download succeeds, `removeItem` the temp file on failure),
+//! the Paper JAR download workflow (a temp file beside the server-owned JAR,
+//! `moveItem` over the final name once the download succeeds, `removeItem`
+//! the temp file on failure),
 //! `AppViewModel+XboxBroadcastDownload.downloadOrUpdateXboxBroadcastJar`,
 //! and `AppViewModel+PluginManagement.downloadLatestForPlugin` ("streams
 //! the download to a temp file... moves the new file into place"). None

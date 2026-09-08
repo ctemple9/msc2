@@ -23,7 +23,6 @@ pub mod operation;
 pub mod provisioning;
 pub mod settings;
 pub mod status;
-pub mod templates;
 pub mod versions;
 pub mod worlds;
 
@@ -39,6 +38,5 @@ pub use operation::*;
 pub use provisioning::*;
 pub use settings::*;
 pub use status::*;
-pub use templates::*;
 pub use versions::*;
 pub use worlds::*;

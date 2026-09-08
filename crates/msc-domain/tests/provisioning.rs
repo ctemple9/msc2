@@ -3,8 +3,6 @@
 //! `createNewServer` makes before touching a disk. The other 12 cases are
 //! filesystem operations, deferred to P7.17/P7.18's application service;
 //! see `provisioning.rs`'s own module doc for the full scope call.
-//! `fixtures/jar-templates/`'s 10 cases are entirely template-directory
-//! I/O and are P7.15's job, not ported here at all.
 
 mod support;
 
@@ -175,29 +173,6 @@ fn provisioning_record_loader_version_called_only_for_modded_category() {
         JavaServerFlavor::NeoForge,
         Some("1.21.4"),
         None
-    ));
-}
-
-#[test]
-fn provisioning_archive_shortcut_skipped_when_save_downloaded_jars_disabled_or_non_paper() {
-    let fixture = load("archive-shortcut-skipped-when-save-downloaded-jars-disabled-or-non-paper");
-    let flavor = flavor_of(fixture.input["flavor"].as_str().unwrap());
-    let save_downloaded_jars = fixture.input["saveDownloadedJars"].as_bool().unwrap();
-    assert!(!should_use_archive_first_shortcut(
-        flavor,
-        save_downloaded_jars
-    ));
-
-    // The sibling half this fixture's own notes say is implied: Paper with
-    // the setting off also skips the shortcut.
-    assert!(!should_use_archive_first_shortcut(
-        JavaServerFlavor::Paper,
-        false
-    ));
-    // Only Paper + the setting on takes the shortcut.
-    assert!(should_use_archive_first_shortcut(
-        JavaServerFlavor::Paper,
-        true
     ));
 }
 

@@ -61,8 +61,6 @@ fn app_config_schema_app_config_full_round_trip() {
     config.java_path = str_opt(overrides, "javaPath").unwrap();
     config.extra_flags = str_opt(overrides, "extraFlags").unwrap();
     config.servers_root = str_opt(overrides, "serversRoot").unwrap();
-    config.plugin_template_dir = str_opt(overrides, "pluginTemplateDir").unwrap();
-    config.paper_template_dir = str_opt(overrides, "paperTemplateDir").unwrap();
     config.active_server_id = str_opt(overrides, "activeServerId");
     config.initial_setup_done = overrides["initialSetupDone"].as_bool().unwrap();
     config.remote_api_port = overrides["remoteAPIPort"].as_i64().unwrap();
@@ -86,7 +84,6 @@ fn app_config_schema_app_config_full_round_trip() {
         str_opt(overrides, "minecraftAvatarEditionRawValue");
     config.default_banner_color_hex = str_opt(overrides, "defaultBannerColorHex");
     config.error_popups_enabled = overrides["errorPopupsEnabled"].as_bool().unwrap();
-    config.save_downloaded_jars = overrides["saveDownloadedJars"].as_bool().unwrap();
     config.use_vm_bedrock_backend = overrides["useVMBedrockBackend"].as_bool().unwrap();
 
     let entry = &overrides["remoteAPISharedAccess"][0];
@@ -120,14 +117,6 @@ fn app_config_schema_app_config_full_round_trip() {
     assert_eq!(
         decoded.servers_root,
         expected["serversRoot"].as_str().unwrap()
-    );
-    assert_eq!(
-        decoded.plugin_template_dir,
-        expected["pluginTemplateDir"].as_str().unwrap()
-    );
-    assert_eq!(
-        decoded.paper_template_dir,
-        expected["paperTemplateDir"].as_str().unwrap()
     );
     assert_eq!(
         decoded.active_server_id.as_deref(),
@@ -209,10 +198,6 @@ fn app_config_schema_app_config_full_round_trip() {
     assert_eq!(
         decoded.error_popups_enabled,
         expected["errorPopupsEnabled"].as_bool().unwrap()
-    );
-    assert_eq!(
-        decoded.save_downloaded_jars,
-        expected["saveDownloadedJars"].as_bool().unwrap()
     );
     assert_eq!(
         decoded.use_vm_bedrock_backend,
@@ -359,10 +344,6 @@ fn app_config_schema_app_config_missing_optional_fields_get_defaults() {
     assert_eq!(
         decoded.xbox_broadcast_auto_start_enabled,
         expected["xboxBroadcastAutoStartEnabled"].as_bool().unwrap()
-    );
-    assert_eq!(
-        decoded.save_downloaded_jars,
-        expected["saveDownloadedJars"].as_bool().unwrap()
     );
 }
 

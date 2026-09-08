@@ -38,7 +38,6 @@ use msc_api::dto::{
     ServerImportScanResponseDto, ServerRenameRequestDto, ServerRenameResultDto,
     SettingsResponseDto, SettingsUpdateResultDto, SimpleResultDto, StagedUploadBeginRequestDto,
     StagedUploadBeginResultDto, StagedUploadCompleteResultDto, StagedUploadPurposeDto,
-    TemplateMutationRequestDto, TemplateMutationResultDto, TemplatesResponseDto,
     VersionChangeRequestDto, VersionChangeResultDto, VersionsResponseDto, WorldActivateResultDto,
     WorldConvertRequestDto, WorldConvertResultDto, WorldCreateRequestDto, WorldDeleteRequestDto,
     WorldDuplicateRequestDto, WorldExportRequestDto, WorldExportResultDto, WorldImportRequestDto,
@@ -192,12 +191,6 @@ pub enum Command {
     Version {
         #[command(subcommand)]
         command: VersionCommand,
-    },
-    /// List Paper/plugin templates, export the active server as one, or
-    /// create a server from one.
-    Template {
-        #[command(subcommand)]
-        command: TemplateCommand,
     },
     /// List detected Java runtimes, or read/change/install one.
     Java {
@@ -490,42 +483,6 @@ pub enum VersionCommand {
         /// waiting for the change to finish.
         #[arg(long)]
         no_wait: bool,
-    },
-}
-
-#[derive(Debug, Clone, Subcommand)]
-pub enum TemplateCommand {
-    /// List Paper and plugin templates.
-    List,
-    /// Export the active server as a template.
-    Export {
-        #[arg(long = "no-plugins")]
-        no_plugins: bool,
-    },
-    /// Create a new server from a template.
-    Create {
-        /// A template id from `msc template list`, e.g.
-        /// `paper:paper-1.21.4-build100.jar`.
-        template_id: String,
-        name: String,
-        #[arg(long)]
-        port: Option<u16>,
-        #[arg(long = "world-name")]
-        world_name: Option<String>,
-        #[arg(long)]
-        difficulty: Option<String>,
-        #[arg(long)]
-        gamemode: Option<String>,
-        #[arg(long = "world-seed")]
-        world_seed: Option<String>,
-        #[arg(long)]
-        accept_eula: bool,
-        #[arg(long = "cross-play")]
-        enable_cross_play: bool,
-        #[arg(long = "cross-play-bedrock-port")]
-        cross_play_bedrock_port: Option<u16>,
-        #[arg(long)]
-        playit: bool,
     },
 }
 
@@ -1015,7 +972,6 @@ pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
         Command::World { command } => run_world(common, command).await,
         Command::Backup { command } => run_backup(common, command).await,
         Command::Version { command } => run_version(common, command).await,
-        Command::Template { command } => run_template(common, command).await,
         Command::Java { command } => run_java(common, command).await,
         Command::Doctor { command } => run_doctor(common, command).await,
         Command::Addon { command } => run_addon(common, command).await,
@@ -2384,87 +2340,6 @@ fn print_versions(response: &VersionsResponseDto) {
     for entry in &response.versions {
         let latest = if entry.is_latest { " (latest)" } else { "" };
         println!("{} {}{}", entry.id, entry.display_label, latest);
-    }
-}
-
-async fn run_template(common: CommonArgs, command: TemplateCommand) -> Result<(), CliError> {
-    let client = RemoteClient::from_common(&common)?;
-    match command {
-        TemplateCommand::List => {
-            let response: TemplatesResponseDto = client.get_json("/v1/templates").await?;
-            if common.json {
-                print_json(&response)?;
-            } else {
-                print_templates(&response);
-            }
-            Ok(())
-        }
-        TemplateCommand::Export { no_plugins } => {
-            let body = TemplateMutationRequestDto {
-                action: "exportServer".to_string(),
-                include_plugins: Some(!no_plugins),
-                ..Default::default()
-            };
-            let result: TemplateMutationResultDto =
-                client.post_json("/v1/templates", &body).await?;
-            if common.json {
-                print_json(&result)?;
-            } else {
-                println!("{}", result.message);
-            }
-            Ok(())
-        }
-        TemplateCommand::Create {
-            template_id,
-            name,
-            port,
-            world_name,
-            difficulty,
-            gamemode,
-            world_seed,
-            accept_eula,
-            enable_cross_play,
-            cross_play_bedrock_port,
-            playit,
-        } => {
-            let body = TemplateMutationRequestDto {
-                action: "createServer".to_string(),
-                template_id: Some(template_id),
-                name: Some(name),
-                port: port.map(i64::from),
-                world_name,
-                difficulty,
-                gamemode,
-                world_seed,
-                accept_eula: accept_eula.then_some(true),
-                enable_cross_play: enable_cross_play.then_some(true),
-                cross_play_bedrock_port: cross_play_bedrock_port.map(i64::from),
-                enable_playit: playit.then_some(true),
-                ..Default::default()
-            };
-            let result: TemplateMutationResultDto =
-                client.post_json("/v1/templates", &body).await?;
-            if common.json {
-                print_json(&result)?;
-            } else {
-                println!("{}", result.message);
-                if let Some(id) = &result.created_server_id {
-                    println!("server id: {id}");
-                }
-            }
-            Ok(())
-        }
-    }
-}
-
-fn print_templates(response: &TemplatesResponseDto) {
-    println!("paper templates:");
-    for template in &response.paper_templates {
-        println!("  {} ({})", template.id, template.display_name);
-    }
-    println!("plugin templates:");
-    for template in &response.plugin_templates {
-        println!("  {} ({})", template.id, template.display_name);
     }
 }
 

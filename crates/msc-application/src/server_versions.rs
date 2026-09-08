@@ -10,8 +10,8 @@
 //! step's own "What" line asks for.
 //!
 //! **Correction to this step's own plan text**: `changeVersionProvider`
-//! never archives a jar at all — no `archiveServerJar`/
-//! `saveDownloadedJars` call anywhere in it (confirmed by reading the
+//! never archives a jar at all — it replaces the server-owned JAR directly
+//! (confirmed by reading the
 //! whole function, source line 358-573). That archiving behavior exists
 //! only in the Mac-local `downloadAndApplyJarVersion`, and even there it
 //! archives the jar it just downloaded (the new one — `destURL` is

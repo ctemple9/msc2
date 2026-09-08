@@ -49,8 +49,7 @@
     "duckdnsHostname": null,
     "playitJavaAddress": null,
     "hasShownHandbook": false,
-    "xboxBroadcastAutoStartEnabled": true,
-    "saveDownloadedJars": true
+    "xboxBroadcastAutoStartEnabled": true
   },
   "notes": "This JSON represents a minimal old config file: only the fields present in MSC's *original* schema, before every optional field added later. The critical backwards-compat property is that decoding succeeds at all and the servers array survives (isn't wiped) — every field absent from this JSON must get a safe default, not throw."
 }

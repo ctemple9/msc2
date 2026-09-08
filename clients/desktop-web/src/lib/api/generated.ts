@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 20831ab58becf407634ee379d04f6d17476c28cf91bdd176ecb7caed4c019733
+// Contract SHA-256: 600f5a4e9f433ab7a7f336fa736c107fe90d117f99ca09ada61a544a4d3c4a4e
 
 export interface paths {
   '/v1/active-server': {
@@ -5098,102 +5098,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/v1/templates': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List available Paper/plugin templates */
-    get: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        /** @description Current templates */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            'application/json': components['schemas']['TemplatesResponseDTO'];
-          };
-        };
-      };
-    };
-    put?: never;
-    /** Export the active server as a template, or create a server from one */
-    post: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody: {
-        content: {
-          'application/json': components['schemas']['TemplateMutationRequestDTO'];
-        };
-      };
-      responses: {
-        /** @description Mutation applied */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            'application/json': components['schemas']['TemplateMutationResultDTO'];
-          };
-        };
-        /** @description invalid_action / name_required / template_required / missing_server_id / missing_source_path / invalid_path (typed for every cause except missing_body/invalid_json (still Error)) */
-        400: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            'application/json': components['schemas']['ErrorDTO'];
-          };
-        };
-        /** @description server_not_found / template_not_found (typed for every cause except missing_body/invalid_json (still Error)) */
-        404: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            'application/json': components['schemas']['ErrorDTO'];
-          };
-        };
-        /** @description server_running / unsupported_template (typed for every cause except missing_body/invalid_json (still Error)) */
-        409: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            'application/json': components['schemas']['ErrorDTO'];
-          };
-        };
-        /** @description internal error (typed for every cause except missing_body/invalid_json (still Error)) */
-        500: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            'application/json': components['schemas']['ErrorDTO'];
-          };
-        };
-      };
-    };
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   '/v1/users': {
     parameters: {
       query?: never;
@@ -8068,55 +7972,6 @@ export interface components {
       offenderName: string;
       rawExcerpt: string;
       requirement?: string;
-    } & {
-      [key: string]: unknown;
-    };
-    TemplateItemDTO: {
-      build?: number;
-      displayName: string;
-      filename: string;
-      id: string;
-      kind: string;
-      modifiedAt?: string;
-      sizeBytes?: number;
-      version?: string;
-    } & {
-      [key: string]: unknown;
-    };
-    TemplateMutationRequestDTO: {
-      acceptEula?: boolean;
-      action: string;
-      crossPlayBedrockPort?: number;
-      difficulty?: string;
-      enableCrossPlay?: boolean;
-      enablePlayit?: boolean;
-      gamemode?: string;
-      includePlugins?: boolean;
-      name?: string;
-      port?: number;
-      serverId?: string;
-      templateId?: string;
-      worldName?: string;
-      worldSeed?: string;
-    } & {
-      [key: string]: unknown;
-    };
-    TemplateMutationResultDTO: {
-      createdServerId?: string;
-      createdServerName?: string;
-      exportedCount?: number;
-      message: string;
-      success: boolean;
-      templates?: components['schemas']['TemplatesResponseDTO'];
-    } & {
-      [key: string]: unknown;
-    };
-    TemplatesResponseDTO: {
-      note?: string;
-      paperTemplates: components['schemas']['TemplateItemDTO'][];
-      pluginTemplates: components['schemas']['TemplateItemDTO'][];
-      serverName?: string;
-      serverRunning: boolean;
     } & {
       [key: string]: unknown;
     };

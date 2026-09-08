@@ -16,12 +16,12 @@ You don't need to memorize this. Bookmark it and work through it step by step. Y
 
 1. **Install Java** — Download Temurin 21 from adoptium.net. This is the Java runtime the server needs. After installing, verify it in Preferences → Check for Java.
 2. **Run the Setup Wizard** — On first launch, the Setup Wizard appears. Choose a Servers Root folder (~/MinecraftServers is fine) and confirm your Java path.
-3. **Download Paper templates** — Open Archives in the sidebar → Download latest Paper. This saves the newest Paper build as a reusable template.
-4. **(Optional) Download plugin templates** — If you want Bedrock cross-play, open Archives → Download latest Geyser and Download latest Floodgate.
+3. **Add a new server** — Click Manage Servers → Create New Server. Choose Standard → Paper and give it a name. MSC downloads the server JAR directly into that server's folder.
+4. **(Optional) Enable Bedrock Cross-play** — Turn on Bedrock Cross-play while creating the server. MSC installs Geyser and Floodgate into that server's `plugins/` folder.
 
 ### Checklist: Phase 2 — Create Your Server
 
-5. **Add a new server** — Click Manage Servers → Create New Server. Choose Standard → Paper. Give it a name, choose your Paper template, set RAM (2 GB min / 4 GB max is a good start), and enable Bedrock Cross-play if needed.
+5. **Set server resources** — Choose RAM (2 GB min / 4 GB max is a good start) and review the other server options.
 6. **Accept the EULA** — Go to the Details tab for your server and click Accept EULA. The server can't start until this is done.
 7. **Configure basic settings** — In the Settings tab, set your MOTD (the message players see in the server list), max players, difficulty, and gamemode. Leave Online Mode ON.
 

@@ -48,6 +48,10 @@
     if (!onboarding) return;
     localStorage.setItem(onboarding.reopen.persistenceKey, String(next.tourComplete));
   }
+  function completeTour(): void {
+    writeState({ ...state, tourComplete: true });
+    window.dispatchEvent(new CustomEvent('msc:tour-complete'));
+  }
   function restart(): void {
     tourIndex = 0;
     writeState({ ...state, tourComplete: false });
@@ -110,8 +114,8 @@
       stepIndex={tourIndex}
       skipLabel={onboarding.skip.label}
       onAdvance={advance}
-      onSkip={() => writeState({ ...state, tourComplete: true })}
-      onComplete={() => writeState({ ...state, tourComplete: true })}
+      onSkip={completeTour}
+      onComplete={completeTour}
     />
   {/if}
 {/if}

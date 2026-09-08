@@ -68,6 +68,14 @@
     localStorage.setItem(onboarding.reopen.persistenceKey, String(next.tourComplete));
   }
 
+  onMount(() => {
+    const refreshAfterTour = () => {
+      if (onboarding) launchState = readLaunchState(launchState.setupComplete);
+    };
+    window.addEventListener('msc:tour-complete', refreshAfterTour);
+    return () => window.removeEventListener('msc:tour-complete', refreshAfterTour);
+  });
+
   onMount(async () => {
     catalog = await call(api, catalog, '/v1/help/catalog');
     routerGuides = await call(api, routerGuides, '/v1/guides/router-catalog');

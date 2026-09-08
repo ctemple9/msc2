@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 client redesign and its post-phase corrections are complete. The planned Phase 13 full-screen terminal client is retired by D-034.
-> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.160 is the current CI-maintenance step awaiting verification.
+> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.161 is the current CI-maintenance step awaiting verification.
 
 Previous phases and completed work remain in `rolling-plan-archive.md`. The archive is historical; this file contains only the current state and the next move.
 
@@ -341,4 +341,12 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **What:** Re-read the persisted onboarding flag when the Handbook’s Onboard tab opens. The global first-launch overlay correctly marked the tour complete, but the already-mounted Handbook retained its earlier in-memory state and hid the current “Restart the guide” action.
 **Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
 **Commit:** `P12.160: refresh onboarding state when opening handbook tab`
+**Batch:** solo
+
+### P12.161 — Synchronize handbook onboarding completion
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/help/FirstLaunchGate.svelte`, `clients/desktop-web/src/lib/sections/handbook/HelpSection.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Notify the mounted Handbook when the global first-launch tour completes, then refresh its persisted onboarding state. The browser workflow exposed that the tour correctly wrote local storage while the already-mounted Handbook retained the earlier in-memory state and hid “Restart the guide” on all hosted runners.
+**Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
+**Commit:** `P12.161: synchronize handbook onboarding completion`
 **Batch:** solo

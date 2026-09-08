@@ -10264,3 +10264,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check`
 **Commit:** `P12.191: record owner acceptance`
 **Batch:** solo
+
+### P12.192 — Prepare the 0.1.3 prerelease
+**Status:** DONE
+**Files:** `crates/msc-agent/Cargo.toml`, `Cargo.lock`, `clients/desktop-web/package.json`, `clients/desktop-web/package-lock.json`, `clients/desktop-web/src-tauri/Cargo.toml`, `clients/desktop-web/src-tauri/Cargo.lock`, `clients/desktop-web/src-tauri/tauri.conf.json`, `clients/desktop-web/src/lib/bundle-identity.ts`, `clients/desktop-web/src/lib/bundle-identity.test.ts`, `README.md`, `docs/msc2/rolling-plan-archive.md`
+**What:** Increment the coordinated application version from 0.1.2 to 0.1.3 and update the user-facing prerelease links, install filenames, update command, and existing identity assertion. The GitHub workflow will publish the exact `v0.1.3` tag as a prerelease.
+**Verify:** `git diff --check`
+**Commit:** `P12.192: prepare the 0.1.3 prerelease`
+**Batch:** solo

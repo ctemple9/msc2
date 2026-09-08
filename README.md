@@ -26,7 +26,7 @@ Apple Silicon macOS and ARM Linux/Windows are not part of this prerelease, The
 release is unsigned, so macOS, Windows, or Linux may show a security warning
 the first time you open or install it.
 
-[Download MSC 2 v0.1.2](https://github.com/ctemple9/msc2/releases/tag/v0.1.2)
+[Download MSC 2 v0.1.3](https://github.com/ctemple9/msc2/releases/tag/v0.1.3)
 
 ## What MSC 2 does
 
@@ -156,26 +156,26 @@ app already includes the MSC 2 agent; you do not need to download both.
 
 ### macOS desktop — Intel Macs
 
-Download the [macOS disk image from the v0.1.2 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.2), open it, and drag MSC 2 into your Applications folder.
+Download the [macOS disk image from the v0.1.3 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.3), open it, and drag MSC 2 into your Applications folder.
 
 ### Windows desktop — 64-bit Windows
 
-Download the Windows `.msi` installer from the [v0.1.2 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.2) and follow the installation prompts.
+Download the Windows `.msi` installer from the [v0.1.3 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.3) and follow the installation prompts.
 
 ### Debian or Ubuntu desktop
 
-Download the Linux `.deb` package from the [v0.1.2 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.2), then install it with:
+Download the Linux `.deb` package from the [v0.1.3 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.3), then install it with:
 
 ~~~sh
-sudo apt install ./msc2-0.1.2-linux-x86_64.deb
+sudo apt install ./msc2-0.1.3-linux-x86_64.deb
 ~~~
 
 ### Fedora or other RPM-based Linux
 
-Download the Linux `.rpm` package from the [v0.1.2 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.2), then install it with:
+Download the Linux `.rpm` package from the [v0.1.3 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.3), then install it with:
 
 ~~~sh
-sudo dnf install ./msc2-0.1.2-linux-x86_64.rpm
+sudo dnf install ./msc2-0.1.3-linux-x86_64.rpm
 ~~~
 
 ### Linux headless agent
@@ -183,12 +183,12 @@ sudo dnf install ./msc2-0.1.2-linux-x86_64.rpm
 The current Linux headless package is intended for Debian 12, Ubuntu, and
 other mainstream distributions using systemd 250 or newer.
 
-Download the archive and checksum file from the [v0.1.2 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.2), then run:
+Download the archive and checksum file from the [v0.1.3 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.3), then run:
 
 ~~~sh
 sha256sum --ignore-missing -c SHA256SUMS
 mkdir msc2-headless
-tar -xzf msc2-headless-0.1.2-linux-x86_64.tar.gz -C msc2-headless
+tar -xzf msc2-headless-0.1.3-linux-x86_64.tar.gz -C msc2-headless
 cd msc2-headless
 ./install.sh
 ~~~
@@ -204,7 +204,7 @@ Signed releases can be checked and staged locally from the agent binary:
 
 ~~~sh
 msc update check
-msc update install --release-id 0.1.2
+msc update install --release-id 0.1.3
 ~~~
 
 The install command asks for a second confirmation. Pass `--yes` for

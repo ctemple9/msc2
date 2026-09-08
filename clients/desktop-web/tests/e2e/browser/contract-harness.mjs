@@ -376,7 +376,7 @@ function hostSetupComplete(request) {
   // Native API calls are proxied by Rust, so they do not retain the webview's
   // Origin or user-agent. The native smoke runs in its own harness process and
   // explicitly opts into this isolated state through the reset endpoint below.
-  if (nativeHostSetupOverride !== undefined && !origin && cookie === '') {
+  if (nativeHostSetupOverride !== undefined && cookie === '') {
     return nativeHostSetupOverride;
   }
   const cookieSaysIncomplete = cookie
@@ -453,9 +453,7 @@ createServer(async (request, response) => {
   if (url.pathname === '/v1/config/host-setup' && request.method === 'GET')
     return json(response, { complete: hostSetupComplete(request) });
   if (url.pathname === '/v1/config/host-setup/complete' && request.method === 'POST') {
-    if (nativeHostSetupOverride !== undefined && !request.headers.origin) {
-      nativeHostSetupOverride = true;
-    }
+    if (nativeHostSetupOverride !== undefined) nativeHostSetupOverride = true;
     const requestKey = request.headers.origin
       ? `origin:${request.headers.origin}`
       : nativeHarnessRequestKey(request);

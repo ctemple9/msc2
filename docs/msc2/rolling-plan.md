@@ -438,3 +438,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check && cargo fmt --all -- --check && cd clients/desktop-web && npx prettier --check tests/e2e/browser/contract-harness.mjs tests/e2e/tauri-linux/native-renderer.test.ts && npm run format:check && npm run check`
 **Commit:** `P12.172: preserve native setup state across the desktop bridge`
 **Batch:** solo
+
+### P12.173 — Accept mixed native request origins
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/tests/e2e/browser/contract-harness.mjs`, `docs/msc2/rolling-plan.md`
+**What:** Apply the isolated native host-setup state to every cookie-less request in the native-only harness process, because WebKitGTK can alternate between requests with and without an Origin while the browser fixture remains cookie-scoped.
+**Verify:** `git diff --check && cargo fmt --all -- --check && cd clients/desktop-web && npx prettier --check tests/e2e/browser/contract-harness.mjs tests/e2e/tauri-linux/native-renderer.test.ts && npm run format:check && npm run check`
+**Commit:** `P12.173: accept mixed native request origins`
+**Batch:** solo

@@ -175,7 +175,7 @@ fn phase11_auth_conformance_design_records_the_unavailable_lan_shortcut() {
         "Tailscale encrypts the network path but is not identity",
         "not an unauthenticated\nloopback HTTP exception",
         "automatic bootstrap is unavailable",
-        "not a retroactive owner approval",
+        "ordinary remote-pairing code flow",
     ] {
         assert!(
             design.contains(required),

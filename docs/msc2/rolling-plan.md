@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 client redesign and its post-phase corrections are complete. The planned Phase 13 full-screen terminal client is retired by D-034.
-> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.137 is the current CI-maintenance step awaiting verification.
+> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.138 is the current CI-maintenance step awaiting verification.
 
 Previous phases and completed work remain in `rolling-plan-archive.md`. The archive is historical; this file contains only the current state and the next move.
 
@@ -157,4 +157,12 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **What:** Correct the final Phase 11 conformance fixture to match the approved document's exact wording: same-machine desktop bootstrap uses local IPC, not an unauthenticated loopback HTTP exception.
 **Verify:** `git diff --check && cargo fmt --all -- --check && cargo check --workspace && cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format`
 **Commit:** `P12.137: match the phase 11 authentication wording fixture`
+**Batch:** solo
+
+### P12.138 — Match the Phase 11 bootstrap fallback fixture
+**Status:** awaiting verification
+**Files:** `crates/msc-api/tests/phase11_auth_conformance.rs`, `docs/msc2/rolling-plan.md`
+**What:** Replace the last retired phrase in the Phase 11 design conformance fixture with the current documented behavior: when local bootstrap cannot prove package identity, the desktop falls back to the ordinary remote-pairing code flow.
+**Verify:** `git diff --check && cargo fmt --all -- --check && cargo check --workspace && cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format`
+**Commit:** `P12.138: match the phase 11 bootstrap fallback fixture`
 **Batch:** solo

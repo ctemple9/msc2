@@ -66,7 +66,7 @@ def check_runtime_selection() -> None:
         "crates/msc-agent/src/main.rs",
         (
             "BedrockRuntimeSelection::production(app_config)",
-            "with_app_config_and_auth_and_bedrock(",
+            "with_app_config_and_auth_and_bedrock_and_notifications(",
             "bedrock_runtime,",
         ),
     )
@@ -81,7 +81,7 @@ def check_runtime_selection() -> None:
             "BedrockRuntimeHandle::Windows",
             "BedrockRuntimeHandle::Macos",
             "pub fn state_dto(&self) -> BedrockRuntimeStateDto",
-            "backend: self.eligibility.backend.map(backend_dto)",
+            "backend: eligibility.backend.map(backend_dto)",
         ),
     )
     require(
@@ -143,9 +143,16 @@ def check_frozen_runtime_dtos() -> None:
         require("serde(rename_all = \"camelCase\")" in text, f"{relative}: runtime DTO is not camelCase-wired")
 
     require_markers(
-        "crates/msc-agent/src/routes/bedrock.rs",
+        "crates/msc-agent/src/routes/players.rs",
         (
             "struct PlayersResponse",
+            "pub async fn players",
+            "ServerType::Bedrock",
+        ),
+    )
+    require_markers(
+        "crates/msc-agent/src/routes/bedrock.rs",
+        (
             "struct AllowlistResponse",
             "struct AllowlistMutationResult",
             "runtime: Option<BedrockRuntimeStateDto>",
@@ -172,7 +179,8 @@ def check_production_smoke() -> None:
             "fixture.spawn_agent()",
             '"/v1/capabilities"',
             '"/v1/start"',
-            '"/v1/stop"',
+            "wait_for_operation(&fixture",
+            "fixture.stop(&mut agent)",
         ),
     )
     require(

@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 client redesign and its post-phase corrections are complete. The planned Phase 13 full-screen terminal client is retired by D-034.
-> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.138 is the current CI-maintenance step awaiting verification.
+> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.139 is the current CI-maintenance step awaiting verification.
 
 Previous phases and completed work remain in `rolling-plan-archive.md`. The archive is historical; this file contains only the current state and the next move.
 
@@ -165,4 +165,12 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **What:** Replace the last retired phrase in the Phase 11 design conformance fixture with the current documented behavior: when local bootstrap cannot prove package identity, the desktop falls back to the ordinary remote-pairing code flow.
 **Verify:** `git diff --check && cargo fmt --all -- --check && cargo check --workspace && cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format`
 **Commit:** `P12.138: match the phase 11 bootstrap fallback fixture`
+**Batch:** solo
+
+### P12.139 — Update the Phase 10 production wiring guard
+**Status:** awaiting verification
+**Files:** `tools/phase10/phase10-production-check.py`, `docs/msc2/rolling-plan.md`
+**What:** Update the Phase 10 static production-wiring guard to require the current lifecycle constructor, which includes the shared notification state added by the retained activity-stream surface. Keep the guard fail-closed while matching the production composition now used by `main.rs`.
+**Verify:** `git diff --check && python3 tools/phase10/phase10-production-check.py --check`
+**Commit:** `P12.139: update the phase 10 production wiring guard`
 **Batch:** solo

@@ -660,7 +660,7 @@ fn update_plugin_from_source_allowed_on_pack_managed_server() {
         &mut sources,
     )
     .unwrap();
-    assert!(result.installed_path.ends_with(".jar"));
+    assert_eq!(result.installed_path, plugins_dir.join("x.jar"));
     assert_eq!(fs.read(&result.installed_path).unwrap(), b"plugin bytes");
 }
 

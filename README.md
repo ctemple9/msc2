@@ -48,7 +48,7 @@ Java and Bedrock players normally use different server systems. MSC 2 can set
 up the tools that allow them to play together, including Geyser and Floodgate,
 where the selected server version and platform support that setup. To be clear, 
 these tools allow for Bedrock players to join Java (Paper) worlds, not the other
-way around. (Java is better though, try to get everyone on Java anyway lol)
+way around. (Java is better though, try to get everyone on Java anyway haha).
 
 That means you can run a world for a group where one person plays Java on a
 computer, someone else plays Bedrock on an Xbox, and someone else joins from a

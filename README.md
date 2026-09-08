@@ -9,8 +9,11 @@ Built by ctemple9
 > built to manage the server behind that group.
 
 MSC 2 runs Minecraft servers on a computer you own and gives you a desktop
-app, desktop browser, or terminal interface to manage them. You do not need to
-know what a `server JAR`, Java argument, port, or config file is to get started.
+app, desktop browser, or terminal interface to manage them. Running a server
+still involves server files, Java settings, network ports, and configuration.
+MSC 2 puts as much of that as possible into guided controls and explains the
+rest as you go, so you can learn what you need without having to master
+everything first.
 
 MSC 2 is **currently an unsigned prerelease**. The current release supports
 x86_64/Intel computers:
@@ -66,21 +69,25 @@ supported providers such as Modrinth and CurseForge. It checks Minecraft
 versions and loaders, resolves dependencies, and keeps client-only mods off
 the server when it can identify them.
 
-### Helps players connect
+### Learn how players can connect
 
-MSC 2 can guide you through the common ways players connect:
+Getting players connected usually requires choosing a connection method. MSC
+2's built-in handbook explains the common options, what each one does, and what
+you need to set up. Some options integrate with MSC 2; others require changes
+to your router or a separate third-party service.
 
-- LAN, when everyone is on the same network
-- Port forwarding, when you control the router
-- Playit.gg, when you do not want to change the router
-- DuckDNS, for a stable hostname
-- Tailscale, for private remote access
-- Xboxbroadcast, so Bedrock players on consoles can find the server through
-  their Friends tab
+- **LAN**, when everyone is on the same network
+- **Port forwarding**, when you control the router; the handbook includes
+  setup guides for selected routers
+- **Playit.gg**, when you do not want to change the router
+- **DuckDNS**, for using a stable hostname
+- **Tailscale**, for private connections between people in the same Tailscale
+  network
+- **Xboxbroadcast**, which helps Bedrock players on consoles find a reachable
+  server through their Friends tab
 
-These connection methods still have their own requirements. MSC 2 explains
-what is needed instead of treating “the server is running” as the same thing
-as “everyone can join.”
+MSC 2 does not automatically make every network setup work. It explains the
+pieces involved and helps you understand what still needs to be configured.
 
 ### Explains problems in plain language
 

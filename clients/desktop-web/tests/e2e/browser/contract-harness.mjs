@@ -568,7 +568,7 @@ createServer(async (request, response) => {
     return json(response, {
       success: true,
       message: 'downloaded',
-      filename: broadcastJar.filename,
+      filename: 'MCXboxBroadcastStandalone.jar',
     });
   }
   if (url.pathname === '/v1/status') {

@@ -175,6 +175,12 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format
 
+      # The Phase 9 gate requires the complete workspace regression suite in
+      # addition to the focused cross-platform smoke boundaries below.
+      - name: Workspace regression suite
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' }}
+        run: cargo nextest run --workspace --no-fail-fast
+
       # Keep these as separate, focused boundaries. A manual rerun can select
       # only the boundary that failed; the release path does not need a
       # workspace-wide test sweep.

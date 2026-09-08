@@ -61,7 +61,7 @@ test('walks a fresh profile through setup, tour pauses, handoff, and reopen', as
     .getByRole('button', { name: 'Close' })
     .click();
   await expect(
-    page.locator('.topic-reader').getByRole('heading', { name: 'Overview' }),
+    page.locator('.reader').getByRole('heading', { name: 'Overview' }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Restart this tour' }).click();
   await expect(page.getByText('Begin the guided tour.')).toBeVisible();

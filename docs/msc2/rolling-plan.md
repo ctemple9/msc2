@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 client redesign and its post-phase corrections are complete. The planned Phase 13 full-screen terminal client is retired by D-034.
-> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.156 is the current CI-maintenance step awaiting verification.
+> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.157 is the current CI-maintenance step awaiting verification.
 
 Previous phases and completed work remain in `rolling-plan-archive.md`. The archive is historical; this file contains only the current state and the next move.
 
@@ -309,4 +309,12 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **What:** Close the Add Server wizard and its parent Manage Servers sheet after the onboarding tour’s final card. The tour completion only removes the coach mark; the underlying sheets remain open, so the existing handbook assertion must first return the browser to the page that the workflow opened.
 **Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
 **Commit:** `P12.156: close browser workflow sheets before handbook assertion`
+**Batch:** solo
+
+### P12.157 — Reconcile browser handbook reader selector
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/tests/e2e/browser/workflows.spec.ts`, `docs/msc2/rolling-plan.md`
+**What:** Point the fresh-profile browser workflow at the handbook article’s current `.reader` container. The previous `.topic-reader` selector belonged to an older handbook implementation, so Chromium and WebKit completed the workflow but could not find the final Overview heading.
+**Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
+**Commit:** `P12.157: reconcile browser handbook reader selector`
 **Batch:** solo

@@ -49,7 +49,7 @@ test('walks a fresh profile through setup, tour pauses, handoff, and reopen', as
   await expect(page.getByRole('button', { name: 'Import Existing', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await expect(page.getByRole('heading', { name: "You're All Set", level: 2 })).toBeVisible();
-  await gate.getByRole('button', { name: 'Finish', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Finish', exact: true }).click();
   await expect(
     page.locator('.topic-reader').getByRole('heading', { name: 'Overview' }),
   ).toBeVisible();
@@ -80,7 +80,6 @@ test('names destructive targets and completes bounded upload and download workfl
 }) => {
   await skipFirstLaunch(page);
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
   const sections = page.getByRole('tablist', { name: 'Server sections' });
   await page.getByRole('button', { name: /Local agent/ }).click();
   await page.getByRole('menuitem', { name: 'Manage…', exact: true }).click();

@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 client redesign and its post-phase corrections are complete. The planned Phase 13 full-screen terminal client is retired by D-034.
-> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.151 is the current CI-maintenance step awaiting verification.
+> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.152 is the current CI-maintenance step awaiting verification.
 
 Previous phases and completed work remain in `rolling-plan-archive.md`. The archive is historical; this file contains only the current state and the next move.
 
@@ -269,4 +269,12 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **What:** Align the existing browser workflow checks with the current Phase 12 shared shell: server sections are a tablist, handbook is opened from the Help & guides action, the server picker owns Manage…, reconnect is represented by the agent setup screen, and the management sheet must be closed before changing tabs. Remove the temporary diagnostics now that the failures are known stale selectors rather than browser startup errors.
 **Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
 **Commit:** `P12.151: reconcile browser smoke selectors with the shared shell`
+**Batch:** solo
+
+### P12.152 — Isolate browser harness state and align onboarding anchors
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/tests/e2e/browser/contract-harness.mjs`, `clients/desktop-web/tests/e2e/browser/workflows.spec.ts`, `docs/msc2/rolling-plan.md`
+**What:** Keep the broadcast-helper fixture isolated per browser context so Chromium and WebKit cannot change each other's setup state; point the onboarding fixture at the visible server picker that users must open before choosing Manage; and update the existing browser workflow to finish the current tour dialog and avoid the removed Home heading.
+**Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
+**Commit:** `P12.152: isolate browser harness state and align onboarding anchors`
 **Batch:** solo

@@ -43,7 +43,7 @@ const onboarding = {
       id: 'manage-servers',
       title: 'Your Server List',
       body: 'Open your server list.',
-      anchor: 'ob_manage_servers',
+      anchor: 'ob_server_picker',
       requiresUserAction: true,
     },
     {
@@ -339,7 +339,8 @@ const worlds = [
   },
 ];
 const reconnectStatusRequests = new Map();
-let broadcastJar = { installed: false, filename: null };
+const broadcastJars = new Map();
+let broadcastClientSequence = 0;
 let serverCreateRequests = 0;
 
 function json(response, body, status = 200) {
@@ -367,6 +368,22 @@ function hostSetupComplete(request) {
     .split(';')
     .some((part) => part.trim() === 'msc_test_host_setup=false');
   return !cookieSaysIncomplete;
+}
+
+function cookieValue(request, name) {
+  return (request.headers.cookie ?? '')
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${name}=`))
+    ?.slice(name.length + 1);
+}
+
+function broadcastClientId(request, response) {
+  const existing = cookieValue(request, 'msc_test_broadcast');
+  if (existing) return existing;
+  const id = `broadcast-${++broadcastClientSequence}`;
+  response.setHeader('set-cookie', `msc_test_broadcast=${id}; Path=/; SameSite=Lax`);
+  return id;
 }
 
 createServer(async (request, response) => {
@@ -540,14 +557,14 @@ createServer(async (request, response) => {
     return json(response, {
       runtimes: [{ name: 'Java 21', executablePath: 'java', majorVersion: 21 }],
     });
-  if (url.pathname === '/v1/broadcast/jar-status')
-    return json(response, {
-      installed: broadcastJar.installed,
-      downloading: false,
-      filename: broadcastJar.filename,
-    });
+  if (url.pathname === '/v1/broadcast/jar-status') {
+    const clientId = broadcastClientId(request, response);
+    const jar = broadcastJars.get(clientId) ?? { installed: false, filename: null };
+    return json(response, { installed: jar.installed, downloading: false, filename: jar.filename });
+  }
   if (url.pathname === '/v1/broadcast/download-jar' && request.method === 'POST') {
-    broadcastJar = { installed: true, filename: 'MCXboxBroadcastStandalone.jar' };
+    const clientId = broadcastClientId(request, response);
+    broadcastJars.set(clientId, { installed: true, filename: 'MCXboxBroadcastStandalone.jar' });
     return json(response, {
       success: true,
       message: 'downloaded',

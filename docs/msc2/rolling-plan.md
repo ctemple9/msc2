@@ -382,3 +382,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
 **Commit:** `P12.165: reconcile Linux native renderer selectors`
 **Batch:** solo
+
+### P12.166 — Repair cross-platform client paths
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/tests/e2e/tauri-linux/native-renderer.test.ts`, `clients/desktop-web/tools/verify-bundle-identity.mjs`, `clients/desktop-web/tools/package-agent-bundle.mjs`, `clients/desktop-web/tools/prepare-agent-dev.mjs`, `docs/msc2/rolling-plan.md`
+**What:** Target the native renderer's explicit picker label and convert file URLs with `fileURLToPath`, so WebKitGTK text lookup and Windows production-bundle validation use the current UI and real platform paths.
+**Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
+**Commit:** `P12.166: repair cross-platform client paths`
+**Batch:** solo

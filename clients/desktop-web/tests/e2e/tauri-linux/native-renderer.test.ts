@@ -37,7 +37,7 @@ describe('Linux WebKitGTK native Tauri renderer', () => {
         timeoutMsg: 'The native Tauri window did not render after clearing its profile.',
       },
     );
-    await waitForText('.picker', 'Local agent');
+    await waitForText('.picker-label', 'Local agent');
     if (motionMode === 'fallback') {
       await browser.waitUntil(async () => !(await $('.splash').isExisting()), {
         timeout: 15_000,

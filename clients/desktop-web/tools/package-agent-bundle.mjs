@@ -1,7 +1,8 @@
 import { cpSync, mkdirSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const clientRoot = resolve(new URL('..', import.meta.url).pathname);
+const clientRoot = fileURLToPath(new URL('..', import.meta.url));
 const dist = join(clientRoot, 'dist');
 const destination = resolve(clientRoot, '../../crates/msc-agent/web-ui');
 

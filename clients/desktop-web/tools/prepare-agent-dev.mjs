@@ -2,8 +2,9 @@ import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync } from '
 import { createHash } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
-const clientRoot = resolve(new URL('..', import.meta.url).pathname);
+const clientRoot = fileURLToPath(new URL('..', import.meta.url));
 const workspaceRoot = resolve(clientRoot, '../..');
 const agentName = process.platform === 'win32' ? 'msc.exe' : 'msc';
 const arguments_ = process.argv.slice(2);

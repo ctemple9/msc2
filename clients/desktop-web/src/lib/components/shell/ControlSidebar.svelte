@@ -228,7 +228,7 @@
           onclick={startOrInitiate}
           anchorId="ob_start_button"
         >
-          <ShellIcon name="play" size={13} />
+          <ShellIcon name={running ? 'stop' : 'play'} size={13} />
           {running ? 'Stop' : startLabel}
         </Button>
         <Button variant="secondary" size="sm" onclick={onOpenAgentSetup}>Agent</Button>

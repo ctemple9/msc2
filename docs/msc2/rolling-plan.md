@@ -558,3 +558,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check && cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings && cargo check --workspace && cd clients/desktop-web && npm run format:check && npm run check && npm run bundle:package-agent`
 **Commit:** `P12.187: complete safe chunker world conversion`
 **Batch:** solo
+
+### P12.188 — Use a stop icon for the running server action
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/components/shell/ShellIcon.svelte`, `clients/desktop-web/src/lib/components/shell/ControlSidebar.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Replace the running server action's stale play triangle with a filled square stop icon while preserving the existing Start/Stop label and behavior.
+**Verify:** `git diff --check && cd clients/desktop-web && npx prettier --check src/lib/components/shell/ShellIcon.svelte src/lib/components/shell/ControlSidebar.svelte && npm run check`
+**Commit:** `P12.188: use a stop icon for the running server action`
+**Batch:** solo

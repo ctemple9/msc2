@@ -10,6 +10,7 @@
     | 'refresh'
     | 'selector'
     | 'play'
+    | 'stop'
     | 'chevron-right'
     | 'chevron-down'
     | 'chevron-up'
@@ -26,6 +27,7 @@
     refresh: 'M4 4v5h5M20 20v-5h-5M4.5 15a8 8 0 0 0 14.9 2.5M19.5 9A8 8 0 0 0 4.6 6.5',
     selector: 'M7 9l5-5 5 5M7 15l5 5 5-5',
     play: 'M7 5l12 7-12 7z',
+    stop: 'M7 7h10v10H7z',
     'chevron-right': 'M9 6l6 6-6 6',
     'chevron-down': 'M6 9l6 6 6-6',
     'chevron-up': 'M6 15l6-6 6 6',
@@ -37,13 +39,13 @@
   width={size}
   height={size}
   viewBox="0 0 24 24"
-  fill={name === 'play' ? 'currentColor' : 'none'}
+  fill={name === 'play' || name === 'stop' ? 'currentColor' : 'none'}
   aria-hidden="true"
   class="shell-icon"
 >
   <path
     d={paths[name]}
-    stroke={name === 'play' ? 'none' : 'currentColor'}
+    stroke={name === 'play' || name === 'stop' ? 'none' : 'currentColor'}
     stroke-width="1.8"
     stroke-linecap="round"
     stroke-linejoin="round"

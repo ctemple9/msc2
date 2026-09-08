@@ -956,6 +956,10 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
+    /* Server Setup with both Java and Bedrock selected is the tallest page.
+       Holding that measured height keeps the sheet and Next button stationary
+       while the user moves through the seven steps. */
+    height: 560px;
     padding: 20px 24px;
     overflow-y: auto;
     animation: setup-page-in 180ms ease both;
@@ -1265,6 +1269,7 @@
     background: transparent;
   }
   .compact .setup-page {
+    height: auto;
     padding: 12px 0 0;
     overflow-y: visible;
   }

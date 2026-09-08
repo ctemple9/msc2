@@ -510,3 +510,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check && npm run bundle:package-agent`
 **Commit:** `P12.181: remove accent color setup controls`
 **Batch:** solo
+
+### P12.182 — Hold first-run setup sheet size steady
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/help/SetupIntro.svelte`, `crates/msc-agent/web-ui/`, `docs/msc2/rolling-plan.md`
+**What:** Fix the seven-page first-run setup content area to the measured height of its tallest Server Setup variant, keeping the sheet and Next button stationary while pages change. Preserve the compact Handbook onboarding layout as fluid and let smaller windows scroll within the fixed area.
+**Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check && npm run bundle:package-agent`
+**Commit:** `P12.182: hold first-run setup sheet size steady`
+**Batch:** solo

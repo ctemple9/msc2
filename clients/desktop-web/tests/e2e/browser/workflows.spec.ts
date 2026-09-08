@@ -1,5 +1,16 @@
 import { expect, test, type Page } from '@playwright/test';
 
+test.beforeEach(({ page }, testInfo) => {
+  page.on('pageerror', (error) =>
+    console.error(`[browser pageerror] ${testInfo.title}: ${error.stack ?? error.message}`),
+  );
+  page.on('requestfailed', (request) =>
+    console.error(
+      `[browser requestfailed] ${testInfo.title}: ${request.method()} ${request.url()} ${request.failure()?.errorText ?? 'unknown'}`,
+    ),
+  );
+});
+
 async function skipFirstLaunch(page: Page): Promise<void> {
   await page.addInitScript(() => {
     localStorage.setItem('msc_onboarding_tour_complete', 'true');

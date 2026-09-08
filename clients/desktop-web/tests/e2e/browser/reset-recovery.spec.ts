@@ -1,5 +1,16 @@
 import { expect, test } from '@playwright/test';
 
+test.beforeEach(({ page }, testInfo) => {
+  page.on('pageerror', (error) =>
+    console.error(`[browser pageerror] ${testInfo.title}: ${error.stack ?? error.message}`),
+  );
+  page.on('requestfailed', (request) =>
+    console.error(
+      `[browser requestfailed] ${testInfo.title}: ${request.method()} ${request.url()} ${request.failure()?.errorText ?? 'unknown'}`,
+    ),
+  );
+});
+
 async function finishHostSetup(page: import('@playwright/test').Page): Promise<void> {
   const gate = page.locator('.gate');
   await expect(gate.getByRole('heading', { name: 'First-time Setup' })).toBeVisible();

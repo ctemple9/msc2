@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 client redesign and its post-phase corrections are complete. The planned Phase 13 full-screen terminal client is retired by D-034.
-> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.149 is the current CI-maintenance step awaiting verification.
+> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.150 is the current CI-maintenance step awaiting verification.
 
 Previous phases and completed work remain in `rolling-plan-archive.md`. The archive is historical; this file contains only the current state and the next move.
 
@@ -253,4 +253,12 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **What:** Keep the existing host-setup fixture state in its per-browser-context cookie instead of a process-wide user-agent map. Parallel Playwright contexts share the user-agent, so the previous map let one fresh-profile test force unrelated workflows back into the setup gate.
 **Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
 **Commit:** `P12.149: isolate browser host-setup fixture state`
+**Batch:** solo
+
+### P12.150 — Surface hosted browser startup failures
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/tests/e2e/browser/workflows.spec.ts`, `clients/desktop-web/tests/e2e/browser/reset-recovery.spec.ts`, `docs/msc2/rolling-plan.md`
+**What:** Add diagnostics to the existing browser workflow specs for page-level JavaScript errors and failed network requests. The hosted Chromium and WebKit jobs both lose the shared shell while the same contract harness succeeds locally, so the next run needs to expose the browser-side startup failure before the diagnostics are removed or converted into the smallest fix.
+**Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
+**Commit:** `P12.150: surface hosted browser startup failures`
 **Batch:** solo

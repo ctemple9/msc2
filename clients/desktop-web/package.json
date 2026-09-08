@@ -33,6 +33,7 @@
     "test:updates": "vitest run tests/updates",
     "test:e2e-tauri-linux": "wdio run wdio.conf.ts",
     "test:e2e-browser": "npm run build && playwright test",
+    "test:e2e-browser:artifact": "playwright test",
     "api:generate": "node --experimental-strip-types ./src/lib/api/generate.ts",
     "api:check": "npm run api:generate -- --check && python3 ../../tools/phase11/generated-types-check.py",
     "bundle:identity": "node ./tools/verify-bundle-identity.mjs",

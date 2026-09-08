@@ -454,3 +454,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check && cargo fmt --all -- --check && cd clients/desktop-web && npx prettier --check tests/e2e/browser/contract-harness.mjs tests/e2e/tauri-linux/native-renderer.test.ts && npm run format:check && npm run check`
 **Commit:** `P12.174: reset native host setup before origin lookup`
 **Batch:** solo
+
+### P12.175 — Narrow native smoke and split CI boundaries
+**Status:** awaiting verification
+**Files:** `.github/workflows/ci.yml`, `clients/desktop-web/package.json`, `clients/desktop-web/tests/e2e/tauri-linux/native-renderer.test.ts`, `tools/phase11/desktop-web-smoke.sh`, `tools/phase11/linux-webkitgtk-smoke.sh`, `docs/msc2/rolling-plan.md`
+**What:** Remove the native renderer's duplicate long browser journey and onboarding-transition assertion, keep only native shell/layout/motion assertions, and split CI into independently rerunnable build, Rust regression, platform smoke, client validation, browser smoke, native desktop, and headless-link jobs. Browser jobs consume the shared frontend artifact instead of rebuilding it.
+**Verify:** `git diff --check && cargo fmt --all -- --check && bash -n tools/phase11/desktop-web-smoke.sh tools/phase11/linux-webkitgtk-smoke.sh && cd clients/desktop-web && npx prettier --check package.json tests/e2e/tauri-linux/native-renderer.test.ts && npm run format:check && npm run check`
+**Commit:** `P12.175: narrow native smoke and split ci boundaries`
+**Batch:** solo

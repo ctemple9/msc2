@@ -89,9 +89,10 @@ cat >"$evidence_dir/linux-webkitgtk-native.md" <<EOF
 
 The production Svelte bundle was built into the debug Tauri binary and driven
 through Tauri's Linux WebDriver bridge to the system WebKitGTK renderer. The
-run covers the visible shell, navigation, CSS layout, dialog, deterministic
-mutation, console view, deep link, fresh-profile entry, and reduced-motion
-fallback.
+run covers the visible shell, capability-filtered navigation, CSS layout, and
+reduced-motion fallback. Browser workflow tests cover onboarding, mutation,
+dialog, and deep-link journeys; this native check stays focused on behavior
+that system WebKitGTK can uniquely prove.
 EOF
 
 echo "Linux WebKitGTK native Tauri smoke passed"

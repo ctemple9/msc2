@@ -33,7 +33,7 @@ async function waitForText(selector: string, expected: string): Promise<void> {
 }
 
 describe('Linux WebKitGTK native Tauri renderer', () => {
-  it('renders and drives the production desktop bundle through the native driver', async () => {
+  it('renders the production bundle in the native renderer', async () => {
     await browser.waitUntil(
       async () => await $('[role="tablist"][aria-label="Server sections"]').isDisplayed(),
       {
@@ -82,58 +82,6 @@ describe('Linux WebKitGTK native Tauri renderer', () => {
       visibleSectionLabels.includes('Overview'),
       `the native shell did not load capability-filtered sections: ${visibleSectionLabels.join(', ')}`,
     );
-
-    await waitForText('.gate', 'Next');
-    await (await $('//*[contains(@class, "gate")]//button[normalize-space() = "Next"]')).click();
-    await waitForText('.gate', 'Server Type');
-    await (await $('//*[contains(@class, "gate")]//button[normalize-space() = "Next"]')).click();
-    await waitForText('.gate', 'Server Setup');
-    await (await $('//*[contains(@class, "gate")]//button[normalize-space() = "Next"]')).click();
-    await waitForText('.gate', 'playit.gg');
-    await (await $('//*[contains(@class, "gate")]//button[normalize-space() = "Skip"]')).click();
-    await waitForText('.gate', 'Xbox Broadcast');
-    await (await $('//*[contains(@class, "gate")]//button[normalize-space() = "Skip"]')).click();
-    await waitForText('.gate', 'Tailscale');
-    await (await $('//*[contains(@class, "gate")]//button[normalize-space() = "Skip"]')).click();
-    await waitForText('.gate', 'You’re All Set');
-    await (
-      await $('//*[contains(@class, "gate")]//button[normalize-space() = "Get Started"]')
-    ).click();
-    await browser.execute(() => {
-      localStorage.setItem('msc_onboarding_tour_complete', 'true');
-    });
-    await browser.refresh();
-    if (motionMode === 'fallback') {
-      await browser.waitUntil(async () => !(await $('.splash').isExisting()), { timeout: 15_000 });
-    }
-
-    await (await $('[aria-label="Help & guides"]')).click();
-    await waitForText('.help-screen', 'Guides');
-
-    await (await $('.picker')).click();
-    await (await $('//*[@role="menuitem" and normalize-space() = "Manage…"]')).click();
-    const manage = await $('[role="dialog"][aria-label="Manage Servers"]');
-    await manage.waitForDisplayed();
-    await (await manage.$('[aria-label="More actions"]')).click();
-    await (await $('//*[@role="menuitem" and normalize-space() = "Remove…"]')).click();
-    await waitForText('.confirm-row', 'Remove "Survival" from this controller?');
-    await (
-      await $('//*[@role="dialog"]//button[normalize-space() = "Remove from Controller"]')
-    ).click();
-    await waitForText('.notice', 'Server record removed.');
-    await (await manage.$('[aria-label="Close"]')).click();
-
-    await browser.execute(() => {
-      history.pushState({}, '', '/hosts/local-agent/servers/survival/handbook');
-      dispatchEvent(new PopStateEvent('popstate'));
-    });
-    await waitForText('.help-screen', 'Guides');
-
-    await browser.execute(() => {
-      history.pushState({}, '', '/hosts/local-agent/servers/survival/console');
-      dispatchEvent(new PopStateEvent('popstate'));
-    });
-    await waitForText('.screen-header', 'Console');
 
     const reducedMotion = await browser.execute(
       () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,

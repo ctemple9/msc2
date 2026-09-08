@@ -13,11 +13,12 @@ on:
         type: choice
         options:
           - all
-          - raw-bedrock-import
-          - production-bedrock
-          - phase7
-          - failed-boundaries
-          - desktop
+          - rust
+          - platform
+          - client
+          - browser
+          - native
+          - headless
 
 # Cancel an in-flight run if the branch is pushed again
 concurrency:
@@ -68,10 +69,12 @@ jobs:
           fi
           echo "OK — no attribution trailers in $(git rev-list --count HEAD) commits"
 
-  # Proves the three-platform matrix works before any code depends on it.
-  # D-017: Windows validation starts with the substrate, not with the GUI.
-  toolchain:
-    name: Toolchain (${{ matrix.os }})
+  # Build the shared frontend and headless agent once per platform. Jobs that
+  # consume either artifact can be rerun without rebuilding unrelated checks.
+  platform-build:
+    name: Platform build (${{ matrix.os }})
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'platform' || inputs.scope == 'client' || inputs.scope == 'browser' || inputs.scope == 'native' || inputs.scope == 'headless' }}
+    needs: repo-invariants
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -89,9 +92,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The browser and Tauri candidates are built from this one lockfile on
-      # every native runner. The separate headless job below does not install
-      # Node or link any GUI framework.
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
@@ -104,48 +104,254 @@ jobs:
         with:
           components: rustfmt, clippy
 
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@nextest
-
-      # The Phase 6 restart-sensitive smoke (P6.25) compiles a small real
-      # fake-Paper jar with javac/jar and runs it with java, on all three
-      # platforms — pin a JDK explicitly rather than trust whatever a
-      # runner image happens to have on PATH. Also backs the Phase 7
-      # smoke below. 25, not 21: P7.31 wired MSC 2's own required-major
-      # Java guard into real creation/start, and the real Vanilla catalog
-      # this smoke resolves "latest" against now needs Java 25
-      # (Minecraft's year-based version scheme, 26.x) — 21 would make the
-      # guard correctly refuse every family's creation here. Cameron's
-      # call, P7.31's own flagged question: match CI to what MSC 2
-      # actually promises today rather than pin the smoke to an older
-      # target.
-      - name: Install JDK (Phase 6/7 smokes)
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "25"
-
-      - name: Report toolchain
-        run: |
-          rustc --version
-          cargo --version
-
       - name: Install shared client dependencies
         working-directory: clients/desktop-web
         run: npm ci
 
+      - name: Build
+        working-directory: clients/desktop-web
+        run: npm run build
+
+      - name: Verify frontend artifact identity
+        working-directory: clients/desktop-web
+        run: npm run bundle:identity
+
+      - name: Build headless agent
+        run: cargo build --workspace
+
+      - name: Collect headless artifact
+        shell: bash
+        run: |
+          dest="target/phase4-headless/${{ matrix.platform }}"
+          mkdir -p "$dest"
+          cp "target/debug/${{ matrix.binary_name }}" "$dest/${{ matrix.binary_name }}"
+
+      - name: Upload headless artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: headless-${{ matrix.platform }}
+          path: target/phase4-headless
+          if-no-files-found: error
+
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-${{ matrix.platform }}
+          path: clients/desktop-web/dist
+          if-no-files-found: error
+
+  rust-regression:
+    name: Rust regression (${{ matrix.os }})
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'rust' }}
+    needs: repo-invariants
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: macos-latest
+            platform: macos
+          - os: windows-latest
+            platform: windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: taiki-e/install-action@nextest
+      - name: Format check
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format
+      - name: Workspace regression suite
+        run: cargo nextest run --workspace --no-fail-fast --test-threads 1
+      - name: Focused raw Bedrock import check
+        run: cargo nextest run -p msc-agent raw_import_route_imports_bedrock_folder
+      - name: Focused production Bedrock smoke
+        run: cargo nextest run -p msc-agent --test bedrock_production_smoke
+      - name: Agent-served browser bundle smoke
+        run: cargo nextest run -p msc-agent --test web_ui
+
+  platform-smokes:
+    name: Platform smokes (${{ matrix.os }})
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'platform' }}
+    needs: platform-build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            binary_name: msc
+          - os: macos-latest
+            platform: macos
+            binary_name: msc
+          - os: windows-latest
+            platform: windows
+            binary_name: msc.exe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - name: Download headless agent artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: headless-${{ matrix.platform }}
+          path: target/phase4-headless
+      - name: Stage headless agent for platform smokes
+        shell: bash
+        run: |
+          mkdir -p target/debug
+          binary_path="$(find target/phase4-headless -type f -name '${{ matrix.binary_name }}' -print -quit)"
+          test -n "$binary_path"
+          cp "$binary_path" "target/debug/${{ matrix.binary_name }}"
+      - name: Phase 6 restart-sensitive public-path smoke
+        shell: bash
+        run: tools/phase6/phase6-gate-smoke.sh --synthetic
+      - name: Phase 7 provisioning and launch smoke
+        shell: bash
+        run: tools/phase7/phase7-gate-smoke.sh --synthetic
+      - name: Phase 8 add-on and modpack smoke
+        shell: bash
+        run: tools/phase8/phase8-gate-smoke.sh --synthetic
+      - name: Phase 9 networking and helper gate
+        shell: bash
+        run: python3 tools/phase9/phase9-check.py --gate
+      - name: Phase 9 networking and helper smoke
+        shell: bash
+        run: tools/phase9/phase9-smoke.sh --synthetic
+      - name: Phase 10 Bedrock synthetic smoke
+        shell: bash
+        run: bash tools/phase10/phase10-smoke.sh --synthetic
+      - name: Phase 10 Bedrock production wiring check
+        shell: bash
+        run: python3 tools/phase10/phase10-production-check.py --check
+      - name: Phase 10 Bedrock compatibility check
+        shell: bash
+        run: python3 tools/phase10/compatibility-check.py docs/msc2/bedrock/compatibility-matrix.csv
+      - name: Phase 10 Bedrock evidence checks
+        shell: bash
+        run: |
+          python3 tools/phase10/evidence-check.py --distribution
+          python3 tools/phase10/evidence-check.py --runtimes
+
+  client-validation:
+    name: Client validation (${{ matrix.os }})
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'client' }}
+    needs: platform-build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: macos-latest
+            platform: macos
+          - os: windows-latest
+            platform: windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: clients/desktop-web/package-lock.json
+      - name: Install client dependencies
+        working-directory: clients/desktop-web
+        run: npm ci
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-${{ matrix.platform }}
+          path: clients/desktop-web/dist
+      - name: Format check
+        working-directory: clients/desktop-web
+        run: npm run format:check
+      - name: Type check
+        working-directory: clients/desktop-web
+        run: npm run check
+      - name: Unit suite
+        working-directory: clients/desktop-web
+        run: npm run test:unit
+      - name: Verify frontend artifact identity
+        working-directory: clients/desktop-web
+        run: npm run bundle:identity
+
+  browser-smoke:
+    name: Browser smoke (${{ matrix.os }})
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'browser' }}
+    needs: platform-build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: macos-latest
+            platform: macos
+          - os: windows-latest
+            platform: windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: clients/desktop-web/package-lock.json
+      - name: Install client dependencies
+        working-directory: clients/desktop-web
+        run: npm ci
       - name: Install browser test engines (Linux)
         if: matrix.platform == 'linux'
         working-directory: clients/desktop-web
         run: npx playwright install --with-deps chromium webkit
-
       - name: Install browser test engines (macOS and Windows)
         if: matrix.platform != 'linux'
         working-directory: clients/desktop-web
         run: npx playwright install chromium webkit
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-${{ matrix.platform }}
+          path: clients/desktop-web/dist
+      - name: Browser core workflow smoke
+        working-directory: clients/desktop-web
+        run: npm run test:e2e-browser:artifact
 
-      # The Linux proof has to drive the real system renderer, rather than
-      # silently treating Playwright's bundled WebKit as desktop evidence.
+  native-desktop:
+    name: Native desktop (${{ matrix.os }})
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'native' }}
+    needs: platform-build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: macos-latest
+            platform: macos
+          - os: windows-latest
+            platform: windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: clients/desktop-web/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install client dependencies
+        working-directory: clients/desktop-web
+        run: npm ci
       - name: Install Linux WebKitGTK desktop-test dependencies
         if: matrix.platform == 'linux'
         run: |
@@ -165,159 +371,31 @@ jobs:
             wget \
             xvfb
           cargo install tauri-driver --version 2.0.6 --locked
-
-      - name: Build
-        run: cargo build --workspace
-
-      - name: Format check
-        run: cargo fmt --all -- --check
-
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format
-
-      # The Phase 9 gate requires the complete workspace regression suite in
-      # addition to the focused cross-platform smoke boundaries below.
-      - name: Workspace regression suite
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' }}
-        run: cargo nextest run --workspace --no-fail-fast --test-threads 1
-
-      # Keep these as separate, focused boundaries. A manual rerun can select
-      # only the boundary that failed; the release path does not need a
-      # workspace-wide test sweep.
-      - name: Focused raw Bedrock import check
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'raw-bedrock-import' }}
-        run: cargo nextest run -p msc-agent raw_import_route_imports_bedrock_folder
-
-      - name: Focused production Bedrock smoke
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'production-bedrock' || inputs.scope == 'failed-boundaries' }}
-        run: cargo nextest run -p msc-agent --test bedrock_production_smoke
-
-      # P6.27: the same committed synthetic-world smoke (P6.25) on all
-      # three platforms — no real MSC 1 data, no local absolute paths.
-      # `shell: bash` runs it through Git Bash on the Windows runner, the
-      # only leg that has never executed this script before.
-      - name: Phase 6 restart-sensitive public-path smoke
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' }}
-        shell: bash
-        run: tools/phase6/phase6-gate-smoke.sh --synthetic
-
-      # P7.29: the six-family provisioning/launch smoke (P7.27) on all
-      # three platforms, same `shell: bash` / Git Bash arrangement as the
-      # Phase 6 smoke above. Windows is the leg that matters here per
-      # D-017: a real Forge/NeoForge args-file launch, a real hard-kill
-      # mid-install, and a Windows-built `msc.exe` all go through this
-      # leg for the first time.
-      - name: Phase 7 provisioning and launch smoke
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'phase7' || inputs.scope == 'failed-boundaries' }}
-        shell: bash
-        run: tools/phase7/phase7-gate-smoke.sh --synthetic
-
-      # P8.27: add-on/modpack public-path smoke. Like the Phase 6/7
-      # scripts, run the committed Bash driver on Git Bash for Windows.
-      - name: Phase 8 add-on and modpack smoke
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' }}
-        shell: bash
-        run: tools/phase8/phase8-gate-smoke.sh --synthetic
-
-      # P9.18: the Phase 9 gate and synthetic smoke are offline and use only
-      # the committed fake transports, so they run on every toolchain leg.
-      - name: Phase 9 networking and helper gate
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' }}
-        shell: bash
-        run: python3 tools/phase9/phase9-check.py --gate
-
-      - name: Phase 9 networking and helper smoke
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' }}
-        shell: bash
-        run: tools/phase9/phase9-smoke.sh --synthetic
-
-      # P10.26: all Bedrock checks are offline and use only committed fakes,
-      # fixtures, and documentary evidence. Keep them on every toolchain leg
-      # so the Phase 10 candidate proves the same contract on all platforms.
-      - name: Phase 10 Bedrock synthetic smoke
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' }}
-        shell: bash
-        run: bash tools/phase10/phase10-smoke.sh --synthetic
-
-      - name: Phase 10 Bedrock production wiring check
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' }}
-        shell: bash
-        run: python3 tools/phase10/phase10-production-check.py --check
-
-      - name: Phase 10 Bedrock compatibility check
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' }}
-        shell: bash
-        run: python3 tools/phase10/compatibility-check.py docs/msc2/bedrock/compatibility-matrix.csv
-
-      - name: Phase 10 Bedrock evidence checks
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' }}
-        shell: bash
-        run: |
-          python3 tools/phase10/evidence-check.py --distribution
-          python3 tools/phase10/evidence-check.py --runtimes
-
-      - name: Validate the production shared client
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'desktop' }}
-        working-directory: clients/desktop-web
-        run: npm run verify:scaffold
-
-      # This exercises msc-agent's production fallback, not a second static
-      # server, so the browser candidate cannot drift from the served bundle.
-      - name: Agent-served browser bundle smoke
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'desktop' }}
-        run: cargo nextest run -p msc-agent --test web_ui
-
-      - name: Browser core workflow smoke
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'desktop' }}
-        working-directory: clients/desktop-web
-        run: npm run test:e2e-browser
-
       - name: Build real Tauri candidate (macOS and Windows)
-        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'desktop') && matrix.platform != 'linux' }}
+        if: matrix.platform != 'linux'
         working-directory: clients/desktop-web
         run: npm exec tauri build -- --debug --no-bundle
-
       - name: Exercise the Linux WebKitGTK Tauri candidate
-        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'desktop') && matrix.platform == 'linux' }}
+        if: matrix.platform == 'linux'
         shell: bash
         run: bash tools/phase11/linux-webkitgtk-smoke.sh --native
-
       - name: Record desktop and web runner evidence
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'desktop' }}
         shell: bash
         run: |
           bash tools/phase11/desktop-web-smoke.sh \
             --record-platform "${{ matrix.platform }}" \
             "target/phase11-client-evidence/${{ matrix.platform }}.md"
-
       - name: Upload desktop and web runner evidence
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'desktop' }}
         uses: actions/upload-artifact@v4
         with:
           name: desktop-web-evidence-${{ matrix.platform }}
           path: target/phase11-client-evidence
           if-no-files-found: error
 
-      - name: Collect headless artifact
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' }}
-        shell: bash
-        run: |
-          dest="target/phase4-headless/${{ matrix.platform }}"
-          mkdir -p "$dest"
-          cp "target/debug/${{ matrix.binary_name }}" "$dest/${{ matrix.binary_name }}"
-
-      - name: Upload headless artifact
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: headless-${{ matrix.platform }}
-          path: target/phase4-headless
-          if-no-files-found: error
-
   headless-link:
     name: Headless no-GUI link check
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' }}
-    needs: toolchain
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'headless' }}
+    needs: platform-build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

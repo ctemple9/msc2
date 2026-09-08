@@ -40,9 +40,12 @@ synthetic() {
   done
   require_text "$ci" "desktop-web-evidence-\${{ matrix.platform }}"
   for command in \
-    "npm run verify:scaffold" \
+    "npm run format:check" \
+    "npm run check" \
+    "npm run test:unit" \
+    "npm run bundle:identity" \
     "cargo nextest run -p msc-agent --test web_ui" \
-    "npm run test:e2e-browser" \
+    "npm run test:e2e-browser:artifact" \
     "npm exec tauri build -- --debug --no-bundle" \
     "bash tools/phase11/linux-webkitgtk-smoke.sh --native" \
     "python3 tools/phase4/headless-link-check.py --all-artifacts target/phase4-headless"; do

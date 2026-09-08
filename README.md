@@ -76,15 +76,20 @@ Getting players connected usually requires choosing a connection method. MSC
 you need to set up. Some options integrate with MSC 2; others require changes
 to your router or a separate third-party service.
 
-- **LAN**, when everyone is on the same network
-- **Port forwarding**, when you control the router; the handbook includes
-  setup guides for selected routers
-- **Playit.gg**, when you do not want to change the router
-- **DuckDNS**, for using a stable hostname
-- **Tailscale**, for private connections between people in the same Tailscale
-  network
-- **Xboxbroadcast**, which helps Bedrock players on consoles find a reachable
-  server through their Friends tab
+- [**LAN**](content/help/handbook/networking-basics.md), when everyone is on
+  the same network
+- [**Port forwarding**](content/help/handbook/port-forwarding-duckdns.md),
+  when you control the router; the handbook includes setup guides for selected
+  routers
+- [**Playit.gg**](content/help/handbook/playit.md), when you do not want to
+  change the router
+- [**DuckDNS**](content/help/handbook/port-forwarding-duckdns.md), for using a
+  stable hostname
+- [**Tailscale**](content/help/handbook/tailscale.md), for privately managing
+  the computer that runs MSC 2 from another computer
+- [**Xboxbroadcast**](content/help/handbook/xbox-broadcast.md), which helps
+  Bedrock players on consoles find a reachable server through their Friends
+  tab
 
 MSC 2 does not automatically make every network setup work. It explains the
 pieces involved and helps you understand what still needs to be configured.

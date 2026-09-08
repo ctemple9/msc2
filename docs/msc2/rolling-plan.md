@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 client redesign and its post-phase corrections are complete. The planned Phase 13 full-screen terminal client is retired by D-034.
-> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.122 is the current supported-surface audit awaiting verification.
+> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.123 is the current generated-artifact cleanup awaiting verification.
 
 Previous phases and completed work remain in `rolling-plan-archive.md`. The archive is historical; this file contains only the current state and the next move.
 
@@ -53,4 +53,12 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **What:** Reconcile the live capability documentation with the retained MSC 2 product surfaces: Tauri desktop, desktop browser, and headless CLI. Update the historical Phase 6 matrix snapshot to the current nine-column checker, label retained former-iOS notes as historical compatibility evidence, and keep the TUI/mobile retirement records and third-party/gameplay uses of “mobile” intact. No retired client source, dependency, route, or release artifact is restored.
 **Verify:** `git diff --check && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && test ! -e clients/ios && test ! -d crates/msc-agent/src/cli/tui && ! grep -RniE --binary-files=without-match 'ios_status|tui_status|ratatui|crossterm' crates clients tools .github docs/msc2/client-capability-matrix.csv docs/msc2/worlds/phase6-api.md --exclude-dir=node_modules --exclude-dir=target`
 **Commit:** `P12.122: audit supported client surfaces`
+**Batch:** solo
+
+### P12.123 — Clean disposable generated artifacts
+**Status:** DONE
+**Files:** `docs/msc2/rolling-plan.md`; local ignored build output only
+**What:** Remove disposable local build and cache output (`target`, desktop `dist`/`node_modules`, Tauri generated directories, Python `__pycache__`, and `.DS_Store`) while preserving the checked-in agent web bundle, `.claude/`, and ignored corpus data that may be intentional local evidence. This changes no product source or tracked artifact.
+**Verify:** `git diff --check && test ! -d target && test ! -d clients/desktop-web/dist && test ! -d clients/desktop-web/node_modules && test ! -d clients/desktop-web/src-tauri/target && test ! -d clients/desktop-web/src-tauri/gen && test ! -d tools/phase4/__pycache__ && test ! -d tools/phase6/__pycache__ && test ! -d tools/phase8/__pycache__ && test ! -d tools/release/__pycache__ && test -d crates/msc-agent/web-ui/assets && test -z "$(find . -name .DS_Store -print -prune)"`
+**Commit:** `P12.123: clean disposable generated artifacts`
 **Batch:** solo

@@ -78,3 +78,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `cargo check --workspace && cd clients/desktop-web && npm run check && npm run build`
 **Commit:** `P12.127: make the Bedrock version picker real`
 **Batch:** solo
+
+### P12.128 — Repair Bedrock picker configuration-error reporting
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/src/routes/versions.rs`, `docs/msc2/rolling-plan.md`
+**What:** Fix the compile error exposed by the first Tauri build of P12.127. The Bedrock version-change worker now maps its configuration mutation result explicitly, reporting persistence failures without requiring `TryMutateError<()>` to implement `Display`.
+**Verify:** `cargo check --workspace && cd clients/desktop-web && npx tauri dev`
+**Commit:** `P12.128: repair Bedrock picker configuration-error reporting`
+**Batch:** solo

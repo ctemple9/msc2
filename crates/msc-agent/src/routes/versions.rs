@@ -634,11 +634,14 @@ fn run_change_bedrock_version(
                 );
             }
             Err(error) => {
-                let _ = state.finish_operation_failure(
-                    &operation_id,
-                    "config_save_failed",
-                    error.to_string(),
-                );
+                let message = match error {
+                    TryMutateError::Domain(()) => {
+                        "Could not persist the Bedrock version selection.".to_string()
+                    }
+                    TryMutateError::Save(error) => error.to_string(),
+                };
+                let _ =
+                    state.finish_operation_failure(&operation_id, "config_save_failed", message);
             }
         },
         Err(error) => {

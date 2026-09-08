@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 12 client redesign and its post-phase corrections are complete. The planned Phase 13 full-screen terminal client is retired by D-034.
-> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.124 is the current final repository hygiene step awaiting verification.
+> ## STATUS: Phase 12 client redesign and its post-phase corrections are complete; Phase 12 remains open for bounded repository stabilization. The planned Phase 13 full-screen terminal client is retired by D-034.
+> **Next move:** Cameron reviews and verifies P12.125. Subsequent cleanup items continue as individually scoped Phase 12 steps until a distinct product goal and exit gate justify a new phase. All prior Phase 12 verification entries are recorded as DONE in the archive.
 
 Previous phases and completed work remain in `rolling-plan-archive.md`. The archive is historical; this file contains only the current state and the next move.
 
@@ -32,7 +32,7 @@ Phases come from `msc2-port-plan.md`. Steps are written as work arrives rather t
 | 9 | Networking and helpers | complete |
 | 10 | Bedrock runtimes | complete |
 | 11 | Desktop and web clients | complete |
-| 12 | Client redesign and post-phase corrections | complete |
+| 12 | Client redesign, post-phase corrections, and repository stabilization | active — stabilization stream |
 | 13 | Full-screen terminal client | retired by D-034 |
 
 ## Historical records
@@ -69,4 +69,12 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **What:** Restore the required byte-for-byte parity between the two agent-instruction copies and record the final hygiene audit. Confirm the hook path is configured, tracked build outputs and secret-like files are absent, and the working tree is clean. Historical documentation, ignored local corpus data, and the checked-in agent bundle remain untouched.
 **Verify:** `cmp -s AGENTS.md CLAUDE.md && test "$(git config --get core.hooksPath)" = .githooks && test -x .githooks/commit-msg && ! git ls-files | grep -E '(^|/)(target|dist|node_modules|__pycache__|\.DS_Store)(/|$)' && ! git ls-files | grep -E '(^|/)(\.env($|\.)|.*\.(pem|p12|key|secret))' && git diff --check && test -z "$(git status --porcelain)"`
 **Commit:** `P12.124: finish repository hygiene`
+**Batch:** solo
+
+### P12.125 — Keep post-phase cleanup in Phase 12
+**Status:** awaiting verification
+**Files:** `docs/msc2/rolling-plan.md`
+**What:** Keep the remaining repository cleanup in Phase 12 as a bounded stabilization stream. The phase already owns the client redesign and the deliberate post-phase corrections, so unrelated cleanup items of different sizes may continue as P12.126 and later without inventing a new phase for an arbitrary step-count boundary. Each item still receives its own scope, Verify command, commit, and Cameron verification. Start a new phase only when the work gains a distinct product or architectural objective with its own exit gate; the retired Phase 13 number is not reused for cleanup.
+**Verify:** `git diff --check && grep -q 'Phase 12 remains open for bounded repository stabilization' docs/msc2/rolling-plan.md && grep -q '^### P12\.125 — Keep post-phase cleanup in Phase 12$' docs/msc2/rolling-plan.md && grep -q 'active — stabilization stream' docs/msc2/rolling-plan.md`
+**Commit:** `P12.125: keep post-phase cleanup in Phase 12`
 **Batch:** solo

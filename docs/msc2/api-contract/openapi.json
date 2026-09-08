@@ -10505,6 +10505,10 @@
           "isBedrock": {
             "type": "boolean"
           },
+          "versionPolicy": {
+            "type": "string",
+            "description": "Optional Bedrock selection policy: latest tracks the catalog; pinned keeps the selected exact version."
+          },
           "versions": {
             "type": "array",
             "items": {

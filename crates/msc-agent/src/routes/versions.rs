@@ -26,15 +26,16 @@ use msc_application::server_versions::{
 use msc_domain::identity::{JavaServerFlavor, ServerType};
 use msc_domain::java_runtime::MINECRAFT_INSTALL_OPTIONS;
 use msc_domain::world::BackupAssociation;
+use msc_infrastructure::bedrock_distribution::BedrockPlatform;
 use msc_infrastructure::fs::StdFileSystem;
-use msc_infrastructure::jar_provider::HttpTransport;
+use msc_infrastructure::jar_provider::{HttpTransport, Transport};
 use msc_infrastructure::java_runtime_detection::{
     self, DetectedJavaRuntime, HostOs, default_java_runtime_search_roots,
 };
 use msc_infrastructure::java_runtime_install::{self, AdoptiumAsset, JavaRuntimeInstallError};
 
 use crate::auth::AuthenticatedCredential;
-use crate::routes::bedrock::{require_runtime, runtime_for};
+use crate::routes::bedrock::runtime_for;
 use crate::routes::lifecycle::{
     LifecycleRoutesState, TryMutateError, error_response, invalid_body, require_permission,
 };
@@ -149,6 +150,7 @@ async fn fetch_versions_response(
             current_version,
             is_bedrock: false,
             versions: Vec::new(),
+            version_policy: None,
             note: Some(format!(
                 "{} is not offered a version picker.",
                 flavor.raw_value()
@@ -169,6 +171,7 @@ async fn fetch_versions_response(
             current_version,
             is_bedrock: false,
             versions: entries.into_iter().map(version_entry_to_dto).collect(),
+            version_policy: None,
             note: None,
             runtime: None,
         },
@@ -178,6 +181,7 @@ async fn fetch_versions_response(
             current_version,
             is_bedrock: false,
             versions: Vec::new(),
+            version_policy: None,
             note: Some(format!("Could not fetch versions: {error}")),
             runtime: None,
         },
@@ -187,42 +191,101 @@ async fn fetch_versions_response(
             current_version,
             is_bedrock: false,
             versions: Vec::new(),
+            version_policy: None,
             note: Some(format!("Could not fetch versions: {join_error}")),
             runtime: None,
         },
     }
 }
 
-fn bedrock_versions_response(
+const BEDROCK_LATEST_SELECTION: &str = "LATEST";
+
+fn bedrock_platform(runtime: Option<&msc_api::dto::BedrockRuntimeStateDto>) -> BedrockPlatform {
+    match runtime.and_then(|runtime| runtime.backend) {
+        Some(msc_api::dto::BedrockBackendDto::VzSidecar) => BedrockPlatform::Linux,
+        Some(msc_api::dto::BedrockBackendDto::Native) => {
+            match runtime.and_then(|runtime| runtime.host_os) {
+                Some(msc_api::dto::HostOsDto::Windows) => BedrockPlatform::Windows,
+                _ => BedrockPlatform::Linux,
+            }
+        }
+        None => BedrockPlatform::Linux,
+    }
+}
+
+fn installed_bedrock_version(
+    server: &msc_domain::app_config_schema::ConfigServer,
+    runtime: Option<&msc_api::dto::BedrockRuntimeStateDto>,
+) -> Option<String> {
+    match msc_infrastructure::bedrock_distribution::inspect_installed_distribution(
+        &StdFileSystem,
+        Path::new(&server.server_dir),
+        bedrock_platform(runtime),
+    ) {
+        msc_infrastructure::bedrock_distribution::InstalledBedrockDistribution::Verified(
+            provenance,
+        ) => Some(provenance.version),
+        _ => server.bedrock_version.clone(),
+    }
+}
+
+async fn bedrock_versions_response(
     current_version: Option<String>,
+    version_policy: Option<String>,
     runtime: Option<msc_api::dto::BedrockRuntimeStateDto>,
 ) -> VersionsResponseDto {
-    let verified_version = runtime
-        .as_ref()
-        .and_then(|runtime| (runtime.state == "available").then(|| current_version.clone())?);
-    let versions: Vec<VersionEntryDto> = verified_version
-        .as_ref()
-        .map(|version| VersionEntryDto {
-            id: version.clone(),
-            display_label: format!("Bedrock {version}"),
-            mc_version: version.clone(),
-            loader_version: None,
-            build_label: None,
-            is_stable: true,
-            is_latest: true,
-        })
-        .into_iter()
-        .collect();
+    let platform = bedrock_platform(runtime.as_ref());
+    let catalog = tokio::task::spawn_blocking(move || {
+        let transport = HttpTransport::new();
+        let manifest = transport
+            .get(
+                &msc_application::bedrock_provisioning::production_manifest_url(),
+                "Bedrock version manifest",
+                msc_infrastructure::bedrock_distribution::BEDROCK_MANIFEST_MAX_BYTES,
+            )
+            .map_err(|error| error.to_string())?;
+        msc_infrastructure::bedrock_distribution::list_versions(&manifest, platform)
+            .map_err(|error| error.to_string())
+    })
+    .await;
+
+    let mut versions = Vec::new();
+    let note = match catalog {
+        Ok(Ok(catalog)) => {
+            if let Some(latest) = catalog.first() {
+                versions.push(VersionEntryDto {
+                    id: BEDROCK_LATEST_SELECTION.to_string(),
+                    display_label: format!("Latest available · {latest}"),
+                    mc_version: latest.clone(),
+                    loader_version: None,
+                    build_label: None,
+                    is_stable: true,
+                    is_latest: true,
+                });
+            }
+            versions.extend(catalog.into_iter().map(|version| VersionEntryDto {
+                id: version.clone(),
+                display_label: format!("Bedrock {version}"),
+                mc_version: version,
+                loader_version: None,
+                build_label: None,
+                is_stable: true,
+                is_latest: false,
+            }));
+            Some("Choose Latest to follow new Bedrock releases, or select an exact version to pin it.".to_string())
+        }
+        Ok(Err(error)) => Some(format!("Could not fetch Bedrock versions: {error}")),
+        Err(error) => Some(format!("Could not fetch Bedrock versions: {error}")),
+    };
+
     VersionsResponseDto {
         supports_versions: !versions.is_empty(),
         flavor_name: "bedrock".to_string(),
         current_version,
         is_bedrock: true,
         versions,
-        note: Some(
-            "Bedrock versions are limited to the verified distribution selected for this runtime."
-                .to_string(),
-        ),
+        version_policy,
+        note,
         runtime,
     }
 }
@@ -237,16 +300,26 @@ pub async fn versions(State(state): State<LifecycleRoutesState>) -> Response {
             current_version: None,
             is_bedrock: false,
             versions: Vec::new(),
+            version_policy: None,
             note: Some("No active server.".to_string()),
             runtime: None,
         })
         .into_response();
     };
     if server.server_type == ServerType::Bedrock {
-        return axum::Json(bedrock_versions_response(
-            server.minecraft_version.clone(),
-            runtime_for(&state),
-        ))
+        let runtime = runtime_for(&state);
+        return axum::Json(
+            bedrock_versions_response(
+                installed_bedrock_version(&server, runtime.as_ref()),
+                Some(if server.bedrock_version.is_some() {
+                    "pinned".to_string()
+                } else {
+                    "latest".to_string()
+                }),
+                runtime,
+            )
+            .await,
+        )
         .into_response();
     }
     axum::Json(fetch_versions_response(server.java_flavor, server.minecraft_version.clone()).await)
@@ -267,7 +340,8 @@ pub struct VersionsCreateQuery {
 pub async fn versions_for_create(Query(query): Query<VersionsCreateQuery>) -> Response {
     let server_type = query.server_type.as_deref().unwrap_or("java");
     if server_type.eq_ignore_ascii_case("bedrock") {
-        return axum::Json(bedrock_versions_response(None, None)).into_response();
+        return axum::Json(bedrock_versions_response(None, Some("latest".to_string()), None).await)
+            .into_response();
     }
     let flavor = query
         .java_flavor
@@ -302,14 +376,72 @@ pub async fn change_version(
         );
     };
     if server.server_type == ServerType::Bedrock {
-        if let Some(response) = require_runtime(&state) {
-            return response;
+        if let Some(runtime) = runtime_for(&state)
+            && runtime.state == "unavailable"
+        {
+            return (
+                StatusCode::CONFLICT,
+                axum::Json(runtime.capability_unavailable_error()),
+            )
+                .into_response();
         }
-        return error_response(
-            StatusCode::CONFLICT,
-            "not_supported",
-            "Bedrock version changes require a verified distribution manifest.",
-        );
+        if state.active_server_id().as_deref() == Some(server.id.as_str())
+            && state.status_snapshot().running
+        {
+            return error_response(StatusCode::CONFLICT, "server_running", "Server is running.");
+        }
+
+        let operation_id = match state.operations().begin_lifecycle(
+            "bedrock-version-change",
+            Some(server.id.clone()),
+            "Changing Bedrock version.",
+        ) {
+            Ok(id) => id,
+            Err(msc_application::operations::LifecycleOperationError::Conflict(error)) => {
+                return error_response(
+                    StatusCode::TOO_MANY_REQUESTS,
+                    "download_in_progress",
+                    &error.message,
+                );
+            }
+            Err(error) => return operation_error_response(error),
+        };
+
+        let target = body.version_id.trim().to_string();
+        let worker_state = state.clone();
+        let worker_operation_id = operation_id.clone();
+        let server_id = server.id.clone();
+        let server = server.clone();
+        tokio::spawn(async move {
+            let failure_state = worker_state.clone();
+            let failure_operation_id = worker_operation_id.clone();
+            if let Err(error) = tokio::task::spawn_blocking(move || {
+                run_change_bedrock_version(
+                    worker_state,
+                    worker_operation_id,
+                    server_id,
+                    server,
+                    target,
+                )
+            })
+            .await
+            {
+                let _ = failure_state.finish_operation_failure(
+                    &failure_operation_id,
+                    "background_worker_failed",
+                    error.to_string(),
+                );
+            }
+        });
+
+        return axum::Json(VersionChangeResultDto {
+            success: true,
+            message: "Bedrock version change started.".to_string(),
+            requires_restart: true,
+            operation_id: Some(operation_id.as_str().to_string()),
+            runtime: runtime_for(&state),
+        })
+        .into_response();
     }
     if server.server_type != ServerType::Java
         || matches!(
@@ -458,6 +590,65 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
     let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
     let y = if m <= 2 { y + 1 } else { y };
     (y, m, d)
+}
+
+fn run_change_bedrock_version(
+    state: LifecycleRoutesState,
+    operation_id: msc_domain::operation::OperationId,
+    server_id: String,
+    mut server: msc_domain::app_config_schema::ConfigServer,
+    target: String,
+) {
+    let requested_version = if target.eq_ignore_ascii_case(BEDROCK_LATEST_SELECTION) {
+        None
+    } else {
+        Some(target.clone())
+    };
+    server.bedrock_version = requested_version.clone();
+    let result = state.provision_bedrock_server(&server);
+    match result {
+        Ok(()) => match state.try_mutate_config(|config| {
+            let server = config
+                .servers
+                .iter_mut()
+                .find(|server| server.id == server_id)
+                .ok_or(())?;
+            server.bedrock_version = requested_version;
+            Ok::<(), ()>(())
+        }) {
+            Ok(()) => {
+                let mut result_map = std::collections::BTreeMap::new();
+                result_map.insert(
+                    "versionPolicy".to_string(),
+                    if target == BEDROCK_LATEST_SELECTION {
+                        "latest".to_string()
+                    } else {
+                        "pinned".to_string()
+                    },
+                );
+                result_map.insert("requestedVersion".to_string(), target.clone());
+                let _ = state.finish_operation_success(
+                    &operation_id,
+                    &format!("Changed Bedrock version selection to {target}."),
+                    result_map,
+                );
+            }
+            Err(error) => {
+                let _ = state.finish_operation_failure(
+                    &operation_id,
+                    "config_save_failed",
+                    error.to_string(),
+                );
+            }
+        },
+        Err(error) => {
+            let _ = state.finish_operation_failure(
+                &operation_id,
+                "bedrock_version_change_failed",
+                error.to_string(),
+            );
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

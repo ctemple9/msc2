@@ -70,3 +70,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `cmp -s AGENTS.md CLAUDE.md && test "$(git config --get core.hooksPath)" = .githooks && test -x .githooks/commit-msg && ! git ls-files | grep -E '(^|/)(target|dist|node_modules|__pycache__|\.DS_Store)(/|$)' && ! git ls-files | grep -E '(^|/)(\.env($|\.)|.*\.(pem|p12|key|secret))' && git diff --check && test -z "$(git status --porcelain)"`
 **Commit:** `P12.124: finish repository hygiene`
 **Batch:** solo
+
+### P12.127 — Make the Bedrock version picker real
+**Status:** awaiting verification
+**Files:** `crates/msc-infrastructure/src/bedrock_distribution.rs`, `crates/msc-api/src/dto/versions.rs`, `crates/msc-agent/src/routes/versions.rs`, `crates/msc-agent/src/routes/components.rs`, `docs/msc2/api-contract/openapi.json`, `clients/desktop-web/src/lib/api/generated.ts`, `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`, `clients/desktop-web/src/lib/sections/components/VersionPickerSheet.svelte`
+**What:** Replace the Bedrock placeholder with a catalog-backed picker. Report the installed distribution instead of the Java-only version field, expose `Latest` plus exact Bedrock releases, preserve whether the server tracks latest or pins an exact version, show the Bedrock component row, and route an explicit approved selection through the existing checksum-verified staged installer. Selecting Latest when a newer release exists shows an approval prompt before downloading. Automatic latest reconciliation at server start remains a separate safety step.
+**Verify:** `cargo check --workspace && cd clients/desktop-web && npm run check && npm run build`
+**Commit:** `P12.127: make the Bedrock version picker real`
+**Batch:** solo

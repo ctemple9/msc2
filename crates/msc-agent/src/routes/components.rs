@@ -281,7 +281,25 @@ fn is_paper_like(flavor: JavaServerFlavor) -> bool {
 
 fn component_rows(server: &msc_domain::app_config_schema::ConfigServer) -> Vec<ComponentStatusDto> {
     let mut rows = Vec::new();
-    if server.server_type == ServerType::Java {
+    if server.server_type == ServerType::Bedrock {
+        rows.push(ComponentStatusDto {
+            name: "bedrock".to_string(),
+            installed_build: None,
+            latest_build: None,
+            installed_version: server.bedrock_version.clone(),
+            latest_version: None,
+            is_up_to_date: true,
+            installed_label: Some(
+                server
+                    .bedrock_version
+                    .as_deref()
+                    .map(|version| format!("Pinned · {version}"))
+                    .unwrap_or_else(|| "Latest · approval required for updates".to_string()),
+            ),
+            updatable: Some(true),
+            note: None,
+        });
+    } else if server.server_type == ServerType::Java {
         let installed_label = match (&server.minecraft_version, &server.server_build) {
             (Some(version), Some(build)) => Some(format!("{version} · {build}")),
             (Some(version), None) => Some(version.clone()),

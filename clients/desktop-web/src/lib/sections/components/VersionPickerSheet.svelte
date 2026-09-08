@@ -25,8 +25,19 @@
   let state: State = { kind: 'loading' };
   let selectedId: string | undefined;
   let applying = false;
+  let approvalPending = false;
   let statusLine = '';
   let failureMessage = '';
+
+  $: latestEntry =
+    state.kind === 'ready' && state.response.isBedrock
+      ? state.response.versions.find((entry) => entry.id === 'LATEST')
+      : undefined;
+  $: latestUpdateAvailable =
+    !!latestEntry &&
+    state.kind === 'ready' &&
+    !!state.response.currentVersion &&
+    latestEntry.mcVersion !== state.response.currentVersion;
 
   onMount(async () => {
     if (!api) {
@@ -36,8 +47,11 @@
     try {
       const response = await api.get<Schema['VersionsResponseDTO']>(componentPaths.versions);
       state = { kind: 'ready', response };
-      selectedId =
-        response.versions.find((entry) => entry.isLatest)?.id ?? response.versions[0]?.id;
+      selectedId = response.isBedrock
+        ? response.versionPolicy === 'latest'
+          ? 'LATEST'
+          : response.currentVersion ?? response.versions[0]?.id
+        : response.versions.find((entry) => entry.isLatest)?.id ?? response.versions[0]?.id;
     } catch (error) {
       state = {
         kind: 'unavailable',
@@ -48,6 +62,16 @@
 
   async function apply(): Promise<void> {
     if (!selectedId) return;
+    if (
+      state.kind === 'ready' &&
+      state.response.isBedrock &&
+      selectedId === 'LATEST' &&
+      latestUpdateAvailable &&
+      !approvalPending
+    ) {
+      approvalPending = true;
+      return;
+    }
     applying = true;
     failureMessage = '';
     statusLine = 'Applying version…';
@@ -88,6 +112,13 @@
     {#if serverRunning}
       <p class="explain warn">Stop the server before changing its version.</p>
     {/if}
+    {#if state.response.note}<p class="explain">{state.response.note}</p>{/if}
+    {#if approvalPending}
+      <p class="explain warn">
+        Bedrock {latestEntry?.mcVersion} is available. Approve the download and installation? Your
+        world and server settings will be preserved.
+      </p>
+    {/if}
     {#if state.response.versions.length === 0}
       <p class="explain">No versions were reported for {state.response.flavorName}.</p>
     {:else}
@@ -97,7 +128,10 @@
             type="button"
             class="row"
             class:selected={selectedId === entry.id}
-            onclick={() => (selectedId = entry.id)}
+            onclick={() => {
+              selectedId = entry.id;
+              approvalPending = false;
+            }}
           >
             <span class="label">{entry.displayLabel}</span>
             {#if entry.isLatest}<span class="tag">Latest</span>{/if}
@@ -113,7 +147,7 @@
         disabled={!selectedId || serverRunning || state.response.versions.length === 0}
         onclick={() => void apply()}
       >
-        Apply
+        {approvalPending ? 'Approve update' : 'Apply'}
       </Button>
     </div>
   {/if}

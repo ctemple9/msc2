@@ -104,7 +104,7 @@
   $: crossplayEligible = supportsCrossplay(activeServer);
   $: serverRunning = health.serverRunning;
   $: primaryComponent = components.components.find(
-    (component) => component.name === activeServer?.javaFlavor,
+    (component) => component.name === (isBedrock ? 'bedrock' : activeServer?.javaFlavor),
   );
   $: addonFolderName = isModded ? 'mods' : 'plugins';
   $: anyAddonUpdatable = addons.some((addon) => addon.bucket === 'updateAvailable');

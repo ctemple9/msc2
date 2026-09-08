@@ -37,6 +37,10 @@ pub struct VersionsResponseDto {
     pub current_version: Option<String>,
     pub is_bedrock: bool,
     pub versions: Vec<VersionEntryDto>,
+    /// Bedrock only: `latest` tracks the latest catalog release, while
+    /// `pinned` keeps the selected version stable until the user changes it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version_policy: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -309,6 +309,49 @@ pub fn resolve_endstone_version(
     }
 }
 
+/// Lists the numeric releases exposed by either the original Bedrock
+/// manifest or Endstone's current two-document registry. The picker only
+/// needs the version identities; checksums and archive URLs are resolved and
+/// verified later when the user approves an installation.
+pub fn list_versions(
+    manifest_bytes: &[u8],
+    platform: BedrockPlatform,
+) -> Result<Vec<String>, BedrockDistributionError> {
+    if let Ok(manifest) = serde_json::from_slice::<Manifest>(manifest_bytes) {
+        let mut versions: Vec<String> = manifest
+            .release
+            .iter()
+            .filter_map(|(key, entries)| {
+                let entry = entries.get(platform.manifest_key())?;
+                let version = version_from_url(&entry.url).unwrap_or_else(|| key.clone());
+                numeric_version(&version).map(|_| version)
+            })
+            .collect();
+        versions.sort_by(|left, right| compare_numeric_versions(right, left));
+        versions.dedup();
+        if !versions.is_empty() {
+            return Ok(versions);
+        }
+    }
+
+    let registry: EndstoneVersionRegistry = serde_json::from_slice(manifest_bytes)
+        .map_err(|error| BedrockDistributionError::Manifest(error.to_string()))?;
+    let mut versions: Vec<String> = registry
+        .release
+        .versions
+        .into_iter()
+        .filter(|version| numeric_version(version).is_some())
+        .collect();
+    versions.sort_by(|left, right| compare_numeric_versions(right, left));
+    versions.dedup();
+    if versions.is_empty() {
+        return Err(BedrockDistributionError::Manifest(
+            "release registry has no numeric versions".into(),
+        ));
+    }
+    Ok(versions)
+}
+
 /// Resolves one platform's verified archive from Endstone's per-version
 /// metadata document. The metadata contains the official Mojang URL and the
 /// published SHA-256 that the provisioner requires.

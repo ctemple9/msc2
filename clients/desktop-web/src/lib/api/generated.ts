@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 600f5a4e9f433ab7a7f336fa736c107fe90d117f99ca09ada61a544a4d3c4a4e
+// Contract SHA-256: 5f796ba29186eaddd90704d0404f6ad74b366fb654c00e275bccf85abb9def2a
 
 export interface paths {
   '/v1/active-server': {
@@ -8080,6 +8080,8 @@ export interface components {
       /** @description Optional Bedrock runtime state. */
       runtime?: components['schemas']['BedrockRuntimeStateDTO'];
       supportsVersions: boolean;
+      /** @description Optional Bedrock selection policy: latest tracks the catalog; pinned keeps the selected exact version. */
+      versionPolicy?: string;
       versions: components['schemas']['VersionEntryDTO'][];
     } & {
       [key: string]: unknown;

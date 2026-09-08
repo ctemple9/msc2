@@ -366,3 +366,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
 **Commit:** `P12.163: synchronize handbook setup completion`
 **Batch:** solo
+
+### P12.164 — Normalize source line endings across hosted runners
+**Status:** awaiting verification
+**Files:** `.gitattributes`, `docs/msc2/rolling-plan.md`
+**What:** Declare LF as the repository line ending for text files so Windows checkouts do not turn every formatted source file into CRLF and fail the shared client format check.
+**Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
+**Commit:** `P12.164: normalize source line endings across hosted runners`
+**Batch:** solo

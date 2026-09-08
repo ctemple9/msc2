@@ -1,3 +1,7 @@
+# Keep source files byte-identical across hosted runners so format checks do not
+# interpret Windows checkout line endings as repository-wide style changes.
+* text=auto eol=lf
+
 # Vite's minified assets are copied byte-for-byte into the headless agent.
 # Do not normalize their significant end-of-line bytes during diff checks.
 crates/msc-agent/web-ui/** -whitespace

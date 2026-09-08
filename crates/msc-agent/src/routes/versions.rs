@@ -1317,7 +1317,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn versions_for_create_defaults_bedrock_to_not_implemented() {
+    async fn versions_for_create_exposes_bedrock_latest_policy() {
         let query = VersionsCreateQuery {
             server_type: Some("bedrock".to_string()),
             java_flavor: None,
@@ -1326,7 +1326,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = response_body(response).await;
         assert!(body.contains("\"isBedrock\":true"));
-        assert!(body.contains("\"supportsVersions\":false"));
+        assert!(body.contains("\"versionPolicy\":\"latest\""));
     }
 
     #[tokio::test]

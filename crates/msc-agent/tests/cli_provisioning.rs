@@ -13,7 +13,7 @@ fn cli_provisioning_root_help_lists_new_commands() {
 
     assert!(output.status.success(), "stderr: {}", stderr(&output));
     let stdout = stdout(&output);
-    for command in ["version", "template", "java", "doctor"] {
+    for command in ["version", "java", "doctor"] {
         assert!(stdout.contains(command), "missing `{command}` in: {stdout}");
     }
 }
@@ -98,26 +98,6 @@ fn cli_provisioning_version_set_help_shows_loader_version_and_no_wait() {
     assert!(stdout.contains("<VERSION_ID>"));
     assert!(stdout.contains("--loader-version"));
     assert!(stdout.contains("--no-wait"));
-}
-
-#[test]
-fn cli_provisioning_template_help_lists_every_verb() {
-    let output = run_cli(&["template", "--help"], &[]);
-
-    assert!(output.status.success(), "stderr: {}", stderr(&output));
-    let stdout = stdout(&output);
-    for verb in ["list", "export", "create"] {
-        assert!(stdout.contains(verb), "missing `{verb}` in: {stdout}");
-    }
-}
-
-#[test]
-fn cli_provisioning_template_create_help_shows_template_id_and_name() {
-    let output = run_cli(&["template", "create", "--help"], &[]);
-    assert!(output.status.success(), "stderr: {}", stderr(&output));
-    let stdout = stdout(&output);
-    assert!(stdout.contains("<TEMPLATE_ID>"));
-    assert!(stdout.contains("<NAME>"));
 }
 
 #[test]

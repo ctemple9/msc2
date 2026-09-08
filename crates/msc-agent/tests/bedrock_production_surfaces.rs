@@ -63,11 +63,19 @@ fn production_router_exposes_shared_bedrock_surfaces_and_runtime_errors() {
     assert_eq!(allowlist["runtime"]["state"], fixture.runtime_state());
     assert!(fixture.server_dir.join("allowlist.json").is_file());
 
+    let (status, version_change) = fixture.request(
+        "POST",
+        "/v1/components/version",
+        Some(r#"{"versionId":"1.21.80.3"}"#),
+    );
+    assert_eq!(status, 200, "Bedrock version change: {version_change}");
+    assert_eq!(version_change["success"], true);
+    assert!(version_change["operationId"].is_string());
+
     for (path, body) in [
         ("/v1/start", "{}"),
         ("/v1/command", r#"{"command":"say hello"}"#),
         ("/v1/backups/now", "{}"),
-        ("/v1/components/version", r#"{"versionId":"1.21.80.3"}"#),
         ("/v1/worlds/repair", r#"{"slotId":"missing"}"#),
     ] {
         let (status, error) = fixture.request("POST", path, Some(body));

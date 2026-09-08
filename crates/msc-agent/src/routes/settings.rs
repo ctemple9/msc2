@@ -843,7 +843,7 @@ mod tests {
             .unwrap();
         let result: SettingsUpdateResultDto = serde_json::from_slice(&body).unwrap();
         assert!(result.success);
-        assert_eq!(result.message, "saved");
+        assert_eq!(result.message, "saved_with_rejections");
         assert_eq!(result.applied_keys, vec!["max-players"]);
         assert_eq!(result.rejected.unwrap()[0].key, "difficulty");
 

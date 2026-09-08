@@ -173,7 +173,7 @@ fn phase11_auth_conformance_design_records_the_unavailable_lan_shortcut() {
     for required in [
         "General-LAN management",
         "Tailscale encrypts the network path but is not identity",
-        "never an unauthenticated\n+loopback HTTP exception",
+        "never an HTTP loopback exception",
         "automatic bootstrap is unavailable",
         "not a retroactive owner approval",
     ] {

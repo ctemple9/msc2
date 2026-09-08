@@ -44,7 +44,9 @@ describe('server editor memory settings', () => {
     expect(sheetSource).toContain('overflow-y: auto');
     expect(sheetSource).toContain('scrollbar-width: none');
     expect(sheetSource).toContain('.tab-panel::-webkit-scrollbar');
-    expect(javaSource).toContain('.list::-webkit-scrollbar');
+    expect(javaSource).toContain(
+      '<div class="list" role="listbox" aria-label="Detected Java runtimes">',
+    );
   });
 
   it('labels the services tab clearly and leaves resource packs out of it', () => {

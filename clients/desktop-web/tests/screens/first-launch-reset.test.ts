@@ -11,13 +11,13 @@ describe('first-launch reset recovery', () => {
     expect(setupSource).toContain('Start and Continue');
     expect(setupSource).toContain("readiness === 'incompatible'");
     expect(setupSource).toContain('Repair service');
-    expect(setupSource).toContain('Closing the app window never stops the service');
+    expect(setupSource).toContain('Closing this window is safe.');
   });
 
   it('pairs a reset remote host with a new host identity', () => {
-    expect(setupSource).toContain('Pair this host again');
+    expect(setupSource).toContain('To replace this client’s credential');
     expect(setupSource).toContain('msc pairing create');
-    expect(setupSource).toContain('Pair Again');
+    expect(setupSource).toContain('Pair again');
     expect(appSource).toContain('async function pairAgain');
     expect(appSource).toContain('redeemRemotePairing(previousHost.baseUrl, pairingCode)');
     expect(appSource).toContain('hostStore.removeHost(previousHost.id)');

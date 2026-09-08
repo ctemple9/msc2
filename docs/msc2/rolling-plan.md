@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 client redesign and its post-phase corrections are complete. The planned Phase 13 full-screen terminal client is retired by D-034.
-> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.140 is the current CI-maintenance step awaiting verification.
+> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.141 is the current CI-maintenance step awaiting verification.
 
 Previous phases and completed work remain in `rolling-plan-archive.md`. The archive is historical; this file contains only the current state and the next move.
 
@@ -181,4 +181,12 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **What:** Apply the repository’s Prettier formatting to the existing Bedrock-aware version picker so the shared desktop-client validation passes on macOS, Windows, and Linux. This is formatting-only; behavior and API wiring are unchanged.
 **Verify:** `cd clients/desktop-web && npm run format:check`
 **Commit:** `P12.140: format the desktop version picker`
+**Batch:** solo
+
+### P12.141 — Reconcile stale desktop client CI fixtures
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/bundle-identity.test.ts`, `clients/desktop-web/tests/agent-install/agent-install.test.ts`, `clients/desktop-web/tests/e2e/tauri-linux/native-renderer.test.ts`, `clients/desktop-web/tests/playit/playit-setup.test.ts`, `clients/desktop-web/tests/screens/first-launch-reset.test.ts`, `clients/desktop-web/tests/screens/server-editor.test.ts`, `docs/msc2/rolling-plan.md`
+**What:** Align the existing desktop-client source assertions with the current Phase 12 copy, layout, bundle identity, Playit ownership, and editor structure. Correct the Linux Tauri smoke’s test-runner import so WebdriverIO supplies the Mocha globals at runtime. No new tests are added.
+**Verify:** `cd clients/desktop-web && npm run format:check && npm run check`
+**Commit:** `P12.141: reconcile stale desktop client CI fixtures`
 **Batch:** solo

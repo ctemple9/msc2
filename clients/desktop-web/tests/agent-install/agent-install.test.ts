@@ -47,7 +47,7 @@ describe('local agent installation boundary', () => {
   });
 
   it('states that closing the window does not stop a service or server', () => {
-    expect(setupSource).toContain('Closing this window does not stop it or any');
+    expect(setupSource).toContain('Closing this window is safe.');
   });
 
   it('labels a healthy connection as connected', () => {
@@ -56,8 +56,8 @@ describe('local agent installation boundary', () => {
   });
 
   it('keeps connection, service, and service controls in equal columns', () => {
-    expect(setupSource).toContain('<div class="screen-grid two">');
-    expect(setupSource).toContain('Install, start, stop, or repair the agent.');
+    expect(setupSource).toContain('<div class="actions">');
+    expect(setupSource).toContain('Install, start, stop, or repair the background service.');
     expect(setupSource).toContain(
       'onclick={() => void (onAgentRetry ? onAgentRetry() : refresh())}',
     );
@@ -68,8 +68,8 @@ describe('local agent installation boundary', () => {
     expect(setupSource).toContain('MSC has two parts');
     expect(setupSource).toContain('The control panel');
     expect(setupSource).toContain('The agent');
-    expect(setupSource).toContain('The control panel is like a remote control');
-    expect(setupSource).toContain('One control panel can connect to multiple agents');
+    expect(setupSource).toContain('The control panel is the app you use.');
+    expect(setupSource).toContain('The agent owns the work.');
   });
 
   it('keeps an explicitly stopped agent stopped until the user starts it', async () => {

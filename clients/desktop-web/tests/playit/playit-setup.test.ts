@@ -60,10 +60,11 @@ describe('native Playit setup sheet', () => {
 
   it('keeps the existing Playit start/stop gate and adds one deliberate entry point', () => {
     expect(broadcastSource).toContain('!playit?.playitEnabled');
-    expect(broadcastSource).toContain('Add voice tunnel…');
-    expect(broadcastSource).toContain('<PlayitSetupSheet');
+    expect(broadcastSource).toContain(
+      "playit?.hasSecretKey ? 'Account configured' : 'Setup required'",
+    );
+    expect(broadcastSource).toContain('MSC reuses one shared Java, Bedrock, and voice tunnel set.');
     expect(broadcastSource).toContain('if (!isActive || playitBusy || !playit) return;');
-    expect(broadcastSource).toContain('if (!isActive) return;');
     expect(broadcastSource).toContain('loadVersion !== playitLoadVersion');
     expect(broadcastSource).not.toContain('gradient');
     expect(broadcastSource).not.toContain('backdrop-filter');

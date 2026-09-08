@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { browser, $ } from '@wdio/globals';
-import { describe, it } from 'mocha';
 
 const screenshotPath = process.env.MSC_WEBKITGTK_SCREENSHOT;
 const motionMode = process.env.MSC_EXPECT_MOTION ?? 'fallback';

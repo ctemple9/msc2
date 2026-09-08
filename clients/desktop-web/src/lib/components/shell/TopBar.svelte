@@ -21,7 +21,7 @@
 <div class="topbar">
   <div class="titles">
     <span class="title">Minecraft Server Controller</span>
-    <span class="subtitle">by ctemple9h</span>
+    <span class="subtitle">by ctemple9</span>
   </div>
 
   {#if running}

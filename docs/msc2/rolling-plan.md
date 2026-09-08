@@ -94,3 +94,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check && grep -q 'by ctemple9h' clients/desktop-web/src/lib/components/shell/TopBar.svelte`
 **Commit:** `P12.129: update the desktop top-bar byline`
 **Batch:** solo
+
+### P12.130 — Correct the desktop top-bar byline
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/components/shell/TopBar.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Correct the owner-requested top-bar byline from `ctemple9h` to `ctemple9`.
+**Verify:** `git diff --check && grep -q 'by ctemple9' clients/desktop-web/src/lib/components/shell/TopBar.svelte && ! grep -q 'by ctemple9h' clients/desktop-web/src/lib/components/shell/TopBar.svelte`
+**Commit:** `P12.130: correct the desktop top-bar byline`
+**Batch:** solo

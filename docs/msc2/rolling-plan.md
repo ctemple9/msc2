@@ -406,3 +406,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check && cargo fmt --all -- --check && cd clients/desktop-web && npx prettier --check tests/e2e/browser/contract-harness.mjs tests/e2e/tauri-linux/native-renderer.test.ts && npm run format:check && npm run check`
 **Commit:** `P12.168: bound hosted process and native view timing`
 **Batch:** solo
+
+### P12.169 — Preserve native host setup fixture state
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/tests/e2e/browser/contract-harness.mjs`, `docs/msc2/rolling-plan.md`
+**What:** Keep host-setup state for the native Tauri origin in the deterministic contract harness because WebKitGTK does not retain the harness's cross-origin test cookie; browser tests continue using their cookie-backed state.
+**Verify:** `git diff --check && cargo fmt --all -- --check && cd clients/desktop-web && npx prettier --check tests/e2e/browser/contract-harness.mjs tests/e2e/tauri-linux/native-renderer.test.ts && npm run format:check && npm run check`
+**Commit:** `P12.169: preserve native host setup fixture state`
+**Batch:** solo

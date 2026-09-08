@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 client redesign and its post-phase corrections are complete. The planned Phase 13 full-screen terminal client is retired by D-034.
-> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.150 is the current CI-maintenance step awaiting verification.
+> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.151 is the current CI-maintenance step awaiting verification.
 
 Previous phases and completed work remain in `rolling-plan-archive.md`. The archive is historical; this file contains only the current state and the next move.
 
@@ -261,4 +261,12 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **What:** Add diagnostics to the existing browser workflow specs for page-level JavaScript errors and failed network requests. The hosted Chromium and WebKit jobs both lose the shared shell while the same contract harness succeeds locally, so the next run needs to expose the browser-side startup failure before the diagnostics are removed or converted into the smallest fix.
 **Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
 **Commit:** `P12.150: surface hosted browser startup failures`
+**Batch:** solo
+
+### P12.151 — Reconcile browser smoke selectors with the shared shell
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/tests/e2e/browser/workflows.spec.ts`, `clients/desktop-web/tests/e2e/browser/reset-recovery.spec.ts`, `docs/msc2/rolling-plan.md`
+**What:** Align the existing browser workflow checks with the current Phase 12 shared shell: server sections are a tablist, handbook is opened from the Help & guides action, the server picker owns Manage…, reconnect is represented by the agent setup screen, and the management sheet must be closed before changing tabs. Remove the temporary diagnostics now that the failures are known stale selectors rather than browser startup errors.
+**Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
+**Commit:** `P12.151: reconcile browser smoke selectors with the shared shell`
 **Batch:** solo

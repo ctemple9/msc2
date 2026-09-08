@@ -1,16 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
 
-test.beforeEach(({ page }, testInfo) => {
-  page.on('pageerror', (error) =>
-    console.error(`[browser pageerror] ${testInfo.title}: ${error.stack ?? error.message}`),
-  );
-  page.on('requestfailed', (request) =>
-    console.error(
-      `[browser requestfailed] ${testInfo.title}: ${request.method()} ${request.url()} ${request.failure()?.errorText ?? 'unknown'}`,
-    ),
-  );
-});
-
 async function skipFirstLaunch(page: Page): Promise<void> {
   await page.addInitScript(() => {
     localStorage.setItem('msc_onboarding_tour_complete', 'true');
@@ -22,12 +11,13 @@ test('renders the production bundle at wide and narrow widths with keyboard navi
 }) => {
   await skipFirstLaunch(page);
   await page.goto('/');
-  await expect(page.getByRole('navigation', { name: 'Sections' })).toBeVisible();
-  await page.getByRole('button', { name: 'Handbook' }).focus();
+  const sections = page.getByRole('tablist', { name: 'Server sections' });
+  await expect(sections).toBeVisible();
+  await page.getByRole('button', { name: 'Help & guides' }).focus();
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('heading', { name: 'Help and guides' })).toBeVisible();
+  await expect(page.getByText('Guides', { exact: true })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.getByRole('navigation', { name: 'Mobile navigation' })).toBeVisible();
+  await expect(sections).toBeVisible();
 });
 
 test('walks a fresh profile through setup, tour pauses, handoff, and reopen', async ({ page }) => {
@@ -51,8 +41,8 @@ test('walks a fresh profile through setup, tour pauses, handoff, and reopen', as
   await gate.getByRole('button', { name: 'Get Started' }).click();
   await expect(page.getByText('Begin the guided tour.')).toBeVisible();
   await page.getByRole('button', { name: "Let's go →" }).click();
-  await expect(page.getByRole('button', { name: 'Manage…', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Manage…', exact: true }).click();
+  await page.getByRole('button', { name: /Local agent/ }).click();
+  await page.getByRole('menuitem', { name: 'Manage…', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Add Server…', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Add Server…', exact: true }).click();
   await expect(page.locator('button.path-card.selected')).toContainText('Start Fresh');
@@ -78,11 +68,11 @@ test('keeps the local host identity and presents reconnect fallback', async ({ p
   await skipFirstLaunch(page);
   await page.setExtraHTTPHeaders({ 'x-msc-test-reconnect': 'true' });
   await page.goto('/');
-  await expect(page.getByText('Local agent', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Refresh host' }).click();
-  await expect(page.getByText('Reconnecting', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Refresh host' }).click();
-  await expect(page.getByRole('main').getByText('Connected', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Local agent/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Refresh' }).click();
+  await expect(page.getByRole('heading', { name: 'Connect MSC 2 to an agent' })).toBeVisible();
+  await page.getByRole('button', { name: 'Refresh' }).click();
+  await expect(page.getByText('Connected', { exact: true }).first()).toBeVisible();
 });
 
 test('names destructive targets and completes bounded upload and download workflows', async ({
@@ -91,16 +81,18 @@ test('names destructive targets and completes bounded upload and download workfl
   await skipFirstLaunch(page);
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
-  const sections = page.getByRole('navigation', { name: 'Sections' });
-  await sections.getByRole('button', { name: 'Fleet fleet', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Servers', exact: true })).toBeVisible();
+  const sections = page.getByRole('tablist', { name: 'Server sections' });
+  await page.getByRole('button', { name: /Local agent/ }).click();
+  await page.getByRole('menuitem', { name: 'Manage…', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Manage Servers' })).toBeVisible();
   await page.getByRole('button', { name: 'Delete server' }).first().click();
   const dialog = page.getByRole('alertdialog');
   await expect(dialog.getByText('Host: local-agent · Server: Survival')).toBeVisible();
   await dialog.getByRole('button', { name: 'Delete server' }).click();
   await expect(page.getByText('Server record removed.')).toBeVisible();
 
-  await sections.getByRole('button', { name: 'Worlds worlds', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Manage Servers' }).getByRole('button', { name: 'Close' }).click();
+  await sections.getByRole('tab', { name: 'Worlds', exact: true }).click();
   await page.locator('input[type=file]').setInputFiles('tests/e2e/browser/fixtures/world.zip');
   await page.getByRole('button', { name: 'Stage file' }).click();
   await expect(page.getByText('world.zip staged (4 B).')).toBeVisible();

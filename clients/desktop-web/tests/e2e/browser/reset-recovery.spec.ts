@@ -1,16 +1,5 @@
 import { expect, test } from '@playwright/test';
 
-test.beforeEach(({ page }, testInfo) => {
-  page.on('pageerror', (error) =>
-    console.error(`[browser pageerror] ${testInfo.title}: ${error.stack ?? error.message}`),
-  );
-  page.on('requestfailed', (request) =>
-    console.error(
-      `[browser requestfailed] ${testInfo.title}: ${request.method()} ${request.url()} ${request.failure()?.errorText ?? 'unknown'}`,
-    ),
-  );
-});
-
 async function finishHostSetup(page: import('@playwright/test').Page): Promise<void> {
   const gate = page.locator('.gate');
   await expect(gate.getByRole('heading', { name: 'First-time Setup' })).toBeVisible();
@@ -50,7 +39,7 @@ test('client reset reopens first launch without touching the host or creating a 
   await confirmation.getByRole('button', { name: 'Reset this client' }).click();
 
   await expect(page.getByText('Begin the guided tour.')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Help and guides' })).toBeVisible();
+  await expect(page.getByText('Guides', { exact: true })).toBeVisible();
   const countResponse = await page.request.get('/__test/server-create-count');
   expect(countResponse.ok()).toBe(true);
   expect(await countResponse.json()).toEqual({ count: 0 });

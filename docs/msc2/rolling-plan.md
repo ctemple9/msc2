@@ -462,3 +462,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check && cargo fmt --all -- --check && bash -n tools/phase11/desktop-web-smoke.sh tools/phase11/linux-webkitgtk-smoke.sh && cd clients/desktop-web && npx prettier --check package.json tests/e2e/tauri-linux/native-renderer.test.ts && npm run format:check && npm run check`
 **Commit:** `P12.175: narrow native smoke and split ci boundaries`
 **Batch:** solo
+
+### P12.176 — Restore executable bit for staged smoke binary
+**Status:** awaiting verification
+**Files:** `.github/workflows/ci.yml`, `docs/msc2/rolling-plan.md`
+**What:** Restore execute permission after downloading the shared headless artifact so Phase 6/7 platform smokes can launch the staged agent on Linux, macOS, and Windows runners.
+**Verify:** `git diff --check && ruby -e "require 'yaml'; YAML.load_file('.github/workflows/ci.yml'); puts 'workflow YAML parses'"`
+**Commit:** `P12.176: restore executable bit for staged smoke binary`
+**Batch:** solo

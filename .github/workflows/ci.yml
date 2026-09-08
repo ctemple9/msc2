@@ -211,6 +211,7 @@ jobs:
           binary_path="$(find target/phase4-headless -type f -name '${{ matrix.binary_name }}' -print -quit)"
           test -n "$binary_path"
           cp "$binary_path" "target/debug/${{ matrix.binary_name }}"
+          chmod +x "target/debug/${{ matrix.binary_name }}"
       - name: Phase 6 restart-sensitive public-path smoke
         shell: bash
         run: tools/phase6/phase6-gate-smoke.sh --synthetic

@@ -494,3 +494,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check && cd clients/desktop-web && npx prettier --check src/lib/components/ApplicationShell.svelte src/lib/sections/setup/AgentSetupSection.svelte && npm run check && npm run build`
 **Commit:** `P12.179: reset agent disclosures and console on launch`
 **Batch:** solo
+
+### P12.180 — Clarify agent setup instructions
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Clarify the remote-agent setup instructions by naming the desktop app’s “Install and Continue” action and explaining that a desktop app on the agent computer can create the pairing code through “Pair another client with this agent.”
+**Verify:** `git diff --check && cd clients/desktop-web && npx prettier --check src/lib/sections/setup/AgentSetupSection.svelte`
+**Commit:** `P12.180: clarify agent setup instructions`
+**Batch:** solo

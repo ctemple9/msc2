@@ -616,10 +616,11 @@
                     running there before this computer can connect to it.
                   </p>
                   <p class="detail">
-                    If that computer has the MSC app, open it and click <strong>Start agent</strong
-                    >. If you are managing the computer remotely, use the common MSC service
-                    commands in Extra notes to start the installed agent service. The app does not
-                    need to remain open after the agent is running.
+                    If that computer has the MSC app, open it and click <strong>Start agent</strong>
+                    or <strong>Install and Continue</strong>. If you are managing the computer
+                    remotely, use the common MSC service commands in Extra notes to start the
+                    installed agent service. The app does not need to remain open after the agent is
+                    running.
                   </p>
                   <p class="detail">
                     If the agent is not installed yet, install the headless agent package first.
@@ -691,7 +692,9 @@
                   <p class="detail">
                     Copy the one-use code that appears. Do not run this command on the computer
                     running this MSC desktop app. The code expires automatically and is exchanged
-                    for a lasting client credential.
+                    for a lasting client credential. If the agent computer has the desktop app
+                    installed, you can click <strong>Pair another client with this agent</strong> for
+                    the code.
                   </p>
                 </div>
               </details>

@@ -6,25 +6,19 @@
 //!
 //! Flow, matching source's own comment at the top of
 //! `AppViewModel+WorldConversion.swift`: unzip source slot → locate the
-//! nested world folder → run Chunker → package output into a
-//! slot-compatible zip → create or replace the target slot → back up the
-//! target server's current world (warn-only) → activate the new slot →
+//! nested world folder → run Chunker → validate the converted world →
+//! package output into a slot-compatible zip → create or replace the target
+//! slot → take a mandatory target safety backup → activate the new slot →
 //! clean up the temp working directory.
 //!
 //! **The Chunker process boundary is a fakeable port**
-//! ([`WorldConverter`]), the same "policy vs. runtime mechanism" split
-//! this phase already drew for `backups::BackupConsole` (P6.16). No
-//! production implementation exists yet — building the real
-//! `java -jar chunker-cli.jar -i … -f … -o …` invocation (source
-//! `ChunkerManager.swift:222-267`), plus GitHub release download and
-//! `~/Library/Application Support` jar-path resolution, is deferred to
-//! whichever later step first needs a running Chunker (P6.21 route
-//! wiring, at the earliest) — this step only needs the boundary and the
-//! orchestration logic around it, matching `BackupConsole`'s own
-//! precedent of shipping the port and a fake, not a production adapter.
-//! Every fixture this step characterizes (`fixtures/world-conversion/`,
-//! P6.7) is exercised through a scripted `FakeWorldConverter` in
-//! `tests/world_conversion.rs`.
+//! ([`WorldConverter`]), while the agent's live implementation invokes the
+//! acquired CLI through `java -jar chunker-cli.jar -i … -f … -o …`.
+//! Acquisition, official-release provenance, and the platform cache path
+//! live in `msc_infrastructure::chunker`; this module owns the transactional
+//! conversion policy and output validation. Every fixture this step
+//! characterizes (`fixtures/world-conversion/`, P6.7) remains exercised
+//! through a scripted `FakeWorldConverter` in `tests/world_conversion.rs`.
 //!
 //! **One real MSC 1 gap is preserved, not corrected**, per its fixture's
 //! own notes (P6.7) — raised as a question and left as-is on Cameron's
@@ -120,6 +114,9 @@ pub enum ConversionError {
     JavaNotFound,
     /// `ChunkerError.jarNotInstalled`.
     ChunkerNotInstalled,
+    /// The target safety backup did not complete, so no target slot may be
+    /// written or activated.
+    BackupFailed,
     /// `ChunkerError.conversionFailed("Slot name cannot be empty.")`.
     EmptyName,
     /// `ChunkerError.conversionFailed("Source slot archive not found at
@@ -129,6 +126,9 @@ pub enum ConversionError {
     /// `findInputWorldFolder` found nothing inside the unzipped source,
     /// or `packageOutput` found nothing in Chunker's output directory.
     WorldFolderNotFound,
+    /// Chunker returned successfully, but the output did not satisfy the
+    /// target edition's world invariants.
+    ValidationFailed(String),
     /// `ChunkerError.conversionFailed(_)` — a non-zero Chunker exit, a
     /// `zip`-equivalent packaging failure, or `activateSlot` returning
     /// failure (source's `guard activated else { throw
@@ -158,10 +158,16 @@ impl fmt::Display for ConversionError {
             ConversionError::ServerRunning => write!(f, "server is running"),
             ConversionError::JavaNotFound => write!(f, "java executable not found"),
             ConversionError::ChunkerNotInstalled => write!(f, "chunker CLI is not installed"),
+            ConversionError::BackupFailed => {
+                write!(f, "target safety backup failed; conversion was not applied")
+            }
             ConversionError::EmptyName => write!(f, "slot name cannot be empty"),
             ConversionError::NoSourceZip => write!(f, "source slot archive not found"),
             ConversionError::WorldFolderNotFound => {
                 write!(f, "could not locate the world folder inside the archive")
+            }
+            ConversionError::ValidationFailed(msg) => {
+                write!(f, "converted world validation failed: {msg}")
             }
             ConversionError::ConversionFailed(msg) => write!(f, "conversion failed: {msg}"),
             ConversionError::Io(e) => write!(f, "{e}"),
@@ -333,6 +339,185 @@ fn package_output(
     Ok(zip_path)
 }
 
+/// Checks the contents Chunker produced before they can become a saved slot.
+/// Folder names alone are not enough: a successful process can still leave
+/// an HTML error response, an empty database, or a world in the wrong
+/// edition's storage format.
+fn validate_converted_world(
+    output_dir: &Path,
+    target_server_type: ServerType,
+) -> Result<Vec<String>, ConversionError> {
+    if !output_dir.is_dir() {
+        return Err(ConversionError::ValidationFailed(
+            "Chunker did not create an output directory".to_string(),
+        ));
+    }
+    reject_symlinks(output_dir)?;
+
+    let level_dat = output_dir.join("level.dat");
+    if !level_dat.is_file() {
+        return Err(ConversionError::ValidationFailed(
+            "the converted world has no level.dat".to_string(),
+        ));
+    }
+    let level_dat_bytes = fs::read(&level_dat)?;
+    let metadata = msc_domain::nbt::imported_world_metadata_from_level_dat(
+        &level_dat_bytes,
+        target_server_type,
+    );
+    if !metadata.parsed {
+        return Err(ConversionError::ValidationFailed(format!(
+            "level.dat is not valid {} NBT",
+            match target_server_type {
+                ServerType::Java => "Java",
+                ServerType::Bedrock => "Bedrock",
+            }
+        )));
+    }
+
+    match target_server_type {
+        ServerType::Java => validate_java_output(output_dir),
+        ServerType::Bedrock => validate_bedrock_output(output_dir),
+    }
+}
+
+fn validate_java_output(output_dir: &Path) -> Result<Vec<String>, ConversionError> {
+    if output_dir.join("db").exists() {
+        return Err(ConversionError::ValidationFailed(
+            "Java output contains Bedrock db storage".to_string(),
+        ));
+    }
+
+    let mut region_files = 0;
+    for relative in ["region", "DIM-1/region", "DIM1/region"] {
+        let directory = output_dir.join(relative);
+        if !directory.is_dir() {
+            continue;
+        }
+        for entry in fs::read_dir(&directory)? {
+            let path = entry?.path();
+            if path.extension().and_then(|extension| extension.to_str()) != Some("mca") {
+                continue;
+            }
+            let size = fs::metadata(&path)?.len();
+            if size < 8192 || size % 4096 != 0 {
+                return Err(ConversionError::ValidationFailed(format!(
+                    "Java region file {} has an invalid size",
+                    path.file_name().unwrap_or_default().to_string_lossy()
+                )));
+            }
+            region_files += 1;
+        }
+    }
+    if region_files == 0 {
+        return Err(ConversionError::ValidationFailed(
+            "Java output contains no readable region data".to_string(),
+        ));
+    }
+
+    let mut warnings = Vec::new();
+    let playerdata = output_dir.join("playerdata");
+    if playerdata.is_dir() {
+        let player_files = non_empty_files(&playerdata)?;
+        if player_files == 0 {
+            warnings.push(
+                "Java playerdata is empty; this is normal if nobody has joined yet.".to_string(),
+            );
+        }
+    } else {
+        warnings.push(
+            "No Java playerdata was present; this is normal if nobody has joined yet.".to_string(),
+        );
+    }
+    Ok(warnings)
+}
+
+fn validate_bedrock_output(output_dir: &Path) -> Result<Vec<String>, ConversionError> {
+    if output_dir.join("region").exists() {
+        return Err(ConversionError::ValidationFailed(
+            "Bedrock output contains Java region storage".to_string(),
+        ));
+    }
+    let database = output_dir.join("db");
+    if !database.is_dir() || non_empty_files(&database)? == 0 {
+        return Err(ConversionError::ValidationFailed(
+            "Bedrock output contains no LevelDB world data".to_string(),
+        ));
+    }
+
+    // The existing read-only LevelDB reader gives us a stronger check when
+    // Chunker produced ordinary table or log files. A world with no players
+    // is valid, so an empty player-key result is only a warning.
+    let has_leveldb_records = fs::read_dir(&database)?.any(|entry| {
+        entry
+            .ok()
+            .and_then(|entry| {
+                entry
+                    .path()
+                    .extension()
+                    .map(|extension| extension == "ldb" || extension == "log")
+            })
+            .unwrap_or(false)
+    });
+    let mut player_records = 0;
+    if has_leveldb_records {
+        let records =
+            msc_infrastructure::bedrock_leveldb::read_player_data(&database).map_err(|error| {
+                ConversionError::ValidationFailed(format!(
+                    "Bedrock LevelDB could not be read: {error}"
+                ))
+            })?;
+        for (key, bytes) in records {
+            if msc_domain::bedrock::player_identity_from_key(&key).is_some() {
+                msc_infrastructure::bedrock_nbt::read_player_nbt(&bytes).map_err(|error| {
+                    ConversionError::ValidationFailed(format!(
+                        "Bedrock player data could not be read: {error}"
+                    ))
+                })?;
+                player_records += 1;
+            }
+        }
+    }
+
+    let mut warnings = Vec::new();
+    if player_records == 0 {
+        warnings.push(
+            "No Bedrock player records were detected; this is normal if nobody has joined yet."
+                .to_string(),
+        );
+    }
+    Ok(warnings)
+}
+
+fn reject_symlinks(root: &Path) -> Result<(), ConversionError> {
+    for entry in fs::read_dir(root)? {
+        let path = entry?.path();
+        let metadata = fs::symlink_metadata(&path)?;
+        if metadata.file_type().is_symlink() {
+            return Err(ConversionError::ValidationFailed(format!(
+                "converted world contains a symbolic link: {}",
+                path.display()
+            )));
+        }
+        if metadata.is_dir() {
+            reject_symlinks(&path)?;
+        }
+    }
+    Ok(())
+}
+
+fn non_empty_files(directory: &Path) -> Result<usize, ConversionError> {
+    let mut count = 0;
+    for entry in fs::read_dir(directory)? {
+        let path = entry?.path();
+        let metadata = fs::symlink_metadata(&path)?;
+        if metadata.is_file() && metadata.len() > 0 {
+            count += 1;
+        }
+    }
+    Ok(count)
+}
+
 fn zip_size_bytes(fs: &dyn FileSystem, path: &Path) -> Option<i64> {
     fs.read(path).ok().map(|bytes| bytes.len() as i64)
 }
@@ -449,14 +634,15 @@ fn replace_slot_with_converted_zip(
 ///   `level-name` (Java) — `None` for Bedrock, matching every other
 ///   caller of [`world::current_level_name`] in this phase
 ///   (`worlds::read_java_level_name`'s own doc).
-/// - `pre_conversion_backup`: the caller's already-performed target
-///   safety backup (source's own step 6, `createBackup(for:targetServer,
-///   isAutomatic:false,triggerReason:"pre-conversion")`) — a closure
+/// - `pre_conversion_backup`: the caller's target safety backup
+///   (`createBackup(for:targetServer, isAutomatic:false,
+///   triggerReason:"pre-conversion")`) — a closure
 ///   rather than this function calling `backups::create_backup` itself,
 ///   the same decoupling `worlds::activate_slot`'s own `backup` parameter
 ///   already established, so this module stays independent of the
-///   backups module's own many-argument surface. A `false` result is a
-///   warning, not an abort — matching source exactly.
+///   backups module's own many-argument surface. A `false` result aborts
+///   before any target slot mutation so the target always has a recovery
+///   point before conversion is applied.
 /// - `should_cancel` (P6.30): checked at entry and again immediately
 ///   before the Chunker process starts (the longest-running step) — see
 ///   [`ConversionError::Cancelled`].
@@ -564,6 +750,26 @@ pub fn convert_world(
         )
         .map_err(ConversionError::ConversionFailed)?;
 
+    // Chunker can exit successfully while still producing an incomplete or
+    // wrong-edition directory. Validate the actual world contents before any
+    // target slot is created or replaced.
+    progress("Validating converted world…");
+    let validation_warnings = validate_converted_world(&chunker_output_dir, target_server_type)?;
+    for warning in validation_warnings {
+        progress(&format!("Warning: {warning}"));
+    }
+    if should_cancel() {
+        return Err(ConversionError::Cancelled);
+    }
+
+    // Take the target backup before writing the target slot. A failed backup
+    // is a hard stop: the conversion must never proceed without a recovery
+    // point for the target server's current world.
+    progress("Backing up target server's current world…");
+    if !pre_conversion_backup() {
+        return Err(ConversionError::BackupFailed);
+    }
+
     // Step 4: package Chunker's output into a slot-compatible zip.
     progress("Packaging converted world…");
     let converted_zip = package_output(
@@ -592,15 +798,7 @@ pub fn convert_world(
         )?,
     };
 
-    // Step 6: back up the target server's current world — warning-only
-    // on failure, matching source exactly
-    // (`fixtures/world-conversion/pre-conversion-backup-failure-only-warns-while-activation-failure-aborts-after-slot-already-written.json`).
-    progress("Backing up target server's current world…");
-    if !pre_conversion_backup() {
-        progress("Warning: pre-conversion backup failed. Proceeding with activation.");
-    }
-
-    // Step 7: activate the new slot. Source calls `activateSlot` with
+    // Step 6: activate the new slot. Source calls `activateSlot` with
     // `backupCurrent: false, backupWorld: { _ in true }` since step 6
     // already (attempted to) back up — this port's `activate_slot`
     // folds "should I back up" into its own `backup` closure, so

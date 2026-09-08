@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 5f796ba29186eaddd90704d0404f6ad74b366fb654c00e275bccf85abb9def2a
+// Contract SHA-256: 7697b34aea33a19bdc4038b6ae339a2528441b91e7656f8dac206bf146087565
 
 export interface paths {
   '/v1/active-server': {
@@ -5623,6 +5623,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/worlds/convert/chunker': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Download the official Chunker world-conversion CLI */
+    post: operations['downloadChunker'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/worlds/convert/formats': {
     parameters: {
       query?: never;
@@ -8116,9 +8133,20 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    /** @description Operation-backed result for downloading and atomically installing the official Chunker CLI. */
+    WorldChunkerDownloadResultDTO: {
+      operationId: string;
+      result: string;
+    } & {
+      [key: string]: unknown;
+    };
     WorldConvertFormatsResponseDTO: {
+      downloading: boolean;
       /** @description Raw format strings reported by the installed Chunker jar, including both JAVA_ and BEDROCK_ formats. */
       formats: string[];
+      installed: boolean;
+      javaAvailable: boolean;
+      version?: string;
     } & {
       [key: string]: unknown;
     };
@@ -9710,6 +9738,35 @@ export interface operations {
       };
     };
   };
+  downloadChunker: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Chunker download started */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['WorldChunkerDownloadResultDTO'];
+        };
+      };
+      /** @description A Chunker download is already in progress */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
   getWorldConvertFormats: {
     parameters: {
       query?: never;
@@ -9726,15 +9783,6 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['WorldConvertFormatsResponseDTO'];
-        };
-      };
-      /** @description capability_unavailable when Java or Chunker is not installed */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };

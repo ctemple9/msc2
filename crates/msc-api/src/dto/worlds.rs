@@ -324,4 +324,16 @@ pub struct WorldConvertResultDto {
 #[serde(rename_all = "camelCase")]
 pub struct WorldConvertFormatsResponseDto {
     pub formats: Vec<String>,
+    pub installed: bool,
+    pub downloading: bool,
+    pub java_available: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorldChunkerDownloadResultDto {
+    pub result: String,
+    pub operation_id: String,
 }

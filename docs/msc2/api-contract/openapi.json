@@ -6156,9 +6156,28 @@
                 }
               }
             }
+          }
+        },
+        "operationId": "getWorldConvertFormats"
+      }
+    },
+    "/v1/worlds/convert/chunker": {
+      "post": {
+        "summary": "Download the official Chunker world-conversion CLI",
+        "x-permission-category": "worlds",
+        "responses": {
+          "202": {
+            "description": "Chunker download started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorldChunkerDownloadResultDTO"
+                }
+              }
+            }
           },
           "409": {
-            "description": "capability_unavailable when Java or Chunker is not installed",
+            "description": "A Chunker download is already in progress",
             "content": {
               "application/json": {
                 "schema": {
@@ -6166,10 +6185,10 @@
                 }
               }
             },
-            "x-error-code": "capability_unavailable"
+            "x-error-code": "download_in_progress"
           }
         },
-        "operationId": "getWorldConvertFormats"
+        "operationId": "downloadChunker"
       }
     },
     "/v1/worlds/convert": {
@@ -12210,11 +12229,42 @@
               "type": "string"
             },
             "description": "Raw format strings reported by the installed Chunker jar, including both JAVA_ and BEDROCK_ formats."
+          },
+          "installed": {
+            "type": "boolean"
+          },
+          "downloading": {
+            "type": "boolean"
+          },
+          "javaAvailable": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "string"
           }
         },
         "required": [
-          "formats"
+          "formats",
+          "installed",
+          "downloading",
+          "javaAvailable"
         ]
+      },
+      "WorldChunkerDownloadResultDTO": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result",
+          "operationId"
+        ],
+        "description": "Operation-backed result for downloading and atomically installing the official Chunker CLI."
       },
       "WorldConvertResultDTO": {
         "type": "object",

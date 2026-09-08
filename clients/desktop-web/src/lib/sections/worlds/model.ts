@@ -19,6 +19,7 @@ export const worldPaths = {
   repair: '/v1/worlds/repair',
   convert: '/v1/worlds/convert',
   convertFormats: '/v1/worlds/convert/formats',
+  chunkerDownload: '/v1/worlds/convert/chunker',
   import: '/v1/worlds/import',
   replaceActive: '/v1/worlds/replace-active-world',
   duplicate: '/v1/worlds/duplicate',

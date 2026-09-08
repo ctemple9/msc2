@@ -109,6 +109,8 @@ GET,/v1/watchdog/status,,Get watchdog enabled status,none,Planned,Planned,Planne
 GET,/v1/worlds,,"World slots for the active server, plus which is active",none,Implemented,Implemented,Implemented,P11.12: world and backup screens; P12.29: slot profiles and active-world evidence close the native settings scope
 POST,/v1/worlds/activate,activateWorldSlot,Activate a world slot (starts activation asynchronously),worlds,Implemented,Implemented,Implemented,P11.12: world and backup screens; P12.29: activation applies the selected profile and preserves server-owned settings
 POST,/v1/worlds/convert,convertWorld,Start a Chunker world-format conversion,worlds,Implemented,Implemented,Implemented,"async-only, operation type world-conversion (phase6-api.md SS3); P11.12: world and backup screens"
+POST,/v1/worlds/convert/chunker,downloadChunker,Download and install the official Chunker world-conversion CLI,worlds,Implemented,Implemented,Planned,P12.187: guided Chunker acquisition from the Worlds conversion wizard
+GET,/v1/worlds/convert/formats,getWorldConvertFormats,Report Chunker installation status and supported world-conversion formats,worlds,Implemented,Implemented,Planned,P12.4/P12.187: Worlds conversion wizard reads the agent-backed format list and guided Chunker acquisition status
 POST,/v1/worlds/create,,Create a new world slot,worlds,Implemented,Implemented,Implemented,P11.12: world and backup screens; P12.29: later Worlds-tab creation persists the same shared-form profile boundary
 POST,/v1/worlds/delete,deleteWorldSlot,Delete a non-active world slot,worlds,Implemented,Implemented,Implemented,P11.12: world and backup screens
 POST,/v1/worlds/duplicate,duplicateWorldSlot,Duplicate a world slot under a fresh id,worlds,Implemented,Implemented,Implemented,P11.12: world and backup screens; P12.29: duplicate migration retains the source slot profile
@@ -146,5 +148,4 @@ POST,/v1/auth/desktop-pairings,exchangeDesktopPairing,Exchange a desktop pairing
 GET,/v1/guides/router/search,,Search and match router guides,none,Implemented,Implemented,Planned,P12.16: Handbook router panel uses the agent-served search route
 GET,/v1/guides/router/{guideId},,Compose and resolve one router guide,none,Implemented,Implemented,Planned,P12.16: Handbook router reader uses the agent-served guide route
 POST,/v1/guides/router/troubleshooting/analyze,,Analyze router troubleshooting symptoms,none,Implemented,Implemented,Planned,P12.16: Handbook troubleshooting uses the agent-served analysis route
-GET,/v1/worlds/convert/formats,getWorldConvertFormats,List the installed Chunker world-conversion formats,worlds,Implemented,Implemented,Planned,P12.4: Worlds conversion wizard reads the agent-backed format list
 POST,/v1/worlds/{slotId}/thumbnail,setWorldSlotThumbnail,Set a world slot's thumbnail from a staged image upload,worlds,Implemented,Implemented,Planned,P12.4: Worlds slot card stages and saves a thumbnail

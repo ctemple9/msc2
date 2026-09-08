@@ -1,9 +1,7 @@
 <script lang="ts">
   // Ports WorldConversionWizardView.swift's shape (preflight -> target
-  // server -> target version -> summary -> converting -> done), simplified
-  // to what this agent's own routes actually offer. P12.4a exposed Chunker's
-  // real, already-working supported_formats over GET /v1/worlds/convert/formats,
-  // so the version picker below is real -- not a guessed/hardcoded list.
+  // server -> target version -> summary -> converting -> done), with the
+  // agent-owned Chunker acquisition and output-validation gates kept visible.
   //
   // One placement option is intentionally missing, not overlooked: MSC 1's
   // wizard also lets a conversion replace an existing slot on the target
@@ -23,6 +21,7 @@
   import {
     compatibleTargetServers,
     formatDisplayName,
+    operationPath,
     pollOperation,
     targetFormats,
     worldPaths,
@@ -46,16 +45,24 @@
 
   type FormatsState =
     | { kind: 'loading' }
-    | { kind: 'ready'; formats: string[] }
+    | { kind: 'ready'; formats: string[]; version?: string }
+    | { kind: 'needs-download'; message?: string }
+    | { kind: 'downloading'; statusLine: string }
     | { kind: 'unavailable'; message: string };
   let formatsState: FormatsState = { kind: 'loading' };
+  let conversionOperationId = '';
+  let cancelRequested = false;
 
   $: targetEdition = sourceServer?.serverType === 'bedrock' ? 'Java' : 'Bedrock';
   $: candidates = compatibleTargetServers(servers, sourceServer);
   $: selectedTarget = candidates.find((server) => server.id === selectedTargetId);
   $: availableFormats =
     formatsState.kind === 'ready' ? targetFormats(formatsState.formats, sourceServer) : [];
-  $: preflightOk = !sourceServerRunning && candidates.length > 0 && formatsState.kind === 'ready';
+  $: preflightOk =
+    !sourceServerRunning &&
+    candidates.length > 0 &&
+    formatsState.kind === 'ready' &&
+    availableFormats.length > 0;
   $: defaultSlotName = `${sourceSlot.name} (from ${sourceServer?.serverType === 'bedrock' ? 'Bedrock' : 'Java'})`;
 
   async function loadFormats(): Promise<void> {
@@ -68,7 +75,22 @@
       const response = await api.get<Schema['WorldConvertFormatsResponseDTO']>(
         worldPaths.convertFormats,
       );
-      formatsState = { kind: 'ready', formats: response.formats };
+      if (!response.javaAvailable) {
+        formatsState = {
+          kind: 'unavailable',
+          message: 'Java is required on the agent to run Chunker. Install Java, then try again.',
+        };
+      } else if (response.downloading) {
+        formatsState = { kind: 'downloading', statusLine: 'Chunker is downloading…' };
+      } else if (!response.installed) {
+        formatsState = { kind: 'needs-download' };
+      } else {
+        formatsState = {
+          kind: 'ready',
+          formats: response.formats,
+          version: response.version ?? undefined,
+        };
+      }
     } catch (error) {
       formatsState = {
         kind: 'unavailable',
@@ -76,6 +98,36 @@
           error instanceof ApiError
             ? error.error.message
             : 'Could not reach Chunker on this agent.',
+      };
+    }
+  }
+
+  async function downloadChunker(): Promise<void> {
+    if (!api) return;
+    formatsState = { kind: 'downloading', statusLine: 'Starting Chunker download…' };
+    try {
+      const result = await mutate<Schema['WorldChunkerDownloadResultDTO']>(
+        api,
+        worldPaths.chunkerDownload,
+      );
+      const operation = await pollOperation(api, result.operationId, (tick) => {
+        formatsState = {
+          kind: 'downloading',
+          statusLine: tick.statusLine ?? 'Downloading Chunker…',
+        };
+      });
+      if (operation?.state === 'succeeded') {
+        await loadFormats();
+      } else {
+        formatsState = {
+          kind: 'unavailable',
+          message: operation?.error?.message ?? 'Chunker download did not complete.',
+        };
+      }
+    } catch (error) {
+      formatsState = {
+        kind: 'needs-download',
+        message: error instanceof Error ? error.message : 'Failed to download Chunker.',
       };
     }
   }
@@ -107,6 +159,7 @@
         targetFormat: selectedFormat,
         targetName: newSlotName.trim(),
       });
+      conversionOperationId = result.operationId;
       const operation = await pollOperation(api, result.operationId, (tick) => {
         statusLine = tick.statusLine ?? statusLine;
       });
@@ -120,6 +173,16 @@
     } catch (error) {
       failureMessage = error instanceof Error ? error.message : 'Failed to start the conversion.';
       step = 'failed';
+    }
+  }
+
+  async function cancelConversion(): Promise<void> {
+    if (!api || !conversionOperationId || cancelRequested) return;
+    cancelRequested = true;
+    try {
+      await api.post(operationPath(conversionOperationId) + '/cancel');
+    } catch {
+      cancelRequested = false;
     }
   }
 </script>
@@ -146,12 +209,43 @@
         </li>
         {#if formatsState.kind === 'loading'}
           <li>Checking Chunker on this agent…</li>
+        {:else if formatsState.kind === 'needs-download'}
+          <li class="bad">Chunker is not installed on this agent.</li>
+        {:else if formatsState.kind === 'downloading'}
+          <li>Chunker is downloading…</li>
         {:else if formatsState.kind === 'unavailable'}
           <li class="bad">{formatsState.message}</li>
         {:else}
-          <li>Chunker is installed — {formatsState.formats.length} format(s) supported.</li>
+          <li>
+            Chunker {formatsState.version ? `(${formatsState.version}) ` : ''}is installed —
+            {formatsState.formats.length} format(s) supported.
+          </li>
         {/if}
       </ul>
+      {#if formatsState.kind === 'needs-download'}
+        <div class="chunker-panel">
+          <p class="msc2-type-overline">Chunker required</p>
+          {#if formatsState.message}<p class="error">{formatsState.message}</p>{/if}
+          <p class="explain">
+            Chunker is the free, open-source converter used for this operation. MSC will download
+            the official CLI from HiveGamesOSS on GitHub and verify it before using it.
+          </p>
+          <Button variant="primary" onclick={() => void downloadChunker()}
+            >Download Chunker CLI</Button
+          >
+        </div>
+      {:else if formatsState.kind === 'downloading'}
+        <div class="chunker-panel">
+          <p class="msc2-type-overline">Installing Chunker</p>
+          <p class="status-line">{formatsState.statusLine}</p>
+          <p class="explain">Keep this window open while the official CLI is downloaded.</p>
+        </div>
+      {/if}
+      <p class="disclaimer">
+        Conversion is not perfectly lossless. Java and Bedrock do not represent every block, entity,
+        command, mod, or world feature the same way. The source world is kept unchanged, and MSC
+        validates the converted result before it is installed.
+      </p>
       <div class="footer">
         <Button variant="secondary" onclick={onClose}>Cancel</Button>
         <Button variant="primary" disabled={!preflightOk} onclick={() => (step = 'target')}>
@@ -231,10 +325,10 @@
         </div>
       </div>
       <p class="explain">
-        A backup of "{selectedTarget?.name}"'s current active world is taken automatically before
-        the conversion completes. The original world on "{sourceServer?.name}" is never changed.
-        Conversion may take several minutes — don't close the app or stop either server while it
-        runs.
+        A verified backup of "{selectedTarget?.name}"'s current active world is required before
+        anything is written. The converted output is validated before it is installed. If either
+        safety check fails, the original source and target worlds remain untouched. Conversion may
+        take several minutes — don't stop either server while it runs.
       </p>
       <div class="footer">
         <Button variant="secondary" onclick={() => (step = 'version')}>Back</Button>
@@ -251,14 +345,23 @@
     <div class="body">
       <p class="msc2-type-overline">Converting…</p>
       <p class="status-line">{statusLine}</p>
-      <p class="explain">Do not close this window or stop either server while conversion runs.</p>
+      <p class="explain">Do not stop either server while conversion runs.</p>
+      <div class="footer">
+        <Button
+          variant="secondary"
+          disabled={!conversionOperationId || cancelRequested}
+          onclick={() => void cancelConversion()}
+        >
+          {cancelRequested ? 'Cancelling…' : 'Cancel conversion'}
+        </Button>
+      </div>
     </div>
   {:else if step === 'done'}
     <div class="body centered">
-      <p class="lede">Conversion Started</p>
+      <p class="lede">Conversion complete</p>
       <p class="explain">
-        "{sourceSlot.name}" is being converted onto "{selectedTarget?.name}". Its progress shows up
-        as an operation; the new slot will appear once it finishes.
+        "{sourceSlot.name}" was converted onto "{selectedTarget?.name}" and installed as a new
+        validated world slot.
       </p>
       <div class="footer">
         <Button variant="primary" onclick={onClose}>Done</Button>
@@ -398,5 +501,27 @@
     display: flex;
     justify-content: flex-end;
     gap: 8px;
+  }
+  .chunker-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px;
+    background: var(--msc2-tier-chrome);
+    border: 1px solid var(--msc2-hairline-subtle);
+    border-radius: 8px;
+  }
+  .chunker-panel .msc2-type-overline,
+  .chunker-panel .explain {
+    margin: 0;
+  }
+  .disclaimer {
+    margin: 0;
+    padding: 10px 12px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--msc2-text-secondary);
+    border-left: 2px solid var(--msc2-status-warn);
   }
 </style>

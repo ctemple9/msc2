@@ -41,6 +41,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[cfg(test)]
@@ -53,14 +54,15 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use msc_api::dto::{
     ErrorDto, PermissionCategoryDto, StagedUploadPurposeDto, WorldActivateRequestDto,
-    WorldActivateResultDto, WorldConvertFormatsResponseDto, WorldConvertRequestDto,
-    WorldConvertResultDto, WorldCreateRequestDto, WorldDeleteRequestDto, WorldDuplicateRequestDto,
-    WorldExportRequestDto, WorldExportResultDto, WorldGameplayDto, WorldGenerationDto,
-    WorldIdentityDto, WorldImportRequestDto, WorldMutationResultDto, WorldProfileDto,
-    WorldProfileFieldMetadataDto, WorldRenameActiveWorldRequestDto, WorldRenameRequestDto,
-    WorldRepairRequestDto, WorldRepairResultDto, WorldReplaceActiveRequestDto,
-    WorldReplaceActiveResultDto, WorldReplaceRequestDto, WorldSafetyDto, WorldSlotDto,
-    WorldSlotWithProfileDto, WorldSlotsResponseDto, WorldThumbnailUploadRequestDto,
+    WorldActivateResultDto, WorldChunkerDownloadResultDto, WorldConvertFormatsResponseDto,
+    WorldConvertRequestDto, WorldConvertResultDto, WorldCreateRequestDto, WorldDeleteRequestDto,
+    WorldDuplicateRequestDto, WorldExportRequestDto, WorldExportResultDto, WorldGameplayDto,
+    WorldGenerationDto, WorldIdentityDto, WorldImportRequestDto, WorldMutationResultDto,
+    WorldProfileDto, WorldProfileFieldMetadataDto, WorldRenameActiveWorldRequestDto,
+    WorldRenameRequestDto, WorldRepairRequestDto, WorldRepairResultDto,
+    WorldReplaceActiveRequestDto, WorldReplaceActiveResultDto, WorldReplaceRequestDto,
+    WorldSafetyDto, WorldSlotDto, WorldSlotWithProfileDto, WorldSlotsResponseDto,
+    WorldThumbnailUploadRequestDto,
 };
 #[cfg(test)]
 use msc_api::dto::{
@@ -79,6 +81,7 @@ use msc_domain::world::WorldSlot;
 use msc_domain::world_profile::{WorldProfile, WorldProfileField};
 use msc_infrastructure::audit_log::Entry as AuditEntry;
 use msc_infrastructure::fs::{FileSystem, StdFileSystem};
+use msc_infrastructure::jar_provider::HttpTransport;
 use msc_infrastructure::world_store;
 use serde::Serialize;
 #[cfg(test)]
@@ -125,6 +128,7 @@ pub fn router(state: WorldsRoutesState) -> Router {
             get(get_profile).post(update_profile),
         )
         .route("/worlds/convert/formats", get(convert_formats))
+        .route("/worlds/convert/chunker", post(download_chunker))
         .route("/worlds/convert", post(convert))
         .route(
             "/worlds/:slot_id/thumbnail",
@@ -141,28 +145,23 @@ pub async fn convert_formats(
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
         return response;
     }
-    if let Err(response) = active_server_or_response(&lifecycle) {
-        return response;
-    }
-
     let converter = LiveWorldConverter;
-    let Some(resolved_java_path) = converter.resolve_java_path("") else {
-        return error_response(
-            StatusCode::CONFLICT,
-            "capability_unavailable",
-            "No Java runtime could be resolved for Chunker.",
-        );
+    let java_available = converter.resolve_java_path("").is_some();
+    let installed = converter.is_installed();
+    let formats = if installed && java_available {
+        converter
+            .resolve_java_path("")
+            .map(|path| converter.supported_formats(&path))
+            .unwrap_or_default()
+    } else {
+        Vec::new()
     };
-    if !converter.is_installed() {
-        return error_response(
-            StatusCode::CONFLICT,
-            "capability_unavailable",
-            "Chunker is not installed on this agent.",
-        );
-    }
-
     let response = Json(WorldConvertFormatsResponseDto {
-        formats: converter.supported_formats(&resolved_java_path),
+        formats,
+        installed,
+        downloading: state.chunker_download_in_progress.load(Ordering::Acquire),
+        java_available,
+        version: msc_infrastructure::chunker::installed_version(),
     })
     .into_response();
     audit(
@@ -170,6 +169,99 @@ pub async fn convert_formats(
         &credential,
         "GET",
         "/v1/worlds/convert/formats",
+        response.status(),
+    );
+    response
+}
+
+pub async fn download_chunker(
+    State(state): State<WorldsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
+        return response;
+    }
+    if state
+        .chunker_download_in_progress
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return error_response(
+            StatusCode::CONFLICT,
+            "download_in_progress",
+            "A Chunker download is already in progress.",
+        );
+    }
+    let operation_id = match begin_operation(
+        &state.lifecycle,
+        "chunker",
+        "chunker-download",
+        "Downloading Chunker.",
+    ) {
+        Ok(id) => id,
+        Err(response) => {
+            state
+                .chunker_download_in_progress
+                .store(false, Ordering::Release);
+            return response;
+        }
+    };
+    let worker_state = state.clone();
+    let worker_operation_id = operation_id.clone();
+    let task_operation_id = operation_id.clone();
+    tokio::spawn(async move {
+        let task_state = worker_state.clone();
+        let result = tokio::task::spawn_blocking(move || {
+            let transport = HttpTransport::new();
+            let mut progress = |line: &str| {
+                let _ =
+                    task_state
+                        .lifecycle
+                        .operations()
+                        .progress(&worker_operation_id, 0, 0, line);
+            };
+            msc_infrastructure::chunker::download_latest(&transport, &StdFileSystem, &mut progress)
+        })
+        .await;
+        worker_state
+            .chunker_download_in_progress
+            .store(false, Ordering::Release);
+        match result {
+            Ok(Ok(acquired)) => {
+                let mut details = BTreeMap::new();
+                details.insert("version".to_string(), acquired.metadata.version);
+                let _ = worker_state.lifecycle.operations().succeed(
+                    &task_operation_id,
+                    "Chunker is ready.",
+                    details,
+                );
+            }
+            Ok(Err(error)) => {
+                let _ = worker_state.lifecycle.operations().fail(
+                    &task_operation_id,
+                    "chunker_download_failed",
+                    error.to_string(),
+                );
+            }
+            Err(error) => {
+                let _ = worker_state.lifecycle.operations().fail(
+                    &task_operation_id,
+                    "background_worker_failed",
+                    error.to_string(),
+                );
+            }
+        }
+    });
+    let response = Json(WorldChunkerDownloadResultDto {
+        result: "chunker_download_started".to_string(),
+        operation_id: operation_id.as_str().to_string(),
+    })
+    .into_response();
+    audit(
+        &state.lifecycle,
+        &credential,
+        "POST",
+        "/v1/worlds/convert/chunker",
         response.status(),
     );
     response
@@ -186,6 +278,7 @@ pub async fn convert_formats(
 pub struct WorldsRoutesState {
     pub lifecycle: LifecycleRoutesState,
     pub(crate) staging: StagingStore,
+    pub(crate) chunker_download_in_progress: std::sync::Arc<AtomicBool>,
 }
 
 impl WorldsRoutesState {
@@ -194,11 +287,16 @@ impl WorldsRoutesState {
         Self {
             lifecycle,
             staging: StagingStore::default(),
+            chunker_download_in_progress: std::sync::Arc::new(AtomicBool::new(false)),
         }
     }
 
     pub fn with_staging(lifecycle: LifecycleRoutesState, staging: StagingStore) -> Self {
-        Self { lifecycle, staging }
+        Self {
+            lifecycle,
+            staging,
+            chunker_download_in_progress: std::sync::Arc::new(AtomicBool::new(false)),
+        }
     }
 }
 
@@ -2466,6 +2564,7 @@ pub async fn convert(
     let task_lifecycle = lifecycle.clone();
     let task_operation_id = operation_id.clone();
     let task_operation_id_progress = operation_id.clone();
+    let profile_lifecycle = task_lifecycle.clone();
     let should_cancel = lifecycle.operations().cancellation_check(&operation_id);
     let backup_should_cancel = should_cancel.clone();
     let source_profile_dir = source_server_dir.clone();
@@ -2525,9 +2624,12 @@ pub async fn convert(
                     &target_profile_dir,
                     target_slot,
                 ) {
-                    return Err(ConversionError::ConversionFailed(format!(
-                        "could not preserve converted world profile: {error}"
-                    )));
+                    let _ = profile_lifecycle.operations().progress(
+                        &task_operation_id_progress,
+                        0,
+                        0,
+                        &format!("Warning: could not preserve converted world profile: {error}"),
+                    );
                 }
             }
             converted
@@ -2599,25 +2701,8 @@ pub struct LiveWorldConverter;
 
 impl LiveWorldConverter {
     fn chunker_jar_path() -> PathBuf {
-        std::env::var_os("MSC2_CHUNKER_JAR_PATH")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| dirs_app_support_dir().join("chunker-cli.jar"))
+        msc_infrastructure::chunker::jar_path()
     }
-}
-
-fn dirs_app_support_dir() -> PathBuf {
-    if let Some(home) = std::env::var_os("HOME") {
-        let home = PathBuf::from(home);
-        #[cfg(target_os = "macos")]
-        {
-            return home.join("Library/Application Support/MSC2");
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            return home.join(".msc2");
-        }
-    }
-    std::env::temp_dir().join("msc2")
 }
 
 impl WorldConverter for LiveWorldConverter {

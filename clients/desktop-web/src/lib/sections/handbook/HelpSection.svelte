@@ -106,6 +106,13 @@
   function skipTour(): void {
     saveLaunchState({ ...launchState, tourComplete: true });
   }
+
+  function selectView(next: View): void {
+    activeView = next;
+    if (next === 'onboard' && onboarding) {
+      launchState = readLaunchState(launchState.setupComplete);
+    }
+  }
 </script>
 
 <div class="help-screen">
@@ -121,7 +128,7 @@
         <SegmentedControl
           options={viewOptions}
           value={activeView}
-          onchange={(value) => (activeView = value as View)}
+          onchange={(value) => selectView(value as View)}
         />
       </div>
       <Card padding="18px">

@@ -404,12 +404,11 @@ createServer(async (request, response) => {
   if (url.pathname === '/__test/host-setup' && request.method === 'POST') {
     const client = request.headers['user-agent'] ?? 'unknown';
     hostSetupOverrides.set(client, false);
-    // /v1/status's own count===1 case simulates a reconnect-pending agent
-    // for the separate "reconnect fallback" test; a fresh-profile walk
-    // calling this reset first has nothing to do with that scenario and
-    // must not eat a real 503 on its own first status probe, so mark this
-    // client as already past it.
-    statusRequests.set(client, 1);
+    // The first status request after setup must succeed so the fresh-profile
+    // workflow can reach the client shell.  The reconnect workflow, which
+    // does not call this helper, uses its second status request for the
+    // deliberate reconnect-pending response below.
+    statusRequests.set(client, 2);
     response.setHeader('set-cookie', 'msc_test_host_setup=false; Path=/; SameSite=Lax');
     return json(response, { complete: false });
   }
@@ -569,7 +568,7 @@ createServer(async (request, response) => {
     const client = request.headers['user-agent'] ?? 'unknown';
     const count = (statusRequests.get(client) ?? 0) + 1;
     statusRequests.set(client, count);
-    if (count === 1)
+    if (count === 2)
       return json(
         response,
         { code: 'unavailable', message: 'Reconnect pending', helpId: null },

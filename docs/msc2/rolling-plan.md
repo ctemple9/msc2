@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 client redesign and its post-phase corrections are complete. The planned Phase 13 full-screen terminal client is retired by D-034.
-> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.146 is the current CI-maintenance step awaiting verification.
+> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.147 is the current CI-maintenance step awaiting verification.
 
 Previous phases and completed work remain in `rolling-plan-archive.md`. The archive is historical; this file contains only the current state and the next move.
 
@@ -229,4 +229,12 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **What:** Keep the WDIO-only native Tauri suite out of Vitest's unit-test collection, match the Windows Bedrock fixture's actual `provisioning_required` capability state, and give the existing Windows graceful-stop process check a larger hosted-runner wait budget without changing what it asserts.
 **Verify:** `git diff --check && cargo fmt --all -- --check && cargo check --workspace && cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && cd clients/desktop-web && npm run format:check && npm run check`
 **Commit:** `P12.146: separate unit and native tauri test runners`
+**Batch:** solo
+
+### P12.147 — Sequence browser reconnect harness responses
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/tests/e2e/browser/contract-harness.mjs`, `docs/msc2/rolling-plan.md`
+**What:** Make the browser contract harness return a successful initial status for normal and fresh-profile workflows, then reserve its simulated reconnect-pending response for the reconnect test's second status request. The prior counter returned `503` before the shared shell could render, causing the macOS browser smoke to fail across both engines.
+**Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
+**Commit:** `P12.147: sequence browser reconnect harness responses`
 **Batch:** solo

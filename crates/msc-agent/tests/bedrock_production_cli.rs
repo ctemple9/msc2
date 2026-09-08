@@ -59,8 +59,7 @@ fn production_cli_decodes_bedrock_surfaces_and_unavailable_runtime() {
             !start.status.success(),
             "unavailable start unexpectedly succeeded"
         );
-        let error: Value = serde_json::from_str(String::from_utf8_lossy(&start.stderr).trim())
-            .expect("unavailable CLI error JSON");
+        let error = error_json(&start);
         assert_eq!(error["code"], "capability_unavailable");
         assert_eq!(error["details"]["serverType"], "bedrock");
         fixture.stop(&mut agent);
@@ -129,8 +128,7 @@ fn production_cli_decodes_bedrock_surfaces_and_unavailable_runtime() {
             !start.status.success(),
             "unavailable start unexpectedly succeeded"
         );
-        let error: Value = serde_json::from_str(String::from_utf8_lossy(&start.stderr).trim())
-            .expect("unavailable CLI error JSON");
+        let error = error_json(&start);
         assert_eq!(error["code"], "capability_unavailable");
         assert_eq!(error["details"]["serverType"], "bedrock");
     }
@@ -393,4 +391,14 @@ fn output_text(output: &Output) -> String {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     )
+}
+
+fn error_json(output: &Output) -> Value {
+    [&output.stderr, &output.stdout]
+        .into_iter()
+        .find_map(|bytes| {
+            let text = String::from_utf8_lossy(bytes);
+            serde_json::from_str(text.trim().trim_start_matches('\u{feff}')).ok()
+        })
+        .unwrap_or_else(|| panic!("CLI error was not JSON: {}", output_text(output)))
 }

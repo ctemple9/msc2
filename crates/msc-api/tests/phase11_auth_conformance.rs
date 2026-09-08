@@ -169,7 +169,9 @@ fn phase11_auth_conformance_requires_origin_and_csrf_without_weakening_bearer() 
 fn phase11_auth_conformance_design_records_the_unavailable_lan_shortcut() {
     let path =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/msc2/clients/phase11-auth.md");
-    let design = std::fs::read_to_string(path).expect("read phase11-auth.md");
+    let design = std::fs::read_to_string(path)
+        .expect("read phase11-auth.md")
+        .replace("\r\n", "\n");
     for required in [
         "General-LAN management",
         "Tailscale encrypts the network path but is not identity",

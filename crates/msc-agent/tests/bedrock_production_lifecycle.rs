@@ -101,17 +101,31 @@ fn production_router_provisions_bedrock_before_create_completes() {
 
 #[cfg(not(target_os = "linux"))]
 #[test]
-fn production_router_reports_unavailable_bedrock_lifecycle() {
+fn production_router_reports_platform_bedrock_lifecycle() {
     let fixture = TestFixture::unavailable();
     let mut agent = fixture.spawn_agent();
     wait_for_health(fixture.port);
 
     let capabilities = fixture.get("/v1/capabilities");
-    assert_eq!(capabilities["serverTypes"]["bedrock"]["supported"], false);
     let response = fixture.post("/v1/start", "{}");
-    assert_eq!(response.0, 409, "start should be unavailable: {response:?}");
-    assert_eq!(response.1["code"], "capability_unavailable");
-    assert_eq!(response.1["details"]["serverType"], "bedrock");
+    if cfg!(target_os = "windows") {
+        assert_eq!(capabilities["serverTypes"]["bedrock"]["supported"], true);
+        assert_eq!(
+            capabilities["serverTypes"]["bedrock"]["runtime"]["state"],
+            "available"
+        );
+        assert_eq!(
+            response.0, 200,
+            "Windows start request failed: {response:?}"
+        );
+        assert_eq!(response.1["result"], "start_requested");
+        assert!(response.1["operationId"].is_string());
+    } else {
+        assert_eq!(capabilities["serverTypes"]["bedrock"]["supported"], false);
+        assert_eq!(response.0, 409, "start should be unavailable: {response:?}");
+        assert_eq!(response.1["code"], "capability_unavailable");
+        assert_eq!(response.1["details"]["serverType"], "bedrock");
+    }
     assert_websocket_upgrade(fixture.port, "/v1/console/stream");
     fixture.stop(&mut agent);
 }

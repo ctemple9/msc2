@@ -77,17 +77,19 @@ fn production_router_exposes_shared_bedrock_surfaces_and_runtime_errors() {
         assert!(version_change["operationId"].is_string());
     }
 
-    for (path, body) in [
-        ("/v1/start", "{}"),
-        ("/v1/command", r#"{"command":"say hello"}"#),
-        ("/v1/backups/now", "{}"),
-        ("/v1/worlds/repair", r#"{"slotId":"missing"}"#),
-    ] {
-        let (status, error) = fixture.request("POST", path, Some(body));
-        assert_eq!(status, 409, "{path}: {error}");
-        assert_eq!(error["code"], "capability_unavailable", "{path}: {error}");
-        assert_eq!(error["details"]["capability"], "bedrock-runtime");
-        assert_eq!(error["details"]["serverType"], "bedrock");
+    if fixture.runtime_state() == "unavailable" {
+        for (path, body) in [
+            ("/v1/start", "{}"),
+            ("/v1/command", r#"{"command":"say hello"}"#),
+            ("/v1/backups/now", "{}"),
+            ("/v1/worlds/repair", r#"{"slotId":"missing"}"#),
+        ] {
+            let (status, error) = fixture.request("POST", path, Some(body));
+            assert_eq!(status, 409, "{path}: {error}");
+            assert_eq!(error["code"], "capability_unavailable", "{path}: {error}");
+            assert_eq!(error["details"]["capability"], "bedrock-runtime");
+            assert_eq!(error["details"]["serverType"], "bedrock");
+        }
     }
 
     fixture.stop(&mut agent);

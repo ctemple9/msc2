@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 client redesign and its post-phase corrections are complete. The planned Phase 13 full-screen terminal client is retired by D-034.
-> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.143 is the current CI-maintenance step awaiting verification.
+> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.144 is the current CI-maintenance step awaiting verification.
 
 Previous phases and completed work remain in `rolling-plan-archive.md`. The archive is historical; this file contains only the current state and the next move.
 
@@ -205,4 +205,12 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **What:** Declare the existing Mocha globals used by the WebdriverIO Linux Tauri smoke in the shared client type configuration, while keeping runtime ownership with WebdriverIO’s injected globals. Remove the two unused setup-screen CSS selectors reported by Svelte’s checker.
 **Verify:** `cd clients/desktop-web && npm run format:check && npm run check`
 **Commit:** `P12.143: declare the linux tauri test runner types`
+**Batch:** solo
+
+### P12.144 — Reconcile Windows Bedrock CI fixtures
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/tests/bedrock_production_cli.rs`, `crates/msc-agent/tests/bedrock_production_lifecycle.rs`, `crates/msc-agent/tests/bedrock_production_surfaces.rs`, `crates/msc-api/tests/phase11_auth_conformance.rs`, `docs/msc2/rolling-plan.md`
+**What:** Make the existing Bedrock production fixtures match each platform's real contract: accept the Windows native runtime's available start response, keep unavailable-runtime assertions on hosts where that capability is genuinely unavailable, decode CLI errors across Windows output streams, and normalize documentation line endings before checking the Phase 11 wording.
+**Verify:** `git diff --check && cargo fmt --all -- --check && cargo check --workspace && cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format`
+**Commit:** `P12.144: reconcile windows bedrock CI fixtures`
 **Batch:** solo

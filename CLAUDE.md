@@ -1,6 +1,6 @@
 # MSC 2 — Agent Instructions
 
-> **This file is duplicated as `AGENTS.md` for Codex. If you change one, change both.**
+> **This file is duplicated as `CLAUDE.md` for Claude Code. If you change one, change both.**
 
 ## What this repo is
 

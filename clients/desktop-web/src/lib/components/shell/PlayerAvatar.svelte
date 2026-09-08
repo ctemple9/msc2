@@ -48,7 +48,7 @@
   let imageUrl = '';
   let displayName = '';
   let showEdit = false;
-  let showEditionSwitcher = true;
+  export let showEditionSwitcher = true;
   let avatarRequest = 0;
 
   $: currentIdentity = edition === 'java' ? javaUsername : bedrockGamertag;
@@ -153,14 +153,9 @@
     isEditing = false;
     loadForEdition(trimmed);
   }
-
-  function toggleEditionSwitcher(): void {
-    showEditionSwitcher = !showEditionSwitcher;
-    showEdit = true;
-  }
 </script>
 
-<div class="avatar">
+<div class="avatar" id="avatar-edition-controls">
   {#if showEditionSwitcher}
     <div class="edition-switcher">
       <SegmentedControl options={EDITIONS} value={edition} onchange={selectEdition} />
@@ -192,9 +187,8 @@
       <button
         type="button"
         class="avatar-trigger"
-        aria-label="{showEditionSwitcher ? 'Hide' : 'Show'} Java and Bedrock switcher"
-        aria-expanded={showEditionSwitcher}
-        onclick={toggleEditionSwitcher}
+        aria-label="Edit avatar for {displayName}"
+        onclick={() => (showEdit = true)}
       >
         <img class="skin" src={imageUrl} alt="{displayName}'s Minecraft skin" />
       </button>

@@ -121,10 +121,15 @@
     Maintenance: false,
     'Quick commands': false,
   };
+  let avatarEditionSwitcherVisible = true;
 
   function toggle(section: (typeof DISCLOSURE_SECTIONS)[number]): void {
     const nextExpanded = !expanded[section];
     expanded = { ...expanded, [section]: nextExpanded };
+  }
+
+  function toggleAvatarEditionSwitcher(): void {
+    avatarEditionSwitcherVisible = !avatarEditionSwitcherVisible;
   }
 
   $: activeServer = servers.find((server) => server.id === activeServerId);
@@ -325,8 +330,16 @@
     {/each}
 
     <div class="block actions-block">
-      <p class="avatar-title">Your Avatar</p>
-      <PlayerAvatar />
+      <button
+        type="button"
+        class="avatar-title"
+        aria-expanded={avatarEditionSwitcherVisible}
+        aria-controls="avatar-edition-controls"
+        onclick={toggleAvatarEditionSwitcher}
+      >
+        Your Avatar
+      </button>
+      <PlayerAvatar showEditionSwitcher={avatarEditionSwitcherVisible} />
     </div>
   </div>
 </aside>
@@ -514,9 +527,25 @@
     border-top: 1px solid var(--msc2-hairline-subtle);
   }
   .avatar-title {
+    display: block;
+    width: 100%;
     margin: 4px 0 8px;
+    padding: 0;
+    font: inherit;
     font-size: 12px;
     font-weight: 500;
+    text-align: left;
     color: var(--msc2-text-primary);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+  }
+  .avatar-title:hover {
+    color: var(--msc2-text-secondary);
+  }
+  .avatar-title:focus-visible {
+    outline: 2px solid var(--msc2-hairline-field-focus);
+    outline-offset: 2px;
+    border-radius: 3px;
   }
 </style>

@@ -542,3 +542,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check && cd clients/desktop-web && npx prettier --check src/lib/components/shell/PlayerAvatar.svelte && npm run check`
 **Commit:** `P12.185: toggle avatar edition switcher`
 **Batch:** solo
+
+### P12.186 — Move avatar switcher toggle to heading
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/components/shell/ControlSidebar.svelte`, `clients/desktop-web/src/lib/components/shell/PlayerAvatar.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Make the Your Avatar heading hide or reveal the Java/Bedrock switcher, and restore clicking the rendered skin to enter avatar-name editing.
+**Verify:** `git diff --check && cd clients/desktop-web && npx prettier --check src/lib/components/shell/ControlSidebar.svelte src/lib/components/shell/PlayerAvatar.svelte && npm run check`
+**Commit:** `P12.186: move avatar switcher toggle to heading`
+**Batch:** solo

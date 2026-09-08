@@ -339,7 +339,6 @@ const worlds = [
   },
 ];
 const reconnectStatusRequests = new Map();
-const hostSetupOverrides = new Map();
 let broadcastJar = { installed: false, filename: null };
 let serverCreateRequests = 0;
 
@@ -367,8 +366,7 @@ function hostSetupComplete(request) {
   const cookieSaysIncomplete = cookie
     .split(';')
     .some((part) => part.trim() === 'msc_test_host_setup=false');
-  const client = request.headers['user-agent'] ?? 'unknown';
-  return hostSetupOverrides.get(client) ?? !cookieSaysIncomplete;
+  return !cookieSaysIncomplete;
 }
 
 createServer(async (request, response) => {
@@ -402,8 +400,6 @@ createServer(async (request, response) => {
       expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
     });
   if (url.pathname === '/__test/host-setup' && request.method === 'POST') {
-    const client = request.headers['user-agent'] ?? 'unknown';
-    hostSetupOverrides.set(client, false);
     response.setHeader('set-cookie', 'msc_test_host_setup=false; Path=/; SameSite=Lax');
     return json(response, { complete: false });
   }
@@ -412,7 +408,6 @@ createServer(async (request, response) => {
   if (url.pathname === '/v1/config/host-setup' && request.method === 'GET')
     return json(response, { complete: hostSetupComplete(request) });
   if (url.pathname === '/v1/config/host-setup/complete' && request.method === 'POST') {
-    hostSetupOverrides.set(request.headers['user-agent'] ?? 'unknown', true);
     response.setHeader('set-cookie', 'msc_test_host_setup=true; Path=/; SameSite=Lax');
     return json(response, { complete: true });
   }

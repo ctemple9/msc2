@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 client redesign and its post-phase corrections are complete. The planned Phase 13 full-screen terminal client is retired by D-034.
-> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.124 is the current final repository hygiene step awaiting verification.
+> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.131 is the current CI-maintenance step awaiting verification.
 
 Previous phases and completed work remain in `rolling-plan-archive.md`. The archive is historical; this file contains only the current state and the next move.
 
@@ -101,4 +101,12 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **What:** Correct the owner-requested top-bar byline from `ctemple9h` to `ctemple9`.
 **Verify:** `git diff --check && grep -q 'by ctemple9' clients/desktop-web/src/lib/components/shell/TopBar.svelte && ! grep -q 'by ctemple9h' clients/desktop-web/src/lib/components/shell/TopBar.svelte`
 **Commit:** `P12.130: correct the desktop top-bar byline`
+**Batch:** solo
+
+### P12.131 — Repair recurring CI workflow failures
+**Status:** awaiting verification
+**Files:** `crates/msc-application/tests/addons.rs`, `crates/msc-agent/src/cli/update.rs`, `crates/msc-agent/tests/support/bedrock_smoke.rs`, `docs/msc2/rolling-plan.md`
+**What:** Align the existing add-on fixture with the approved mutable-imported-pack behavior, prevent the offline Bedrock production smoke from attempting a live manifest lookup by seeding its version marker, and make the Windows update-install branch compile without unreachable-code warnings. This addresses the recurring Phase 8 smoke failure, the Ubuntu Bedrock smoke timeout, and the Windows clippy failure without weakening any workflow gate.
+**Verify:** `git diff --check && cargo fmt --all -- --check && cargo check --workspace && cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && python3 tools/release/check-release-workflow.py .github/workflows/release.yml --expect-publish-guard`
+**Commit:** `P12.131: repair recurring CI workflow failures`
 **Batch:** solo

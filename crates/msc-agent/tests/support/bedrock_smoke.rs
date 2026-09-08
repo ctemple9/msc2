@@ -632,6 +632,7 @@ impl ProductionFixture {
         };
         if backend != ProductionBackend::WindowsNative {
             std::fs::write(directory.join(executable), b"fixture adapter").unwrap();
+            std::fs::write(directory.join(".msc_bds_version"), "1.21.80.3").unwrap();
             std::fs::write(
                 directory.join(".msc_bds_provenance.json"),
                 format!(

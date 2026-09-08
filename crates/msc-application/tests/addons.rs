@@ -158,7 +158,7 @@ fn install_from_catalog_writes_the_primary_file() {
 }
 
 #[test]
-fn install_from_catalog_refused_on_pack_managed_server_without_touching_network() {
+fn install_from_catalog_allowed_on_pack_managed_server() {
     let fs = FakeFileSystem::new();
     let server_dir = Path::new("/server");
     let v = version(
@@ -168,8 +168,11 @@ fn install_from_catalog_refused_on_pack_managed_server_without_touching_network(
         "x.jar",
         "https://cdn.example.invalid/x.jar",
     );
-    // No fake response registered at all — a real attempt would panic.
-    let transport = FakeTransport::new();
+    let transport = FakeTransport::new().with_get(
+        "https://cdn.example.invalid/x.jar",
+        200,
+        b"jar bytes".to_vec(),
+    );
 
     let result = addons::install_from_catalog(
         &transport,
@@ -182,7 +185,9 @@ fn install_from_catalog_refused_on_pack_managed_server_without_touching_network(
         true,
         &|| false,
     );
-    assert!(matches!(result, Err(AddonMutationError::PackManaged)));
+    let outcome = result.unwrap();
+    assert_eq!(outcome.installed_path, Path::new("/server/mods/x.jar"));
+    assert_eq!(fs.read(&outcome.installed_path).unwrap(), b"jar bytes");
 }
 
 #[test]

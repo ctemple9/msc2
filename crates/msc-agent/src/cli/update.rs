@@ -201,12 +201,15 @@ fn install(common: &CommonArgs, release_id: &str, yes: bool) -> Result<(), CliEr
         };
     }
 
-    let output = apply_verified_update(&staged, &data_directory)?;
-    if common.json {
-        print_json(&output)
-    } else {
-        print_install_output(&output);
-        Ok(())
+    #[cfg(not(target_os = "windows"))]
+    {
+        let output = apply_verified_update(&staged, &data_directory)?;
+        if common.json {
+            print_json(&output)
+        } else {
+            print_install_output(&output);
+            Ok(())
+        }
     }
 }
 

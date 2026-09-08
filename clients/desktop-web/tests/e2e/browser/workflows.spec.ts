@@ -47,7 +47,7 @@ test('walks a fresh profile through setup, tour pauses, handoff, and reopen', as
   await page.getByRole('button', { name: 'Add Server…', exact: true }).click();
   await expect(page.locator('button.path-card.selected')).toContainText('Start Fresh');
   await expect(
-    page.getByRole('button', { name: 'Import or Create from Modpack', exact: true }),
+    page.getByRole('button', { name: /Import or Create from Modpack/ }),
   ).toBeDisabled();
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await expect(page.getByRole('heading', { name: "You're All Set", level: 2 })).toBeVisible();
@@ -95,12 +95,13 @@ test('names destructive targets and completes bounded upload and download workfl
 
   await manage.getByRole('button', { name: 'Close' }).click();
   await sections.getByRole('tab', { name: 'Worlds', exact: true }).click();
-  await page.locator('input[type=file]').setInputFiles('tests/e2e/browser/fixtures/world.zip');
-  await page.getByRole('button', { name: 'Stage file' }).click();
-  await expect(page.getByText('world.zip staged (4 B).')).toBeVisible();
-  await page.getByRole('button', { name: 'Import staged world' }).click();
-  await page.getByRole('button', { name: 'Export world' }).click();
-  const download = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download world export' }).first().click();
-  expect((await download).suggestedFilename()).toBe('world-export.zip');
+  await page.getByRole('button', { name: '…', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Import ZIP…', exact: true }).click();
+  const importWorld = page.getByRole('dialog', { name: 'Import ZIP as New World' });
+  const fileChooser = page.waitForEvent('filechooser');
+  await importWorld.getByRole('button', { name: 'Choose ZIP…', exact: true }).click();
+  await (await fileChooser).setFiles('tests/e2e/browser/fixtures/world.zip');
+  await expect(importWorld.getByText('Selected: world.zip')).toBeVisible();
+  await importWorld.getByRole('button', { name: 'Import', exact: true }).click();
+  await expect(page.getByText('Imported ZIP as a new world slot.')).toBeVisible();
 });

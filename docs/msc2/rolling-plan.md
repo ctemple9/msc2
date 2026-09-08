@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 client redesign and its post-phase corrections are complete. The planned Phase 13 full-screen terminal client is retired by D-034.
-> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.154 is the current CI-maintenance step awaiting verification.
+> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.155 is the current CI-maintenance step awaiting verification.
 
 Previous phases and completed work remain in `rolling-plan-archive.md`. The archive is historical; this file contains only the current state and the next move.
 
@@ -293,4 +293,12 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **What:** Match the existing browser smoke to the current Add Server and Manage Servers controls: the import path is labeled “Import or Create from Modpack,” and server removal is opened through More actions and confirmed with Remove from Controller rather than the retired Delete server alert.
 **Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
 **Commit:** `P12.154: reconcile browser workflow actions with current fleet controls`
+**Batch:** solo
+
+### P12.155 — Reconcile browser world import workflow with current worlds controls
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/tests/e2e/browser/workflows.spec.ts`, `docs/msc2/rolling-plan.md`
+**What:** Match the browser smoke to the current wizard’s accessible path-card name and the current Worlds section flow: open the header actions menu, choose Import ZIP…, select the existing fixture through the sheet’s file chooser, and complete the staged world import. Remove the retired Stage file and world-export assertions that no longer exist in the current client.
+**Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
+**Commit:** `P12.155: reconcile browser world import workflow with current worlds controls`
 **Batch:** solo

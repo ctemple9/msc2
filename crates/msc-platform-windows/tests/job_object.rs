@@ -120,7 +120,9 @@ fn process_supervisor_real_job_object_terminates_child_process_tree() {
 }
 
 fn wait_for_child_pid(supervisor: &WindowsJavaProcessSupervisor, pid: ProcessId) -> u32 {
-    let deadline = Instant::now() + Duration::from_secs(30);
+    // Hosted Windows runners can spend most of the old 30-second budget
+    // starting PowerShell while the workspace suite is under load.
+    let deadline = Instant::now() + Duration::from_secs(60);
     let mut output = String::new();
     while Instant::now() < deadline {
         output.push_str(&stdout_text(&supervisor.drain_events(pid).unwrap()));

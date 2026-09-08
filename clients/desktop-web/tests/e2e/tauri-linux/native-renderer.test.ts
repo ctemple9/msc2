@@ -5,16 +5,26 @@ const screenshotPath = process.env.MSC_WEBKITGTK_SCREENSHOT;
 const motionMode = process.env.MSC_EXPECT_MOTION ?? 'fallback';
 
 async function waitForText(selector: string, expected: string): Promise<void> {
-  const element = await $(selector);
-  await element.waitForDisplayed();
   await browser.waitUntil(
-    async () =>
-      (
-        await browser.execute(
-          (target) => document.querySelector(target)?.textContent ?? '',
-          selector,
-        )
-      ).includes(expected),
+    async () => {
+      return await browser.execute(
+        (target, expectedText) => {
+          return Array.from(document.querySelectorAll(target)).some((element) => {
+            const style = getComputedStyle(element);
+            const bounds = element.getBoundingClientRect();
+            return (
+              style.display !== 'none' &&
+              style.visibility !== 'hidden' &&
+              bounds.width > 0 &&
+              bounds.height > 0 &&
+              (element.textContent ?? '').includes(expectedText)
+            );
+          });
+        },
+        selector,
+        expected,
+      );
+    },
     {
       timeout: 15_000,
       timeoutMsg: `Timed out waiting for ${selector} to include ${expected}.`,

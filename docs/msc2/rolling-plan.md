@@ -398,3 +398,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check && cd clients/desktop-web && npm run format:check && npm run check`
 **Commit:** `P12.167: repair hosted browser and native text harnesses`
 **Batch:** solo
+
+### P12.168 — Bound hosted process and native view timing
+**Status:** awaiting verification
+**Files:** `crates/msc-platform-windows/tests/job_object.rs`, `clients/desktop-web/tests/e2e/tauri-linux/native-renderer.test.ts`, `docs/msc2/rolling-plan.md`
+**What:** Give the existing Windows Job Object fixture the same 60-second hosted-runner startup budget as its sibling process fixtures, and make the Linux native text helper poll visible matching DOM nodes without holding a stale element reference between render updates.
+**Verify:** `git diff --check && cargo fmt --all -- --check && cd clients/desktop-web && npx prettier --check tests/e2e/browser/contract-harness.mjs tests/e2e/tauri-linux/native-renderer.test.ts && npm run format:check && npm run check`
+**Commit:** `P12.168: bound hosted process and native view timing`
+**Batch:** solo

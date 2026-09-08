@@ -103,12 +103,12 @@ Every route above carries `x-permission-category: worlds`, matching every existi
 
 ## 7. The client capability matrix
 
-`docs/msc2/client-capability-matrix.csv` is the D-023 matrix — one row per `openapi.json` operation (106 rows as of P6.34; 105 at P6.8 freeze) plus the two WebSocket channels `websocket-v1.json` documents (`console`, `operation-progress`; 108 rows total). Columns: `method, path, operation_id, msc1_capability, permission_category, agent_status, desktop_web_status, cli_status, notes, tui_status`.
+`docs/msc2/client-capability-matrix.csv` is the D-023 matrix — one row per `openapi.json` operation (106 rows as of P6.34; 105 at P6.8 freeze) plus the two WebSocket channels `websocket-v1.json` documents (`console`, `operation-progress`; 108 rows total). The current columns are `method, path, operation_id, msc1_capability, permission_category, agent_status, desktop_web_status, cli_status, notes`. The former mobile and full-screen-terminal surfaces are historical evidence, not matrix columns.
 
 **Status values are `Implemented`, `Planned`, or `Intentional exception`** (D-023's own three values), assessed as of this commit — not aspirational, not "eventually":
 
-- **`agent_status: Implemented`** only for the routes `crates/msc-agent/src/main.rs::build_app()` actually mounts against real service logic today: `health`, `operations` (create/get/cancel/stream), `servers` (list/import), `active-server`, `start`, `stop`, `command`, `status`, `performance`, `settings` (get/post), `capabilities`, `console` (stream/tail). Every other row — including every world/backup row this note just designed — is `Planned`: P6.8 freezes the contract; P6.9–P6.19 build the services behind it.
-- **`desktop_web_status`** is `Planned` for every single row without exception, per `rolling-plan.md`'s own Phase 6 preamble: "Desktop/web screens stay Phase 11. Their cells are `Planned` in the capability matrix; that is not an exception." Encoding this as an exception would misrepresent a scheduling fact as an approved permanent gap.
+- **`agent_status`**, **`desktop_web_status`**, and **`cli_status`** are current snapshot values. The original Phase 6 freeze described early routes as `Implemented` and deferred desktop/web rows as `Planned`; later phases updated those cells as the retained clients and agent routes shipped.
+- **The Phase 6 desktop/web scheduling rule is historical.** Phase 6 deliberately set every desktop/web cell to `Planned`, but Phase 11 and later work changed implemented surfaces to `Implemented`. The current checker accepts those later values rather than treating them as permanent gaps.
 - **Former mobile-client coverage** is historical evidence only and is not a current matrix column. The retained desktop/browser and CLI clients are assessed in their own columns.
 - **`cli_status: Implemented`** only for the commands `crates/msc-agent/src/cli/mod.rs` actually sends: `status`, `servers import` (all three import shapes), `start`, `stop`/`restart` (client-side stop-then-start, no dedicated route), `command`, `console tail`, `settings` (get/update), `active-server`. Everything else, `operations` included (no CLI command polls or cancels an operation today), is `Planned`.
 - **No row uses `Intentional exception` yet.** Nothing in the current surface is a capability MSC 1 has that some MSC 2 client is *permanently* not getting — every `Planned` row is a scheduling fact (a later phase's job), not an approved permanent gap. The first real exception, if one is ever needed, becomes its own `msc2-decisions.md` entry per D-023's own rule, not a CSV row with no paper trail behind it.
@@ -121,10 +121,10 @@ This matrix is a snapshot, not a one-time artifact — `tools/phase6/capability-
 
 New checker, dependency-free (stdlib only), mirroring `tools/api-contract-check.py`'s shape. Given the CSV path as its one positional argument, it:
 
-1. Confirms the header matches exactly: `method,path,operation_id,msc1_capability,permission_category,agent_status,desktop_web_status,cli_status,notes,tui_status`.
+1. Confirms the header matches exactly: `method,path,operation_id,msc1_capability,permission_category,agent_status,desktop_web_status,cli_status,notes`.
 2. Confirms every `(method, path)` pair in `openapi.json`'s `paths`, plus the two `websocket-v1.json` channels, has exactly one row — no missing operation, no orphan row naming a route that doesn't exist, no duplicate.
-3. Confirms every status cell (`agent_status`, `desktop_web_status`, `cli_status`, `tui_status`) is one of the three D-023 values, and non-blank.
-4. Confirms every `desktop_web_status` cell reads `Planned` (SS7's blanket rule — a `Implemented` or exception cell there this phase would be a real bug, not a style nit).
+3. Confirms every status cell (`agent_status`, `desktop_web_status`, `cli_status`) is one of the three D-023 values, and non-blank.
+4. Accepts later `desktop_web_status` implementations; the Phase 6 blanket `Planned` rule is historical and is not enforced after Phase 11.
 5. Confirms any `Intentional exception` cell has a non-empty `notes` value naming a `D-0\d\d` decision — D-023's "becomes its own decision entry" requirement, checked mechanically since there are no exceptions to check against yet, but the rule needs to hold the day there is one.
 
 `--selftest` runs two bundled fixtures (one clean, one violating rules 1–5) the same way `api-contract-check.py --selftest` and `corpus-check.py --selftest` already do.

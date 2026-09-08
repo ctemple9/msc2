@@ -44,7 +44,6 @@ git grep -n -i -E '\bTUI\b|terminal UI|terminal dashboard|ratatui|crossterm|tui_
   ':!docs/msc2/audit/**' \
   ':!docs/msc2/msc2-decisions.md' \
   ':!docs/msc2/rolling-plan.md' \
-  ':!docs/msc2/worlds/phase6-api.md' \
   ':!docs/msc2/tui-retirement-audit.md'
 ```
 
@@ -118,8 +117,9 @@ HTTP command boundary rather than those WebSocket streams.
   D-034 retired it.
 - `docs/msc2/msc2-decisions.md` retains D-034 and its reasoning; the MSC 1
   audit remains the compatibility evidence for the separate oracle project.
-- `docs/msc2/worlds/phase6-api.md` retains its old Phase 6 capability-matrix
-  examples, including the former column name, as a historical contract note.
+- `docs/msc2/worlds/phase6-api.md` is a historical Phase 6 contract note, but
+  its capability-matrix header and checker description were reconciled to the
+  current nine-column matrix in P12.122.
 - Generic terminal wording remains where it means Minecraft's own console,
   terminal-safe service administration, Java's `jline.terminal` setting, or
   ordinary CLI stdin/stdout behavior. Those references do not describe a

@@ -10272,3 +10272,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check`
 **Commit:** `P12.192: prepare the 0.1.3 prerelease`
 **Batch:** solo
+
+### P12.193 — Allow the accepted release gate
+**Status:** DONE
+**Files:** `tools/release/check-update-gate.py`, `docs/msc2/rolling-plan-archive.md`
+**What:** Keep the update gate checker valid for its original pending-evidence state while also accepting the newly recorded owner-confirmed closed state, so the prerelease workflow can build after physical release validation is accepted.
+**Verify:** `git diff --check`
+**Commit:** `P12.193: allow the accepted release gate`
+**Batch:** solo

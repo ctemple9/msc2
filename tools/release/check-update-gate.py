@@ -56,9 +56,14 @@ def check_evidence_packet() -> None:
     )
     missing = [row for row in required_rows if row not in evidence]
     require(not missing, "update evidence packet is missing: " + ", ".join(missing))
+    pending = "physical platform runs remain pending" in evidence
+    owner_closed = (
+        re.search(r"\*\*Status:\*\* CLOSED\b", evidence) is not None
+        and "owner-confirmed physical platform validation" in evidence
+    )
     require(
-        "physical platform runs remain pending" in evidence,
-        "update evidence packet must keep physical platform runs pending",
+        pending or owner_closed,
+        "update evidence packet must declare pending runs or owner-confirmed closure",
     )
 
 

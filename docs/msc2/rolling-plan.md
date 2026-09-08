@@ -430,3 +430,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check && cargo fmt --all -- --check && cd clients/desktop-web && npx prettier --check tests/e2e/browser/contract-harness.mjs tests/e2e/tauri-linux/native-renderer.test.ts && npm run format:check && npm run check`
 **Commit:** `P12.171: isolate native harness identity from browser fixtures`
 **Batch:** solo
+
+### P12.172 — Preserve native setup state across the desktop bridge
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/tests/e2e/browser/contract-harness.mjs`, `docs/msc2/rolling-plan.md`
+**What:** Keep the native host-setup override as isolated harness state for the Linux smoke, because desktop API calls travel through Rust and cannot share the webview request's origin or user-agent; browser fixtures remain cookie-backed and unchanged.
+**Verify:** `git diff --check && cargo fmt --all -- --check && cd clients/desktop-web && npx prettier --check tests/e2e/browser/contract-harness.mjs tests/e2e/tauri-linux/native-renderer.test.ts && npm run format:check && npm run check`
+**Commit:** `P12.172: preserve native setup state across the desktop bridge`
+**Batch:** solo

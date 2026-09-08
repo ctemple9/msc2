@@ -68,9 +68,14 @@ fn production_router_exposes_shared_bedrock_surfaces_and_runtime_errors() {
         "/v1/components/version",
         Some(r#"{"versionId":"1.21.80.3"}"#),
     );
-    assert_eq!(status, 200, "Bedrock version change: {version_change}");
-    assert_eq!(version_change["success"], true);
-    assert!(version_change["operationId"].is_string());
+    if fixture.runtime_state() == "unavailable" {
+        assert_eq!(status, 409, "Bedrock version change: {version_change}");
+        assert_eq!(version_change["code"], "capability_unavailable");
+    } else {
+        assert_eq!(status, 200, "Bedrock version change: {version_change}");
+        assert_eq!(version_change["success"], true);
+        assert!(version_change["operationId"].is_string());
+    }
 
     for (path, body) in [
         ("/v1/start", "{}"),

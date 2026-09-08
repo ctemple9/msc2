@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 12 client redesign and its post-phase corrections are complete. The planned Phase 13 full-screen terminal client is retired by D-034.
-> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.135 is the current CI-maintenance step awaiting verification.
+> **Next move:** Cameron reviews this reconciled plan and advances the repository to the next product phase. All prior Phase 12 verification entries are recorded as DONE in the archive. P12.136 is the current CI-maintenance step awaiting verification.
 
 Previous phases and completed work remain in `rolling-plan-archive.md`. The archive is historical; this file contains only the current state and the next move.
 
@@ -141,4 +141,12 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **What:** Keep the required workspace regression suite in CI, serialize its test execution to protect shared production Bedrock fixtures from concurrent timeout pressure, and reconcile existing assertions with approved Phase 12 changes: D-035's removal of global template commands, P12.127's real Bedrock version picker/change flow, the settings rejection result, the final Phase 11 wording, and the intentionally local-only player capture.
 **Verify:** `git diff --check && cargo fmt --all -- --check && cargo check --workspace && cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && python3 tools/phase9/phase9-check.py --gate`
 **Commit:** `P12.135: reconcile the workspace regression suite with current phase 12 behavior`
+**Batch:** solo
+
+### P12.136 — Finish platform-aware workspace regression fixtures
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/tests/bedrock_production_surfaces.rs`, `crates/msc-api/tests/phase11_auth_conformance.rs`, `docs/msc2/rolling-plan.md`
+**What:** Make the Bedrock version-change fixture honor the approved Apple Silicon unavailable-runtime contract while continuing to assert the real 200/operation response on available runtimes, and correct the Phase 11 fixture to match the document's actual line break without a patch-marker character.
+**Verify:** `git diff --check && cargo fmt --all -- --check && cargo check --workspace && cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format`
+**Commit:** `P12.136: finish platform-aware workspace regression fixtures`
 **Batch:** solo

@@ -52,6 +52,14 @@ test('walks a fresh profile through setup, tour pauses, handoff, and reopen', as
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await expect(page.getByRole('heading', { name: "You're All Set", level: 2 })).toBeVisible();
   await page.getByRole('dialog').getByRole('button', { name: 'Finish', exact: true }).click();
+  await page
+    .getByRole('dialog', { name: 'Add Server' })
+    .getByRole('button', { name: 'Close' })
+    .click();
+  await page
+    .getByRole('dialog', { name: 'Manage Servers' })
+    .getByRole('button', { name: 'Close' })
+    .click();
   await expect(
     page.locator('.topic-reader').getByRole('heading', { name: 'Overview' }),
   ).toBeVisible();

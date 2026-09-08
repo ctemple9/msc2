@@ -195,6 +195,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@nextest
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

@@ -470,3 +470,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check && ruby -e "require 'yaml'; YAML.load_file('.github/workflows/ci.yml'); puts 'workflow YAML parses'"`
 **Commit:** `P12.176: restore executable bit for staged smoke binary`
 **Batch:** solo
+
+### P12.177 — Install nextest for platform smokes
+**Status:** awaiting verification
+**Files:** `.github/workflows/ci.yml`, `docs/msc2/rolling-plan.md`
+**What:** Install cargo-nextest in the independently rerunnable platform-smoke job because the Phase 8 smoke invokes it directly.
+**Verify:** `git diff --check && ruby -e "require 'yaml'; YAML.load_file('.github/workflows/ci.yml'); puts 'workflow YAML parses'"`
+**Commit:** `P12.177: install nextest for platform smokes`
+**Batch:** solo

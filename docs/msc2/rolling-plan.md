@@ -414,3 +414,11 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check && cargo fmt --all -- --check && cd clients/desktop-web && npx prettier --check tests/e2e/browser/contract-harness.mjs tests/e2e/tauri-linux/native-renderer.test.ts && npm run format:check && npm run check`
 **Commit:** `P12.169: preserve native host setup fixture state`
 **Batch:** solo
+
+### P12.170 — Fall back to native harness request identity
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/tests/e2e/browser/contract-harness.mjs`, `docs/msc2/rolling-plan.md`
+**What:** Key the deterministic native host-setup override by the request origin when WebKitGTK sends one, and by its user-agent when the native cross-origin request omits `Origin`; the hosted native smoke can then retain the incomplete setup state across the refresh that follows its reset.
+**Verify:** `git diff --check && cargo fmt --all -- --check && cd clients/desktop-web && npx prettier --check tests/e2e/browser/contract-harness.mjs tests/e2e/tauri-linux/native-renderer.test.ts && npm run format:check && npm run check`
+**Commit:** `P12.170: fall back to native harness request identity`
+**Batch:** solo

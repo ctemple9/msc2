@@ -365,9 +365,10 @@ async function readJsonBody(request) {
 }
 
 function hostSetupComplete(request) {
-  const nativeOrigin = request.headers.origin;
-  if (nativeOrigin && hostSetupOverrides.has(nativeOrigin)) {
-    return hostSetupOverrides.get(nativeOrigin);
+  const origin = request.headers.origin;
+  const requestKey = origin ?? request.headers['user-agent'];
+  if (requestKey && hostSetupOverrides.has(requestKey)) {
+    return hostSetupOverrides.get(requestKey);
   }
   const cookie = request.headers.cookie ?? '';
   const cookieSaysIncomplete = cookie
@@ -423,7 +424,8 @@ createServer(async (request, response) => {
       expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
     });
   if (url.pathname === '/__test/host-setup' && request.method === 'POST') {
-    if (request.headers.origin) hostSetupOverrides.set(request.headers.origin, false);
+    const requestKey = request.headers.origin ?? request.headers['user-agent'];
+    if (requestKey) hostSetupOverrides.set(requestKey, false);
     response.setHeader('set-cookie', 'msc_test_host_setup=false; Path=/; SameSite=Lax');
     return json(response, { complete: false });
   }
@@ -432,7 +434,8 @@ createServer(async (request, response) => {
   if (url.pathname === '/v1/config/host-setup' && request.method === 'GET')
     return json(response, { complete: hostSetupComplete(request) });
   if (url.pathname === '/v1/config/host-setup/complete' && request.method === 'POST') {
-    if (request.headers.origin) hostSetupOverrides.set(request.headers.origin, true);
+    const requestKey = request.headers.origin ?? request.headers['user-agent'];
+    if (requestKey) hostSetupOverrides.set(requestKey, true);
     response.setHeader('set-cookie', 'msc_test_host_setup=true; Path=/; SameSite=Lax');
     return json(response, { complete: true });
   }

@@ -285,6 +285,8 @@ MSC 2 uses and builds on projects maintained by other people:
 | [Adoptium Temurin](https://adoptium.net) | The Java runtime that Java servers need |
 | [Mojang & Microsoft](https://www.minecraft.net) | Minecraft itself and the Bedrock Dedicated Server |
 
+If I forgot to credit your project, that's on me. Let me know and I'll address that; thank you to everyone who helped maintain the projects above.
+
 ## Built with
 
 **Rust** · **Tauri** · **Svelte** · **Swift**

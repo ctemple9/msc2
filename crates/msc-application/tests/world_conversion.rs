@@ -107,14 +107,14 @@ struct FakeWorldConverter {
     /// writing `files` (relative name, contents) directly into
     /// `output_dir`, matching source's own "Chunker writes world files
     /// DIRECTLY into the output directory" contract.
-    convert_result: Result<Vec<(&'static str, &'static [u8])>, String>,
+    convert_result: Result<Vec<(&'static str, Vec<u8>)>, String>,
     is_installed_called: Cell<bool>,
     resolve_java_path_called: Cell<bool>,
     invocation: Mutex<Option<RecordedInvocation>>,
 }
 
 impl FakeWorldConverter {
-    fn ready(convert_result: Result<Vec<(&'static str, &'static [u8])>, String>) -> Self {
+    fn ready(convert_result: Result<Vec<(&'static str, Vec<u8>)>, String>) -> Self {
         Self {
             java_resolvable: true,
             installed: true,
@@ -167,7 +167,9 @@ impl WorldConverter for FakeWorldConverter {
             Ok(files) => {
                 fs::create_dir_all(output_dir).unwrap();
                 for (name, contents) in files {
-                    fs::write(output_dir.join(name), contents).unwrap();
+                    let path = output_dir.join(name);
+                    fs::create_dir_all(path.parent().unwrap()).unwrap();
+                    fs::write(path, contents).unwrap();
                 }
                 progress("Chunker output line");
                 Ok(())
@@ -557,16 +559,41 @@ fn minimal_source(source_dir: &Path) -> WorldSlot {
     make_slot("SRC", Some("world"))
 }
 
+/// A minimal parsed Java level.dat: gzip-wrapped, big-endian root compound.
+fn java_level_dat() -> Vec<u8> {
+    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    encoder.write_all(&[10, 0, 0, 0]).unwrap();
+    encoder.finish().unwrap()
+}
+
+/// A minimal parsed Bedrock level.dat: little-endian root compound without
+/// the optional eight-byte Bedrock header.
+fn bedrock_level_dat() -> Vec<u8> {
+    vec![10, 0, 0, 0]
+}
+
+fn java_output_files() -> Vec<(&'static str, Vec<u8>)> {
+    vec![
+        ("level.dat", java_level_dat()),
+        ("region/r.0.0.mca", vec![0; 8192]),
+    ]
+}
+
+fn bedrock_output_files() -> Vec<(&'static str, Vec<u8>)> {
+    vec![
+        ("level.dat", bedrock_level_dat()),
+        ("db/CURRENT", b"MANIFEST-000001\n".to_vec()),
+        ("levelname.txt", b"Converted world".to_vec()),
+    ]
+}
+
 #[test]
 fn world_conversion_output_packaging_java_target() {
     let source = TempDir::new("packaging-java-source");
     let target = TempDir::new("packaging-java-target");
     let slot = minimal_source(source.path());
     let fs = StdFileSystem;
-    let converter = FakeWorldConverter::ready(Ok(vec![
-        ("level.dat", b"x".as_slice()),
-        ("region", b"".as_slice()),
-    ]));
+    let converter = FakeWorldConverter::ready(Ok(java_output_files()));
     let mut log = Vec::new();
 
     let result = run(
@@ -601,10 +628,7 @@ fn world_conversion_output_packaging_bedrock_target() {
     let target = TempDir::new("packaging-bedrock-target");
     let slot = minimal_source(source.path());
     let fs = StdFileSystem;
-    let converter = FakeWorldConverter::ready(Ok(vec![
-        ("level.dat", b"x".as_slice()),
-        ("levelname.txt", b"Converted world".as_slice()),
-    ]));
+    let converter = FakeWorldConverter::ready(Ok(bedrock_output_files()));
     let mut log = Vec::new();
 
     let result = run(
@@ -661,7 +685,11 @@ fn world_conversion_output_packaging_empty_output_dir_refused() {
         &mut log,
     );
 
-    assert!(matches!(result, Err(ConversionError::WorldFolderNotFound)));
+    assert!(matches!(
+        result,
+        Err(ConversionError::ValidationFailed(message))
+            if message == "the converted world has no level.dat"
+    ));
 }
 
 // ---------------------------------------------------------------------
@@ -708,16 +736,16 @@ fn world_conversion_chunker_nonzero_exit_fails_conversion() {
 }
 
 // ---------------------------------------------------------------------
-// pre-conversion-backup-failure-only-warns-while-activation-failure-aborts-after-slot-already-written
+// pre-conversion-backup-failure-aborts-before-slot-write-while-activation-failure-aborts-after-slot-already-written
 // ---------------------------------------------------------------------
 
 #[test]
-fn world_conversion_pre_conversion_backup_failure_only_warns() {
+fn world_conversion_pre_conversion_backup_failure_aborts_before_slot_write() {
     let source = TempDir::new("backup-warn-source");
     let target = TempDir::new("backup-warn-target");
     let slot = minimal_source(source.path());
     let fs = StdFileSystem;
-    let converter = FakeWorldConverter::ready(Ok(vec![("level.dat", b"x".as_slice())]));
+    let converter = FakeWorldConverter::ready(Ok(java_output_files()));
     let mut log = Vec::new();
 
     let result = run(
@@ -736,11 +764,10 @@ fn world_conversion_pre_conversion_backup_failure_only_warns() {
         &mut log,
     );
 
-    assert!(result.is_ok(), "a failed backup must not abort conversion");
+    assert!(matches!(result, Err(ConversionError::BackupFailed)));
     assert!(
-        log.iter()
-            .any(|line| line.contains("Warning: pre-conversion backup failed")),
-        "expected a warning line, got {log:?}"
+        !target.path().join("world_slots").exists(),
+        "a failed backup must not create a target slot"
     );
 }
 
@@ -764,7 +791,7 @@ fn world_conversion_activation_failure_leaves_slot_written_but_inactive() {
         inner: StdFileSystem,
         fail_path: manifest_path,
     };
-    let converter = FakeWorldConverter::ready(Ok(vec![("level.dat", b"x".as_slice())]));
+    let converter = FakeWorldConverter::ready(Ok(java_output_files()));
     let mut log = Vec::new();
 
     let result = run(
@@ -832,7 +859,7 @@ fn world_conversion_replace_existing_slot_write_failure_preserves_previous_archi
         inner: StdFileSystem,
         fail_path: temp_zip.clone(),
     };
-    let converter = FakeWorldConverter::ready(Ok(vec![("level.dat", b"x".as_slice())]));
+    let converter = FakeWorldConverter::ready(Ok(java_output_files()));
     let mut log = Vec::new();
 
     let result = run(

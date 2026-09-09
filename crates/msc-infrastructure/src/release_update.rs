@@ -384,7 +384,7 @@ fn verify_platform(
     }
     let expected_mode = if platform_key.starts_with("linux-desktop-") {
         "authorized-package-install"
-    } else if platform_key.ends_with("-headless-x86_64") {
+    } else if platform_key.contains("-headless-") {
         "standalone-archive"
     } else {
         "tauri-coordinated"
@@ -402,7 +402,7 @@ fn verify_platform(
         "package-deb"
     } else if platform_key.ends_with("-rpm-x86_64") {
         "package-rpm"
-    } else if platform_key.ends_with("-headless-x86_64") {
+    } else if platform_key.contains("-headless-") {
         "archive"
     } else {
         "desktop"
@@ -649,12 +649,11 @@ fn platform_key(
     channel: UpdateChannel,
     linux_package_format: Option<LinuxPackageFormat>,
 ) -> Result<&'static str, String> {
-    if std::env::consts::ARCH != "x86_64" {
-        return Err("This MSC release supports x86_64 updates only.".to_string());
-    }
     match (std::env::consts::OS, target, channel) {
         ("macos", "x86_64-apple-darwin", UpdateChannel::Desktop) => Ok("macos-desktop-x86_64"),
         ("macos", "x86_64-apple-darwin", UpdateChannel::Headless) => Ok("macos-headless-x86_64"),
+        ("macos", "aarch64-apple-darwin", UpdateChannel::Desktop) => Ok("macos-desktop-aarch64"),
+        ("macos", "aarch64-apple-darwin", UpdateChannel::Headless) => Ok("macos-headless-aarch64"),
         ("windows", "x86_64-pc-windows-msvc", UpdateChannel::Desktop) => {
             Ok("windows-desktop-x86_64")
         }

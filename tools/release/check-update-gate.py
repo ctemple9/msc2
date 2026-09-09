@@ -93,13 +93,15 @@ def check_schema() -> None:
         == {
             "macos-desktop-x86_64",
             "macos-headless-x86_64",
+            "macos-desktop-aarch64",
+            "macos-headless-aarch64",
             "windows-desktop-x86_64",
             "windows-headless-x86_64",
             "linux-desktop-deb-x86_64",
             "linux-desktop-rpm-x86_64",
             "linux-headless-x86_64",
         },
-        "update schema must enumerate the seven x86_64 update shapes",
+        "update schema must enumerate the Intel and Apple Silicon update shapes",
     )
 
 
@@ -161,8 +163,8 @@ def check_workflow() -> None:
         "release workflow must run the update static gate",
     )
     require(
-        re.search(r"test \"\$asset_count\" -eq 7", workflow) is not None,
-        "release workflow must require the complete seven-asset set",
+        re.search(r"test \"\$asset_count\" -eq 9", workflow) is not None,
+        "release workflow must require the complete nine-asset set",
     )
 
 

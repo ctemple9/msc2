@@ -49,6 +49,20 @@
       "includedComponents": ["agent", "sidecar"],
       "forbiddenArtifacts": []
     },
+    "macos-desktop-aarch64": {
+      "target": "aarch64-apple-darwin",
+      "installMode": "tauri-coordinated",
+      "requiredArtifacts": ["desktop"],
+      "includedComponents": ["agent"],
+      "forbiddenArtifacts": ["sidecar"]
+    },
+    "macos-headless-aarch64": {
+      "target": "aarch64-apple-darwin",
+      "installMode": "standalone-archive",
+      "requiredArtifacts": ["archive"],
+      "includedComponents": ["agent"],
+      "forbiddenArtifacts": ["sidecar"]
+    },
     "windows-desktop-x86_64": {
       "target": "x86_64-pc-windows-msvc",
       "installMode": "tauri-coordinated",

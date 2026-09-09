@@ -11,6 +11,8 @@ export interface ReleaseArtifact {
 export interface CoordinatedRelease {
   readonly releaseId: string;
   readonly platform: UpdatePlatform;
+  /** Rust target triple from the signed manifest; absent means legacy Intel macOS. */
+  readonly target?: string;
   readonly apiMajor: number;
   readonly desktopApiMinor: number;
   readonly agentApiMinorFloor: number;
@@ -90,10 +92,17 @@ export function assessCoordinatedRelease(release: CoordinatedRelease): UpdateDis
       message: 'A coordinated release must include both desktop and agent.',
     };
   }
-  if (release.platform === 'macos' && !kinds.has('sidecar')) {
+  const appleSiliconMac = release.target === 'aarch64-apple-darwin';
+  if (release.platform === 'macos' && !appleSiliconMac && !kinds.has('sidecar')) {
     return {
       kind: 'refused',
       message: 'The macOS release is missing its compatible Bedrock sidecar.',
+    };
+  }
+  if (release.platform === 'macos' && appleSiliconMac && kinds.has('sidecar')) {
+    return {
+      kind: 'refused',
+      message: 'The Apple Silicon macOS release must not include a Bedrock sidecar.',
     };
   }
   if (release.platform === 'windows' && kinds.has('sidecar')) {

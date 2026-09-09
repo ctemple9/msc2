@@ -17,6 +17,12 @@ EXPECTED_BETA_ASSETS = {
     "macos headless": re.compile(
         rf"^msc2-headless-(?P<version>{RELEASE_VERSION})-macos-x86_64\.tar\.gz$"
     ),
+    "macos Apple Silicon desktop": re.compile(
+        rf"^msc2-(?P<version>{RELEASE_VERSION})-macos-aarch64\.dmg$"
+    ),
+    "macos Apple Silicon headless": re.compile(
+        rf"^msc2-headless-(?P<version>{RELEASE_VERSION})-macos-aarch64\.tar\.gz$"
+    ),
     "windows desktop": re.compile(rf"^msc2-(?P<version>{RELEASE_VERSION})-windows-x86_64\.msi$"),
     "windows headless": re.compile(
         rf"^msc2-headless-(?P<version>{RELEASE_VERSION})-windows-x86_64\.zip$"

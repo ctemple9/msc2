@@ -67,9 +67,11 @@ def check_candidate_workflow(workflow: str) -> None:
         "runs-on: ${{ matrix.os }}",
         "fail-fast: false",
         "macos-15-intel",
+        "macos-14",
         "windows-latest",
         "ubuntu-latest",
         "x86_64-apple-darwin",
+        "aarch64-apple-darwin",
         "x86_64-pc-windows-msvc",
         "x86_64-unknown-linux-gnu",
         "npm run check",
@@ -107,6 +109,10 @@ def check_candidate_workflow(workflow: str) -> None:
     require(
         re.search(r"platform:\s+macos-x86_64", workflow) is not None,
         "macOS artifact must be labelled x86_64",
+    )
+    require(
+        re.search(r"platform:\s+macos-aarch64", workflow) is not None,
+        "Apple Silicon macOS artifact must be labelled aarch64",
     )
     require(
         re.search(r"platform:\s+windows-x86_64", workflow) is not None,
@@ -151,7 +157,7 @@ def check_publish_guard(workflow: str) -> None:
     require("--public-key-env MSC2_RELEASE_PUBLIC_KEY_HEX" in publish_job, "manifest signing does not verify the public/private key pair")
     require("MSC2_RELEASE_SIGNING_KEY_HEX must be configured" in publish_job, "publish job allows unsigned releases")
     require("-name '*.rpm'" in publish_job, "publication does not collect RPM assets")
-    require('test "$asset_count" -eq 7' in publish_job, "publication does not require seven release assets")
+    require('test "$asset_count" -eq 9' in publish_job, "publication does not require nine release assets")
     require("softprops/action-gh-release@v2" in publish_job, "publish job does not create a GitHub release")
     require("prerelease: true" in publish_job, "GitHub publication is not marked as a prerelease")
     require("fail_on_unmatched_files: true" in publish_job, "release publication does not fail on missing assets")

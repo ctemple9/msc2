@@ -18,25 +18,27 @@ absence of distribution signing separately from checksum integrity.
 
 ## Start with the published bytes
 
-Use one exact beta tag and download its seven release assets plus `SHA256SUMS`
+Use one exact beta tag and download its nine release assets plus `SHA256SUMS`
 from the intended release page. Do not use a debug build, a candidate artifact
 with a different version, or a file rebuilt locally.
 
-Stage only the seven installer/archive files in the local verifier directory and
+Stage only the nine installer/archive files in the local verifier directory and
 keep the checksum file outside that directory:
 
 ```text
 mkdir -p target/release/artifacts
-cp <downloaded-seven-assets> target/release/artifacts/
+cp <downloaded-nine-assets> target/release/artifacts/
 cp SHA256SUMS target/release/sha256sums.txt
 python3 tools/release/verify-artifact-manifest.py \
   --manifest target/release/sha256sums.txt \
   --artifacts target/release/artifacts
 ```
 
-The verifier requires one macOS and Windows desktop asset, both Linux desktop
-formats, and one headless asset for each platform, all at x86_64 and all at
-the same release version. It also rejects symlinks, directories, duplicate manifest entries,
+The verifier requires both macOS architectures, one Windows desktop asset, both
+Linux desktop formats, and one headless asset for each published architecture,
+all at the same release version. The physical worksheets below still record
+the x86_64 handoff; Apple Silicon packaging is verified by the native CI leg.
+It also rejects symlinks, directories, duplicate manifest entries,
 missing assets, extra files, malformed hashes, and changed bytes. A successful
 comparison proves downloaded bytes match the published bytes; it does not
 prove that the release publisher was trusted.

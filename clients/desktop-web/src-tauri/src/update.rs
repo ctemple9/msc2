@@ -342,11 +342,12 @@ fn linux_package_format() -> Option<LinuxPackageFormat> {
 }
 
 fn current_target() -> Result<String, String> {
-    if std::env::consts::ARCH != "x86_64" {
-        return Err("This MSC release supports x86_64 desktop updates only.".to_string());
-    }
     match std::env::consts::OS {
-        "macos" => Ok("x86_64-apple-darwin".to_string()),
+        "macos" => match std::env::consts::ARCH {
+            "x86_64" => Ok("x86_64-apple-darwin".to_string()),
+            "aarch64" => Ok("aarch64-apple-darwin".to_string()),
+            _ => Err("This macOS architecture is not supported by the MSC updater.".to_string()),
+        },
         "windows" => Ok("x86_64-pc-windows-msvc".to_string()),
         "linux" => Ok("x86_64-unknown-linux-gnu".to_string()),
         _ => Err("This desktop platform is not supported by the MSC updater.".to_string()),

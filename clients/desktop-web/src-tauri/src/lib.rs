@@ -21,7 +21,7 @@ const AGENT_SERVICE_NAME: &str = "com.ctemple.msc2.agent";
 const AGENT_PORT: u16 = 48001;
 const LOCAL_AGENT_BROWSER_ORIGIN: &str = "http://127.0.0.1:48001";
 const LOCAL_BOOTSTRAP_SOCKET: &str = "bootstrap.sock";
-#[cfg(target_os = "macos")]
+#[cfg(all(target_os = "macos", target_arch = "x86_64"))]
 const BEDROCK_SIDECAR_DIRECTORY_ENV: &str = "MSC2_BEDROCK_SIDECAR_DIR";
 #[cfg(target_os = "macos")]
 const PROTOCOL_VERSION: u32 = 1;
@@ -703,7 +703,7 @@ fn agent_install_request() -> Result<ServiceInstallRequest, String> {
     let binary_path = refresh_staged_packaged_agent_path()?;
     let working_directory = agent_data_directory()?;
     let secret_store_directory = working_directory.join("secrets");
-    #[cfg(target_os = "macos")]
+    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
     let sidecar_directory = packaged_bedrock_sidecar_directory()?;
     std::fs::create_dir_all(working_directory.join("logs"))
         .map_err(|error| format!("Could not create the agent data directory: {error}"))?;
@@ -741,7 +741,7 @@ fn agent_install_request() -> Result<ServiceInstallRequest, String> {
             .display()
             .to_string(),
     );
-    #[cfg(target_os = "macos")]
+    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
     let request = request
         .env(
             BEDROCK_SIDECAR_DIRECTORY_ENV,
@@ -871,7 +871,7 @@ fn packaged_agent_path() -> Result<PathBuf, String> {
     Err("This desktop platform has no agent-package layout.".to_string())
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(all(target_os = "macos", target_arch = "x86_64"))]
 fn packaged_bedrock_sidecar_directory() -> Result<PathBuf, String> {
     let desktop_binary = std::env::current_exe()
         .map_err(|error| format!("Could not locate the desktop application: {error}"))?;

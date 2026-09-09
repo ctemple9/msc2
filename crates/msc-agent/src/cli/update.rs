@@ -393,7 +393,11 @@ fn decode_hex_key(value: &str) -> Result<[u8; 32], CliError> {
 
 fn current_target() -> String {
     match std::env::consts::OS {
-        "macos" => "x86_64-apple-darwin",
+        "macos" => match std::env::consts::ARCH {
+            "x86_64" => "x86_64-apple-darwin",
+            "aarch64" => "aarch64-apple-darwin",
+            _ => "unsupported",
+        },
         "windows" => "x86_64-pc-windows-msvc",
         "linux" => "x86_64-unknown-linux-gnu",
         _ => "unsupported",

@@ -27,6 +27,16 @@
         "runtimeArchive": "verified-first-run-download",
         "runtimeBundled": false
       },
+      "appleSilicon": {
+        "agentPath": "MSC 2.app/Contents/Resources/agent/msc",
+        "sidecarPath": null,
+        "bedrock": {
+          "backend": "unavailable",
+          "reason": "The Bedrock VM requires an Intel Mac",
+          "runtimeArchive": "not-applicable",
+          "runtimeBundled": false
+        }
+      },
       "dataPath": "~/Library/Application Support/MSC 2"
     },
     "windows": {

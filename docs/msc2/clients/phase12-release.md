@@ -41,15 +41,18 @@ service-management command.
 
 ## 2. Platform and architecture matrix
 
-The first beta publishes x86_64 artifacts only. This is the architecture that
-the physical Linux and Windows handoff can verify and the architecture of the
-Intel macOS Bedrock appliance. An artifact that is not in this table is not a
-beta support claim.
+The current prerelease publishes x86_64 artifacts plus native Apple Silicon
+macOS artifacts. The physical Linux and Windows handoff remains an x86_64
+validation claim, while the Intel macOS Bedrock appliance is intentionally
+absent from Apple Silicon packages. An artifact that is not in this table is
+not a prerelease support claim.
 
 | Surface | Rust target | Canonical beta asset | Notes |
 |---|---|---|---|
 | macOS desktop | `x86_64-apple-darwin` | `msc2-<release>-macos-x86_64.dmg` | Includes the agent and Intel Bedrock sidecar/resources. |
 | macOS headless | `x86_64-apple-darwin` | `msc2-headless-<release>-macos-x86_64.tar.gz` | Includes the agent/CLI and Intel Bedrock sidecar/resources. |
+| macOS desktop | `aarch64-apple-darwin` | `msc2-<release>-macos-aarch64.dmg` | Includes the agent; no Bedrock sidecar or VM resources. Local Bedrock is unavailable on Apple Silicon. |
+| macOS headless | `aarch64-apple-darwin` | `msc2-headless-<release>-macos-aarch64.tar.gz` | Includes the agent/CLI; no Bedrock sidecar or VM resources. |
 | Windows desktop | `x86_64-pc-windows-msvc` | `msc2-<release>-windows-x86_64.msi` | Includes the agent/CLI; no sidecar. |
 | Windows headless | `x86_64-pc-windows-msvc` | `msc2-headless-<release>-windows-x86_64.zip` | Includes the agent/CLI; no sidecar. |
 | Linux desktop (Debian/Ubuntu) | `x86_64-unknown-linux-gnu` | `msc2-<release>-linux-x86_64.deb` | Tauri desktop package for Debian/Ubuntu systems. |
@@ -61,13 +64,12 @@ beta support claim.
 asset. Each desktop installer contains the matching agent version, so a
 desktop user does not download a second agent to make the shell work.
 
-Apple Silicon macOS (`aarch64-apple-darwin`) is outside this first beta asset
-set for Bedrock purposes. D-028 remains in force: there is no arm64 appliance
-or Rosetta-for-Linux Bedrock path, and Apple Silicon must be reported as
-Bedrock unavailable rather than silently mapped to the Intel sidecar. Linux
-and Windows arm64 assets are likewise outside this beta set. This packaging
-boundary does not change the broader platform decisions or make an
-unsupported architecture appear tested.
+Apple Silicon macOS (`aarch64-apple-darwin`) is supported for the desktop app,
+Java servers, and remote host management. D-028 remains in force: there is no
+arm64 appliance or Rosetta-for-Linux Bedrock path, and Apple Silicon must be
+reported as Bedrock unavailable rather than silently mapped to the Intel
+sidecar. Linux and Windows arm64 assets remain outside this prerelease. This
+packaging boundary does not turn Apple Silicon Bedrock into a support claim.
 
 ## 3. Linux headless baseline and installation shape
 
@@ -324,9 +326,10 @@ cleanup decision.
 `.github/workflows/release.yml` is the artifact-only beta candidate workflow.
 It runs from manual dispatch on the selected ref or from a `v*` tag; a tag run
 fails unless the tag exactly matches the source, package, Tauri, and agent
-version. It uses native x86_64 runners: `macos-15-intel` for the Intel
-Virtualization.framework sidecar, `windows-latest` for the Windows Service
-target, and `ubuntu-latest` for the Linux headless target.
+version. It uses native runners: `macos-15-intel` for the Intel
+Virtualization.framework sidecar, `macos-14` for the sidecar-free Apple
+Silicon package, `windows-latest` for the Windows Service target, and
+`ubuntu-latest` for the Linux headless target.
 
 Each matrix leg runs the focused shared-client checks, the `msc-agent` web
 bundle check, formatting and Clippy, then builds the release `msc` binary and
@@ -349,11 +352,11 @@ dispatch remains artifact-only by default; a manual run may publish only when
 the selected ref is an exact `v*` tag and the operator explicitly enables the
 `publish` input. Branches and untagged refs cannot publish.
 
-The publication job downloads the three platform artifacts, selects the seven
-Tauri installer and headless archive files named by the platform matrix, and
-fails if any asset is missing or duplicated. It generates `SHA256SUMS` from
-those final bytes and verifies the flat manifest before uploading all seven
-release assets to the prerelease. The manifest uses lowercase SHA-256 and the
+The publication job downloads the platform artifacts, selects the nine Tauri
+installer and headless archive files named by the platform matrix, and fails
+if any asset is missing or duplicated. It generates `SHA256SUMS` from those
+final bytes and verifies the flat manifest before uploading all nine release
+assets to the prerelease. The manifest uses lowercase SHA-256 and the
 standard two-space filename separator; it is an integrity aid, not a
 signature, and is not included in its own hash.
 
@@ -382,10 +385,13 @@ python3 tools/release/verify-artifact-manifest.py \
   --artifacts target/release/artifacts
 ```
 
-For this physical-run layout, the verifier requires the seven x86_64 assets in
-the platform matrix above, one desktop asset for macOS and Windows, both Linux
-desktop formats, and one headless asset for each platform, all sharing one
-release version. It rejects extra
+For this physical-run layout, the verifier requires the nine assets in the
+platform matrix above, including both macOS architectures. The hands-on
+physical worksheets still cover the x86_64 validation subset: one Intel macOS
+desktop asset, one Windows desktop asset, both Linux desktop formats, and one
+headless asset for each x86_64 platform. The Apple Silicon artifact is checked
+for its native target and sidecar-free packaging by CI, not presented as
+physical Bedrock hardware evidence. It rejects extra
 files, symlinks, nested entries, duplicate or malformed manifest lines, and
 changed bytes. The public release file remains named `SHA256SUMS`; the
 lowercase local copy in the command above avoids making the worksheet depend
@@ -461,7 +467,7 @@ updates remain outside the MSC application release manifest.
 
 ## 14. Signed metadata publication (P12.97)
 
-The tag publication job assembles the final seven desktop/headless release
+The tag publication job assembles the final nine desktop/headless release
 assets before generating `SHA256SUMS`. It then runs
 `tools/release/sign-update-manifest.py`, which rejects missing or duplicate
 platform assets, checks every filename against the release ID, records each
@@ -471,12 +477,14 @@ asset's byte count and SHA-256 digest, and writes the canonical
 sorted object keys; no newline or release-secret material is included in the
 signed payload.
 
-The manifest has one entry for each installable x86_64 shape: macOS and
-Windows desktop installers, Debian and RPM desktop packages, and one headless
-archive for each platform. An installer or archive is the exact downloadable
-asset; `includedComponents` records the agent and, on macOS, the Bedrock
-sidecar carried inside that coordinated asset. Linux package and standalone
-archive entries retain their distinct local installation modes.
+The manifest has one entry for each installable shape: Intel and Apple Silicon
+macOS desktop installers and headless archives, Windows desktop/headless
+artifacts, Debian and RPM desktop packages, and the Linux headless archive. An
+installer or archive is the exact downloadable asset; `includedComponents`
+records the agent and, only on Intel macOS, the Bedrock sidecar carried inside
+that coordinated asset. Apple Silicon entries explicitly forbid the sidecar.
+Linux package and standalone archive entries retain their distinct local
+installation modes.
 
 The signer reads a 32-byte Ed25519 seed only from the GitHub Actions secret
 `MSC2_RELEASE_SIGNING_KEY_HEX`. It is never committed, printed, uploaded, or

@@ -34,6 +34,11 @@ jobs:
             rust-target: x86_64-apple-darwin
             tauri-bundles: dmg
             installer-extension: dmg
+          - platform: macos-aarch64
+            os: macos-14
+            rust-target: aarch64-apple-darwin
+            tauri-bundles: dmg
+            installer-extension: dmg
           - platform: windows-x86_64
             os: windows-latest
             rust-target: x86_64-pc-windows-msvc
@@ -162,8 +167,8 @@ jobs:
         run: bash tools/release/build-linux-headless.sh target/release-artifacts
 
       - name: Package macOS headless artifact
-        if: matrix.platform == 'macos-x86_64'
-        run: bash tools/release/build-macos-headless.sh target/release-artifacts
+        if: startsWith(matrix.platform, 'macos-')
+        run: bash tools/release/build-macos-headless.sh target/release-artifacts "${{ matrix.rust-target }}" "${{ matrix.platform }}"
 
       - name: Package Windows headless artifact
         if: matrix.platform == 'windows-x86_64'
@@ -262,8 +267,8 @@ jobs:
               -name '*.zip' \
             \) -print0
           )
-          test "$asset_count" -eq 7 || {
-            echo "expected seven desktop/headless release assets, found $asset_count" >&2
+          test "$asset_count" -eq 9 || {
+            echo "expected nine desktop/headless release assets, found $asset_count" >&2
             exit 1
           }
 
@@ -282,8 +287,10 @@ jobs:
           cat > target/release-assets/RELEASE-NOTES.md <<EOF
           # MSC 2 ${GITHUB_REF_NAME}
 
-          This prerelease contains the x86_64 desktop installers and headless
-          archives listed in SHA256SUMS. Verify the checksum file before use.
+          This prerelease contains Intel and Apple Silicon macOS installers and
+          headless archives plus x86_64 Windows and Linux artifacts. Verify the
+          checksum file before use. The Apple Silicon macOS artifacts contain
+          no Bedrock VM sidecar; local Bedrock requires an Intel Mac.
 
           This release includes the signed manifest and detached Ed25519
           signature required for native in-app installation.

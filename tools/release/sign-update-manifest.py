@@ -19,6 +19,12 @@ ASSET_PATTERNS = {
     "macos-headless": re.compile(
         rf"^msc2-headless-(?P<version>{RELEASE_VERSION})-macos-x86_64\.tar\.gz$"
     ),
+    "macos-desktop-aarch64": re.compile(
+        rf"^msc2-(?P<version>{RELEASE_VERSION})-macos-aarch64\.dmg$"
+    ),
+    "macos-headless-aarch64": re.compile(
+        rf"^msc2-headless-(?P<version>{RELEASE_VERSION})-macos-aarch64\.tar\.gz$"
+    ),
     "windows-desktop": re.compile(
         rf"^msc2-(?P<version>{RELEASE_VERSION})-windows-x86_64\.msi$"
     ),
@@ -236,6 +242,26 @@ def make_manifest(
                 "archive",
                 ["agent", "sidecar"],
             ),
+            "macos-desktop-aarch64": {
+                **entry(
+                    "aarch64-apple-darwin",
+                    "tauri-coordinated",
+                    assets["macos-desktop-aarch64"],
+                    "desktop",
+                    ["agent"],
+                ),
+                "forbiddenArtifacts": ["sidecar"],
+            },
+            "macos-headless-aarch64": {
+                **entry(
+                    "aarch64-apple-darwin",
+                    "standalone-archive",
+                    assets["macos-headless-aarch64"],
+                    "archive",
+                    ["agent"],
+                ),
+                "forbiddenArtifacts": ["sidecar"],
+            },
             "windows-desktop-x86_64": entry(
                 "x86_64-pc-windows-msvc",
                 "tauri-coordinated",

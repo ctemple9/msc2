@@ -45,8 +45,18 @@ stageFile(source, destination);
 stageFile(source, join(packageAgentDirectory, agentName));
 console.log(`staged ${profile} msc-agent ${version} at ${destination}`);
 
-if (process.platform === 'darwin') {
+if (process.platform === 'darwin' && process.arch === 'x64') {
   stageMacosSidecar();
+} else if (process.platform === 'darwin') {
+  // Apple Silicon can run the desktop agent and Java servers, but cannot run
+  // the Intel-only Bedrock VM. Remove stale resources before packaging so an
+  // arm64 build can never accidentally ship the Intel sidecar.
+  rmSync(join(destinationRoot, 'Resources', 'agent', 'sidecar'), {
+    recursive: true,
+    force: true,
+  });
+  rmSync(join(packageAgentDirectory, 'sidecar'), { recursive: true, force: true });
+  console.log(`staged ${process.arch} macOS agent without Bedrock sidecar`);
 }
 
 function stageMacosSidecar() {

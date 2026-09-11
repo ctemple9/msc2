@@ -36,6 +36,7 @@ try {
     New-Item -ItemType Directory -Force -Path $platformDirectory, $packageRoot | Out-Null
     Copy-Item $sourceBinary (Join-Path $platformDirectory 'msc.exe')
     Copy-Item $sourceBinary (Join-Path $packageRoot 'msc.exe')
+    Copy-Item (Join-Path $workspaceRoot 'docs/msc2/clients/headless-installation.md') (Join-Path $packageRoot 'HEADLESS-INSTALL.md')
     if (Test-Path $archive) {
         Remove-Item -Force $archive
     }

@@ -292,6 +292,10 @@ jobs:
           checksum file before use. The Apple Silicon macOS artifacts contain
           no Bedrock VM sidecar; local Bedrock requires an Intel Mac.
 
+          Each standalone headless archive includes HEADLESS-INSTALL.md. It
+          defines the tri-platform msc/msc.exe command-install contract and
+          keeps PATH installation separate from local service registration.
+
           This release includes the signed manifest and detached Ed25519
           signature required for native in-app installation.
           Release ID: ${release_version}

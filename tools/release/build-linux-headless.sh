@@ -38,6 +38,8 @@ install -m 0755 "$SOURCE_BINARY" "$PLATFORM_DIR/msc"
 install -m 0755 "$SOURCE_BINARY" "$PACKAGE_ROOT/msc"
 install -m 0755 "$WORKSPACE_ROOT/packaging/linux/install.sh" "$PACKAGE_ROOT/install.sh"
 install -m 0755 "$WORKSPACE_ROOT/packaging/linux/uninstall.sh" "$PACKAGE_ROOT/uninstall.sh"
+install -m 0644 "$WORKSPACE_ROOT/docs/msc2/clients/headless-installation.md" \
+  "$PACKAGE_ROOT/HEADLESS-INSTALL.md"
 install -m 0644 "$WORKSPACE_ROOT/packaging/linux/systemd/com.ctemple.msc2.agent.service.in" \
   "$PACKAGE_ROOT/systemd/com.ctemple.msc2.agent.service.in"
 install -m 0644 "$WORKSPACE_ROOT/packaging/linux/systemd/msc2-credential-helper.socket.in" \

@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, and P14.6 are awaiting verification.
-> **Next move:** Cameron runs P14.6's verification command and closes the step if the producer-aware console classification lint passes; the current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. P14.4's client verification and P14.5's verification remain outstanding. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> **Next move:** Cameron runs P14.6's verification command and closes the step if the producer-aware console classification lint passes; the current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. P14.4's client verification, P14.5's verification, and P14.8's contract verification remain outstanding. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -121,7 +121,7 @@ editable or automatically selected when occupied.
 
 ### P14.8 — Define the tri-platform headless command-install contract
 
-- **Status:** planned
+- **Status:** awaiting verification
 - **Files:** `packaging/linux/install.sh`, `packaging/linux/uninstall.sh`, `tools/release/build-linux-headless.sh`, `tools/release/build-macos-headless.sh`, `tools/release/build-windows-headless.ps1`, release workflow, headless installation documentation
 - **What:** Decide and document the supported install shapes for macOS, Windows, and Linux. The contract must answer where the executable lives, how a shell discovers `msc`, how upgrades preserve the PATH entry, how uninstall removes only MSC-owned links, how package-managed Linux installs differ from archives, and how a noninteractive/headless install reports that a new shell or PATH refresh is required. Keep the binary name consistent (`msc`/`msc.exe`) and do not imply that Linux is the only platform with headless support.
 - **Verify:** `rg -n "headless|PATH|msc\.exe|/usr/local/bin/msc|Windows|macOS|Linux" packaging tools/release .github/workflows docs/msc2`

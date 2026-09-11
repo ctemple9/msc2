@@ -178,25 +178,19 @@ Download the Linux `.rpm` package from the [v0.1.4 release](https://github.com/c
 sudo dnf install ./msc2-0.1.4-linux-x86_64.rpm
 ~~~
 
-### Linux headless agent
+### Headless agent — macOS, Windows, and Linux
 
-The current Linux headless package is intended for Debian 12, Ubuntu, and
-other mainstream distributions using systemd 250 or newer.
+Standalone headless archives are published for all three supported desktop
+platforms. They contain the same `msc` agent/CLI binary, with `msc.exe` on
+Windows. The archive's `HEADLESS-INSTALL.md` describes the platform-specific
+command location, PATH ownership, upgrade/uninstall boundary, and the separate
+operating-system service installation.
 
-Download the archive and checksum file from the [v0.1.4 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.4), then run:
-
-~~~sh
-sha256sum --ignore-missing -c SHA256SUMS
-mkdir msc2-headless
-tar -xzf msc2-headless-0.1.4-linux-x86_64.tar.gz -C msc2-headless
-cd msc2-headless
-./install.sh
-~~~
-
-Run `install.sh` as your normal user. It requests administrator permission
-when needed and installs the agent as your user instead of running Minecraft
-servers as root. After installation, the agent starts automatically and is
-configured to start again after reboot.
+The current beta Linux archive includes `install.sh` and `uninstall.sh` for
+the systemd service. The macOS and Windows archive command installers are the
+next Phase 14 packaging step; until they land, those archives can be unpacked
+and the binary run directly. The release artifact contract is recorded in
+[`headless-installation.md`](docs/msc2/clients/headless-installation.md).
 
 ### Updating a headless installation
 

@@ -51,6 +51,8 @@ rm -rf "$PACKAGE_ROOT"
 mkdir -p "$PLATFORM_DIR" "$PACKAGE_ROOT"
 install -m 0755 "$SOURCE_BINARY" "$PLATFORM_DIR/msc"
 install -m 0755 "$SOURCE_BINARY" "$PACKAGE_ROOT/msc"
+install -m 0644 "$WORKSPACE_ROOT/docs/msc2/clients/headless-installation.md" \
+  "$PACKAGE_ROOT/HEADLESS-INSTALL.md"
 if [[ "$INCLUDE_SIDECAR" == true ]]; then
   mkdir -p "$PACKAGE_ROOT/sidecar"
   install -m 0755 "$STAGED_AGENT/sidecar/BedrockSidecar" "$PACKAGE_ROOT/sidecar/BedrockSidecar"

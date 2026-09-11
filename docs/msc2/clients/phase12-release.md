@@ -296,8 +296,12 @@ binary and no Tauri, WebKitGTK, or other desktop payload. The staged checker
 copy is `target/release-headless/linux/msc`; the release archive is named
 `msc2-headless-<version>-linux-x86_64.tar.gz`.
 
-The archive contains `install.sh`, `uninstall.sh`, and four systemd input
-definitions. The installer renders the installing user's UID, primary group,
+The archive contains `HEADLESS-INSTALL.md`, `install.sh`, `uninstall.sh`, and
+four systemd input definitions. `HEADLESS-INSTALL.md` is the cross-platform
+command-install contract; it covers the macOS, Windows, and Linux archive
+shapes, the Linux package-manager boundary, PATH ownership, and the separate
+service-registration boundary. The installer renders the installing user's
+UID, primary group,
 and data path into the definitions, installs the root-owned binary at
 `/usr/lib/msc2/msc`, creates the user-owned data, `logs`, and `servers`
 directories, and creates the root-owned credential store at

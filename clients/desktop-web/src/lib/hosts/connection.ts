@@ -3,8 +3,13 @@ import {
   loadTauriDesktopCredentialBridge,
   loadTauriSshTunnelBridge,
   type DesktopSshTunnelBridge,
+  type DesktopRouteProbeResult,
   type SshTunnelStatus,
 } from '../auth/desktop';
+import {
+  formatConnectionFailure,
+  type ConnectionErrorCategory,
+} from './connection-errors';
 import { DEFAULT_LOCAL_FORWARDED_PORT, hostRouteCandidates, type HostRecord } from './types';
 
 export interface HostConnectionResult {
@@ -17,6 +22,9 @@ export interface HostConnectionOptions {
   /** Kept only in memory so a password-authenticated tunnel can be reused this session. */
   readonly sshPassword?: string;
 }
+
+export { formatConnectionFailure } from './connection-errors';
+export type { ConnectionErrorCategory } from './connection-errors';
 
 /** Coordinates direct routes and the app-owned tunnel for one saved host. */
 export class HostConnectionManager {
@@ -48,6 +56,9 @@ export class HostConnectionManager {
             detail: `Connected over ${candidate.route === 'lan' ? 'LAN' : 'Tailscale'}.`,
           };
         }
+        if (probe.category && probe.category !== 'network') {
+          throw new Error(probe.detail);
+        }
       }
     }
 
@@ -56,16 +67,31 @@ export class HostConnectionManager {
       const probe = await this.probe(auth, host.id, baseUrl);
       if (probe.reachable)
         return { baseUrl, route: 'manual', detail: 'Connected through the saved tunnel.' };
+      if (probe.category && probe.category !== 'network') throw new Error(probe.detail);
     }
 
     const tunnel = await this.ensureTunnel(host);
     if (!['connecting', 'connected'].includes(tunnel.state)) {
-      throw new Error(tunnel.exitReason ?? 'The managed SSH tunnel could not be started.');
+      throw new Error(
+        formatConnectionFailure(
+          tunnel.exitReason ?? tunnel.stderr,
+          tunnel.errorCategory ?? 'ssh',
+        ),
+      );
     }
     const baseUrl = `http://127.0.0.1:${tunnel.localPort || host.localForwardedPort || DEFAULT_LOCAL_FORWARDED_PORT}`;
-    const connected = await this.waitForRoute(auth, host.id, baseUrl);
-    if (!connected) {
-      throw new Error(tunnel.stderr || 'The managed SSH tunnel did not reach the remote agent.');
+    const route = await this.waitForRoute(auth, host.id, baseUrl);
+    if (!route.reachable) {
+      if (route.category && route.category !== 'network') throw new Error(route.detail);
+      const latestTunnel =
+        (await this.readStatus(await this.sshBridge(), host.id)) ?? tunnel;
+      throw new Error(
+        formatConnectionFailure(
+          latestTunnel.exitReason ??
+            (latestTunnel.stderr || 'The managed SSH tunnel did not reach the remote agent.'),
+          latestTunnel.errorCategory ?? 'ssh',
+        ),
+      );
     }
     return { baseUrl, route: 'ssh', detail: 'Connected through the managed SSH tunnel.' };
   }
@@ -109,19 +135,35 @@ export class HostConnectionManager {
     auth: DesktopSessionAuth,
     hostId: string,
     baseUrl: string,
-  ): Promise<boolean> {
+  ): Promise<DesktopRouteProbeResult> {
+    let last: DesktopRouteProbeResult = {
+      reachable: false,
+      status: null,
+      category: 'network',
+      detail: 'The selected route did not respond.',
+    };
     for (let attempt = 0; attempt < 20; attempt += 1) {
-      if ((await this.probe(auth, hostId, baseUrl)).reachable) return true;
+      last = await this.probe(auth, hostId, baseUrl);
+      if (last.reachable || last.category !== 'network') return last;
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
-    return false;
+    return last;
   }
 
-  private async probe(auth: DesktopSessionAuth, hostId: string, baseUrl: string) {
+  private async probe(
+    auth: DesktopSessionAuth,
+    hostId: string,
+    baseUrl: string,
+  ): Promise<DesktopRouteProbeResult> {
     try {
       return await auth.probeHostRoute(hostId, baseUrl);
-    } catch {
-      return { reachable: false, status: null, detail: 'Route did not respond.' };
+    } catch (error) {
+      return {
+        reachable: false,
+        status: null,
+        category: 'authentication',
+        detail: formatConnectionFailure(error, 'authentication'),
+      };
     }
   }
 

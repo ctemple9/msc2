@@ -49,6 +49,7 @@ pub struct SshTunnelStatus {
     pub remote_port: u16,
     pub host_key_fingerprint: Option<String>,
     pub stored_host_key_fingerprint: Option<String>,
+    pub error_category: Option<&'static str>,
     pub stderr: String,
     pub exit_reason: Option<String>,
     pub recoverable: bool,
@@ -162,6 +163,7 @@ impl SshTunnelManager {
             remote_port: request.remote_port,
             host_key_fingerprint: Some(scanned.fingerprint),
             stored_host_key_fingerprint: stored,
+            error_category: None,
             stderr: String::new(),
             exit_reason: None,
             recoverable: false,
@@ -211,7 +213,7 @@ impl SshTunnelManager {
         request.password = session
             .password
             .lock()
-            .map_err(|_| "The SSH session credential is unavailable.".to_string())?
+            .map_err(|_| "Authentication: The SSH session credential is unavailable.".to_string())?
             .clone();
         if request.authentication == "password" && request.password.is_none() {
             return Err(
@@ -346,35 +348,48 @@ fn validate_connection_values<const N: usize>(
     for (label, value) in values {
         if value.trim().is_empty() || value.contains('\0') || value.chars().any(char::is_whitespace)
         {
-            return Err(format!("The {label} must be a single non-empty value."));
+            return Err(format!("SSH: The {label} must be a single non-empty value."));
         }
     }
     if ssh_port == 0 || local_port == 0 || remote_port == 0 {
         return Err(
-            "SSH, local-forward, and remote-management ports must be between 1 and 65535."
+            "SSH: SSH, local-forward, and remote-management ports must be between 1 and 65535."
                 .to_string(),
         );
     }
     match authentication {
         "password" if password.unwrap_or_default().is_empty() => {
             return Err(
-                "Password authentication needs a password for the connection attempt.".to_string(),
+                "Authentication: Password authentication needs a password for the connection attempt.".to_string(),
             )
         }
         "private-key" => {
             let path = private_key_path
                 .filter(|value| !value.trim().is_empty())
                 .ok_or_else(|| {
-                    "Private-key authentication needs a key-file reference.".to_string()
+                    "SSH: Private-key authentication needs a key-file reference.".to_string()
                 })?;
             if !Path::new(path).is_file() {
-                return Err("The selected private-key file is not available.".to_string());
+                return Err("SSH: The selected private-key file is not available.".to_string());
             }
+            validate_private_key(path)?;
         }
         "agent" => {}
-        other => return Err(format!("Unsupported SSH authentication choice: {other}.")),
+        other => return Err(format!("SSH: Unsupported SSH authentication choice: {other}.")),
     }
     Ok(())
+}
+
+fn validate_private_key(path: &str) -> Result<(), String> {
+    let output = Command::new("ssh-keygen")
+        .args(["-y", "-P", ""])
+        .arg(path)
+        .output()
+        .map_err(|error| format!("SSH: Could not inspect the selected private key: {error}"))?;
+    if output.status.success() {
+        return Ok(());
+    }
+    Err("SSH: The selected private key is encrypted or uses an unsupported format. Choose an unencrypted key file or use the SSH agent.".to_string())
 }
 
 #[derive(Debug, Deserialize)]
@@ -432,13 +447,10 @@ pub fn create_remote_pairing(
     let _ = fs::remove_file(&known_hosts_path);
     let output = output?;
     if !output.status.success() {
-        return Err(format!(
-            "The remote MSC pairing command failed: {}",
-            clean_output(&output.stderr)
-        ));
+        return Err(classify_ssh_failure(&clean_output(&output.stderr)).1);
     }
     let pairing: PairingOutput = serde_json::from_slice(&output.stdout).map_err(|_| {
-        "The remote MSC pairing command did not return the expected JSON. Confirm that `msc` is installed and on the remote user's PATH.".to_string()
+        "MSC agent: The remote `msc` command is missing from the remote user's PATH, or it returned an invalid pairing response.".to_string()
     })?;
     if pairing.client_kind != "desktop"
         || pairing.agent_host_id.trim().is_empty()
@@ -446,7 +458,7 @@ pub fn create_remote_pairing(
         || pairing.expires_at.trim().is_empty()
     {
         return Err(
-            "The remote MSC pairing command returned an invalid desktop challenge.".to_string(),
+            "MSC agent: The remote `msc` command returned an invalid desktop challenge.".to_string(),
         );
     }
     if request.remember_host_key {
@@ -468,7 +480,6 @@ fn run_remote_pairing_command(
     known_hosts_path: &Path,
 ) -> Result<std::process::Output, String> {
     let mut command = ssh_command(
-        &request.ssh_host,
         request.ssh_port,
         &request.username,
         &request.authentication,
@@ -477,14 +488,15 @@ fn run_remote_pairing_command(
         known_hosts_path,
     )?;
     command
-        .args(["-o", "ConnectTimeout=10", "msc", "pairing", "create"])
+        .arg(&request.ssh_host)
+        .args(["msc", "pairing", "create"])
         .args(["--client-kind", "desktop", "--json"])
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     command
         .output()
-        .map_err(|error| format!("Could not run the remote MSC pairing command: {error}"))
+        .map_err(|error| format!("SSH: Could not run the remote MSC pairing command: {error}"))
 }
 
 /// Exchanges the captured challenge through a temporary loopback-only SSH
@@ -497,14 +509,11 @@ pub async fn exchange_pairing_through_tunnel(
 ) -> Result<PairingExchangeResponse, String> {
     let scanned = scan_host_key(&request.ssh_host, request.ssh_port)?;
     if scanned.fingerprint != expected_fingerprint {
-        return Err(
-            "The remote host key changed while desktop pairing was in progress.".to_string(),
-        );
+        return Err("SSH: The remote host key changed while desktop pairing was in progress.".to_string());
     }
     let known_hosts_path =
         write_known_hosts(&pending_host_key_id(request), &scanned.known_hosts_line)?;
     let mut command = ssh_command(
-        &request.ssh_host,
         request.ssh_port,
         &request.username,
         &request.authentication,
@@ -513,19 +522,20 @@ pub async fn exchange_pairing_through_tunnel(
         &known_hosts_path,
     )?;
     command
-        .args(["-N", "-T", "-o", "ConnectTimeout=10"])
+        .args(["-N", "-T"])
         .args(["-o", "ExitOnForwardFailure=yes"])
         .arg("-L")
         .arg(format!(
             "127.0.0.1:{}:127.0.0.1:{}",
             request.local_port, request.remote_port
         ))
+        .arg(&request.ssh_host)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
     let mut child = command
         .spawn()
-        .map_err(|error| format!("Could not start the temporary SSH forward: {error}"))?;
+        .map_err(|error| format!("SSH: Could not start the temporary SSH forward: {error}"))?;
     let client = reqwest::Client::new();
     let url = format!(
         "http://127.0.0.1:{}/v1/auth/desktop-pairings",
@@ -564,10 +574,8 @@ pub async fn exchange_pairing_through_tunnel(
         .wait_with_output()
         .map_err(|error| format!("The temporary SSH forward could not stop: {error}"))?;
     let _ = fs::remove_file(&known_hosts_path);
-    Err(format!(
-        "Could not exchange the desktop pairing through SSH: {last_error}. {}",
-        clean_output(&output.stderr)
-    ))
+    let detail = format!("{last_error}. {}", clean_output(&output.stderr));
+    Err(classify_ssh_failure(&detail).1)
 }
 
 fn pending_host_key_id(request: &SshPairingRequest) -> String {
@@ -589,7 +597,7 @@ fn scan_host_key(host: &str, port: u16) -> Result<ScannedHostKey, String> {
             host,
         ])
         .output()
-        .map_err(|error| format!("Could not run ssh-keyscan: {error}"))?;
+        .map_err(|error| format!("Network: Could not reach the SSH host: {error}"))?;
     let output_text = String::from_utf8_lossy(&output.stdout);
     let mut lines: Vec<&str> = output_text
         .lines()
@@ -602,7 +610,7 @@ fn scan_host_key(host: &str, port: u16) -> Result<ScannedHostKey, String> {
         .copied()
         .ok_or_else(|| {
             format!(
-                "ssh-keyscan could not read a host key: {}",
+                "Network: ssh-keyscan could not reach the SSH host: {}",
                 clean_output(&output.stderr)
             )
         })?
@@ -633,10 +641,10 @@ fn fingerprint_for_key_file(path: &Path) -> Result<String, String> {
         .arg(path)
         .args(["-E", "sha256"])
         .output()
-        .map_err(|error| format!("Could not run ssh-keygen: {error}"))?;
+        .map_err(|error| format!("SSH: Could not verify the remote host key: {error}"))?;
     if !output.status.success() {
         return Err(format!(
-            "ssh-keygen could not verify the host key: {}",
+            "SSH: ssh-keygen could not verify the host key: {}",
             clean_output(&output.stderr)
         ));
     }
@@ -644,7 +652,7 @@ fn fingerprint_for_key_file(path: &Path) -> Result<String, String> {
         .split_whitespace()
         .find(|part| part.starts_with("SHA256:"))
         .map(str::to_string)
-        .ok_or_else(|| "ssh-keygen returned no SHA256 host-key fingerprint.".to_string())
+        .ok_or_else(|| "SSH: ssh-keygen returned no SHA256 host-key fingerprint.".to_string())
 }
 
 fn write_known_hosts(host_id: &str, line: &str) -> Result<PathBuf, String> {
@@ -658,15 +666,15 @@ fn write_restricted_file(path: &Path, bytes: &[u8]) -> Result<(), String> {
     options.create_new(true).write(true);
     let mut file = options
         .open(path)
-        .map_err(|error| format!("Could not create temporary SSH host-key file: {error}"))?;
+        .map_err(|error| format!("SSH: Could not create temporary SSH host-key file: {error}"))?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         file.set_permissions(fs::Permissions::from_mode(0o600))
-            .map_err(|error| format!("Could not protect temporary SSH host-key file: {error}"))?;
+            .map_err(|error| format!("SSH: Could not protect temporary SSH host-key file: {error}"))?;
     }
     file.write_all(bytes)
-        .map_err(|error| format!("Could not write temporary SSH host-key file: {error}"))
+        .map_err(|error| format!("SSH: Could not write temporary SSH host-key file: {error}"))
 }
 
 fn temporary_key_path(label: &str) -> PathBuf {
@@ -687,7 +695,6 @@ fn temporary_key_path(label: &str) -> PathBuf {
 }
 
 fn ssh_command(
-    ssh_host: &str,
     ssh_port: u16,
     username: &str,
     authentication: &str,
@@ -696,20 +703,20 @@ fn ssh_command(
     known_hosts_path: &Path,
 ) -> Result<Command, String> {
     let executable = std::env::current_exe().map_err(|error| {
-        format!("Could not resolve the desktop executable for SSH askpass: {error}")
+        format!("SSH: Could not resolve the desktop executable for SSH askpass: {error}")
     })?;
     let mut command = Command::new("ssh");
     command
         .args(["-p"])
         .arg(ssh_port.to_string())
+        .args(["-o", "ConnectTimeout=10"])
         .args(["-o", "BatchMode=no"])
         .args(["-o", "NumberOfPasswordPrompts=1"])
         .args(["-o", "StrictHostKeyChecking=yes"])
         .args(["-o", "GlobalKnownHostsFile=none"])
         .args(["-o", "UserKnownHostsFile"])
         .arg(known_hosts_path)
-        .args(["-l", username])
-        .arg(ssh_host);
+        .args(["-l", username]);
     if authentication == "private-key" {
         command.args(["-i", private_key_path.unwrap_or_default()]);
         command.args(["-o", "IdentitiesOnly=yes"]);
@@ -727,7 +734,6 @@ fn ssh_command(
 
 fn spawn_ssh(request: &SshTunnelRequest, known_hosts_path: &Path) -> Result<Child, String> {
     let mut command = ssh_command(
-        &request.ssh_host,
         request.ssh_port,
         &request.username,
         &request.authentication,
@@ -740,15 +746,16 @@ fn spawn_ssh(request: &SshTunnelRequest, known_hosts_path: &Path) -> Result<Chil
         .args(["-o", "ExitOnForwardFailure=yes"])
         .args(["-L"])
         .arg(format!(
-            "{}:127.0.0.1:{}",
+            "127.0.0.1:{}:127.0.0.1:{}",
             request.local_port, request.remote_port
         ))
+        .arg(&request.ssh_host)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
     command
         .spawn()
-        .map_err(|error| format!("Could not start the managed SSH tunnel: {error}"))
+        .map_err(|error| format!("SSH: Could not start the managed SSH tunnel: {error}"))
 }
 
 fn monitor_session(session: Arc<SshSession>) {
@@ -782,10 +789,11 @@ fn monitor_session(session: Arc<SshSession>) {
                     if let Ok(mut state) = session.state.lock() {
                         state.state = if stopped { "stopped" } else { "failed" };
                         state.exit_reason = Some(if exit.success() {
-                            "The SSH process exited.".to_string()
+                            "SSH: The SSH process exited.".to_string()
                         } else {
-                            format!("The SSH process exited with status {exit}.")
+                            format!("SSH: The SSH process exited with status {exit}.")
                         });
+                        state.error_category = (!stopped).then_some("ssh");
                         state.recoverable = !stopped;
                     }
                     cleanup_known_hosts(&session);
@@ -813,6 +821,11 @@ fn collect_stderr(stderr: impl Read, session: Arc<SshSession>) {
         let clean = redact_output(line.trim_end(), password.as_deref());
         if let Ok(mut state) = session.state.lock() {
             append_bounded(&mut state.stderr, &clean);
+            if state.state == "failed" {
+                let (category, detail) = classify_ssh_failure(&state.stderr);
+                state.error_category = Some(category);
+                state.exit_reason = Some(detail);
+            }
         }
         line.clear();
     }
@@ -837,14 +850,93 @@ fn redact_output(value: &str, password: Option<&str>) -> String {
     clean
         .split_whitespace()
         .map(|part| {
-            if part.starts_with("msc2_") {
+            if part.starts_with("msc2_") || part.starts_with("pair_") {
                 "[redacted]"
+            } else if part.to_ascii_lowercase().starts_with("password=") {
+                "password=[redacted]"
             } else {
                 part
             }
         })
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+fn classify_ssh_failure(detail: &str) -> (&'static str, String) {
+    let lower = detail.to_ascii_lowercase();
+    if lower.contains("invalid format")
+        || lower.contains("load key")
+        || lower.contains("encrypted")
+    {
+        return (
+            "ssh",
+            "SSH: The selected private key is encrypted or uses an unsupported format.".to_string(),
+        );
+    }
+    if lower.contains("permission denied")
+        || lower.contains("authentication failed")
+        || lower.contains("incorrect password")
+        || lower.contains("password") && lower.contains("failed")
+    {
+        return (
+            "authentication",
+            "Authentication: The SSH password or key was refused by the remote computer."
+                .to_string(),
+        );
+    }
+    if lower.contains("agent refused")
+        || lower.contains("sign_and_send_pubkey")
+        || lower.contains("could not open a connection to your authentication agent")
+    {
+        return (
+            "authentication",
+            "Authentication: The SSH agent is locked, unavailable, or refused this key."
+                .to_string(),
+        );
+    }
+    if lower.contains("address already in use")
+        || lower.contains("bind: ")
+        || lower.contains("port is already in use")
+    {
+        return (
+            "network",
+            "Network: The selected local forwarding port is already occupied. Choose another port."
+                .to_string(),
+        );
+    }
+    if lower.contains("command not found")
+        || (lower.contains("not found") && lower.contains("msc"))
+        || lower.contains("invalid pairing response")
+    {
+        return (
+            "msc-agent",
+            "MSC agent: The remote `msc` command is missing from the remote user's PATH."
+                .to_string(),
+        );
+    }
+    if lower.contains("agent")
+        && (lower.contains("stopped")
+            || lower.contains("unavailable")
+            || lower.contains("not running")
+            || lower.contains("version"))
+    {
+        return (
+            "msc-agent",
+            "MSC agent: The remote management service is stopped, unavailable, or below the supported version floor.".to_string(),
+        );
+    }
+    if lower.contains("timed out")
+        || lower.contains("connection refused")
+        || lower.contains("could not resolve hostname")
+        || lower.contains("no route to host")
+        || lower.contains("network is unreachable")
+    {
+        return (
+            "network",
+            format!("Network: {}", detail.trim()),
+        );
+    }
+    ("ssh", format!("SSH: {}", detail.trim()))
 }
 
 fn stop_session(session: &SshSession) {
@@ -862,7 +954,8 @@ fn stop_session(session: &SshSession) {
     cleanup_known_hosts(session);
     if let Ok(mut state) = session.state.lock() {
         state.state = "stopped";
-        state.exit_reason = Some("The SSH tunnel was stopped.".to_string());
+        state.exit_reason = Some("SSH: The SSH tunnel was stopped.".to_string());
+        state.error_category = None;
         state.recoverable = false;
     }
 }
@@ -889,7 +982,15 @@ fn status_for_key_decision(
         remote_port: request.remote_port,
         host_key_fingerprint: Some(observed.to_string()),
         stored_host_key_fingerprint: stored.map(str::to_string),
-        stderr: detail.to_string(),
+        error_category: Some("ssh"),
+        stderr: format!(
+            "{} Observed fingerprint: {}{}",
+            detail,
+            observed,
+            stored
+                .map(|value| format!(" Previously remembered: {value}."))
+                .unwrap_or_default()
+        ),
         exit_reason: None,
         recoverable: true,
     }
@@ -909,13 +1010,13 @@ fn host_key_secret_key(host_id: &str) -> String {
 fn read_host_key(host_id: &str) -> Result<Option<String>, String> {
     super::desktop_secret_store()?
         .get(&host_key_secret_key(host_id))
-        .map_err(|error| format!("Could not read the stored SSH host key: {error}"))
+        .map_err(|error| format!("Authentication: Could not read the stored SSH host key: {error}"))
 }
 
 fn write_host_key(host_id: &str, fingerprint: &str) -> Result<(), String> {
     super::desktop_secret_store()?
         .set(&host_key_secret_key(host_id), fingerprint)
-        .map_err(|error| format!("Could not remember the SSH host key: {error}"))
+        .map_err(|error| format!("Authentication: Could not remember the SSH host key: {error}"))
 }
 
 fn clean_output(bytes: &[u8]) -> String {

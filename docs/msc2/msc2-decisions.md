@@ -1,6 +1,6 @@
 # MSC 2 — Decision Register
 
-**Revision:** 1.15 · **Date:** 2026-09-10
+**Revision:** 1.16 · **Date:** 2026-09-11
 **Owner:** Cameron Temple
 
 **Purpose:** the authoritative record of *what was decided, by whom, and why*. The product and engineering documents describe the destination; this document explains how it was chosen, what was rejected, and when a decision should be reopened.
@@ -1052,6 +1052,26 @@ unowned service-management API or an MSC-operated relay.
 across all supported runtimes and clients while preserving MSC 2's single-owner,
 headless, no-cloud, and authenticated-API principles.
 
+**P14.16 hardening addendum.** Remote connection failures use a small shared
+vocabulary: **Network**, **SSH**, **MSC agent**, **Authentication**, and
+**Minecraft**. The native bridge classifies route refusal, SSH authentication,
+host-key changes, occupied forwarding ports, tunnel exits, missing `msc` PATH
+entries, stopped agents, version-floor refusals, expired pairing challenges,
+and revoked credentials before the connection UI displays them. A changed or
+unknown host key always stops for explicit fingerprint review; it is never
+silently accepted. The local forward binds to loopback, the remote command is
+fixed to the pairing bootstrap, and the tunnel never substitutes for the
+agent's bearer credential or permission checks.
+
+Passwords and bearer/pairing values are memory-only connection inputs or native
+secret-store values. They are redacted from SSH diagnostics and user-visible
+errors, and MSC has no hosted error telemetry or screenshot collection. A host
+switch invalidates older in-flight client initialization so a response from one
+host cannot populate another host's state. An active operation remains owned by
+the original agent and is not cancelled merely because the desktop changes
+hosts. Remote setup still cannot install, start, stop, replace, or uninstall
+the operating-system service.
+
 **Revisit if:** owner-approved product scope changes the supported runtime
 matrix, installation contract, remote transport boundary, or host identity
 model.
@@ -1084,6 +1104,7 @@ Recorded because each produced a confident wrong answer, and each is the kind of
 
 | Rev | Date | Change |
 |---|---|---|
+| 1.16 | 2026-09-11 | Added the P14.16 remote connection hardening addendum: categorized failures, explicit host-key review, loopback forwarding, redaction, and host-switch isolation. |
 | 1.15 | 2026-09-10 | Added proposed D-036: operational contracts for same-day time actions, console retention, tri-platform headless installation, and remote-host boundaries. |
 | 1.14 | 2026-09-07 | Added D-035: server-owned JARs replace global Paper/plugin template storage; existing template directories are preserved but no longer used. |
 | 1.13 | 2026-09-07 | Added D-034: the full-screen terminal UI is retired; retained clients are Tauri desktop, desktop browser, and the scriptable headless CLI. |

@@ -5,6 +5,7 @@
   import Select from '../../../components/base/Select.svelte';
   import SegmentedControl from '../../../components/base/SegmentedControl.svelte';
   import type { RemoteDesktopPairingResult } from '../../../auth/desktop';
+  import { formatConnectionFailure } from '../../../hosts/connection-errors';
   import type {
     HostRecord,
     HostRoute,
@@ -66,7 +67,7 @@
   $: normalizedSshHostname = sshHostname.trim() || normalizedLanAddress || 'host-address';
   $: normalizedUsername = sshUsername.trim() || 'username';
   $: sshTarget = `${normalizedUsername}@${normalizedSshHostname}`;
-  $: tunnelCommand = `ssh -N -L ${localForwardedPort}:127.0.0.1:${managementPort} ${sshTarget}`;
+  $: tunnelCommand = `ssh -N -L 127.0.0.1:${localForwardedPort}:127.0.0.1:${managementPort} ${sshTarget}`;
   $: forwardedPortConflict = hosts.some((host) => host.localForwardedPort === localForwardedPort);
   $: suggestedForwardedPort = nextAvailablePort(localForwardedPort);
   $: detailsValid = validationMessage() === '';
@@ -251,7 +252,7 @@
       expectedHostKeyFingerprint = '';
       pairingCode = '';
     } catch (error) {
-      errorMessage = String(error);
+      errorMessage = formatConnectionFailure(error, 'ssh');
     } finally {
       busy = false;
     }
@@ -486,7 +487,11 @@
       {/if}
       <label class="field-label">
         One-use pairing code <span class="optional">Manual fallback</span>
-        <Field bind:value={pairingCode} placeholder="Only needed if remote pairing cannot run" />
+        <Field
+          type="password"
+          bind:value={pairingCode}
+          placeholder="Only needed if remote pairing cannot run"
+        />
         <span class="field-help"
           >Normally MSC creates and exchanges this code over the managed SSH session. If the remote <span
             class="mono">msc</span

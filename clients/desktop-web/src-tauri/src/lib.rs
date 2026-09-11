@@ -127,6 +127,7 @@ struct DesktopRouteProbeRequest {
 struct DesktopRouteProbeResult {
     reachable: bool,
     status: Option<u16>,
+    category: Option<&'static str>,
     detail: String,
 }
 
@@ -206,19 +207,19 @@ async fn desktop_exchange_pairing(
         .json(&serde_json::json!({ "pairingCode": request.pairing_code }))
         .send()
         .await
-        .map_err(|error| format!("Desktop pairing request failed: {error}"))?;
+        .map_err(|error| format!("Network: Desktop pairing request failed: {error}"))?;
     if !response.status().is_success() {
         return Err(describe_pairing_refusal(response.status().as_u16()));
     }
     let result: DesktopCredentialResult = response
         .json()
         .await
-        .map_err(|error| format!("Desktop pairing returned an invalid response: {error}"))?;
+        .map_err(|error| format!("MSC agent: Desktop pairing returned an invalid response: {error}"))?;
     if result.agent_host_id.trim().is_empty()
         || result.credential_id.trim().is_empty()
         || !result.token.starts_with("msc2_")
     {
-        return Err("Desktop pairing returned an invalid credential.".to_string());
+        return Err("Authentication: Desktop pairing returned an invalid credential.".to_string());
     }
     let record = StoredDesktopCredential {
         base_url,
@@ -257,12 +258,12 @@ async fn desktop_automate_remote_pairing(
 
     let agent_host_id = bootstrap
         .agent_host_id
-        .ok_or_else(|| "The remote MSC pairing command returned no host identity.".to_string())?;
+        .ok_or_else(|| "MSC agent: The remote MSC pairing command returned no host identity.".to_string())?;
     let pairing_code = bootstrap.pairing_code.as_deref().ok_or_else(|| {
-        "The remote MSC pairing command returned no pairing challenge.".to_string()
+        "MSC agent: The remote MSC pairing command returned no pairing challenge.".to_string()
     })?;
     let fingerprint = bootstrap.host_key_fingerprint.as_deref().ok_or_else(|| {
-        "The remote MSC pairing command returned no host fingerprint.".to_string()
+        "SSH: The remote MSC pairing command returned no host fingerprint.".to_string()
     })?;
     let response =
         ssh::exchange_pairing_through_tunnel(&request.ssh, pairing_code, fingerprint).await?;
@@ -270,12 +271,12 @@ async fn desktop_automate_remote_pairing(
         return Err(describe_pairing_refusal(response.status));
     }
     let credential: DesktopCredentialResult = serde_json::from_slice(&response.body)
-        .map_err(|error| format!("Desktop pairing returned an invalid response: {error}"))?;
+        .map_err(|error| format!("MSC agent: Desktop pairing returned an invalid response: {error}"))?;
     if credential.agent_host_id != agent_host_id
         || credential.credential_id.trim().is_empty()
         || !credential.token.starts_with("msc2_")
     {
-        return Err("Desktop pairing returned an invalid credential.".to_string());
+        return Err("Authentication: Desktop pairing returned an invalid credential.".to_string());
     }
     let record = StoredDesktopCredential {
         base_url,
@@ -298,11 +299,13 @@ async fn desktop_automate_remote_pairing(
 
 fn describe_pairing_refusal(status: u16) -> String {
     match status {
-        409 => "This desktop pairing code was already used. Create a new code and try again."
+        409 => "Authentication: This desktop pairing code was already used. Create a new code and try again."
             .to_string(),
-        410 => "This desktop pairing code expired. Create a new code and try again.".to_string(),
-        401 | 403 => "The desktop pairing code was refused by the remote agent.".to_string(),
-        _ => format!("Desktop pairing was refused (HTTP {status})."),
+        410 => "Authentication: This desktop pairing code expired. Create a new code and try again.".to_string(),
+        401 | 403 => "Authentication: The desktop pairing code was refused by the remote agent.".to_string(),
+        426 => "MSC agent: The remote agent is below the supported client version floor.".to_string(),
+        503 => "MSC agent: The remote agent is stopped or unavailable.".to_string(),
+        _ => format!("MSC agent: Desktop pairing was refused (HTTP {status})."),
     }
 }
 
@@ -520,10 +523,10 @@ async fn desktop_authorized_request(request: DesktopRequest) -> Result<DesktopRe
     let key = credential_key(&request.agent_host_id);
     let store = desktop_secret_store()?;
     let Some(record) = store.get(&key).map_err(|error| error.to_string())? else {
-        return Err("This desktop has no credential for the selected host.".to_string());
+        return Err("Authentication: This desktop has no credential for the selected host.".to_string());
     };
     let record: StoredDesktopCredential = serde_json::from_str(&record)
-        .map_err(|error| format!("Stored desktop credential is invalid: {error}"))?;
+        .map_err(|error| format!("Authentication: Stored desktop credential is invalid: {error}"))?;
     if record.base_url == LOCAL_AGENT_BROWSER_ORIGIN {
         ensure_current_local_agent_service()?;
     }
@@ -546,7 +549,7 @@ async fn desktop_authorized_request(request: DesktopRequest) -> Result<DesktopRe
     let response = builder
         .send()
         .await
-        .map_err(|error| format!("Desktop request failed: {error}"))?;
+        .map_err(|error| format!("Network: Desktop request failed: {error}"))?;
     let status = response.status();
     let headers = response
         .headers()
@@ -561,7 +564,7 @@ async fn desktop_authorized_request(request: DesktopRequest) -> Result<DesktopRe
     let body = response
         .bytes()
         .await
-        .map_err(|error| format!("Desktop response could not be read: {error}"))?
+        .map_err(|error| format!("Network: Desktop response could not be read: {error}"))?
         .to_vec();
     if status == reqwest::StatusCode::UNAUTHORIZED {
         // A revoked or expired credential must not linger locally after the
@@ -585,16 +588,16 @@ async fn desktop_probe_host_route(
     let key = credential_key(&request.agent_host_id);
     let store = desktop_secret_store()?;
     let Some(raw_record) = store.get(&key).map_err(|error| error.to_string())? else {
-        return Err("This desktop has no credential for the selected host.".to_string());
+        return Err("Authentication: This desktop has no credential for the selected host.".to_string());
     };
     let record: StoredDesktopCredential = serde_json::from_str(&raw_record)
-        .map_err(|error| format!("Stored desktop credential is invalid: {error}"))?;
+        .map_err(|error| format!("Authentication: Stored desktop credential is invalid: {error}"))?;
     let base_url = canonical_base_url(&request.base_url)?;
     let url = relative_request_url(&base_url, "/v1/me")?;
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(2))
         .build()
-        .map_err(|error| format!("Could not prepare the route check: {error}"))?;
+        .map_err(|error| format!("Network: Could not prepare the route check: {error}"))?;
     let response = client
         .get(url)
         .header(header::AUTHORIZATION, format!("Bearer {}", record.token))
@@ -606,16 +609,34 @@ async fn desktop_probe_host_route(
             return Ok(DesktopRouteProbeResult {
                 reachable: false,
                 status: None,
-                detail: format!("The selected route did not respond: {error}"),
+                category: Some("network"),
+                detail: format!("Network: The selected route did not respond: {error}"),
             });
         }
     };
     let status = response.status();
     if !status.is_success() {
+        let category = match status.as_u16() {
+            401 | 403 => "authentication",
+            426 => "msc-agent",
+            500..=599 => "msc-agent",
+            _ => "network",
+        };
+        let detail = match category {
+            "authentication" =>
+                "Authentication: The saved credential was revoked or expired on this host."
+                    .to_string(),
+            "msc-agent" if status.as_u16() == 426 =>
+                "MSC agent: This host is below the supported client version floor.".to_string(),
+            "msc-agent" =>
+                "MSC agent: The management service is stopped or unavailable.".to_string(),
+            _ => format!("Network: The selected route returned HTTP {}.", status.as_u16()),
+        };
         return Ok(DesktopRouteProbeResult {
             reachable: false,
             status: Some(status.as_u16()),
-            detail: format!("The selected route returned HTTP {}.", status.as_u16()),
+            category: Some(category),
+            detail,
         });
     }
     let updated = StoredDesktopCredential {
@@ -628,6 +649,7 @@ async fn desktop_probe_host_route(
     Ok(DesktopRouteProbeResult {
         reachable: true,
         status: Some(status.as_u16()),
+        category: None,
         detail: "The selected route answered for this desktop credential.".to_string(),
     })
 }

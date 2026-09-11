@@ -22,6 +22,7 @@
   } from '../../hosts/types';
   import RemoteConnectionWizard from './connection/RemoteConnectionWizard.svelte';
   import type { RemoteDesktopPairingResult } from '../../auth/desktop';
+  import { formatConnectionFailure } from '../../hosts/connection-errors';
   import type { Schema, ScreenApi } from '../shared/types';
 
   export let readiness: AgentReadiness = 'starting';
@@ -187,7 +188,7 @@
       // must also clear the selected host's server snapshot immediately.
       await onAgentRetry?.();
     } catch (error) {
-      errorMessage = String(error);
+      errorMessage = formatConnectionFailure(error, 'msc-agent');
     } finally {
       busy = false;
     }
@@ -202,7 +203,7 @@
       await onPairAgain(code);
       pairingCode = '';
     } catch (error) {
-      errorMessage = String(error);
+      errorMessage = formatConnectionFailure(error, 'authentication');
     } finally {
       pairingBusy = false;
     }
@@ -231,7 +232,7 @@
       });
       localPairingCode = result.pairingCode;
     } catch (error) {
-      errorMessage = String(error);
+      errorMessage = formatConnectionFailure(error, 'authentication');
     } finally {
       localPairingBusy = false;
     }
@@ -265,7 +266,7 @@
       removeHostId = '';
       removeHostLabel = '';
     } catch (error) {
-      errorMessage = String(error);
+      errorMessage = formatConnectionFailure(error, 'authentication');
     } finally {
       removeHostBusy = false;
     }
@@ -278,7 +279,7 @@
     try {
       await onDisconnectHost();
     } catch (error) {
-      errorMessage = String(error);
+      errorMessage = formatConnectionFailure(error, 'network');
     } finally {
       disconnectBusy = false;
     }
@@ -495,7 +496,7 @@
                 </p>
                 {#if localPairingCode}
                   <div class="pairing-code-row">
-                    <Field value={localPairingCode} />
+                    <Field type="password" value={localPairingCode} />
                     <Button variant="secondary" onclick={() => void copyPairingCode()}>
                       {copiedPairingCode ? 'Copied' : 'Copy'}
                     </Button>
@@ -548,7 +549,7 @@
               {hostLabel}, then paste the new code here.
             </p>
             <div class="pairing-row">
-              <Field bind:value={pairingCode} placeholder="pair_…" />
+              <Field type="password" bind:value={pairingCode} placeholder="pair_…" />
               <Button
                 variant="primary"
                 disabled={pairingBusy || !pairingCode.trim()}

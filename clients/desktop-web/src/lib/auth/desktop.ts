@@ -1,5 +1,6 @@
 import type { FetchLike, HttpMethod } from '../api/client';
 import type { SshAuthentication } from '../hosts/types';
+import type { ConnectionErrorCategory } from '../hosts/connection-errors';
 
 export interface DesktopPairingResult {
   agentHostId: string;
@@ -55,6 +56,7 @@ export interface SshTunnelStatus {
   remotePort: number;
   hostKeyFingerprint: string | null;
   storedHostKeyFingerprint: string | null;
+  errorCategory: ConnectionErrorCategory | null;
   stderr: string;
   exitReason: string | null;
   recoverable: boolean;
@@ -86,6 +88,7 @@ export interface DesktopSshTunnelBridge {
 export interface DesktopRouteProbeResult {
   reachable: boolean;
   status: number | null;
+  category: ConnectionErrorCategory | null;
   detail: string;
 }
 

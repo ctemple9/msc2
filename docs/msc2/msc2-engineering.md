@@ -1,6 +1,6 @@
 # MSC 2 — Engineering Specification
 
-**Revision:** 1.7 · **Date:** 2026-09-07 · **Owner:** Cameron Temple
+**Revision:** 1.8 · **Date:** 2026-09-11 · **Owner:** Cameron Temple
 **Baseline:** MSC 1 at commit `fccd61f0ed743086f1f5db6bef58e228a36010f3`
 
 **Companion documents:**
@@ -225,6 +225,38 @@ cannot install, start, stop, replace, or uninstall the host's operating-system
 service through the management API. A host record's
 identity remains stable when its addresses change, and its secrets stay scoped
 to that host.
+
+### Remote connection failure and security boundaries (P14.16)
+
+The Tauri bridge reports remote failures in five categories so the connection
+screen can tell the user what to repair: **Network** (LAN/Tailscale reachability
+or a busy local forwarding port), **SSH** (host-key identity or tunnel
+lifecycle), **MSC agent** (missing `msc` on the remote PATH, a stopped service,
+or an agent below the supported version floor), **Authentication** (a refused
+SSH credential, expired pairing challenge, or revoked bearer credential), and
+**Minecraft** (a reachable agent reporting a server/runtime failure). The
+category is part of native route/tunnel status where the UI needs to decide
+whether to try another route; an authentication or agent refusal must not be
+silently retried as if the network were down.
+
+Unknown or changed SSH host keys stop before pairing or forwarding. The user
+must compare the displayed SHA-256 fingerprint and explicitly approve the
+observed key; MSC never accepts a replacement automatically. Managed forwards
+bind to `127.0.0.1` on the desktop and target `127.0.0.1:48001` on the remote
+host (with an editable local port such as `48002`). The bridge invokes only the
+fixed `msc pairing create --client-kind desktop --json` bootstrap command; it
+is not a general remote shell and it cannot install, start, stop, replace, or
+uninstall the remote operating-system service. SSH is transport only. The
+normal per-host bearer credential and permission checks remain mandatory over
+direct LAN, Tailscale, and forwarded routes.
+
+Passwords are held only for the connection attempt/session, private-key
+contents are never read into ordinary client state, and bearer/pairing values
+stay in native code or the platform secret store. SSH stderr and connection
+errors are bounded and redacted before they reach diagnostics or the UI. MSC
+does not collect hosted telemetry or screenshots. When the user switches
+hosts, an older asynchronous initialization is discarded; a running agent
+operation remains on its original host and is not cancelled by the switch.
 
 The Phase 14 source and acceptance map is maintained in
 `docs/msc2/capabilities/phase14-operational-refinements.md`. It is the owning

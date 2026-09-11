@@ -30,6 +30,7 @@
   import { clearClientPreferences, HostStore } from './lib/hosts/registry';
   import { forgetSavedRemoteHost, loadSavedRemoteHosts, saveRemoteHost } from './lib/hosts/saved';
   import { HostConnectionManager } from './lib/hosts/connection';
+  import { formatConnectionFailure } from './lib/hosts/connection-errors';
   import {
     createLocalHostRecord,
     createRemoteHostRecord,
@@ -191,6 +192,7 @@
   let headerEditingServer: Schema['ServerDTO'] | undefined;
   let browserHandoffError = '';
   let addressesVisible = false;
+  let connectionGeneration = 0;
 
   function toggleAddresses(): void {
     addressesVisible = !addressesVisible;
@@ -211,14 +213,21 @@
 
   async function switchHost(id: HostId): Promise<void> {
     if (id === hostId) return;
+    const generation = ++connectionGeneration;
     const previousHostId = hostId;
+    const activeOperation = hostStore
+      .getState(previousHostId)
+      .cache.operations.find((operation) => operation.state === 'queued' || operation.state === 'running');
     if (isDesktopShell && previousHostId !== localAgentHostId) {
       await hostConnectionManager.stop(previousHostId);
     }
     hostStore.selectHost(id);
     loadedSections = [];
     hostId = id;
-    await initializeClient();
+    await initializeClient(generation);
+    if (generation === connectionGeneration && agentReadiness === 'ready' && activeOperation) {
+      shellMessage = `Switched hosts. ${activeOperation.statusLine ?? activeOperation.type} continues on ${previousHostId}; returning to that host will restore its progress.`;
+    }
     await selectSection('agent-setup');
   }
 
@@ -278,7 +287,7 @@
     } catch (error) {
       if (!input.pairingCode.trim()) {
         throw new Error(
-          `${String(error)} To use the manual fallback, create a desktop pairing code on the remote host and enter it here.`,
+          `${formatConnectionFailure(error, 'ssh')} To use the manual fallback, create a desktop pairing code on the remote host and enter it here.`,
         );
       }
       const manual = await auth.redeemRemotePairing(input.baseUrl, input.pairingCode);
@@ -666,15 +675,19 @@
     }
   }
 
-  async function restoreHostContext(): Promise<boolean> {
+  async function restoreHostContext(generation: number): Promise<boolean> {
     try {
       const selectedClient = requireClient();
       const rememberedServerId = hostStore.getState(hostId).cache.activeServerId;
       capabilities = await selectedClient.getCapabilities();
+      if (generation !== connectionGeneration) return false;
       const me = await selectedClient.requestJson<{ permissions: string[] }>('GET', '/v1/me');
+      if (generation !== connectionGeneration) return false;
       permissions = me.permissions;
       servers = await selectedClient.requestJson<Schema['ServerDTO'][]>('GET', '/v1/servers');
+      if (generation !== connectionGeneration) return false;
       status = await selectedClient.requestJson<Schema['RemoteAPIStatus']>('GET', '/v1/status');
+      if (generation !== connectionGeneration) return false;
       selectedServerId = selectAvailableServerId(
         servers,
         status.activeServerId,
@@ -688,13 +701,14 @@
       await selectFromLocation();
       return true;
     } catch (error) {
+      if (generation !== connectionGeneration) return false;
       capabilities = null;
       permissions = [];
       servers = [];
       selectedServerId = '';
       status = defaultStatus;
       agentReadiness = readinessForError(error);
-      shellMessage = `Unable to establish the selected host context: ${String(error)}`;
+      shellMessage = `Unable to establish the selected host context: ${formatConnectionFailure(error)}`;
       hostStore.updateConnection(hostId, 'error');
       await selectSection('agent-setup');
       return false;
@@ -816,7 +830,7 @@
     void refreshServerSnapshot();
   }
 
-  async function initializeClient(): Promise<void> {
+  async function initializeClient(generation = ++connectionGeneration): Promise<void> {
     cancelTabPreload?.();
     cancelTabPreload = undefined;
     clientReady = false;
@@ -833,6 +847,7 @@
       // a remote host's agent is either already reachable or it isn't;
       // there is nothing here to install/start on someone else's machine.
       const serviceStatus = hostId === localAgentHostId ? await prepareLocalAgent() : null;
+      if (generation !== connectionGeneration) return;
       if (serviceStatus) {
         agentReadiness = readinessForService(serviceStatus);
         if (serviceStatus.state !== 'running') {
@@ -843,14 +858,17 @@
       }
       if (isDesktopShell && hostId !== localAgentHostId) {
         const connection = await hostConnectionManager.connect(hostStore.getState(hostId).host);
+        if (generation !== connectionGeneration) return;
         shellMessage = connection.detail;
       }
       client = await createClient(hostId);
-      clientReady = await restoreHostContext();
+      if (generation !== connectionGeneration) return;
+      clientReady = await restoreHostContext(generation);
       if (clientReady) scheduleAvailableTabPreload();
     } catch (error) {
+      if (generation !== connectionGeneration) return;
       agentReadiness = readinessForError(error);
-      shellMessage = `Unable to prepare the selected host connection: ${String(error)}`;
+      shellMessage = `Unable to prepare the selected host connection: ${formatConnectionFailure(error)}`;
       hostStore.updateConnection(hostId, 'error');
       await selectSection('agent-setup');
     }

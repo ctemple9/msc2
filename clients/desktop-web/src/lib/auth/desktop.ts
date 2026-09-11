@@ -5,6 +5,37 @@ export interface DesktopPairingResult {
   agentHostId: string;
 }
 
+export interface RemoteDesktopPairingRequest {
+  baseUrl: string;
+  ssh: {
+    sshHost: string;
+    sshPort: number;
+    username: string;
+    authentication: SshAuthentication;
+    privateKeyPath?: string;
+    /** Passed to native code for one connection attempt; never persisted. */
+    password?: string;
+    localPort: number;
+    remotePort: number;
+    expectedHostKeyFingerprint?: string;
+    rememberHostKey: boolean;
+  };
+}
+
+export type RemoteDesktopPairingState =
+  | 'paired'
+  | 'awaiting-host-key'
+  | 'host-key-changed'
+  | 'host-key-mismatch';
+
+export interface RemoteDesktopPairingResult {
+  state: RemoteDesktopPairingState;
+  agentHostId: string | null;
+  hostKeyFingerprint: string | null;
+  storedHostKeyFingerprint: string | null;
+  detail: string;
+}
+
 export interface DesktopResponse {
   status: number;
   headers: readonly [string, string][];
@@ -63,6 +94,9 @@ export interface DesktopSshTunnelBridge {
 export interface DesktopCredentialBridge {
   bootstrapLocal(): Promise<DesktopPairingResult>;
   exchangePairing(request: { baseUrl: string; pairingCode: string }): Promise<DesktopPairingResult>;
+  automateRemotePairing?: (
+    request: RemoteDesktopPairingRequest,
+  ) => Promise<RemoteDesktopPairingResult>;
   forgetCredentials(request: {
     hostIds: readonly string[];
     includeLocalHost: boolean;
@@ -81,6 +115,15 @@ export class DesktopSessionAuth {
 
   async redeemRemotePairing(baseUrl: string, pairingCode: string): Promise<DesktopPairingResult> {
     return this.bridge.exchangePairing({ baseUrl, pairingCode });
+  }
+
+  async automateRemotePairing(
+    request: RemoteDesktopPairingRequest,
+  ): Promise<RemoteDesktopPairingResult> {
+    if (!this.bridge.automateRemotePairing) {
+      throw new Error('This desktop shell cannot automate remote pairing.');
+    }
+    return this.bridge.automateRemotePairing(request);
   }
 
   async bootstrapLocal(): Promise<DesktopPairingResult> {
@@ -123,6 +166,8 @@ export async function loadTauriDesktopCredentialBridge(): Promise<DesktopCredent
     bootstrapLocal: () => invoke<DesktopPairingResult>('desktop_bootstrap_local'),
     exchangePairing: (request) =>
       invoke<DesktopPairingResult>('desktop_exchange_pairing', { request }),
+    automateRemotePairing: (request) =>
+      invoke<RemoteDesktopPairingResult>('desktop_automate_remote_pairing', { request }),
     forgetCredentials: (request) =>
       invoke<void>('desktop_forget_credentials', {
         request: { ...request, hostIds: [...request.hostIds] },

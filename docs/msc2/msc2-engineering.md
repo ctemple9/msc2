@@ -215,8 +215,14 @@ client-side choice and must be configurable or automatically moved when busy.
 The tunnel is transport, not authorization: the normal authenticated API and
 per-host credential model still apply. MSC provides no cloud relay and does
 not require Tailscale. Remote setup may perform the narrowly-scoped desktop
-pairing bootstrap, but it cannot install, start, stop, replace, or uninstall
-the host's operating-system service through the management API. A host record's
+pairing bootstrap: the Tauri shell may invoke only `msc pairing create
+--client-kind desktop --json` through the managed SSH session, then exchange
+the one-use challenge through a temporary loopback forward. The pairing code
+and bearer credential remain in native code; the webview receives only status
+and the stable agent host ID. If the remote command is unavailable, the
+existing manually-created one-use code remains the recovery path. The feature
+cannot install, start, stop, replace, or uninstall the host's operating-system
+service through the management API. A host record's
 identity remains stable when its addresses change, and its secrets stay scoped
 to that host.
 

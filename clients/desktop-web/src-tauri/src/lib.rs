@@ -82,10 +82,27 @@ struct DesktopPairingRequest {
     pairing_code: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopRemotePairingRequest {
+    base_url: String,
+    ssh: ssh::SshPairingRequest,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct DesktopPairingResult {
     agent_host_id: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopRemotePairingResult {
+    state: &'static str,
+    agent_host_id: Option<String>,
+    host_key_fingerprint: Option<String>,
+    stored_host_key_fingerprint: Option<String>,
+    detail: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -176,10 +193,7 @@ async fn desktop_exchange_pairing(
         .await
         .map_err(|error| format!("Desktop pairing request failed: {error}"))?;
     if !response.status().is_success() {
-        return Err(format!(
-            "Desktop pairing was refused (HTTP {}).",
-            response.status()
-        ));
+        return Err(describe_pairing_refusal(response.status().as_u16()));
     }
     let result: DesktopCredentialResult = response
         .json()
@@ -205,6 +219,76 @@ async fn desktop_exchange_pairing(
     Ok(DesktopPairingResult {
         agent_host_id: result.agent_host_id,
     })
+}
+
+/// Creates and redeems a desktop credential without exposing the one-use code
+/// or bearer token to the webview. SSH is limited to the fixed pairing CLI
+/// command and a temporary loopback forward for the authenticated exchange.
+#[tauri::command]
+async fn desktop_automate_remote_pairing(
+    request: DesktopRemotePairingRequest,
+) -> Result<DesktopRemotePairingResult, String> {
+    let base_url = canonical_base_url(&request.base_url)?;
+    let bootstrap = ssh::create_remote_pairing(&request.ssh)?;
+    if bootstrap.state != "paired" {
+        return Ok(DesktopRemotePairingResult {
+            state: bootstrap.state,
+            agent_host_id: None,
+            host_key_fingerprint: bootstrap.host_key_fingerprint,
+            stored_host_key_fingerprint: bootstrap.stored_host_key_fingerprint,
+            detail: bootstrap.detail,
+        });
+    }
+
+    let agent_host_id = bootstrap
+        .agent_host_id
+        .ok_or_else(|| "The remote MSC pairing command returned no host identity.".to_string())?;
+    let pairing_code = bootstrap.pairing_code.as_deref().ok_or_else(|| {
+        "The remote MSC pairing command returned no pairing challenge.".to_string()
+    })?;
+    let fingerprint = bootstrap.host_key_fingerprint.as_deref().ok_or_else(|| {
+        "The remote MSC pairing command returned no host fingerprint.".to_string()
+    })?;
+    let response =
+        ssh::exchange_pairing_through_tunnel(&request.ssh, pairing_code, fingerprint).await?;
+    if response.status < 200 || response.status >= 300 {
+        return Err(describe_pairing_refusal(response.status));
+    }
+    let credential: DesktopCredentialResult = serde_json::from_slice(&response.body)
+        .map_err(|error| format!("Desktop pairing returned an invalid response: {error}"))?;
+    if credential.agent_host_id != agent_host_id
+        || credential.credential_id.trim().is_empty()
+        || !credential.token.starts_with("msc2_")
+    {
+        return Err("Desktop pairing returned an invalid credential.".to_string());
+    }
+    let record = StoredDesktopCredential {
+        base_url,
+        token: credential.token,
+    };
+    desktop_secret_store()?
+        .set(
+            &credential_key(&credential.agent_host_id),
+            &serde_json::to_string(&record).expect("desktop credential serializes"),
+        )
+        .map_err(|error| error.to_string())?;
+    Ok(DesktopRemotePairingResult {
+        state: "paired",
+        agent_host_id: Some(credential.agent_host_id),
+        host_key_fingerprint: bootstrap.host_key_fingerprint,
+        stored_host_key_fingerprint: bootstrap.stored_host_key_fingerprint,
+        detail: "The remote host is authorized for this desktop.".to_string(),
+    })
+}
+
+fn describe_pairing_refusal(status: u16) -> String {
+    match status {
+        409 => "This desktop pairing code was already used. Create a new code and try again."
+            .to_string(),
+        410 => "This desktop pairing code expired. Create a new code and try again.".to_string(),
+        401 | 403 => "The desktop pairing code was refused by the remote agent.".to_string(),
+        _ => format!("Desktop pairing was refused (HTTP {status})."),
+    }
 }
 
 /// Performs the same-machine bootstrap over the agent's Unix socket. The
@@ -1251,6 +1335,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
             desktop_exchange_pairing,
+            desktop_automate_remote_pairing,
             desktop_bootstrap_local,
             desktop_forget_credentials,
             desktop_authorized_request,

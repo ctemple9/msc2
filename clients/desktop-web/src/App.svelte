@@ -22,7 +22,11 @@
     type AgentServiceStatus,
   } from './lib/platform';
   import { redeemBrowserHandoff } from './lib/auth/browser-handoff';
-  import { DesktopSessionAuth, loadTauriDesktopCredentialBridge } from './lib/auth/desktop';
+  import {
+    DesktopSessionAuth,
+    loadTauriDesktopCredentialBridge,
+    type RemoteDesktopPairingResult,
+  } from './lib/auth/desktop';
   import { clearClientPreferences, HostStore } from './lib/hosts/registry';
   import { forgetSavedRemoteHost, loadSavedRemoteHosts, saveRemoteHost } from './lib/hosts/saved';
   import {
@@ -210,11 +214,49 @@
     await selectSection('agent-setup');
   }
 
-  async function addRemoteHost(input: RemoteHostConnectionInput): Promise<string> {
+  async function addRemoteHost(
+    input: RemoteHostConnectionInput,
+  ): Promise<string | RemoteDesktopPairingResult> {
     const auth = new DesktopSessionAuth(await loadTauriDesktopCredentialBridge());
-    const result = await auth.redeemRemotePairing(input.baseUrl, input.pairingCode);
+    let result: RemoteDesktopPairingResult;
+    try {
+      result = await auth.automateRemotePairing({
+        baseUrl: input.baseUrl,
+        ssh: {
+          sshHost: input.ssh.hostname,
+          sshPort: input.ssh.port,
+          username: input.ssh.username,
+          authentication: input.ssh.authentication,
+          ...(input.ssh.privateKeyPath ? { privateKeyPath: input.ssh.privateKeyPath } : {}),
+          ...(input.sshPassword ? { password: input.sshPassword } : {}),
+          localPort: input.localForwardedPort,
+          remotePort: input.managementPort,
+          ...(input.expectedHostKeyFingerprint
+            ? { expectedHostKeyFingerprint: input.expectedHostKeyFingerprint }
+            : {}),
+          rememberHostKey: true,
+        },
+      });
+    } catch (error) {
+      if (!input.pairingCode.trim()) {
+        throw new Error(
+          `${String(error)} To use the manual fallback, create a desktop pairing code on the remote host and enter it here.`,
+        );
+      }
+      const manual = await auth.redeemRemotePairing(input.baseUrl, input.pairingCode);
+      result = {
+        state: 'paired',
+        agentHostId: manual.agentHostId,
+        hostKeyFingerprint: null,
+        storedHostKeyFingerprint: null,
+        detail: 'The manual desktop pairing code was accepted.',
+      };
+    }
+    if (result.state !== 'paired') return result;
+    const agentHostId = result.agentHostId;
+    if (!agentHostId) throw new Error('The remote pairing returned no host identity.');
     const host = createRemoteHostRecord({
-      id: result.agentHostId,
+      id: agentHostId,
       displayName: input.displayName,
       baseUrl: input.baseUrl,
       lanAddresses: input.lanAddress ? [input.lanAddress] : [],
@@ -236,12 +278,15 @@
     else hostStore.addHost(host);
     saveRemoteHost(host);
     refreshHosts();
-    return result.agentHostId;
+    return agentHostId;
   }
 
-  async function connectRemoteHost(input: RemoteHostConnectionInput): Promise<void> {
-    const remoteHostId = await addRemoteHost(input);
-    await switchHost(remoteHostId);
+  async function connectRemoteHost(
+    input: RemoteHostConnectionInput,
+  ): Promise<RemoteDesktopPairingResult | void> {
+    const result = await addRemoteHost(input);
+    if (typeof result !== 'string') return result;
+    await switchHost(result);
   }
 
   async function pairAgain(pairingCode: string): Promise<void> {

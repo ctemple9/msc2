@@ -54,6 +54,38 @@ pub struct SshTunnelStatus {
     pub recoverable: bool,
 }
 
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SshPairingRequest {
+    pub ssh_host: String,
+    pub ssh_port: u16,
+    pub username: String,
+    pub authentication: String,
+    pub private_key_path: Option<String>,
+    /// Used only during this connection attempt and never written to disk.
+    pub password: Option<String>,
+    pub local_port: u16,
+    pub remote_port: u16,
+    /// A fingerprint the user has explicitly reviewed in the setup screen.
+    pub expected_host_key_fingerprint: Option<String>,
+    pub remember_host_key: bool,
+}
+
+#[derive(Debug)]
+pub struct RemotePairingBootstrap {
+    pub state: &'static str,
+    pub agent_host_id: Option<String>,
+    pub pairing_code: Option<String>,
+    pub host_key_fingerprint: Option<String>,
+    pub stored_host_key_fingerprint: Option<String>,
+    pub detail: String,
+}
+
+pub struct PairingExchangeResponse {
+    pub status: u16,
+    pub body: Vec<u8>,
+}
+
 struct SshSession {
     request: SshTunnelRequest,
     password: Mutex<Option<String>>,
@@ -272,32 +304,65 @@ struct ScannedHostKey {
 }
 
 fn validate_request(request: &SshTunnelRequest) -> Result<(), String> {
-    for (label, value) in [
-        ("host ID", request.host_id.as_str()),
-        ("SSH host", request.ssh_host.as_str()),
-        ("SSH username", request.username.as_str()),
-    ] {
+    validate_connection_values(
+        [
+            ("host ID", request.host_id.as_str()),
+            ("SSH host", request.ssh_host.as_str()),
+            ("SSH username", request.username.as_str()),
+        ],
+        request.ssh_port,
+        request.local_port,
+        request.remote_port,
+        &request.authentication,
+        request.password.as_deref(),
+        request.private_key_path.as_deref(),
+    )
+}
+
+fn validate_pairing_request(request: &SshPairingRequest) -> Result<(), String> {
+    validate_connection_values(
+        [
+            ("SSH host", request.ssh_host.as_str()),
+            ("SSH username", request.username.as_str()),
+        ],
+        request.ssh_port,
+        request.local_port,
+        request.remote_port,
+        &request.authentication,
+        request.password.as_deref(),
+        request.private_key_path.as_deref(),
+    )
+}
+
+fn validate_connection_values<const N: usize>(
+    values: [(&str, &str); N],
+    ssh_port: u16,
+    local_port: u16,
+    remote_port: u16,
+    authentication: &str,
+    password: Option<&str>,
+    private_key_path: Option<&str>,
+) -> Result<(), String> {
+    for (label, value) in values {
         if value.trim().is_empty() || value.contains('\0') || value.chars().any(char::is_whitespace)
         {
             return Err(format!("The {label} must be a single non-empty value."));
         }
     }
-    if request.ssh_port == 0 || request.local_port == 0 || request.remote_port == 0 {
+    if ssh_port == 0 || local_port == 0 || remote_port == 0 {
         return Err(
             "SSH, local-forward, and remote-management ports must be between 1 and 65535."
                 .to_string(),
         );
     }
-    match request.authentication.as_str() {
-        "password" if request.password.as_deref().unwrap_or_default().is_empty() => {
+    match authentication {
+        "password" if password.unwrap_or_default().is_empty() => {
             return Err(
                 "Password authentication needs a password for the connection attempt.".to_string(),
             )
         }
         "private-key" => {
-            let path = request
-                .private_key_path
-                .as_deref()
+            let path = private_key_path
                 .filter(|value| !value.trim().is_empty())
                 .ok_or_else(|| {
                     "Private-key authentication needs a key-file reference.".to_string()
@@ -310,6 +375,206 @@ fn validate_request(request: &SshTunnelRequest) -> Result<(), String> {
         other => return Err(format!("Unsupported SSH authentication choice: {other}.")),
     }
     Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PairingOutput {
+    pairing_code: String,
+    agent_host_id: String,
+    client_kind: String,
+    expires_at: String,
+}
+
+/// Runs the only remote command this feature permits. The command and every
+/// argument are fixed so the setup screen cannot become a general SSH shell.
+pub fn create_remote_pairing(
+    request: &SshPairingRequest,
+) -> Result<RemotePairingBootstrap, String> {
+    validate_pairing_request(request)?;
+    let scanned = scan_host_key(&request.ssh_host, request.ssh_port)?;
+    let pending_host_key_id = pending_host_key_id(request);
+    let stored = read_host_key(&pending_host_key_id)?;
+    if let Some(expected) = request.expected_host_key_fingerprint.as_deref() {
+        if expected != scanned.fingerprint {
+            return Ok(RemotePairingBootstrap {
+                state: "host-key-mismatch",
+                agent_host_id: None,
+                pairing_code: None,
+                host_key_fingerprint: Some(scanned.fingerprint),
+                stored_host_key_fingerprint: stored,
+                detail: "The reviewed host-key fingerprint no longer matches the host. Review it again before continuing.".to_string(),
+            });
+        }
+    } else if stored.as_deref() != Some(scanned.fingerprint.as_str()) {
+        let state = if stored.is_some() {
+            "host-key-changed"
+        } else {
+            "awaiting-host-key"
+        };
+        let detail = if stored.is_some() {
+            "The remote host key changed. Review the old and new fingerprints before continuing."
+        } else {
+            "Review this host fingerprint before allowing the first connection."
+        };
+        return Ok(RemotePairingBootstrap {
+            state,
+            agent_host_id: None,
+            pairing_code: None,
+            host_key_fingerprint: Some(scanned.fingerprint),
+            stored_host_key_fingerprint: stored,
+            detail: detail.to_string(),
+        });
+    }
+
+    let known_hosts_path = write_known_hosts(&pending_host_key_id, &scanned.known_hosts_line)?;
+    let output = run_remote_pairing_command(request, &known_hosts_path);
+    let _ = fs::remove_file(&known_hosts_path);
+    let output = output?;
+    if !output.status.success() {
+        return Err(format!(
+            "The remote MSC pairing command failed: {}",
+            clean_output(&output.stderr)
+        ));
+    }
+    let pairing: PairingOutput = serde_json::from_slice(&output.stdout).map_err(|_| {
+        "The remote MSC pairing command did not return the expected JSON. Confirm that `msc` is installed and on the remote user's PATH.".to_string()
+    })?;
+    if pairing.client_kind != "desktop"
+        || pairing.agent_host_id.trim().is_empty()
+        || !pairing.pairing_code.starts_with("pair_")
+        || pairing.expires_at.trim().is_empty()
+    {
+        return Err(
+            "The remote MSC pairing command returned an invalid desktop challenge.".to_string(),
+        );
+    }
+    if request.remember_host_key {
+        write_host_key(&pending_host_key_id, &scanned.fingerprint)?;
+        write_host_key(&pairing.agent_host_id, &scanned.fingerprint)?;
+    }
+    Ok(RemotePairingBootstrap {
+        state: "paired",
+        agent_host_id: Some(pairing.agent_host_id),
+        pairing_code: Some(pairing.pairing_code),
+        host_key_fingerprint: Some(scanned.fingerprint),
+        stored_host_key_fingerprint: stored,
+        detail: "The remote host created a one-use desktop authorization.".to_string(),
+    })
+}
+
+fn run_remote_pairing_command(
+    request: &SshPairingRequest,
+    known_hosts_path: &Path,
+) -> Result<std::process::Output, String> {
+    let mut command = ssh_command(
+        &request.ssh_host,
+        request.ssh_port,
+        &request.username,
+        &request.authentication,
+        request.private_key_path.as_deref(),
+        request.password.as_deref(),
+        known_hosts_path,
+    )?;
+    command
+        .args(["-o", "ConnectTimeout=10", "msc", "pairing", "create"])
+        .args(["--client-kind", "desktop", "--json"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    command
+        .output()
+        .map_err(|error| format!("Could not run the remote MSC pairing command: {error}"))
+}
+
+/// Exchanges the captured challenge through a temporary loopback-only SSH
+/// forward. The response remains in native Rust so the bearer token never
+/// crosses the Tauri boundary.
+pub async fn exchange_pairing_through_tunnel(
+    request: &SshPairingRequest,
+    pairing_code: &str,
+    expected_fingerprint: &str,
+) -> Result<PairingExchangeResponse, String> {
+    let scanned = scan_host_key(&request.ssh_host, request.ssh_port)?;
+    if scanned.fingerprint != expected_fingerprint {
+        return Err(
+            "The remote host key changed while desktop pairing was in progress.".to_string(),
+        );
+    }
+    let known_hosts_path =
+        write_known_hosts(&pending_host_key_id(request), &scanned.known_hosts_line)?;
+    let mut command = ssh_command(
+        &request.ssh_host,
+        request.ssh_port,
+        &request.username,
+        &request.authentication,
+        request.private_key_path.as_deref(),
+        request.password.as_deref(),
+        &known_hosts_path,
+    )?;
+    command
+        .args(["-N", "-T", "-o", "ConnectTimeout=10"])
+        .args(["-o", "ExitOnForwardFailure=yes"])
+        .arg("-L")
+        .arg(format!(
+            "127.0.0.1:{}:127.0.0.1:{}",
+            request.local_port, request.remote_port
+        ))
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+    let mut child = command
+        .spawn()
+        .map_err(|error| format!("Could not start the temporary SSH forward: {error}"))?;
+    let client = reqwest::Client::new();
+    let url = format!(
+        "http://127.0.0.1:{}/v1/auth/desktop-pairings",
+        request.local_port
+    );
+    let mut last_error = "the forwarded management port did not respond".to_string();
+    for _ in 0..30 {
+        if let Ok(Some(status)) = child.try_wait() {
+            last_error = format!("the SSH forward exited with status {status}");
+            break;
+        }
+        match client
+            .post(&url)
+            .json(&serde_json::json!({ "pairingCode": pairing_code }))
+            .send()
+            .await
+        {
+            Ok(response) => {
+                let status = response.status().as_u16();
+                let body = response
+                    .bytes()
+                    .await
+                    .map_err(|error| format!("The pairing response could not be read: {error}"))?
+                    .to_vec();
+                let _ = child.kill();
+                let _ = child.wait();
+                let _ = fs::remove_file(&known_hosts_path);
+                return Ok(PairingExchangeResponse { status, body });
+            }
+            Err(error) => last_error = error.to_string(),
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+    let _ = child.kill();
+    let output = child
+        .wait_with_output()
+        .map_err(|error| format!("The temporary SSH forward could not stop: {error}"))?;
+    let _ = fs::remove_file(&known_hosts_path);
+    Err(format!(
+        "Could not exchange the desktop pairing through SSH: {last_error}. {}",
+        clean_output(&output.stderr)
+    ))
+}
+
+fn pending_host_key_id(request: &SshPairingRequest) -> String {
+    format!(
+        "pending:{}@{}:{}",
+        request.username, request.ssh_host, request.ssh_port
+    )
 }
 
 fn scan_host_key(host: &str, port: u16) -> Result<ScannedHostKey, String> {
@@ -421,39 +686,35 @@ fn temporary_key_path(label: &str) -> PathBuf {
     std::env::temp_dir().join(format!("msc2-ssh-known-host-{suffix}"))
 }
 
-fn spawn_ssh(request: &SshTunnelRequest, known_hosts_path: &Path) -> Result<Child, String> {
+fn ssh_command(
+    ssh_host: &str,
+    ssh_port: u16,
+    username: &str,
+    authentication: &str,
+    private_key_path: Option<&str>,
+    password: Option<&str>,
+    known_hosts_path: &Path,
+) -> Result<Command, String> {
     let executable = std::env::current_exe().map_err(|error| {
         format!("Could not resolve the desktop executable for SSH askpass: {error}")
     })?;
     let mut command = Command::new("ssh");
     command
-        .args(["-N", "-T", "-p"])
-        .arg(request.ssh_port.to_string())
-        .args(["-o", "ExitOnForwardFailure=yes"])
+        .args(["-p"])
+        .arg(ssh_port.to_string())
         .args(["-o", "BatchMode=no"])
         .args(["-o", "NumberOfPasswordPrompts=1"])
         .args(["-o", "StrictHostKeyChecking=yes"])
         .args(["-o", "GlobalKnownHostsFile=none"])
         .args(["-o", "UserKnownHostsFile"])
         .arg(known_hosts_path)
-        .args(["-L"])
-        .arg(format!(
-            "{}:127.0.0.1:{}",
-            request.local_port, request.remote_port
-        ))
-        .args(["-l", &request.username])
-        .arg(&request.ssh_host)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped());
-    if request.authentication == "private-key" {
-        command.args([
-            "-i",
-            request.private_key_path.as_deref().unwrap_or_default(),
-        ]);
+        .args(["-l", username])
+        .arg(ssh_host);
+    if authentication == "private-key" {
+        command.args(["-i", private_key_path.unwrap_or_default()]);
         command.args(["-o", "IdentitiesOnly=yes"]);
     }
-    if let Some(password) = request.password.as_deref() {
+    if let Some(password) = password {
         command
             .env(SSH_ASKPASS_MARKER, "1")
             .env(SSH_ASKPASS_PASSWORD, password)
@@ -461,6 +722,30 @@ fn spawn_ssh(request: &SshTunnelRequest, known_hosts_path: &Path) -> Result<Chil
             .env("SSH_ASKPASS_REQUIRE", "force")
             .env("DISPLAY", "msc2");
     }
+    Ok(command)
+}
+
+fn spawn_ssh(request: &SshTunnelRequest, known_hosts_path: &Path) -> Result<Child, String> {
+    let mut command = ssh_command(
+        &request.ssh_host,
+        request.ssh_port,
+        &request.username,
+        &request.authentication,
+        request.private_key_path.as_deref(),
+        request.password.as_deref(),
+        known_hosts_path,
+    )?;
+    command
+        .args(["-N", "-T"])
+        .args(["-o", "ExitOnForwardFailure=yes"])
+        .args(["-L"])
+        .arg(format!(
+            "{}:127.0.0.1:{}",
+            request.local_port, request.remote_port
+        ))
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
     command
         .spawn()
         .map_err(|error| format!("Could not start the managed SSH tunnel: {error}"))

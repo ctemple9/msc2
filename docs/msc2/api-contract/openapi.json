@@ -48,6 +48,8 @@
         "Tailscale"
       ],
       "sshTunnel": "A Tauri desktop may manage a local forward to the host management service; 48002 is an example client-side port and must be configurable or replaceable when occupied.",
+      "desktopPairingBootstrap": "The Tauri shell may use the authenticated SSH session to run the fixed `msc pairing create --client-kind desktop --json` command, then exchange that one-use challenge through a temporary loopback forward. The pairing code and resulting bearer credential remain native-only; the webview receives only the stable agent host ID and status.",
+      "desktopPairingFallback": "If the remote `msc` command is unavailable, the UI may use the existing manually-created one-use pairing code. Expired, consumed, revoked, or identity-mismatched credentials require an intentional recovery flow.",
       "relay": "MSC operates no cloud relay and does not require Tailscale.",
       "serviceBoundary": "Remote setup cannot install, start, stop, replace, or uninstall the host operating-system service through the management API.",
       "hostIdentity": "A saved host identity and its credentials remain stable and scoped to the host when LAN, Tailscale, or DNS addresses change."

@@ -4,6 +4,7 @@
   import NumberField from '../../../components/base/NumberField.svelte';
   import Select from '../../../components/base/Select.svelte';
   import SegmentedControl from '../../../components/base/SegmentedControl.svelte';
+  import type { RemoteDesktopPairingResult } from '../../../auth/desktop';
   import type {
     HostRecord,
     HostRoute,
@@ -12,8 +13,9 @@
   } from '../../../hosts/types';
 
   export let hosts: readonly HostRecord[] = [];
-  export let onConnect: ((input: RemoteHostConnectionInput) => Promise<void>) | undefined =
-    undefined;
+  export let onConnect:
+    | ((input: RemoteHostConnectionInput) => Promise<RemoteDesktopPairingResult | void>)
+    | undefined = undefined;
 
   type WizardStep = 'details' | 'review';
 
@@ -44,6 +46,8 @@
   let manualTunnel = false;
   let manualAgentAddress = 'http://127.0.0.1:48002';
   let pairingCode = '';
+  let expectedHostKeyFingerprint = '';
+  let hostKeyReview: RemoteDesktopPairingResult | undefined;
   let busy = false;
   let errorMessage = '';
   let copiedCommand = false;
@@ -112,6 +116,8 @@
 
   function returnToDetails(): void {
     errorMessage = '';
+    hostKeyReview = undefined;
+    expectedHostKeyFingerprint = '';
     step = 'details';
   }
 
@@ -161,7 +167,7 @@
     busy = true;
     errorMessage = '';
     try {
-      await onConnect({
+      const result = await onConnect({
         displayName: displayName.trim(),
         lanAddress: normalizedLanAddress,
         ...(normalizedTailscaleAddress ? { tailscaleAddress: normalizedTailscaleAddress } : {}),
@@ -183,7 +189,16 @@
         ...(manualTunnel ? { manualAgentAddress: manualAgentAddress.trim() } : {}),
         baseUrl: selectedBaseUrl(),
         pairingCode: pairingCode.trim(),
+        ...(expectedHostKeyFingerprint
+          ? { expectedHostKeyFingerprint }
+          : {}),
       });
+      if (result && result.state !== 'paired') {
+        hostKeyReview = result;
+        return;
+      }
+      hostKeyReview = undefined;
+      expectedHostKeyFingerprint = '';
       pairingCode = '';
     } catch (error) {
       errorMessage = String(error);
@@ -395,11 +410,37 @@
     </section>
 
     <section class="pairing-section">
+      {#if hostKeyReview?.hostKeyFingerprint}
+        <div class="host-key-review" role="status">
+          <p class="msc2-type-overline">Review the remote computer's identity</p>
+          <p>{hostKeyReview.detail}</p>
+          {#if hostKeyReview.storedHostKeyFingerprint}
+            <div class="fingerprint-row">
+              <span>Previously remembered</span>
+              <strong>{hostKeyReview.storedHostKeyFingerprint}</strong>
+            </div>
+          {/if}
+          <div class="fingerprint-row">
+            <span>Now observed</span>
+            <strong>{hostKeyReview.hostKeyFingerprint}</strong>
+          </div>
+          <Button
+            variant="secondary"
+            disabled={busy}
+            onclick={() => {
+              expectedHostKeyFingerprint = hostKeyReview?.hostKeyFingerprint ?? '';
+              void connect();
+            }}>I have checked this fingerprint</Button
+          >
+        </div>
+      {/if}
       <label class="field-label">
-        One-use pairing code
-        <Field bind:value={pairingCode} placeholder="Paste the code from the other computer" />
+        One-use pairing code <span class="optional">Manual fallback</span>
+        <Field bind:value={pairingCode} placeholder="Only needed if remote pairing cannot run" />
         <span class="field-help"
-          >This code authorizes this desktop for this host. It expires after one use.</span
+          >Normally MSC creates and exchanges this code over the managed SSH session. If the
+          remote <span class="mono">msc</span> command is unavailable, create it on the host and
+          paste it here; it expires after one use.</span
         >
       </label>
     </section>
@@ -408,10 +449,10 @@
       <Button variant="secondary" disabled={busy} onclick={returnToDetails}>Back</Button>
       <Button
         variant="primary"
-        disabled={busy || !pairingCode.trim()}
+        disabled={busy}
         onclick={() => void connect()}
       >
-        {busy ? 'Connecting…' : 'Save and connect'}
+        {busy ? 'Creating authorization…' : 'Save and connect'}
       </Button>
     </div>
   {/if}
@@ -603,6 +644,33 @@
     gap: 8px;
     padding-top: 14px;
     border-top: 1px solid var(--msc2-hairline-faint);
+  }
+
+  .host-key-review {
+    display: grid;
+    gap: 8px;
+    padding-top: 2px;
+  }
+
+  .host-key-review > p:not(.msc2-type-overline) {
+    color: var(--msc2-text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .fingerprint-row {
+    display: grid;
+    grid-template-columns: 150px minmax(0, 1fr);
+    gap: 10px;
+    color: var(--msc2-text-tertiary);
+    font-size: 11px;
+  }
+
+  .fingerprint-row strong {
+    overflow-wrap: anywhere;
+    color: var(--msc2-text-primary);
+    font-family: var(--msc2-font-mono, monospace);
+    font-weight: 400;
   }
 
   .command-row {

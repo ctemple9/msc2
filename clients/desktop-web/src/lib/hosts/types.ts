@@ -88,6 +88,8 @@ export interface RemoteHostConnectionInput {
   readonly manualAgentAddress?: string;
   readonly baseUrl: string;
   readonly pairingCode: string;
+  /** Set only after the user reviews the native SSH host-key fingerprint. */
+  readonly expectedHostKeyFingerprint?: string;
 }
 
 export function createLocalHostRecord(baseUrl: string): HostRecord {

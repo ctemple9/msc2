@@ -19,6 +19,7 @@
     type RemoteHostConnectionInput,
   } from '../../hosts/types';
   import RemoteConnectionWizard from './connection/RemoteConnectionWizard.svelte';
+  import type { RemoteDesktopPairingResult } from '../../auth/desktop';
   import type { Schema, ScreenApi } from '../shared/types';
 
   export let readiness: AgentReadiness = 'starting';
@@ -35,8 +36,9 @@
   export let isLocalHost = true;
   export let browserHandoffError = '';
   export let onPairAgain: ((pairingCode: string) => Promise<void>) | undefined = undefined;
-  export let onConnectHost: ((input: RemoteHostConnectionInput) => Promise<void>) | undefined =
-    undefined;
+  export let onConnectHost:
+    | ((input: RemoteHostConnectionInput) => Promise<RemoteDesktopPairingResult | void>)
+    | undefined = undefined;
   export let onRemoveHost: (() => Promise<void>) | undefined = undefined;
   export let onDisconnectHost: (() => Promise<void>) | undefined = undefined;
   export let onSwitchHost: ((hostId: HostId) => void) | undefined = undefined;
@@ -280,8 +282,10 @@
     }
   }
 
-  async function connectRemoteHost(input: RemoteHostConnectionInput): Promise<void> {
-    await onConnectHost?.(input);
+  async function connectRemoteHost(
+    input: RemoteHostConnectionInput,
+  ): Promise<RemoteDesktopPairingResult | void> {
+    return onConnectHost?.(input);
   }
 
   function savedHostStatus(host: HostRecord): string {
@@ -585,8 +589,9 @@
       <div id="connect-another-agent" class="agent-content">
         <p class="detail">
           Use this path when the Minecraft servers live somewhere else. The other computer must have
-          the agent installed and running. MSC will explain the route, ports, and SSH identity
-          before it saves anything.
+          the agent installed and running. MSC will explain the route, ports, and SSH identity,
+          create the one-time desktop authorization over SSH, and save nothing sensitive in this
+          client. A manual pairing-code fallback remains available if the remote command cannot run.
         </p>
 
         {#if isDesktopShell}

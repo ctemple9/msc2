@@ -190,7 +190,7 @@ editable or automatically selected when occupied.
 
 ### P14.14 — Automate remote agent discovery and desktop pairing
 
-- **Status:** planned
+- **Status:** awaiting verification
 - **Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/auth/desktop.ts`, Tauri bridge, CLI pairing output, `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, auth/API contract docs
 - **What:** After direct connection or tunnel establishment, perform the normal health/capability check. If the host has no saved desktop credential, use the authenticated SSH session to invoke a narrowly-scoped remote pairing operation equivalent to `msc pairing create --client-kind desktop --json`, capture the one-use short-lived challenge, exchange it through the forwarded management connection, and store the resulting durable bearer credential in the OS secure store keyed by the stable host ID. The ordinary flow must not ask the user to copy a pairing code or open a second SSH session. The UI should say what is happening (“creating a one-time desktop authorization on the host”) and show progress/failure plainly.
 

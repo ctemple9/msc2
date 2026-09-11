@@ -26,6 +26,8 @@ pub struct CreatePairingArgs {
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
 struct PairingOutput {
+    // This stdout shape is consumed by the Tauri remote-pairing bootstrap.
+    // Keep it JSON-only when --json is requested so SSH can parse it safely.
     pairing_code: String,
     agent_host_id: String,
     client_kind: String,

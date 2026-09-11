@@ -396,7 +396,7 @@
           <div class="architecture-node">
             <span class="node-kicker">What you use</span>
             <strong>Control panel</strong>
-            <span>Tauri desktop · desktop browser · CLI</span>
+            <span>Tauri desktop · Desktop Browser · CLI</span>
           </div>
           <div class="architecture-link" aria-hidden="true">
             <span>connects to</span>
@@ -405,7 +405,7 @@
           <div class="architecture-node">
             <span class="node-kicker">Where servers run</span>
             <strong>MSC agent</strong>
-            <span>Local · remote</span>
+            <span>Local · Remote</span>
           </div>
         </div>
         <div class="means-grid">

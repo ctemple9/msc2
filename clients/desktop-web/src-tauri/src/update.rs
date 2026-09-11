@@ -2,9 +2,12 @@ use msc_infrastructure::release_update::{
     self, LinuxPackageFormat, StagedUpdate, UpdateChannel, UpdateClientConfig, UpdateResult,
 };
 use serde::{Deserialize, Serialize};
-use std::{path::{Path, PathBuf}, process::Command};
 #[cfg(target_os = "macos")]
 use std::{fs, time::Duration};
+use std::{
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 const DEFAULT_RELEASE_REPOSITORY: &str = "ctemple9/msc2";
 
@@ -33,15 +36,17 @@ pub fn run_desktop_update_helper() -> bool {
     if mode != "--msc2-apply-desktop-update" {
         return false;
     }
-    let values: Vec<String> = args
-        .filter_map(|value| value.into_string().ok())
-        .collect();
+    let values: Vec<String> = args.filter_map(|value| value.into_string().ok()).collect();
     let result = (|| {
         let release_id = argument_value(&values, "--release-id")?;
         let data_directory = PathBuf::from(argument_value(&values, "--data-dir")?);
-        wait_for_parent(argument_value(&values, "--parent-pid")?.parse().map_err(|_| {
-            "The desktop update helper received an invalid parent process ID.".to_string()
-        })?)?;
+        wait_for_parent(
+            argument_value(&values, "--parent-pid")?
+                .parse()
+                .map_err(|_| {
+                    "The desktop update helper received an invalid parent process ID.".to_string()
+                })?,
+        )?;
         apply_desktop_update(&release_id, &data_directory)
     })();
     match result {
@@ -60,10 +65,7 @@ pub fn check(data_directory: &Path) -> Result<UpdateResult, String> {
     release_update::check_and_stage(&client_config()?, data_directory)
 }
 
-pub fn install(
-    request: InstallRequest,
-    data_directory: &Path,
-) -> Result<InstallResult, String> {
+pub fn install(request: InstallRequest, data_directory: &Path) -> Result<InstallResult, String> {
     let config = client_config()?;
     let staged = release_update::verify_staged(&config, data_directory, &request.release_id)?;
 
@@ -167,7 +169,10 @@ fn install_windows_msi(staged: &StagedUpdate) -> Result<String, String> {
     Command::new(&executable)
         .spawn()
         .map_err(|error| format!("Could not relaunch MSC 2 after updating: {error}"))?;
-    Ok(format!("MSC 2 {} was installed and relaunched.", staged.manifest.release_id))
+    Ok(format!(
+        "MSC 2 {} was installed and relaunched.",
+        staged.manifest.release_id
+    ))
 }
 
 #[cfg(target_os = "macos")]
@@ -179,8 +184,9 @@ fn install_macos_bundle(staged: &StagedUpdate) -> Result<String, String> {
         .ok_or_else(|| "The staged desktop installer has no containing directory.".to_string())?
         .join("desktop-install-work");
     if work_directory.exists() {
-        fs::remove_dir_all(&work_directory)
-            .map_err(|error| format!("Could not clear the previous desktop update work area: {error}"))?;
+        fs::remove_dir_all(&work_directory).map_err(|error| {
+            format!("Could not clear the previous desktop update work area: {error}")
+        })?;
     }
     let mount_directory = work_directory.join("mounted");
     fs::create_dir_all(&mount_directory)
@@ -213,7 +219,10 @@ fn install_macos_bundle(staged: &StagedUpdate) -> Result<String, String> {
             Command::new("/usr/bin/open").arg(&current_bundle),
             "Could not relaunch MSC 2",
         )?;
-        Ok(format!("MSC 2 {} was installed and relaunched.", staged.manifest.release_id))
+        Ok(format!(
+            "MSC 2 {} was installed and relaunched.",
+            staged.manifest.release_id
+        ))
     })();
     let _ = Command::new("/usr/bin/hdiutil")
         .args(["detach", "-force"])
@@ -234,7 +243,10 @@ fn current_app_bundle() -> Result<PathBuf, String> {
 }
 
 #[cfg(target_os = "macos")]
-fn find_app_bundle(root: &Path, expected_name: Option<&std::ffi::OsStr>) -> Result<PathBuf, String> {
+fn find_app_bundle(
+    root: &Path,
+    expected_name: Option<&std::ffi::OsStr>,
+) -> Result<PathBuf, String> {
     let bundles: Vec<PathBuf> = fs::read_dir(root)
         .map_err(|error| format!("Could not inspect the mounted MSC installer: {error}"))?
         .filter_map(Result::ok)
@@ -246,34 +258,49 @@ fn find_app_bundle(root: &Path, expected_name: Option<&std::ffi::OsStr>) -> Resu
         .find(|path| expected_name.is_some_and(|name| path.file_name() == Some(name)))
         .or_else(|| (bundles.len() == 1).then_some(&bundles[0]))
         .cloned()
-        .ok_or_else(|| "The MSC disk image does not contain exactly one matching app bundle.".to_string())
+        .ok_or_else(|| {
+            "The MSC disk image does not contain exactly one matching app bundle.".to_string()
+        })
 }
 
 #[cfg(target_os = "macos")]
 fn replace_app_bundle(target: &Path, replacement: &Path) -> Result<(), String> {
     let backup = target.with_file_name(format!(
         ".{}.msc2-backup-{}",
-        target.file_name().and_then(|name| name.to_str()).unwrap_or("MSC 2.app"),
+        target
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("MSC 2.app"),
         std::process::id()
     ));
     let direct = || -> Result<(), String> {
-        fs::rename(target, &backup).map_err(|error| format!("Could not back up the installed MSC app: {error}"))?;
+        fs::rename(target, &backup)
+            .map_err(|error| format!("Could not back up the installed MSC app: {error}"))?;
         if let Err(error) = fs::rename(replacement, target) {
             let _ = fs::rename(&backup, target);
             return Err(format!("Could not activate the new MSC app: {error}"));
         }
-        fs::remove_dir_all(&backup).map_err(|error| format!("Could not remove the old MSC app backup: {error}"))
+        fs::remove_dir_all(&backup)
+            .map_err(|error| format!("Could not remove the old MSC app backup: {error}"))
     };
     match direct() {
         Ok(()) => Ok(()),
-        Err(error) if error.contains("Permission denied") || error.contains("Operation not permitted") => {
+        Err(error)
+            if error.contains("Permission denied") || error.contains("Operation not permitted") =>
+        {
             let command = format!(
                 "set -e; /bin/mv {} {}; /bin/mv {} {}; /bin/rm -rf {}",
-                shell_quote(target), shell_quote(&backup), shell_quote(replacement), shell_quote(target), shell_quote(&backup)
+                shell_quote(target),
+                shell_quote(&backup),
+                shell_quote(replacement),
+                shell_quote(target),
+                shell_quote(&backup)
             );
             run_command(
-                Command::new("/usr/bin/osascript")
-                    .args(["-e", &format!("do shell script {command:?} with administrator privileges")]),
+                Command::new("/usr/bin/osascript").args([
+                    "-e",
+                    &format!("do shell script {command:?} with administrator privileges"),
+                ]),
                 "Could not authorize replacement of the installed MSC app",
             )
         }
@@ -287,7 +314,9 @@ fn shell_quote(path: &Path) -> String {
 }
 
 fn run_command(command: &mut Command, failure: &str) -> Result<(), String> {
-    let status = command.status().map_err(|error| format!("{failure}: {error}"))?;
+    let status = command
+        .status()
+        .map_err(|error| format!("{failure}: {error}"))?;
     status
         .success()
         .then_some(())
@@ -329,7 +358,11 @@ fn linux_package_format() -> Option<LinuxPackageFormat> {
     {
         return Some(LinuxPackageFormat::Rpm);
     }
-    match std::env::var("MSC2_LINUX_PACKAGE_FORMAT").ok()?.to_ascii_lowercase().as_str() {
+    match std::env::var("MSC2_LINUX_PACKAGE_FORMAT")
+        .ok()?
+        .to_ascii_lowercase()
+        .as_str()
+    {
         "deb" => Some(LinuxPackageFormat::Deb),
         "rpm" => Some(LinuxPackageFormat::Rpm),
         _ => None,
@@ -384,7 +417,8 @@ fn launch_local_install(staged: &StagedUpdate) -> Result<(), String> {
             #[cfg(target_os = "linux")]
             {
                 return Err(
-                    "Linux desktop updates must use an authorized package installation.".to_string(),
+                    "Linux desktop updates must use an authorized package installation."
+                        .to_string(),
                 );
             }
             #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]

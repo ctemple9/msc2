@@ -13,6 +13,7 @@ use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
+mod ssh;
 mod update;
 
 const DESKTOP_CREDENTIAL_KEY_PREFIX: &str = "msc.desktop.host-token.";
@@ -1234,6 +1235,9 @@ fn reveal_command(path: &Path) -> std::process::Command {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    if ssh::run_ssh_askpass_helper() {
+        return;
+    }
     if update::run_desktop_update_helper() {
         return;
     }
@@ -1241,6 +1245,7 @@ pub fn run() {
     ensure_ad_hoc_signed_or_reexec();
 
     tauri::Builder::default()
+        .manage(ssh::SshTunnelManager::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
@@ -1257,7 +1262,11 @@ pub fn run() {
             quit_app,
             manage_agent_service,
             check_for_updates,
-            install_coordinated_update
+            install_coordinated_update,
+            ssh::ssh_tunnel_start,
+            ssh::ssh_tunnel_status,
+            ssh::ssh_tunnel_retry,
+            ssh::ssh_tunnel_stop
         ])
         .run(tauri::generate_context!())
         .expect("error while running the MSC 2 desktop shell");
@@ -1367,13 +1376,17 @@ mod tests {
             Ok(PathBuf::from("/new-build/msc"))
         };
 
-        assert_eq!(cache.resolve(old_stage).unwrap(), Path::new("/old-build/msc"));
+        assert_eq!(
+            cache.resolve(old_stage).unwrap(),
+            Path::new("/old-build/msc")
+        );
         assert_eq!(
             cache.refresh(new_stage).unwrap(),
             Path::new("/new-build/msc")
         );
         assert_eq!(
-            cache.resolve(|| Ok(PathBuf::from("/unexpected-build/msc")))
+            cache
+                .resolve(|| Ok(PathBuf::from("/unexpected-build/msc")))
                 .unwrap(),
             Path::new("/new-build/msc")
         );

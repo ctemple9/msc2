@@ -1,0 +1,639 @@
+//! Native, app-owned SSH forwarding for remote MSC hosts.
+//!
+//! The webview never receives a password, bearer token, or child-process
+//! handle. It receives only a small status record and asks this module to
+//! start, inspect, retry, or stop a tunnel. OpenSSH remains responsible for
+//! the protocol and for private-key/agent authentication; this module owns
+//! the process lifecycle and host-key decision boundary.
+
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
+use std::fs::{self, OpenOptions};
+use std::io::{BufRead, BufReader, Read, Write};
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+const HOST_KEY_SECRET_PREFIX: &str = "msc.desktop.ssh-host-key.";
+const SSH_ASKPASS_MARKER: &str = "MSC2_SSH_ASKPASS";
+const SSH_ASKPASS_PASSWORD: &str = "MSC2_SSH_ASKPASS_PASSWORD";
+const MAX_STDERR_BYTES: usize = 16 * 1024;
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SshTunnelRequest {
+    pub host_id: String,
+    pub ssh_host: String,
+    pub ssh_port: u16,
+    pub username: String,
+    pub authentication: String,
+    pub private_key_path: Option<String>,
+    /// Used only during this connection attempt and never written to disk.
+    pub password: Option<String>,
+    pub local_port: u16,
+    pub remote_port: u16,
+    /// A fingerprint that the user has explicitly reviewed in the UI.
+    pub expected_host_key_fingerprint: Option<String>,
+    pub remember_host_key: bool,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SshTunnelStatus {
+    pub host_id: String,
+    pub state: &'static str,
+    pub local_port: u16,
+    pub remote_port: u16,
+    pub host_key_fingerprint: Option<String>,
+    pub stored_host_key_fingerprint: Option<String>,
+    pub stderr: String,
+    pub exit_reason: Option<String>,
+    pub recoverable: bool,
+}
+
+struct SshSession {
+    request: SshTunnelRequest,
+    password: Mutex<Option<String>>,
+    child: Mutex<Option<Child>>,
+    state: Mutex<SshTunnelStatus>,
+    stop_requested: Mutex<bool>,
+    known_hosts_path: Mutex<Option<PathBuf>>,
+}
+
+#[derive(Default)]
+pub struct SshTunnelManager {
+    sessions: Mutex<HashMap<String, Arc<SshSession>>>,
+}
+
+impl SshTunnelManager {
+    fn start(&self, request: SshTunnelRequest) -> Result<SshTunnelStatus, String> {
+        validate_request(&request)?;
+
+        if let Some(previous) = self.remove_session(&request.host_id) {
+            stop_session(&previous);
+        }
+
+        let scanned = scan_host_key(&request.ssh_host, request.ssh_port)?;
+        let stored = read_host_key(&request.host_id)?;
+        if let Some(expected) = request.expected_host_key_fingerprint.as_deref() {
+            if expected != scanned.fingerprint {
+                return Ok(status_for_key_decision(
+                    &request,
+                    "host-key-mismatch",
+                    &scanned.fingerprint,
+                    stored.as_deref(),
+                    "The reviewed host-key fingerprint no longer matches the host.",
+                ));
+            }
+        } else if stored.as_deref() != Some(scanned.fingerprint.as_str()) {
+            let state = if stored.is_some() {
+                "host-key-changed"
+            } else {
+                "awaiting-host-key"
+            };
+            let detail = if stored.is_some() {
+                "The remote host key changed. Review the old and new fingerprints before continuing."
+            } else {
+                "Review this host fingerprint before allowing the first connection."
+            };
+            return Ok(status_for_key_decision(
+                &request,
+                state,
+                &scanned.fingerprint,
+                stored.as_deref(),
+                detail,
+            ));
+        }
+
+        if request.remember_host_key {
+            write_host_key(&request.host_id, &scanned.fingerprint)?;
+        }
+
+        let known_hosts_path = write_known_hosts(&request.host_id, &scanned.known_hosts_line)?;
+        let password = request.password.clone();
+        let mut session_request = request.clone();
+        session_request.password = None;
+        let child = match spawn_ssh(&request, &known_hosts_path) {
+            Ok(child) => child,
+            Err(error) => {
+                let _ = fs::remove_file(&known_hosts_path);
+                return Err(error);
+            }
+        };
+        let status = SshTunnelStatus {
+            host_id: request.host_id.clone(),
+            state: "connecting",
+            local_port: request.local_port,
+            remote_port: request.remote_port,
+            host_key_fingerprint: Some(scanned.fingerprint),
+            stored_host_key_fingerprint: stored,
+            stderr: String::new(),
+            exit_reason: None,
+            recoverable: false,
+        };
+        let session = Arc::new(SshSession {
+            request: session_request,
+            password: Mutex::new(password),
+            child: Mutex::new(Some(child)),
+            state: Mutex::new(status),
+            stop_requested: Mutex::new(false),
+            known_hosts_path: Mutex::new(Some(known_hosts_path)),
+        });
+        self.sessions
+            .lock()
+            .map_err(|_| "The SSH session registry is unavailable.".to_string())?
+            .insert(request.host_id.clone(), Arc::clone(&session));
+        monitor_session(session);
+        self.status(&request.host_id)
+    }
+
+    fn status(&self, host_id: &str) -> Result<SshTunnelStatus, String> {
+        let session = self
+            .sessions
+            .lock()
+            .map_err(|_| "The SSH session registry is unavailable.".to_string())?
+            .get(host_id)
+            .cloned()
+            .ok_or_else(|| "No SSH session exists for the selected host.".to_string())?;
+        session
+            .state
+            .lock()
+            .map_err(|_| "The SSH session state is unavailable.".to_string())
+            .map(|state| state.clone())
+    }
+
+    fn retry(&self, host_id: &str) -> Result<SshTunnelStatus, String> {
+        let session = self
+            .sessions
+            .lock()
+            .map_err(|_| "The SSH session registry is unavailable.".to_string())?
+            .get(host_id)
+            .cloned()
+            .ok_or_else(|| "No SSH session exists for the selected host.".to_string())?;
+        let mut request = session.request.clone();
+        request.expected_host_key_fingerprint = None;
+        request.remember_host_key = true;
+        request.password = session
+            .password
+            .lock()
+            .map_err(|_| "The SSH session credential is unavailable.".to_string())?
+            .clone();
+        if request.authentication == "password" && request.password.is_none() {
+            return Err(
+                "The password was cleared when the previous SSH session stopped.".to_string(),
+            );
+        }
+        self.start(request)
+    }
+
+    fn stop(&self, host_id: &str) -> Result<SshTunnelStatus, String> {
+        let session = self
+            .sessions
+            .lock()
+            .map_err(|_| "The SSH session registry is unavailable.".to_string())?
+            .get(host_id)
+            .cloned()
+            .ok_or_else(|| "No SSH session exists for the selected host.".to_string())?;
+        stop_session(&session);
+        session
+            .state
+            .lock()
+            .map_err(|_| "The SSH session state is unavailable.".to_string())
+            .map(|state| state.clone())
+    }
+
+    fn remove_session(&self, host_id: &str) -> Option<Arc<SshSession>> {
+        self.sessions.lock().ok()?.remove(host_id)
+    }
+}
+
+impl Drop for SshTunnelManager {
+    fn drop(&mut self) {
+        if let Ok(sessions) = self.sessions.get_mut() {
+            for session in sessions.values() {
+                stop_session(session);
+            }
+        }
+    }
+}
+
+#[tauri::command]
+pub fn ssh_tunnel_start(
+    manager: tauri::State<'_, SshTunnelManager>,
+    request: SshTunnelRequest,
+) -> Result<SshTunnelStatus, String> {
+    manager.start(request)
+}
+
+#[tauri::command]
+pub fn ssh_tunnel_status(
+    manager: tauri::State<'_, SshTunnelManager>,
+    host_id: String,
+) -> Result<SshTunnelStatus, String> {
+    manager.status(host_id.trim())
+}
+
+#[tauri::command]
+pub fn ssh_tunnel_retry(
+    manager: tauri::State<'_, SshTunnelManager>,
+    host_id: String,
+) -> Result<SshTunnelStatus, String> {
+    manager.retry(host_id.trim())
+}
+
+#[tauri::command]
+pub fn ssh_tunnel_stop(
+    manager: tauri::State<'_, SshTunnelManager>,
+    host_id: String,
+) -> Result<SshTunnelStatus, String> {
+    manager.stop(host_id.trim())
+}
+
+/// The SSH askpass helper is the same signed desktop executable, invoked by
+/// OpenSSH only when password authentication needs a prompt. The password is
+/// inherited in memory for that child process and is never put in a command
+/// argument, log, localStorage record, or persistent helper file.
+pub fn run_ssh_askpass_helper() -> bool {
+    if std::env::var_os(SSH_ASKPASS_MARKER).is_none() {
+        return false;
+    }
+    if let Some(password) = std::env::var_os(SSH_ASKPASS_PASSWORD) {
+        let _ = std::io::stdout().write_all(password.to_string_lossy().as_bytes());
+    }
+    std::process::exit(0);
+}
+
+struct ScannedHostKey {
+    fingerprint: String,
+    known_hosts_line: String,
+}
+
+fn validate_request(request: &SshTunnelRequest) -> Result<(), String> {
+    for (label, value) in [
+        ("host ID", request.host_id.as_str()),
+        ("SSH host", request.ssh_host.as_str()),
+        ("SSH username", request.username.as_str()),
+    ] {
+        if value.trim().is_empty() || value.contains('\0') || value.chars().any(char::is_whitespace)
+        {
+            return Err(format!("The {label} must be a single non-empty value."));
+        }
+    }
+    if request.ssh_port == 0 || request.local_port == 0 || request.remote_port == 0 {
+        return Err(
+            "SSH, local-forward, and remote-management ports must be between 1 and 65535."
+                .to_string(),
+        );
+    }
+    match request.authentication.as_str() {
+        "password" if request.password.as_deref().unwrap_or_default().is_empty() => {
+            return Err(
+                "Password authentication needs a password for the connection attempt.".to_string(),
+            )
+        }
+        "private-key" => {
+            let path = request
+                .private_key_path
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .ok_or_else(|| {
+                    "Private-key authentication needs a key-file reference.".to_string()
+                })?;
+            if !Path::new(path).is_file() {
+                return Err("The selected private-key file is not available.".to_string());
+            }
+        }
+        "agent" => {}
+        other => return Err(format!("Unsupported SSH authentication choice: {other}.")),
+    }
+    Ok(())
+}
+
+fn scan_host_key(host: &str, port: u16) -> Result<ScannedHostKey, String> {
+    let output = Command::new("ssh-keyscan")
+        .args([
+            "-T",
+            "5",
+            "-p",
+            &port.to_string(),
+            "-t",
+            "ed25519,ecdsa-sha2-nistp256,rsa-sha2-512,rsa-sha2-256",
+            host,
+        ])
+        .output()
+        .map_err(|error| format!("Could not run ssh-keyscan: {error}"))?;
+    let output_text = String::from_utf8_lossy(&output.stdout);
+    let mut lines: Vec<&str> = output_text
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .collect();
+    lines.sort_by_key(|line| host_key_rank(line));
+    let known_hosts_line = lines
+        .first()
+        .copied()
+        .ok_or_else(|| {
+            format!(
+                "ssh-keyscan could not read a host key: {}",
+                clean_output(&output.stderr)
+            )
+        })?
+        .to_string();
+    let path = temporary_key_path("scan");
+    write_restricted_file(&path, format!("{known_hosts_line}\n").as_bytes())?;
+    let fingerprint = fingerprint_for_key_file(&path);
+    let _ = fs::remove_file(path);
+    Ok(ScannedHostKey {
+        fingerprint: fingerprint?,
+        known_hosts_line,
+    })
+}
+
+fn host_key_rank(line: &str) -> usize {
+    match line.split_whitespace().nth(1) {
+        Some("ssh-ed25519") => 0,
+        Some("ecdsa-sha2-nistp256") => 1,
+        Some("rsa-sha2-512") => 2,
+        Some("rsa-sha2-256") => 3,
+        _ => 4,
+    }
+}
+
+fn fingerprint_for_key_file(path: &Path) -> Result<String, String> {
+    let output = Command::new("ssh-keygen")
+        .args(["-lf"])
+        .arg(path)
+        .args(["-E", "sha256"])
+        .output()
+        .map_err(|error| format!("Could not run ssh-keygen: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "ssh-keygen could not verify the host key: {}",
+            clean_output(&output.stderr)
+        ));
+    }
+    String::from_utf8_lossy(&output.stdout)
+        .split_whitespace()
+        .find(|part| part.starts_with("SHA256:"))
+        .map(str::to_string)
+        .ok_or_else(|| "ssh-keygen returned no SHA256 host-key fingerprint.".to_string())
+}
+
+fn write_known_hosts(host_id: &str, line: &str) -> Result<PathBuf, String> {
+    let path = temporary_key_path(host_id);
+    write_restricted_file(&path, format!("{line}\n").as_bytes())?;
+    Ok(path)
+}
+
+fn write_restricted_file(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    let mut options = OpenOptions::new();
+    options.create_new(true).write(true);
+    let mut file = options
+        .open(path)
+        .map_err(|error| format!("Could not create temporary SSH host-key file: {error}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        file.set_permissions(fs::Permissions::from_mode(0o600))
+            .map_err(|error| format!("Could not protect temporary SSH host-key file: {error}"))?;
+    }
+    file.write_all(bytes)
+        .map_err(|error| format!("Could not write temporary SSH host-key file: {error}"))
+}
+
+fn temporary_key_path(label: &str) -> PathBuf {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let mut digest = Sha256::new();
+    digest.update(label.as_bytes());
+    digest.update(std::process::id().to_le_bytes());
+    digest.update(now.to_le_bytes());
+    let suffix = digest
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    std::env::temp_dir().join(format!("msc2-ssh-known-host-{suffix}"))
+}
+
+fn spawn_ssh(request: &SshTunnelRequest, known_hosts_path: &Path) -> Result<Child, String> {
+    let executable = std::env::current_exe().map_err(|error| {
+        format!("Could not resolve the desktop executable for SSH askpass: {error}")
+    })?;
+    let mut command = Command::new("ssh");
+    command
+        .args(["-N", "-T", "-p"])
+        .arg(request.ssh_port.to_string())
+        .args(["-o", "ExitOnForwardFailure=yes"])
+        .args(["-o", "BatchMode=no"])
+        .args(["-o", "NumberOfPasswordPrompts=1"])
+        .args(["-o", "StrictHostKeyChecking=yes"])
+        .args(["-o", "GlobalKnownHostsFile=none"])
+        .args(["-o", "UserKnownHostsFile"])
+        .arg(known_hosts_path)
+        .args(["-L"])
+        .arg(format!(
+            "{}:127.0.0.1:{}",
+            request.local_port, request.remote_port
+        ))
+        .args(["-l", &request.username])
+        .arg(&request.ssh_host)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+    if request.authentication == "private-key" {
+        command.args([
+            "-i",
+            request.private_key_path.as_deref().unwrap_or_default(),
+        ]);
+        command.args(["-o", "IdentitiesOnly=yes"]);
+    }
+    if let Some(password) = request.password.as_deref() {
+        command
+            .env(SSH_ASKPASS_MARKER, "1")
+            .env(SSH_ASKPASS_PASSWORD, password)
+            .env("SSH_ASKPASS", executable)
+            .env("SSH_ASKPASS_REQUIRE", "force")
+            .env("DISPLAY", "msc2");
+    }
+    command
+        .spawn()
+        .map_err(|error| format!("Could not start the managed SSH tunnel: {error}"))
+}
+
+fn monitor_session(session: Arc<SshSession>) {
+    thread::spawn(move || {
+        let stderr = session
+            .child
+            .lock()
+            .ok()
+            .and_then(|mut child| child.as_mut().and_then(|child| child.stderr.take()));
+        if let Some(stderr) = stderr {
+            let stderr_session = Arc::clone(&session);
+            thread::spawn(move || collect_stderr(stderr, stderr_session));
+        }
+
+        loop {
+            let result = session
+                .child
+                .lock()
+                .ok()
+                .and_then(|mut child| child.as_mut().and_then(|child| child.try_wait().ok()));
+            match result {
+                Some(Some(exit)) => {
+                    let stopped = session
+                        .stop_requested
+                        .lock()
+                        .map(|flag| *flag)
+                        .unwrap_or(true);
+                    if let Ok(mut child) = session.child.lock() {
+                        *child = None;
+                    }
+                    if let Ok(mut state) = session.state.lock() {
+                        state.state = if stopped { "stopped" } else { "failed" };
+                        state.exit_reason = Some(if exit.success() {
+                            "The SSH process exited.".to_string()
+                        } else {
+                            format!("The SSH process exited with status {exit}.")
+                        });
+                        state.recoverable = !stopped;
+                    }
+                    cleanup_known_hosts(&session);
+                    break;
+                }
+                Some(None) => {
+                    if let Ok(mut state) = session.state.lock() {
+                        if state.state == "connecting" {
+                            state.state = "connected";
+                        }
+                    }
+                }
+                None => break,
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+    });
+}
+
+fn collect_stderr(stderr: impl Read, session: Arc<SshSession>) {
+    let mut reader = BufReader::new(stderr);
+    let mut line = String::new();
+    while reader.read_line(&mut line).is_ok() && !line.is_empty() {
+        let password = session.password.lock().ok().and_then(|value| value.clone());
+        let clean = redact_output(line.trim_end(), password.as_deref());
+        if let Ok(mut state) = session.state.lock() {
+            append_bounded(&mut state.stderr, &clean);
+        }
+        line.clear();
+    }
+}
+
+fn append_bounded(target: &mut String, addition: &str) {
+    if !target.is_empty() {
+        target.push('\n');
+    }
+    target.push_str(addition);
+    if target.len() > MAX_STDERR_BYTES {
+        let start = target.len() - MAX_STDERR_BYTES;
+        *target = target.get(start..).unwrap_or_default().to_string();
+    }
+}
+
+fn redact_output(value: &str, password: Option<&str>) -> String {
+    let mut clean = value.to_string();
+    if let Some(password) = password.filter(|password| !password.is_empty()) {
+        clean = clean.replace(password, "[redacted]");
+    }
+    clean
+        .split_whitespace()
+        .map(|part| {
+            if part.starts_with("msc2_") {
+                "[redacted]"
+            } else {
+                part
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn stop_session(session: &SshSession) {
+    if let Ok(mut stop_requested) = session.stop_requested.lock() {
+        *stop_requested = true;
+    }
+    if let Ok(mut child) = session.child.lock() {
+        if let Some(child) = child.as_mut() {
+            let _ = child.kill();
+        }
+    }
+    if let Ok(mut password) = session.password.lock() {
+        *password = None;
+    }
+    cleanup_known_hosts(session);
+    if let Ok(mut state) = session.state.lock() {
+        state.state = "stopped";
+        state.exit_reason = Some("The SSH tunnel was stopped.".to_string());
+        state.recoverable = false;
+    }
+}
+
+fn cleanup_known_hosts(session: &SshSession) {
+    if let Ok(mut path) = session.known_hosts_path.lock() {
+        if let Some(path) = path.take() {
+            let _ = fs::remove_file(path);
+        }
+    }
+}
+
+fn status_for_key_decision(
+    request: &SshTunnelRequest,
+    state: &'static str,
+    observed: &str,
+    stored: Option<&str>,
+    detail: &str,
+) -> SshTunnelStatus {
+    SshTunnelStatus {
+        host_id: request.host_id.clone(),
+        state,
+        local_port: request.local_port,
+        remote_port: request.remote_port,
+        host_key_fingerprint: Some(observed.to_string()),
+        stored_host_key_fingerprint: stored.map(str::to_string),
+        stderr: detail.to_string(),
+        exit_reason: None,
+        recoverable: true,
+    }
+}
+
+fn host_key_secret_key(host_id: &str) -> String {
+    let mut digest = Sha256::new();
+    digest.update(host_id.as_bytes());
+    let suffix = digest
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    format!("{HOST_KEY_SECRET_PREFIX}{suffix}")
+}
+
+fn read_host_key(host_id: &str) -> Result<Option<String>, String> {
+    super::desktop_secret_store()?
+        .get(&host_key_secret_key(host_id))
+        .map_err(|error| format!("Could not read the stored SSH host key: {error}"))
+}
+
+fn write_host_key(host_id: &str, fingerprint: &str) -> Result<(), String> {
+    super::desktop_secret_store()?
+        .set(&host_key_secret_key(host_id), fingerprint)
+        .map_err(|error| format!("Could not remember the SSH host key: {error}"))
+}
+
+fn clean_output(bytes: &[u8]) -> String {
+    let value = String::from_utf8_lossy(bytes);
+    redact_output(value.trim(), None)
+}

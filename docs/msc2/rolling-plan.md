@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, P14.6, P14.9, P14.10, and P14.11 are awaiting verification.
-> **Next move:** Cameron runs P14.9's, P14.10's, and P14.11's verification commands and closes those steps if the installer contracts, Linux scripts, and remote profile type-check are sound; P14.4's client verification, P14.5's verification, P14.6's producer-aware console classification lint, and P14.8's contract verification remain outstanding. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, and P14.12 are awaiting verification.
+> **Next move:** Cameron runs P14.9's, P14.10's, P14.11's, and P14.12's verification commands and closes those steps if the installer contracts, Linux scripts, remote profile type-check, and managed SSH capability are sound; P14.4's client verification, P14.5's verification, P14.6's producer-aware console classification lint, and P14.8's contract verification remain outstanding. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -157,7 +157,7 @@ editable or automatically selected when occupied.
 
 ### P14.12 — Build the native SSH tunnel/session capability
 
-- **Status:** planned
+- **Status:** awaiting verification
 - **Files:** `clients/desktop-web/src-tauri/`, Tauri invoke/command bridge, desktop auth/transport modules, platform dependency manifests, secure host-key storage
 - **What:** Implement the desktop-owned SSH capability used by the profile and connection manager. It must:
   - open `localPort -> 127.0.0.1:48001` on the remote host, using the remembered local port such as `48002`;

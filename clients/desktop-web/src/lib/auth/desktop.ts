@@ -1,4 +1,5 @@
 import type { FetchLike, HttpMethod } from '../api/client';
+import type { SshAuthentication } from '../hosts/types';
 
 export interface DesktopPairingResult {
   agentHostId: string;
@@ -8,6 +9,50 @@ export interface DesktopResponse {
   status: number;
   headers: readonly [string, string][];
   body: readonly number[];
+}
+
+export type SshTunnelState =
+  | 'awaiting-host-key'
+  | 'host-key-changed'
+  | 'host-key-mismatch'
+  | 'connecting'
+  | 'connected'
+  | 'failed'
+  | 'stopped';
+
+export interface SshTunnelStatus {
+  hostId: string;
+  state: SshTunnelState;
+  localPort: number;
+  remotePort: number;
+  hostKeyFingerprint: string | null;
+  storedHostKeyFingerprint: string | null;
+  stderr: string;
+  exitReason: string | null;
+  recoverable: boolean;
+}
+
+export interface SshTunnelRequest {
+  hostId: string;
+  sshHost: string;
+  sshPort: number;
+  username: string;
+  authentication: SshAuthentication;
+  privateKeyPath?: string;
+  /** Passed to native code for one connection attempt; never persisted. */
+  password?: string;
+  localPort: number;
+  remotePort: number;
+  /** Required after the user reviews an unknown or changed fingerprint. */
+  expectedHostKeyFingerprint?: string;
+  rememberHostKey: boolean;
+}
+
+export interface DesktopSshTunnelBridge {
+  start(request: SshTunnelRequest): Promise<SshTunnelStatus>;
+  status(hostId: string): Promise<SshTunnelStatus>;
+  retry(hostId: string): Promise<SshTunnelStatus>;
+  stop(hostId: string): Promise<SshTunnelStatus>;
 }
 
 /**
@@ -86,6 +131,17 @@ export async function loadTauriDesktopCredentialBridge(): Promise<DesktopCredent
       invoke<DesktopResponse>('desktop_authorized_request', {
         request: { ...request, body: request.body ? [...request.body] : null },
       }),
+  };
+}
+
+/** Loads the native managed-forwarding seam without exposing Tauri to screens. */
+export async function loadTauriSshTunnelBridge(): Promise<DesktopSshTunnelBridge> {
+  const { invoke } = await import('@tauri-apps/api/core');
+  return {
+    start: (request) => invoke<SshTunnelStatus>('ssh_tunnel_start', { request }),
+    status: (hostId) => invoke<SshTunnelStatus>('ssh_tunnel_status', { hostId }),
+    retry: (hostId) => invoke<SshTunnelStatus>('ssh_tunnel_retry', { hostId }),
+    stop: (hostId) => invoke<SshTunnelStatus>('ssh_tunnel_stop', { hostId }),
   };
 }
 

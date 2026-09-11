@@ -7,7 +7,7 @@
   import ScreenHeader from '../shared/ScreenHeader.svelte';
   import type { Schema, ScreenProps } from '../shared/types';
   import { call, errorMessage, mutate } from '../shared/types';
-  import { demoConsole, filterLines, livePaths, rememberCommand } from './model';
+  import { demoConsole, filterLines, humanConsoleLines, livePaths, rememberCommand } from './model';
 
   export let api: ScreenProps['api'] = undefined;
   export let operations: readonly Schema['OperationDTO'][] = [];
@@ -22,7 +22,7 @@
   let notice = '';
 
   onMount(async () => {
-    lines = await call(api, lines, livePaths.tail);
+    lines = humanConsoleLines(await call(api, lines, livePaths.tail));
   });
   $: visibleLines = paused ? lines : filterLines(lines, search, level);
 
@@ -33,6 +33,7 @@
     try {
       notice = (await mutate<Schema['CommandResult']>(api, livePaths.command, { command: next }))
         .result;
+      lines = humanConsoleLines(await call(api, lines, livePaths.tail));
       command = '';
     } catch (error) {
       notice = errorMessage(error);

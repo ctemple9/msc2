@@ -195,6 +195,8 @@
         onToggle={toggleConsole}
         height={consoleCollapsed ? undefined : consoleHeight}
         {api}
+        hostId={activeHostId}
+        serverId={activeServerId ?? 'survival'}
         serverType={activeServer?.serverType}
         {capabilities}
       />

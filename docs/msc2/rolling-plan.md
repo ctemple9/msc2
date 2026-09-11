@@ -112,7 +112,7 @@ editable or automatically selected when occupied.
 
 ### P14.7 — Align console controls and visible behavior
 
-- **Status:** planned
+- **Status:** awaiting verification
 - **Files:** `clients/desktop-web/src/lib/sections/console/model.ts`, console components, WebSocket client/event handling, help content for console filters
 - **What:** Remove the current assumption that client-side hiding is sufficient. The default console view and reconnect path must request human/server output without controller or routine helper traffic, so “no items match console filters” is not caused by hidden monitoring, backup, Xbox Broadcast, or Playit output consuming the history window. If an explicit diagnostics view is retained, make it a separate bounded view with clear copy and no effect on the main console. Preserve filter/search behavior for genuine server output, manual command echo, and actionable helper state displayed through its proper status/notification surface.
 - **Verify:** `npm run check`

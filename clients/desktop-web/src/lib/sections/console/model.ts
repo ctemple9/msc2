@@ -36,6 +36,24 @@ export function consoleLinesAfterClear(
   });
 }
 
+/**
+ * The agent's public console routes already return user/server history only.
+ * Keep this boundary in the client as a compatibility guard for older agents
+ * or a reconnect that races an agent upgrade; filtering here cannot recover
+ * history already evicted by the agent.
+ */
+export function isHumanConsoleLine(line: ConsoleLine): boolean {
+  if (line.origin === 'controller' || line.origin === 'helper') return false;
+  if (!line.origin && (line.source === 'playit' || line.source === 'xbox-broadcast')) {
+    return false;
+  }
+  return line.auto !== true;
+}
+
+export function humanConsoleLines(lines: readonly ConsoleLine[]): ConsoleLine[] {
+  return lines.filter(isHumanConsoleLine);
+}
+
 export const demoConsole: ConsoleLine[] = [
   {
     ts: '2026-08-24T12:00:00Z',
@@ -82,26 +100,23 @@ export const livePaths = {
 } as const;
 
 // --- Docked console (P12.10): MSC 1 ConsoleManager/ConsoleLineParser ported to the
-// agent's actual ConsoleLineDTO {ts, source, level?, text}. The agent only ever sends
-// source in {"stdout","stderr","bedrock","system"} and never sets `level` (see
-// crates/msc-agent/src/routes/lifecycle.rs) -- MSC 1's richer per-line `tag` has no
-// contract equivalent, so Server/Plugins is inferred the same way MSC 1 does: from a
-// bracketed token in the raw text, not from a field the agent doesn't send.
+// agent's actual ConsoleLineDTO {ts, source, level?, auto?, origin?, text}. The agent
+// now supplies producer origin at ingestion (P14.6); older lines may omit it, so the
+// client decodes source as a compatibility fallback. MSC 1's richer per-line `tag`
+// has no contract equivalent, so Server/Plugins is inferred from bracketed text.
 
-export type ConsoleChipId =
-  'all' | 'server' | 'plugins' | 'warnings' | 'controller' | 'commands' | 'custom';
+export type ConsoleChipId = 'all' | 'server' | 'plugins' | 'warnings' | 'commands' | 'custom';
 
 export const CONSOLE_CHIPS: readonly { id: ConsoleChipId; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'server', label: 'Server' },
   { id: 'plugins', label: 'Plugins' },
   { id: 'warnings', label: 'Warnings' },
-  { id: 'controller', label: 'Controller' },
   { id: 'commands', label: 'Commands' },
   { id: 'custom', label: 'Custom' },
 ];
 
-export type ConsoleOrigin = 'server' | 'controller';
+export type ConsoleOrigin = 'user' | 'server' | 'controller' | 'helper';
 export type ConsoleLevel = 'info' | 'warn' | 'error';
 export type ConsoleCategory = 'server' | 'plugins' | 'controller' | 'commands';
 
@@ -130,11 +145,13 @@ export function isStackTraceLine(text: string): boolean {
   );
 }
 
-/** The origin the agent actually reports (game process vs. agent/app) -- MSC 1's
- *  ConsoleSource. Sent commands are echoed locally with source "command" and count
- *  as controller-origin, same as MSC 1 tagging "You → cmd" lines source=.controller. */
+/** The origin the agent reports. Omitted origin is decoded for older agents. */
 export function originOf(line: ConsoleLine): ConsoleOrigin {
-  return line.source === 'system' || line.source === 'command' ? 'controller' : 'server';
+  if (line.origin) return line.origin;
+  if (line.source === 'command') return 'user';
+  if (line.source === 'system') return 'controller';
+  if (line.source === 'playit' || line.source === 'xbox-broadcast') return 'helper';
+  return 'server';
 }
 
 /** First bracketed token that isn't a timestamp or a bare level word -- MSC 1's
@@ -172,8 +189,11 @@ function isCoreServerTag(tag: string): boolean {
 }
 
 export function categoryOf(line: ConsoleLine): ConsoleCategory {
-  if (line.source === 'command') return 'commands';
-  if (line.source === 'system') return 'controller';
+  const origin = originOf(line);
+  if (origin === 'user' || line.source === 'command') return 'commands';
+  if (origin === 'controller' || origin === 'helper' || line.source === 'system') {
+    return 'controller';
+  }
   const tag = bracketTag(line.text);
   if (!tag || isCoreServerTag(tag)) return 'server';
   return 'plugins';
@@ -188,10 +208,6 @@ export function matchesChip(line: ConsoleLine, chip: ConsoleChipId): boolean {
       return categoryOf(line) === 'server';
     case 'plugins':
       return categoryOf(line) === 'plugins';
-    case 'controller': {
-      const category = categoryOf(line);
-      return category === 'controller' || category === 'commands';
-    }
     case 'commands':
       return categoryOf(line) === 'commands';
     case 'warnings':
@@ -226,10 +242,9 @@ export function matchesSearch(line: ConsoleLine, search: string): boolean {
 }
 
 /**
- * Returns the lines MSC 1 would classify as automatic output. New agents carry
- * the decision in `auto`; the text/source fallback keeps the dock useful while
- * an older agent is still running. The fallback recognizes stable output
- * families only, never arbitrary repetition.
+ * Returns the lines MSC 1 would classify as automatic output for legacy callers.
+ * The main console no longer uses this presentation filter: P14.6 applies the
+ * retention boundary in the agent before history and WebSocket delivery.
  */
 export function automaticConsoleLineKeys(lines: readonly ConsoleLine[]): ReadonlySet<string> {
   const automatic = new Set<string>();
@@ -355,14 +370,6 @@ export function consoleLineTone(line: ConsoleLine): 'error' | 'warn' | 'muted' |
   if (originOf(line) === 'controller') return 'muted';
   const level = inferLevel(line);
   return level === 'info' ? 'default' : level;
-}
-
-/** A locally-echoed sent command -- the agent has no server-side record of commands
- *  issued through `/v1/command` (it only forwards them to the process's stdin), so the
- *  dock appends this itself, the same way MSC 1's ConsoleManager appends a "You → cmd"
- *  entry client-side. */
-export function commandEchoLine(command: string): ConsoleLine {
-  return { ts: Date.now().toString(), source: 'command', text: `› ${command}` };
 }
 
 export function formatConsoleTimestamp(ts: string): string {

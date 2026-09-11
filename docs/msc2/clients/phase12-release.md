@@ -93,6 +93,7 @@ into a root-owned server manager. The resulting layout is:
 | Item | Beta contract |
 |---|---|
 | Installed binary | `/usr/lib/msc2/msc`, root-owned and not writable by the service user |
+| CLI command link | `/usr/local/bin/msc` -> `/usr/lib/msc2/msc`, created only when the existing path is absent or already points at the MSC binary |
 | Agent unit | `/etc/systemd/system/com.ctemple.msc2.agent.service` |
 | Agent identity | `User=` and `Group=` are the installing user's UID and primary group |
 | Agent data | The installing user's `~/.local/share/msc2` (or the explicitly configured `MSC2_DATA_DIR`) |
@@ -112,7 +113,11 @@ systemctl stop com.ctemple.msc2.agent.service
 ```
 
 The package does not add a second daemon, desktop dependency, or background
-updater. Uninstall stops and disables the units, removes the installed MSC
+updater. The command link is separate from service registration: the service
+continues to invoke `/usr/lib/msc2/msc` directly and listens on
+`127.0.0.1:48001`. An existing non-MSC `/usr/local/bin/msc` is a hard install
+error, and uninstall removes the link only while it still targets the MSC
+binary. Uninstall stops and disables the units, removes the installed MSC
 program and service definitions, and leaves managed server data and explicit
 user configuration for the documented recovery decision rather than
 silently deleting worlds.

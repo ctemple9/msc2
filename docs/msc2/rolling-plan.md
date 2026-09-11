@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, and P14.6 are awaiting verification.
-> **Next move:** Cameron runs P14.6's verification command and closes the step if the producer-aware console classification lint passes; the current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. P14.4's client verification, P14.5's verification, and P14.8's contract verification remain outstanding. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, P14.6, and P14.9 are awaiting verification.
+> **Next move:** Cameron runs P14.9's verification command and closes the step if the Linux installer scripts parse cleanly; P14.4's client verification, P14.5's verification, P14.6's producer-aware console classification lint, and P14.8's contract verification remain outstanding. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -130,7 +130,7 @@ editable or automatically selected when occupied.
 
 ### P14.9 — Put the Linux headless command on PATH safely
 
-- **Status:** planned
+- **Status:** awaiting verification
 - **Files:** `packaging/linux/install.sh`, `packaging/linux/uninstall.sh`, Linux package/archive templates, systemd/service documentation
 - **What:** Make a normal Linux install expose `msc` without requiring `cd` or `./msc`. For package installs, use the distribution's normal executable location or an owned symlink in a standard command directory such as `/usr/local/bin`; for archive installs, make the choice explicit and idempotent. Detect an existing non-MSC target before replacing it, support upgrades and uninstall cleanly, explain root/user installation differences, and preserve the existing management service on port 48001. Verify both a fresh install and an upgrade do not create duplicate binaries or stale links.
 - **Verify:** `bash -n packaging/linux/install.sh && bash -n packaging/linux/uninstall.sh`

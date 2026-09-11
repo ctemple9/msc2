@@ -2,8 +2,11 @@
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-INSTALL_BIN="/usr/lib/msc2/msc"
-INSTALL_MODE_MARKER="/usr/lib/msc2/.msc2-installation-mode"
+INSTALL_ROOT="/usr/lib/msc2"
+INSTALL_BIN="$INSTALL_ROOT/msc"
+INSTALL_MODE_MARKER="$INSTALL_ROOT/.msc2-installation-mode"
+PATH_DIR="/usr/local/bin"
+PATH_LINK="$PATH_DIR/msc"
 UNIT_DIR="/etc/systemd/system"
 TMPFILES_DIR="/usr/lib/tmpfiles.d"
 AGENT_UNIT="com.ctemple.msc2.agent.service"
@@ -49,6 +52,8 @@ command -v systemctl >/dev/null 2>&1 || fail "systemctl is required"
 command -v systemd-tmpfiles >/dev/null 2>&1 || fail "systemd-tmpfiles is required"
 command -v getent >/dev/null 2>&1 || fail "getent is required"
 command -v install >/dev/null 2>&1 || fail "install is required"
+command -v ln >/dev/null 2>&1 || fail "ln is required"
+command -v readlink >/dev/null 2>&1 || fail "readlink is required"
 
 # The script is normally started by the installing user. Re-enter through
 # sudo so the root half can write /usr/lib, /etc, /run, and /var/lib while the
@@ -85,6 +90,19 @@ for required in \
   "$SCRIPT_DIR/systemd/msc2.conf.in"; do
   [[ -f "$required" ]] || fail "package input is missing: $required"
 done
+
+# The archive owns one stable command link. Refuse every other existing target
+# before stopping the service or replacing the binary, so an unrelated local
+# command can never be overwritten as part of an MSC upgrade.
+if [[ -L "$PATH_DIR" || ( -e "$PATH_DIR" && ! -d "$PATH_DIR" ) ]]; then
+  fail "command directory is not a real directory: $PATH_DIR"
+fi
+if [[ -L "$PATH_LINK" ]]; then
+  [[ "$(readlink "$PATH_LINK")" == "$INSTALL_BIN" ]] || fail \
+    "existing non-MSC command target at $PATH_LINK; move it before installing"
+elif [[ -e "$PATH_LINK" ]]; then
+  fail "existing non-MSC command target at $PATH_LINK; move it before installing"
+fi
 
 render_template() {
   local template="$1"
@@ -135,11 +153,23 @@ render_template "$SCRIPT_DIR/systemd/msc2.conf.in" \
 systemctl stop "$AGENT_UNIT" "$HELPER_SERVICE_UNIT" "$HELPER_SOCKET_UNIT" >/dev/null 2>&1 || true
 systemctl disable "$AGENT_UNIT" "$HELPER_SERVICE_UNIT" "$HELPER_SOCKET_UNIT" >/dev/null 2>&1 || true
 
-install -d -m 0755 -o root -g root "$(dirname "$INSTALL_BIN")"
+if [[ ! -e "$PATH_DIR" ]]; then
+  install -d -m 0755 -o root -g root "$PATH_DIR"
+fi
+[[ -d "$PATH_DIR" && ! -L "$PATH_DIR" ]] || fail \
+  "command directory is not a real directory: $PATH_DIR"
+
+install -d -m 0755 -o root -g root "$INSTALL_ROOT"
 install -m 0755 -o root -g root "$SCRIPT_DIR/msc" "$INSTALL_BIN"
 printf 'standalone-archive\n' > "$INSTALL_MODE_MARKER"
 chown root:root "$INSTALL_MODE_MARKER"
 chmod 0644 "$INSTALL_MODE_MARKER"
+
+if [[ -L "$PATH_LINK" ]]; then
+  ln -sfn "$INSTALL_BIN" "$PATH_LINK"
+else
+  ln -s "$INSTALL_BIN" "$PATH_LINK"
+fi
 
 # These directories belong to the installing user. Do not recursively chown
 # an existing data directory: an upgrade must not rewrite ownership inside a
@@ -164,7 +194,15 @@ systemctl start "$AGENT_UNIT"
 cat <<MESSAGE
 MSC 2 headless agent installed for ${INSTALLING_USER}.
 
+The command is installed as ${PATH_LINK} and is available as msc.
+$(if [[ ":${PATH:-}:" == *":${PATH_DIR}:"* ]]; then
+    printf 'This shell already includes %s on PATH.\n' "$PATH_DIR"
+  else
+    printf 'Refresh PATH or open a new shell before using it from this shell.\n'
+  fi)
+
 The agent is enabled for boot and is running under ${INSTALLING_USER}.
+The management service listens on 127.0.0.1:48001.
 Routine control:
   systemctl status ${AGENT_UNIT}
   systemctl start ${AGENT_UNIT}

@@ -1,7 +1,7 @@
 # MSC 2 headless installation contract
 
-**Status:** P14.8 contract; implementation is split between P14.9 (Linux) and
-P14.10 (macOS and Windows)
+**Status:** P14.8 contract; Linux archive implementation is P14.9, and macOS
+and Windows implementation is P14.10
 
 This document defines the command-install shape for the standalone MSC 2
 headless artifacts. It is deliberately separate from the operating-system

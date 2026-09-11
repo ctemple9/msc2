@@ -2,8 +2,10 @@
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-INSTALL_BIN="/usr/lib/msc2/msc"
-INSTALL_MODE_MARKER="/usr/lib/msc2/.msc2-installation-mode"
+INSTALL_ROOT="/usr/lib/msc2"
+INSTALL_BIN="$INSTALL_ROOT/msc"
+INSTALL_MODE_MARKER="$INSTALL_ROOT/.msc2-installation-mode"
+PATH_LINK="/usr/local/bin/msc"
 UNIT_DIR="/etc/systemd/system"
 TMPFILES_DIR="/usr/lib/tmpfiles.d"
 AGENT_UNIT="com.ctemple.msc2.agent.service"
@@ -19,6 +21,7 @@ fail() {
 [[ "$(uname -s)" == "Linux" ]] || fail "this package only uninstalls on Linux"
 command -v systemctl >/dev/null 2>&1 || fail "systemctl is required"
 command -v systemd-tmpfiles >/dev/null 2>&1 || fail "systemd-tmpfiles is required"
+command -v readlink >/dev/null 2>&1 || fail "readlink is required"
 command -v sudo >/dev/null 2>&1 || ((EUID == 0)) || fail "sudo is required for uninstallation"
 
 if ((EUID != 0)); then
@@ -50,12 +53,26 @@ rm -f \
   "$INSTALL_BIN" \
   "$INSTALL_MODE_MARKER"
 
+PATH_LINK_STATE="not present"
+if [[ -L "$PATH_LINK" ]]; then
+  if [[ "$(readlink "$PATH_LINK")" == "$INSTALL_BIN" ]]; then
+    rm -f "$PATH_LINK"
+    PATH_LINK_STATE="removed"
+  else
+    PATH_LINK_STATE="left unchanged (the link no longer targets MSC 2)"
+  fi
+elif [[ -e "$PATH_LINK" ]]; then
+  PATH_LINK_STATE="left unchanged (the path is not an MSC-owned symlink)"
+fi
+
 systemd-tmpfiles --remove "$TMPFILES_DIR/$TMPFILES_UNIT" >/dev/null 2>&1 || true
 systemctl daemon-reload
 rmdir /run/msc2 >/dev/null 2>&1 || true
 
 cat <<'MESSAGE'
 MSC 2 Linux service definitions and binary removed.
+
+The MSC-owned command link at ${PATH_LINK} was ${PATH_LINK_STATE}.
 
 Managed server data, logs, configuration, and the root-owned credential store
 were retained. Review those paths before removing them manually if a complete

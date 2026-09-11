@@ -1,7 +1,7 @@
 # MSC 2 headless installation contract
 
 **Status:** P14.8 contract; Linux archive implementation is P14.9, and macOS
-and Windows implementation is P14.10
+and Windows archive installers are P14.10.
 
 This document defines the command-install shape for the standalone MSC 2
 headless artifacts. It is deliberately separate from the operating-system
@@ -24,15 +24,16 @@ The release workflow publishes these standalone archives:
 | Linux 64-bit | `x86_64-unknown-linux-gnu` | `msc2-headless-<release>-linux-x86_64.tar.gz` |
 
 Every archive contains the matching headless binary and this document under
-the name `HEADLESS-INSTALL.md`. The macOS Intel archive also contains the
-Bedrock sidecar and its appliance resources. The Apple Silicon archive has no
-Bedrock sidecar; that is a platform capability boundary, not an installation
-failure.
+the name `HEADLESS-INSTALL.md`. The macOS and Windows archives also contain
+`MSC2-VERSION` plus their platform installer and uninstaller. The macOS Intel
+archive also contains the Bedrock sidecar and its appliance resources. The
+Apple Silicon archive has no
+Bedrock sidecar; that is a platform capability boundary, not an installation failure.
 
 The Linux archive additionally contains `install.sh`, `uninstall.sh`, and the
-systemd input definitions used by its service installer. macOS and Windows
-archive installers are the P14.10 implementation work; until that work lands,
-their archives can still be unpacked and the binary can be run directly.
+systemd input definitions used by its service installer. macOS archives
+contain `install.sh` and `uninstall.sh`; Windows archives contain
+`install.ps1` and `uninstall.ps1`. These scripts install the command only.
 
 ## Command-install shapes
 
@@ -79,6 +80,43 @@ manager owns `/usr/bin/msc` directly. That shape has no archive symlink and no
 archive ownership marker: upgrades and removal go through the distribution
 package manager. The standalone archive shape above remains available for
 systems that do not use a supported package manager.
+
+## macOS archive installation
+
+From the unpacked archive, run:
+
+```sh
+./install.sh
+```
+
+The installer asks for administrator approval for /usr/local, stores the
+binary under the host architecture's version directory, and creates the
+MSC-owned /usr/local/bin/msc symlink. Intel archives include the Bedrock
+sidecar beside the binary; Apple Silicon archives intentionally do not. To
+remove the command and all MSC-owned version directories for that architecture,
+run ./uninstall.sh from an archive or retained copy of the script. A
+conflicting non-MSC file or symlink is never overwritten.
+
+## Windows archive installation
+
+In PowerShell, from the unpacked archive, run the per-user install:
+
+```powershell
+.\install.ps1
+```
+
+This installs into %LOCALAPPDATA%\MSC2\bin and updates only the installing
+user's PATH. For an explicitly machine-wide install, open an elevated
+PowerShell window and run .\install.ps1 -Scope Machine; that uses
+%ProgramFiles%\MSC2\bin and the machine PATH. Remove the matching scope with
+.\uninstall.ps1 or .\uninstall.ps1 -Scope Machine. The scripts refuse an
+unmarked existing msc.exe, remove only the exact MSC-owned PATH directory,
+and leave the Windows Service and server data alone.
+
+PowerShell and Command Prompt sessions inherit PATH when they start. After an
+install or removal, open a new shell before using Get-Command msc,
+where.exe msc, or msc.exe from that shell. PATH installation is separate
+from Windows Service registration; the service does not depend on PATH.
 
 ## Service boundary
 

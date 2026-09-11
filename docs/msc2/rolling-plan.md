@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, P14.6, and P14.9 are awaiting verification.
-> **Next move:** Cameron runs P14.9's verification command and closes the step if the Linux installer scripts parse cleanly; P14.4's client verification, P14.5's verification, P14.6's producer-aware console classification lint, and P14.8's contract verification remain outstanding. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, P14.6, P14.9, and P14.10 are awaiting verification.
+> **Next move:** Cameron runs P14.9's and P14.10's verification commands and closes those steps if the installer contracts are present and the Linux scripts parse cleanly; P14.4's client verification, P14.5's verification, P14.6's producer-aware console classification lint, and P14.8's contract verification remain outstanding. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -139,8 +139,8 @@ editable or automatically selected when occupied.
 
 ### P14.10 — Make macOS and Windows headless installs equally usable
 
-- **Status:** planned
-- **Files:** `tools/release/build-macos-headless.sh`, `tools/release/build-windows-headless.ps1`, macOS/Windows installer or setup scripts, release workflow, headless CLI documentation
+- **Status:** awaiting verification
+- **Files:** `packaging/macos/install.sh`, `packaging/macos/uninstall.sh`, `packaging/windows/install.ps1`, `packaging/windows/uninstall.ps1`, `tools/release/build-macos-headless.sh`, `tools/release/build-windows-headless.ps1`, release workflow, headless CLI documentation
 - **What:** Give macOS and native Windows the same usable command story. macOS must install or clearly guide an owned `msc` link into a standard PATH location without breaking Intel/Apple Silicon packaging. Windows must install `msc.exe` into an owned directory and add/remove that directory from the appropriate user or machine PATH with an explicit elevation choice. Document shell refresh behavior, PowerShell and Command Prompt discovery, upgrade/uninstall ownership, and service installation separately from CLI PATH installation.
 - **Verify:** `rg -n "PATH|msc\.exe|headless|Intel|arm64|uninstall" tools/release packaging .github/workflows docs/msc2`
 - **Batch:** D — headless packaging

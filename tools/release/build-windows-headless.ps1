@@ -36,6 +36,9 @@ try {
     New-Item -ItemType Directory -Force -Path $platformDirectory, $packageRoot | Out-Null
     Copy-Item $sourceBinary (Join-Path $platformDirectory 'msc.exe')
     Copy-Item $sourceBinary (Join-Path $packageRoot 'msc.exe')
+    Set-Content -LiteralPath (Join-Path $packageRoot 'MSC2-VERSION') -Value $version
+    Copy-Item (Join-Path $workspaceRoot 'packaging/windows/install.ps1') (Join-Path $packageRoot 'install.ps1')
+    Copy-Item (Join-Path $workspaceRoot 'packaging/windows/uninstall.ps1') (Join-Path $packageRoot 'uninstall.ps1')
     Copy-Item (Join-Path $workspaceRoot 'docs/msc2/clients/headless-installation.md') (Join-Path $packageRoot 'HEADLESS-INSTALL.md')
     if (Test-Path $archive) {
         Remove-Item -Force $archive

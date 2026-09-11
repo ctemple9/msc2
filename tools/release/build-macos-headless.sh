@@ -51,6 +51,9 @@ rm -rf "$PACKAGE_ROOT"
 mkdir -p "$PLATFORM_DIR" "$PACKAGE_ROOT"
 install -m 0755 "$SOURCE_BINARY" "$PLATFORM_DIR/msc"
 install -m 0755 "$SOURCE_BINARY" "$PACKAGE_ROOT/msc"
+printf '%s\n' "$VERSION" > "$PACKAGE_ROOT/MSC2-VERSION"
+install -m 0755 "$WORKSPACE_ROOT/packaging/macos/install.sh" "$PACKAGE_ROOT/install.sh"
+install -m 0755 "$WORKSPACE_ROOT/packaging/macos/uninstall.sh" "$PACKAGE_ROOT/uninstall.sh"
 install -m 0644 "$WORKSPACE_ROOT/docs/msc2/clients/headless-installation.md" \
   "$PACKAGE_ROOT/HEADLESS-INSTALL.md"
 if [[ "$INCLUDE_SIDECAR" == true ]]; then

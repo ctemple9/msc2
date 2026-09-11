@@ -405,7 +405,7 @@
           <div class="architecture-node">
             <span class="node-kicker">Where servers run</span>
             <strong>MSC agent</strong>
-            <span>{hostLabel}</span>
+            <span>Local · remote</span>
           </div>
         </div>
         <div class="means-grid">

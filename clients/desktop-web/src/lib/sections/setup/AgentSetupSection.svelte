@@ -387,7 +387,7 @@
         <p class="detail">
           The control panel (what you can see) is the app you use. The agent (what you can't see) is
           the background service that manages the Minecraft servers. The control panel and agent can
-          run on the same computer or on different computers.
+          run on the same or different computer.
         </p>
         <div
           class="architecture-diagram"

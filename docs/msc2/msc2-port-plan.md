@@ -184,6 +184,24 @@ surface is the scriptable CLI, including interactive command confirmations;
 the agent API, WebSocket channels, and headless installation story remain in
 scope for the supported desktop, browser, and CLI clients.
 
+### Phase 14 — Operational refinements
+
+Phase 14 covers four bounded operational areas: semantic Minecraft time
+actions, separation of automatic monitoring traffic from human console history,
+tri-platform headless command installation, and a Tauri-managed remote-host
+connection flow. The source and acceptance map is
+`docs/msc2/capabilities/phase14-operational-refinements.md`; it is the required
+coverage reference before implementation proceeds.
+
+**Exit criteria:** same-day time actions and explicit day changes are distinct
+across Vanilla, Paper, Purpur, Fabric, Forge, NeoForge, and Bedrock; automatic
+polling cannot evict human console history; `msc` is discoverable after
+headless installation on macOS, Windows, and Linux; and a Tauri desktop can
+save/edit host routes, manage SSH forwarding, and pair without a required
+cloud relay, Tailscale account, manually opened terminal, or remote service
+installation API. Evidence must include static inspection, live Minecraft
+verification, and real OS install exercises as identified by the matrix.
+
 ### Continuous, from Phase 1 onward
 
 The client capability matrix (D-023) is updated as each capability lands, with intentional exceptions recorded rather than discovered.

@@ -220,6 +220,12 @@ the host's operating-system service through the management API. A host record's
 identity remains stable when its addresses change, and its secrets stay scoped
 to that host.
 
+The Phase 14 source and acceptance map is maintained in
+`docs/msc2/capabilities/phase14-operational-refinements.md`. It is the owning
+checklist for the runtime variants, retained client surfaces, and OS install
+evidence named above; later implementation steps must not silently reduce that
+coverage.
+
 ---
 
 ## 6. Module boundaries

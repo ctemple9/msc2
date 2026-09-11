@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 14 operational refinements are in progress; P14.1 is awaiting verification.
-> **Next move:** Cameron runs P14.1's verification command and closes the step if the contract references are present. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phase 14 operational refinements are in progress; P14.2 is awaiting verification.
+> **Next move:** Cameron runs P14.2's verification command and closes the step if the source and acceptance matrix is present. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -13,7 +13,7 @@ This is the working state of the build. The vision documents say where MSC 2 is 
 
 Phases come from `msc2-port-plan.md`. Steps are written as work arrives rather than being invented in advance. Each step has a status, file scope, description, verification command, commit subject, and batch classification.
 
-Phase 12 is complete. Phase 14 is active, with P14.1 awaiting owner verification. Later Phase 14 steps remain planned until this contract step is verified.
+Phase 12 is complete. Phase 14 is active, with P14.2 awaiting owner verification. Later Phase 14 steps remain planned until this source-and-acceptance map is verified.
 
 ## Current phase
 
@@ -34,7 +34,7 @@ Phase 12 is complete. Phase 14 is active, with P14.1 awaiting owner verification
 | 11 | Desktop and web clients | complete |
 | 12 | Client redesign and post-phase corrections | complete |
 | 13 | Full-screen terminal client | retired by D-034 |
-| 14 | Operational refinements: time, console, packaging, and remote hosts | planned |
+| 14 | Operational refinements: time, console, packaging, and remote hosts | in progress |
 
 ## Proposed Phase 14 — operational refinements
 
@@ -50,7 +50,7 @@ editable or automatically selected when occupied.
 
 ### P14.1 — Record the operational-refinement contracts
 
-- **Status:** awaiting verification
+- **Status:** DONE
 - **Files:** `docs/msc2/msc2-decisions.md`, `docs/msc2/msc2-engineering.md`, `docs/msc2/msc2-product.md`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/rolling-plan.md`
 - **What:** Add the decisions that make the rest of the phase testable and prevent accidental scope drift:
   - time shortcuts are semantic “same Minecraft day” actions; exact day changes are separate and explicit; raw numeric `time set` remains an explicit absolute command;
@@ -66,7 +66,7 @@ editable or automatically selected when occupied.
 
 ### P14.2 — Build the source and acceptance matrix
 
-- **Status:** planned
+- **Status:** awaiting verification
 - **Files:** `docs/msc2/rolling-plan.md`, `docs/msc2/msc2-port-plan.md`, `docs/msc2/msc2-engineering.md`, `docs/msc2/capabilities/`, `clients/desktop-web/src/lib/hosts/`, `clients/desktop-web/src/lib/sections/setup/`, `packaging/`, `tools/release/`
 - **What:** Map every reported behavior to its current implementation, MSC 1 oracle, API boundary, client surface, and platform acceptance evidence. The matrix must explicitly cover Java Vanilla/Paper/Purpur/Fabric/Forge/NeoForge, Bedrock, Tauri on macOS/Windows/Linux, the served browser client, and the headless CLI. It must call out which checks are static inspection, which are live Minecraft verification, and which require a real OS install. No implementation work starts until this map identifies the owning layer for each behavior.
 - **Verify:** `rg -n "P14\.1|P14\.2|time|console|headless|SSH|pairing|48001|48002" docs/msc2/rolling-plan.md`

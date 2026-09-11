@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, and P14.12 are awaiting verification.
-> **Next move:** Cameron runs P14.9's, P14.10's, P14.11's, and P14.12's verification commands and closes those steps if the installer contracts, Linux scripts, remote profile type-check, and managed SSH capability are sound; P14.4's client verification, P14.5's verification, P14.6's producer-aware console classification lint, and P14.8's contract verification remain outstanding. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, and P14.15 are awaiting verification.
+> **Next move:** Cameron runs the outstanding P14.4–P14.6, P14.8–P14.12, and P14.15 verification commands and closes each step if the client behavior, installer contracts, console classification, remote profile, managed SSH capability, and saved-host route lifecycle are sound. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -201,8 +201,8 @@ editable or automatically selected when occupied.
 
 ### P14.15 — Add route selection, host switching, and address repair
 
-- **Status:** planned
-- **Files:** host connection manager, `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/hosts/`, Tauri bridge, WebSocket transport/reconnect code, setup UI
+- **Status:** awaiting verification
+- **Files:** `clients/desktop-web/src/lib/hosts/connection.ts`, `clients/desktop-web/src/lib/hosts/types.ts`, `clients/desktop-web/src/lib/auth/desktop.ts`, `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `clients/desktop-web/src/lib/sections/setup/connection/RemoteConnectionWizard.svelte`, `clients/desktop-web/src-tauri/src/lib.rs`
 - **What:** Implement the lifecycle for saved hosts. When connecting, try the preferred direct LAN/Tailscale route according to the profile, verify the agent, and fall back to the managed SSH tunnel when direct access is unavailable. Let the user switch explicitly between LAN and Tailscale addresses, edit either address later, and reorder the preference. When a host is selected, start or reuse only that host's tunnel, connect its saved credential, restore its server/console state, and close or suspend the previous host's tunnel according to the connection policy. A normal switch must not request a new pairing code. If an address changes, edit-and-retry must preserve the stable host ID and credential rather than creating duplicate host entries.
 - **Verify:** `npm run check`
 - **Batch:** F — remote connection experience

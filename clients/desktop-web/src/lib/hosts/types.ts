@@ -75,6 +75,8 @@ export interface RemoteHostProfileInput {
  * never part of `HostRecord` or the saved-host envelope.
  */
 export interface RemoteHostConnectionInput {
+  /** Set when the setup form is repairing an existing saved host. */
+  readonly existingHostId?: HostId;
   readonly displayName: string;
   readonly lanAddress: string;
   readonly tailscaleAddress?: string;
@@ -211,16 +213,48 @@ export function preferredHostAddress(host: HostRecord): string | null {
   );
 }
 
+export interface HostRouteCandidate {
+  readonly route: HostRoute;
+  readonly address: string;
+  readonly baseUrl: string;
+}
+
+/** Returns direct route candidates in the user's family order, preserving each address. */
+export function hostRouteCandidates(host: HostRecord): HostRouteCandidate[] {
+  const candidates: HostRouteCandidate[] = [];
+  for (const route of host.preferredRouteOrder) {
+    const addresses = route === 'lan' ? host.lanAddresses : host.tailscaleAddresses;
+    for (const address of addresses) {
+      const trimmed = address.trim();
+      if (trimmed)
+        candidates.push({
+          route,
+          address: trimmed,
+          baseUrl: directHostOrigin(trimmed, host.managementPort),
+        });
+    }
+  }
+  return candidates;
+}
+
+/** Reorders the two direct route families without changing the host identity. */
+export function withPreferredHostRoute(host: HostRecord, preferredRoute: HostRoute): HostRecord {
+  const remaining = host.preferredRouteOrder.filter((route) => route !== preferredRoute);
+  return { ...host, preferredRouteOrder: [preferredRoute, ...remaining] };
+}
+
 /** Builds the direct agent origin without changing a complete URL's scheme or port. */
-export function hostManagementUrl(host: HostRecord): string {
-  if (!host.tryDirectFirst && host.manualAgentAddress) return host.manualAgentAddress;
-  const address = preferredHostAddress(host);
+export function hostManagementUrl(host: HostRecord, route?: HostRoute): string {
+  if (route === undefined && !host.tryDirectFirst && host.manualAgentAddress) {
+    return host.manualAgentAddress;
+  }
+  const address = route
+    ? (route === 'lan' ? host.lanAddresses : host.tailscaleAddresses).find((candidate) =>
+        candidate.trim(),
+      )
+    : preferredHostAddress(host);
   if (!address) return `http://127.0.0.1:${host.managementPort}`;
-  const parsed = parseAddress(address);
-  if (parsed?.origin) return parsed.origin;
-  const formattedHost =
-    address.includes(':') && !address.startsWith('[') ? `[${address}]` : address;
-  return `http://${formattedHost}:${host.managementPort}`;
+  return directHostOrigin(address, host.managementPort);
 }
 
 export function hostAddressSummary(host: HostRecord): string {
@@ -347,4 +381,12 @@ function portFromUrl(value: string): number | undefined {
   } catch {
     return undefined;
   }
+}
+
+function directHostOrigin(address: string, managementPort: number): string {
+  const parsed = parseAddress(address);
+  if (parsed?.origin) return parsed.origin;
+  const formattedHost =
+    address.includes(':') && !address.startsWith('[') ? `[${address}]` : address;
+  return `http://${formattedHost}:${managementPort}`;
 }

@@ -29,13 +29,16 @@
   } from './lib/auth/desktop';
   import { clearClientPreferences, HostStore } from './lib/hosts/registry';
   import { forgetSavedRemoteHost, loadSavedRemoteHosts, saveRemoteHost } from './lib/hosts/saved';
+  import { HostConnectionManager } from './lib/hosts/connection';
   import {
     createLocalHostRecord,
     createRemoteHostRecord,
     hostManagementUrl,
+    withPreferredHostRoute,
     LOCAL_HOST_ID,
     type HostId,
     type HostRecord,
+    type HostRoute,
     type RemoteHostConnectionInput,
   } from './lib/hosts/types';
   import ManageSheet from './lib/sections/fleet/ManageSheet.svelte';
@@ -178,6 +181,7 @@
   // only ever has this one Local entry because its transport targets the
   // origin that served the page.
   const hostStore = new HostStore();
+  const hostConnectionManager = new HostConnectionManager();
   let hosts: readonly HostRecord[] = [];
   let hostId = localAgentHostId;
   let isDesktopShell = false;
@@ -207,6 +211,10 @@
 
   async function switchHost(id: HostId): Promise<void> {
     if (id === hostId) return;
+    const previousHostId = hostId;
+    if (isDesktopShell && previousHostId !== localAgentHostId) {
+      await hostConnectionManager.stop(previousHostId);
+    }
     hostStore.selectHost(id);
     loadedSections = [];
     hostId = id;
@@ -217,6 +225,36 @@
   async function addRemoteHost(
     input: RemoteHostConnectionInput,
   ): Promise<string | RemoteDesktopPairingResult> {
+    if (input.existingHostId) {
+      const existing = hosts.find((host) => host.id === input.existingHostId);
+      if (!existing) throw new Error('The saved host being edited is no longer registered.');
+      const repaired = createRemoteHostRecord({
+        id: existing.id,
+        displayName: input.displayName,
+        baseUrl: input.baseUrl,
+        lanAddresses: input.lanAddress ? [input.lanAddress, ...existing.lanAddresses.slice(1)] : [],
+        tailscaleAddresses: input.tailscaleAddress
+          ? [input.tailscaleAddress, ...existing.tailscaleAddresses.slice(1)]
+          : [],
+        preferredRouteOrder: [
+          input.preferredRoute,
+          input.preferredRoute === 'lan' ? 'tailscale' : 'lan',
+        ],
+        ssh: input.ssh,
+        managementPort: input.managementPort,
+        localForwardedPort: input.localForwardedPort,
+        tryDirectFirst: input.manualTunnel ? false : input.tryDirectFirst,
+        ...(input.manualTunnel && input.manualAgentAddress
+          ? { manualAgentAddress: input.manualAgentAddress }
+          : {}),
+      });
+      hostStore.updateHost(repaired);
+      saveRemoteHost(repaired);
+      hostConnectionManager.rememberSessionPassword(repaired.id, input.sshPassword);
+      refreshHosts();
+      return repaired.id;
+    }
+
     const auth = new DesktopSessionAuth(await loadTauriDesktopCredentialBridge());
     let result: RemoteDesktopPairingResult;
     try {
@@ -277,6 +315,7 @@
     if (existing) hostStore.updateHost(host);
     else hostStore.addHost(host);
     saveRemoteHost(host);
+    hostConnectionManager.rememberSessionPassword(host.id, input.sshPassword);
     refreshHosts();
     return agentHostId;
   }
@@ -286,7 +325,20 @@
   ): Promise<RemoteDesktopPairingResult | void> {
     const result = await addRemoteHost(input);
     if (typeof result !== 'string') return result;
-    await switchHost(result);
+    if (result === hostId) await initializeClient();
+    else await switchHost(result);
+  }
+
+  async function selectHostRoute(id: HostId, route: HostRoute): Promise<void> {
+    const host = hosts.find((candidate) => candidate.id === id);
+    if (!host) return;
+    const addresses = route === 'lan' ? host.lanAddresses : host.tailscaleAddresses;
+    if (!addresses.length) return;
+    const updated = withPreferredHostRoute(host, route);
+    hostStore.updateHost(updated);
+    saveRemoteHost(updated);
+    refreshHosts();
+    if (id === hostId) await initializeClient();
   }
 
   async function pairAgain(pairingCode: string): Promise<void> {
@@ -330,6 +382,8 @@
 
   async function removeRemoteHost(id: HostId): Promise<void> {
     if (id === localAgentHostId) return;
+    await hostConnectionManager.stop(id);
+    hostConnectionManager.forgetHost(id);
     const auth = new DesktopSessionAuth(await loadTauriDesktopCredentialBridge());
     await auth.forgetCredentials([id], false);
     if (id === hostId) await switchHost(localAgentHostId);
@@ -615,12 +669,18 @@
   async function restoreHostContext(): Promise<boolean> {
     try {
       const selectedClient = requireClient();
+      const rememberedServerId = hostStore.getState(hostId).cache.activeServerId;
       capabilities = await selectedClient.getCapabilities();
       const me = await selectedClient.requestJson<{ permissions: string[] }>('GET', '/v1/me');
       permissions = me.permissions;
       servers = await selectedClient.requestJson<Schema['ServerDTO'][]>('GET', '/v1/servers');
       status = await selectedClient.requestJson<Schema['RemoteAPIStatus']>('GET', '/v1/status');
-      selectedServerId = selectAvailableServerId(servers, status.activeServerId, selectedServerId);
+      selectedServerId = selectAvailableServerId(
+        servers,
+        status.activeServerId,
+        rememberedServerId ?? selectedServerId,
+      );
+      if (selectedServerId) hostStore.selectServer(hostId, selectedServerId);
       agentReadiness = 'ready';
       shellMessage = `Connected to ${hosts.find((host) => host.id === hostId)?.displayName ?? hostId}`;
       hostStore.setServers(hostId, servers);
@@ -781,12 +841,16 @@
           return;
         }
       }
+      if (isDesktopShell && hostId !== localAgentHostId) {
+        const connection = await hostConnectionManager.connect(hostStore.getState(hostId).host);
+        shellMessage = connection.detail;
+      }
       client = await createClient(hostId);
       clientReady = await restoreHostContext();
       if (clientReady) scheduleAvailableTabPreload();
     } catch (error) {
       agentReadiness = readinessForError(error);
-      shellMessage = `Unable to prepare the local agent connection: ${String(error)}`;
+      shellMessage = `Unable to prepare the selected host connection: ${String(error)}`;
       hostStore.updateConnection(hostId, 'error');
       await selectSection('agent-setup');
     }
@@ -965,6 +1029,7 @@
           onAgentRetry={() => void initializeClient()}
           onPairAgain={(code: string) => pairAgain(code)}
           onConnectHost={(input: RemoteHostConnectionInput) => connectRemoteHost(input)}
+          onSelectRoute={(id: HostId, route: HostRoute) => selectHostRoute(id, route)}
           onRemoveHost={isDesktopShell && hostId !== localAgentHostId
             ? removeCurrentRemoteHost
             : undefined}

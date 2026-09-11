@@ -4,6 +4,7 @@
   import Card from '../../components/base/Card.svelte';
   import ConfirmDialog from '../../components/ConfirmDialog.svelte';
   import Field from '../../components/base/Field.svelte';
+  import SegmentedControl from '../../components/base/SegmentedControl.svelte';
   import StatusDot from '../../components/base/StatusDot.svelte';
   import HelpLink from '../../help/HelpLink.svelte';
   import {
@@ -16,6 +17,7 @@
     hostAddressSummary,
     type HostId,
     type HostRecord,
+    type HostRoute,
     type RemoteHostConnectionInput,
   } from '../../hosts/types';
   import RemoteConnectionWizard from './connection/RemoteConnectionWizard.svelte';
@@ -37,11 +39,13 @@
   export let browserHandoffError = '';
   export let onPairAgain: ((pairingCode: string) => Promise<void>) | undefined = undefined;
   export let onConnectHost:
-    | ((input: RemoteHostConnectionInput) => Promise<RemoteDesktopPairingResult | void>)
-    | undefined = undefined;
+    ((input: RemoteHostConnectionInput) => Promise<RemoteDesktopPairingResult | void>) | undefined =
+    undefined;
   export let onRemoveHost: (() => Promise<void>) | undefined = undefined;
   export let onDisconnectHost: (() => Promise<void>) | undefined = undefined;
   export let onSwitchHost: ((hostId: HostId) => void) | undefined = undefined;
+  export let onSelectRoute: ((hostId: HostId, route: HostRoute) => Promise<void>) | undefined =
+    undefined;
   export let onRemoveSavedHost: ((hostId: HostId) => Promise<void>) | undefined = undefined;
   export let api: ScreenApi | undefined = undefined;
 
@@ -101,6 +105,7 @@
   let manageLocalExpanded = false;
   let connectAnotherExpanded = false;
   let savedHostsExpanded = false;
+  let editingHostId: HostId | undefined;
   let readinessTone: 'ok' | 'warn' | 'error' = 'warn';
   let statusTone: 'ok' | 'warn' | 'error' = 'warn';
   let inspectedHostId: string | undefined;
@@ -118,6 +123,7 @@
     status?.state === 'running' ? 'ok' : status?.state === 'unavailable' ? 'error' : 'warn';
   $: serviceState = status?.state ?? 'checking';
   $: savedHosts = hosts.filter((host) => host.id !== 'local-agent');
+  $: editingHost = editingHostId ? savedHosts.find((host) => host.id === editingHostId) : undefined;
 
   function toggleHowItWorks(): void {
     howItWorksExpanded = !howItWorksExpanded;
@@ -133,6 +139,11 @@
 
   function toggleSavedHosts(): void {
     savedHostsExpanded = !savedHostsExpanded;
+  }
+
+  function editSavedHost(hostId: HostId): void {
+    editingHostId = hostId;
+    connectAnotherExpanded = true;
   }
 
   $: {
@@ -595,7 +606,24 @@
         </p>
 
         {#if isDesktopShell}
-          <RemoteConnectionWizard hosts={savedHosts} onConnect={connectRemoteHost} />
+          {#if editingHost}
+            <div class="editing-host-note">
+              <span
+                >Repairing the saved connection for <strong>{editingHost.displayName}</strong
+                >.</span
+              >
+              <Button variant="secondary" size="sm" onclick={() => (editingHostId = undefined)}
+                >Connect a different host</Button
+              >
+            </div>
+          {/if}
+          {#key editingHost?.id ?? 'new'}
+            <RemoteConnectionWizard
+              hosts={savedHosts}
+              initialHost={editingHost}
+              onConnect={connectRemoteHost}
+            />
+          {/key}
           <p class="wizard-help">
             Need the background service or network concepts explained first?
             <HelpLink helpId="handbook.remote-access" {hostId} {serverId} />.
@@ -676,6 +704,20 @@
                     <span class="saved-host-servers">
                       {hostSummaries.get(savedHost.id)?.serverCount ?? 0} servers known
                     </span>
+                    {#if savedHost.lanAddresses.length && savedHost.tailscaleAddresses.length}
+                      <div class="saved-host-route">
+                        <span>Direct route</span>
+                        <SegmentedControl
+                          options={[
+                            { value: 'lan', label: 'LAN' },
+                            { value: 'tailscale', label: 'Tailscale' },
+                          ]}
+                          value={savedHost.preferredRouteOrder[0] ?? 'lan'}
+                          onchange={(value) =>
+                            void onSelectRoute?.(savedHost.id, value as HostRoute)}
+                        />
+                      </div>
+                    {/if}
                   </div>
                   <div class="saved-host-actions">
                     {#if savedHost.id !== activeHostId}
@@ -694,6 +736,11 @@
                       disabled={removeHostBusy}
                       onclick={() => openRemoveHost(savedHost.id, savedHost.displayName)}
                       >Remove</Button
+                    >
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onclick={() => editSavedHost(savedHost.id)}>Edit</Button
                     >
                   </div>
                 </div>
@@ -981,11 +1028,37 @@
     font-size: 11px;
     overflow-wrap: anywhere;
   }
+  .saved-host-route {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    color: var(--msc2-text-tertiary);
+    font-size: 11px;
+  }
+  .saved-host-route :global(.track) {
+    transform: scale(0.9);
+    transform-origin: left center;
+  }
   .saved-host-actions {
     display: flex;
     align-items: center;
     gap: 8px;
     flex-shrink: 0;
+  }
+  .editing-host-note {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--msc2-hairline-faint);
+    color: var(--msc2-text-secondary);
+    font-size: 12px;
+  }
+  .editing-host-note strong {
+    color: var(--msc2-text-primary);
+    font-weight: 500;
   }
   .saved-host-empty {
     margin-top: 16px;

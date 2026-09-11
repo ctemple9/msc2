@@ -23,10 +23,7 @@ export interface RemoteDesktopPairingRequest {
 }
 
 export type RemoteDesktopPairingState =
-  | 'paired'
-  | 'awaiting-host-key'
-  | 'host-key-changed'
-  | 'host-key-mismatch';
+  'paired' | 'awaiting-host-key' | 'host-key-changed' | 'host-key-mismatch';
 
 export interface RemoteDesktopPairingResult {
   state: RemoteDesktopPairingState;
@@ -86,6 +83,12 @@ export interface DesktopSshTunnelBridge {
   stop(hostId: string): Promise<SshTunnelStatus>;
 }
 
+export interface DesktopRouteProbeResult {
+  reachable: boolean;
+  status: number | null;
+  detail: string;
+}
+
 /**
  * The only desktop-auth operations exposed to Svelte. There is deliberately
  * no `readToken`: native Rust keeps the bearer credential in the platform
@@ -97,6 +100,10 @@ export interface DesktopCredentialBridge {
   automateRemotePairing?: (
     request: RemoteDesktopPairingRequest,
   ) => Promise<RemoteDesktopPairingResult>;
+  probeHostRoute?: (request: {
+    agentHostId: string;
+    baseUrl: string;
+  }) => Promise<DesktopRouteProbeResult>;
   forgetCredentials(request: {
     hostIds: readonly string[];
     includeLocalHost: boolean;
@@ -124,6 +131,13 @@ export class DesktopSessionAuth {
       throw new Error('This desktop shell cannot automate remote pairing.');
     }
     return this.bridge.automateRemotePairing(request);
+  }
+
+  async probeHostRoute(agentHostId: string, baseUrl: string): Promise<DesktopRouteProbeResult> {
+    if (!this.bridge.probeHostRoute) {
+      throw new Error('This desktop shell cannot switch a saved host route.');
+    }
+    return this.bridge.probeHostRoute({ agentHostId, baseUrl });
   }
 
   async bootstrapLocal(): Promise<DesktopPairingResult> {
@@ -168,6 +182,8 @@ export async function loadTauriDesktopCredentialBridge(): Promise<DesktopCredent
       invoke<DesktopPairingResult>('desktop_exchange_pairing', { request }),
     automateRemotePairing: (request) =>
       invoke<RemoteDesktopPairingResult>('desktop_automate_remote_pairing', { request }),
+    probeHostRoute: (request) =>
+      invoke<DesktopRouteProbeResult>('desktop_probe_host_route', { request }),
     forgetCredentials: (request) =>
       invoke<void>('desktop_forget_credentials', {
         request: { ...request, hostIds: [...request.hostIds] },

@@ -13,9 +13,10 @@
   } from '../../../hosts/types';
 
   export let hosts: readonly HostRecord[] = [];
+  export let initialHost: HostRecord | undefined = undefined;
   export let onConnect:
-    | ((input: RemoteHostConnectionInput) => Promise<RemoteDesktopPairingResult | void>)
-    | undefined = undefined;
+    ((input: RemoteHostConnectionInput) => Promise<RemoteDesktopPairingResult | void>) | undefined =
+    undefined;
 
   type WizardStep = 'details' | 'review';
 
@@ -52,6 +53,14 @@
   let errorMessage = '';
   let copiedCommand = false;
 
+  $: initialHostKey = initialHost?.id ?? 'new-host';
+  $: if (initialHostKey !== initializedHostKey) {
+    initializedHostKey = initialHostKey;
+    if (initialHost) loadHost(initialHost);
+    else resetForm();
+  }
+  let initializedHostKey = '';
+
   $: normalizedLanAddress = lanAddress.trim();
   $: normalizedTailscaleAddress = tailscaleAddress.trim();
   $: normalizedSshHostname = sshHostname.trim() || normalizedLanAddress || 'host-address';
@@ -61,6 +70,48 @@
   $: forwardedPortConflict = hosts.some((host) => host.localForwardedPort === localForwardedPort);
   $: suggestedForwardedPort = nextAvailablePort(localForwardedPort);
   $: detailsValid = validationMessage() === '';
+
+  function resetForm(): void {
+    step = 'details';
+    displayName = '';
+    lanAddress = '';
+    tailscaleAddress = '';
+    sshHostname = '';
+    sshPort = 22;
+    sshUsername = '';
+    authentication = 'agent';
+    privateKeyPath = '';
+    sshPassword = '';
+    managementPort = 48001;
+    localForwardedPort = 48002;
+    preferredRoute = 'lan';
+    tryDirectFirst = true;
+    manualTunnel = false;
+    manualAgentAddress = 'http://127.0.0.1:48002';
+    pairingCode = '';
+    expectedHostKeyFingerprint = '';
+    hostKeyReview = undefined;
+    errorMessage = '';
+  }
+
+  function loadHost(host: HostRecord): void {
+    resetForm();
+    displayName = host.displayName;
+    lanAddress = host.lanAddresses[0] ?? '';
+    tailscaleAddress = host.tailscaleAddresses[0] ?? '';
+    sshHostname = host.ssh.hostname;
+    sshPort = host.ssh.port;
+    sshUsername = host.ssh.username;
+    authentication = host.ssh.authentication;
+    privateKeyPath = host.ssh.privateKeyPath ?? '';
+    managementPort = host.managementPort;
+    localForwardedPort = host.localForwardedPort ?? 48002;
+    preferredRoute =
+      host.preferredRouteOrder[0] ?? (host.tailscaleAddresses.length ? 'tailscale' : 'lan');
+    tryDirectFirst = host.tryDirectFirst;
+    manualTunnel = !host.tryDirectFirst && Boolean(host.manualAgentAddress);
+    manualAgentAddress = host.manualAgentAddress ?? manualAgentAddress;
+  }
 
   function validationMessage(): string {
     if (!displayName.trim()) return 'Give this host a name so you can recognize it later.';
@@ -76,7 +127,7 @@
       return 'Ports must be whole numbers from 1 to 65535.';
     }
     if (authentication === 'password' && !sshPassword) {
-      return 'Enter the SSH password for this connection attempt.';
+      if (!initialHost) return 'Enter the SSH password for this connection attempt.';
     }
     if (authentication === 'private-key' && !privateKeyPath.trim()) {
       return 'Enter the path or OS reference for the private key.';
@@ -168,6 +219,7 @@
     errorMessage = '';
     try {
       const result = await onConnect({
+        ...(initialHost ? { existingHostId: initialHost.id } : {}),
         displayName: displayName.trim(),
         lanAddress: normalizedLanAddress,
         ...(normalizedTailscaleAddress ? { tailscaleAddress: normalizedTailscaleAddress } : {}),
@@ -189,9 +241,7 @@
         ...(manualTunnel ? { manualAgentAddress: manualAgentAddress.trim() } : {}),
         baseUrl: selectedBaseUrl(),
         pairingCode: pairingCode.trim(),
-        ...(expectedHostKeyFingerprint
-          ? { expectedHostKeyFingerprint }
-          : {}),
+        ...(expectedHostKeyFingerprint ? { expectedHostKeyFingerprint } : {}),
       });
       if (result && result.state !== 'paired') {
         hostKeyReview = result;
@@ -438,20 +488,16 @@
         One-use pairing code <span class="optional">Manual fallback</span>
         <Field bind:value={pairingCode} placeholder="Only needed if remote pairing cannot run" />
         <span class="field-help"
-          >Normally MSC creates and exchanges this code over the managed SSH session. If the
-          remote <span class="mono">msc</span> command is unavailable, create it on the host and
-          paste it here; it expires after one use.</span
+          >Normally MSC creates and exchanges this code over the managed SSH session. If the remote <span
+            class="mono">msc</span
+          > command is unavailable, create it on the host and paste it here; it expires after one use.</span
         >
       </label>
     </section>
 
     <div class="wizard-actions">
       <Button variant="secondary" disabled={busy} onclick={returnToDetails}>Back</Button>
-      <Button
-        variant="primary"
-        disabled={busy}
-        onclick={() => void connect()}
-      >
+      <Button variant="primary" disabled={busy} onclick={() => void connect()}>
         {busy ? 'Creating authorization…' : 'Save and connect'}
       </Button>
     </div>

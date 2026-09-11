@@ -115,6 +115,21 @@ struct DesktopRequest {
     body: Option<Vec<u8>>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopRouteProbeRequest {
+    agent_host_id: String,
+    base_url: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopRouteProbeResult {
+    reachable: bool,
+    status: Option<u16>,
+    detail: String,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct DesktopResponse {
@@ -557,6 +572,63 @@ async fn desktop_authorized_request(request: DesktopRequest) -> Result<DesktopRe
         status: status.as_u16(),
         headers,
         body,
+    })
+}
+
+/// Checks a user-selected origin with the stored host credential and remembers
+/// it only after the host answers as that credential. The token never returns
+/// to the webview and a failed address cannot replace the saved route.
+#[tauri::command]
+async fn desktop_probe_host_route(
+    request: DesktopRouteProbeRequest,
+) -> Result<DesktopRouteProbeResult, String> {
+    let key = credential_key(&request.agent_host_id);
+    let store = desktop_secret_store()?;
+    let Some(raw_record) = store.get(&key).map_err(|error| error.to_string())? else {
+        return Err("This desktop has no credential for the selected host.".to_string());
+    };
+    let record: StoredDesktopCredential = serde_json::from_str(&raw_record)
+        .map_err(|error| format!("Stored desktop credential is invalid: {error}"))?;
+    let base_url = canonical_base_url(&request.base_url)?;
+    let url = relative_request_url(&base_url, "/v1/me")?;
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(2))
+        .build()
+        .map_err(|error| format!("Could not prepare the route check: {error}"))?;
+    let response = client
+        .get(url)
+        .header(header::AUTHORIZATION, format!("Bearer {}", record.token))
+        .send()
+        .await;
+    let response = match response {
+        Ok(response) => response,
+        Err(error) => {
+            return Ok(DesktopRouteProbeResult {
+                reachable: false,
+                status: None,
+                detail: format!("The selected route did not respond: {error}"),
+            });
+        }
+    };
+    let status = response.status();
+    if !status.is_success() {
+        return Ok(DesktopRouteProbeResult {
+            reachable: false,
+            status: Some(status.as_u16()),
+            detail: format!("The selected route returned HTTP {}.", status.as_u16()),
+        });
+    }
+    let updated = StoredDesktopCredential {
+        base_url,
+        token: record.token,
+    };
+    store
+        .set(&key, &serde_json::to_string(&updated).expect("desktop credential serializes"))
+        .map_err(|error| error.to_string())?;
+    Ok(DesktopRouteProbeResult {
+        reachable: true,
+        status: Some(status.as_u16()),
+        detail: "The selected route answered for this desktop credential.".to_string(),
     })
 }
 
@@ -1339,6 +1411,7 @@ pub fn run() {
             desktop_bootstrap_local,
             desktop_forget_credentials,
             desktop_authorized_request,
+            desktop_probe_host_route,
             open_local_agent_browser,
             open_external_url,
             reveal_in_file_manager,

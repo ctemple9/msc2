@@ -208,9 +208,11 @@ impl LiveBackupConsole {
 impl BackupConsole for LiveBackupConsole {
     fn send(&self, command: &str) -> bool {
         if self.lifecycle.active_bedrock_server().is_some() {
-            self.lifecycle.send_bedrock_command(command).is_ok()
+            self.lifecycle
+                .send_bedrock_controller_command(command)
+                .is_ok()
         } else {
-            self.lifecycle.send_command(command).is_ok()
+            self.lifecycle.send_controller_command(command).is_ok()
         }
     }
 

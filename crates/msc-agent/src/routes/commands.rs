@@ -166,11 +166,11 @@ pub async fn relative_time(
     let before = state.time_observation();
     let send_query: Result<(), Response> = match server_type {
         msc_domain::identity::ServerType::Java => state
-            .send_command(RELATIVE_TIME_QUERY)
+            .send_controller_command(RELATIVE_TIME_QUERY)
             .map(|_| ())
             .map_err(lifecycle_error_response),
         msc_domain::identity::ServerType::Bedrock => state
-            .send_bedrock_command(RELATIVE_TIME_QUERY)
+            .send_bedrock_controller_command(RELATIVE_TIME_QUERY)
             .map(|_| ())
             .map_err(lifecycle_route_error_response),
     };

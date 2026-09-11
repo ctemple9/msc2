@@ -1,6 +1,6 @@
 //! Shared state and handlers for Phase 4 lifecycle routes.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -41,7 +41,7 @@ use msc_infrastructure::config_repository::{
     AppConfigLoadError, ConfigSaveError, default_app_config_path, default_servers_root,
     load_app_config, load_app_config_migrating_legacy_secrets, save_app_config,
 };
-use msc_infrastructure::console_buffer::ConsoleLine;
+use msc_infrastructure::console_buffer::{ConsoleLine, ConsoleLineOrigin};
 use msc_infrastructure::fs::{FileSystem, StdFileSystem};
 use msc_infrastructure::java_runtime_detection;
 use msc_infrastructure::metrics::PsProcessMetricsProvider;
@@ -240,6 +240,7 @@ struct LifecycleRoutesInner {
     first_start: Mutex<Option<FirstStartCoordinator>>,
     first_start_pass_two_started_at: Mutex<Option<Instant>>,
     playit: Mutex<Option<Arc<dyn PlayitLifecycleIntegration>>>,
+    console_correlation: Mutex<ConsoleCorrelation>,
     time_observation: Mutex<TimeObservation>,
     time_query_lock: tokio::sync::Mutex<()>,
 }
@@ -274,6 +275,217 @@ pub enum ActiveServerSelectionError {
 
 pub struct AgentConsoleSink {
     console: ConsoleState,
+}
+
+const CONTROLLER_REPLY_TTL: Duration = Duration::from_secs(15);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ControllerReplyKind {
+    List,
+    Tps,
+    SparkTps,
+    TickQuery,
+    TimeQuery,
+    SaveAllFlush,
+    SaveOff,
+    SaveOn,
+    SaveHold,
+    SaveQuery,
+    SaveResume,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct PendingControllerReply {
+    kind: ControllerReplyKind,
+    expires_at: Instant,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum SparkReplyState {
+    ExpectValues { guard: u8 },
+    ExpectCpuValues { remaining: u8, guard: u8 },
+}
+
+#[derive(Debug, Default)]
+struct ConsoleCorrelation {
+    pending: VecDeque<PendingControllerReply>,
+    spark: Option<SparkReplyState>,
+}
+
+impl ConsoleCorrelation {
+    fn register(&mut self, command: &str) {
+        let kind = match command
+            .trim()
+            .trim_start_matches('/')
+            .to_ascii_lowercase()
+            .as_str()
+        {
+            "list" => ControllerReplyKind::List,
+            "tps" | "forge tps" | "neoforge tps" => ControllerReplyKind::Tps,
+            "spark tps" => ControllerReplyKind::SparkTps,
+            "tick query" => ControllerReplyKind::TickQuery,
+            "time query gametime" => ControllerReplyKind::TimeQuery,
+            "save-all flush" => ControllerReplyKind::SaveAllFlush,
+            "save-off" => ControllerReplyKind::SaveOff,
+            "save-on" => ControllerReplyKind::SaveOn,
+            "save hold" => ControllerReplyKind::SaveHold,
+            "save query" => ControllerReplyKind::SaveQuery,
+            "save resume" => ControllerReplyKind::SaveResume,
+            _ => return,
+        };
+        self.pending.push_back(PendingControllerReply {
+            kind,
+            expires_at: Instant::now() + CONTROLLER_REPLY_TTL,
+        });
+    }
+
+    fn clear(&mut self) {
+        self.pending.clear();
+        self.spark = None;
+    }
+
+    fn classify(&mut self, line: &str) -> ConsoleLineOrigin {
+        self.pending
+            .retain(|reply| reply.expires_at > Instant::now());
+        let clean = strip_ansi(line);
+        let lower = clean.to_ascii_lowercase();
+
+        if self.classify_spark_continuation(&lower) {
+            return ConsoleLineOrigin::Controller;
+        }
+        if is_actionable_server_line(&lower) {
+            return ConsoleLineOrigin::Server;
+        }
+
+        let Some(index) = self
+            .pending
+            .iter()
+            .position(|reply| reply_matches(reply.kind, &clean, &lower))
+        else {
+            return ConsoleLineOrigin::Server;
+        };
+        let reply = self
+            .pending
+            .remove(index)
+            .expect("reply index came from pending");
+        if reply.kind == ControllerReplyKind::SparkTps {
+            self.spark = Some(SparkReplyState::ExpectValues { guard: 12 });
+        }
+        ConsoleLineOrigin::Controller
+    }
+
+    fn classify_spark_continuation(&mut self, lower: &str) -> bool {
+        let Some(state) = self.spark else {
+            return false;
+        };
+        if is_actionable_server_line(lower) {
+            return false;
+        }
+        match state {
+            SparkReplyState::ExpectValues { guard } => {
+                if !has_five_decimal_values(lower) {
+                    self.spark = None;
+                    return false;
+                }
+                self.spark = Some(SparkReplyState::ExpectCpuValues {
+                    remaining: 0,
+                    guard: guard.saturating_sub(1),
+                });
+                true
+            }
+            SparkReplyState::ExpectCpuValues { remaining, guard } => {
+                if lower.contains("cpu usage from last 10s, 1m, 15m") {
+                    self.spark = Some(SparkReplyState::ExpectCpuValues {
+                        remaining: 2,
+                        guard: guard.saturating_sub(1),
+                    });
+                    return true;
+                }
+                if remaining > 0 {
+                    let next = remaining - 1;
+                    self.spark = (next > 0).then_some(SparkReplyState::ExpectCpuValues {
+                        remaining: next,
+                        guard: guard.saturating_sub(1),
+                    });
+                    return true;
+                }
+                self.spark = None;
+                false
+            }
+        }
+    }
+}
+
+fn reply_matches(kind: ControllerReplyKind, clean: &str, lower: &str) -> bool {
+    match kind {
+        ControllerReplyKind::List => lower.contains("players online"),
+        ControllerReplyKind::Tps => {
+            msc_domain::tps::parse(clean).is_some()
+                || lower.contains("tps from last 1m, 5m, 15m")
+                || lower.contains("mean tick time")
+                || lower.contains("overall:") && lower.contains("tps")
+        }
+        ControllerReplyKind::SparkTps => lower.contains("tps from last 5s, 10s, 1m, 5m, 15m"),
+        ControllerReplyKind::TickQuery => {
+            msc_domain::tps::parse_vanilla_tick(clean).is_some()
+                || lower.contains("average time per tick")
+        }
+        ControllerReplyKind::TimeQuery => {
+            msc_domain::time::parse_gametime_query_response(clean).is_some()
+        }
+        ControllerReplyKind::SaveAllFlush => is_java_save_confirmation(lower),
+        ControllerReplyKind::SaveOff | ControllerReplyKind::SaveHold => {
+            lower.contains("saving") && (lower.contains("disabled") || lower.contains("paused"))
+        }
+        ControllerReplyKind::SaveOn | ControllerReplyKind::SaveResume => {
+            lower.contains("saving") && (lower.contains("enabled") || lower.contains("resumed"))
+        }
+        ControllerReplyKind::SaveQuery => {
+            lower.contains("ready to be copied") || lower.contains("files are now ready")
+        }
+    }
+}
+
+fn is_java_save_confirmation(lower: &str) -> bool {
+    lower.contains("saved the game") || lower.contains("saved the world")
+}
+
+fn is_actionable_server_line(lower: &str) -> bool {
+    ["error", "warn", "warning", "failed", "failure", "exception"]
+        .iter()
+        .any(|marker| lower.contains(marker))
+}
+
+fn has_five_decimal_values(text: &str) -> bool {
+    text.split(|character: char| !character.is_ascii_digit() && character != '.')
+        .filter(|token| token.contains('.'))
+        .filter(|token| token.parse::<f64>().is_ok())
+        .count()
+        >= 5
+}
+
+fn strip_ansi(text: &str) -> String {
+    let mut output = String::with_capacity(text.len());
+    let characters = text.chars().collect::<Vec<_>>();
+    let mut index = 0;
+    while index < characters.len() {
+        if characters[index] == '\u{1b}' {
+            index += 1;
+            if characters.get(index) == Some(&'[') {
+                index += 1;
+            }
+            while let Some(character) = characters.get(index) {
+                index += 1;
+                if character.is_ascii_alphabetic() {
+                    break;
+                }
+            }
+            continue;
+        }
+        output.push(characters[index]);
+        index += 1;
+    }
+    output
 }
 
 impl LifecycleRoutesState {
@@ -427,6 +639,7 @@ impl LifecycleRoutesState {
                 first_start: Mutex::new(None),
                 first_start_pass_two_started_at: Mutex::new(None),
                 playit: Mutex::new(None),
+                console_correlation: Mutex::new(ConsoleCorrelation::default()),
                 time_observation: Mutex::new(TimeObservation::default()),
                 time_query_lock: tokio::sync::Mutex::new(()),
             }),
@@ -924,9 +1137,12 @@ impl LifecycleRoutesState {
     /// origin at each producer boundary so routine output uses the separate
     /// diagnostic retention budget without hiding actionable status.
     pub fn append_console_line(&self, source: &str, line: &str) {
-        self.inner
-            .console
-            .push(ConsoleLine::new(source, None, line.to_string()));
+        self.inner.console.push(ConsoleLine::with_origin(
+            source,
+            None,
+            ConsoleLineOrigin::Helper,
+            line.to_string(),
+        ));
     }
 
     /// The shared Phase 6 mutation audit log — one `AuditLog` instance,
@@ -1444,8 +1660,38 @@ impl LifecycleRoutesState {
     }
 
     pub fn send_command(&self, command: &str) -> Result<Option<String>, LifecycleError> {
+        self.send_command_with_origin(command, ConsoleLineOrigin::User)
+    }
+
+    pub fn send_controller_command(&self, command: &str) -> Result<Option<String>, LifecycleError> {
+        self.send_command_with_origin(command, ConsoleLineOrigin::Controller)
+    }
+
+    fn register_controller_command(&self, command: &str) {
+        self.inner
+            .console_correlation
+            .lock()
+            .expect("console correlation lock poisoned")
+            .register(command);
+    }
+
+    fn send_command_with_origin(
+        &self,
+        command: &str,
+        origin: ConsoleLineOrigin,
+    ) -> Result<Option<String>, LifecycleError> {
         self.drain_active_process_events();
         self.inner.lifecycle.lock().unwrap().send_command(command)?;
+        if origin == ConsoleLineOrigin::Controller {
+            self.register_controller_command(command);
+        } else {
+            self.inner.console.push(ConsoleLine::with_origin(
+                "command",
+                None,
+                ConsoleLineOrigin::User,
+                command.to_string(),
+            ));
+        }
         Ok(self.active_server_id())
     }
 
@@ -1453,6 +1699,23 @@ impl LifecycleRoutesState {
     pub fn send_bedrock_command(
         &self,
         command: &str,
+    ) -> Result<Option<String>, LifecycleRouteError> {
+        self.send_bedrock_command_with_origin(command, ConsoleLineOrigin::User)
+    }
+
+    #[allow(clippy::result_large_err)]
+    pub fn send_bedrock_controller_command(
+        &self,
+        command: &str,
+    ) -> Result<Option<String>, LifecycleRouteError> {
+        self.send_bedrock_command_with_origin(command, ConsoleLineOrigin::Controller)
+    }
+
+    #[allow(clippy::result_large_err)]
+    fn send_bedrock_command_with_origin(
+        &self,
+        command: &str,
+        origin: ConsoleLineOrigin,
     ) -> Result<Option<String>, LifecycleRouteError> {
         self.drain_bedrock_events();
         let active = self
@@ -1464,6 +1727,16 @@ impl LifecycleRoutesState {
             .bedrock_runtime
             .command(command)
             .map_err(|error| self.bedrock_runtime_error(error))?;
+        if origin == ConsoleLineOrigin::Controller {
+            self.register_controller_command(command);
+        } else {
+            self.inner.console.push(ConsoleLine::with_origin(
+                "command",
+                None,
+                ConsoleLineOrigin::User,
+                command.to_string(),
+            ));
+        }
         Ok(Some(active.id))
     }
 
@@ -1707,9 +1980,10 @@ impl LifecycleRoutesState {
             match event {
                 BedrockRuntimeEvent::ConsoleLine(line) => {
                     self.record_time_query_line(&line);
+                    let origin = self.console_line_origin(&line);
                     self.inner
                         .console
-                        .push(ConsoleLine::new("bedrock", None, line));
+                        .push(ConsoleLine::with_origin("bedrock", None, origin, line));
                 }
                 BedrockRuntimeEvent::Ready { .. } => {
                     if self.bedrock_operation_cancel_requested() {
@@ -1725,6 +1999,7 @@ impl LifecycleRoutesState {
                 }
                 BedrockRuntimeEvent::Terminated { reason } => match reason {
                     BedrockTerminationReason::Clean => {
+                        self.clear_console_correlation();
                         if self.bedrock_operation_cancel_requested() {
                             self.finish_active_lifecycle_operation_cancelled();
                         } else {
@@ -1733,6 +2008,7 @@ impl LifecycleRoutesState {
                     }
                     BedrockTerminationReason::GuestError(message)
                     | BedrockTerminationReason::StartFailed(message) => {
+                        self.clear_console_correlation();
                         if let Some(server_id) = self.active_server_id() {
                             self.stop_helpers_for_server(&server_id);
                         }
@@ -1795,12 +2071,16 @@ impl LifecycleRoutesState {
         if lifecycle.active_process() != Some(pid) || lifecycle.state() != LifecycleState::Running {
             return;
         }
-        let _ = lifecycle.send_command("list");
+        if lifecycle.send_command("list").is_ok() {
+            self.register_controller_command("list");
+        }
         if let Some(command) = tps_command {
             if command == "spark tps" {
                 lifecycle.expect_spark_tps_reply();
             }
-            let _ = lifecycle.send_command(command);
+            if lifecycle.send_command(command).is_ok() {
+                self.register_controller_command(command);
+            }
         }
     }
 
@@ -1881,13 +2161,34 @@ impl LifecycleRoutesState {
             } => "stderr",
             ProcessEvent::Output { .. } | ProcessEvent::Exited(_) => "stdout",
         };
+        let origin = self.console_line_origin(text);
         self.record_time_query_line(text);
+        self.inner.console.push(ConsoleLine::with_origin(
+            source,
+            None,
+            origin,
+            text.to_string(),
+        ));
+    }
+
+    fn console_line_origin(&self, line: &str) -> ConsoleLineOrigin {
         self.inner
-            .console
-            .push(ConsoleLine::new(source, None, text.to_string()));
+            .console_correlation
+            .lock()
+            .expect("console correlation lock poisoned")
+            .classify(line)
+    }
+
+    fn clear_console_correlation(&self) {
+        self.inner
+            .console_correlation
+            .lock()
+            .expect("console correlation lock poisoned")
+            .clear();
     }
 
     fn handle_process_termination(&self, clean_stop_success: bool) {
+        self.clear_console_correlation();
         if let Some(server_id) = self.active_server_id() {
             self.stop_helpers_for_server(&server_id);
         }
@@ -2533,7 +2834,12 @@ impl JavaServerRepository for AgentServerRegistry {
 
 impl ConsoleSink for AgentConsoleSink {
     fn append_system_line(&self, _server_id: &ServerId, line: &str) {
-        self.push(ConsoleLine::new("system", None, line.to_string()));
+        self.push(ConsoleLine::with_origin(
+            "system",
+            None,
+            ConsoleLineOrigin::Server,
+            line.to_string(),
+        ));
     }
 }
 

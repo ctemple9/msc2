@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, P14.17, and P14.18 are awaiting verification.
-> **Next move:** Cameron runs the outstanding P14.4–P14.6, P14.8–P14.12, P14.15–P14.18 verification commands and closes each step if the client behavior, installer contracts, console classification, remote profile, managed SSH capability, saved-host route lifecycle, remote error/security boundaries, remote-access teaching, and cross-platform acceptance evidence are sound. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, P14.17, P14.18, and P14.19 are awaiting verification.
+> **Next move:** Cameron runs the outstanding P14.4–P14.6, P14.8–P14.12, P14.15–P14.19 verification commands and closes each step if the client behavior, installer contracts, console classification, remote profile, managed SSH capability, saved-host route lifecycle, remote error/security boundaries, remote-access teaching, cross-platform acceptance evidence, and Phase 14 gate are sound. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -13,7 +13,7 @@ This is the working state of the build. The vision documents say where MSC 2 is 
 
 Phases come from `msc2-port-plan.md`. Steps are written as work arrives rather than being invented in advance. Each step has a status, file scope, description, verification command, commit subject, and batch classification.
 
-Phase 12 is complete. Phase 14 is active, with P14.4–P14.18 awaiting owner verification. P14.19 remains planned until this source-and-acceptance map and the cross-platform acceptance evidence are verified.
+Phase 12 is complete. Phase 14 is active, with P14.4–P14.19 awaiting owner verification. P14.19 records the gate handoff; the phase remains open until the live Minecraft, real OS-install, and retained-client evidence in the acceptance note is confirmed.
 
 ## Current phase
 
@@ -237,9 +237,9 @@ editable or automatically selected when occupied.
 
 ### P14.19 — Phase gate and owner verification handoff
 
-- **Status:** planned
+- **Status:** awaiting verification
 - **Files:** `docs/msc2/rolling-plan.md`, `docs/msc2/msc2-port-plan.md`, `docs/msc2/msc2-decisions.md`, acceptance notes and capability matrix
-- **What:** Review the phase gate as a product behavior, not merely as completed implementation steps. The gate holds only when: time-of-day shortcuts preserve the current Minecraft day across the supported Java flavors and Bedrock; explicit day changes remain explicit; automatic polling cannot evict human console output; `msc` is discoverable after headless installation on all three operating systems; a Tauri user can save both LAN and Tailscale routes, edit changed addresses, see the SSH command being taught, let the app manage forwarding, and pair without routine manual code copying; manual recovery remains available; and the no-cloud/no-required-Tailscale boundary is still true. Record any amended decision or deferred edge case before proposing the next phase.
+- **What:** Review the phase gate as a product behavior, not merely as completed implementation steps. The static handoff is recorded in `docs/msc2/capabilities/phase14-acceptance.md`, but the gate is not claimed complete until Cameron confirms the required live Minecraft, real OS-install, and retained-client walkthrough evidence. The gate holds only when: time-of-day shortcuts preserve the current Minecraft day across the supported Java flavors and Bedrock; explicit day changes remain explicit; all MSC-generated monitoring, backup, and helper traffic cannot evict human console output; `msc` is discoverable after headless installation on all three operating systems; a Tauri user can save both LAN and Tailscale routes, edit changed addresses, see the SSH command being taught, let the app manage forwarding, and pair without routine manual code copying; manual recovery remains available; and the no-cloud/no-required-Tailscale boundary is still true. Record any amended decision or deferred edge case before proposing the next phase.
 - **Verify:** `rg -n "P14\.1[1-9]|Status:|Verify:|Batch:" docs/msc2/rolling-plan.md`
 - **Batch:** H — cross-platform acceptance
 - **Commit:** `P14.19: record Phase 14 gate and handoff`

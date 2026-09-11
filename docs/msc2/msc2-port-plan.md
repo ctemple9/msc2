@@ -200,7 +200,10 @@ headless installation on macOS, Windows, and Linux; and a Tauri desktop can
 save/edit host routes, manage SSH forwarding, and pair without a required
 cloud relay, Tailscale account, manually opened terminal, or remote service
 installation API. Evidence must include static inspection, live Minecraft
-verification, and real OS install exercises as identified by the matrix.
+verification, and real OS install exercises as identified by the matrix. The
+P14.19 handoff records the static result and outstanding owner evidence in
+`docs/msc2/capabilities/phase14-acceptance.md`; static inspection alone does
+not close this gate.
 
 ### Continuous, from Phase 1 onward
 

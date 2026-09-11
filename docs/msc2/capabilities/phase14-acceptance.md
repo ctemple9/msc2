@@ -1,11 +1,31 @@
 # Phase 14 — cross-platform acceptance evidence
 
-**Step:** P14.18 · **Status:** awaiting owner verification · **Date:** 2026-09-11
+**Step:** P14.19 · **Status:** awaiting owner verification · **Date:** 2026-09-11
 
-This note records the final static pass that can be performed in the shared
-workspace. It does not turn a source check into evidence of a live Minecraft
-runtime, native OS installation, or remote-host walkthrough. Those rows remain
-for Cameron's manual verification before P14.19.
+This note records the Phase 14 gate handoff. The shared workspace contains the
+final static pass, but it does not turn a source check into evidence of a live
+Minecraft runtime, native OS installation, or remote-host walkthrough. The
+phase gate therefore remains open for Cameron's manual verification.
+
+## Gate assessment
+
+The static implementation and documentation boundaries are ready for owner
+verification. No new decision is required: proposed D-036 remains the governing
+contract, with its console-retention wording expanded to cover backup and
+helper-process traffic as recorded in the source matrix. The following edge
+cases remain intentionally deferred until the owner walkthrough:
+
+- same-day time actions and explicit day changes across Vanilla, Paper, Purpur,
+  Fabric, Forge, NeoForge, and Bedrock;
+- preservation of human console history while monitoring, backup coordination,
+  Xbox Broadcast, and Playit traffic are active;
+- real PATH, upgrade, uninstall, and service-ownership behavior on all three
+  operating systems; and
+- direct LAN/Tailscale selection, managed SSH recovery, host-key review,
+  reconnect, pairing, and manual recovery in the Tauri desktop.
+
+P14.19 is ready to close only after those evidence classes are confirmed. The
+no-cloud and no-required-Tailscale boundary remains unchanged.
 
 ## Static checks completed
 

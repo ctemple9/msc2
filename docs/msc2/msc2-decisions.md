@@ -1,6 +1,6 @@
 # MSC 2 — Decision Register
 
-**Revision:** 1.16 · **Date:** 2026-09-11
+**Revision:** 1.17 · **Date:** 2026-09-11
 **Owner:** Cameron Temple
 
 **Purpose:** the authoritative record of *what was decided, by whom, and why*. The product and engineering documents describe the destination; this document explains how it was chosen, what was rejected, and when a decision should be reopened.
@@ -1028,10 +1028,12 @@ unowned service-management API or an MSC-operated relay.
   raw numeric `time set` remains an explicit absolute command. The behavior is
   shared across the supported Java flavors and Bedrock; it is not a Java-only
   client shortcut.
-- Automatic metric commands are internal monitoring traffic. Their output may
-  continue to feed metrics and an explicitly separate diagnostic stream, but it
-  cannot displace human console history. Classification happens before the
-  bounded human history buffer and before history/WebSocket delivery.
+- Automatic monitoring, controller, backup, and helper-process output is
+  internal traffic. It may continue to feed metrics, operation waiters, and an
+  explicitly separate diagnostic stream, but it cannot displace human console
+  history. Classification happens before the bounded human history buffer and
+  before history/WebSocket delivery; actionable backup readiness and helper
+  failures remain available through their owning operation or status surface.
 - Headless installation is first-class on macOS, Windows, and Linux. Each
   platform provides the `msc` command (`msc.exe` on Windows) through a
   documented, owned PATH entry independent of whether the operating-system
@@ -1104,6 +1106,7 @@ Recorded because each produced a confident wrong answer, and each is the kind of
 
 | Rev | Date | Change |
 |---|---|---|
+| 1.17 | 2026-09-11 | Recorded the P14.19 gate handoff contract: backup and helper output join monitoring traffic for console-retention purposes, and static evidence does not close the phase gate without live Minecraft, OS-install, and retained-client verification. |
 | 1.16 | 2026-09-11 | Added the P14.16 remote connection hardening addendum: categorized failures, explicit host-key review, loopback forwarding, redaction, and host-switch isolation. |
 | 1.15 | 2026-09-10 | Added proposed D-036: operational contracts for same-day time actions, console retention, tri-platform headless installation, and remote-host boundaries. |
 | 1.14 | 2026-09-07 | Added D-035: server-owned JARs replace global Paper/plugin template storage; existing template directories are preserved but no longer used. |

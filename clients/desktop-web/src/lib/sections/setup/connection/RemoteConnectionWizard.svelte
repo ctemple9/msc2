@@ -6,6 +6,7 @@
   import SegmentedControl from '../../../components/base/SegmentedControl.svelte';
   import type { RemoteDesktopPairingResult } from '../../../auth/desktop';
   import { formatConnectionFailure } from '../../../hosts/connection-errors';
+  import { DEFAULT_SSH_PORT, sshHostnameFromAddress } from '../../../hosts/types';
   import type {
     HostRecord,
     HostRoute,
@@ -22,8 +23,8 @@
   type WizardStep = 'details' | 'review';
 
   const routeOptions = [
-    { value: 'lan', label: 'LAN first' },
-    { value: 'tailscale', label: 'Tailscale first' },
+    { value: 'lan', label: 'LAN' },
+    { value: 'tailscale', label: 'Tailscale' },
   ];
   const authenticationOptions = [
     { value: 'agent', label: 'SSH agent' },
@@ -35,8 +36,6 @@
   let displayName = '';
   let lanAddress = '';
   let tailscaleAddress = '';
-  let sshHostname = '';
-  let sshPort = 22;
   let sshUsername = '';
   let authentication: SshAuthentication = 'agent';
   let privateKeyPath = '';
@@ -44,7 +43,6 @@
   let managementPort = 48001;
   let localForwardedPort = 48002;
   let preferredRoute: HostRoute = 'lan';
-  let tryDirectFirst = true;
   let manualTunnel = false;
   let manualAgentAddress = 'http://127.0.0.1:48002';
   let pairingCode = '';
@@ -64,7 +62,11 @@
 
   $: normalizedLanAddress = lanAddress.trim();
   $: normalizedTailscaleAddress = tailscaleAddress.trim();
-  $: normalizedSshHostname = sshHostname.trim() || normalizedLanAddress || 'host-address';
+  $: preferredAddress =
+    preferredRoute === 'tailscale' ? normalizedTailscaleAddress : normalizedLanAddress;
+  $: normalizedSshHostname = sshHostnameFromAddress(
+    preferredAddress || normalizedLanAddress || normalizedTailscaleAddress,
+  );
   $: normalizedUsername = sshUsername.trim() || 'username';
   $: sshTarget = `${normalizedUsername}@${normalizedSshHostname}`;
   $: tunnelCommand = `ssh -N -L 127.0.0.1:${localForwardedPort}:127.0.0.1:${managementPort} ${sshTarget}`;
@@ -77,8 +79,6 @@
     displayName = '';
     lanAddress = '';
     tailscaleAddress = '';
-    sshHostname = '';
-    sshPort = 22;
     sshUsername = '';
     authentication = 'agent';
     privateKeyPath = '';
@@ -86,7 +86,6 @@
     managementPort = 48001;
     localForwardedPort = 48002;
     preferredRoute = 'lan';
-    tryDirectFirst = true;
     manualTunnel = false;
     manualAgentAddress = 'http://127.0.0.1:48002';
     pairingCode = '';
@@ -100,8 +99,6 @@
     displayName = host.displayName;
     lanAddress = host.lanAddresses[0] ?? '';
     tailscaleAddress = host.tailscaleAddresses[0] ?? '';
-    sshHostname = host.ssh.hostname;
-    sshPort = host.ssh.port;
     sshUsername = host.ssh.username;
     authentication = host.ssh.authentication;
     privateKeyPath = host.ssh.privateKeyPath ?? '';
@@ -109,7 +106,6 @@
     localForwardedPort = host.localForwardedPort ?? 48002;
     preferredRoute =
       host.preferredRouteOrder[0] ?? (host.tailscaleAddresses.length ? 'tailscale' : 'lan');
-    tryDirectFirst = host.tryDirectFirst;
     manualTunnel = !host.tryDirectFirst && Boolean(host.manualAgentAddress);
     manualAgentAddress = host.manualAgentAddress ?? manualAgentAddress;
   }
@@ -120,11 +116,10 @@
       return 'Enter a LAN address, a Tailscale address, or both.';
     }
     if (preferredRoute === 'tailscale' && !normalizedTailscaleAddress) {
-      return 'Enter a Tailscale address before choosing Tailscale first.';
+      return 'Enter a Tailscale address before choosing Tailscale for SSH.';
     }
-    if (!sshHostname.trim()) return 'Enter the hostname or IP address used by SSH.';
     if (!sshUsername.trim()) return 'Enter the SSH username for the remote computer.';
-    if (!validPort(sshPort) || !validPort(managementPort) || !validPort(localForwardedPort)) {
+    if (!validPort(managementPort) || !validPort(localForwardedPort)) {
       return 'Ports must be whole numbers from 1 to 65535.';
     }
     if (authentication === 'password' && !sshPassword) {
@@ -173,29 +168,9 @@
     step = 'details';
   }
 
-  function directOrigin(address: string, port: number): string {
-    const trimmed = address.trim();
-    if (!trimmed) return `http://127.0.0.1:${port}`;
-    try {
-      const parsed = new URL(trimmed.includes('://') ? trimmed : `http://${trimmed}`);
-      if (!parsed.port) parsed.port = String(port);
-      parsed.pathname = '';
-      parsed.search = '';
-      parsed.hash = '';
-      return parsed.origin;
-    } catch {
-      return `http://${trimmed}:${port}`;
-    }
-  }
-
   function selectedBaseUrl(): string {
     if (manualTunnel) return manualAgentAddress.trim();
-    const address =
-      preferredRoute === 'tailscale' ? normalizedTailscaleAddress : normalizedLanAddress;
-    return directOrigin(
-      address || normalizedLanAddress || normalizedTailscaleAddress,
-      managementPort,
-    );
+    return `http://127.0.0.1:${localForwardedPort}`;
   }
 
   async function copyCommand(): Promise<void> {
@@ -225,10 +200,9 @@
         lanAddress: normalizedLanAddress,
         ...(normalizedTailscaleAddress ? { tailscaleAddress: normalizedTailscaleAddress } : {}),
         preferredRoute,
-        tryDirectFirst: manualTunnel ? false : tryDirectFirst,
         ssh: {
-          hostname: sshHostname.trim(),
-          port: sshPort,
+          hostname: normalizedSshHostname,
+          port: DEFAULT_SSH_PORT,
           username: sshUsername.trim(),
           authentication,
           ...(authentication === 'private-key' && privateKeyPath.trim()
@@ -260,20 +234,7 @@
 </script>
 
 <div class="wizard" aria-label="Connect to another host wizard">
-  <div class="wizard-track" aria-label="Connection setup progress">
-    <span class:current={step === 'details'}>1. Connection details</span>
-    <span class:current={step === 'review'}>2. Looks good?</span>
-  </div>
-
   {#if step === 'details'}
-    <div class="intro">
-      <h2>Tell MSC how to reach the other computer</h2>
-      <p>
-        These details describe the computer that runs the MSC agent. Addresses and SSH settings are
-        saved with the host so you can repair a changed IP later; passwords are never saved here.
-      </p>
-    </div>
-
     <section class="form-section">
       <p class="msc2-type-overline">The host</p>
       <label class="field-label">
@@ -283,12 +244,14 @@
       </label>
       <div class="field-grid two-up">
         <label class="field-label">
-          LAN address or hostname
+          <span class="field-label-title">LAN address or hostname</span>
           <Field bind:value={lanAddress} placeholder="192.168.1.42 or minecraft.local" />
           <span class="field-help">Use this when both computers share a network.</span>
         </label>
         <label class="field-label">
-          Tailscale address or hostname <span class="optional">Optional</span>
+          <span class="field-label-title"
+            >Tailscale address or hostname <span class="optional">Optional</span></span
+          >
           <Field
             bind:value={tailscaleAddress}
             placeholder="100.80.20.10 or server.tailnet.ts.net"
@@ -296,25 +259,46 @@
           <span class="field-help">An optional private route; MSC does not require Tailscale.</span>
         </label>
       </div>
+      <details class="address-help">
+        <summary>How do I find these addresses?</summary>
+        <div class="address-help-content">
+          <p class="section-help">
+            Find these on the computer running the MSC agent, not on this computer.
+          </p>
+          <div>
+            <h3 class="address-help-heading">LAN address</h3>
+            <ul>
+              <li>
+                <strong>Windows:</strong> open Command Prompt, run <code>ipconfig</code>, and find
+                the IPv4 address under the active Wi-Fi or Ethernet connection.
+              </li>
+              <li>
+                <strong>macOS:</strong> open System Settings → Network, select the active connection,
+                and find its IP address.
+              </li>
+              <li>
+                <strong>Linux:</strong> run <code>hostname -I</code> in Terminal and use the address for
+                the active network.
+              </li>
+            </ul>
+          </div>
+          <div>
+            <h3 class="address-help-heading">Tailscale address</h3>
+            <p class="section-help">
+              If Tailscale is installed and connected on the agent computer, find its address in the
+              Tailscale app or run <code>tailscale ip -4</code> there. Tailscale is optional.
+            </p>
+          </div>
+        </div>
+      </details>
     </section>
 
     <section class="form-section">
       <p class="msc2-type-overline">SSH access</p>
       <p class="section-help">
-        MSC can use SSH to carry the management connection securely when the agent is not directly
-        reachable. The password is held only for the connection attempt; a key path is remembered,
-        never the key contents.
+        MSC uses SSH to create a private tunnel to the address selected below. Your password is used
+        only for the connection attempt; MSC saves a key path, never the key contents.
       </p>
-      <div class="field-grid two-up">
-        <label class="field-label">
-          SSH hostname or IP
-          <Field bind:value={sshHostname} placeholder="192.168.1.42" />
-        </label>
-        <label class="field-label">
-          SSH port
-          <NumberField bind:value={sshPort} min={1} max={65535} width="100%" />
-        </label>
-      </div>
       <div class="field-grid two-up">
         <label class="field-label">
           Username
@@ -345,23 +329,16 @@
     </section>
 
     <section class="form-section">
-      <p class="msc2-type-overline">Connection route</p>
+      <p class="msc2-type-overline">SSH tunnel</p>
       <div class="route-row">
         <div>
-          <span class="field-label">Try this direct route first</span>
+          <span class="field-label">Connect over</span>
           <SegmentedControl
             options={routeOptions}
             value={preferredRoute}
             onchange={(value) => (preferredRoute = value as HostRoute)}
           />
         </div>
-        <label class="check-label">
-          <input type="checkbox" bind:checked={tryDirectFirst} />
-          <span>
-            <strong>Try direct access before SSH</strong>
-            <small>Use LAN or Tailscale when it responds; otherwise use the tunnel plan.</small>
-          </span>
-        </label>
       </div>
       <div class="field-grid two-up">
         <label class="field-label">
@@ -385,26 +362,6 @@
       {/if}
     </section>
 
-    <details class="advanced-path">
-      <summary>I already maintain my own SSH tunnel</summary>
-      <div class="advanced-content">
-        <p class="section-help">
-          Use this only if you already run the tunnel yourself. The normal path lets MSC manage the
-          SSH session and its lifecycle.
-        </p>
-        <label class="check-label">
-          <input type="checkbox" bind:checked={manualTunnel} />
-          <span><strong>Connect through my existing tunnel</strong></span>
-        </label>
-        {#if manualTunnel}
-          <label class="field-label">
-            Local agent address
-            <Field bind:value={manualAgentAddress} placeholder="http://127.0.0.1:48002" />
-          </label>
-        {/if}
-      </div>
-    </details>
-
     <div class="wizard-actions">
       <Button variant="primary" disabled={!detailsValid} onclick={goToReview}
         >Review connection</Button
@@ -426,12 +383,12 @@
         >
       </div>
       <div class="summary-row">
-        <span>Preferred route</span><strong
+        <span>SSH route</span><strong
           >{manualTunnel
             ? 'Existing tunnel'
             : preferredRoute === 'lan'
               ? 'LAN'
-              : 'Tailscale'}{!manualTunnel && tryDirectFirst ? ' before SSH' : ''}</strong
+              : 'Tailscale'}</strong
         >
       </div>
       <div class="summary-row"><span>Agent port</span><strong>{managementPort}</strong></div>
@@ -440,7 +397,7 @@
       </div>
       <div class="summary-row">
         <span>SSH identity</span><strong
-          >{sshUsername.trim()}@{sshHostname.trim()} · {authentication}</strong
+          >{sshUsername.trim()}@{normalizedSshHostname} · {authentication}</strong
         >
       </div>
     </section>
@@ -518,7 +475,6 @@
   .form-section,
   .intro,
   .field-grid,
-  .advanced-content,
   .pairing-section {
     display: grid;
     gap: 12px;
@@ -526,20 +482,6 @@
 
   .wizard {
     gap: 18px;
-  }
-
-  .wizard-track {
-    display: flex;
-    gap: 18px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--msc2-hairline-faint);
-    color: var(--msc2-text-tertiary);
-    font-size: 11px;
-  }
-
-  .wizard-track span.current {
-    color: var(--msc2-text-primary);
-    font-weight: 500;
   }
 
   h2,
@@ -582,8 +524,54 @@
     font-size: 12px;
   }
 
+  .field-label-title {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+
   .field-help {
     color: var(--msc2-text-tertiary);
+    font-size: 11px;
+  }
+
+  .address-help summary {
+    color: var(--msc2-text-secondary);
+    cursor: pointer;
+    font-size: 12px;
+  }
+
+  .address-help-content {
+    display: grid;
+    gap: 10px;
+    padding-top: 10px;
+  }
+
+  .address-help-heading {
+    margin: 0 0 4px;
+    color: var(--msc2-text-primary);
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .address-help-content ul {
+    display: grid;
+    gap: 5px;
+    margin: 0;
+    padding-left: 18px;
+    color: var(--msc2-text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .address-help-content strong {
+    color: var(--msc2-text-primary);
+    font-weight: 500;
+  }
+
+  .address-help-content code {
+    color: var(--msc2-text-primary);
+    font-family: var(--msc2-font-mono, monospace);
     font-size: 11px;
   }
 
@@ -636,21 +624,6 @@
 
   .inline-warning {
     color: var(--msc2-status-warn);
-  }
-
-  .advanced-path {
-    border-top: 1px solid var(--msc2-hairline-faint);
-    padding-top: 12px;
-  }
-
-  .advanced-path summary {
-    color: var(--msc2-text-secondary);
-    cursor: pointer;
-    font-size: 12px;
-  }
-
-  .advanced-content {
-    padding-top: 10px;
   }
 
   .wizard-actions {
@@ -747,10 +720,6 @@
       grid-template-columns: 1fr;
       display: grid;
       align-items: start;
-    }
-
-    .wizard-track {
-      gap: 10px;
     }
   }
 </style>

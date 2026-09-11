@@ -599,41 +599,6 @@
 
     {#if connectAnotherExpanded}
       <div id="connect-another-agent" class="agent-content">
-        <p class="detail">
-          Use this path when the Minecraft servers live somewhere else. The other computer must have
-          the agent installed and running. MSC will explain the route, ports, and SSH identity,
-          create the one-time desktop authorization over SSH, and save nothing sensitive in this
-          client. A manual pairing-code fallback remains available if the remote command cannot run.
-        </p>
-
-        <details class="secondary-disclosure access-choices">
-          <summary>Which route should I use?</summary>
-          <div class="secondary-content">
-            <p class="detail">
-              There is no single remote path that works everywhere. The other computer must be
-              reachable by a route you control: a direct network path, an SSH tunnel, a user-operated
-              VPN or overlay, or a relay service.
-            </p>
-            <ul class="route-explanations">
-              <li><strong>LAN or DNS:</strong> use a private IP or hostname when both computers can reach the same network.</li>
-              <li><strong>Tailscale:</strong> use its private address or name as an optional convenient route; MSC does not require a Tailscale account.</li>
-              <li><strong>SSH tunnel:</strong> let MSC forward its local loopback port to the agent's loopback-only management port. You do not need to open Terminal.</li>
-              <li><strong>Your own VPN or overlay:</strong> enter the address supplied by the network you operate, then use the normal authenticated MSC connection.</li>
-              <li><strong>Router forwarding or a relay:</strong> these are outside MSC's managed path and carry their own exposure, trust, and service-provider tradeoffs.</li>
-            </ul>
-            <p class="detail">
-              MSC does not run a cloud relay, and there is no “Tailscale without Tailscale” shortcut.
-              The usual built-in path is direct access when available, then an app-managed SSH tunnel.
-              The management API stays authenticated and loopback-first by default; never treat a
-              Minecraft player address as an administrator route.
-            </p>
-            <p class="detail">
-              <HelpLink helpId="handbook.remote-access" {hostId} {serverId} /> for the full route and
-              security explanation.
-            </p>
-          </div>
-        </details>
-
         {#if isDesktopShell}
           {#if editingHost}
             <div class="editing-host-note">
@@ -653,10 +618,6 @@
               onConnect={connectRemoteHost}
             />
           {/key}
-          <p class="wizard-help">
-            Need the background service or network concepts explained first?
-            <HelpLink helpId="handbook.remote-access" {hostId} {serverId} />.
-          </p>
           <details class="secondary-disclosure extra-notes">
             <summary>Extra notes</summary>
             <div class="secondary-content">
@@ -887,19 +848,6 @@
     margin-top: 8px;
     font-size: 13px;
     line-height: 1.5;
-  }
-  .route-explanations {
-    display: grid;
-    gap: 8px;
-    margin: 10px 0 0;
-    padding-left: 18px;
-    color: var(--msc2-text-secondary);
-    font-size: 13px;
-    line-height: 1.5;
-  }
-  .route-explanations strong {
-    color: var(--msc2-text-primary);
-    font-weight: 500;
   }
   .quiet-label {
     font-size: 12px;

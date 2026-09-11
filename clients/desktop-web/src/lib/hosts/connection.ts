@@ -6,15 +6,17 @@ import {
   type DesktopRouteProbeResult,
   type SshTunnelStatus,
 } from '../auth/desktop';
+import { formatConnectionFailure, type ConnectionErrorCategory } from './connection-errors';
 import {
-  formatConnectionFailure,
-  type ConnectionErrorCategory,
-} from './connection-errors';
-import { DEFAULT_LOCAL_FORWARDED_PORT, hostRouteCandidates, type HostRecord } from './types';
+  DEFAULT_LOCAL_FORWARDED_PORT,
+  DEFAULT_SSH_PORT,
+  preferredSshHostname,
+  type HostRecord,
+} from './types';
 
 export interface HostConnectionResult {
   readonly baseUrl: string;
-  readonly route: 'lan' | 'tailscale' | 'ssh' | 'manual';
+  readonly route: 'ssh' | 'manual';
   readonly detail: string;
 }
 
@@ -26,7 +28,7 @@ export interface HostConnectionOptions {
 export { formatConnectionFailure } from './connection-errors';
 export type { ConnectionErrorCategory } from './connection-errors';
 
-/** Coordinates direct routes and the app-owned tunnel for one saved host. */
+/** Coordinates a saved manual tunnel or the app-owned SSH tunnel for one host. */
 export class HostConnectionManager {
   private readonly passwords = new Map<string, string>();
   private sshBridgePromise: Promise<DesktopSshTunnelBridge> | undefined;
@@ -46,23 +48,7 @@ export class HostConnectionManager {
     const auth = new DesktopSessionAuth(await loadTauriDesktopCredentialBridge());
     if (options.sshPassword) this.rememberSessionPassword(host.id, options.sshPassword);
 
-    if (host.tryDirectFirst) {
-      for (const candidate of hostRouteCandidates(host)) {
-        const probe = await this.probe(auth, host.id, candidate.baseUrl);
-        if (probe.reachable) {
-          return {
-            baseUrl: candidate.baseUrl,
-            route: candidate.route,
-            detail: `Connected over ${candidate.route === 'lan' ? 'LAN' : 'Tailscale'}.`,
-          };
-        }
-        if (probe.category && probe.category !== 'network') {
-          throw new Error(probe.detail);
-        }
-      }
-    }
-
-    if (!host.tryDirectFirst && host.manualAgentAddress) {
+    if (host.manualAgentAddress) {
       const baseUrl = host.manualAgentAddress;
       const probe = await this.probe(auth, host.id, baseUrl);
       if (probe.reachable)
@@ -73,18 +59,14 @@ export class HostConnectionManager {
     const tunnel = await this.ensureTunnel(host);
     if (!['connecting', 'connected'].includes(tunnel.state)) {
       throw new Error(
-        formatConnectionFailure(
-          tunnel.exitReason ?? tunnel.stderr,
-          tunnel.errorCategory ?? 'ssh',
-        ),
+        formatConnectionFailure(tunnel.exitReason ?? tunnel.stderr, tunnel.errorCategory ?? 'ssh'),
       );
     }
     const baseUrl = `http://127.0.0.1:${tunnel.localPort || host.localForwardedPort || DEFAULT_LOCAL_FORWARDED_PORT}`;
     const route = await this.waitForRoute(auth, host.id, baseUrl);
     if (!route.reachable) {
       if (route.category && route.category !== 'network') throw new Error(route.detail);
-      const latestTunnel =
-        (await this.readStatus(await this.sshBridge(), host.id)) ?? tunnel;
+      const latestTunnel = (await this.readStatus(await this.sshBridge(), host.id)) ?? tunnel;
       throw new Error(
         formatConnectionFailure(
           latestTunnel.exitReason ??
@@ -100,7 +82,7 @@ export class HostConnectionManager {
     try {
       await (await this.sshBridge()).stop(hostId);
     } catch {
-      // No session is the normal state for a host that used a direct route.
+      // No session is the normal state for a host that is not using a tunnel.
     }
   }
 
@@ -119,8 +101,8 @@ export class HostConnectionManager {
 
     return bridge.start({
       hostId: host.id,
-      sshHost: host.ssh.hostname,
-      sshPort: host.ssh.port,
+      sshHost: preferredSshHostname(host),
+      sshPort: DEFAULT_SSH_PORT,
       username: host.ssh.username,
       authentication: host.ssh.authentication,
       ...(host.ssh.privateKeyPath ? { privateKeyPath: host.ssh.privateKeyPath } : {}),

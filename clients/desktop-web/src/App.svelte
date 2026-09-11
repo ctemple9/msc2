@@ -36,6 +36,7 @@
     createRemoteHostRecord,
     hostManagementUrl,
     withPreferredHostRoute,
+    DEFAULT_SSH_PORT,
     LOCAL_HOST_ID,
     type HostId,
     type HostRecord,
@@ -217,7 +218,9 @@
     const previousHostId = hostId;
     const activeOperation = hostStore
       .getState(previousHostId)
-      .cache.operations.find((operation) => operation.state === 'queued' || operation.state === 'running');
+      .cache.operations.find(
+        (operation) => operation.state === 'queued' || operation.state === 'running',
+      );
     if (isDesktopShell && previousHostId !== localAgentHostId) {
       await hostConnectionManager.stop(previousHostId);
     }
@@ -252,7 +255,6 @@
         ssh: input.ssh,
         managementPort: input.managementPort,
         localForwardedPort: input.localForwardedPort,
-        tryDirectFirst: input.manualTunnel ? false : input.tryDirectFirst,
         ...(input.manualTunnel && input.manualAgentAddress
           ? { manualAgentAddress: input.manualAgentAddress }
           : {}),
@@ -271,7 +273,7 @@
         baseUrl: input.baseUrl,
         ssh: {
           sshHost: input.ssh.hostname,
-          sshPort: input.ssh.port,
+          sshPort: DEFAULT_SSH_PORT,
           username: input.ssh.username,
           authentication: input.ssh.authentication,
           ...(input.ssh.privateKeyPath ? { privateKeyPath: input.ssh.privateKeyPath } : {}),
@@ -315,7 +317,6 @@
       ssh: input.ssh,
       managementPort: input.managementPort,
       localForwardedPort: input.localForwardedPort,
-      tryDirectFirst: input.manualTunnel ? false : input.tryDirectFirst,
       ...(input.manualTunnel && input.manualAgentAddress
         ? { manualAgentAddress: input.manualAgentAddress }
         : {}),

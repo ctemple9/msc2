@@ -150,7 +150,8 @@ editable or automatically selected when occupied.
 
 - **Status:** awaiting verification
 - **Files:** `clients/desktop-web/src/lib/hosts/types.ts`, `clients/desktop-web/src/lib/hosts/saved.ts`, host switcher/state stores, native secure-store bridge, migration documentation
-- **What:** Replace the current `label + baseUrl` profile with a host record that has a stable host ID and editable connection details: display name, one or more LAN addresses/hostnames, one or more Tailscale addresses/hostnames, preferred route order, SSH hostname/IP, SSH port, SSH username, authentication choice, optional local forwarded port, and the remote MSC management port defaulting to 48001. Store LAN and Tailscale addresses together so either can be selected later, and allow edits when DHCP, DNS, or Tailscale addresses change without creating a new logical host. Store only non-secret SSH metadata in ordinary client state; keep bearer credentials in the existing per-host native secure store and never persist an SSH password in localStorage.
+- **What:** Replace the current `label + baseUrl` profile with a host record that has a stable host ID and editable connection details: display name, one or more LAN addresses/hostnames, one or more Tailscale addresses/hostnames, preferred route order, SSH username, authentication choice, optional local forwarded port, and the remote MSC management port defaulting to 48001. Store LAN and Tailscale addresses together so either can be selected later, and allow edits when DHCP, DNS, or Tailscale addresses change without creating a new logical host. Store only non-secret SSH metadata in ordinary client state; keep bearer credentials in the existing per-host native secure store and never persist an SSH password in localStorage.
+- **Implementation amendment (2026-09-11):** The remote connection UI now derives the SSH destination from the selected LAN/Tailscale address and uses SSH port 22 internally. Remote records are tunnel-first; legacy SSH host/port and manual-tunnel fields remain readable only for compatibility.
 - **Verify:** `npm run check`
 - **Batch:** E — remote connection foundation
 - **Commit:** `P14.11: model editable remote host profiles`
@@ -175,15 +176,15 @@ editable or automatically selected when occupied.
 ### P14.13 — Add the teaching connection wizard in “Connect to another host”
 - **Status:** awaiting verification
 - **Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/hosts/types.ts`, `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `clients/desktop-web/src/lib/sections/setup/connection/RemoteConnectionWizard.svelte`, help content, generated client types
-- **What:** Rework the existing manual setup section into an in-app guided flow. The form must collect and explain:
+- **What:** Rework the existing manual setup section into a compact in-app guided flow. The form collects and explains:
   - host name;
-  - LAN address/hostname and optional Tailscale address/hostname;
-  - SSH hostname/IP, SSH port, username, and password/key/agent choice;
+  - LAN address/hostname and optional Tailscale address/hostname, with collapsed cross-platform help for finding both;
+  - username and password/key/agent choice;
   - remote MSC port, default `48001`;
   - local forwarded port, default `48002`, with collision detection and an automatic alternative;
-  - route preference and whether direct connection should be tried before the SSH tunnel.
+  - LAN/Tailscale route selection for the SSH destination.
 
-  Show the generated command as an explanation of what MSC is doing, for example `ssh -N -L 48002:127.0.0.1:48001 username@host`, while making clear that the user does not need to run it manually. Include a “looks good” review step that summarizes the route, ports, credential storage, and host identity before saving. Keep an advanced/manual path for users who already maintain their own tunnel, but do not make it the normal path.
+  Show the generated command as an explanation of what MSC is doing, for example `ssh -N -L 48002:127.0.0.1:48001 username@host`, while making clear that the user does not need to run it manually. The normal wizard always uses the managed SSH tunnel, fixes SSH port 22 internally, and does not expose separate SSH hostname, SSH port, direct-access, or manual-tunnel controls. The redundant route explanation, wizard step labels, and extra network-help copy were removed after owner review; the normal flow now goes directly from connection details to the connection review.
 - **Verify:** `npm run check`
 - **Batch:** F — remote connection experience
 - **Commit:** `P14.13: add guided remote host connection flow`
@@ -192,7 +193,8 @@ editable or automatically selected when occupied.
 
 - **Status:** awaiting verification
 - **Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/auth/desktop.ts`, Tauri bridge, CLI pairing output, `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, auth/API contract docs
-- **What:** After direct connection or tunnel establishment, perform the normal health/capability check. If the host has no saved desktop credential, use the authenticated SSH session to invoke a narrowly-scoped remote pairing operation equivalent to `msc pairing create --client-kind desktop --json`, capture the one-use short-lived challenge, exchange it through the forwarded management connection, and store the resulting durable bearer credential in the OS secure store keyed by the stable host ID. The ordinary flow must not ask the user to copy a pairing code or open a second SSH session. The UI should say what is happening (“creating a one-time desktop authorization on the host”) and show progress/failure plainly.
+- **What:** After the managed tunnel is established, perform the normal health/capability check. If the host has no saved desktop credential, use the authenticated SSH session to invoke a narrowly-scoped remote pairing operation equivalent to `msc pairing create --client-kind desktop --json`, capture the one-use short-lived challenge, exchange it through the forwarded management connection, and store the resulting durable bearer credential in the OS secure store keyed by the stable host ID. The ordinary flow must not ask the user to copy a pairing code or open a second SSH session. The UI should say what is happening (“creating a one-time desktop authorization on the host”) and show progress/failure plainly.
+- **Implementation amendment (2026-09-11):** The selected LAN/Tailscale address is now the SSH destination, while authenticated API traffic and pairing use the local forwarded address. This keeps route choice, tunnel transport, and saved credentials aligned.
 
   Define recovery explicitly: if remote command execution is unavailable, offer the existing manual pairing-code fallback; if the code expires, create a new one; if the host has an existing credential, use it without re-pairing; if the credential is revoked or the host identity no longer matches, require an intentional repair flow. Do not permit arbitrary shell commands through this feature, and do not let it install/start/stop the operating-system service.
 - **Verify:** `npm run check`

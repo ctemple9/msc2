@@ -7,6 +7,7 @@ export type ConnectionStatus =
 export const LOCAL_HOST_ID = 'local-agent';
 export const DEFAULT_MANAGEMENT_PORT = 48001;
 export const DEFAULT_LOCAL_FORWARDED_PORT = 48002;
+export const DEFAULT_SSH_PORT = 22;
 
 /** A route family, ordered by the user's preferred connection path. */
 export type HostRoute = 'lan' | 'tailscale';
@@ -36,7 +37,7 @@ export interface HostRecord {
   managementPort: number;
   /** A client-side port for a future managed SSH forward. */
   localForwardedPort?: number;
-  /** Whether the connection manager should try a direct route before SSH. */
+  /** Legacy saved setting; managed remote connections now always use SSH tunnels. */
   tryDirectFirst: boolean;
   /** An existing user-maintained tunnel endpoint, when the advanced path is used. */
   manualAgentAddress?: string;
@@ -65,6 +66,7 @@ export interface RemoteHostProfileInput {
   readonly ssh?: Partial<SshProfile>;
   readonly managementPort?: number;
   readonly localForwardedPort?: number;
+  /** Legacy input accepted for compatibility; remote records now always use SSH tunnels. */
   readonly tryDirectFirst?: boolean;
   readonly manualAgentAddress?: string;
 }
@@ -81,7 +83,6 @@ export interface RemoteHostConnectionInput {
   readonly lanAddress: string;
   readonly tailscaleAddress?: string;
   readonly preferredRoute: HostRoute;
-  readonly tryDirectFirst: boolean;
   readonly ssh: SshProfile;
   readonly sshPassword?: string;
   readonly managementPort: number;
@@ -103,7 +104,7 @@ export function createLocalHostRecord(baseUrl: string): HostRecord {
     preferredRouteOrder: ['lan'],
     ssh: {
       hostname: '',
-      port: 22,
+      port: DEFAULT_SSH_PORT,
       username: '',
       authentication: 'agent',
     },
@@ -125,7 +126,7 @@ export function createRemoteHostRecord(input: RemoteHostProfileInput): HostRecor
     preferredRouteOrder: [...(input.preferredRouteOrder ?? ['lan', 'tailscale'])],
     ssh: {
       hostname: input.ssh?.hostname?.trim() || parsedAddress?.hostname || '',
-      port: input.ssh?.port ?? 22,
+      port: DEFAULT_SSH_PORT,
       username: input.ssh?.username?.trim() ?? '',
       authentication: input.ssh?.authentication ?? 'agent',
       ...(input.ssh?.privateKeyPath?.trim()
@@ -136,7 +137,7 @@ export function createRemoteHostRecord(input: RemoteHostProfileInput): HostRecor
     ...(input.localForwardedPort === undefined
       ? { localForwardedPort: DEFAULT_LOCAL_FORWARDED_PORT }
       : { localForwardedPort: input.localForwardedPort }),
-    tryDirectFirst: input.tryDirectFirst ?? true,
+    tryDirectFirst: false,
     ...(input.manualAgentAddress?.trim()
       ? { manualAgentAddress: input.manualAgentAddress.trim() }
       : {}),
@@ -175,7 +176,7 @@ export function normalizeHostRecord(value: unknown): HostRecord | null {
   const localForwardedPort =
     validPort(record.localForwardedPort) ??
     (id === LOCAL_HOST_ID ? undefined : DEFAULT_LOCAL_FORWARDED_PORT);
-  const tryDirectFirst = record.tryDirectFirst !== false;
+  const tryDirectFirst = id === LOCAL_HOST_ID && record.tryDirectFirst !== false;
   const manualAgentAddress = stringValue(record.manualAgentAddress);
 
   return {
@@ -186,7 +187,7 @@ export function normalizeHostRecord(value: unknown): HostRecord | null {
     preferredRouteOrder,
     ssh: {
       hostname: stringValue(sshRecord?.hostname) ?? parsedAddress?.hostname ?? '',
-      port: validPort(sshRecord?.port) ?? 22,
+      port: DEFAULT_SSH_PORT,
       username: stringValue(sshRecord?.username) ?? '',
       authentication,
       ...(stringValue(sshRecord?.privateKeyPath)
@@ -211,6 +212,23 @@ export function preferredHostAddress(host: HostRecord): string | null {
     [...host.lanAddresses, ...host.tailscaleAddresses].find((address) => address.trim())?.trim() ??
     null
   );
+}
+
+/** Converts a direct route address into the host value accepted by SSH. */
+export function sshHostnameFromAddress(address: string): string {
+  const trimmed = address.trim();
+  if (!trimmed) return '';
+  try {
+    const parsed = new URL(trimmed.includes('://') ? trimmed : `http://${trimmed}`);
+    return parsed.hostname || trimmed;
+  } catch {
+    return trimmed;
+  }
+}
+
+/** Uses the preferred direct route as the SSH destination. */
+export function preferredSshHostname(host: HostRecord): string {
+  return sshHostnameFromAddress(preferredHostAddress(host) ?? host.ssh.hostname);
 }
 
 export interface HostRouteCandidate {
@@ -243,10 +261,13 @@ export function withPreferredHostRoute(host: HostRecord, preferredRoute: HostRou
   return { ...host, preferredRouteOrder: [preferredRoute, ...remaining] };
 }
 
-/** Builds the direct agent origin without changing a complete URL's scheme or port. */
+/** Builds the agent origin for a selected route or the saved managed tunnel. */
 export function hostManagementUrl(host: HostRecord, route?: HostRoute): string {
-  if (route === undefined && !host.tryDirectFirst && host.manualAgentAddress) {
-    return host.manualAgentAddress;
+  if (route === undefined && !host.tryDirectFirst) {
+    return (
+      host.manualAgentAddress ??
+      `http://127.0.0.1:${host.localForwardedPort ?? DEFAULT_LOCAL_FORWARDED_PORT}`
+    );
   }
   const address = route
     ? (route === 'lan' ? host.lanAddresses : host.tailscaleAddresses).find((candidate) =>

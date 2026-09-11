@@ -47,6 +47,7 @@
   export let activeServerId: string | undefined = undefined;
   export let running = false;
   export let connected = false;
+  export let capabilities: Schema['CapabilitiesDTO'] | null = null;
   export let canControl = true;
   export let bannerColor: string;
   export let onSelectServer: (id: string) => void;
@@ -321,6 +322,7 @@
                 {activeServerId}
                 {running}
                 isBedrock={activeServer?.serverType === 'bedrock'}
+                {capabilities}
                 {canControl}
               />
             {/if}

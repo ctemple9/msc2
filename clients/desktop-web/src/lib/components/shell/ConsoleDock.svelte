@@ -38,9 +38,10 @@
   export let height: number | undefined = undefined;
   export let api: ScreenApi | undefined = undefined;
   // Threaded from ApplicationShell's own `servers`/`activeServerId` (P12.10b)
-  // -- both were already props there for DetailsHeader, so no App.svelte
-  // change was needed to get this here.
+  // -- both were already props there for DetailsHeader; the selected runtime
+  // capability is threaded alongside them for command-picker degradation.
   export let serverType: string | undefined = undefined;
+  export let capabilities: Schema['CapabilitiesDTO'] | null = null;
 
   const FALLBACK_POLL_INTERVAL_MS = 2000;
   const PLAYER_POLL_INTERVAL_MS = 5000;
@@ -74,6 +75,8 @@
   $: visible = visibleConsoleLines(lines, chip, custom, search, hideAuto);
   $: onlinePlayers = playersResponse.players;
   $: suggestions = command ? commandSuggestions(command, serverType, onlinePlayers) : [];
+  $: relativeTime = capabilities?.worldSettings?.relativeTime;
+  $: relativeTimeAvailable = relativeTime?.available === true;
   $: activeFilterCount =
     Number(chip !== 'all' && chip !== 'custom') +
     Number(hideAuto) +
@@ -279,6 +282,16 @@
       void refreshPlayers();
     } catch (error) {
       sendError = error instanceof Error ? error.message : 'The agent did not run that command.';
+    }
+  }
+
+  async function sendRelativeTime(preset: Schema['RelativeTimeRequest']['preset']): Promise<void> {
+    if (!api || !relativeTimeAvailable || relativeTime?.presets.includes(preset) !== true) return;
+    sendError = '';
+    try {
+      await api.post('/v1/time/relative', { preset });
+    } catch (error) {
+      sendError = error instanceof Error ? error.message : 'The agent did not run that time action.';
     }
   }
 
@@ -584,8 +597,10 @@
   <CommandPaletteSheet
     {serverType}
     {onlinePlayers}
+    {capabilities}
     onClose={() => (showPalette = false)}
     onUse={(value) => (command = value)}
+    onUseRelativeTime={(preset) => void sendRelativeTime(preset)}
   />
 {/if}
 

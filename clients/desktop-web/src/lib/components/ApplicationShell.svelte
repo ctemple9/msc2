@@ -28,6 +28,7 @@
   export let activeServerId: string | undefined = undefined;
   export let running = false;
   export let connected = false;
+  export let capabilities: Schema['CapabilitiesDTO'] | null = null;
   export let canControl = true;
   export let bannerColor: string;
   export let tabs: readonly (PrimaryTab & { available: boolean })[] = [];
@@ -139,6 +140,7 @@
         {activeServerId}
         {running}
         {connected}
+        {capabilities}
         {canControl}
         {bannerColor}
         {onSelectServer}
@@ -194,6 +196,7 @@
         height={consoleCollapsed ? undefined : consoleHeight}
         {api}
         serverType={activeServer?.serverType}
+        {capabilities}
       />
     </div>
   </div>

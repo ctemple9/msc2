@@ -574,6 +574,9 @@
       loadedSections = [];
       selectedServerId = id;
       status = { ...status, activeServerId: id };
+      // Capabilities carry the selected runtime's relative-time support, so
+      // refresh them after a server switch before showing time shortcuts.
+      capabilities = await screenApi.get<Capabilities>('/v1/capabilities');
       const section = router.get(activeSection);
       if (section) {
         history.pushState({}, '', buildSectionPath(section, hostId, selectedServerId));
@@ -840,6 +843,7 @@
   activeServerId={selectedServerId}
   running={status.running}
   connected={!!capabilities}
+  {capabilities}
   {canControl}
   {bannerColor}
   tabs={primaryTabs}

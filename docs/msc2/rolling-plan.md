@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 14 operational refinements are in progress; P14.3 is awaiting verification.
-> **Next move:** Cameron runs P14.3's verification command and closes the step if the cross-runtime relative-time operation compiles. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phase 14 operational refinements are in progress; P14.4 is awaiting verification.
+> **Next move:** Cameron runs P14.4's verification command and closes the step if the sidebar and command-picker time actions pass the client check. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -13,7 +13,7 @@ This is the working state of the build. The vision documents say where MSC 2 is 
 
 Phases come from `msc2-port-plan.md`. Steps are written as work arrives rather than being invented in advance. Each step has a status, file scope, description, verification command, commit subject, and batch classification.
 
-Phase 12 is complete. Phase 14 is active, with P14.3 awaiting owner verification. Later Phase 14 steps remain planned until this source-and-acceptance map is verified.
+Phase 12 is complete. Phase 14 is active, with P14.4 awaiting owner verification. Later Phase 14 steps remain planned until this source-and-acceptance map is verified.
 
 ## Current phase
 
@@ -69,13 +69,14 @@ editable or automatically selected when occupied.
 - **Status:** DONE
 - **Files:** `docs/msc2/rolling-plan.md`, `docs/msc2/msc2-port-plan.md`, `docs/msc2/msc2-engineering.md`, `docs/msc2/capabilities/`, `clients/desktop-web/src/lib/hosts/`, `clients/desktop-web/src/lib/sections/setup/`, `packaging/`, `tools/release/`
 - **What:** Map every reported behavior to its current implementation, MSC 1 oracle, API boundary, client surface, and platform acceptance evidence. The matrix must explicitly cover Java Vanilla/Paper/Purpur/Fabric/Forge/NeoForge, Bedrock, Tauri on macOS/Windows/Linux, the served browser client, and the headless CLI. It must call out which checks are static inspection, which are live Minecraft verification, and which require a real OS install. No implementation work starts until this map identifies the owning layer for each behavior.
+- **Amendment (2026-09-11):** The first matrix wording was too narrow: its C1 row named periodic TPS/player/Spark polling but did not explicitly inventory backup save commands or helper-process output. P14.2 remains complete as the source-map step, but this correction expands C1 and adds C3/C4 in `docs/msc2/capabilities/phase14-operational-refinements.md`. The later console steps must therefore cover all MSC-generated traffic, not metrics alone.
 - **Verify:** `rg -n "P14\.1|P14\.2|time|console|headless|SSH|pairing|48001|48002" docs/msc2/rolling-plan.md`
 - **Batch:** A — contracts and source map
 - **Commit:** `P14.2: map operational refinement evidence`
 
 ### P14.3 — Define the cross-runtime relative-time operation
 
-- **Status:** awaiting verification
+- **Status:** DONE
 - **Files:** `crates/msc-domain/`, `crates/msc-api/`, `crates/msc-agent/src/routes/commands.rs`, `docs/msc2/api-contract/openapi.json`, generated client types, domain fixtures if the existing fixture system needs new cases
 - **What:** Add an explicit operation for a relative time preset instead of sending `time set 1000`, `13000`, or `18000` directly. The agent must query or use the runtime's current absolute daytime, derive the current Minecraft day and tick position, calculate the target tick within that same day, and send the runtime-specific absolute command needed to reach it. Define behavior at day boundaries, for a stopped server, when the runtime cannot answer the query, and when a server reports an unsupported time capability. Preserve raw command entry as an explicit absolute operation. The API must make the distinction visible so clients cannot accidentally recreate the old behavior.
 - **Verify:** `cargo check --workspace`
@@ -84,8 +85,8 @@ editable or automatically selected when occupied.
 
 ### P14.4 — Update sidebar and command-picker time actions
 
-- **Status:** planned
-- **Files:** `clients/desktop-web/src/lib/components/shell/sidebar/QuickCommandsSection.svelte`, `clients/desktop-web/src/lib/sections/console/model.ts`, related command-picker components and generated API client types
+- **Status:** awaiting verification
+- **Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/components/ApplicationShell.svelte`, `clients/desktop-web/src/lib/components/shell/ControlSidebar.svelte`, `clients/desktop-web/src/lib/components/shell/ConsoleDock.svelte`, `clients/desktop-web/src/lib/components/shell/sidebar/QuickCommandsSection.svelte`, `clients/desktop-web/src/lib/sections/console/CommandPaletteSheet.svelte`, `clients/desktop-web/src/lib/sections/console/model.ts`, generated API client types
 - **What:** Route Dawn, Dusk, and Night buttons through the new semantic operation in the sidebar and terminal command picker. Label or group exact-day actions separately so “change the day” is deliberate rather than an invisible side effect of choosing a time of day. Keep typed raw commands available and explain that a numeric `time set` is absolute. Use capability discovery to disable or explain an unsupported action rather than guessing across Java and Bedrock. Verify the full supported Java-flavor and Bedrock mapping against the matrix from P14.2.
 - **Verify:** `npm run check`
 - **Batch:** B — relative Minecraft time
@@ -94,8 +95,8 @@ editable or automatically selected when occupied.
 ### P14.5 — Separate human console history from automatic monitoring traffic
 
 - **Status:** planned
-- **Files:** `crates/msc-infrastructure/src/console_buffer.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, console WebSocket/history DTOs, `docs/msc2/api-contract/openapi.json`
-- **What:** Define the retention and delivery contract before changing the buffer. Automatic TPS, player-count, Spark, and related polling commands must still run and feed metrics, but their command/response lines must not enter the bounded human console ring when automatic output is hidden. Keep any optional automatic diagnostic stream separate, much smaller, and independently bounded so enabling diagnostics cannot evict useful server output. Apply the filter before retention and before history/WebSocket delivery, not after the main buffer has already filled. Preserve real server replies that are not attributable to MSC's own polling commands. Document whether the existing “show/hide automatic” control means “request the separate diagnostic stream” and make its default behavior explicit.
+- **Files:** `crates/msc-infrastructure/src/console_buffer.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/backup_operations.rs`, `crates/msc-application/src/backups.rs`, `crates/msc-application/src/bedrock_service.rs`, `crates/msc-agent/src/routes/networking.rs`, `crates/msc-application/src/playit.rs`, `crates/msc-application/src/xbox_broadcast.rs`, `crates/msc-agent/src/ws/console.rs`, console WebSocket/history DTOs, `docs/msc2/api-contract/openapi.json`
+- **What:** Define the retention and delivery contract for every MSC-generated source before changing the buffer. This includes periodic monitoring (`list`, `tps`, `forge tps`, `neoforge tps`, `spark tps`, `tick query`), relative-time's internal `time query gametime`, backup save coordination (`save-all flush`, `save-off`, `save-on`, `save hold`, repeated `save query`, and `save resume`), and helper output from Xbox Broadcast and Playit. Internal parsers and operation waiters must continue receiving these events, but hidden controller/helper traffic must not enter or displace the bounded human console ring. Keep optional helper/controller diagnostics separate, smaller, and independently bounded. Apply filtering before retention and before history/WebSocket delivery, not after the main buffer fills. Preserve genuine server output and operator-entered commands, even when their text resembles a metric. Move actionable helper errors/prompts to structured helper status, notifications, or a dedicated diagnostics view rather than leaking them into the main console solely because they were not classified as routine.
 - **Verify:** `cargo check --workspace`
 - **Batch:** C — console retention
 - **Commit:** `P14.5: define separate automatic console retention`
@@ -103,8 +104,8 @@ editable or automatically selected when occupied.
 ### P14.6 — Implement early automatic-output classification
 
 - **Status:** planned
-- **Files:** `crates/msc-infrastructure/src/console_buffer.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, metric parsers and command-correlation code, console event/history serializers
-- **What:** Correlate each internally generated polling command with its response window and classify the resulting lines before they are pushed into human history. Cover `list`, Java `tps`, Forge/NeoForge TPS, Spark TPS, Bedrock tick queries, retries, delayed responses, multiline responses, server restarts, and overlapping polling cycles. Keep metric parsing independent from console retention. Bound both buffers by the existing resource-efficiency policy and ensure a reconnect receives human history without replaying hidden automatic noise.
+- **Files:** `crates/msc-infrastructure/src/console_buffer.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/backup_operations.rs`, `crates/msc-application/src/backups.rs`, `crates/msc-application/src/bedrock_service.rs`, `crates/msc-agent/src/routes/networking.rs`, `crates/msc-application/src/playit.rs`, `crates/msc-application/src/xbox_broadcast.rs`, `crates/msc-agent/src/ws/console.rs`, metric parsers, backup waiters, helper status/event code, and console event/history serializers
+- **What:** Replace the metrics-only classifier with producer-aware ingestion. Tag each line or event by origin—`user`, `server`, `controller`, or `helper`—at the point it is generated or correlated. Cover periodic `list`/TPS/Spark/tick polling; the one-shot `time query gametime`; Java and Bedrock backup save commands and their confirmation/readiness responses; Xbox Broadcast stdout/stderr, auth prompts, readiness, and failures; Playit stdout/stderr, retries, and failures; retries, delayed responses, multiline responses, server restarts, and overlapping operations. Internal metrics and backup waiters must consume the controller stream before presentation filtering. The main console ring and reconnect backfill must retain human/server output only by default, while any diagnostics stream is independently bounded and cannot evict it. Do not hide operator-entered commands or genuine server warnings merely because their text contains `TPS`, `list`, or another known automatic pattern.
 - **Verify:** `cargo clippy --workspace --all-targets -- -D warnings`
 - **Batch:** C — console retention
 - **Commit:** `P14.6: filter automatic output before console retention`
@@ -113,7 +114,7 @@ editable or automatically selected when occupied.
 
 - **Status:** planned
 - **Files:** `clients/desktop-web/src/lib/sections/console/model.ts`, console components, WebSocket client/event handling, help content for console filters
-- **What:** Remove the current assumption that client-side hiding is sufficient. The default console view and reconnect path must request human output without automatic monitoring lines, so “no items match console filters” is not caused by hidden polling traffic consuming the history window. If an explicit diagnostics view is retained, make it a separate bounded view with clear copy and no effect on the main console. Preserve filter/search behavior for genuine server output and keep manual command echo behavior intentional.
+- **What:** Remove the current assumption that client-side hiding is sufficient. The default console view and reconnect path must request human/server output without controller or routine helper traffic, so “no items match console filters” is not caused by hidden monitoring, backup, Xbox Broadcast, or Playit output consuming the history window. If an explicit diagnostics view is retained, make it a separate bounded view with clear copy and no effect on the main console. Preserve filter/search behavior for genuine server output, manual command echo, and actionable helper state displayed through its proper status/notification surface.
 - **Verify:** `npm run check`
 - **Batch:** C — console retention
 - **Commit:** `P14.7: keep automatic output out of the main console`

@@ -579,7 +579,7 @@ export const MINECRAFT_COMMANDS: readonly MinecraftCommandDef[] = [
   // World
   {
     name: 'time',
-    description: 'Set, add, or query the world time',
+    description: 'Set absolute time, add ticks, or query the world time',
     category: 'World',
     argumentSlots: [
       keyword(['set', 'add', 'query'], 'action'),

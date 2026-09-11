@@ -18,6 +18,7 @@
   import Button from '../../components/base/Button.svelte';
   import Field from '../../components/base/Field.svelte';
   import Icon from '../../components/base/Icon.svelte';
+  import type { Schema } from '../shared/types';
   import {
     COMMAND_CATEGORIES,
     buildCommand,
@@ -31,8 +32,18 @@
 
   export let serverType: string | undefined = undefined;
   export let onlinePlayers: readonly CommandPlayerName[] = [];
+  export let capabilities: Schema['CapabilitiesDTO'] | null = null;
   export let onClose: () => void;
   export let onUse: (command: string) => void;
+  export let onUseRelativeTime: (
+    preset: Schema['RelativeTimeRequest']['preset'],
+  ) => void = () => undefined;
+
+  const TIME_PRESETS = [
+    { value: 'dawn', label: 'Dawn' },
+    { value: 'dusk', label: 'Dusk' },
+    { value: 'night', label: 'Night' },
+  ] as const;
 
   let searchText = '';
   let category: CommandCategory | undefined;
@@ -50,6 +61,12 @@
   });
   $: showGrouped = !searchText.trim() && !category;
   $: builtCommand = selected ? buildCommand(selected, argValues) : '';
+  $: relativeTime = capabilities?.worldSettings?.relativeTime;
+  $: relativeTimeAvailable = relativeTime?.available === true;
+
+  function supportsRelativeTimePreset(preset: (typeof TIME_PRESETS)[number]['value']): boolean {
+    return relativeTimeAvailable && relativeTime?.presets.includes(preset) === true;
+  }
 
   function open(def: MinecraftCommandDef): void {
     if (hasRequiredArgs(def)) {
@@ -72,6 +89,12 @@
     onClose();
   }
 
+  function useRelativeTime(preset: Schema['RelativeTimeRequest']['preset']): void {
+    if (!supportsRelativeTimePreset(preset)) return;
+    onUseRelativeTime(preset);
+    onClose();
+  }
+
   async function copyPreview(): Promise<void> {
     await navigator.clipboard?.writeText(builtCommand);
   }
@@ -86,6 +109,12 @@
       <div class="summary">
         <p class="description">{definition.description}</p>
         <p class="syntax">{commandSyntaxHint(definition)}</p>
+        {#if definition.name === 'time'}
+          <p class="semantic-note">
+            Numeric <code>/time set</code> values are absolute and can change the Minecraft day.
+            Use the same-day shortcuts in the palette when you only want dawn, dusk, or night.
+          </p>
+        {/if}
       </div>
 
       {#each definition.argumentSlots as slot, index (index)}
@@ -165,6 +194,34 @@
   {:else}
     <div class="browse">
       <Field bind:value={searchText} placeholder="Search commands…" />
+
+      <section class="semantic-actions" aria-label="Same-day time shortcuts">
+        <p class="msc2-type-overline">Same-day time</p>
+        <p class="semantic-description">
+          These actions keep the current Minecraft day. Raw numeric <code>/time set</code> values
+          below remain absolute.
+        </p>
+        <div class="chip-row">
+          {#each TIME_PRESETS as preset (preset.value)}
+            <button
+              type="button"
+              class="chip"
+              disabled={!supportsRelativeTimePreset(preset.value)}
+              title={supportsRelativeTimePreset(preset.value)
+                ? `Set ${preset.label.toLowerCase()} in the current day`
+                : (relativeTime?.reason ?? 'This runtime does not advertise same-day time shortcuts.')}
+              onclick={() => useRelativeTime(preset.value)}
+            >
+              {preset.label}
+            </button>
+          {/each}
+        </div>
+        {#if !relativeTimeAvailable}
+          <p class="semantic-unavailable" role="status">
+            {relativeTime?.reason ?? 'Unavailable for the selected runtime.'}
+          </p>
+        {/if}
+      </section>
 
       <div class="chip-row">
         <button
@@ -319,6 +376,30 @@
     padding: 12px;
     background: var(--msc2-tier-content);
     border-radius: 10px;
+  }
+  .semantic-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 2px 0 4px;
+  }
+  .semantic-description,
+  .semantic-unavailable,
+  .semantic-note {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.45;
+    color: var(--msc2-text-secondary);
+  }
+  .semantic-unavailable {
+    color: var(--msc2-text-tertiary);
+  }
+  .semantic-note {
+    padding-top: 4px;
+  }
+  code {
+    font-family: var(--msc2-font-mono);
+    font-size: 0.95em;
   }
   .description {
     margin: 0;

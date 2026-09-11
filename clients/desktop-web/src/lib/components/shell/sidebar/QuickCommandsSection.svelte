@@ -1,8 +1,7 @@
 <script lang="ts">
   // Ports MSC 1 QuickCommandsView.swift in full -- live, in-session shortcuts
-  // sent as raw console commands through the existing POST /v1/command
-  // route, not persisted server.properties edits (that's SettingsSection's
-  // job). Command strings read verbatim from
+  // sent as live agent operations, not persisted server.properties edits
+  // (that's SettingsSection's job). Command strings read verbatim from
   // AppViewModel+ServerControls.swift:475-528, not guessed.
   //
   // Bedrock branching is real and manual, not something /v1/command does for
@@ -25,12 +24,13 @@
   export let activeServerId: string | undefined = undefined;
   export let running = false;
   export let isBedrock = false;
+  export let capabilities: Schema['CapabilitiesDTO'] | null = null;
   export let canControl = true;
 
   const TIME_PRESETS = [
-    { value: '1000', label: 'Dawn' },
-    { value: '13000', label: 'Dusk' },
-    { value: '18000', label: 'Night' },
+    { value: 'dawn', label: 'Dawn' },
+    { value: 'dusk', label: 'Dusk' },
+    { value: 'night', label: 'Night' },
   ] as const;
   const WEATHER_PRESETS = [
     { value: 'clear', label: 'Clear' },
@@ -91,6 +91,12 @@
   $: tps = performance?.tps1m?.value;
   $: onlineCount = players?.count ?? 0;
   $: disabled = !running || !canControl;
+  $: relativeTime = capabilities?.worldSettings?.relativeTime;
+  $: relativeTimeAvailable = relativeTime?.available === true;
+
+  function supportsRelativeTimePreset(preset: (typeof TIME_PRESETS)[number]['value']): boolean {
+    return relativeTimeAvailable && relativeTime?.presets.includes(preset) === true;
+  }
 
   $: if (activeServerId !== loadedForServerId) {
     loadedForServerId = activeServerId;
@@ -129,6 +135,16 @@
       } else {
         notice = errorMessage(error);
       }
+    }
+  }
+
+  async function sendRelativeTime(preset: (typeof TIME_PRESETS)[number]['value']): Promise<void> {
+    if (!supportsRelativeTimePreset(preset)) return;
+    notice = '';
+    try {
+      await mutate(api, '/v1/time/relative', { preset });
+    } catch (error) {
+      notice = errorMessage(error);
     }
   }
 
@@ -197,13 +213,23 @@
         <button
           type="button"
           class="pill"
-          {disabled}
-          onclick={() => sendCommand(`time set ${preset.value}`)}
+          disabled={disabled || !supportsRelativeTimePreset(preset.value)}
+          title={supportsRelativeTimePreset(preset.value)
+            ? 'Keep the current Minecraft day'
+            : (relativeTime?.reason ?? 'This runtime does not advertise same-day time shortcuts.')}
+          onclick={() => void sendRelativeTime(preset.value)}
         >
           {preset.label}
         </button>
       {/each}
     </div>
+    {#if !relativeTimeAvailable}
+      <p class="subtle-note" role="status">
+        {relativeTime?.reason ?? 'Same-day shortcuts are unavailable until the selected runtime advertises time support.'}
+      </p>
+    {:else}
+      <p class="subtle-note">Dawn, dusk, and night keep the current Minecraft day.</p>
+    {/if}
     <p class="sub-label">Weather</p>
     <div class="button-row">
       {#each WEATHER_PRESETS as preset (preset.value)}
@@ -299,6 +325,12 @@
   .sub-label {
     margin: 0;
     font-size: 10px;
+    color: var(--msc2-text-tertiary);
+  }
+  .subtle-note {
+    margin: 0;
+    font-size: 10px;
+    line-height: 1.4;
     color: var(--msc2-text-tertiary);
   }
   .button-row {

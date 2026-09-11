@@ -385,8 +385,9 @@
     {#if howItWorksExpanded}
       <div id="how-msc-works" class="how-content">
         <p class="detail">
-          The control panel is the app you use. The agent is the background service that manages the
-          Minecraft servers.
+          The control panel (what you can see) is the app you use. The agent (what you can't see) is
+          the background service that manages the Minecraft servers. The control panel and agent can
+          run on the same computer or on different computers.
         </p>
         <div
           class="architecture-diagram"

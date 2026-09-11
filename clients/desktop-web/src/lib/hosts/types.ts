@@ -36,6 +36,10 @@ export interface HostRecord {
   managementPort: number;
   /** A client-side port for a future managed SSH forward. */
   localForwardedPort?: number;
+  /** Whether the connection manager should try a direct route before SSH. */
+  tryDirectFirst: boolean;
+  /** An existing user-maintained tunnel endpoint, when the advanced path is used. */
+  manualAgentAddress?: string;
 
   /** Accepted while reading old in-memory callers; never written by saved.ts. */
   readonly label?: string;
@@ -55,11 +59,35 @@ export interface RemoteHostProfileInput {
   readonly id: HostId;
   readonly displayName: string;
   readonly baseUrl: string;
+  readonly lanAddresses?: readonly string[];
   readonly tailscaleAddresses?: readonly string[];
   readonly preferredRouteOrder?: readonly HostRoute[];
   readonly ssh?: Partial<SshProfile>;
   readonly managementPort?: number;
   readonly localForwardedPort?: number;
+  readonly tryDirectFirst?: boolean;
+  readonly manualAgentAddress?: string;
+}
+
+/**
+ * Values collected by the remote-host setup flow. `sshPassword` is deliberately
+ * an input-only value: callers may use it for the connection attempt, but it is
+ * never part of `HostRecord` or the saved-host envelope.
+ */
+export interface RemoteHostConnectionInput {
+  readonly displayName: string;
+  readonly lanAddress: string;
+  readonly tailscaleAddress?: string;
+  readonly preferredRoute: HostRoute;
+  readonly tryDirectFirst: boolean;
+  readonly ssh: SshProfile;
+  readonly sshPassword?: string;
+  readonly managementPort: number;
+  readonly localForwardedPort: number;
+  readonly manualTunnel: boolean;
+  readonly manualAgentAddress?: string;
+  readonly baseUrl: string;
+  readonly pairingCode: string;
 }
 
 export function createLocalHostRecord(baseUrl: string): HostRecord {
@@ -76,15 +104,19 @@ export function createLocalHostRecord(baseUrl: string): HostRecord {
       authentication: 'agent',
     },
     managementPort: portFromUrl(baseUrl) ?? DEFAULT_MANAGEMENT_PORT,
+    tryDirectFirst: true,
   };
 }
 
 export function createRemoteHostRecord(input: RemoteHostProfileInput): HostRecord {
-  const parsedAddress = parseAddress(input.baseUrl);
+  const lanAddresses = [...(input.lanAddresses ?? [input.baseUrl])]
+    .map((address) => address.trim())
+    .filter(Boolean);
+  const parsedAddress = parseAddress(lanAddresses[0] ?? input.baseUrl);
   return {
     id: input.id,
     displayName: input.displayName.trim(),
-    lanAddresses: [input.baseUrl.trim()],
+    lanAddresses,
     tailscaleAddresses: [...(input.tailscaleAddresses ?? [])],
     preferredRouteOrder: [...(input.preferredRouteOrder ?? ['lan', 'tailscale'])],
     ssh: {
@@ -100,6 +132,10 @@ export function createRemoteHostRecord(input: RemoteHostProfileInput): HostRecor
     ...(input.localForwardedPort === undefined
       ? { localForwardedPort: DEFAULT_LOCAL_FORWARDED_PORT }
       : { localForwardedPort: input.localForwardedPort }),
+    tryDirectFirst: input.tryDirectFirst ?? true,
+    ...(input.manualAgentAddress?.trim()
+      ? { manualAgentAddress: input.manualAgentAddress.trim() }
+      : {}),
   };
 }
 
@@ -135,6 +171,8 @@ export function normalizeHostRecord(value: unknown): HostRecord | null {
   const localForwardedPort =
     validPort(record.localForwardedPort) ??
     (id === LOCAL_HOST_ID ? undefined : DEFAULT_LOCAL_FORWARDED_PORT);
+  const tryDirectFirst = record.tryDirectFirst !== false;
+  const manualAgentAddress = stringValue(record.manualAgentAddress);
 
   return {
     id,
@@ -153,6 +191,8 @@ export function normalizeHostRecord(value: unknown): HostRecord | null {
     },
     managementPort,
     ...(localForwardedPort === undefined ? {} : { localForwardedPort }),
+    tryDirectFirst,
+    ...(manualAgentAddress ? { manualAgentAddress } : {}),
   };
 }
 
@@ -171,6 +211,7 @@ export function preferredHostAddress(host: HostRecord): string | null {
 
 /** Builds the direct agent origin without changing a complete URL's scheme or port. */
 export function hostManagementUrl(host: HostRecord): string {
+  if (!host.tryDirectFirst && host.manualAgentAddress) return host.manualAgentAddress;
   const address = preferredHostAddress(host);
   if (!address) return `http://127.0.0.1:${host.managementPort}`;
   const parsed = parseAddress(address);

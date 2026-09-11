@@ -5,13 +5,20 @@
   import ConfirmDialog from '../../components/ConfirmDialog.svelte';
   import Field from '../../components/base/Field.svelte';
   import StatusDot from '../../components/base/StatusDot.svelte';
+  import HelpLink from '../../help/HelpLink.svelte';
   import {
     getPlatform,
     type AgentReadiness,
     type AgentServiceAction,
     type AgentServiceStatus,
   } from '../../platform';
-  import { hostAddressSummary, type HostId, type HostRecord } from '../../hosts/types';
+  import {
+    hostAddressSummary,
+    type HostId,
+    type HostRecord,
+    type RemoteHostConnectionInput,
+  } from '../../hosts/types';
+  import RemoteConnectionWizard from './connection/RemoteConnectionWizard.svelte';
   import type { Schema, ScreenApi } from '../shared/types';
 
   export let readiness: AgentReadiness = 'starting';
@@ -19,6 +26,7 @@
   export let hostId = '';
   export let hostLabel = 'Local agent';
   export let hostBaseUrl = 'http://127.0.0.1:48001';
+  export let serverId = 'survival';
   export let hosts: readonly HostRecord[] = [];
   export let activeHostId: HostId = '';
   export let hostSummaries: ReadonlyMap<HostId, { connection: string; serverCount: number }> =
@@ -27,8 +35,7 @@
   export let isLocalHost = true;
   export let browserHandoffError = '';
   export let onPairAgain: ((pairingCode: string) => Promise<void>) | undefined = undefined;
-  export let onConnectHost:
-    ((label: string, baseUrl: string, pairingCode: string) => Promise<void>) | undefined =
+  export let onConnectHost: ((input: RemoteHostConnectionInput) => Promise<void>) | undefined =
     undefined;
   export let onRemoveHost: (() => Promise<void>) | undefined = undefined;
   export let onDisconnectHost: (() => Promise<void>) | undefined = undefined;
@@ -59,7 +66,6 @@
     'msc service stop --service-name msc-agent',
   ];
   const pairingCommand = 'msc pairing create --client-kind desktop';
-  const sshTunnelCommand = 'ssh -N -L 48002:127.0.0.1:48001 username@ip-address';
   const linuxServiceName = '<agent-service-name>';
   const commonServiceCommands = [
     `msc service status --service-name ${linuxServiceName}`,
@@ -85,10 +91,6 @@
   let localPairingCode = '';
   let localPairingBusy = false;
   let copiedPairingCode = false;
-  let remoteHostLabel = '';
-  let remoteHostUrl = '';
-  let remotePairingCode = '';
-  let remotePairingBusy = false;
   let removeHostOpen = false;
   let removeHostBusy = false;
   let disconnectBusy = false;
@@ -233,25 +235,6 @@
     }
   }
 
-  async function connectHost(): Promise<void> {
-    const label = remoteHostLabel.trim();
-    const baseUrl = remoteHostUrl.trim();
-    const code = remotePairingCode.trim();
-    if (!onConnectHost || !label || !baseUrl || !code || remotePairingBusy) return;
-    remotePairingBusy = true;
-    errorMessage = '';
-    try {
-      await onConnectHost(label, baseUrl, code);
-      remoteHostLabel = '';
-      remoteHostUrl = '';
-      remotePairingCode = '';
-    } catch (error) {
-      errorMessage = String(error);
-    } finally {
-      remotePairingBusy = false;
-    }
-  }
-
   function openRemoveHost(hostId: HostId, label: string): void {
     removeHostId = hostId;
     removeHostLabel = label;
@@ -295,6 +278,10 @@
     } catch {
       return false;
     }
+  }
+
+  async function connectRemoteHost(input: RemoteHostConnectionInput): Promise<void> {
+    await onConnectHost?.(input);
   }
 
   function savedHostStatus(host: HostRecord): string {
@@ -598,153 +585,16 @@
       <div id="connect-another-agent" class="agent-content">
         <p class="detail">
           Use this path when the Minecraft servers live somewhere else. The other computer must have
-          the agent installed and running.
-          <span class="instruction-hint">(Click each step for more information.)</span>
+          the agent installed and running. MSC will explain the route, ports, and SSH identity
+          before it saves anything.
         </p>
 
         {#if isDesktopShell}
-          <ol class="connection-steps">
-            <li>
-              <details class="connection-step">
-                <summary>
-                  <span class="step-number">1</span>
-                  <span class="step-title">Start the agent on the other computer</span>
-                </summary>
-                <div class="step-content">
-                  <p class="detail">
-                    Go to the computer where the Minecraft servers will run. The agent must be
-                    running there before this computer can connect to it.
-                  </p>
-                  <p class="detail">
-                    If that computer has the MSC app, open it and click <strong>Start agent</strong>
-                    or <strong>Install and Continue</strong>. If you are managing the computer
-                    remotely, use the common MSC service commands in Extra notes to start the
-                    installed agent service. The app does not need to remain open after the agent is
-                    running.
-                  </p>
-                  <p class="detail">
-                    If the agent is not installed yet, install the headless agent package first.
-                  </p>
-                </div>
-              </details>
-            </li>
-            <li>
-              <details class="connection-step">
-                <summary>
-                  <span class="step-number">2</span>
-                  <span class="step-title">Make the agent reachable from this computer</span>
-                </summary>
-                <div class="step-content">
-                  <p class="detail">
-                    Run the following command on this computer—the one where you are using the MSC
-                    desktop app:
-                  </p>
-                  <div class="command-row">
-                    <Field value={sshTunnelCommand} />
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onclick={() => void copyCommand(sshTunnelCommand)}
-                    >
-                      {copiedCommand === sshTunnelCommand ? 'Copied' : 'Copy'}
-                    </Button>
-                  </div>
-                  <p class="detail">
-                    Keep this Terminal window open while using MSC. The tunnel carries this
-                    computer’s local address <span class="mono">127.0.0.1:48002</span> to the agent’s
-                    address on the other computer.
-                  </p>
-                  <p class="detail">
-                    Replace <span class="mono">username@ip-address</span> with the username you use
-                    to sign in to the other computer, followed by <span class="mono">@</span> and
-                    that computer’s IP address. For example:
-                    <span class="mono">camerontemple@10.0.0.156</span>.
-                  </p>
-                  <p class="detail">
-                    If you do not know them, run <span class="mono">whoami</span> on the other
-                    computer to find its username and <span class="mono">hostname -I</span> to find its
-                    network address.
-                  </p>
-                </div>
-              </details>
-            </li>
-            <li>
-              <details class="connection-step">
-                <summary>
-                  <span class="step-number">3</span>
-                  <span class="step-title">Create a pairing code on the other computer</span>
-                </summary>
-                <div class="step-content">
-                  <p class="detail">
-                    Open Terminal on the computer running the agent—or SSH into it—and run this
-                    command there:
-                  </p>
-                  <div class="command-row">
-                    <Field value={pairingCommand} />
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onclick={() => void copyCommand(pairingCommand)}
-                    >
-                      {copiedCommand === pairingCommand ? 'Copied' : 'Copy'}
-                    </Button>
-                  </div>
-                  <p class="detail">
-                    Copy the one-use code that appears. Do not run this command on the computer
-                    running this MSC desktop app. The code expires automatically and is exchanged
-                    for a lasting client credential. If the agent computer has the desktop app
-                    installed, you can click <strong>Pair another client with this agent</strong> for
-                    the code.
-                  </p>
-                </div>
-              </details>
-            </li>
-            <li>
-              <details class="connection-step">
-                <summary>
-                  <span class="step-number">4</span>
-                  <span class="step-title">Enter the address and pairing code below</span>
-                </summary>
-                <div class="step-content">
-                  <p class="detail">
-                    For the SSH tunnel above, enter
-                    <span class="mono">http://127.0.0.1:48002</span> as the agent address. This is the
-                    local end of the tunnel, not the other computer’s IP address.
-                  </p>
-                  <p class="detail">
-                    Enter a name for the host, paste the pairing code from step 3, and click
-                    <strong>Connect agent</strong>. The name is how this computer will identify the
-                    host in MSC.
-                  </p>
-                </div>
-              </details>
-            </li>
-          </ol>
-
-          <div class="remote-pairing-form">
-            <label class="field-label">
-              Host name
-              <Field bind:value={remoteHostLabel} placeholder="Home server" />
-            </label>
-            <label class="field-label">
-              Agent address
-              <Field bind:value={remoteHostUrl} placeholder="http://127.0.0.1:48002" />
-            </label>
-            <label class="field-label">
-              Pairing code
-              <Field bind:value={remotePairingCode} placeholder="Code from the other computer" />
-            </label>
-            <Button
-              variant="primary"
-              disabled={remotePairingBusy ||
-                !remoteHostLabel.trim() ||
-                !remoteHostUrl.trim() ||
-                !remotePairingCode.trim()}
-              onclick={() => void connectHost()}
-            >
-              {remotePairingBusy ? 'Connecting…' : 'Connect agent'}
-            </Button>
-          </div>
+          <RemoteConnectionWizard hosts={savedHosts} onConnect={connectRemoteHost} />
+          <p class="wizard-help">
+            Need the background service or network concepts explained first?
+            <HelpLink helpId="handbook.remote-access" {hostId} {serverId} />.
+          </p>
           <details class="secondary-disclosure extra-notes">
             <summary>Extra notes</summary>
             <div class="secondary-content">
@@ -957,12 +807,6 @@
     font-size: 13px;
     line-height: 1.5;
   }
-  .instruction-hint {
-    display: block;
-    margin-top: 4px;
-    color: var(--msc2-text-tertiary);
-    font-size: 12px;
-  }
   .quiet-label {
     font-size: 12px;
   }
@@ -1146,8 +990,7 @@
     font-size: 12px;
     line-height: 1.5;
   }
-  .command-list,
-  .remote-pairing-form {
+  .command-list {
     display: grid;
     gap: 10px;
     margin-top: 14px;
@@ -1159,67 +1002,12 @@
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
   }
-  .field-label {
-    display: grid;
-    gap: 5px;
-    color: var(--msc2-text-secondary);
+  .wizard-help {
+    margin: 12px 0 0;
+    color: var(--msc2-text-tertiary);
     font-size: 12px;
-  }
-  .connection-steps {
-    display: grid;
-    gap: 7px;
-    margin: 16px 0 0;
-    padding-left: 0;
-    color: var(--msc2-text-secondary);
-    font-size: 13px;
     line-height: 1.5;
-    list-style: none;
   }
-  .connection-step {
-    padding-left: 4px;
-  }
-  .connection-step summary {
-    display: grid;
-    grid-template-columns: 22px minmax(0, 1fr);
-    gap: 8px;
-    align-items: center;
-    color: var(--msc2-text-primary);
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 500;
-    list-style: none;
-  }
-  .connection-step summary::-webkit-details-marker {
-    display: none;
-  }
-  .step-number {
-    display: inline-grid;
-    width: 20px;
-    height: 20px;
-    align-items: center;
-    justify-content: center;
-    color: var(--msc2-text-secondary);
-    background: var(--msc2-tier-chrome);
-    border-radius: 50%;
-    font-size: 11px;
-    font-weight: 600;
-  }
-  .connection-step[open] .step-number {
-    color: var(--msc2-neutral-fill-ink);
-    background: var(--msc2-neutral-fill);
-  }
-  .step-title {
-    min-width: 0;
-  }
-  .step-content {
-    display: grid;
-    gap: 10px;
-    padding: 4px 0 8px 30px;
-  }
-  .step-content .detail {
-    margin-top: 0;
-  }
-  .connection-steps .mono,
   .mono {
     color: var(--msc2-text-primary);
     font-family: var(--msc2-font-mono, monospace);

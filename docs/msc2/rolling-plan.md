@@ -173,9 +173,8 @@ editable or automatically selected when occupied.
 - **Commit:** `P14.12: add managed SSH tunnel capability`
 
 ### P14.13 — Add the teaching connection wizard in “Connect to another host”
-
-- **Status:** planned
-- **Files:** `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, setup/connection components, host profile components, help content, generated client types
+- **Status:** awaiting verification
+- **Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/hosts/types.ts`, `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `clients/desktop-web/src/lib/sections/setup/connection/RemoteConnectionWizard.svelte`, help content, generated client types
 - **What:** Rework the existing manual setup section into an in-app guided flow. The form must collect and explain:
   - host name;
   - LAN address/hostname and optional Tailscale address/hostname;

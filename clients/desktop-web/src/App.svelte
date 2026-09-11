@@ -32,6 +32,7 @@
     LOCAL_HOST_ID,
     type HostId,
     type HostRecord,
+    type RemoteHostConnectionInput,
   } from './lib/hosts/types';
   import ManageSheet from './lib/sections/fleet/ManageSheet.svelte';
   import AppSettingsSheet from './lib/sections/app-settings/AppSettingsSheet.svelte';
@@ -209,17 +210,26 @@
     await selectSection('agent-setup');
   }
 
-  async function addRemoteHost(
-    label: string,
-    baseUrl: string,
-    pairingCode: string,
-  ): Promise<string> {
+  async function addRemoteHost(input: RemoteHostConnectionInput): Promise<string> {
     const auth = new DesktopSessionAuth(await loadTauriDesktopCredentialBridge());
-    const result = await auth.redeemRemotePairing(baseUrl, pairingCode);
+    const result = await auth.redeemRemotePairing(input.baseUrl, input.pairingCode);
     const host = createRemoteHostRecord({
       id: result.agentHostId,
-      displayName: label,
-      baseUrl,
+      displayName: input.displayName,
+      baseUrl: input.baseUrl,
+      lanAddresses: input.lanAddress ? [input.lanAddress] : [],
+      tailscaleAddresses: input.tailscaleAddress ? [input.tailscaleAddress] : [],
+      preferredRouteOrder: [
+        input.preferredRoute,
+        input.preferredRoute === 'lan' ? 'tailscale' : 'lan',
+      ],
+      ssh: input.ssh,
+      managementPort: input.managementPort,
+      localForwardedPort: input.localForwardedPort,
+      tryDirectFirst: input.manualTunnel ? false : input.tryDirectFirst,
+      ...(input.manualTunnel && input.manualAgentAddress
+        ? { manualAgentAddress: input.manualAgentAddress }
+        : {}),
     });
     const existing = hostStore.listHosts().find((registered) => registered.id === host.id);
     if (existing) hostStore.updateHost(host);
@@ -229,12 +239,8 @@
     return result.agentHostId;
   }
 
-  async function connectRemoteHost(
-    label: string,
-    baseUrl: string,
-    pairingCode: string,
-  ): Promise<void> {
-    const remoteHostId = await addRemoteHost(label, baseUrl, pairingCode);
+  async function connectRemoteHost(input: RemoteHostConnectionInput): Promise<void> {
+    const remoteHostId = await addRemoteHost(input);
     await switchHost(remoteHostId);
   }
 
@@ -262,6 +268,10 @@
       ...(previousHost.localForwardedPort === undefined
         ? {}
         : { localForwardedPort: previousHost.localForwardedPort }),
+      tryDirectFirst: previousHost.tryDirectFirst,
+      ...(previousHost.manualAgentAddress
+        ? { manualAgentAddress: previousHost.manualAgentAddress }
+        : {}),
     };
     hostStore.removeHost(previousHost.id);
     hostStore.addHost(replacementHost);
@@ -909,8 +919,7 @@
           {browserHandoffError}
           onAgentRetry={() => void initializeClient()}
           onPairAgain={(code: string) => pairAgain(code)}
-          onConnectHost={(label: string, baseUrl: string, code: string) =>
-            connectRemoteHost(label, baseUrl, code)}
+          onConnectHost={(input: RemoteHostConnectionInput) => connectRemoteHost(input)}
           onRemoveHost={isDesktopShell && hostId !== localAgentHostId
             ? removeCurrentRemoteHost
             : undefined}

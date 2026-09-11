@@ -11,7 +11,7 @@
     type AgentServiceAction,
     type AgentServiceStatus,
   } from '../../platform';
-  import type { HostId, HostRecord } from '../../hosts/types';
+  import { hostAddressSummary, type HostId, type HostRecord } from '../../hosts/types';
   import type { Schema, ScreenApi } from '../shared/types';
 
   export let readiness: AgentReadiness = 'starting';
@@ -816,8 +816,8 @@
                 <div class="saved-host-row">
                   <div class="saved-host-info">
                     <span class="saved-host-status">{savedHostStatus(savedHost)}</span>
-                    <strong>{savedHost.label}</strong>
-                    <span class="saved-host-address">{savedHost.baseUrl}</span>
+                    <strong>{savedHost.displayName}</strong>
+                    <span class="saved-host-address">{hostAddressSummary(savedHost)}</span>
                     <span class="saved-host-servers">
                       {hostSummaries.get(savedHost.id)?.serverCount ?? 0} servers known
                     </span>
@@ -837,7 +837,8 @@
                       variant="destructive"
                       size="sm"
                       disabled={removeHostBusy}
-                      onclick={() => openRemoveHost(savedHost.id, savedHost.label)}>Remove</Button
+                      onclick={() => openRemoveHost(savedHost.id, savedHost.displayName)}
+                      >Remove</Button
                     >
                   </div>
                 </div>

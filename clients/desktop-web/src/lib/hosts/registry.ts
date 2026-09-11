@@ -6,7 +6,9 @@ import {
   type HostCache,
   type HostId,
   type HostRecord,
+  type HostRecordInput,
   type HostState,
+  normalizeHostRecord,
 } from './types';
 import type { components } from '../api/generated';
 
@@ -35,22 +37,22 @@ export class HostStore {
     this.now = options.now ?? Date.now;
   }
 
-  addHost(record: HostRecord): void {
-    validateHost(record);
-    if (this.hosts.has(record.id)) {
-      throw new Error(`Host '${record.id}' is already registered`);
+  addHost(record: HostRecordInput): void {
+    const normalized = validateHost(record);
+    if (this.hosts.has(normalized.id)) {
+      throw new Error(`Host '${normalized.id}' is already registered`);
     }
-    this.hosts.set(record.id, { ...record });
-    this.caches.set(record.id, emptyHostCache());
-    this.selectedHostId ??= record.id;
+    this.hosts.set(normalized.id, cloneHost(normalized));
+    this.caches.set(normalized.id, emptyHostCache());
+    this.selectedHostId ??= normalized.id;
   }
 
-  updateHost(record: HostRecord): void {
-    validateHost(record);
-    if (!this.hosts.has(record.id)) {
-      throw new Error(`Unknown host '${record.id}'`);
+  updateHost(record: HostRecordInput): void {
+    const normalized = validateHost(record);
+    if (!this.hosts.has(normalized.id)) {
+      throw new Error(`Unknown host '${normalized.id}'`);
     }
-    this.hosts.set(record.id, { ...record });
+    this.hosts.set(normalized.id, cloneHost(normalized));
   }
 
   removeHost(hostId: HostId): void {
@@ -70,7 +72,7 @@ export class HostStore {
   }
 
   listHosts(): readonly HostRecord[] {
-    return [...this.hosts.values()].map((host) => ({ ...host }));
+    return [...this.hosts.values()].map(cloneHost);
   }
 
   selectHost(hostId: HostId): void {
@@ -85,7 +87,7 @@ export class HostStore {
   getState(hostId: HostId): HostState {
     const host = this.requireHost(hostId);
     const cache = this.requireCache(hostId);
-    return { host: { ...host }, cache: cloneCache(cache) };
+    return { host: cloneHost(host), cache: cloneCache(cache) };
   }
 
   getSelectedState(): HostState | null {
@@ -231,15 +233,22 @@ export function clearClientPreferences(): void {
   }
 }
 
-function validateHost(host: HostRecord): void {
-  if (!host.id.trim() || !host.label.trim()) {
-    throw new Error('A host needs a non-empty id and label');
+function validateHost(host: HostRecordInput): HostRecord {
+  const normalized = normalizeHostRecord(host);
+  if (!normalized) {
+    throw new Error('A host needs an id, display name, and at least one valid address');
   }
-  try {
-    new URL(host.baseUrl);
-  } catch {
-    throw new Error(`Host '${host.id}' has an invalid base URL`);
-  }
+  return normalized;
+}
+
+function cloneHost(host: HostRecord): HostRecord {
+  return {
+    ...host,
+    lanAddresses: [...host.lanAddresses],
+    tailscaleAddresses: [...host.tailscaleAddresses],
+    preferredRouteOrder: [...host.preferredRouteOrder],
+    ssh: { ...host.ssh },
+  };
 }
 
 function cloneCache(cache: HostCache): HostCache {

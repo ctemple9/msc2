@@ -1,11 +1,17 @@
-import type { HostRecord } from './types';
+import { LOCAL_HOST_ID, normalizeHostRecord, type HostRecord } from './types';
 
 /**
  * Remote host metadata is useful to remember, but it is not a credential.
  * Bearer credentials remain in the native desktop secret store; this file only
- * keeps the label and address needed to rediscover a saved host after restart.
+ * keeps the editable profile needed to rediscover a saved host after restart.
  */
 export const SAVED_REMOTE_HOSTS_KEY = 'msc2.saved-remote-hosts';
+export const SAVED_REMOTE_HOSTS_SCHEMA_VERSION = 2;
+
+interface SavedHostsEnvelope {
+  readonly version: typeof SAVED_REMOTE_HOSTS_SCHEMA_VERSION;
+  readonly hosts: readonly HostRecord[];
+}
 
 export function loadSavedRemoteHosts(): HostRecord[] {
   if (typeof localStorage === 'undefined') return [];
@@ -14,14 +20,20 @@ export function loadSavedRemoteHosts(): HostRecord[] {
 
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
+    const entries = Array.isArray(parsed)
+      ? parsed
+      : isSavedHostsEnvelope(parsed)
+        ? parsed.hosts
+        : [];
 
     const seen = new Set<string>();
-    return parsed.filter((value): value is HostRecord => {
-      if (!isHostRecord(value) || seen.has(value.id) || value.id === 'local-agent') return false;
-      seen.add(value.id);
-      return true;
-    });
+    return entries.reduce<HostRecord[]>((hosts, value) => {
+      const host = normalizeHostRecord(value);
+      if (!host || host.id === LOCAL_HOST_ID || seen.has(host.id)) return hosts;
+      seen.add(host.id);
+      hosts.push(host);
+      return hosts;
+    }, []);
   } catch {
     return [];
   }
@@ -29,33 +41,34 @@ export function loadSavedRemoteHosts(): HostRecord[] {
 
 export function saveRemoteHost(host: HostRecord): void {
   if (typeof localStorage === 'undefined') return;
+  const normalized = normalizeHostRecord(host);
+  if (!normalized || normalized.id === LOCAL_HOST_ID) {
+    throw new Error('Only a valid remote host profile can be saved.');
+  }
   const hosts = loadSavedRemoteHosts().filter((saved) => saved.id !== host.id);
-  hosts.push({ id: host.id, label: host.label, baseUrl: host.baseUrl });
-  localStorage.setItem(SAVED_REMOTE_HOSTS_KEY, JSON.stringify(hosts));
+  hosts.push(normalized);
+  const saved: SavedHostsEnvelope = {
+    version: SAVED_REMOTE_HOSTS_SCHEMA_VERSION,
+    hosts,
+  };
+  localStorage.setItem(SAVED_REMOTE_HOSTS_KEY, JSON.stringify(saved));
 }
 
 export function forgetSavedRemoteHost(hostId: string): void {
   if (typeof localStorage === 'undefined') return;
   const hosts = loadSavedRemoteHosts().filter((host) => host.id !== hostId);
-  localStorage.setItem(SAVED_REMOTE_HOSTS_KEY, JSON.stringify(hosts));
+  const saved: SavedHostsEnvelope = {
+    version: SAVED_REMOTE_HOSTS_SCHEMA_VERSION,
+    hosts,
+  };
+  localStorage.setItem(SAVED_REMOTE_HOSTS_KEY, JSON.stringify(saved));
 }
 
-function isHostRecord(value: unknown): value is HostRecord {
-  if (!value || typeof value !== 'object') return false;
-  const record = value as Record<string, unknown>;
-  if (
-    typeof record.id !== 'string' ||
-    typeof record.label !== 'string' ||
-    typeof record.baseUrl !== 'string' ||
-    !record.id.trim() ||
-    !record.label.trim()
-  ) {
-    return false;
-  }
-  try {
-    new URL(record.baseUrl);
-    return true;
-  } catch {
-    return false;
-  }
+function isSavedHostsEnvelope(value: unknown): value is SavedHostsEnvelope {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    (value as Record<string, unknown>).version === SAVED_REMOTE_HOSTS_SCHEMA_VERSION &&
+    Array.isArray((value as Record<string, unknown>).hosts)
+  );
 }

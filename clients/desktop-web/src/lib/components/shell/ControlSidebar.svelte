@@ -87,7 +87,7 @@
     }
     const items: PickerItem[] = [];
     for (const host of hosts) {
-      items.push({ label: `— ${host.label} —`, onSelect: () => {}, disabled: true });
+      items.push({ label: `— ${host.displayName} —`, onSelect: () => {}, disabled: true });
       if (host.id === activeHostId) {
         for (const server of servers) {
           items.push({ label: server.name, onSelect: () => onSelectServer(server.id) });

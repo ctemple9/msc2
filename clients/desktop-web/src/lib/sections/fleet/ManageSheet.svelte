@@ -212,7 +212,7 @@
           <div class="host-header">
             <StatusDot
               tone={summary?.connection === 'connected' ? 'ok' : 'warn'}
-              label={host.label}
+              label={host.displayName}
             />
             <span class="host-count">{summary?.serverCount ?? 0} servers</span>
             {#if host.id !== activeHostId}
@@ -224,7 +224,7 @@
               <Button
                 variant="ghost-icon"
                 size="sm"
-                label={`Remove ${host.label}`}
+                label={`Remove ${host.displayName}`}
                 onclick={() => onRemoveHost(host.id)}
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">

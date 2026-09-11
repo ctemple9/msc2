@@ -25,7 +25,14 @@
   import { DesktopSessionAuth, loadTauriDesktopCredentialBridge } from './lib/auth/desktop';
   import { clearClientPreferences, HostStore } from './lib/hosts/registry';
   import { forgetSavedRemoteHost, loadSavedRemoteHosts, saveRemoteHost } from './lib/hosts/saved';
-  import type { HostId, HostRecord } from './lib/hosts/types';
+  import {
+    createLocalHostRecord,
+    createRemoteHostRecord,
+    hostManagementUrl,
+    LOCAL_HOST_ID,
+    type HostId,
+    type HostRecord,
+  } from './lib/hosts/types';
   import ManageSheet from './lib/sections/fleet/ManageSheet.svelte';
   import AppSettingsSheet from './lib/sections/app-settings/AppSettingsSheet.svelte';
   import ResetSheet from './lib/sections/app-settings/ResetSheet.svelte';
@@ -158,7 +165,7 @@
     },
   ];
   const router = createClientRouter(sections);
-  const localAgentHostId = 'local-agent';
+  const localAgentHostId = LOCAL_HOST_ID;
 
   // Keeps every host's connection/credential/cache state (D-013). Tauri
   // rehydrates remote host metadata from localStorage on startup; credentials
@@ -209,7 +216,11 @@
   ): Promise<string> {
     const auth = new DesktopSessionAuth(await loadTauriDesktopCredentialBridge());
     const result = await auth.redeemRemotePairing(baseUrl, pairingCode);
-    const host = { id: result.agentHostId, label, baseUrl };
+    const host = createRemoteHostRecord({
+      id: result.agentHostId,
+      displayName: label,
+      baseUrl,
+    });
     const existing = hostStore.listHosts().find((registered) => registered.id === host.id);
     if (existing) hostStore.updateHost(host);
     else hostStore.addHost(host);
@@ -238,12 +249,19 @@
     // The reset already revoked this credential on the host. Forget it here as
     // well so a failed or interrupted recovery cannot leave stale local state.
     await auth.forgetCredentials([previousHost.id], false);
-    const result = await auth.redeemRemotePairing(previousHost.baseUrl, pairingCode);
+    const result = await auth.redeemRemotePairing(hostManagementUrl(previousHost), pairingCode);
 
     const replacementHost = {
       id: result.agentHostId,
-      label: previousHost.label,
-      baseUrl: previousHost.baseUrl,
+      displayName: previousHost.displayName,
+      lanAddresses: [...previousHost.lanAddresses],
+      tailscaleAddresses: [...previousHost.tailscaleAddresses],
+      preferredRouteOrder: [...previousHost.preferredRouteOrder],
+      ssh: { ...previousHost.ssh },
+      managementPort: previousHost.managementPort,
+      ...(previousHost.localForwardedPort === undefined
+        ? {}
+        : { localForwardedPort: previousHost.localForwardedPort }),
     };
     hostStore.removeHost(previousHost.id);
     hostStore.addHost(replacementHost);
@@ -456,7 +474,7 @@
   }
 
   function hostLabelForCurrentHost(): string {
-    return hosts.find((host) => host.id === hostId)?.label ?? hostId;
+    return hosts.find((host) => host.id === hostId)?.displayName ?? hostId;
   }
 
   $: navigationContext = capabilities
@@ -549,7 +567,7 @@
       status = await selectedClient.requestJson<Schema['RemoteAPIStatus']>('GET', '/v1/status');
       selectedServerId = selectAvailableServerId(servers, status.activeServerId, selectedServerId);
       agentReadiness = 'ready';
-      shellMessage = `Connected to ${hosts.find((host) => host.id === hostId)?.label ?? hostId}`;
+      shellMessage = `Connected to ${hosts.find((host) => host.id === hostId)?.displayName ?? hostId}`;
       hostStore.setServers(hostId, servers);
       hostStore.updateConnection(hostId, 'connected');
       await selectFromLocation();
@@ -761,9 +779,7 @@
     // actual origin here prevents a remote page from ever being mistaken for a
     // loopback agent on the browser user's own computer.
     hostStore.addHost({
-      id: localAgentHostId,
-      label: 'Local agent',
-      baseUrl: isDesktopShell ? LOCAL_AGENT_ORIGIN : window.location.origin,
+      ...createLocalHostRecord(isDesktopShell ? LOCAL_AGENT_ORIGIN : window.location.origin),
     });
     if (isDesktopShell) {
       for (const host of loadSavedRemoteHosts()) hostStore.addHost(host);
@@ -834,7 +850,7 @@
 </svelte:head>
 
 <ApplicationShell
-  hostLabel={hosts.find((host) => host.id === hostId)?.label ?? 'Local agent'}
+  hostLabel={hosts.find((host) => host.id === hostId)?.displayName ?? 'Local agent'}
   {hosts}
   activeHostId={hostId}
   {isDesktopShell}
@@ -882,8 +898,8 @@
           {hosts}
           activeHostId={hostId}
           hostSummaries={currentHostSummaries}
-          hostLabel={hosts.find((host) => host.id === hostId)?.label ?? 'Local agent'}
-          hostBaseUrl={hostStore.getState(hostId).host.baseUrl}
+          hostLabel={hosts.find((host) => host.id === hostId)?.displayName ?? 'Local agent'}
+          hostBaseUrl={hostManagementUrl(hostStore.getState(hostId).host)}
           {isDesktopShell}
           isLocalHost={hostId === localAgentHostId}
           serverId={selectedServerId}

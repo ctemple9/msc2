@@ -1,5 +1,5 @@
 {
-  "description": "MSC 2's v1 WebSocket surface. `console` carries P0.24's baseline channel, `operation-progress` pushes P2.5's OperationDTO, and P9.4 adds `notifications` for the server/player events MSC 1 actually emits plus Phase 9 helper/connectivity events. Phase 10 carries Bedrock console and lifecycle work through these same shared channels; no sidecar or UDP-relay frames are public. `status`, `players`, and `metrics` remain HTTP-polled until a later phase needs push delivery.",
+  "description": "MSC 2's v1 WebSocket surface. `console` delivers bounded human console history, `operation-progress` pushes P2.5's OperationDTO, and P9.4 adds `notifications` for the server/player events MSC 1 actually emits plus Phase 9 helper/connectivity events. Phase 10 carries Bedrock console and lifecycle work through these same shared channels; no sidecar or UDP-relay frames are public. Controller/helper output is retained separately for internal consumers and future diagnostics delivery, so it cannot evict human console history. `status`, `players`, and `metrics` remain HTTP-polled until a later phase needs push delivery.",
   "version": "v1",
   "channels": [
     {
@@ -31,6 +31,7 @@
           "source": "string",
           "level": "string, optional",
           "auto": "boolean, optional — true for routine automatic output",
+          "origin": "string, optional — `user`, `server`, `controller`, or `helper`; defaults to `server` when omitted",
           "text": "string"
         },
         "framing": "one JSON-encoded ConsoleLineDTO per WebSocket text frame (opcode 0x1, FIN bit set) — unchanged from P0.24"
@@ -38,10 +39,11 @@
       "deliveryModel": {
         "kind": "bounded-history-then-live",
         "backfillCount": 200,
-        "backfillSource": "tailConsoleLines(n: 200), sent as 200 individual frames immediately on successful upgrade, before any live line — unchanged from P0.24",
-        "liveSource": "every new console line is broadcast to all currently-connected WS clients for this channel as it arrives",
+        "backfillSource": "the last 200 user/server-origin lines from the human-history ring, sent as individual frames immediately on successful upgrade, before any live line",
+        "liveSource": "every new user/server-origin line is broadcast to all currently-connected WS clients for this channel as it arrives; controller/helper lines are not broadcast on this channel",
         "ringBufferLimit": 5000,
-        "ringBufferBehavior": "the backing console buffer (also serving GET /v1/console/tail) is capped at 5000 lines; oldest lines are trimmed once the cap is exceeded — unchanged from P0.24"
+        "ringBufferBehavior": "the human-history buffer (also serving GET /v1/console/tail) is capped at 5000 lines; oldest user/server lines are trimmed once the cap is exceeded. Controller/helper lines use a separate 200-line diagnostics ring and cannot displace this history",
+        "internalConsumerBoundary": "internal metric parsers, backup waiters, and helper lifecycle consumers receive all origins before public delivery filtering"
       },
       "inboundHandling": {
         "textFrames": "intentionally ignored — the server never executes WebSocket-received text as a command; POST /v1/command is the only command-execution path, unchanged from P0.24",
@@ -54,7 +56,7 @@
           "onExceeded": "server sends a close frame and tears down the connection"
         }
       },
-      "notes": "Wire shape (ConsoleLineDTO, the 200-line backfill, the 5000-line ring buffer, the 64 KB inbound cap, ping/pong/close handling) is carried forward from P0.24 unchanged — only the path gains the /v1/ prefix and the two error responses above move onto P2.4's unified ErrorDTO envelope, since both are ordinary HTTP responses issued before the protocol switches to WebSocket and P2.4 §5 covers 'every non-2xx response across every /v1/ route,' not just fully-JSON routes."
+      "notes": "The line shape remains additive-compatible with P0.24: origin is optional on the wire and omitted for the default server origin. The 200-line human backfill, 5000-line human ring, 64 KB inbound cap, ping/pong/close handling, and the two ErrorDTO responses remain the channel's other boundaries. Controller/helper diagnostics are deliberately not replayed through the human console channel."
     },
     {
       "name": "notifications",

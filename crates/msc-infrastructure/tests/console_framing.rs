@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use msc_infrastructure::console_buffer::{
-    ConsoleBuffer, ConsoleLine, ConsoleLineFramer, http_tail_count,
+    ConsoleBuffer, ConsoleLine, ConsoleLineFramer, ConsoleLineOrigin, http_tail_count,
 };
 use serde_json::Value;
 
@@ -75,6 +75,7 @@ fn console_framing_history_limit_backfill_and_tail_clamps() {
             source: "server".to_string(),
             level: Some("info".to_string()),
             auto: false,
+            origin: ConsoleLineOrigin::Server,
             text: format!("line-{index}"),
         });
     }

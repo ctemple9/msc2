@@ -20,9 +20,17 @@
       "runtimeCoverage": "The same contract applies to supported Java flavors and Bedrock wherever capability discovery advertises it."
     },
     "consoleRetention": {
-      "automaticMonitoring": "Metric-polling output remains available to metric parsers but is classified before entering human console history or its WebSocket delivery.",
-      "humanHistory": "The bounded human console ring must not be displaced by automatic monitoring traffic.",
-      "diagnostics": "Any automatic diagnostic stream is separate and independently bounded; genuine non-polling server replies remain human output."
+      "origins": {
+        "user": "Operator-entered commands and other deliberate human console input.",
+        "server": "Genuine Java or Bedrock server output, including warnings, errors, prompts, and replies that are not caused by hidden MSC automation.",
+        "controller": "MSC-generated commands and their correlated responses: periodic list/TPS/Forge TPS/NeoForge TPS/Spark TPS/tick queries, relative-time time query gametime, and backup save coordination (save-all flush, save-off, save-on, save hold, save query, and save resume).",
+        "helper": "Xbox Broadcast and Playit stdout/stderr, including readiness, authentication, retry, and failure output."
+      },
+      "classificationBoundary": "Every generated line or correlated event receives its origin before retention and before HTTP/WebSocket delivery filtering. Text matching is not allowed to decide whether a genuine server warning or operator command is hidden.",
+      "automaticMonitoring": "Controller output remains available to internal metric parsers and operation waiters, but does not enter human console history or its WebSocket delivery.",
+      "humanHistory": "The bounded 5,000-line HTTP/WebSocket console ring contains user and server origins only. Its 200-line reconnect backfill is taken from that same ring, so controller/helper traffic cannot displace human output.",
+      "diagnostics": "Controller and helper origins are retained in a separate, independently bounded 200-line diagnostic ring. Actionable helper failures, authentication prompts, and operation errors must remain available through structured status/notifications or a dedicated diagnostics surface rather than being leaked into human history.",
+      "internalDelivery": "Internal parsers and operation waiters receive all origins through the internal event/history boundary, including controller and helper output that is excluded from public console history."
     },
     "headlessInstallation": {
       "platforms": [
@@ -4260,7 +4268,7 @@
     },
     "/v1/console/tail": {
       "get": {
-        "summary": "Last N console lines (query param n, default 200, clamped 1-2000)",
+        "summary": "Last N human console lines (query param n, default 200, clamped 1-2000)",
         "responses": {
           "200": {
             "description": "console lines",
@@ -9967,6 +9975,16 @@
           "auto": {
             "type": "boolean",
             "description": "True when the agent identifies the line as routine automatic output."
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "user",
+              "server",
+              "controller",
+              "helper"
+            ],
+            "description": "Producer provenance. The server origin may be omitted for backward-compatible line serialization and defaults to server; user and server belong in human history, controller and helper belong in the separate diagnostics stream."
           },
           "text": {
             "type": "string"

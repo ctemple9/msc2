@@ -50,11 +50,14 @@ impl Default for ConsoleState {
 impl ConsoleState {
     pub fn push(&self, line: ConsoleLine) {
         let mut buffer = self.buffer.lock().expect("console buffer lock poisoned");
+        let deliver_to_human_history = line.origin.belongs_in_human_history();
         let line = buffer.push(line);
         drop(buffer);
         // No connected clients is the normal case; a send error just means
         // nobody's listening right now.
-        let _ = self.sender.send(line);
+        if deliver_to_human_history {
+            let _ = self.sender.send(line);
+        }
     }
 
     fn backfill(&self) -> Vec<ConsoleLine> {
@@ -70,15 +73,14 @@ impl ConsoleState {
             .tail(count)
     }
 
-    /// The most recent `count` console lines — P6.21's `LiveBackupConsole`
-    /// needs read access to whatever the save-pause protocol's console
-    /// commands (`save-all`, `save query`, ...) just printed, the same
-    /// buffer `GET /v1/console/tail` already exposes over HTTP.
+    /// The most recent internal lines — P6.21's `LiveBackupConsole` needs
+    /// access to controller responses such as `save-all` and `save query`,
+    /// even though those lines must not enter public human history.
     pub fn recent_lines(&self, count: usize) -> Vec<ConsoleLine> {
         self.buffer
             .lock()
             .expect("console buffer lock poisoned")
-            .tail(count)
+            .internal_tail(count)
     }
 }
 

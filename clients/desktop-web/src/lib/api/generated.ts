@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: ad7e7ea5fd2a54de65f93c2328cf5d6c63df0f899279b52f352761ed9dd3a348
+// Contract SHA-256: 0754a7acce7eb604544bdc7df1b35078925121b7fdbdc9e0ed0ad86df7cc2c31
 
 export interface paths {
   '/v1/active-server': {
@@ -2021,7 +2021,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Last N console lines (query param n, default 200, clamped 1-2000) */
+    /** Last N human console lines (query param n, default 200, clamped 1-2000) */
     get: {
       parameters: {
         query?: never;
@@ -6696,6 +6696,11 @@ export interface components {
       /** @description True when the agent identifies the line as routine automatic output. */
       auto?: boolean;
       level?: string;
+      /**
+       * @description Producer provenance. The server origin may be omitted for backward-compatible line serialization and defaults to server; user and server belong in human history, controller and helper belong in the separate diagnostics stream.
+       * @enum {string}
+       */
+      origin?: 'user' | 'server' | 'controller' | 'helper';
       source: string;
       text: string;
       ts: string;

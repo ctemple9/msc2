@@ -3,8 +3,9 @@
 //! MSC 1's `ServerProcessManager` receives arbitrary bytes from a merged
 //! stdout/stderr pipe, emits only complete newline-terminated lines, and
 //! flushes one trailing partial line when the process closes. `RemoteAPIServer`
-//! then stores a single bounded console buffer that backs both HTTP tail and
-//! WebSocket backfill.
+//! then stores bounded human history plus a separate diagnostic ring. HTTP
+//! tail and WebSocket backfill read only the human-history ring; internal
+//! waiters can still inspect the all-origin history boundary.
 
 use std::collections::VecDeque;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -12,10 +13,36 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 pub const CONSOLE_HISTORY_LIMIT: usize = 5000;
+/// The public console history is intentionally larger than the optional
+/// controller/helper diagnostic history. These are separate retention budgets:
+/// noisy automation cannot evict the lines an operator is reading.
+pub const CONSOLE_DIAGNOSTIC_HISTORY_LIMIT: usize = 200;
+/// Internal waiters still need to observe every ingested line, including
+/// controller responses that are not presented in the human console.
+pub const CONSOLE_INTERNAL_HISTORY_LIMIT: usize = 5000;
 pub const CONSOLE_WEBSOCKET_BACKFILL: usize = 200;
 pub const CONSOLE_HTTP_TAIL_DEFAULT: usize = 200;
 pub const CONSOLE_HTTP_TAIL_MIN: usize = 1;
 pub const CONSOLE_HTTP_TAIL_MAX: usize = 2000;
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ConsoleLineOrigin {
+    User,
+    #[default]
+    Server,
+    Controller,
+    Helper,
+}
+
+impl ConsoleLineOrigin {
+    /// User-entered commands and genuine server output are the public human
+    /// history. Controller and helper output remains available internally or
+    /// through a future diagnostics surface with its own retention budget.
+    pub const fn belongs_in_human_history(self) -> bool {
+        matches!(self, Self::User | Self::Server)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -28,6 +55,10 @@ pub struct ConsoleLine {
     /// Kept optional on the wire so older clients can continue to read the stream.
     #[serde(default, skip_serializing_if = "is_false")]
     pub auto: bool,
+    /// Provenance is additive on the wire. `server` is omitted so older
+    /// clients continue to receive the historical line shape unchanged.
+    #[serde(default, skip_serializing_if = "is_server_origin")]
+    pub origin: ConsoleLineOrigin,
     pub text: String,
 }
 
@@ -38,8 +69,20 @@ impl ConsoleLine {
             source: source.into(),
             level,
             auto: false,
+            origin: ConsoleLineOrigin::Server,
             text: text.into(),
         }
+    }
+
+    pub fn with_origin(
+        source: impl Into<String>,
+        level: Option<String>,
+        origin: ConsoleLineOrigin,
+        text: impl Into<String>,
+    ) -> Self {
+        let mut line = Self::new(source, level, text);
+        line.origin = origin;
+        line
     }
 }
 
@@ -76,7 +119,13 @@ impl ConsoleLineFramer {
 
 #[derive(Debug, Default)]
 pub struct ConsoleBuffer {
+    /// Human/server output exposed through HTTP tail and WebSocket backfill.
     lines: VecDeque<ConsoleLine>,
+    /// Controller/helper output retained for a future diagnostics surface.
+    diagnostics: VecDeque<ConsoleLine>,
+    /// All recent output for internal parsers and operation waiters. This is
+    /// deliberately not the public delivery buffer.
+    internal: VecDeque<ConsoleLine>,
     classifier: ConsoleAutoClassifier,
 }
 
@@ -87,11 +136,23 @@ impl ConsoleBuffer {
 
     pub fn push(&mut self, mut line: ConsoleLine) -> ConsoleLine {
         line.auto = line.auto || self.classifier.classify(&line);
-        self.lines.push_back(line);
-        while self.lines.len() > CONSOLE_HISTORY_LIMIT {
-            self.lines.pop_front();
+        self.internal.push_back(line.clone());
+        while self.internal.len() > CONSOLE_INTERNAL_HISTORY_LIMIT {
+            self.internal.pop_front();
         }
-        self.lines.back().expect("a line was just pushed").clone()
+
+        if line.origin.belongs_in_human_history() {
+            self.lines.push_back(line.clone());
+            while self.lines.len() > CONSOLE_HISTORY_LIMIT {
+                self.lines.pop_front();
+            }
+        } else {
+            self.diagnostics.push_back(line.clone());
+            while self.diagnostics.len() > CONSOLE_DIAGNOSTIC_HISTORY_LIMIT {
+                self.diagnostics.pop_front();
+            }
+        }
+        line
     }
 
     pub fn tail(&self, requested: usize) -> Vec<ConsoleLine> {
@@ -103,12 +164,28 @@ impl ConsoleBuffer {
         self.tail_unclamped(CONSOLE_WEBSOCKET_BACKFILL)
     }
 
+    pub fn diagnostics_tail(&self, requested: usize) -> Vec<ConsoleLine> {
+        let count = requested.clamp(1, CONSOLE_DIAGNOSTIC_HISTORY_LIMIT);
+        let skip = self.diagnostics.len().saturating_sub(count);
+        self.diagnostics.iter().skip(skip).cloned().collect()
+    }
+
+    pub fn internal_tail(&self, requested: usize) -> Vec<ConsoleLine> {
+        let count = requested.clamp(1, CONSOLE_INTERNAL_HISTORY_LIMIT);
+        let skip = self.internal.len().saturating_sub(count);
+        self.internal.iter().skip(skip).cloned().collect()
+    }
+
     pub fn len(&self) -> usize {
         self.lines.len()
     }
 
     pub fn is_empty(&self) -> bool {
         self.lines.is_empty()
+    }
+
+    pub fn diagnostics_len(&self) -> usize {
+        self.diagnostics.len()
     }
 
     pub fn oldest(&self) -> Option<&ConsoleLine> {
@@ -316,4 +393,8 @@ fn now_timestamp_millis() -> String {
 
 fn is_false(value: &bool) -> bool {
     !*value
+}
+
+fn is_server_origin(value: &ConsoleLineOrigin) -> bool {
+    *value == ConsoleLineOrigin::Server
 }

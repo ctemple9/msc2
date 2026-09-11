@@ -920,9 +920,9 @@ impl LifecycleRoutesState {
         self.inner.console.console.recent_lines(count)
     }
 
-    /// Appends output from a managed helper to the same bounded stream used
-    /// by the server console. This keeps helper diagnostics visible in both
-    /// the main Console view and any first-start surface reading its tail.
+    /// Appends output from a managed helper. P14.6 will supply the helper
+    /// origin at each producer boundary so routine output uses the separate
+    /// diagnostic retention budget without hiding actionable status.
     pub fn append_console_line(&self, source: &str, line: &str) {
         self.inner
             .console

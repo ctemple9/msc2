@@ -232,6 +232,19 @@ pub struct WorldSettingsCapabilitiesDto {
     pub context: WorldSettingsContextDto,
     pub fields: BTreeMap<String, WorldSettingCapabilityDto>,
     pub third_party: ThirdPartyWorldConfigBoundaryDto,
+    /// Whether semantic same-day time presets are available for this
+    /// selected runtime. Optional for decoding older agents.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relative_time: Option<RelativeTimeCapabilityDto>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RelativeTimeCapabilityDto {
+    pub available: bool,
+    pub presets: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 /// Additive extension of the original `CapabilitiesDTO`. Keeping the base

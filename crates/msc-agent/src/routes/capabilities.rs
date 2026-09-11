@@ -7,8 +7,9 @@ use axum::extract::Query;
 use axum::{Extension, Json};
 use msc_api::dto::{
     BedrockSupportDto, CapabilitiesDto, CapabilitiesResponseDto, HelpersDto, HostOsDto,
-    JavaRuntimeCapabilityDto, MeResponseDto, ServerTypesDto, ThirdPartyWorldConfigBoundaryDto,
-    WorldSettingCapabilityDto, WorldSettingsCapabilitiesDto, WorldSettingsContextDto,
+    JavaRuntimeCapabilityDto, MeResponseDto, RelativeTimeCapabilityDto, ServerTypesDto,
+    ThirdPartyWorldConfigBoundaryDto, WorldSettingCapabilityDto, WorldSettingsCapabilitiesDto,
+    WorldSettingsContextDto,
 };
 
 use crate::auth::{AuthenticatedCredential, CredentialRole, role_to_string};
@@ -100,6 +101,7 @@ async fn capabilities_for_query(
                 loader_version: selected_loader,
             },
             java_runtime,
+            server_type == msc_domain::identity::ServerType::Java || bedrock_supported,
         )
     });
 
@@ -207,6 +209,7 @@ async fn inspect_java_runtime(
 fn world_settings_capabilities(
     context: msc_domain::capability::WorldCapabilityContext,
     java_runtime: Option<JavaRuntimeCapabilityDto>,
+    relative_time_available: bool,
 ) -> WorldSettingsCapabilitiesDto {
     let native_capabilities = msc_domain::capability::native_world_capabilities(&context);
     let fields = msc_domain::capability::world_setting_capabilities(&context)
@@ -243,6 +246,16 @@ fn world_settings_capabilities(
             handoff: "server_settings".to_string(),
             help_id: Some("handbook.standard-vs-modded".to_string()),
         },
+        relative_time: Some(RelativeTimeCapabilityDto {
+            available: relative_time_available,
+            presets: msc_domain::time::RelativeTimePreset::all_raw_values()
+                .into_iter()
+                .map(str::to_owned)
+                .collect(),
+            reason: (!relative_time_available).then(|| {
+                "The selected runtime cannot answer the Minecraft time query.".to_string()
+            }),
+        }),
     }
 }
 

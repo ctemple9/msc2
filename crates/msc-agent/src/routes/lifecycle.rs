@@ -240,6 +240,14 @@ struct LifecycleRoutesInner {
     first_start: Mutex<Option<FirstStartCoordinator>>,
     first_start_pass_two_started_at: Mutex<Option<Instant>>,
     playit: Mutex<Option<Arc<dyn PlayitLifecycleIntegration>>>,
+    time_observation: Mutex<TimeObservation>,
+    time_query_lock: tokio::sync::Mutex<()>,
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+pub(crate) struct TimeObservation {
+    pub generation: u64,
+    pub absolute_ticks: Option<i64>,
 }
 
 pub struct AgentServerRegistry {
@@ -419,6 +427,8 @@ impl LifecycleRoutesState {
                 first_start: Mutex::new(None),
                 first_start_pass_two_started_at: Mutex::new(None),
                 playit: Mutex::new(None),
+                time_observation: Mutex::new(TimeObservation::default()),
+                time_query_lock: tokio::sync::Mutex::new(()),
             }),
         }
     }
@@ -791,6 +801,31 @@ impl LifecycleRoutesState {
 
     pub fn bedrock_runtime_state(&self) -> msc_api::dto::BedrockRuntimeStateDto {
         self.inner.bedrock_runtime.state_dto()
+    }
+
+    pub(crate) fn time_query_lock(&self) -> &tokio::sync::Mutex<()> {
+        &self.inner.time_query_lock
+    }
+
+    pub(crate) fn time_observation(&self) -> TimeObservation {
+        *self.inner.time_observation.lock().unwrap()
+    }
+
+    pub(crate) fn record_time_query_line(&self, line: &str) {
+        let Some(absolute_ticks) = msc_domain::time::parse_gametime_query_response(line) else {
+            return;
+        };
+        let mut observation = self.inner.time_observation.lock().unwrap();
+        observation.generation = observation.generation.wrapping_add(1);
+        observation.absolute_ticks = Some(absolute_ticks);
+    }
+
+    pub(crate) fn drain_time_query_events(&self) {
+        if self.active_bedrock_server().is_some() {
+            self.drain_bedrock_events();
+        } else {
+            self.drain_active_process_events();
+        }
     }
 
     pub(crate) fn bedrock_runtime_is_busy(&self) -> bool {
@@ -1671,6 +1706,7 @@ impl LifecycleRoutesState {
         while let Ok(Some(event)) = self.inner.bedrock_runtime.poll_event() {
             match event {
                 BedrockRuntimeEvent::ConsoleLine(line) => {
+                    self.record_time_query_line(&line);
                     self.inner
                         .console
                         .push(ConsoleLine::new("bedrock", None, line));
@@ -1845,6 +1881,7 @@ impl LifecycleRoutesState {
             } => "stderr",
             ProcessEvent::Output { .. } | ProcessEvent::Exited(_) => "stdout",
         };
+        self.record_time_query_line(text);
         self.inner
             .console
             .push(ConsoleLine::new(source, None, text.to_string()));

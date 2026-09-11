@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 7697b34aea33a19bdc4038b6ae339a2528441b91e7656f8dac206bf146087565
+// Contract SHA-256: ad7e7ea5fd2a54de65f93c2328cf5d6c63df0f899279b52f352761ed9dd3a348
 
 export interface paths {
   '/v1/active-server': {
@@ -5098,6 +5098,64 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/time/relative': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Set a named time of day within the current Minecraft day */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['RelativeTimeRequest'];
+        };
+      };
+      responses: {
+        /** @description Relative time command sent */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['RelativeTimeResult'];
+          };
+        };
+        /** @description missing_preset / invalid_preset / invalid_json */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description server_not_running / capability_unavailable / runtime error */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/users': {
     parameters: {
       query?: never;
@@ -6520,6 +6578,7 @@ export interface components {
       [key: string]: unknown;
     };
     CommandRequest: {
+      /** @description Raw command forwarded as entered; numeric time set values are absolute. */
       command: string;
       /** @description Acknowledgement token returned in a confirmation_required error before sending a Creative-changing command. */
       confirmation?: string;
@@ -7335,6 +7394,44 @@ export interface components {
       minRamGB?: number;
       restartRequired: boolean;
       success: boolean;
+    } & {
+      [key: string]: unknown;
+    };
+    RelativeTimeCapabilityDTO: {
+      available: boolean;
+      presets: ('dawn' | 'dusk' | 'night')[];
+      reason?: string;
+    } & {
+      [key: string]: unknown;
+    };
+    RelativeTimeRequest: {
+      /**
+       * @description Semantic same-day preset. It never resets the Minecraft day to zero.
+       * @enum {string}
+       */
+      preset: 'dawn' | 'dusk' | 'night';
+    } & {
+      [key: string]: unknown;
+    };
+    RelativeTimeResult: {
+      activeServerId?: string;
+      /** @description Runtime-specific absolute command sent after the query. */
+      command: string;
+      /** Format: int64 */
+      currentAbsoluteTicks: number;
+      /** Format: int64 */
+      currentDay: number;
+      /** Format: int64 */
+      currentDaytimeTicks: number;
+      /** @enum {string} */
+      preset: 'dawn' | 'dusk' | 'night';
+      queryCommand: string;
+      result: string;
+      runtime?: components['schemas']['BedrockRuntimeStateDTO'];
+      /** Format: int64 */
+      targetDay: number;
+      /** Format: int64 */
+      targetDaytimeTicks: number;
     } & {
       [key: string]: unknown;
     };
@@ -8386,6 +8483,8 @@ export interface components {
       fields: {
         [key: string]: components['schemas']['WorldSettingCapabilityDTO'];
       };
+      /** @description Whether semantic same-day dawn/dusk/night presets are available for the selected runtime. */
+      relativeTime?: components['schemas']['RelativeTimeCapabilityDTO'];
       thirdParty: components['schemas']['ThirdPartyWorldConfigBoundaryDTO'];
     } & {
       [key: string]: unknown;

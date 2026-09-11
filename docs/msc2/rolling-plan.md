@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 14 operational refinements are in progress; P14.2 is awaiting verification.
-> **Next move:** Cameron runs P14.2's verification command and closes the step if the source and acceptance matrix is present. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phase 14 operational refinements are in progress; P14.3 is awaiting verification.
+> **Next move:** Cameron runs P14.3's verification command and closes the step if the cross-runtime relative-time operation compiles. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -13,7 +13,7 @@ This is the working state of the build. The vision documents say where MSC 2 is 
 
 Phases come from `msc2-port-plan.md`. Steps are written as work arrives rather than being invented in advance. Each step has a status, file scope, description, verification command, commit subject, and batch classification.
 
-Phase 12 is complete. Phase 14 is active, with P14.2 awaiting owner verification. Later Phase 14 steps remain planned until this source-and-acceptance map is verified.
+Phase 12 is complete. Phase 14 is active, with P14.3 awaiting owner verification. Later Phase 14 steps remain planned until this source-and-acceptance map is verified.
 
 ## Current phase
 
@@ -66,7 +66,7 @@ editable or automatically selected when occupied.
 
 ### P14.2 — Build the source and acceptance matrix
 
-- **Status:** awaiting verification
+- **Status:** DONE
 - **Files:** `docs/msc2/rolling-plan.md`, `docs/msc2/msc2-port-plan.md`, `docs/msc2/msc2-engineering.md`, `docs/msc2/capabilities/`, `clients/desktop-web/src/lib/hosts/`, `clients/desktop-web/src/lib/sections/setup/`, `packaging/`, `tools/release/`
 - **What:** Map every reported behavior to its current implementation, MSC 1 oracle, API boundary, client surface, and platform acceptance evidence. The matrix must explicitly cover Java Vanilla/Paper/Purpur/Fabric/Forge/NeoForge, Bedrock, Tauri on macOS/Windows/Linux, the served browser client, and the headless CLI. It must call out which checks are static inspection, which are live Minecraft verification, and which require a real OS install. No implementation work starts until this map identifies the owning layer for each behavior.
 - **Verify:** `rg -n "P14\.1|P14\.2|time|console|headless|SSH|pairing|48001|48002" docs/msc2/rolling-plan.md`
@@ -75,7 +75,7 @@ editable or automatically selected when occupied.
 
 ### P14.3 — Define the cross-runtime relative-time operation
 
-- **Status:** planned
+- **Status:** awaiting verification
 - **Files:** `crates/msc-domain/`, `crates/msc-api/`, `crates/msc-agent/src/routes/commands.rs`, `docs/msc2/api-contract/openapi.json`, generated client types, domain fixtures if the existing fixture system needs new cases
 - **What:** Add an explicit operation for a relative time preset instead of sending `time set 1000`, `13000`, or `18000` directly. The agent must query or use the runtime's current absolute daytime, derive the current Minecraft day and tick position, calculate the target tick within that same day, and send the runtime-specific absolute command needed to reach it. Define behavior at day boundaries, for a stopped server, when the runtime cannot answer the query, and when a server reports an unsupported time capability. Preserve raw command entry as an explicit absolute operation. The API must make the distinction visible so clients cannot accidentally recreate the old behavior.
 - **Verify:** `cargo check --workspace`

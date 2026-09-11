@@ -276,6 +276,7 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
         .route("/start", post(routes::lifecycle::start))
         .route("/stop", post(routes::lifecycle::stop))
         .route("/command", post(routes::commands::command))
+        .route("/time/relative", post(routes::commands::relative_time))
         .route("/status", get(routes::status::status))
         .route("/performance", get(routes::performance::performance))
         .route(

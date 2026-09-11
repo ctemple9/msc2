@@ -181,6 +181,30 @@ pub struct CommandResultDto {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RelativeTimeRequestDto {
+    pub preset: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RelativeTimeResultDto {
+    pub result: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_server_id: Option<String>,
+    pub preset: String,
+    pub current_absolute_ticks: i64,
+    pub current_day: i64,
+    pub current_daytime_ticks: i64,
+    pub target_day: i64,
+    pub target_daytime_ticks: i64,
+    pub query_command: String,
+    pub command: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime: Option<BedrockRuntimeStateDto>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SimpleResultDto {
     pub result: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]

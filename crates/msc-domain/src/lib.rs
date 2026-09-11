@@ -26,6 +26,7 @@ pub mod router_guides;
 pub mod server_versions;
 pub mod settings_schema;
 pub mod slug;
+pub mod time;
 pub mod tps;
 pub mod version;
 pub mod world;

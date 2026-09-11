@@ -3249,7 +3249,58 @@
           }
         },
         "x-permission-category": "serverControl",
-        "x-notes": "Shared command route. For Bedrock, one leading slash is stripped; allowlist/save/operator commands are translated to Bedrock files and commands behind this route."
+        "x-notes": "Shared raw command route. For Bedrock, one leading slash is stripped; allowlist/save/operator commands are translated to Bedrock files and commands behind this route. Numeric time set commands are explicit absolute operations. Use POST /v1/time/relative for same-day dawn/dusk/night presets."
+      }
+    },
+    "/v1/time/relative": {
+      "post": {
+        "summary": "Set a named time of day within the current Minecraft day",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RelativeTimeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Relative time command sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelativeTimeResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_preset / invalid_preset / invalid_json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "invalid_body"
+          },
+          "409": {
+            "description": "server_not_running / capability_unavailable / runtime error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "conflict"
+          }
+        },
+        "x-permission-category": "serverControl",
+        "x-notes": "The agent queries total gametime, derives the current Minecraft day, and sends a runtime-specific absolute time set within that same day. This route is distinct from raw POST /v1/command: numeric time set commands remain absolute, and exact day changes remain explicit operations. Presets are dawn (1000), dusk (13000), and night (18000)."
       }
     },
     "/v1/start": {
@@ -9100,7 +9151,8 @@
         "type": "object",
         "properties": {
           "command": {
-            "type": "string"
+            "type": "string",
+            "description": "Raw command forwarded as entered; numeric time set values are absolute."
           },
           "confirmation": {
             "type": "string",
@@ -9130,6 +9182,83 @@
         },
         "required": [
           "result",
+          "command"
+        ]
+      },
+      "RelativeTimeRequest": {
+        "type": "object",
+        "properties": {
+          "preset": {
+            "type": "string",
+            "enum": [
+              "dawn",
+              "dusk",
+              "night"
+            ],
+            "description": "Semantic same-day preset. It never resets the Minecraft day to zero."
+          }
+        },
+        "required": [
+          "preset"
+        ]
+      },
+      "RelativeTimeResult": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "type": "string"
+          },
+          "activeServerId": {
+            "type": "string"
+          },
+          "preset": {
+            "type": "string",
+            "enum": [
+              "dawn",
+              "dusk",
+              "night"
+            ]
+          },
+          "currentAbsoluteTicks": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "currentDay": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "currentDaytimeTicks": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "targetDay": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "targetDaytimeTicks": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "queryCommand": {
+            "type": "string"
+          },
+          "command": {
+            "type": "string",
+            "description": "Runtime-specific absolute command sent after the query."
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/BedrockRuntimeStateDTO"
+          }
+        },
+        "required": [
+          "result",
+          "preset",
+          "currentAbsoluteTicks",
+          "currentDay",
+          "currentDaytimeTicks",
+          "targetDay",
+          "targetDaytimeTicks",
+          "queryCommand",
           "command"
         ]
       },
@@ -11793,12 +11922,42 @@
           },
           "thirdParty": {
             "$ref": "#/components/schemas/ThirdPartyWorldConfigBoundaryDTO"
+          },
+          "relativeTime": {
+            "$ref": "#/components/schemas/RelativeTimeCapabilityDTO",
+            "description": "Whether semantic same-day dawn/dusk/night presets are available for the selected runtime."
           }
         },
         "required": [
           "context",
           "fields",
           "thirdParty"
+        ]
+      },
+      "RelativeTimeCapabilityDTO": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "presets": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "dawn",
+                "dusk",
+                "night"
+              ]
+            }
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "available",
+          "presets"
         ]
       },
       "HelpTopicDTO": {

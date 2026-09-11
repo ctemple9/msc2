@@ -179,6 +179,47 @@ Per D-010: the agent supports clients back a defined number of minor versions, w
 
 Console, status, operation progress, players, notifications, metrics. Console delivery sends a **bounded recent history followed by live events** — avoiding both an empty console on reconnect and unbounded agent memory.
 
+### Operational refinement contracts (P14.1; D-036 proposed)
+
+Phase 14 extends the existing API and WebSocket model without creating a
+parallel client-side implementation of these behaviors.
+
+**Minecraft time.** A preset such as dawn, dusk, or night is a semantic
+same-day operation. The agent reads the runtime's current absolute daytime,
+derives the current Minecraft day, and sends the runtime-specific command for
+the target tick in that same day. A request to change the day is a separate
+explicit operation. A raw numeric `time set` remains absolute, so clients must
+not reinterpret it as a relative shortcut. Capability discovery must expose
+whether this operation is available for the selected Java flavor or Bedrock
+runtime, and the semantics must be identical wherever it is available.
+
+**Console retention.** Polling commands used to collect TPS, player counts, or
+other metrics are internal monitoring traffic. Their output is classified
+before it enters the bounded human console ring and before history or live
+WebSocket delivery. Metrics continue to receive the parsed result. If an
+automatic diagnostic stream is exposed, it is separate and independently
+bounded; enabling it cannot evict human server output. Genuine server replies
+that are not attributable to MSC polling remain human console output.
+
+**Headless installation.** macOS, Windows, and Linux each have a first-class
+headless artifact and a documented command-install path. The installed command
+is `msc` (`msc.exe` on Windows), and the installer owns the PATH entry it adds
+so upgrades are idempotent and uninstall does not remove unrelated commands.
+The management service defaults to `127.0.0.1:48001`; the PATH contract is
+independent of service registration and GUI installation.
+
+**Remote desktop connections.** A Tauri desktop may try configured direct LAN
+or Tailscale addresses and may own an SSH local forward to the host's
+management service. The example local forwarded port is `48002`, but it is a
+client-side choice and must be configurable or automatically moved when busy.
+The tunnel is transport, not authorization: the normal authenticated API and
+per-host credential model still apply. MSC provides no cloud relay and does
+not require Tailscale. Remote setup may perform the narrowly-scoped desktop
+pairing bootstrap, but it cannot install, start, stop, replace, or uninstall
+the host's operating-system service through the management API. A host record's
+identity remains stable when its addresses change, and its secrets stay scoped
+to that host.
+
 ---
 
 ## 6. Module boundaries

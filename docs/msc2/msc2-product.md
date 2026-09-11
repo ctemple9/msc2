@@ -57,6 +57,14 @@ MSC 2 splits into two halves: a small program that actually runs your server, an
 
 **You can manage it from the supported control surfaces.** The desktop app, desktop browser, and scriptable CLI all talk to the same server and reach the same agent capabilities. Optional Tailscale can carry remote desktop/browser access; ordinary local use does not require it.
 
+**A remote host does not require a second manual setup ritual.** The desktop
+app can use a direct LAN or Tailscale address, or manage an SSH tunnel to the
+host for you. It can teach you the command it is using without asking you to
+open a terminal, and it can perform the one-time desktop pairing through that
+authenticated connection. MSC does not run a relay, and Tailscale remains
+optional. The remote client manages Minecraft through the agent; it does not
+install or control the host's operating-system service.
+
 **Windows and Linux work too.** Not a lesser version. The same application.
 
 ---
@@ -142,6 +150,18 @@ Create, import, start, stop, restart, and force-stop. Multiple servers on one ma
 Live output as it happens, colour-coded so chat, joins, warnings, and errors are distinguishable at a glance. Search it, filter it, pause it, copy it, export it. Send commands, with history and saved favourites.
 
 Closing the app and coming back doesn't lose the console — you get recent history, then live output.
+
+MSC's own monitoring still runs in the background, but its polling traffic
+doesn't push real server output out of that human-readable history. Metrics can
+use the same replies without turning the console into a stream of housekeeping.
+
+### Time of day
+
+Choosing dawn, dusk, or night means that time of day **today** in Minecraft,
+not the same clock position on a future day. Changing the day is a separate,
+deliberate action, and a typed numeric `time set` remains an absolute command.
+This behavior is shared by supported Java server flavors and Bedrock where the
+runtime advertises the capability.
 
 ### Players
 

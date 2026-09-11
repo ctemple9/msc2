@@ -12,6 +12,39 @@
     "sessionCookie": "msc2_session is opaque, httpOnly, SameSite=Strict, Path=/v1, and uses Secure when the canonical origin is HTTPS. Session idle lifetime is 8 hours; absolute lifetime is 30 days.",
     "localDesktopBootstrap": "Same-machine desktop bootstrap is package-identity- and installation-key-bound local IPC, never an HTTP loopback exception. See docs/msc2/clients/phase11-auth.md."
   },
+  "x-operational-refinement-contracts": {
+    "minecraftTime": {
+      "sameDayPresets": "Semantic presets target the named time within the current Minecraft day, using the agent's runtime-specific absolute command.",
+      "exactDay": "Changing the day is a separate explicit operation.",
+      "rawNumericTimeSet": "A raw numeric time set remains an explicit absolute command; clients must not treat it as relative.",
+      "runtimeCoverage": "The same contract applies to supported Java flavors and Bedrock wherever capability discovery advertises it."
+    },
+    "consoleRetention": {
+      "automaticMonitoring": "Metric-polling output remains available to metric parsers but is classified before entering human console history or its WebSocket delivery.",
+      "humanHistory": "The bounded human console ring must not be displaced by automatic monitoring traffic.",
+      "diagnostics": "Any automatic diagnostic stream is separate and independently bounded; genuine non-polling server replies remain human output."
+    },
+    "headlessInstallation": {
+      "platforms": [
+        "macOS",
+        "Windows",
+        "Linux"
+      ],
+      "command": "msc (msc.exe on Windows)",
+      "path": "Each installer documents and owns the PATH entry for the command; PATH setup is independent of GUI and service installation.",
+      "managementPort": 48001
+    },
+    "remoteDesktop": {
+      "directRoutes": [
+        "LAN",
+        "Tailscale"
+      ],
+      "sshTunnel": "A Tauri desktop may manage a local forward to the host management service; 48002 is an example client-side port and must be configurable or replaceable when occupied.",
+      "relay": "MSC operates no cloud relay and does not require Tailscale.",
+      "serviceBoundary": "Remote setup cannot install, start, stop, replace, or uninstall the host operating-system service through the management API.",
+      "hostIdentity": "A saved host identity and its credentials remain stable and scoped to the host when LAN, Tailscale, or DNS addresses change."
+    }
+  },
   "paths": {
     "/v1/servers/create": {
       "post": {

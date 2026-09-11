@@ -1,6 +1,6 @@
 # MSC 2 — Decision Register
 
-**Revision:** 1.13 · **Date:** 2026-09-07
+**Revision:** 1.15 · **Date:** 2026-09-10
 **Owner:** Cameron Temple
 
 **Purpose:** the authoritative record of *what was decided, by whom, and why*. The product and engineering documents describe the destination; this document explains how it was chosen, what was rejected, and when a decision should be reopened.
@@ -63,6 +63,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 | D-033 | Native iOS and supported mobile access retired from v1 | **Approved** | 2026-09-07 |
 | D-034 | Full-screen terminal UI retired from MSC 2 | **Approved** | 2026-09-07 |
 | D-035 | Server-owned jars replace global template storage | **Approved** | 2026-09-07 |
+| D-036 | Operational refinement contracts | Proposed | — |
 
 ---
 
@@ -1009,6 +1010,54 @@ library as a product capability.
 
 ---
 
+## D-036 — Operational refinement contracts
+
+**Status:** Proposed · **Origin:** Phase 14 planning (P14.1) · **Approved by:** — · **Date:** —
+
+**Context.** Phase 14 addresses behavior that crosses the agent, API, clients,
+packaging, and remote-host boundary. Without an explicit contract, a shortcut
+could silently change the Minecraft day, monitoring traffic could consume the
+console's useful history, or a remote connection feature could grow into an
+unowned service-management API or an MSC-operated relay.
+
+**Decision.** The following contracts govern Phase 14:
+
+- Time-of-day shortcuts are semantic **same Minecraft day** actions. The agent
+  derives the current in-game day and tick position, then targets the named
+  time within that same day. Exact day changes are separate and explicit, and a
+  raw numeric `time set` remains an explicit absolute command. The behavior is
+  shared across the supported Java flavors and Bedrock; it is not a Java-only
+  client shortcut.
+- Automatic metric commands are internal monitoring traffic. Their output may
+  continue to feed metrics and an explicitly separate diagnostic stream, but it
+  cannot displace human console history. Classification happens before the
+  bounded human history buffer and before history/WebSocket delivery.
+- Headless installation is first-class on macOS, Windows, and Linux. Each
+  platform provides the `msc` command (`msc.exe` on Windows) through a
+  documented, owned PATH entry independent of whether the operating-system
+  service is installed or running. The agent's management service defaults to
+  port `48001`.
+- A Tauri desktop may manage a client-owned SSH tunnel and use that authenticated
+  session for the narrowly-scoped remote pairing bootstrap. MSC operates no
+  cloud relay and does not require Tailscale; direct LAN/Tailscale routes and
+  user-operated VPNs remain valid alternatives.
+- Remote setup cannot install, start, stop, replace, or uninstall the
+  operating-system service through the management API. SSH setup actions must
+  respect that boundary; transport does not grant authorization.
+- A saved host has a stable identity independent of its LAN, Tailscale, or DNS
+  addresses. Bearer credentials and other secrets remain scoped to that host;
+  ordinary client state contains connection metadata only.
+
+**Rationale.** These boundaries make the Phase 14 acceptance gate observable
+across all supported runtimes and clients while preserving MSC 2's single-owner,
+headless, no-cloud, and authenticated-API principles.
+
+**Revisit if:** owner-approved product scope changes the supported runtime
+matrix, installation contract, remote transport boundary, or host identity
+model.
+
+---
+
 ## Appendix A — corrections made during planning
 
 Recorded because each produced a confident wrong answer, and each is the kind of mistake likely to recur.
@@ -1035,6 +1084,7 @@ Recorded because each produced a confident wrong answer, and each is the kind of
 
 | Rev | Date | Change |
 |---|---|---|
+| 1.15 | 2026-09-10 | Added proposed D-036: operational contracts for same-day time actions, console retention, tri-platform headless installation, and remote-host boundaries. |
 | 1.14 | 2026-09-07 | Added D-035: server-owned JARs replace global Paper/plugin template storage; existing template directories are preserved but no longer used. |
 | 1.13 | 2026-09-07 | Added D-034: the full-screen terminal UI is retired; retained clients are Tauri desktop, desktop browser, and the scriptable headless CLI. |
 | 1.12 | 2026-09-07 | Amended D-033 and D-023: native iOS and supported mobile management are both out of v1; retained clients are Tauri desktop, desktop browser, headless CLI, and optional Tailscale remote access. |

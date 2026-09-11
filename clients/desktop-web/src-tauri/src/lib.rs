@@ -211,10 +211,9 @@ async fn desktop_exchange_pairing(
     if !response.status().is_success() {
         return Err(describe_pairing_refusal(response.status().as_u16()));
     }
-    let result: DesktopCredentialResult = response
-        .json()
-        .await
-        .map_err(|error| format!("MSC agent: Desktop pairing returned an invalid response: {error}"))?;
+    let result: DesktopCredentialResult = response.json().await.map_err(|error| {
+        format!("MSC agent: Desktop pairing returned an invalid response: {error}")
+    })?;
     if result.agent_host_id.trim().is_empty()
         || result.credential_id.trim().is_empty()
         || !result.token.starts_with("msc2_")
@@ -256,9 +255,9 @@ async fn desktop_automate_remote_pairing(
         });
     }
 
-    let agent_host_id = bootstrap
-        .agent_host_id
-        .ok_or_else(|| "MSC agent: The remote MSC pairing command returned no host identity.".to_string())?;
+    let agent_host_id = bootstrap.agent_host_id.ok_or_else(|| {
+        "MSC agent: The remote MSC pairing command returned no host identity.".to_string()
+    })?;
     let pairing_code = bootstrap.pairing_code.as_deref().ok_or_else(|| {
         "MSC agent: The remote MSC pairing command returned no pairing challenge.".to_string()
     })?;
@@ -270,8 +269,10 @@ async fn desktop_automate_remote_pairing(
     if response.status < 200 || response.status >= 300 {
         return Err(describe_pairing_refusal(response.status));
     }
-    let credential: DesktopCredentialResult = serde_json::from_slice(&response.body)
-        .map_err(|error| format!("MSC agent: Desktop pairing returned an invalid response: {error}"))?;
+    let credential: DesktopCredentialResult =
+        serde_json::from_slice(&response.body).map_err(|error| {
+            format!("MSC agent: Desktop pairing returned an invalid response: {error}")
+        })?;
     if credential.agent_host_id != agent_host_id
         || credential.credential_id.trim().is_empty()
         || !credential.token.starts_with("msc2_")
@@ -523,10 +524,13 @@ async fn desktop_authorized_request(request: DesktopRequest) -> Result<DesktopRe
     let key = credential_key(&request.agent_host_id);
     let store = desktop_secret_store()?;
     let Some(record) = store.get(&key).map_err(|error| error.to_string())? else {
-        return Err("Authentication: This desktop has no credential for the selected host.".to_string());
+        return Err(
+            "Authentication: This desktop has no credential for the selected host.".to_string(),
+        );
     };
-    let record: StoredDesktopCredential = serde_json::from_str(&record)
-        .map_err(|error| format!("Authentication: Stored desktop credential is invalid: {error}"))?;
+    let record: StoredDesktopCredential = serde_json::from_str(&record).map_err(|error| {
+        format!("Authentication: Stored desktop credential is invalid: {error}")
+    })?;
     if record.base_url == LOCAL_AGENT_BROWSER_ORIGIN {
         ensure_current_local_agent_service()?;
     }
@@ -588,10 +592,13 @@ async fn desktop_probe_host_route(
     let key = credential_key(&request.agent_host_id);
     let store = desktop_secret_store()?;
     let Some(raw_record) = store.get(&key).map_err(|error| error.to_string())? else {
-        return Err("Authentication: This desktop has no credential for the selected host.".to_string());
+        return Err(
+            "Authentication: This desktop has no credential for the selected host.".to_string(),
+        );
     };
-    let record: StoredDesktopCredential = serde_json::from_str(&raw_record)
-        .map_err(|error| format!("Authentication: Stored desktop credential is invalid: {error}"))?;
+    let record: StoredDesktopCredential = serde_json::from_str(&raw_record).map_err(|error| {
+        format!("Authentication: Stored desktop credential is invalid: {error}")
+    })?;
     let base_url = canonical_base_url(&request.base_url)?;
     let url = relative_request_url(&base_url, "/v1/me")?;
     let client = reqwest::Client::builder()
@@ -623,14 +630,20 @@ async fn desktop_probe_host_route(
             _ => "network",
         };
         let detail = match category {
-            "authentication" =>
+            "authentication" => {
                 "Authentication: The saved credential was revoked or expired on this host."
-                    .to_string(),
-            "msc-agent" if status.as_u16() == 426 =>
-                "MSC agent: This host is below the supported client version floor.".to_string(),
-            "msc-agent" =>
-                "MSC agent: The management service is stopped or unavailable.".to_string(),
-            _ => format!("Network: The selected route returned HTTP {}.", status.as_u16()),
+                    .to_string()
+            }
+            "msc-agent" if status.as_u16() == 426 => {
+                "MSC agent: This host is below the supported client version floor.".to_string()
+            }
+            "msc-agent" => {
+                "MSC agent: The management service is stopped or unavailable.".to_string()
+            }
+            _ => format!(
+                "Network: The selected route returned HTTP {}.",
+                status.as_u16()
+            ),
         };
         return Ok(DesktopRouteProbeResult {
             reachable: false,
@@ -644,7 +657,10 @@ async fn desktop_probe_host_route(
         token: record.token,
     };
     store
-        .set(&key, &serde_json::to_string(&updated).expect("desktop credential serializes"))
+        .set(
+            &key,
+            &serde_json::to_string(&updated).expect("desktop credential serializes"),
+        )
         .map_err(|error| error.to_string())?;
     Ok(DesktopRouteProbeResult {
         reachable: true,

@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, and P14.17 are awaiting verification.
-> **Next move:** Cameron runs the outstanding P14.4–P14.6, P14.8–P14.12, P14.15–P14.17 verification commands and closes each step if the client behavior, installer contracts, console classification, remote profile, managed SSH capability, saved-host route lifecycle, remote error/security boundaries, and remote-access teaching are sound. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, P14.17, and P14.18 are awaiting verification.
+> **Next move:** Cameron runs the outstanding P14.4–P14.6, P14.8–P14.12, P14.15–P14.18 verification commands and closes each step if the client behavior, installer contracts, console classification, remote profile, managed SSH capability, saved-host route lifecycle, remote error/security boundaries, remote-access teaching, and cross-platform acceptance evidence are sound. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -13,7 +13,7 @@ This is the working state of the build. The vision documents say where MSC 2 is 
 
 Phases come from `msc2-port-plan.md`. Steps are written as work arrives rather than being invented in advance. Each step has a status, file scope, description, verification command, commit subject, and batch classification.
 
-Phase 12 is complete. Phase 14 is active, with P14.4 awaiting owner verification. Later Phase 14 steps remain planned until this source-and-acceptance map is verified.
+Phase 12 is complete. Phase 14 is active, with P14.4–P14.18 awaiting owner verification. P14.19 remains planned until this source-and-acceptance map and the cross-platform acceptance evidence are verified.
 
 ## Current phase
 
@@ -228,8 +228,8 @@ editable or automatically selected when occupied.
 
 ### P14.18 — Verify release and platform coverage
 
-- **Status:** planned
-- **Files:** `.github/workflows/release.yml`, `packaging/`, `tools/release/`, Tauri manifests, platform capability matrix, installation and remote-access documentation
+- **Status:** awaiting verification
+- **Files:** `.github/workflows/release.yml`, `packaging/`, `tools/release/`, Tauri manifests, platform capability matrix, installation and remote-access documentation, `docs/msc2/capabilities/phase14-acceptance.md`
 - **What:** Perform the final static and manual acceptance pass across macOS, native Windows, and Linux. Confirm each platform has a usable headless artifact and PATH story; the Tauri app can save/edit LAN and Tailscale endpoints; managed SSH can prompt and reconnect; port `48001` is treated as the remote management port; local `48002` forwarding is configurable; and no flow requires Tailscale, a manually opened terminal, or a second manual pairing session. Include the Linux headless Xubuntu scenario, macOS local/remote scenarios, and native Windows installation scenario. Check that package/archive updates and uninstall behavior preserve or remove only the state they own.
 - **Verify:** `cargo fmt --all -- --check && cargo check --workspace && npm run check`
 - **Batch:** H — cross-platform acceptance

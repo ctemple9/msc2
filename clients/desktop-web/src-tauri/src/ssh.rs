@@ -348,7 +348,9 @@ fn validate_connection_values<const N: usize>(
     for (label, value) in values {
         if value.trim().is_empty() || value.contains('\0') || value.chars().any(char::is_whitespace)
         {
-            return Err(format!("SSH: The {label} must be a single non-empty value."));
+            return Err(format!(
+                "SSH: The {label} must be a single non-empty value."
+            ));
         }
     }
     if ssh_port == 0 || local_port == 0 || remote_port == 0 {
@@ -358,11 +360,10 @@ fn validate_connection_values<const N: usize>(
         );
     }
     match authentication {
-        "password" if password.unwrap_or_default().is_empty() => {
-            return Err(
-                "Authentication: Password authentication needs a password for the connection attempt.".to_string(),
-            )
-        }
+        "password" if password.unwrap_or_default().is_empty() => return Err(
+            "Authentication: Password authentication needs a password for the connection attempt."
+                .to_string(),
+        ),
         "private-key" => {
             let path = private_key_path
                 .filter(|value| !value.trim().is_empty())
@@ -375,7 +376,11 @@ fn validate_connection_values<const N: usize>(
             validate_private_key(path)?;
         }
         "agent" => {}
-        other => return Err(format!("SSH: Unsupported SSH authentication choice: {other}.")),
+        other => {
+            return Err(format!(
+                "SSH: Unsupported SSH authentication choice: {other}."
+            ))
+        }
     }
     Ok(())
 }
@@ -458,7 +463,8 @@ pub fn create_remote_pairing(
         || pairing.expires_at.trim().is_empty()
     {
         return Err(
-            "MSC agent: The remote `msc` command returned an invalid desktop challenge.".to_string(),
+            "MSC agent: The remote `msc` command returned an invalid desktop challenge."
+                .to_string(),
         );
     }
     if request.remember_host_key {
@@ -509,7 +515,9 @@ pub async fn exchange_pairing_through_tunnel(
 ) -> Result<PairingExchangeResponse, String> {
     let scanned = scan_host_key(&request.ssh_host, request.ssh_port)?;
     if scanned.fingerprint != expected_fingerprint {
-        return Err("SSH: The remote host key changed while desktop pairing was in progress.".to_string());
+        return Err(
+            "SSH: The remote host key changed while desktop pairing was in progress.".to_string(),
+        );
     }
     let known_hosts_path =
         write_known_hosts(&pending_host_key_id(request), &scanned.known_hosts_line)?;
@@ -671,7 +679,9 @@ fn write_restricted_file(path: &Path, bytes: &[u8]) -> Result<(), String> {
     {
         use std::os::unix::fs::PermissionsExt;
         file.set_permissions(fs::Permissions::from_mode(0o600))
-            .map_err(|error| format!("SSH: Could not protect temporary SSH host-key file: {error}"))?;
+            .map_err(|error| {
+                format!("SSH: Could not protect temporary SSH host-key file: {error}")
+            })?;
     }
     file.write_all(bytes)
         .map_err(|error| format!("SSH: Could not write temporary SSH host-key file: {error}"))
@@ -864,9 +874,7 @@ fn redact_output(value: &str, password: Option<&str>) -> String {
 
 fn classify_ssh_failure(detail: &str) -> (&'static str, String) {
     let lower = detail.to_ascii_lowercase();
-    if lower.contains("invalid format")
-        || lower.contains("load key")
-        || lower.contains("encrypted")
+    if lower.contains("invalid format") || lower.contains("load key") || lower.contains("encrypted")
     {
         return (
             "ssh",
@@ -931,10 +939,7 @@ fn classify_ssh_failure(detail: &str) -> (&'static str, String) {
         || lower.contains("no route to host")
         || lower.contains("network is unreachable")
     {
-        return (
-            "network",
-            format!("Network: {}", detail.trim()),
-        );
+        return ("network", format!("Network: {}", detail.trim()));
     }
     ("ssh", format!("SSH: {}", detail.trim()))
 }

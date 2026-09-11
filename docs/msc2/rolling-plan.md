@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, and P14.16 are awaiting verification.
-> **Next move:** Cameron runs the outstanding P14.4–P14.6, P14.8–P14.12, and P14.15–P14.16 verification commands and closes each step if the client behavior, installer contracts, console classification, remote profile, managed SSH capability, saved-host route lifecycle, and remote error/security boundaries are sound. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, and P14.17 are awaiting verification.
+> **Next move:** Cameron runs the outstanding P14.4–P14.6, P14.8–P14.12, P14.15–P14.17 verification commands and closes each step if the client behavior, installer contracts, console classification, remote profile, managed SSH capability, saved-host route lifecycle, remote error/security boundaries, and remote-access teaching are sound. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -219,7 +219,7 @@ editable or automatically selected when occupied.
 
 ### P14.17 — Explain the no-third-party and optional-Tailscale paths
 
-- **Status:** planned
+- **Status:** awaiting verification
 - **Files:** `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, handbook/help content, remote-access documentation, CLI help text, product/engineering docs
 - **What:** Teach the connectivity choices without requiring a third-party service. State plainly that there is no “Tailscale without Tailscale” magic: a remote computer must be reachable by a direct LAN/WAN route, an SSH route, a user-operated VPN/overlay, or a relay. MSC's normal built-in path is direct access when available plus an app-managed SSH tunnel; Tailscale remains an optional convenient private route, not a prerequisite. Explain that router port forwarding and public exposure carry their own security burden, while the management API remains authenticated and loopback-first by default. Make the wizard useful for local IPs, Tailscale IPs, DNS names, and manually maintained tunnels.
 - **Verify:** `rg -n "Tailscale|SSH tunnel|48001|48002|no.*relay|direct|VPN|port forwarding" clients/desktop-web/src/lib docs/msc2/msc2-product.md docs/msc2/msc2-engineering.md docs/msc2/msc2-decisions.md`

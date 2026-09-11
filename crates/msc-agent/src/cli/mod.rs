@@ -69,15 +69,19 @@ pub fn select_invocation(has_named_command: bool) -> InvocationTarget {
 
 #[derive(Debug, Clone, Args)]
 pub struct CommonArgs {
-    /// Full base URL for the agent, for example http://127.0.0.1:48001.
+    /// Full base URL for the agent, for example http://127.0.0.1:48001. For a
+    /// remote host, use its reachable LAN, DNS, Tailscale, or VPN address;
+    /// use a loopback URL when an SSH tunnel ends on this computer.
     #[arg(long, global = true, conflicts_with_all = ["host", "port"])]
     pub base_url: Option<String>,
 
-    /// Hostname or IP for the target agent.
+    /// Hostname or IP for the target agent. The default is local loopback;
+    /// remote access still needs a direct route or an operator-managed tunnel.
     #[arg(long, global = true, default_value = DEFAULT_HOST)]
     pub host: String,
 
-    /// TCP port for the target agent.
+    /// TCP management port for the target agent. The default is 48001; this is
+    /// not a Minecraft player port.
     #[arg(long, global = true, default_value_t = DEFAULT_PORT)]
     pub port: u16,
 

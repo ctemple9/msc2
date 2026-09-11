@@ -55,7 +55,7 @@ MSC 2 splits into two halves: a small program that actually runs your server, an
 
 **Your server can live on a machine with no screen.** An old laptop with the lid shut, in a closet, plugged into ethernet. No desktop, no monitor, no keyboard. This matters more than it sounds: on an 8 GB machine, not running a graphical desktop environment can be the difference between a modpack that runs and one that stutters.
 
-**You can manage it from the supported control surfaces.** The desktop app, desktop browser, and scriptable CLI all talk to the same server and reach the same agent capabilities. Optional Tailscale can carry remote desktop/browser access; ordinary local use does not require it.
+**You can manage it from the supported control surfaces.** The desktop app, desktop browser, and scriptable CLI all talk to the same server and reach the same agent capabilities. A remote computer can be reached directly over a LAN or DNS name, through an optional Tailscale or other user-operated VPN/overlay, or through an SSH tunnel. Ordinary local use does not require any third-party network service.
 
 **A remote host does not require a second manual setup ritual.** The desktop
 app can use a direct LAN or Tailscale address, or manage an SSH tunnel to the
@@ -64,6 +64,12 @@ open a terminal, and it can perform the one-time desktop pairing through that
 authenticated connection. MSC does not run a relay, and Tailscale remains
 optional. The remote client manages Minecraft through the agent; it does not
 install or control the host's operating-system service.
+
+There is no magic route when the computers cannot reach one another. A direct
+WAN path, router port forwarding, a user-operated VPN, or a third-party relay
+is a network choice with its own security and trust responsibilities. MSC keeps
+the management API authenticated and loopback-first by default, and does not
+turn Minecraft player networking into administrator access.
 
 **Windows and Linux work too.** Not a lesser version. The same application.
 

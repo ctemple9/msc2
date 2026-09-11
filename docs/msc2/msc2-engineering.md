@@ -494,14 +494,20 @@ MSC 2's work is to **formalize** this: the category vocabulary becomes part of t
 
 ### Network posture
 
-The management API binds to **loopback by default**. LAN or Tailscale binding is opt-in.
+The management API binds to **loopback by default**. LAN, Tailscale, or another
+user-operated private-network binding is opt-in. A remote client may instead
+use an SSH local forward to the agent's loopback-only `127.0.0.1:48001`; the
+desktop owns that tunnel when the guided path is selected.
 
 Two kinds of remote access are configured independently and must never be conflated:
 
 1. **Player access to Minecraft** — LAN, port forwarding, Playit.gg, Geyser, Xbox Broadcast, DuckDNS.
-2. **Administrator access to MSC** — loopback, LAN, or Tailscale.
+2. **Administrator access to MSC** — loopback, LAN, Tailscale, another
+   user-operated VPN/overlay, or an SSH tunnel.
 
-**MSC never recommends publicly forwarding the management port.** Playit.gg and public tunnels carry Minecraft traffic, not the admin API.
+**MSC never recommends publicly forwarding the management port.** Router port
+forwarding and public relays carry their own security and trust burden. Playit.gg
+and other player-facing tunnels carry Minecraft traffic, not the admin API.
 
 ### Hardening
 

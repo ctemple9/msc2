@@ -29,10 +29,10 @@ permission model.
 ## Transport boundary
 
 The normal management bind remains loopback-only. An administrator may opt in
-to the Phase 9 Tailscale management bind; that is the sole off-loopback path
-in v1. General-LAN management, arbitrary off-loopback HTTP, local certificate
-issuance, a local CA, and browser certificate-warning workarounds are not
-available.
+to a private LAN, Tailscale, or other user-operated VPN/overlay route, or use
+the managed SSH-forward path to keep the agent itself on loopback. General
+public HTTP exposure, local certificate issuance, a local CA, and browser
+certificate-warning workarounds are not available as automatic MSC setup.
 
 Tailscale encrypts the network path but is not identity. Requests on that path
 still require the same bearer credential or browser session and then the same

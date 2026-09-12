@@ -306,10 +306,16 @@ enum SparkReplyState {
     ExpectCpuValues { remaining: u8, guard: u8 },
 }
 
+#[derive(Debug, Clone, Copy)]
+struct TickQueryReplyState {
+    expires_at: Instant,
+}
+
 #[derive(Debug, Default)]
 struct ConsoleCorrelation {
     pending: VecDeque<PendingControllerReply>,
     spark: Option<SparkReplyState>,
+    tick_query: Option<TickQueryReplyState>,
 }
 
 impl ConsoleCorrelation {
@@ -342,6 +348,7 @@ impl ConsoleCorrelation {
     fn clear(&mut self) {
         self.pending.clear();
         self.spark = None;
+        self.tick_query = None;
     }
 
     fn classify(&mut self, line: &str) -> ConsoleLineOrigin {
@@ -351,6 +358,9 @@ impl ConsoleCorrelation {
         let lower = clean.to_ascii_lowercase();
 
         if self.classify_spark_continuation(&lower) {
+            return ConsoleLineOrigin::Controller;
+        }
+        if self.classify_tick_query_continuation(&lower) {
             return ConsoleLineOrigin::Controller;
         }
         if is_actionable_server_line(&lower) {
@@ -371,7 +381,35 @@ impl ConsoleCorrelation {
         if reply.kind == ControllerReplyKind::SparkTps {
             self.spark = Some(SparkReplyState::ExpectValues { guard: 12 });
         }
+        if reply.kind == ControllerReplyKind::TickQuery && !lower.contains("percentiles:") {
+            self.tick_query = Some(TickQueryReplyState {
+                expires_at: Instant::now() + CONTROLLER_REPLY_TTL,
+            });
+        }
         ConsoleLineOrigin::Controller
+    }
+
+    fn classify_tick_query_continuation(&mut self, lower: &str) -> bool {
+        let Some(state) = self.tick_query else {
+            return false;
+        };
+        if state.expires_at <= Instant::now() {
+            self.tick_query = None;
+            return false;
+        }
+        if is_actionable_server_line(lower) {
+            return false;
+        }
+
+        let is_percentiles = lower.contains("percentiles:");
+        if !is_percentiles
+            && !lower.contains("target tick rate:")
+            && !lower.contains("average time per tick")
+        {
+            return false;
+        }
+        self.tick_query = (!is_percentiles).then_some(state);
+        true
     }
 
     fn classify_spark_continuation(&mut self, lower: &str) -> bool {
@@ -426,10 +464,7 @@ fn reply_matches(kind: ControllerReplyKind, clean: &str, lower: &str) -> bool {
                 || lower.contains("overall:") && lower.contains("tps")
         }
         ControllerReplyKind::SparkTps => lower.contains("tps from last 5s, 10s, 1m, 5m, 15m"),
-        ControllerReplyKind::TickQuery => {
-            msc_domain::tps::parse_vanilla_tick(clean).is_some()
-                || lower.contains("average time per tick")
-        }
+        ControllerReplyKind::TickQuery => is_tick_query_report_line(clean, lower),
         ControllerReplyKind::TimeQuery => {
             msc_domain::time::parse_gametime_query_response(clean).is_some()
         }
@@ -444,6 +479,15 @@ fn reply_matches(kind: ControllerReplyKind, clean: &str, lower: &str) -> bool {
             lower.contains("ready to be copied") || lower.contains("files are now ready")
         }
     }
+}
+
+fn is_tick_query_report_line(clean: &str, lower: &str) -> bool {
+    msc_domain::tps::parse_vanilla_tick(clean).is_some()
+        || lower.contains("average time per tick")
+        || lower.contains("the game is running normally")
+        || lower.contains("the game is frozen")
+        || lower.contains("target tick rate:")
+        || lower.contains("percentiles:")
 }
 
 fn is_java_save_confirmation(lower: &str) -> bool {

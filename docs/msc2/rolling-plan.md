@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, P14.17, P14.18, P14.19, P14.26, P14.27, P14.28, P14.29, P14.30, P14.31, P14.32, P14.33, P14.34, and P14.35 are awaiting verification.
-> **Next move:** Cameron runs the outstanding Phase 14 verification commands, including the focused release-signature regression check in P14.26, signing-pipeline validation in P14.32, active-world size verification in P14.34, and the console-delivery correction in P14.35, and closes each step if its behavior is sound. P14.32 identifies a release-key rotation and one-time manual recovery install as prerequisites to restoring automatic updates for already-installed binaries. P14.33 prepares recovery release v0.1.8; release only after world-size and console behavior are verified, CI is green, and the rotated key verifies its detached signature. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, P14.17, P14.18, P14.19, P14.26, P14.27, P14.28, P14.29, P14.30, P14.31, P14.32, P14.33, P14.34, P14.35, and P14.36 are awaiting verification.
+> **Next move:** Cameron runs the outstanding Phase 14 verification commands, including the focused release-signature regression check in P14.26, signing-pipeline validation in P14.32, active-world size verification in P14.34, and the console-delivery and full tick-query classification checks in P14.35–P14.36, and closes each step if its behavior is sound. P14.32 identifies a release-key rotation and one-time manual recovery install as prerequisites to restoring automatic updates for already-installed binaries. P14.33 prepares recovery release v0.1.8; release only after world-size and console behavior are verified, CI is green, and the rotated key verifies its detached signature. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -389,6 +389,15 @@ editable or automatically selected when occupied.
 - **Verify:** `cargo fmt --all -- --check && cargo clippy --workspace -- -D warnings && cargo check --workspace && npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run api:check`
 - **Batch:** C — console retention
 - **Commit:** `P14.35: make hide auto stop console delivery`
+
+### P14.36 — Classify the complete vanilla tick-query response
+
+- **Status:** awaiting verification
+- **Files:** `crates/msc-agent/src/routes/lifecycle.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Follow up on P14.35 after live use exposed a partial `/tick query` leak. Correlate its opening status line and its `Target tick rate`, `Average time per tick`, and `Percentiles` lines as one short-lived automatic response. Keep the existing TPS parser fed by every line, but classify the recognized report lines as controller output before they enter console history. Preserve unrelated and actionable server output, and clear the continuation state when the report ends, the lifecycle resets, or the correlation expires.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-agent --bin msc -- -D warnings && cargo check -p msc-agent --bin msc`
+- **Batch:** C — console retention
+- **Commit:** `P14.36: classify complete tick query reports`
 
 ## Historical records
 

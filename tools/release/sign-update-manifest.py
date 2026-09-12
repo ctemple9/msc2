@@ -9,7 +9,9 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -84,8 +86,12 @@ def inv(value: int) -> int:
     return pow(value, Q - 2, Q)
 
 
+D = -121665 * inv(121666) % Q
+BASE_POINT_ENCODING = bytes.fromhex("58" + "66" * 31)
+
+
 def xrecover(y: int) -> int:
-    xx = (y * y - 1) * inv(121665 * y * y + 1)
+    xx = (y * y - 1) * inv(D * y * y + 1) % Q
     x = pow(xx, (Q + 3) // 8, Q)
     if (x * x - xx) % Q:
         x = (x * 19681161315388985) % Q
@@ -102,9 +108,8 @@ B = (Bx, By)
 def edwards_add(point_a: tuple[int, int], point_b: tuple[int, int]) -> tuple[int, int]:
     x1, y1 = point_a
     x2, y2 = point_b
-    d = -121665 * inv(121666) % Q
-    denominator_x = inv(1 + d * x1 * x2 * y1 * y2)
-    denominator_y = inv(1 - d * x1 * x2 * y1 * y2)
+    denominator_x = inv(1 + D * x1 * x2 * y1 * y2)
+    denominator_y = inv(1 - D * x1 * x2 * y1 * y2)
     return (
         (x1 * y2 + x2 * y1) * denominator_x % Q,
         (y1 * y2 + x1 * x2) * denominator_y % Q,
@@ -126,6 +131,46 @@ def encode_point(point: tuple[int, int]) -> bytes:
     x, y = point
     encoded = y | ((x & 1) << 255)
     return encoded.to_bytes(32, "little")
+
+
+def verify_signature_with_openssl(public_key: bytes, message: bytes, signature: bytes) -> None:
+    require(
+        encode_point(B) == BASE_POINT_ENCODING,
+        "Ed25519 base-point calculation did not match the standard base point",
+    )
+    public_key_der = bytes.fromhex("302a300506032b6570032100") + public_key
+    with tempfile.TemporaryDirectory(prefix="msc-update-signature-") as temporary_directory:
+        temporary_path = Path(temporary_directory)
+        public_key_path = temporary_path / "public.der"
+        message_path = temporary_path / "manifest.json"
+        signature_path = temporary_path / "manifest.sig"
+        public_key_path.write_bytes(public_key_der)
+        message_path.write_bytes(message)
+        signature_path.write_bytes(signature)
+        result = subprocess.run(
+            [
+                "openssl",
+                "pkeyutl",
+                "-verify",
+                "-pubin",
+                "-keyform",
+                "DER",
+                "-inkey",
+                str(public_key_path),
+                "-rawin",
+                "-in",
+                str(message_path),
+                "-sigfile",
+                str(signature_path),
+            ],
+            capture_output=True,
+            check=False,
+            text=True,
+        )
+        require(
+            result.returncode == 0,
+            "OpenSSL could not verify the generated Ed25519 update signature",
+        )
 
 
 def signing_key_bytes(value: str) -> bytes:
@@ -343,13 +388,19 @@ def main() -> int:
         public_value = os.environ.get(args.public_key_env, "").strip().lower()
         require(public_value, f"{args.public_key_env} is not configured")
         require(
+            encode_point(B) == BASE_POINT_ENCODING,
+            "Ed25519 base-point calculation did not match the standard base point",
+        )
+        require(
             public_value == public_key(seed).hex(),
             f"{args.public_key_env} does not match {args.private_key_env}",
         )
-        signature = sign(seed, canonical_json(manifest))
+        manifest_bytes = canonical_json(manifest)
+        signature = sign(seed, manifest_bytes)
+        verify_signature_with_openssl(bytes.fromhex(public_value), manifest_bytes, signature)
         args.manifest.parent.mkdir(parents=True, exist_ok=True)
         args.signature.parent.mkdir(parents=True, exist_ok=True)
-        args.manifest.write_bytes(canonical_json(manifest))
+        args.manifest.write_bytes(manifest_bytes)
         args.signature.write_text(base64.b64encode(signature).decode("ascii") + "\n", encoding="ascii")
     except (ManifestError, OSError, ValueError) as error:
         print(f"FAIL: {error}", file=sys.stderr)

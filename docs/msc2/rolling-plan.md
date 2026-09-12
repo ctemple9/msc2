@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, P14.17, P14.18, P14.19, P14.26, P14.27, P14.28, P14.29, P14.30, and P14.31 are awaiting verification.
-> **Next move:** Cameron runs the outstanding Phase 14 verification commands, including the focused release-signature regression check in P14.26, and closes each step if its behavior is sound. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, P14.17, P14.18, P14.19, P14.26, P14.27, P14.28, P14.29, P14.30, P14.31, and P14.32 are awaiting verification.
+> **Next move:** Cameron runs the outstanding Phase 14 verification commands, including the focused release-signature regression check in P14.26 and the signing-pipeline validation in P14.32, and closes each step if its behavior is sound. P14.32 identifies a release-key rotation and one-time manual recovery install as prerequisites to restoring automatic updates for already-installed binaries. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -353,6 +353,15 @@ editable or automatically selected when occupied.
 - **Verify:** `gh run list --workflow ci.yml --limit 5` — confirm CI for the version-bump commit is green before pushing tag `v0.1.7`.
 - **Batch:** J — SSH connection repair and v0.1.7 release
 - **Commit:** `P14.31: prepare v0.1.7 release`
+
+### P14.32 — Correct Ed25519 update signing
+
+- **Status:** awaiting verification
+- **Files:** `tools/release/sign-update-manifest.py`, `tools/release/generate-update-key.py`, `tools/release/check-release-workflow.py`, `docs/msc2/rolling-plan.md`
+- **What:** Fix the Ed25519 point-recovery equation shared by the manifest signer and release-key generator. The old equation produced non-standard public keys and signatures that the Rust updater correctly rejected, while the signer compared key material using the same faulty calculation. Confirm the standard Ed25519 base point before use and independently verify every generated manifest signature with OpenSSL before release publication. The currently configured release key must be rotated to a standard Ed25519 key pair before another signed release can publish. Existing 0.1.6/0.1.7 agents trust the old key and cannot authenticate signatures from a corrected key, so restoring automatic updates requires one manually installed recovery release; update data remains separate from the executable and is preserved by the headless installer.
+- **Verify:** `python3 tools/release/check-release-workflow.py .github/workflows/release.yml --expect-publish-guard && python3 -c 'import ast, pathlib; [ast.parse(pathlib.Path(p).read_text()) for p in ("tools/release/sign-update-manifest.py", "tools/release/generate-update-key.py", "tools/release/check-release-workflow.py")]'`
+- **Batch:** K — update-signature recovery
+- **Commit:** `P14.32: correct Ed25519 update signing`
 
 ## Historical records
 

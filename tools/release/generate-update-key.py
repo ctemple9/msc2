@@ -9,6 +9,7 @@ Actions repository variable described in the release documentation.
 from __future__ import annotations
 
 import secrets
+import sys
 
 
 Q = 2**255 - 19
@@ -18,8 +19,12 @@ def inv(value: int) -> int:
     return pow(value, Q - 2, Q)
 
 
+D = -121665 * inv(121666) % Q
+BASE_POINT_ENCODING = bytes.fromhex("58" + "66" * 31)
+
+
 def xrecover(y: int) -> int:
-    xx = (y * y - 1) * inv(121665 * y * y + 1)
+    xx = (y * y - 1) * inv(D * y * y + 1) % Q
     x = pow(xx, (Q + 3) // 8, Q)
     if (x * x - xx) % Q:
         x = (x * 19681161315388985) % Q
@@ -36,9 +41,8 @@ B = (BX, BY)
 def edwards_add(point_a: tuple[int, int], point_b: tuple[int, int]) -> tuple[int, int]:
     x1, y1 = point_a
     x2, y2 = point_b
-    d = -121665 * inv(121666) % Q
-    denominator_x = inv(1 + d * x1 * x2 * y1 * y2)
-    denominator_y = inv(1 - d * x1 * x2 * y1 * y2)
+    denominator_x = inv(1 + D * x1 * x2 * y1 * y2)
+    denominator_y = inv(1 - D * x1 * x2 * y1 * y2)
     return (
         (x1 * y2 + x2 * y1) * denominator_x % Q,
         (y1 * y2 + x1 * x2) * denominator_y % Q,
@@ -72,6 +76,9 @@ def public_key(seed: bytes) -> bytes:
 
 
 def main() -> int:
+    if encode_point(B) != BASE_POINT_ENCODING:
+        print("FAIL: Ed25519 base-point calculation is not standard", file=sys.stderr)
+        return 1
     seed = secrets.token_bytes(32)
     print("Copy these values into GitHub Actions. They are not saved to disk:")
     print(f"MSC2_RELEASE_SIGNING_KEY_HEX={seed.hex()}")

@@ -161,6 +161,11 @@ def check_publish_guard(workflow: str) -> None:
     require("softprops/action-gh-release@v2" in publish_job, "publish job does not create a GitHub release")
     require("prerelease: true" in publish_job, "GitHub publication is not marked as a prerelease")
     require("fail_on_unmatched_files: true" in publish_job, "release publication does not fail on missing assets")
+    signer = read_workflow(ROOT / "tools/release/sign-update-manifest.py")
+    require(
+        "verify_signature_with_openssl(bytes.fromhex(public_value), manifest_bytes, signature)" in signer,
+        "manifest signer does not independently verify the Ed25519 signature",
+    )
 
 
 def split_publish_job(workflow: str) -> tuple[str, str]:

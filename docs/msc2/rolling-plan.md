@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, P14.17, P14.18, P14.19, and P14.26 are awaiting verification.
+> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, P14.17, P14.18, P14.19, P14.26, and P14.27 are awaiting verification.
 > **Next move:** Cameron runs the outstanding Phase 14 verification commands, including the focused release-signature regression check in P14.26, and closes each step if its behavior is sound. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
@@ -313,6 +313,14 @@ editable or automatically selected when occupied.
 - **Verify:** `cargo test -p msc-infrastructure release_update::tests::accepts_signer_signature_file_with_trailing_newline`
 - **Batch:** I — release and update handoff
 - **Commit:** `P14.26: accept signed update signatures with final newline`
+
+### P14.27 — Pass the known-hosts file as one SSH option
+- **Status:** awaiting verification
+- **Files:** `clients/desktop-web/src-tauri/src/ssh.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Fix the managed SSH tunnel and remote pairing bootstrap failure reported on v0.1.6. OpenSSH requires each `-o` argument to contain a complete `Name=Value` option; MSC previously passed `UserKnownHostsFile` without its value, then passed the path as a separate argument, so SSH rejected the command before connecting. Build `UserKnownHostsFile=<path>` as one OS string and pass it as the value of `-o`, preserving non-UTF-8 path bytes. This uses the shared SSH command builder, so both the managed tunnel and pairing command are corrected without changing host-key trust behavior.
+- **Verify:** `cargo fmt --manifest-path clients/desktop-web/src-tauri/Cargo.toml -- --check && cargo clippy --manifest-path clients/desktop-web/src-tauri/Cargo.toml -- -D warnings`
+- **Batch:** J — SSH connection repair and v0.1.7 release
+- **Commit:** `P14.27: pass known-hosts path as one SSH option`
 
 ## Historical records
 

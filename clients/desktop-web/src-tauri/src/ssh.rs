@@ -9,6 +9,7 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
+use std::ffi::OsString;
 use std::fs::{self, OpenOptions};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
@@ -718,6 +719,8 @@ fn ssh_command(
         format!("SSH: Could not resolve the desktop executable for SSH askpass: {error}")
     })?;
     let mut command = Command::new("ssh");
+    let mut user_known_hosts_option = OsString::from("UserKnownHostsFile=");
+    user_known_hosts_option.push(known_hosts_path.as_os_str());
     command
         .args(["-p"])
         .arg(ssh_port.to_string())
@@ -726,8 +729,8 @@ fn ssh_command(
         .args(["-o", "NumberOfPasswordPrompts=1"])
         .args(["-o", "StrictHostKeyChecking=yes"])
         .args(["-o", "GlobalKnownHostsFile=none"])
-        .args(["-o", "UserKnownHostsFile"])
-        .arg(known_hosts_path)
+        .args(["-o"])
+        .arg(user_known_hosts_option)
         .args(["-l", username]);
     if authentication == "private-key" {
         command.args(["-i", private_key_path.unwrap_or_default()]);

@@ -42,7 +42,7 @@
   let lanAddress = '';
   let tailscaleAddress = '';
   let sshUsername = '';
-  let authentication: SshAuthentication = 'agent';
+  let authentication: SshAuthentication = 'password';
   let privateKeyPath = '';
   let sshPassword = '';
   let managementPort: number | string = 48001;
@@ -53,6 +53,7 @@
   let pairingCode = '';
   let expectedHostKeyFingerprint = '';
   let hostKeyReview: RemoteDesktopPairingResult | undefined;
+  let passwordPromptRequired = false;
   let busy = false;
   let errorMessage = '';
   let copiedCommand = false;
@@ -90,7 +91,7 @@
     lanAddress = '';
     tailscaleAddress = '';
     sshUsername = '';
-    authentication = 'agent';
+    authentication = 'password';
     privateKeyPath = '';
     sshPassword = '';
     managementPort = 48001;
@@ -101,6 +102,7 @@
     pairingCode = '';
     expectedHostKeyFingerprint = '';
     hostKeyReview = undefined;
+    passwordPromptRequired = false;
     errorMessage = '';
   }
 
@@ -131,9 +133,6 @@
     if (!sshUsername.trim()) return 'Enter the SSH username for the remote computer.';
     if (portNumber(managementPort) === undefined || portNumber(localForwardedPort) === undefined) {
       return 'Ports must be whole numbers from 1 to 65535.';
-    }
-    if (authentication === 'password' && !sshPassword) {
-      if (!initialHost) return 'Enter the SSH password for this connection attempt.';
     }
     if (authentication === 'private-key' && !privateKeyPath.trim()) {
       return 'Enter the path or OS reference for the private key.';
@@ -203,6 +202,11 @@
       return;
     }
     prepareForwardedPort();
+    if (authentication === 'password' && !sshPassword) {
+      passwordPromptRequired = true;
+      errorMessage = '';
+      return;
+    }
     busy = true;
     errorMessage = '';
     try {
@@ -321,16 +325,7 @@
           <Select options={authenticationOptions} bind:value={authentication} />
         </label>
       </div>
-      {#if authentication === 'password'}
-        <label class="field-label">
-          SSH password
-          <Field
-            type="password"
-            bind:value={sshPassword}
-            placeholder="Used for this connection only"
-          />
-        </label>
-      {:else if authentication === 'private-key'}
+      {#if authentication === 'private-key'}
         <label class="field-label">
           Private-key path or OS key reference
           <Field bind:value={privateKeyPath} placeholder="~/.ssh/id_ed25519" />
@@ -428,6 +423,19 @@
     </section>
 
     <section class="pairing-section">
+      {#if authentication === 'password' && passwordPromptRequired}
+        <label class="field-label">
+          SSH password
+          <Field
+            type="password"
+            bind:value={sshPassword}
+            placeholder="Enter the password for this computer"
+          />
+          <span class="field-help"
+            >Use the password you use to sign in to that computer. MSC does not save it.</span
+          >
+        </label>
+      {/if}
       {#if hostKeyReview}
         <div class="host-key-review" role="alert">
           {#if hostKeyReview.state === 'awaiting-host-key'}
@@ -472,7 +480,11 @@
     <div class="wizard-actions">
       <Button variant="secondary" disabled={busy} onclick={returnToDetails}>Back</Button>
       <Button variant="primary" disabled={busy} onclick={() => void connect()}>
-        {busy ? 'Creating authorization…' : 'Save and connect'}
+        {busy
+          ? 'Connecting…'
+          : authentication === 'password' && passwordPromptRequired
+            ? 'Connect'
+            : 'Save and connect'}
       </Button>
     </div>
   {/if}

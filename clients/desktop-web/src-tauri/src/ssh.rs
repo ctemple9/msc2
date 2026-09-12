@@ -22,6 +22,7 @@ const HOST_KEY_SECRET_PREFIX: &str = "msc.desktop.ssh-host-key.";
 const SSH_ASKPASS_MARKER: &str = "MSC2_SSH_ASKPASS";
 const SSH_ASKPASS_PASSWORD: &str = "MSC2_SSH_ASKPASS_PASSWORD";
 const MAX_STDERR_BYTES: usize = 16 * 1024;
+const REMOTE_PAIRING_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -503,9 +504,40 @@ fn run_remote_pairing_command(
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    command
-        .output()
-        .map_err(|error| format!("SSH: Could not run the remote MSC pairing command: {error}"))
+    let mut child = command
+        .spawn()
+        .map_err(|error| format!("SSH: Could not run the remote MSC pairing command: {error}"))?;
+    let started_at = std::time::Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => {
+                return child.wait_with_output().map_err(|error| {
+                    format!("SSH: Could not collect the remote pairing response: {error}")
+                });
+            }
+            Ok(None) => {}
+            Err(error) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!(
+                    "SSH: Could not inspect the remote pairing command: {error}"
+                ));
+            }
+        }
+        if started_at.elapsed() >= REMOTE_PAIRING_TIMEOUT {
+            let _ = child.kill();
+            let output = child.wait_with_output().map_err(|error| {
+                format!("SSH: Could not stop the timed-out pairing command: {error}")
+            })?;
+            let remote_detail = clean_output(&output.stderr);
+            return Err(if remote_detail.is_empty() {
+                "SSH: Timed out waiting for the remote computer to create the desktop authorization. Check the SSH login and try again.".to_string()
+            } else {
+                format!("SSH: Timed out creating the desktop authorization. {remote_detail}")
+            });
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
 }
 
 /// Exchanges the captured challenge through a temporary loopback-only SSH
@@ -522,6 +554,11 @@ pub async fn exchange_pairing_through_tunnel(
             "SSH: The remote host key changed while desktop pairing was in progress.".to_string(),
         );
     }
+    let client = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(2))
+        .timeout(Duration::from_secs(5))
+        .build()
+        .map_err(|error| format!("The pairing connection could not start: {error}"))?;
     let known_hosts_path =
         write_known_hosts(&pending_host_key_id(request), &scanned.known_hosts_line)?;
     let mut command = ssh_command(
@@ -547,13 +584,13 @@ pub async fn exchange_pairing_through_tunnel(
     let mut child = command
         .spawn()
         .map_err(|error| format!("SSH: Could not start the temporary SSH forward: {error}"))?;
-    let client = reqwest::Client::new();
     let url = format!(
         "http://127.0.0.1:{}/v1/auth/desktop-pairings",
         request.local_port
     );
     let mut last_error = "the forwarded management port did not respond".to_string();
-    for _ in 0..30 {
+    let deadline = std::time::Instant::now() + REMOTE_PAIRING_TIMEOUT;
+    while std::time::Instant::now() < deadline {
         if let Ok(Some(status)) = child.try_wait() {
             last_error = format!("the SSH forward exited with status {status}");
             break;
@@ -566,14 +603,13 @@ pub async fn exchange_pairing_through_tunnel(
         {
             Ok(response) => {
                 let status = response.status().as_u16();
-                let body = response
-                    .bytes()
-                    .await
-                    .map_err(|error| format!("The pairing response could not be read: {error}"))?
-                    .to_vec();
+                let body = response.bytes().await;
                 let _ = child.kill();
                 let _ = child.wait();
                 let _ = fs::remove_file(&known_hosts_path);
+                let body = body
+                    .map_err(|error| format!("The pairing response could not be read: {error}"))?
+                    .to_vec();
                 return Ok(PairingExchangeResponse { status, body });
             }
             Err(error) => last_error = error.to_string(),
@@ -725,7 +761,14 @@ fn ssh_command(
         .args(["-p"])
         .arg(ssh_port.to_string())
         .args(["-o", "ConnectTimeout=10"])
-        .args(["-o", "BatchMode=no"])
+        .args([
+            "-o",
+            if password.is_some() {
+                "BatchMode=no"
+            } else {
+                "BatchMode=yes"
+            },
+        ])
         .args(["-o", "NumberOfPasswordPrompts=1"])
         .args(["-o", "StrictHostKeyChecking=yes"])
         .args(["-o", "GlobalKnownHostsFile=none"])

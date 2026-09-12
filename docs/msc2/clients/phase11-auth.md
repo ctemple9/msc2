@@ -33,6 +33,8 @@ to a private LAN, Tailscale, or other user-operated VPN/overlay route, or use
 the managed SSH-forward path to keep the agent itself on loopback. General
 public HTTP exposure, local certificate issuance, a local CA, and browser
 certificate-warning workarounds are not available as automatic MSC setup.
+General-LAN management is never an unauthenticated shortcut around the agent's
+normal authentication and permission checks.
 
 Tailscale encrypts the network path but is not identity. Requests on that path
 still require the same bearer credential or browser session and then the same

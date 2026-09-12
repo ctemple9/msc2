@@ -141,7 +141,14 @@ impl ConsoleBuffer {
     }
 
     pub fn push(&mut self, mut line: ConsoleLine) -> ConsoleLine {
+        classify_automatic_output(&mut line);
         line.auto = line.auto || line.origin.is_automatic();
+        if line.auto
+            && line.origin.belongs_in_human_history()
+            && line.origin != ConsoleLineOrigin::User
+        {
+            line.origin = ConsoleLineOrigin::Controller;
+        }
         self.internal.push_back(line.clone());
         while self.internal.len() > CONSOLE_INTERNAL_HISTORY_LIMIT {
             self.internal.pop_front();
@@ -202,6 +209,69 @@ impl ConsoleBuffer {
         let skip = self.lines.len().saturating_sub(count);
         self.lines.iter().skip(skip).cloned().collect()
     }
+}
+
+fn classify_automatic_output(line: &mut ConsoleLine) {
+    let lower = line.text.replace('\u{fffd}', "").to_ascii_lowercase();
+    let source = line.source.to_ascii_lowercase();
+
+    if is_actionable_output(&lower) || is_user_action_output(&lower) {
+        if line.origin.is_automatic() || line.auto {
+            line.origin = ConsoleLineOrigin::Server;
+            line.auto = false;
+        }
+        return;
+    }
+
+    let xbox_broadcast = source.contains("xbox-broadcast");
+    let routine_status = lower.contains("[primary session] updated session!");
+    let player_count = lower.contains("players online");
+    if xbox_broadcast || routine_status || player_count || is_spark_metrics_output(&lower) {
+        line.origin = if xbox_broadcast {
+            ConsoleLineOrigin::Helper
+        } else {
+            ConsoleLineOrigin::Controller
+        };
+        line.auto = true;
+    }
+}
+
+fn is_actionable_output(lower: &str) -> bool {
+    ["error", "warn", "warning", "failed", "failure", "exception"]
+        .iter()
+        .any(|marker| lower.contains(marker))
+}
+
+fn is_user_action_output(lower: &str) -> bool {
+    [
+        "please visit",
+        "login page",
+        "pairing code",
+        "authorize",
+        "authentication required",
+    ]
+    .iter()
+    .any(|marker| lower.contains(marker))
+}
+
+fn is_spark_metrics_output(lower: &str) -> bool {
+    let Some((_, report)) = lower.split_once("[spark/info]:") else {
+        return false;
+    };
+    let report = report.trim();
+    report.is_empty()
+        || report.contains("tps from last 5s, 10s, 1m, 5m, 15m")
+        || report.contains("tick durations (min/med/95%ile/max ms)")
+        || report.contains("cpu usage from last 10s, 1m, 15m")
+        || report.contains("% (system)")
+        || report.contains("% (process)")
+        || decimal_value_count(report) >= 5
+}
+
+fn decimal_value_count(text: &str) -> usize {
+    text.split(|character: char| !character.is_ascii_digit() && character != '.')
+        .filter(|token| token.contains('.') && token.parse::<f64>().is_ok())
+        .count()
 }
 
 pub fn http_tail_count(raw: Option<&str>) -> usize {

@@ -250,6 +250,15 @@ editable or automatically selected when occupied.
 - **Batch:** H — cross-platform acceptance
 - **Commit:** `P14.19: record Phase 14 gate and handoff`
 
+### P14.20 — Repair cross-platform CI regressions
+
+- **Status:** awaiting verification
+- **Files:** `crates/msc-infrastructure/src/console_buffer.rs`, `crates/msc-agent/src/ws/console.rs`, `docs/msc2/clients/phase11-auth.md`, `docs/msc2/client-capability-matrix.csv`, `clients/desktop-web/tests/e2e/browser/contract-harness.mjs`, three desktop-web files reported by Prettier
+- **What:** Address the shared failures from CI run 34660639860. Classify routine metric, player-count, session-status, and Xbox Broadcast output before bounded public console history and WebSocket delivery, while preserving errors and prompts. Add the missing General-LAN authentication boundary and `/v1/time/relative` capability-matrix entry. Isolate browser harness setup/reconnect state per browser context so parallel smoke tests cannot change one another's onboarding or reconnect result. Format the three client files reported by CI. This step does not move or republish a release tag.
+- **Verify:** `gh run list --workflow ci.yml --limit 5` — confirm the new commit's CI run is green
+- **Batch:** I — CI regression repair
+- **Commit:** `P14.20: repair cross-platform CI regressions`
+
 ## Historical records
 
 Detailed records for Setup through Phase 12, including the completed P12.121–P12.189 steps, remain in `rolling-plan-archive.md`.

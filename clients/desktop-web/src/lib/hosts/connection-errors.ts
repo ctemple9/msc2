@@ -1,9 +1,5 @@
 export type ConnectionErrorCategory =
-  | 'network'
-  | 'ssh'
-  | 'msc-agent'
-  | 'authentication'
-  | 'minecraft';
+  'network' | 'ssh' | 'msc-agent' | 'authentication' | 'minecraft';
 
 const labels: Record<ConnectionErrorCategory, string> = {
   network: 'Network',

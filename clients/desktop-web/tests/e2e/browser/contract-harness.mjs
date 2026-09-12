@@ -341,10 +341,9 @@ const worlds = [
 ];
 const reconnectStatusRequests = new Map();
 const broadcastJars = new Map();
-const hostSetupOverrides = new Map();
-const nativeHarnessUserAgents = new Set();
 let nativeHostSetupOverride;
 let broadcastClientSequence = 0;
+let reconnectClientSequence = 0;
 let serverCreateRequests = 0;
 
 function json(response, body, status = 200) {
@@ -367,29 +366,12 @@ async function readJsonBody(request) {
 }
 
 function hostSetupComplete(request) {
-  const cookie = request.headers.cookie ?? '';
-  // Native API calls are proxied by Rust, so they do not retain the webview's
-  // Origin or user-agent. The native smoke runs in its own harness process and
-  // explicitly opts into this isolated state through the reset endpoint below.
-  // Check it before the origin map because the browser fixture may have left a
-  // completed value behind for the same origin.
-  if (nativeHostSetupOverride !== undefined && cookie === '') {
-    return nativeHostSetupOverride;
-  }
-  const origin = request.headers.origin;
-  const requestKey = origin ? `origin:${origin}` : nativeHarnessRequestKey(request);
-  if (requestKey && hostSetupOverrides.has(requestKey)) {
-    return hostSetupOverrides.get(requestKey);
-  }
-  const cookieSaysIncomplete = cookie
-    .split(';')
-    .some((part) => part.trim() === 'msc_test_host_setup=false');
-  return !cookieSaysIncomplete;
-}
-
-function nativeHarnessRequestKey(request) {
-  const userAgent = request.headers['user-agent'];
-  return userAgent && nativeHarnessUserAgents.has(userAgent) ? `user-agent:${userAgent}` : null;
+  const testState = cookieValue(request, 'msc_test_host_setup');
+  if (testState === 'true') return true;
+  if (testState === 'false') return false;
+  // Native API calls are proxied by Rust and do not share the webview's
+  // cookie jar. The native smoke opts into process-local state explicitly.
+  return nativeHostSetupOverride ?? true;
 }
 
 function cookieValue(request, name) {
@@ -405,6 +387,17 @@ function broadcastClientId(request, response) {
   if (existing) return existing;
   const id = `broadcast-${++broadcastClientSequence}`;
   response.setHeader('set-cookie', `msc_test_broadcast=${id}; Path=/; SameSite=Lax`);
+  return id;
+}
+
+function reconnectClientId(request, response) {
+  const existing = cookieValue(request, 'msc_test_reconnect_client');
+  if (existing) return existing;
+  const id = `reconnect-${++reconnectClientSequence}`;
+  response.setHeader(
+    'set-cookie',
+    `msc_test_reconnect_client=${id}; Path=/; SameSite=Lax`,
+  );
   return id;
 }
 
@@ -439,17 +432,7 @@ createServer(async (request, response) => {
       expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
     });
   if (url.pathname === '/__test/host-setup' && request.method === 'POST') {
-    if (url.searchParams.get('native') === '1') {
-      nativeHostSetupOverride = false;
-      hostSetupOverrides.clear();
-    }
-    if (url.searchParams.get('native') === '1' && request.headers['user-agent']) {
-      nativeHarnessUserAgents.add(request.headers['user-agent']);
-    }
-    const requestKey = request.headers.origin
-      ? `origin:${request.headers.origin}`
-      : nativeHarnessRequestKey(request);
-    if (requestKey) hostSetupOverrides.set(requestKey, false);
+    if (url.searchParams.get('native') === '1') nativeHostSetupOverride = false;
     response.setHeader('set-cookie', 'msc_test_host_setup=false; Path=/; SameSite=Lax');
     return json(response, { complete: false });
   }
@@ -459,10 +442,6 @@ createServer(async (request, response) => {
     return json(response, { complete: hostSetupComplete(request) });
   if (url.pathname === '/v1/config/host-setup/complete' && request.method === 'POST') {
     if (nativeHostSetupOverride !== undefined) nativeHostSetupOverride = true;
-    const requestKey = request.headers.origin
-      ? `origin:${request.headers.origin}`
-      : nativeHarnessRequestKey(request);
-    if (requestKey) hostSetupOverrides.set(requestKey, true);
     response.setHeader('set-cookie', 'msc_test_host_setup=true; Path=/; SameSite=Lax');
     return json(response, { complete: true });
   }
@@ -611,7 +590,7 @@ createServer(async (request, response) => {
   }
   if (url.pathname === '/v1/status') {
     if (request.headers['x-msc-test-reconnect'] === 'true') {
-      const client = request.headers['user-agent'] ?? 'unknown';
+      const client = reconnectClientId(request, response);
       const count = (reconnectStatusRequests.get(client) ?? 0) + 1;
       reconnectStatusRequests.set(client, count);
       if (count === 2)

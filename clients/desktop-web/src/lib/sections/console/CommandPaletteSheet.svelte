@@ -35,9 +35,8 @@
   export let capabilities: Schema['CapabilitiesDTO'] | null = null;
   export let onClose: () => void;
   export let onUse: (command: string) => void;
-  export let onUseRelativeTime: (
-    preset: Schema['RelativeTimeRequest']['preset'],
-  ) => void = () => undefined;
+  export let onUseRelativeTime: (preset: Schema['RelativeTimeRequest']['preset']) => void = () =>
+    undefined;
 
   const TIME_PRESETS = [
     { value: 'dawn', label: 'Dawn' },
@@ -111,8 +110,8 @@
         <p class="syntax">{commandSyntaxHint(definition)}</p>
         {#if definition.name === 'time'}
           <p class="semantic-note">
-            Numeric <code>/time set</code> values are absolute and can change the Minecraft day.
-            Use the same-day shortcuts in the palette when you only want dawn, dusk, or night.
+            Numeric <code>/time set</code> values are absolute and can change the Minecraft day. Use the
+            same-day shortcuts in the palette when you only want dawn, dusk, or night.
           </p>
         {/if}
       </div>
@@ -198,8 +197,8 @@
       <section class="semantic-actions" aria-label="Same-day time shortcuts">
         <p class="msc2-type-overline">Same-day time</p>
         <p class="semantic-description">
-          These actions keep the current Minecraft day. Raw numeric <code>/time set</code> values
-          below remain absolute.
+          These actions keep the current Minecraft day. Raw numeric <code>/time set</code> values below
+          remain absolute.
         </p>
         <div class="chip-row">
           {#each TIME_PRESETS as preset (preset.value)}
@@ -209,7 +208,8 @@
               disabled={!supportsRelativeTimePreset(preset.value)}
               title={supportsRelativeTimePreset(preset.value)
                 ? `Set ${preset.label.toLowerCase()} in the current day`
-                : (relativeTime?.reason ?? 'This runtime does not advertise same-day time shortcuts.')}
+                : (relativeTime?.reason ??
+                  'This runtime does not advertise same-day time shortcuts.')}
               onclick={() => useRelativeTime(preset.value)}
             >
               {preset.label}

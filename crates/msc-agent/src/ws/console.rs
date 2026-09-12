@@ -50,8 +50,8 @@ impl Default for ConsoleState {
 impl ConsoleState {
     pub fn push(&self, line: ConsoleLine) {
         let mut buffer = self.buffer.lock().expect("console buffer lock poisoned");
-        let deliver_to_human_history = line.origin.belongs_in_human_history();
         let line = buffer.push(line);
+        let deliver_to_human_history = line.origin.belongs_in_human_history();
         drop(buffer);
         // No connected clients is the normal case; a send error just means
         // nobody's listening right now.

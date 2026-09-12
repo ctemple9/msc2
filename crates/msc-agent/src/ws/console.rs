@@ -23,8 +23,10 @@ use crate::auth::{AuthState, AuthenticatedCredential};
 const MAX_INBOUND_FRAME_BYTES: usize = 64 * 1024;
 
 #[derive(Debug, Deserialize)]
-pub struct TailQuery {
+#[serde(rename_all = "camelCase")]
+pub struct ConsoleQuery {
     n: Option<String>,
+    hide_auto: Option<bool>,
 }
 
 /// Shared agent-lifetime console buffer plus a broadcast channel fanning
@@ -35,14 +37,19 @@ pub struct TailQuery {
 pub struct ConsoleState {
     buffer: Arc<Mutex<ConsoleBuffer>>,
     sender: broadcast::Sender<ConsoleLine>,
+    automatic_sender: broadcast::Sender<ConsoleLine>,
 }
 
 impl Default for ConsoleState {
     fn default() -> Self {
         let (sender, _receiver) = broadcast::channel(CONSOLE_HISTORY_LIMIT);
+        let (automatic_sender, _automatic_receiver) = broadcast::channel(
+            msc_infrastructure::console_buffer::CONSOLE_DIAGNOSTIC_HISTORY_LIMIT,
+        );
         Self {
             buffer: Arc::new(Mutex::new(ConsoleBuffer::new())),
             sender,
+            automatic_sender,
         }
     }
 }
@@ -51,26 +58,34 @@ impl ConsoleState {
     pub fn push(&self, line: ConsoleLine) {
         let mut buffer = self.buffer.lock().expect("console buffer lock poisoned");
         let line = buffer.push(line);
-        let deliver_to_human_history = line.origin.belongs_in_human_history();
+        let is_human_line = line.origin.belongs_in_human_history();
         drop(buffer);
         // No connected clients is the normal case; a send error just means
         // nobody's listening right now.
-        if deliver_to_human_history {
+        if is_human_line {
             let _ = self.sender.send(line);
+        } else {
+            let _ = self.automatic_sender.send(line);
         }
     }
 
-    fn backfill(&self) -> Vec<ConsoleLine> {
+    fn backfill(&self, include_auto: bool) -> Vec<ConsoleLine> {
         let buffer = self.buffer.lock().expect("console buffer lock poisoned");
-        buffer.websocket_backfill()
+        if include_auto {
+            buffer.websocket_backfill_with_diagnostics()
+        } else {
+            buffer.websocket_backfill()
+        }
     }
 
-    fn tail(&self, raw_n: Option<&str>) -> Vec<ConsoleLine> {
+    fn tail(&self, raw_n: Option<&str>, hide_auto: bool) -> Vec<ConsoleLine> {
         let count = http_tail_count(raw_n);
-        self.buffer
-            .lock()
-            .expect("console buffer lock poisoned")
-            .tail(count)
+        let buffer = self.buffer.lock().expect("console buffer lock poisoned");
+        if hide_auto {
+            buffer.tail(count)
+        } else {
+            buffer.tail_with_diagnostics(count)
+        }
     }
 
     /// The most recent internal lines — P6.21's `LiveBackupConsole` needs
@@ -84,16 +99,21 @@ impl ConsoleState {
     }
 }
 
-pub async fn upgrade(ws: WebSocketUpgrade, State(state): State<ConsoleState>) -> Response {
+pub async fn upgrade(
+    ws: WebSocketUpgrade,
+    State(state): State<ConsoleState>,
+    Query(query): Query<ConsoleQuery>,
+) -> Response {
+    let hide_auto = query.hide_auto.unwrap_or(true);
     ws.max_frame_size(MAX_INBOUND_FRAME_BYTES)
-        .on_upgrade(move |socket| handle_socket(socket, state))
+        .on_upgrade(move |socket| handle_socket(socket, state, hide_auto))
 }
 
 pub async fn tail(
     State(state): State<ConsoleState>,
-    Query(query): Query<TailQuery>,
+    Query(query): Query<ConsoleQuery>,
 ) -> Json<Vec<ConsoleLine>> {
-    Json(state.tail(query.n.as_deref()))
+    Json(state.tail(query.n.as_deref(), query.hide_auto.unwrap_or(true)))
 }
 
 #[derive(Debug, Serialize)]
@@ -117,12 +137,13 @@ pub async fn stream_ticket(
     response
 }
 
-async fn handle_socket(mut socket: WebSocket, state: ConsoleState) {
+async fn handle_socket(mut socket: WebSocket, state: ConsoleState, hide_auto: bool) {
     // Subscribed before reading backfill so a line pushed mid-backfill is
     // queued for live delivery rather than silently missed.
     let mut live = state.sender.subscribe();
+    let mut automatic_live = (!hide_auto).then(|| state.automatic_sender.subscribe());
 
-    for line in state.backfill() {
+    for line in state.backfill(!hide_auto) {
         if send_line(&mut socket, &line).await.is_err() {
             return;
         }
@@ -151,7 +172,27 @@ async fn handle_socket(mut socket: WebSocket, state: ConsoleState) {
                     Err(broadcast::error::RecvError::Closed) => return,
                 }
             }
+            line = receive_automatic(&mut automatic_live), if !hide_auto => {
+                match line {
+                    Ok(line) => {
+                        if send_line(&mut socket, &line).await.is_err() {
+                            return;
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(broadcast::error::RecvError::Closed) => return,
+                }
+            }
         }
+    }
+}
+
+async fn receive_automatic(
+    receiver: &mut Option<broadcast::Receiver<ConsoleLine>>,
+) -> Result<ConsoleLine, broadcast::error::RecvError> {
+    match receiver {
+        Some(receiver) => receiver.recv().await,
+        None => std::future::pending().await,
     }
 }
 

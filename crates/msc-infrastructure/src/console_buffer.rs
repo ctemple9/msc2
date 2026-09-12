@@ -36,9 +36,8 @@ pub enum ConsoleLineOrigin {
 }
 
 impl ConsoleLineOrigin {
-    /// User-entered commands and genuine server output are the public human
-    /// history. Controller and helper output remains available internally or
-    /// through a future diagnostics surface with its own retention budget.
+    /// User-entered commands and genuine server output belong in the bounded
+    /// human history; controller and helper output uses separate retention.
     pub const fn belongs_in_human_history(self) -> bool {
         matches!(self, Self::User | Self::Server)
     }
@@ -177,6 +176,15 @@ impl ConsoleBuffer {
         self.tail_unclamped(CONSOLE_WEBSOCKET_BACKFILL)
     }
 
+    pub fn tail_with_diagnostics(&self, requested: usize) -> Vec<ConsoleLine> {
+        let count = requested.clamp(CONSOLE_HTTP_TAIL_MIN, CONSOLE_HTTP_TAIL_MAX);
+        self.with_diagnostics(count)
+    }
+
+    pub fn websocket_backfill_with_diagnostics(&self) -> Vec<ConsoleLine> {
+        self.with_diagnostics(CONSOLE_WEBSOCKET_BACKFILL)
+    }
+
     pub fn diagnostics_tail(&self, requested: usize) -> Vec<ConsoleLine> {
         let count = requested.clamp(1, CONSOLE_DIAGNOSTIC_HISTORY_LIMIT);
         let skip = self.diagnostics.len().saturating_sub(count);
@@ -209,25 +217,48 @@ impl ConsoleBuffer {
         let skip = self.lines.len().saturating_sub(count);
         self.lines.iter().skip(skip).cloned().collect()
     }
+
+    fn with_diagnostics(&self, count: usize) -> Vec<ConsoleLine> {
+        let mut lines = self.tail_unclamped(count);
+        lines.extend(self.diagnostics_tail(count));
+        lines.sort_by(|left, right| {
+            left.ts
+                .parse::<u128>()
+                .unwrap_or_default()
+                .cmp(&right.ts.parse::<u128>().unwrap_or_default())
+        });
+        if lines.len() > count {
+            lines.drain(..lines.len() - count);
+        }
+        lines
+    }
 }
 
 fn classify_automatic_output(line: &mut ConsoleLine) {
     let lower = line.text.replace('\u{fffd}', "").to_ascii_lowercase();
     let source = line.source.to_ascii_lowercase();
+    let xbox_broadcast = source.contains("xbox-broadcast");
+    let playit = source.contains("playit");
+    let spark_output = is_spark_metrics_output(&lower);
 
     if is_actionable_output(&lower) || is_user_action_output(&lower) {
-        if line.origin.is_automatic() || line.auto {
-            line.origin = ConsoleLineOrigin::Server;
-            line.auto = false;
+        if line.origin.is_automatic() || line.auto || xbox_broadcast || playit || spark_output {
+            if !line.origin.is_automatic() {
+                line.origin = if xbox_broadcast || playit {
+                    ConsoleLineOrigin::Helper
+                } else {
+                    ConsoleLineOrigin::Controller
+                };
+            }
+            line.auto = true;
         }
         return;
     }
 
-    let xbox_broadcast = source.contains("xbox-broadcast");
     let routine_status = lower.contains("[primary session] updated session!");
     let player_count = lower.contains("players online");
-    if xbox_broadcast || routine_status || player_count || is_spark_metrics_output(&lower) {
-        line.origin = if xbox_broadcast {
+    if xbox_broadcast || playit || routine_status || player_count || spark_output {
+        line.origin = if xbox_broadcast || playit {
             ConsoleLineOrigin::Helper
         } else {
             ConsoleLineOrigin::Controller
@@ -255,16 +286,22 @@ fn is_user_action_output(lower: &str) -> bool {
 }
 
 fn is_spark_metrics_output(lower: &str) -> bool {
+    if lower.contains("[spark-worker-pool-") && lower.contains("/info]:") {
+        return true;
+    }
+
     let Some((_, report)) = lower.split_once("[spark/info]:") else {
-        return false;
+        return lower.contains("tps from last 5s, 10s, 1m, 5m, 15m")
+            || lower.contains("tick durations (min/med/95%ile/max ms)")
+            || lower.contains("cpu usage from last 10s, 1m, 15m");
     };
+    let report = report.replace("[⚡]", "");
     let report = report.trim();
     report.is_empty()
         || report.contains("tps from last 5s, 10s, 1m, 5m, 15m")
         || report.contains("tick durations (min/med/95%ile/max ms)")
         || report.contains("cpu usage from last 10s, 1m, 15m")
-        || report.contains("% (system)")
-        || report.contains("% (process)")
+        || report.contains("%") && (report.contains("(system)") || report.contains("(process)"))
         || decimal_value_count(report) >= 5
 }
 

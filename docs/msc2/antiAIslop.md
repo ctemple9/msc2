@@ -214,6 +214,10 @@ reviewed against. These use MSC's real tokens (see `MSCStyles.swift`).
    else disciplined-neutral is precisely what earns it. Do not add a second
    "signature" moment that competes with it.
 
+9. **Links must be intentional and work.** Never add a hyperlink labeled
+   “Learn more” unless Cameron explicitly asks for or approves that link. Do not
+   ship a link whose destination is missing, unfinished, or nonfunctional.
+
 ## The anti-slop review checklist
 
 Run this against every screen before it is considered done. Any "yes" is a
@@ -230,6 +234,8 @@ defect to fix, not a preference to debate.
 - [ ] Is there a single, glanceable first-read — or does everything weigh the
       same?
 - [ ] Any animation that doesn't communicate a state or spatial change?
+- [ ] Any “Learn more” hyperlink Cameron has not explicitly approved, or any
+      link whose destination is missing, unfinished, or nonfunctional?
 - [ ] Could this exact screen have come from a generic template? If yes, it's not
       done.
 

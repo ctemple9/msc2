@@ -6,7 +6,6 @@
   import Button from '../base/Button.svelte';
   import Toggle from '../base/Toggle.svelte';
   import CommandPaletteSheet from '../../sections/console/CommandPaletteSheet.svelte';
-  import HelpLink from '../../help/HelpLink.svelte';
   import { onboardingAnchor } from '../../help/tourAnchors';
   import {
     BrowserWebSocketConnector,
@@ -26,7 +25,6 @@
     consoleLineKey,
     consoleLinesAfterClear,
     consoleLineTone,
-    humanConsoleLines,
     livePaths,
     rememberCommand,
     visibleConsoleLines,
@@ -38,8 +36,6 @@
   // header-only row size itself naturally.
   export let height: number | undefined = undefined;
   export let api: ScreenApi | undefined = undefined;
-  export let hostId = 'local-agent';
-  export let serverId = 'survival';
   // Threaded from ApplicationShell's own `servers`/`activeServerId` (P12.10b)
   // -- both were already props there for DetailsHeader; the selected runtime
   // capability is threaded alongside them for command-picker degradation.
@@ -72,15 +68,17 @@
   const clearedLineKeys = new Set<string>();
   let playersResponse: Schema['PlayersResponseDTO'] = { count: 0, players: [] };
   let showPalette = false;
+  let hideAuto = true;
   let showFilters = false;
 
-  $: visible = visibleConsoleLines(lines, chip, custom, search);
+  $: visible = visibleConsoleLines(lines, chip, custom, search, hideAuto);
   $: onlinePlayers = playersResponse.players;
   $: suggestions = command ? commandSuggestions(command, serverType, onlinePlayers) : [];
   $: relativeTime = capabilities?.worldSettings?.relativeTime;
   $: relativeTimeAvailable = relativeTime?.available === true;
   $: activeFilterCount =
     Number(chip !== 'all' && chip !== 'custom') +
+    Number(hideAuto) +
     Number(custom.origins.size > 0 || custom.levels.size > 0);
 
   // The shell keeps this dock mounted while the selected host changes. Rebuild
@@ -108,9 +106,10 @@
     if (!currentApi) return;
     const version = clearVersion;
     try {
-      const fetchedLines = await currentApi.get<ConsoleLine[]>(livePaths.tail);
+      const tailPath = `${livePaths.tail}&hideAuto=${hideAuto}`;
+      const fetchedLines = await currentApi.get<ConsoleLine[]>(tailPath);
       if (version === clearVersion) {
-        lines = humanConsoleLines(consoleLinesAfterClear(fetchedLines, clearedAt, clearedLineKeys));
+        lines = consoleLinesAfterClear(fetchedLines, clearedAt, clearedLineKeys);
       }
     } catch {
       // Agent unreachable this cycle — keep showing the last known buffer.
@@ -127,11 +126,15 @@
     }
   }
 
-  async function streamUrl(currentApi: ScreenApi): Promise<string | undefined> {
+  async function streamUrl(
+    currentApi: ScreenApi,
+    hideAutomatic: boolean,
+  ): Promise<string | undefined> {
     if (!currentApi.resourceUrl || typeof WebSocket === 'undefined') return undefined;
     try {
       const url = new URL(currentApi.resourceUrl(livePaths.stream), window.location.href);
       url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+      url.searchParams.set('hideAuto', String(hideAutomatic));
       try {
         const result = await currentApi.post<{ ticket?: unknown }>(livePaths.streamTicket);
         if (typeof result.ticket === 'string' && result.ticket) {
@@ -155,7 +158,7 @@
       return;
     }
     streamState = 'connecting';
-    const url = await streamUrl(currentApi);
+    const url = await streamUrl(currentApi, hideAuto);
     if (!componentMounted || generation !== feedGeneration || api !== currentApi) return;
     if (!url) {
       streamState = 'closed';
@@ -169,7 +172,7 @@
       maxHistory: 200,
       dedupeKey: consoleLineKey,
       onUpdate: (history) => {
-        lines = humanConsoleLines(consoleLinesAfterClear([...history], clearedAt, clearedLineKeys));
+        lines = consoleLinesAfterClear([...history], clearedAt, clearedLineKeys);
       },
       onState: (state) => {
         streamState = state;
@@ -201,6 +204,16 @@
     if (!fallbackPollTimer) return;
     clearInterval(fallbackPollTimer);
     fallbackPollTimer = undefined;
+  }
+
+  function setHideAuto(checked: boolean): void {
+    if (hideAuto === checked) return;
+    hideAuto = checked;
+    stopConsoleFeed();
+    if (api) {
+      startConsoleFeed();
+      void pollTail();
+    }
   }
 
   function resetConsoleBoundary(): void {
@@ -410,11 +423,10 @@
           {/if}
         {/each}
       </div>
-      <p class="filter-note">
-        Monitoring and helper diagnostics stay out of this human console history. Manual commands
-        and actionable status remain visible in their proper surfaces.
-        <HelpLink {hostId} {serverId} helpId="console.filters" />
-      </p>
+      <div class="auto-filter">
+        <Toggle checked={hideAuto} label="Hide automatic output" onchange={setHideAuto} />
+        <span>Hide Auto</span>
+      </div>
 
       {#if showCustomPanel}
         <div class="custom-options">
@@ -488,7 +500,7 @@
       {:else}
         <p class="empty">
           {lines.length
-            ? 'No human console lines match this filter.'
+            ? 'No console lines match this filter.'
             : 'Connect to a running server to see console output here.'}
         </p>
       {/if}
@@ -747,11 +759,21 @@
     font-size: 12px;
     font-weight: 600;
   }
-  .filter-note {
-    margin: 10px 4px 0;
-    color: var(--msc2-text-tertiary);
+  .auto-filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 8px 4px 0;
+    color: var(--msc2-text-secondary);
     font-size: 10px;
-    line-height: 1.45;
+    white-space: nowrap;
+    border-top: 1px solid var(--msc2-hairline-subtle);
+  }
+  .auto-filter :global(.track) {
+    transform: scale(0.68);
+    transform-origin: left center;
+    margin-right: -10px;
   }
   .scrim {
     position: fixed;

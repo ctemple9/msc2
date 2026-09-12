@@ -256,8 +256,9 @@ export function automaticConsoleLineKeys(lines: readonly ConsoleLine[]): Readonl
     const lower = stripAnsi(line.text).toLowerCase();
     const explicitlyAutomatic = line.auto === true;
     const helperAutomatic = routineHelperLine(line.source, lower);
+    const sparkWorkerOutput = lower.includes('[spark-worker-pool-') && lower.includes('/info]:');
 
-    if (explicitlyAutomatic || helperAutomatic || knownMetricLine(lower)) {
+    if (explicitlyAutomatic || helperAutomatic || sparkWorkerOutput || knownMetricLine(lower)) {
       automatic.add(consoleLineKey(line));
     }
 

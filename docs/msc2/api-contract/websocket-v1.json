@@ -1,5 +1,5 @@
 {
-  "description": "MSC 2's v1 WebSocket surface. `console` delivers bounded human console history, `operation-progress` pushes P2.5's OperationDTO, and P9.4 adds `notifications` for the server/player events MSC 1 actually emits plus Phase 9 helper/connectivity events. Phase 10 carries Bedrock console and lifecycle work through these same shared channels; no sidecar or UDP-relay frames are public. Controller/helper output is retained separately for internal consumers and future diagnostics delivery, so it cannot evict human console history. `status`, `players`, and `metrics` remain HTTP-polled until a later phase needs push delivery.",
+  "description": "MSC 2's v1 WebSocket surface. `console` delivers bounded console history, `operation-progress` pushes P2.5's OperationDTO, and P9.4 adds `notifications` for the server/player events MSC 1 actually emits plus Phase 9 helper/connectivity events. Phase 10 carries Bedrock console and lifecycle work through these same shared channels; no sidecar or UDP-relay frames are public. Controller/helper output is kept in a separate bounded diagnostics ring and never evicts human console history. The console's `hideAuto` query parameter defaults to true; a client may opt into that diagnostics output without increasing the human-history ring. `status`, `players`, and `metrics` remain HTTP-polled until a later phase needs push delivery.",
   "version": "v1",
   "channels": [
     {
@@ -18,6 +18,14 @@
         "acceptKeyAlgorithm": "base64(SHA1(trim(Sec-WebSocket-Key) + \"258EAFA5-E914-47DA-95CA-C5AB0DC85B11\"))",
         "successResponse": "HTTP/1.1 101 Switching Protocols, with Upgrade: websocket, Connection: Upgrade, Sec-WebSocket-Accept: <computed>",
         "failureResponse": "HTTP 400 with P2.4 §5's ErrorDTO (code: \"invalid_body\", message naming the missing/empty Sec-WebSocket-Key) if the upgrade headers are malformed — a deliberate P2.4 §6 (D-006 point 3) correction against the baseline's bespoke {\"error\": \"websocket_upgrade_failed\"} shape, not a wire-shape change to the channel itself"
+      },
+      "queryParameters": {
+        "hideAuto": {
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "description": "When true, controller/helper output is not sent over this console connection. When false, the stream also sends recent and live automatic lines from the separate bounded diagnostics ring."
+        }
       },
       "auth": {
         "mechanism": "Bearer-token authentication is applied before upgrade; desktop shells may instead use the short-lived console-only ticket returned by POST /v1/console/stream-ticket as the `ticket` query parameter, because browser WebSocket APIs cannot attach the desktop bearer header",
@@ -39,10 +47,10 @@
       "deliveryModel": {
         "kind": "bounded-history-then-live",
         "backfillCount": 200,
-        "backfillSource": "the last 200 user/server-origin lines from the human-history ring, sent as individual frames immediately on successful upgrade, before any live line",
-        "liveSource": "every new user/server-origin line is broadcast to all currently-connected WS clients for this channel as it arrives; controller/helper lines are not broadcast on this channel",
+        "backfillSource": "by default, the last 200 user/server-origin lines from the human-history ring; when hideAuto=false, merge in recent controller/helper lines from the separate diagnostics ring, then send the newest 200 lines oldest-first",
+        "liveSource": "every new user/server-origin line is broadcast to all currently-connected WS clients; controller/helper lines are sent only to clients connected with hideAuto=false",
         "ringBufferLimit": 5000,
-        "ringBufferBehavior": "the human-history buffer (also serving GET /v1/console/tail) is capped at 5000 lines; oldest user/server lines are trimmed once the cap is exceeded. Controller/helper lines use a separate 200-line diagnostics ring and cannot displace this history",
+        "ringBufferBehavior": "the human-history buffer (also serving GET /v1/console/tail) is capped at 5000 lines; oldest user/server lines are trimmed once the cap is exceeded. Controller/helper lines use a separate 200-line diagnostics ring and cannot displace this history. hideAuto=true (the default) does not send them to the console client",
         "internalConsumerBoundary": "internal metric parsers, backup waiters, and helper lifecycle consumers receive all origins before public delivery filtering"
       },
       "inboundHandling": {
@@ -56,7 +64,7 @@
           "onExceeded": "server sends a close frame and tears down the connection"
         }
       },
-      "notes": "The line shape remains additive-compatible with P0.24: origin is optional on the wire and omitted for the default server origin. The 200-line human backfill, 5000-line human ring, 64 KB inbound cap, ping/pong/close handling, and the two ErrorDTO responses remain the channel's other boundaries. Controller/helper diagnostics are deliberately not replayed through the human console channel."
+      "notes": "The line shape remains additive-compatible with P0.24: origin is optional on the wire and omitted for the default server origin. The 200-line backfill, 5000-line human ring, separate 200-line diagnostics ring, 64 KB inbound cap, ping/pong/close handling, and the two ErrorDTO responses remain the channel's other boundaries. The console's hideAuto setting filters diagnostics before WebSocket and tail delivery, not merely at display time."
     },
     {
       "name": "notifications",

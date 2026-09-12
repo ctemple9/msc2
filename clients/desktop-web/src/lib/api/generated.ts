@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 0754a7acce7eb604544bdc7df1b35078925121b7fdbdc9e0ed0ad86df7cc2c31
+// Contract SHA-256: 7b5391ff5c3c39a96681cafc6702eb67bc366109b7f99a5dfca12c7ef5e8b737
 
 export interface paths {
   '/v1/active-server': {
@@ -2021,10 +2021,14 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Last N human console lines (query param n, default 200, clamped 1-2000) */
+    /** Last N console lines; hideAuto defaults to true and prevents automatic output from being sent to the client */
     get: {
       parameters: {
-        query?: never;
+        query?: {
+          /** @description When true, omit controller/helper output from this response. Defaults to true. */
+          hideAuto?: boolean;
+          n?: number;
+        };
         header?: never;
         path?: never;
         cookie?: never;
@@ -6697,7 +6701,7 @@ export interface components {
       auto?: boolean;
       level?: string;
       /**
-       * @description Producer provenance. The server origin may be omitted for backward-compatible line serialization and defaults to server; user and server belong in human history, controller and helper belong in the separate diagnostics stream.
+       * @description Producer provenance. The server origin may be omitted for backward-compatible line serialization and defaults to server. Controller/helper output is kept in a separate bounded diagnostics ring and is delivered only when hideAuto is false; it never displaces human history.
        * @enum {string}
        */
       origin?: 'user' | 'server' | 'controller' | 'helper';

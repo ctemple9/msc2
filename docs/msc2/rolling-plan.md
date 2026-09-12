@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, P14.17, P14.18, P14.19, P14.26, P14.27, P14.28, and P14.29 are awaiting verification.
+> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, P14.17, P14.18, P14.19, P14.26, P14.27, P14.28, P14.29, P14.30, and P14.31 are awaiting verification.
 > **Next move:** Cameron runs the outstanding Phase 14 verification commands, including the focused release-signature regression check in P14.26, and closes each step if its behavior is sound. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
@@ -337,6 +337,22 @@ editable or automatically selected when occupied.
 - **Verify:** `cd clients/desktop-web && cargo fmt --manifest-path src-tauri/Cargo.toml -- --check && cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings`
 - **Batch:** J — SSH connection repair and v0.1.7 release
 - **Commit:** `P14.29: accept supplied SSH passwords`
+
+### P14.30 — Prompt again for saved-host SSH passwords
+- **Status:** awaiting verification
+- **Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/hosts/connection.ts`, `docs/msc2/rolling-plan.md`
+- **What:** After MSC quits, the app-owned SSH tunnel and its in-memory password are intentionally cleared. When reconnecting to a saved password-authenticated host, ask for that host's SSH password before showing an agent-unavailable error; keep it in memory only for the current app session. Re-prompt with a clear message if the password is refused, and allow Cancel to return to the local host. Preserve saved/manual tunnel behavior.
+- **Verify:** `cd clients/desktop-web && npm run format:check && npm run check && npm run build` — then manually quit and reopen the desktop app, switch to a saved password-authenticated host, confirm the password prompt appears, connect successfully, and confirm an incorrect password can be retried.
+- **Batch:** J — SSH connection repair and v0.1.7 release
+- **Commit:** `P14.30: prompt for saved-host SSH passwords`
+
+### P14.31 — Prepare the v0.1.7 release
+- **Status:** awaiting verification
+- **Files:** `crates/msc-agent/Cargo.toml`, `Cargo.lock`, `clients/desktop-web/package.json`, `clients/desktop-web/package-lock.json`, `clients/desktop-web/src-tauri/Cargo.toml`, `clients/desktop-web/src-tauri/Cargo.lock`, `clients/desktop-web/src-tauri/tauri.conf.json`, `clients/desktop-web/src/lib/bundle-identity.ts`, `clients/desktop-web/src/lib/bundle-identity.test.ts`, `README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Synchronize the coordinated application and agent identity to `0.1.7`, including lockfiles, Tauri metadata, bundle identity, and download/update instructions. Publish only from the green mainline using the guarded release workflow; it will build the platform desktop/headless artifacts and signed update metadata.
+- **Verify:** `gh run list --workflow ci.yml --limit 5` — confirm CI for the version-bump commit is green before pushing tag `v0.1.7`.
+- **Batch:** J — SSH connection repair and v0.1.7 release
+- **Commit:** `P14.31: prepare v0.1.7 release`
 
 ## Historical records
 

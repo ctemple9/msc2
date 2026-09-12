@@ -37,8 +37,16 @@ export class HostConnectionManager {
     if (password) this.passwords.set(hostId, password);
   }
 
-  forgetHost(hostId: string): void {
+  hasSessionPassword(hostId: string): boolean {
+    return this.passwords.has(hostId);
+  }
+
+  forgetSessionPassword(hostId: string): void {
     this.passwords.delete(hostId);
+  }
+
+  forgetHost(hostId: string): void {
+    this.forgetSessionPassword(hostId);
   }
 
   async connect(

@@ -3,6 +3,7 @@
   import { bundleIdentity } from './lib/bundle-identity';
   import { ApiClient, ApiError } from './lib/api/client';
   import ApplicationShell from './lib/components/ApplicationShell.svelte';
+  import { Button, Field, Sheet } from './lib/components/base';
   import FirstLaunchGate from './lib/help/FirstLaunchGate.svelte';
   import SplashGate from './lib/help/SplashGate.svelte';
   import { createClientRouter } from './routes/router';
@@ -194,6 +195,47 @@
   let browserHandoffError = '';
   let addressesVisible = false;
   let connectionGeneration = 0;
+  let sshPasswordPromptHostId: HostId | null = null;
+  let sshPasswordInput = '';
+  let sshPasswordPromptError = '';
+  let sshPasswordPromptBusy = false;
+
+  function promptForSshPassword(id: HostId, error = ''): void {
+    sshPasswordPromptHostId = id;
+    sshPasswordInput = '';
+    sshPasswordPromptError = error;
+    shellMessage = `Enter the SSH password to reconnect to ${hosts.find((host) => host.id === id)?.displayName ?? 'this computer'}.`;
+    void selectSection('agent-setup');
+  }
+
+  function closeSshPasswordPrompt(): void {
+    const pendingHostId = sshPasswordPromptHostId;
+    sshPasswordPromptHostId = null;
+    sshPasswordInput = '';
+    sshPasswordPromptError = '';
+    if (pendingHostId && pendingHostId === hostId) void switchHost(localAgentHostId);
+  }
+
+  async function submitSshPassword(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    const pendingHostId = sshPasswordPromptHostId;
+    if (!pendingHostId || !sshPasswordInput) {
+      sshPasswordPromptError = 'Enter the password for this computer.';
+      return;
+    }
+    hostConnectionManager.rememberSessionPassword(pendingHostId, sshPasswordInput);
+    sshPasswordPromptBusy = true;
+    sshPasswordPromptError = '';
+    await initializeClient();
+    sshPasswordPromptBusy = false;
+    if (clientReady && hostId === pendingHostId) {
+      sshPasswordPromptHostId = null;
+      sshPasswordInput = '';
+    } else if (!sshPasswordPromptError) {
+      sshPasswordPromptHostId = null;
+      sshPasswordInput = '';
+    }
+  }
 
   function toggleAddresses(): void {
     addressesVisible = !addressesVisible;
@@ -858,7 +900,16 @@
         }
       }
       if (isDesktopShell && hostId !== localAgentHostId) {
-        const connection = await hostConnectionManager.connect(hostStore.getState(hostId).host);
+        const host = hostStore.getState(hostId).host;
+        if (
+          host.ssh.authentication === 'password' &&
+          !hostConnectionManager.hasSessionPassword(host.id) &&
+          !host.manualAgentAddress
+        ) {
+          promptForSshPassword(host.id);
+          return;
+        }
+        const connection = await hostConnectionManager.connect(host);
         if (generation !== connectionGeneration) return;
         shellMessage = connection.detail;
       }
@@ -868,8 +919,25 @@
       if (clientReady) scheduleAvailableTabPreload();
     } catch (error) {
       if (generation !== connectionGeneration) return;
+      const host = hostStore.getState(hostId).host;
+      const connectionError = formatConnectionFailure(error);
+      if (
+        isDesktopShell &&
+        hostId !== localAgentHostId &&
+        host.ssh.authentication === 'password' &&
+        (connectionError.includes('Password authentication needs a password') ||
+          connectionError.includes('SSH password or key was refused'))
+      ) {
+        hostConnectionManager.forgetSessionPassword(hostId);
+        promptForSshPassword(
+          hostId,
+          connectionError.includes('refused') ? 'That password was not accepted. Try again.' : '',
+        );
+        hostStore.updateConnection(hostId, 'connecting');
+        return;
+      }
       agentReadiness = readinessForError(error);
-      shellMessage = `Unable to prepare the selected host connection: ${formatConnectionFailure(error)}`;
+      shellMessage = `Unable to prepare the selected host connection: ${connectionError}`;
       hostStore.updateConnection(hostId, 'error');
       await selectSection('agent-setup');
     }
@@ -1148,6 +1216,44 @@
   />
 {/if}
 
+{#if sshPasswordPromptHostId}
+  {@const sshPasswordPromptHost = hosts.find((host) => host.id === sshPasswordPromptHostId)}
+  <Sheet
+    title={`Connect to ${sshPasswordPromptHost?.displayName ?? 'saved host'}`}
+    size="sm"
+    onClose={sshPasswordPromptBusy ? undefined : closeSshPasswordPrompt}
+  >
+    <form class="ssh-password-prompt" onsubmit={submitSshPassword}>
+      <p>
+        Enter the SSH password for {sshPasswordPromptHost?.displayName ?? 'this computer'}. MSC
+        keeps it in memory only until you quit the app.
+      </p>
+      <label class="ssh-password-label">
+        SSH password
+        <Field
+          type="password"
+          bind:value={sshPasswordInput}
+          placeholder="Password for this computer"
+          disabled={sshPasswordPromptBusy}
+        />
+      </label>
+      {#if sshPasswordPromptError}
+        <p class="ssh-password-error" role="alert">{sshPasswordPromptError}</p>
+      {/if}
+      <div class="ssh-password-actions">
+        <Button
+          variant="secondary"
+          disabled={sshPasswordPromptBusy}
+          onclick={closeSshPasswordPrompt}>Cancel</Button
+        >
+        <Button variant="primary" type="submit" disabled={sshPasswordPromptBusy}>
+          {sshPasswordPromptBusy ? 'Connecting…' : 'Connect'}
+        </Button>
+      </div>
+    </form>
+  </Sheet>
+{/if}
+
 {#if settingsOpen}
   <AppSettingsSheet
     api={screenApi}
@@ -1179,6 +1285,29 @@
 {/if}
 
 <style>
+  .ssh-password-prompt {
+    display: grid;
+    gap: 14px;
+  }
+  .ssh-password-prompt p {
+    margin: 0;
+    color: var(--msc2-text-secondary);
+    line-height: 1.5;
+  }
+  .ssh-password-label {
+    display: grid;
+    gap: 6px;
+    color: var(--msc2-text-primary);
+    font-size: 13px;
+  }
+  .ssh-password-prompt .ssh-password-error {
+    color: var(--msc2-status-error);
+  }
+  .ssh-password-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
   .dashboard {
     display: grid;
     gap: 1rem;

@@ -286,6 +286,15 @@ editable or automatically selected when occupied.
 - **Batch:** I — CI regression repair
 - **Commit:** `P14.23: stabilize cross-platform browser smoke timing`
 
+### P14.24 — Prepare the v0.1.6 release
+
+- **Status:** awaiting verification
+- **Files:** `crates/msc-agent/Cargo.toml`, `Cargo.lock`, `clients/desktop-web/package.json`, `clients/desktop-web/package-lock.json`, `clients/desktop-web/src-tauri/Cargo.toml`, `clients/desktop-web/src-tauri/Cargo.lock`, `clients/desktop-web/src-tauri/tauri.conf.json`, `clients/desktop-web/src/lib/bundle-identity.ts`, `clients/desktop-web/src/lib/bundle-identity.test.ts`, `README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Synchronize all release identity versions and current download/update instructions to `0.1.6`. The existing `v0.1.5` tag remains untouched because it points to the earlier release-preparation commit, before the latest connection-flow corrections and CI repairs. Publish `v0.1.6` only from the current green mainline commit, using the guarded release workflow to build and attach the platform desktop/headless artifacts and signed update metadata.
+- **Verify:** `gh run list --workflow ci.yml --limit 5` — confirm the version-bump commit's CI is green before pushing `v0.1.6`
+- **Batch:** I — release and update handoff
+- **Commit:** `P14.24: prepare v0.1.6 release`
+
 ## Historical records
 
 Detailed records for Setup through Phase 12, including the completed P12.121–P12.189 steps, remain in `rolling-plan-archive.md`.

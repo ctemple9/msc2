@@ -196,7 +196,7 @@ fn console_auto_classifier_marks_metrics_as_a_bounded_family() {
 }
 
 #[test]
-fn console_auto_classifier_hides_routine_helpers_but_keeps_attention_lines() {
+fn console_auto_classifier_marks_helper_attention_lines_as_automatic() {
     let mut buffer = ConsoleBuffer::new();
 
     assert!(
@@ -209,7 +209,7 @@ fn console_auto_classifier_hides_routine_helpers_but_keeps_attention_lines() {
             .auto
     );
     assert!(
-        !buffer
+        buffer
             .push(ConsoleLine::new(
                 "xbox-broadcast",
                 None,
@@ -218,7 +218,7 @@ fn console_auto_classifier_hides_routine_helpers_but_keeps_attention_lines() {
             .auto
     );
     assert!(
-        !buffer
+        buffer
             .push(ConsoleLine::new(
                 "playit",
                 None,

@@ -188,6 +188,7 @@ editable or automatically selected when occupied.
 - **Implementation amendment (2026-09-11):** Keep “Review connection” clickable so invalid details produce a specific explanation instead of a silently disabled button. Normalize number-field text to valid numeric ports for validation, collision detection, the generated tunnel command, and connection submission.
 - **Implementation amendment (2026-09-11):** First-time “Save and connect” now remembers the SSH host key without showing its fingerprint. A changed identity still stops the connection and requires explicit approval, but MSC explains the change without displaying either fingerprint.
 - **Implementation amendment (2026-09-11):** The wizard no longer displays fingerprint values or comparison instructions. First-time setup remembers the identity on “Save and connect”; changed identities still require explicit approval, with the warning shown in plain language and no key values exposed.
+- **Release preparation (2026-09-11):** Synchronized application, embedded agent, installer, lockfile, bundle identity, and README references to `0.1.5`; publication awaits the tagged release workflow.
 - **Verify:** `npm run check`
 - **Batch:** F — remote connection experience
 - **Commit:** `P14.13: add guided remote host connection flow`

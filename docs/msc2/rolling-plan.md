@@ -268,6 +268,15 @@ editable or automatically selected when occupied.
 - **Batch:** I — CI regression repair
 - **Commit:** `P14.21: restore browser host context before selecting server`
 
+### P14.22 — Refresh outdated client source assertions
+
+- **Status:** awaiting verification
+- **Files:** `clients/desktop-web/tests/navigation/navigation.test.ts`, `clients/desktop-web/tests/agent-install/agent-install.test.ts`, `clients/desktop-web/tests/screens/first-launch-reset.test.ts`, `docs/msc2/rolling-plan.md`
+- **What:** Update existing source-contract assertions that still expected the pre-Phase-14 host ID declaration, transport setup location, remote pairing URL, and older setup-screen wording/error handling. Assert against the current shared host constant, browser/Tauri transport implementation, profile-based pairing URL, and owner-approved control-panel/agent explanation. This aligns validation expectations with the implemented behavior; it does not add tests or change runtime behavior.
+- **Verify:** `gh run list --workflow ci.yml --limit 5` — confirm the new commit's CI run is green
+- **Batch:** I — CI regression repair
+- **Commit:** `P14.22: align client source assertions with current host flow`
+
 ## Historical records
 
 Detailed records for Setup through Phase 12, including the completed P12.121–P12.189 steps, remain in `rolling-plan-archive.md`.

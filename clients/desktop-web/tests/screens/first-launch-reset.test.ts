@@ -19,9 +19,11 @@ describe('first-launch reset recovery', () => {
     expect(setupSource).toContain('msc pairing create');
     expect(setupSource).toContain('Pair again');
     expect(appSource).toContain('async function pairAgain');
-    expect(appSource).toContain('redeemRemotePairing(previousHost.baseUrl, pairingCode)');
+    expect(appSource).toContain(
+      'auth.redeemRemotePairing(hostManagementUrl(previousHost), pairingCode)',
+    );
     expect(appSource).toContain('hostStore.removeHost(previousHost.id)');
-    expect(appSource).toContain('hostStore.addHost({');
+    expect(appSource).toContain('hostStore.addHost(replacementHost)');
     expect(appSource).toContain('await initializeClient();');
   });
 

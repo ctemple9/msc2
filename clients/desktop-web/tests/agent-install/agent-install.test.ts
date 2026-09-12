@@ -15,6 +15,7 @@ const status = (state: AgentServiceStatus['state']): AgentServiceStatus => ({
 });
 import appSource from '../../src/App.svelte?raw';
 import setupSource from '../../src/lib/sections/setup/AgentSetupSection.svelte?raw';
+import platformSource from '../../src/lib/platform/index.ts?raw';
 import tauriSource from '../../src/lib/platform/tauri.ts?raw';
 
 describe('local agent installation boundary', () => {
@@ -35,9 +36,9 @@ describe('local agent installation boundary', () => {
   });
 
   it('keeps service controls scoped to the selected local host', () => {
-    expect(appSource).toContain(
-      'baseUrl: isDesktopShell ? LOCAL_AGENT_ORIGIN : window.location.origin',
-    );
+    expect(platformSource).toContain('baseUrl: configuredBaseUrl ?? LOCAL_AGENT_ORIGIN');
+    expect(platformSource).toContain("typeof window === 'undefined'");
+    expect(platformSource).toContain('window.location.origin');
     expect(appSource).toContain('isLocalHost={hostId === localAgentHostId}');
     expect(setupSource).toContain("export let hostId = '';");
     expect(setupSource).toContain('isDesktopShell && isLocalHost');
@@ -68,7 +69,9 @@ describe('local agent installation boundary', () => {
     expect(setupSource).toContain('MSC has two parts');
     expect(setupSource).toContain('The control panel');
     expect(setupSource).toContain('The agent');
-    expect(setupSource).toContain('The control panel is the app you use.');
+    expect(setupSource).toContain('The control panel (what you can see) is the app you use.');
+    expect(setupSource).toContain("The agent (what you can't see)");
+    expect(setupSource).toContain('same or different computer');
     expect(setupSource).toContain('The agent owns the work.');
   });
 
@@ -105,7 +108,7 @@ describe('local agent installation boundary', () => {
   });
 
   it('shows native service errors instead of leaving install feedback blank', () => {
-    expect(setupSource).toContain('errorMessage = String(error)');
+    expect(setupSource).toContain("formatConnectionFailure(error, 'msc-agent')");
     expect(setupSource).toContain('Could not change the agent service');
   });
 });

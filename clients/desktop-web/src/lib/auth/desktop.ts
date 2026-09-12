@@ -73,7 +73,7 @@ export interface SshTunnelRequest {
   password?: string;
   localPort: number;
   remotePort: number;
-  /** Required after the user reviews an unknown or changed fingerprint. */
+  /** Sent only when the user explicitly trusts a changed SSH identity. */
   expectedHostKeyFingerprint?: string;
   rememberHostKey: boolean;
 }

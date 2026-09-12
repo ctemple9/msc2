@@ -1,6 +1,6 @@
 # MSC 2 — Decision Register
 
-**Revision:** 1.17 · **Date:** 2026-09-11
+**Revision:** 1.18 · **Date:** 2026-09-11
 **Owner:** Cameron Temple
 
 **Purpose:** the authoritative record of *what was decided, by whom, and why*. The product and engineering documents describe the destination; this document explains how it was chosen, what was rejected, and when a decision should be reopened.
@@ -1059,11 +1059,14 @@ vocabulary: **Network**, **SSH**, **MSC agent**, **Authentication**, and
 **Minecraft**. The native bridge classifies route refusal, SSH authentication,
 host-key changes, occupied forwarding ports, tunnel exits, missing `msc` PATH
 entries, stopped agents, version-floor refusals, expired pairing challenges,
-and revoked credentials before the connection UI displays them. A changed or
-unknown host key always stops for explicit fingerprint review; it is never
-silently accepted. The local forward binds to loopback, the remote command is
-fixed to the pairing bootstrap, and the tunnel never substitutes for the
-agent's bearer credential or permission checks.
+and revoked credentials before the connection UI displays them. On the first
+explicit save-and-connect action, MSC remembers the observed SSH host key
+without presenting its fingerprint. A changed key stops connection and
+requires explicit user approval to trust the replacement; the UI explains the
+change without showing key values. It is never silently replaced. The local
+forward binds to loopback, the remote command is fixed to the pairing
+bootstrap, and the tunnel never substitutes for the agent's bearer credential
+or permission checks.
 
 Passwords and bearer/pairing values are memory-only connection inputs or native
 secret-store values. They are redacted from SSH diagnostics and user-visible
@@ -1106,6 +1109,7 @@ Recorded because each produced a confident wrong answer, and each is the kind of
 
 | Rev | Date | Change |
 |---|---|---|
+| 1.18 | 2026-09-11 | Simplified the guided SSH trust flow: first connection remembers the remote identity without displaying its fingerprint; changed identities remain blocked until explicitly trusted, without showing key values. |
 | 1.17 | 2026-09-11 | Recorded the P14.19 gate handoff contract: backup and helper output join monitoring traffic for console-retention purposes, and static evidence does not close the phase gate without live Minecraft, OS-install, and retained-client verification. |
 | 1.16 | 2026-09-11 | Added the P14.16 remote connection hardening addendum: categorized failures, explicit host-key review, loopback forwarding, redaction, and host-switch isolation. |
 | 1.15 | 2026-09-10 | Added proposed D-036: operational contracts for same-day time actions, console retention, tri-platform headless installation, and remote-host boundaries. |

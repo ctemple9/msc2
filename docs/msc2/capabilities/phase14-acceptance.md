@@ -21,8 +21,9 @@ cases remain intentionally deferred until the owner walkthrough:
   Xbox Broadcast, and Playit traffic are active;
 - real PATH, upgrade, uninstall, and service-ownership behavior on all three
   operating systems; and
-- direct LAN/Tailscale selection, managed SSH recovery, host-key review,
-  reconnect, pairing, and manual recovery in the Tauri desktop.
+- LAN/Tailscale SSH routing, managed SSH recovery, first-use identity handling,
+  changed-identity approval without displaying key values, reconnect, pairing,
+  and manual recovery in the Tauri desktop.
 
 P14.19 is ready to close only after those evidence classes are confirmed. The
 no-cloud and no-required-Tailscale boundary remains unchanged.
@@ -59,11 +60,13 @@ that portion from the repository root fails before npm can run Svelte checks.
   configurable local forwarded port. The wizard defaults to remote `48001`
   and local `48002`, detects saved-host collisions, and teaches the generated
   SSH command.
-- The desktop connection manager probes preferred direct routes before the
-  managed SSH tunnel, reuses a host-scoped session, and routes the tunnel to
-  remote loopback `48001`. The native bridge exposes status, retry, stop, host
-  key review, and the fixed remote pairing bootstrap; bearer credentials remain
-  in the native secure store.
+- The desktop uses the selected LAN or Tailscale address as the SSH destination
+  and always creates a managed tunnel to remote loopback `48001`. First
+  connection remembers the SSH identity without displaying its fingerprint;
+  a changed identity stops connection and requires explicit approval without
+  showing key values. The native bridge exposes status, retry, stop, and the
+  fixed remote pairing bootstrap; bearer credentials remain in the native
+  secure store.
 - Documentation keeps direct LAN/DNS, optional Tailscale, user-operated
   VPN/overlay, managed SSH, and manual recovery distinct. No path requires
   Tailscale, a manually opened terminal, or a cloud relay.
@@ -79,9 +82,11 @@ Static checks cannot establish the acceptance classes marked **M**, **O**, and
    Apple Silicon's documented sidecar boundary.
 3. Native Windows headless install, PATH refresh, upgrade/uninstall ownership,
    and service survival without a signed-in desktop session.
-4. Tauri LAN and Tailscale save/edit, direct-route fallback, managed SSH
-   password/key/agent prompt, host-key change warning, reconnect, configurable
-   local forwarding, and automated pairing with manual recovery available.
+4. Tauri LAN and Tailscale save/edit, managed SSH password/key/agent prompt,
+   first-use identity remembering without a fingerprint display, changed-key
+   warning and explicit replacement approval without displaying key values,
+   reconnect, configurable local forwarding, and automated pairing with manual
+   recovery available.
 5. Live server coverage for the supported Java flavors and Bedrock, including
    same-day time actions and console retention while polling, backups, and
    helper processes are active.

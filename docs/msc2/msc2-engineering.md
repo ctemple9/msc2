@@ -239,12 +239,15 @@ category is part of native route/tunnel status where the UI needs to decide
 whether to try another route; an authentication or agent refusal must not be
 silently retried as if the network were down.
 
-Unknown or changed SSH host keys stop before pairing or forwarding. The user
-must compare the displayed SHA-256 fingerprint and explicitly approve the
-observed key; MSC never accepts a replacement automatically. Managed forwards
-bind to `127.0.0.1` on the desktop and target `127.0.0.1:48001` on the remote
-host (with an editable local port such as `48002`). The bridge invokes only the
-fixed `msc pairing create --client-kind desktop --json` bootstrap command; it
+On the first explicit “Save and connect”, MSC remembers the SSH host key
+automatically; the setup screen does not display its fingerprint. A previously
+remembered key that changes stops pairing or forwarding. MSC explains the
+change without showing the key and requires an explicit user action before
+trusting the replacement; it never accepts a changed identity automatically.
+Managed forwards bind to `127.0.0.1` on the desktop and target
+`127.0.0.1:48001` on the remote host (with an editable local port such as
+`48002`). The bridge invokes only the fixed
+`msc pairing create --client-kind desktop --json` bootstrap command; it
 is not a general remote shell and it cannot install, start, stop, replace, or
 uninstall the remote operating-system service. SSH is transport only. The
 normal per-host bearer credential and permission checks remain mandatory over

@@ -91,7 +91,7 @@ export interface RemoteHostConnectionInput {
   readonly manualAgentAddress?: string;
   readonly baseUrl: string;
   readonly pairingCode: string;
-  /** Set only after the user reviews the native SSH host-key fingerprint. */
+  /** Set only after the user explicitly trusts a changed SSH identity. */
   readonly expectedHostKeyFingerprint?: string;
 }
 

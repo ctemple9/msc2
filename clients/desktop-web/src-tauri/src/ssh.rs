@@ -35,7 +35,7 @@ pub struct SshTunnelRequest {
     pub password: Option<String>,
     pub local_port: u16,
     pub remote_port: u16,
-    /// A fingerprint that the user has explicitly reviewed in the UI.
+    /// Sent only when the user explicitly approves a changed SSH identity.
     pub expected_host_key_fingerprint: Option<String>,
     pub remember_host_key: bool,
 }
@@ -67,7 +67,7 @@ pub struct SshPairingRequest {
     pub password: Option<String>,
     pub local_port: u16,
     pub remote_port: u16,
-    /// A fingerprint the user has explicitly reviewed in the setup screen.
+    /// Sent only when the user explicitly approves a changed SSH identity.
     pub expected_host_key_fingerprint: Option<String>,
     pub remember_host_key: bool,
 }
@@ -118,26 +118,26 @@ impl SshTunnelManager {
                     "host-key-mismatch",
                     &scanned.fingerprint,
                     stored.as_deref(),
-                    "The reviewed host-key fingerprint no longer matches the host.",
+                    "The server's SSH identity changed again during setup. Review the change before continuing.",
                 ));
             }
-        } else if stored.as_deref() != Some(scanned.fingerprint.as_str()) {
-            let state = if stored.is_some() {
-                "host-key-changed"
-            } else {
-                "awaiting-host-key"
-            };
-            let detail = if stored.is_some() {
-                "The remote host key changed. Review the old and new fingerprints before continuing."
-            } else {
-                "Review this host fingerprint before allowing the first connection."
-            };
+        } else if let Some(stored_fingerprint) = stored.as_deref() {
+            if stored_fingerprint != scanned.fingerprint {
+                return Ok(status_for_key_decision(
+                    &request,
+                    "host-key-changed",
+                    &scanned.fingerprint,
+                    stored.as_deref(),
+                    "This server's SSH identity changed. Confirm it is still your server before trusting the update.",
+                ));
+            }
+        } else if !request.remember_host_key {
             return Ok(status_for_key_decision(
                 &request,
-                state,
+                "awaiting-host-key",
                 &scanned.fingerprint,
-                stored.as_deref(),
-                detail,
+                None,
+                "MSC cannot remember this server's SSH identity for this connection.",
             ));
         }
 
@@ -423,27 +423,29 @@ pub fn create_remote_pairing(
                 pairing_code: None,
                 host_key_fingerprint: Some(scanned.fingerprint),
                 stored_host_key_fingerprint: stored,
-                detail: "The reviewed host-key fingerprint no longer matches the host. Review it again before continuing.".to_string(),
+                detail: "The server's SSH identity changed again during setup. Review the change before continuing.".to_string(),
             });
         }
-    } else if stored.as_deref() != Some(scanned.fingerprint.as_str()) {
-        let state = if stored.is_some() {
-            "host-key-changed"
-        } else {
-            "awaiting-host-key"
-        };
-        let detail = if stored.is_some() {
-            "The remote host key changed. Review the old and new fingerprints before continuing."
-        } else {
-            "Review this host fingerprint before allowing the first connection."
-        };
+    } else if let Some(stored_fingerprint) = stored.as_deref() {
+        if stored_fingerprint != scanned.fingerprint {
+            return Ok(RemotePairingBootstrap {
+                state: "host-key-changed",
+                agent_host_id: None,
+                pairing_code: None,
+                host_key_fingerprint: Some(scanned.fingerprint),
+                stored_host_key_fingerprint: stored,
+                detail: "This server's SSH identity changed. Confirm it is still your server before trusting the update.".to_string(),
+            });
+        }
+    } else if !request.remember_host_key {
         return Ok(RemotePairingBootstrap {
-            state,
+            state: "awaiting-host-key",
             agent_host_id: None,
             pairing_code: None,
             host_key_fingerprint: Some(scanned.fingerprint),
-            stored_host_key_fingerprint: stored,
-            detail: detail.to_string(),
+            stored_host_key_fingerprint: None,
+            detail: "MSC cannot remember this server's SSH identity for this connection."
+                .to_string(),
         });
     }
 
@@ -988,14 +990,7 @@ fn status_for_key_decision(
         host_key_fingerprint: Some(observed.to_string()),
         stored_host_key_fingerprint: stored.map(str::to_string),
         error_category: Some("ssh"),
-        stderr: format!(
-            "{} Observed fingerprint: {}{}",
-            detail,
-            observed,
-            stored
-                .map(|value| format!(" Previously remembered: {value}."))
-                .unwrap_or_default()
-        ),
+        stderr: detail.to_string(),
         exit_reason: None,
         recoverable: true,
     }

@@ -164,7 +164,7 @@ editable or automatically selected when occupied.
   - open `localPort -> 127.0.0.1:48001` on the remote host, using the remembered local port such as `48002`;
   - support SSH host/port/user, password prompt, private-key reference, and the platform SSH agent where available;
   - keep the password in memory only for the connection attempt/session unless the OS credential store is explicitly chosen later;
-  - verify and remember the remote host key fingerprint, warn on a changed key, and never silently accept a new identity;
+  - remember the remote host key on the first explicit connection without showing the fingerprint; block a changed key, explain it without displaying key values, and require explicit approval before trusting the replacement;
   - expose connection state, stderr, exit reason, and retry/stop controls to Svelte without leaking passwords or bearer tokens to logs;
   - reconnect or report a recoverable failure when the tunnel drops, and clean up the child process when the host is switched or the app closes;
   - work on macOS, Windows, and Linux Tauri builds with the same frontend contract.
@@ -186,6 +186,8 @@ editable or automatically selected when occupied.
 
   Show the generated command as an explanation of what MSC is doing, for example `ssh -N -L 48002:127.0.0.1:48001 username@host`, while making clear that the user does not need to run it manually. The normal wizard always uses the managed SSH tunnel, fixes SSH port 22 internally, and does not expose separate SSH hostname, SSH port, direct-access, or manual-tunnel controls. The redundant route explanation, wizard step labels, and extra network-help copy were removed after owner review; the normal flow now goes directly from connection details to the connection review.
 - **Implementation amendment (2026-09-11):** Keep “Review connection” clickable so invalid details produce a specific explanation instead of a silently disabled button. Normalize number-field text to valid numeric ports for validation, collision detection, the generated tunnel command, and connection submission.
+- **Implementation amendment (2026-09-11):** First-time “Save and connect” now remembers the SSH host key without showing its fingerprint. A changed identity still stops the connection and requires explicit approval, but MSC explains the change without displaying either fingerprint.
+- **Implementation amendment (2026-09-11):** The wizard no longer displays fingerprint values or comparison instructions. First-time setup remembers the identity on “Save and connect”; changed identities still require explicit approval, with the warning shown in plain language and no key values exposed.
 - **Verify:** `npm run check`
 - **Batch:** F — remote connection experience
 - **Commit:** `P14.13: add guided remote host connection flow`
@@ -215,7 +217,7 @@ editable or automatically selected when occupied.
 
 - **Status:** awaiting verification
 - **Files:** Tauri SSH bridge, host/credential stores, auth transport, connection UI, `docs/msc2/msc2-decisions.md`, `docs/msc2/msc2-engineering.md`
-- **What:** Cover the failure cases that would otherwise make the guided flow unsafe or confusing: wrong SSH password, unsupported key format, locked SSH agent, changed host fingerprint, occupied local port, unreachable LAN address, unreachable Tailscale address, tunnel process exit, remote `msc` missing from PATH, agent stopped, agent below the supported version floor, pairing challenge expiry, revoked token, and switching hosts during an active operation. Error messages must identify whether the failure is network, SSH, MSC agent, authentication, or Minecraft. Sensitive input must be redacted from logs, screenshots, diagnostics, and error telemetry (MSC has no hosted telemetry). Keep the existing per-host credential and permission model; the tunnel is transport, not authorization.
+- **What:** Cover the failure cases that would otherwise make the guided flow unsafe or confusing: wrong SSH password, unsupported key format, locked SSH agent, changed SSH identity, occupied local port, unreachable LAN address, unreachable Tailscale address, tunnel process exit, remote `msc` missing from PATH, agent stopped, agent below the supported version floor, pairing challenge expiry, revoked token, and switching hosts during an active operation. Error messages must identify whether the failure is network, SSH, MSC agent, authentication, or Minecraft. Sensitive input must be redacted from logs, screenshots, diagnostics, and error telemetry (MSC has no hosted telemetry). Keep the existing per-host credential and permission model; the tunnel is transport, not authorization.
 - **Verify:** `rg -n "password|private key|fingerprint|pairing|48001|48002|remote client|service" clients/desktop-web/src-tauri clients/desktop-web/src/lib docs/msc2/msc2-engineering.md docs/msc2/msc2-decisions.md`
 - **Batch:** G — remote hardening and documentation
 - **Commit:** `P14.16: harden managed remote connections`

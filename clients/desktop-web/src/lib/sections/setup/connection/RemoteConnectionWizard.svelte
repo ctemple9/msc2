@@ -429,28 +429,30 @@
     </section>
 
     <section class="pairing-section">
-      {#if hostKeyReview?.hostKeyFingerprint}
-        <div class="host-key-review" role="status">
-          <p class="msc2-type-overline">Review the remote computer's identity</p>
-          <p>{hostKeyReview.detail}</p>
-          {#if hostKeyReview.storedHostKeyFingerprint}
-            <div class="fingerprint-row">
-              <span>Previously remembered</span>
-              <strong>{hostKeyReview.storedHostKeyFingerprint}</strong>
-            </div>
+      {#if hostKeyReview}
+        <div class="host-key-review" role="alert">
+          {#if hostKeyReview.state === 'awaiting-host-key'}
+            <p class="msc2-type-overline">Could not save this connection</p>
+            <p>
+              MSC could not remember this computer's SSH identity. Check that secure storage is
+              available, then try again.
+            </p>
+          {:else}
+            <p class="msc2-type-overline">SSH identity changed</p>
+            <p>
+              This server's SSH identity no longer matches the one MSC remembers. If you recently
+              reinstalled SSH or replaced the server, confirm it is still your computer before
+              continuing.
+            </p>
+            <Button
+              variant="secondary"
+              disabled={busy || !hostKeyReview.hostKeyFingerprint}
+              onclick={() => {
+                expectedHostKeyFingerprint = hostKeyReview?.hostKeyFingerprint ?? '';
+                void connect();
+              }}>Trust updated identity and continue</Button
+            >
           {/if}
-          <div class="fingerprint-row">
-            <span>Now observed</span>
-            <strong>{hostKeyReview.hostKeyFingerprint}</strong>
-          </div>
-          <Button
-            variant="secondary"
-            disabled={busy}
-            onclick={() => {
-              expectedHostKeyFingerprint = hostKeyReview?.hostKeyFingerprint ?? '';
-              void connect();
-            }}>I have checked this fingerprint</Button
-          >
         </div>
       {/if}
       <label class="field-label">
@@ -691,21 +693,6 @@
     color: var(--msc2-text-secondary);
     font-size: 12px;
     line-height: 1.5;
-  }
-
-  .fingerprint-row {
-    display: grid;
-    grid-template-columns: 150px minmax(0, 1fr);
-    gap: 10px;
-    color: var(--msc2-text-tertiary);
-    font-size: 11px;
-  }
-
-  .fingerprint-row strong {
-    overflow-wrap: anywhere;
-    color: var(--msc2-text-primary);
-    font-family: var(--msc2-font-mono, monospace);
-    font-weight: 400;
   }
 
   .command-row {

@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, P14.17, P14.18, P14.19, P14.26, P14.27, P14.28, P14.29, P14.30, P14.31, P14.32, and P14.33 are awaiting verification.
-> **Next move:** Cameron runs the outstanding Phase 14 verification commands, including the focused release-signature regression check in P14.26 and the signing-pipeline validation in P14.32, and closes each step if its behavior is sound. P14.32 identifies a release-key rotation and one-time manual recovery install as prerequisites to restoring automatic updates for already-installed binaries. P14.33 prepares recovery release v0.1.8; publish only after CI is green and the rotated key verifies its detached signature. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, P14.17, P14.18, P14.19, P14.26, P14.27, P14.28, P14.29, P14.30, P14.31, P14.32, P14.33, and P14.34 are awaiting verification.
+> **Next move:** Cameron runs the outstanding Phase 14 verification commands, including the focused release-signature regression check in P14.26, signing-pipeline validation in P14.32, and active-world size verification in P14.34, and closes each step if its behavior is sound. P14.32 identifies a release-key rotation and one-time manual recovery install as prerequisites to restoring automatic updates for already-installed binaries. P14.33 prepares recovery release v0.1.8; release only after the world-size correction is verified, CI is green, and the rotated key verifies its detached signature. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -371,6 +371,15 @@ editable or automatically selected when occupied.
 - **Verify:** `python3 tools/release/check-release-workflow.py .github/workflows/release.yml --expect-publish-guard && rg -n '0\.1\.8|v0\.1\.8' crates/msc-agent/Cargo.toml Cargo.lock clients/desktop-web/package.json clients/desktop-web/package-lock.json clients/desktop-web/src-tauri/Cargo.toml clients/desktop-web/src-tauri/Cargo.lock clients/desktop-web/src-tauri/tauri.conf.json clients/desktop-web/src/lib/bundle-identity.ts README.md`
 - **Batch:** K — update-signature recovery
 - **Commit:** `P14.33: prepare v0.1.8 recovery release`
+
+### P14.34 — Measure the configured active world on Java and Bedrock
+
+- **Status:** awaiting verification
+- **Files:** `crates/msc-application/src/worlds.rs`, `crates/msc-application/src/lifecycle.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/performance.rs`, `clients/desktop-web/src/lib/sections/performance/PerformanceSection.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Replace the hard-coded Java `server/world` measurement with a calculation from the configured `level-name`: sum Java's main, Nether, and End live folders, or Bedrock's `worlds/<level-name>` folder. Do not count archived world-slot ZIPs. Report no value when the active world folder cannot be read, and show `—` rather than claiming the world is `0 B`; label the metric as the active world rather than implying every server has three dimensions.
+- **Verify:** `cargo fmt --all -- --check && cargo check --workspace && npm --prefix clients/desktop-web run check`
+- **Batch:** L — active-world performance metric
+- **Commit:** `P14.34: measure active Java and Bedrock world size`
 
 ## Historical records
 

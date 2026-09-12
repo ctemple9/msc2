@@ -1802,7 +1802,13 @@ impl LifecycleRoutesState {
                     .and_then(|metrics| metrics.ram_used_mb)
                     .or_else(|| usage.as_ref().and_then(|value| value.ram_used_mb)),
                 ram_max_mb: guest_metrics.and_then(|metrics| metrics.ram_max_mb),
-                world_size_mb: None,
+                world_size_mb: self.active_config_server().and_then(|server| {
+                    msc_application::worlds::active_world_size_mb(
+                        &StdFileSystem,
+                        Path::new(&server.server_dir),
+                        ServerType::Bedrock,
+                    )
+                }),
                 server_type: Some("bedrock".to_owned()),
             };
         }

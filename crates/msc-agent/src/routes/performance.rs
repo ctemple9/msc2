@@ -1,5 +1,5 @@
 //! `GET /v1/performance` — latest bounded performance snapshot for the
-//! active Java server.
+//! active server.
 
 use axum::Json;
 use axum::extract::State;

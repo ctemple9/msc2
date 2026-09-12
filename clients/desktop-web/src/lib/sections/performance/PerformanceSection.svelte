@@ -319,8 +319,8 @@
     <div class="footer-grid">
       <MetricTile
         title="World Size"
-        value={bytesLabel((snapshot.worldSizeMB?.value ?? 0) * 1024 ** 2)}
-        subtitle="3 dimensions"
+        value={snapshot.worldSizeMB ? bytesLabel(snapshot.worldSizeMB.value * 1024 ** 2) : '—'}
+        subtitle="Active world"
       />
       <MetricTile
         title="Uptime"

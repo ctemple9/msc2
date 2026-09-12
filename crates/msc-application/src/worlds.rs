@@ -42,6 +42,7 @@ use msc_infrastructure::archive::{self, ArchiveError};
 use msc_infrastructure::atomic_write::AtomicWriteError;
 use msc_infrastructure::download_staging::sha1_hex;
 use msc_infrastructure::fs::FileSystem;
+use msc_infrastructure::metrics::directory_size_mb;
 use msc_infrastructure::world_store;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -167,6 +168,35 @@ pub fn read_configured_level_name(fs: &dyn FileSystem, server_dir: &Path) -> Opt
 /// Bedrock; [`read_configured_level_name`] is the type-neutral entry point.
 pub fn read_java_level_name(fs: &dyn FileSystem, server_dir: &Path) -> Option<String> {
     read_configured_level_name(fs, server_dir)
+}
+
+/// Measures the world the server is configured to load, not an assumed
+/// `world/` directory or archived world-slot ZIPs. Java stores its main,
+/// Nether, and End folders beside the server properties; Bedrock stores
+/// its active level under `worlds/<level-name>`.
+pub fn active_world_size_mb(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    server_type: ServerType,
+) -> Option<f64> {
+    let configured_level_name = read_configured_level_name(fs, server_dir);
+    let level_name = world::current_level_name(server_type, configured_level_name.as_deref());
+    let world_base = world_base_dir(server_dir, server_type);
+    let mut total_mb = 0.0;
+    let mut found_world_folder = false;
+
+    for folder in world::live_world_folder_candidates(server_type, &level_name) {
+        match directory_size_mb(&world_base.join(folder)) {
+            Ok(size_mb) => {
+                total_mb += size_mb;
+                found_world_folder = true;
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(_) => return None,
+        }
+    }
+
+    found_world_folder.then_some(total_mb)
 }
 
 fn resolved_level_name(

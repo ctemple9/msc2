@@ -6,10 +6,10 @@
 //! other client surface.
 
 use msc_domain::crash_analysis;
-use msc_domain::identity::{AddOnKind, JavaServerFlavor};
+use msc_domain::identity::{AddOnKind, JavaServerFlavor, ServerType};
 use msc_domain::tps;
 use msc_infrastructure::fs::FileSystem;
-use msc_infrastructure::metrics::{ProcessMetricsProvider, directory_size_mb};
+use msc_infrastructure::metrics::ProcessMetricsProvider;
 use msc_infrastructure::process::{
     ProcessError, ProcessEvent, ProcessId, ProcessSpawnRequest, ProcessSupervisor,
 };
@@ -275,9 +275,9 @@ impl<'deps> LifecycleService<'deps> {
         let usage = self
             .active_process
             .and_then(|pid| metrics.process_usage(pid));
-        let world_size_mb = server
-            .as_ref()
-            .and_then(|server| directory_size_mb(&server.directory.join("world")).ok());
+        let world_size_mb = server.as_ref().and_then(|server| {
+            crate::worlds::active_world_size_mb(self.fs, &server.directory, ServerType::Java)
+        });
         let server_type = server.map(|server| server.flavor.raw_value().to_string());
 
         Ok(PerformanceSnapshot {

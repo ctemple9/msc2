@@ -277,6 +277,15 @@ editable or automatically selected when occupied.
 - **Batch:** I — CI regression repair
 - **Commit:** `P14.22: align client source assertions with current host flow`
 
+### P14.23 — Stabilize cross-platform browser smoke timing
+
+- **Status:** awaiting verification
+- **Files:** `clients/desktop-web/playwright.config.ts`, `docs/msc2/rolling-plan.md`
+- **What:** Run the Playwright browser smoke with one worker in CI while preserving default parallelism for local development. The browser cases share an in-memory contract server and exercise stateful setup/reset navigation; runner-dependent parallel scheduling coincided with an Ubuntu WebKit timeout when the client reset was expected to reopen the first-launch tour. This avoids overlapping those browser workflows and makes CI scheduling consistent across operating systems.
+- **Verify:** `gh run list --workflow ci.yml --limit 5` — confirm the new commit's CI run is green
+- **Batch:** I — CI regression repair
+- **Commit:** `P14.23: stabilize cross-platform browser smoke timing`
+
 ## Historical records
 
 Detailed records for Setup through Phase 12, including the completed P12.121–P12.189 steps, remain in `rolling-plan-archive.md`.

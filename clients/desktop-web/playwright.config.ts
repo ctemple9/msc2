@@ -5,6 +5,8 @@ const e2ePort = Number(process.env.MSC_E2E_PORT ?? '4173');
 export default defineConfig({
   testDir: './tests/e2e/browser',
   timeout: 30_000,
+  // Browser workers share this in-memory contract server; keep CI runs deterministic.
+  workers: process.env.CI ? 1 : undefined,
   use: { baseURL: `http://127.0.0.1:${e2ePort}`, trace: 'retain-on-failure' },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },

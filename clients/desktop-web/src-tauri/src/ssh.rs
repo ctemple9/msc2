@@ -362,10 +362,14 @@ fn validate_connection_values<const N: usize>(
         );
     }
     match authentication {
-        "password" if password.unwrap_or_default().is_empty() => return Err(
-            "Authentication: Password authentication needs a password for the connection attempt."
-                .to_string(),
-        ),
+        "password" => {
+            if password.unwrap_or_default().is_empty() {
+                return Err(
+                    "Authentication: Password authentication needs a password for the connection attempt."
+                        .to_string(),
+                );
+            }
+        }
         "private-key" => {
             let path = private_key_path
                 .filter(|value| !value.trim().is_empty())

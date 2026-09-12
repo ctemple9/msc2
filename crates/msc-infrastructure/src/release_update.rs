@@ -362,12 +362,7 @@ fn verify_manifest(
     if manifest.platforms.is_empty() {
         return Err("The signed update manifest contains no platform entries.".to_string());
     }
-    let signature = Signature::from_slice(
-        &BASE64
-            .decode(signature_bytes)
-            .map_err(|_| "Update manifest signature has invalid base64.".to_string())?,
-    )
-    .map_err(|_| "Update manifest signature is invalid.".to_string())?;
+    let signature = decode_manifest_signature(signature_bytes)?;
     let key = VerifyingKey::from_bytes(&config.trusted_key)
         .map_err(|_| "The configured release-signing key is invalid.".to_string())?;
     key.verify(canonical, &signature)
@@ -427,6 +422,15 @@ fn verify_platform(
         return Err("The signed platform both forbids and includes a sidecar.".to_string());
     }
     Ok(())
+}
+
+fn decode_manifest_signature(signature_bytes: &[u8]) -> Result<Signature, String> {
+    // The release signer writes a final newline; it is file formatting, not signature data.
+    let encoded = signature_bytes.trim_ascii();
+    let decoded = BASE64
+        .decode(encoded)
+        .map_err(|_| "Update manifest signature has invalid base64.".to_string())?;
+    Signature::from_slice(&decoded).map_err(|_| "Update manifest signature is invalid.".to_string())
 }
 
 fn latest_release(agent: &ureq::Agent, repository: &str) -> Result<GithubRelease, String> {
@@ -858,4 +862,18 @@ fn is_lowercase_sha256(value: &str) -> bool {
 fn write_bytes(path: PathBuf, bytes: &[u8]) -> Result<(), String> {
     fs::write(path, bytes)
         .map_err(|error| format!("Could not write staged update metadata: {error}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{BASE64, decode_manifest_signature};
+    use base64::Engine as _;
+
+    #[test]
+    fn accepts_signer_signature_file_with_trailing_newline() {
+        let encoded = BASE64.encode([0_u8; 64]);
+        let signature_file = format!("{encoded}\n");
+
+        assert!(decode_manifest_signature(signature_file.as_bytes()).is_ok());
+    }
 }

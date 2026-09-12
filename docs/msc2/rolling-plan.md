@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, P14.17, P14.18, and P14.19 are awaiting verification.
-> **Next move:** Cameron runs the outstanding P14.4–P14.6, P14.8–P14.12, P14.15–P14.19 verification commands and closes each step if the client behavior, installer contracts, console classification, remote profile, managed SSH capability, saved-host route lifecycle, remote error/security boundaries, remote-access teaching, cross-platform acceptance evidence, and Phase 14 gate are sound. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, P14.17, P14.18, P14.19, and P14.26 are awaiting verification.
+> **Next move:** Cameron runs the outstanding Phase 14 verification commands, including the focused release-signature regression check in P14.26, and closes each step if its behavior is sound. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -304,6 +304,15 @@ editable or automatically selected when occupied.
 - **Verify:** `gh run list --workflow ci.yml --limit 5` — confirm the correction commit's CI is green before replacing either tag
 - **Batch:** I — release and update handoff
 - **Commit:** `P14.25: correct release version to v0.1.5`
+
+### P14.26 — Accept signed update signatures with a final newline
+
+- **Status:** awaiting verification
+- **Files:** `crates/msc-infrastructure/src/release_update.rs`, `crates/msc-agent/Cargo.toml`, `Cargo.lock`, `clients/desktop-web/package.json`, `clients/desktop-web/package-lock.json`, `clients/desktop-web/src-tauri/Cargo.toml`, `clients/desktop-web/src-tauri/Cargo.lock`, `clients/desktop-web/src-tauri/tauri.conf.json`, `clients/desktop-web/src/lib/bundle-identity.ts`, `clients/desktop-web/src/lib/bundle-identity.test.ts`, `README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Fix the headless updater failure reported by the owner: the release signer writes the detached Base64 Ed25519 signature with a final newline, while the updater previously decoded the raw file bytes strictly and rejected that valid format. Trim only surrounding ASCII whitespace before decoding; malformed Base64 within the signature remains rejected. Add one focused regression test for the exact signer output shape. Synchronize the coordinated application, agent, desktop, lockfile, bundle, and README release identity to `0.1.6`; do not publish until verification and CI are green.
+- **Verify:** `cargo test -p msc-infrastructure release_update::tests::accepts_signer_signature_file_with_trailing_newline`
+- **Batch:** I — release and update handoff
+- **Commit:** `P14.26: accept signed update signatures with final newline`
 
 ## Historical records
 

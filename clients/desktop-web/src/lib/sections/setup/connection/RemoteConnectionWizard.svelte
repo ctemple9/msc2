@@ -76,8 +76,7 @@
   $: sshTarget = `${normalizedUsername}@${normalizedSshHostname}`;
   $: numericManagementPort = portNumber(managementPort);
   $: numericLocalForwardedPort = portNumber(localForwardedPort);
-  $: tunnelCommand =
-    `ssh -N -L 127.0.0.1:${numericLocalForwardedPort ?? localForwardedPort}:127.0.0.1:${numericManagementPort ?? managementPort} ${sshTarget}`;
+  $: tunnelCommand = `ssh -N -L 127.0.0.1:${numericLocalForwardedPort ?? localForwardedPort}:127.0.0.1:${numericManagementPort ?? managementPort} ${sshTarget}`;
   $: forwardedPortConflict =
     numericLocalForwardedPort !== undefined &&
     hosts.some((host) => host.localForwardedPort === numericLocalForwardedPort);

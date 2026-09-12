@@ -259,6 +259,15 @@ editable or automatically selected when occupied.
 - **Batch:** I — CI regression repair
 - **Commit:** `P14.20: repair cross-platform CI regressions`
 
+### P14.21 — Repair browser host startup and remaining client formatting
+
+- **Status:** awaiting verification
+- **Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/sections/setup/connection/RemoteConnectionWizard.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Fix the shared browser startup failure found in CI: the active server was selected in the per-host cache before the server list had been copied into that cache, causing connection initialization to throw and leaving onboarding, guides, reconnect, and server management unavailable. Store the server list before selecting the active server. Format the additional Svelte file reported by client validation. Do not move or republish a release tag.
+- **Verify:** `gh run list --workflow ci.yml --limit 5` — confirm the new commit's CI run is green
+- **Batch:** I — CI regression repair
+- **Commit:** `P14.21: restore browser host context before selecting server`
+
 ## Historical records
 
 Detailed records for Setup through Phase 12, including the completed P12.121–P12.189 steps, remain in `rolling-plan-archive.md`.

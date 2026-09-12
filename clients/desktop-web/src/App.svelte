@@ -694,10 +694,10 @@
         status.activeServerId,
         rememberedServerId ?? selectedServerId,
       );
+      hostStore.setServers(hostId, servers);
       if (selectedServerId) hostStore.selectServer(hostId, selectedServerId);
       agentReadiness = 'ready';
       shellMessage = `Connected to ${hosts.find((host) => host.id === hostId)?.displayName ?? hostId}`;
-      hostStore.setServers(hostId, servers);
       hostStore.updateConnection(hostId, 'connected');
       await selectFromLocation();
       return true;

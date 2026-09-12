@@ -6,7 +6,12 @@
   import SegmentedControl from '../../../components/base/SegmentedControl.svelte';
   import type { RemoteDesktopPairingResult } from '../../../auth/desktop';
   import { formatConnectionFailure } from '../../../hosts/connection-errors';
-  import { DEFAULT_SSH_PORT, sshHostnameFromAddress } from '../../../hosts/types';
+  import {
+    DEFAULT_LOCAL_FORWARDED_PORT,
+    DEFAULT_MANAGEMENT_PORT,
+    DEFAULT_SSH_PORT,
+    sshHostnameFromAddress,
+  } from '../../../hosts/types';
   import type {
     HostRecord,
     HostRoute,
@@ -40,8 +45,8 @@
   let authentication: SshAuthentication = 'agent';
   let privateKeyPath = '';
   let sshPassword = '';
-  let managementPort = 48001;
-  let localForwardedPort = 48002;
+  let managementPort: number | string = 48001;
+  let localForwardedPort: number | string = 48002;
   let preferredRoute: HostRoute = 'lan';
   let manualTunnel = false;
   let manualAgentAddress = 'http://127.0.0.1:48002';
@@ -69,10 +74,16 @@
   );
   $: normalizedUsername = sshUsername.trim() || 'username';
   $: sshTarget = `${normalizedUsername}@${normalizedSshHostname}`;
-  $: tunnelCommand = `ssh -N -L 127.0.0.1:${localForwardedPort}:127.0.0.1:${managementPort} ${sshTarget}`;
-  $: forwardedPortConflict = hosts.some((host) => host.localForwardedPort === localForwardedPort);
-  $: suggestedForwardedPort = nextAvailablePort(localForwardedPort);
-  $: detailsValid = validationMessage() === '';
+  $: numericManagementPort = portNumber(managementPort);
+  $: numericLocalForwardedPort = portNumber(localForwardedPort);
+  $: tunnelCommand =
+    `ssh -N -L 127.0.0.1:${numericLocalForwardedPort ?? localForwardedPort}:127.0.0.1:${numericManagementPort ?? managementPort} ${sshTarget}`;
+  $: forwardedPortConflict =
+    numericLocalForwardedPort !== undefined &&
+    hosts.some((host) => host.localForwardedPort === numericLocalForwardedPort);
+  $: suggestedForwardedPort = nextAvailablePort(
+    numericLocalForwardedPort ?? DEFAULT_LOCAL_FORWARDED_PORT,
+  );
 
   function resetForm(): void {
     step = 'details';
@@ -119,7 +130,7 @@
       return 'Enter a Tailscale address before choosing Tailscale for SSH.';
     }
     if (!sshUsername.trim()) return 'Enter the SSH username for the remote computer.';
-    if (!validPort(managementPort) || !validPort(localForwardedPort)) {
+    if (portNumber(managementPort) === undefined || portNumber(localForwardedPort) === undefined) {
       return 'Ports must be whole numbers from 1 to 65535.';
     }
     if (authentication === 'password' && !sshPassword) {
@@ -134,8 +145,10 @@
     return '';
   }
 
-  function validPort(value: number): boolean {
-    return Number.isInteger(value) && value >= 1 && value <= 65535;
+  function portNumber(value: number | string): number | undefined {
+    if (typeof value === 'string' && !value.trim()) return undefined;
+    const parsed = typeof value === 'number' ? value : Number(value);
+    return Number.isInteger(parsed) && parsed >= 1 && parsed <= 65535 ? parsed : undefined;
   }
 
   function nextAvailablePort(start: number): number {
@@ -170,7 +183,7 @@
 
   function selectedBaseUrl(): string {
     if (manualTunnel) return manualAgentAddress.trim();
-    return `http://127.0.0.1:${localForwardedPort}`;
+    return `http://127.0.0.1:${portNumber(localForwardedPort) ?? DEFAULT_LOCAL_FORWARDED_PORT}`;
   }
 
   async function copyCommand(): Promise<void> {
@@ -210,8 +223,8 @@
             : {}),
         },
         ...(authentication === 'password' && sshPassword ? { sshPassword } : {}),
-        managementPort,
-        localForwardedPort,
+        managementPort: portNumber(managementPort) ?? DEFAULT_MANAGEMENT_PORT,
+        localForwardedPort: portNumber(localForwardedPort) ?? DEFAULT_LOCAL_FORWARDED_PORT,
         manualTunnel,
         ...(manualTunnel ? { manualAgentAddress: manualAgentAddress.trim() } : {}),
         baseUrl: selectedBaseUrl(),
@@ -363,9 +376,7 @@
     </section>
 
     <div class="wizard-actions">
-      <Button variant="primary" disabled={!detailsValid} onclick={goToReview}
-        >Review connection</Button
-      >
+      <Button variant="primary" onclick={goToReview}>Review connection</Button>
     </div>
   {:else}
     <div class="intro">

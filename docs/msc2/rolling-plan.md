@@ -185,6 +185,7 @@ editable or automatically selected when occupied.
   - LAN/Tailscale route selection for the SSH destination.
 
   Show the generated command as an explanation of what MSC is doing, for example `ssh -N -L 48002:127.0.0.1:48001 username@host`, while making clear that the user does not need to run it manually. The normal wizard always uses the managed SSH tunnel, fixes SSH port 22 internally, and does not expose separate SSH hostname, SSH port, direct-access, or manual-tunnel controls. The redundant route explanation, wizard step labels, and extra network-help copy were removed after owner review; the normal flow now goes directly from connection details to the connection review.
+- **Implementation amendment (2026-09-11):** Keep “Review connection” clickable so invalid details produce a specific explanation instead of a silently disabled button. Normalize number-field text to valid numeric ports for validation, collision detection, the generated tunnel command, and connection submission.
 - **Verify:** `npm run check`
 - **Batch:** F — remote connection experience
 - **Commit:** `P14.13: add guided remote host connection flow`

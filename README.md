@@ -26,7 +26,7 @@ local Bedrock VM is unavailable because that VM runs only on Intel Macs. The
 release is unsigned, so macOS, Windows, or Linux may show a security warning
 the first time you open or install it.
 
-[Download MSC 2 v0.1.6](https://github.com/ctemple9/msc2/releases/tag/v0.1.6)
+[Download MSC 2 v0.1.5](https://github.com/ctemple9/msc2/releases/tag/v0.1.5)
 
 ## What MSC 2 does
 
@@ -156,26 +156,26 @@ app already includes the MSC 2 agent; you do not need to download both.
 
 ### macOS desktop — Intel and Apple Silicon Macs
 
-Download the matching macOS disk image from the [v0.1.6 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.6), open it, and drag MSC 2 into your Applications folder. Intel Macs include the local Bedrock runtime. Apple Silicon Macs include the app and Java runtime support, but no local Bedrock VM; Bedrock servers can still be managed on a compatible remote host.
+Download the matching macOS disk image from the [v0.1.5 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.5), open it, and drag MSC 2 into your Applications folder. Intel Macs include the local Bedrock runtime. Apple Silicon Macs include the app and Java runtime support, but no local Bedrock VM; Bedrock servers can still be managed on a compatible remote host.
 
 ### Windows desktop — 64-bit Windows
 
-Download the Windows `.msi` installer from the [v0.1.6 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.6) and follow the installation prompts.
+Download the Windows `.msi` installer from the [v0.1.5 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.5) and follow the installation prompts.
 
 ### Debian or Ubuntu desktop
 
-Download the Linux `.deb` package from the [v0.1.6 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.6), then install it with:
+Download the Linux `.deb` package from the [v0.1.5 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.5), then install it with:
 
 ~~~sh
-sudo apt install ./msc2-0.1.6-linux-x86_64.deb
+sudo apt install ./msc2-0.1.5-linux-x86_64.deb
 ~~~
 
 ### Fedora or other RPM-based Linux
 
-Download the Linux `.rpm` package from the [v0.1.6 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.6), then install it with:
+Download the Linux `.rpm` package from the [v0.1.5 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.5), then install it with:
 
 ~~~sh
-sudo dnf install ./msc2-0.1.6-linux-x86_64.rpm
+sudo dnf install ./msc2-0.1.5-linux-x86_64.rpm
 ~~~
 
 ### Headless agent — macOS, Windows, and Linux
@@ -198,7 +198,7 @@ Signed releases can be checked and staged locally from the agent binary:
 
 ~~~sh
 msc update check
-msc update install --release-id 0.1.6
+msc update install --release-id 0.1.5
 ~~~
 
 The install command asks for a second confirmation. Pass `--yes` for

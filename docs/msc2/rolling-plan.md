@@ -325,7 +325,7 @@ The ATM10 discovery work and this additional usability work share Phase 15, but 
 
 ### P15.10 — Set the default desktop window size
 
-- **Status:** planned
+- **Status:** awaiting verification
 - **Files:** `clients/desktop-web/src-tauri/tauri.conf.json`
 - **What:** Change the Tauri default window size from 1100×760 to the captured current size, 1240×760. This changes the initial default only and must not force-resize a user’s existing customized window.
 - **Verify:** `python3 -m json.tool clients/desktop-web/src-tauri/tauri.conf.json >/dev/null`

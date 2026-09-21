@@ -249,7 +249,7 @@ struct LifecycleRoutesInner {
 #[derive(Debug, Default, Clone, Copy)]
 pub(crate) struct TimeObservation {
     pub generation: u64,
-    pub absolute_ticks: Option<i64>,
+    pub query_value: Option<i64>,
 }
 
 pub struct AgentServerRegistry {
@@ -337,7 +337,9 @@ impl ConsoleCorrelation {
             "tps" | "forge tps" | "neoforge tps" => ControllerReplyKind::Tps,
             "spark tps" => ControllerReplyKind::SparkTps,
             "tick query" => ControllerReplyKind::TickQuery,
-            "time query gametime" => ControllerReplyKind::TimeQuery,
+            "time query day" | "time query daytime" | "time query gametime" => {
+                ControllerReplyKind::TimeQuery
+            }
             "save-all flush" => ControllerReplyKind::SaveAllFlush,
             "save-off" => ControllerReplyKind::SaveOff,
             "save-on" => ControllerReplyKind::SaveOn,
@@ -499,7 +501,7 @@ fn reply_matches(kind: ControllerReplyKind, clean: &str, lower: &str) -> bool {
         ControllerReplyKind::SparkTps => lower.contains("tps from last 5s, 10s, 1m, 5m, 15m"),
         ControllerReplyKind::TickQuery => is_tick_query_report_line(clean, lower),
         ControllerReplyKind::TimeQuery => {
-            msc_domain::time::parse_gametime_query_response(clean).is_some()
+            msc_domain::time::parse_time_query_response(clean).is_some()
         }
         ControllerReplyKind::SaveAllFlush => is_java_save_confirmation(lower),
         ControllerReplyKind::SaveOff | ControllerReplyKind::SaveHold => {
@@ -1101,13 +1103,16 @@ impl LifecycleRoutesState {
         *self.inner.time_observation.lock().unwrap()
     }
 
-    pub(crate) fn record_time_query_line(&self, line: &str) {
-        let Some(absolute_ticks) = msc_domain::time::parse_gametime_query_response(line) else {
+    pub(crate) fn record_time_query_line(&self, line: &str, origin: ConsoleLineOrigin) {
+        if origin != ConsoleLineOrigin::Controller {
+            return;
+        }
+        let Some(query_value) = msc_domain::time::parse_time_query_response(line) else {
             return;
         };
         let mut observation = self.inner.time_observation.lock().unwrap();
         observation.generation = observation.generation.wrapping_add(1);
-        observation.absolute_ticks = Some(absolute_ticks);
+        observation.query_value = Some(query_value);
     }
 
     pub(crate) fn drain_time_query_events(&self) {
@@ -2080,8 +2085,8 @@ impl LifecycleRoutesState {
         while let Ok(Some(event)) = self.inner.bedrock_runtime.poll_event() {
             match event {
                 BedrockRuntimeEvent::ConsoleLine(line) => {
-                    self.record_time_query_line(&line);
                     let origin = self.console_line_origin(&line);
+                    self.record_time_query_line(&line, origin);
                     self.inner
                         .console
                         .push(ConsoleLine::with_origin("bedrock", None, origin, line));
@@ -2263,7 +2268,7 @@ impl LifecycleRoutesState {
             ProcessEvent::Output { .. } | ProcessEvent::Exited(_) => "stdout",
         };
         let origin = self.console_line_origin(text);
-        self.record_time_query_line(text);
+        self.record_time_query_line(text, origin);
         self.inner.console.push(ConsoleLine::with_origin(
             source,
             None,

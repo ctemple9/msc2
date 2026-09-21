@@ -307,9 +307,9 @@ The ATM10 discovery work and this additional usability work share Phase 15, but 
 
 ### P15.8 — Reconcile same-day time behavior
 
-- **Status:** planned
-- **Files:** `crates/msc-domain/src/time.rs`, `crates/msc-agent/src/routes/commands.rs`, `clients/desktop-web/src/lib/components/shell/sidebar/QuickCommandsSection.svelte`, `clients/desktop-web/src/lib/components/shell/ConsoleDock.svelte`, `clients/desktop-web/src/lib/sections/console/CommandPaletteSheet.svelte`, `docs/msc2/rolling-plan.md`
-- **What:** Revisit the P14 relative-time implementation after the observed day 34 → 49 regression. Dawn, dusk, and night must derive their absolute target from the server’s current day and preserve that day across Java and Bedrock where supported. Record the observed failure and the acceptance rule before closing the correction.
+- **Status:** awaiting verification
+- **Files:** `crates/msc-domain/src/time.rs`, `crates/msc-agent/src/routes/commands.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `docs/msc2/api-contract/openapi.json`, `clients/desktop-web/src/lib/components/shell/sidebar/QuickCommandsSection.svelte`, `clients/desktop-web/src/lib/components/shell/ConsoleDock.svelte`, `clients/desktop-web/src/lib/sections/console/CommandPaletteSheet.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Correct the P14 relative-time implementation after the observed day 34 → 49 regression. The previous route used total `gametime`, which can be ahead of the daylight-cycle day; it now queries live `day` and `daytime`, derives the absolute target from the daylight-cycle day, rejects stale/unmatched query lines, and preserves that day across Java and Bedrock where supported. The acceptance rule is: Dawn, Dusk, and Night may change only the time-of-day; after each action, the world remains on the same Minecraft day, while raw numeric `time set` remains an explicit absolute day-changing command.
 - **Verify:** `cargo fmt --all -- --check && cargo check -p msc-domain -p msc-agent && npm --prefix clients/desktop-web run check`
 - **Batch:** H — same-day time correction
 - **Commit:** `P15.8: preserve the current Minecraft day`

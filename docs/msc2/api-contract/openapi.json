@@ -3310,7 +3310,7 @@
           }
         },
         "x-permission-category": "serverControl",
-        "x-notes": "The agent queries total gametime, derives the current Minecraft day, and sends a runtime-specific absolute time set within that same day. This route is distinct from raw POST /v1/command: numeric time set commands remain absolute, and exact day changes remain explicit operations. Presets are dawn (1000), dusk (13000), and night (18000)."
+        "x-notes": "The agent queries the daylight-cycle day and daytime, derives a runtime-specific absolute time set within that same day, and never uses total gametime as the world's day. This route is distinct from raw POST /v1/command: numeric time set commands remain absolute, and exact day changes remain explicit operations. Presets are dawn (1000), dusk (13000), and night (18000)."
       }
     },
     "/v1/start": {

@@ -59,12 +59,17 @@ pub struct RelativeTimeTarget {
 }
 
 impl RelativeTimeTarget {
-    /// Builds a same-day target using Euclidean division so negative fixture
-    /// values still map to a valid day and daytime pair rather than wrapping
-    /// toward zero like Rust's `/` and `%` operators normally do.
-    pub fn for_day(preset: RelativeTimePreset, current_absolute_ticks: i64) -> Self {
-        let current_day = current_absolute_ticks.div_euclid(MINECRAFT_DAY_TICKS);
-        let current_daytime_ticks = current_absolute_ticks.rem_euclid(MINECRAFT_DAY_TICKS);
+    /// Builds a same-day target from the runtime's daylight-cycle day and
+    /// daytime values. `gametime` is deliberately not accepted here: it is
+    /// total server uptime and can diverge from the world's current day when
+    /// the daylight cycle has been changed or paused.
+    pub fn for_current_day(
+        preset: RelativeTimePreset,
+        current_day: i64,
+        current_daytime_ticks: i64,
+    ) -> Self {
+        let current_daytime_ticks = current_daytime_ticks.rem_euclid(MINECRAFT_DAY_TICKS);
+        let current_absolute_ticks = current_day * MINECRAFT_DAY_TICKS + current_daytime_ticks;
         let target_daytime_ticks = preset.target_daytime_ticks();
         let target_absolute_ticks = current_day * MINECRAFT_DAY_TICKS + target_daytime_ticks;
         Self {
@@ -89,12 +94,16 @@ impl RelativeTimeTarget {
     }
 }
 
-/// Extracts the total tick count from replies to `time query gametime`.
+/// Extracts the integer from a Java or Bedrock `time query` response.
 /// Prefixes cover legacy servers, modern Paper wording, and the 1.21.4+
-/// timeline wording.
-pub fn parse_gametime_query_response(line: &str) -> Option<i64> {
+/// timeline wording. The caller decides whether the value represents the
+/// daylight-cycle day or the daytime because both commands use the same
+/// response shape on older runtimes.
+pub fn parse_time_query_response(line: &str) -> Option<i64> {
     [
         "The game time is ",
+        "Timeline minecraft:day is at ",
+        "Timeline minecraft:daytime is at ",
         "Timeline minecraft:gametime is at ",
         "The time is ",
     ]

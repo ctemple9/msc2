@@ -20,7 +20,8 @@ use crate::routes::lifecycle::{
     lifecycle_route_error_response, require_permission,
 };
 
-const RELATIVE_TIME_QUERY: &str = "time query gametime";
+const RELATIVE_TIME_DAY_QUERY: &str = "time query day";
+const RELATIVE_TIME_DAYTIME_QUERY: &str = "time query daytime";
 const RELATIVE_TIME_QUERY_TIMEOUT: Duration = Duration::from_secs(2);
 
 pub async fn command(
@@ -105,9 +106,10 @@ fn confirmation_required_response(required: SafetyConfirmation) -> Response {
 }
 
 /// `POST /v1/time/relative` — resolve a named time of day against the active
-/// Minecraft day, then send the runtime's absolute command. The query and
-/// set are kept together here so a client cannot accidentally reintroduce the
-/// old day-zero behavior by calculating from a cached or assumed value.
+/// Minecraft day, then send the runtime's absolute command. The agent queries
+/// daylight-cycle day and daytime separately: `gametime` is server uptime and
+/// can be several days ahead of the world's actual day. Keeping both queries
+/// and the set together also prevents a client from using cached time.
 pub async fn relative_time(
     State(state): State<LifecycleRoutesState>,
     Extension(credential): Extension<AuthenticatedCredential>,
@@ -163,41 +165,21 @@ pub async fn relative_time(
     }
 
     let _query_guard = state.time_query_lock().lock().await;
-    let before = state.time_observation();
-    let send_query: Result<(), Response> = match server_type {
-        msc_domain::identity::ServerType::Java => state
-            .send_controller_command(RELATIVE_TIME_QUERY)
-            .map(|_| ())
-            .map_err(lifecycle_error_response),
-        msc_domain::identity::ServerType::Bedrock => state
-            .send_bedrock_controller_command(RELATIVE_TIME_QUERY)
-            .map(|_| ())
-            .map_err(lifecycle_route_error_response),
+    let current_day = match query_runtime_time(&state, server_type, RELATIVE_TIME_DAY_QUERY).await {
+        Ok(value) => value,
+        Err(response) => return response,
     };
-    if let Err(response) = send_query {
-        return response;
-    }
+    let current_daytime_ticks =
+        match query_runtime_time(&state, server_type, RELATIVE_TIME_DAYTIME_QUERY).await {
+            Ok(value) => value,
+            Err(response) => return response,
+        };
 
-    let deadline = Instant::now() + RELATIVE_TIME_QUERY_TIMEOUT;
-    let current_absolute_ticks = loop {
-        state.drain_time_query_events();
-        let observation = state.time_observation();
-        if observation.generation != before.generation
-            && let Some(ticks) = observation.absolute_ticks
-        {
-            break ticks;
-        }
-        if Instant::now() >= deadline {
-            return error_response(
-                StatusCode::CONFLICT,
-                "capability_unavailable",
-                "The selected runtime did not answer its Minecraft time query.",
-            );
-        }
-        tokio::time::sleep(Duration::from_millis(50)).await;
-    };
-
-    let target = msc_domain::time::RelativeTimeTarget::for_day(preset, current_absolute_ticks);
+    let target = msc_domain::time::RelativeTimeTarget::for_current_day(
+        preset,
+        current_day,
+        current_daytime_ticks,
+    );
     let command = target.absolute_command(server_type);
     let send_absolute: Result<(), Response> = match server_type {
         msc_domain::identity::ServerType::Java => state
@@ -222,10 +204,50 @@ pub async fn relative_time(
         current_daytime_ticks: target.current_daytime_ticks,
         target_day: target.target_day,
         target_daytime_ticks: target.target_daytime_ticks,
-        query_command: RELATIVE_TIME_QUERY.to_string(),
+        query_command: format!("{RELATIVE_TIME_DAY_QUERY}; {RELATIVE_TIME_DAYTIME_QUERY}"),
         command,
         runtime: (server_type == msc_domain::identity::ServerType::Bedrock)
             .then(|| state.bedrock_runtime_state()),
     })
     .into_response()
+}
+
+async fn query_runtime_time(
+    state: &LifecycleRoutesState,
+    server_type: msc_domain::identity::ServerType,
+    query: &str,
+) -> Result<i64, Response> {
+    let before = state.time_observation();
+    let send_query: Result<(), Response> = match server_type {
+        msc_domain::identity::ServerType::Java => state
+            .send_controller_command(query)
+            .map(|_| ())
+            .map_err(lifecycle_error_response),
+        msc_domain::identity::ServerType::Bedrock => state
+            .send_bedrock_controller_command(query)
+            .map(|_| ())
+            .map_err(lifecycle_route_error_response),
+    };
+    if let Err(response) = send_query {
+        return Err(response);
+    }
+
+    let deadline = Instant::now() + RELATIVE_TIME_QUERY_TIMEOUT;
+    loop {
+        state.drain_time_query_events();
+        let observation = state.time_observation();
+        if observation.generation != before.generation
+            && let Some(value) = observation.query_value
+        {
+            return Ok(value);
+        }
+        if Instant::now() >= deadline {
+            return Err(error_response(
+                StatusCode::CONFLICT,
+                "capability_unavailable",
+                "The selected runtime did not answer its Minecraft time query.",
+            ));
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
 }

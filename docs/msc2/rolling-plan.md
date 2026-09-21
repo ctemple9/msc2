@@ -368,6 +368,15 @@ The ATM10 discovery work and this additional usability work share Phase 15, but 
 - **Batch:** K — modpack creation handoff
 - **Commit:** `P15.14: show modpack creation summary`
 
+### P15.15 — Reconcile client-only recovery and provider links
+
+- **Status:** awaiting verification
+- **Files:** `crates/msc-application/src/modpacks.rs`, `crates/msc-agent/src/routes/servers.rs`, `clients/desktop-web/src/lib/sections/components/CurseForgeManualDownloadSheet.svelte`, `clients/desktop-web/src/lib/sections/fleet/wizard/model.ts`, `clients/desktop-web/src/lib/sections/fleet/wizard/ModpackCreationSummarySheet.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Check exact compatible Modrinth matches before manual recovery, classify client-only matches as intentionally absent from the server instead of unresolved, show the connected agent’s CurseForge-key status, route provider links through the external-browser bridge, and keep Choose/Skip actions adjacent.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-agent && cargo clippy -p msc-application -p msc-agent -- -D warnings && npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** K — modpack recovery corrections
+- **Commit:** `P15.15: reconcile client-only recovery and provider links`
+
 ### Additional Phase 15 scope — world packs and modpack identity
 
 Here is the full plan we discussed. This is only recorded in the chat for now; I have not added it to the rolling plan.

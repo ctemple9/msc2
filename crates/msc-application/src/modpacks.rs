@@ -777,6 +777,11 @@ struct ModrinthRecoveryRequest<'a> {
     version_label: &'a str,
 }
 
+enum ModrinthRecoveryOutcome {
+    Installed(PathBuf),
+    ClientOnly,
+}
+
 fn try_install_confident_modrinth_match(
     transport: &dyn AddonTransport,
     fs: &dyn FileSystem,
@@ -784,7 +789,7 @@ fn try_install_confident_modrinth_match(
     flavor: JavaServerFlavor,
     minecraft_version: &str,
     request: ModrinthRecoveryRequest<'_>,
-) -> Option<PathBuf> {
+) -> Option<ModrinthRecoveryOutcome> {
     let project_name = request
         .project_name
         .filter(|name| !name.trim().is_empty())?;
@@ -810,9 +815,6 @@ fn try_install_confident_modrinth_match(
         .hits
         .iter()
         .find(|hit| hit.project_id == project_id)?;
-    if hit.is_client_only() {
-        return None;
-    }
     let Ok(versions) = provider::modrinth_project_versions(
         transport,
         &project_id,
@@ -835,6 +837,9 @@ fn try_install_confident_modrinth_match(
         (file.filename.to_ascii_lowercase() == expected_lower)
             .then(|| (file.url.clone(), version.version_number.clone()))
     })?;
+    if hit.is_client_only() {
+        return Some(ModrinthRecoveryOutcome::ClientOnly);
+    }
     if fs.create_dir_all(add_on_folder).is_err() {
         return None;
     }
@@ -852,7 +857,7 @@ fn try_install_confident_modrinth_match(
         &destination,
     )
     .is_ok()
-    .then_some(destination)
+    .then_some(ModrinthRecoveryOutcome::Installed(destination))
 }
 
 // ---------------------------------------------------------------------
@@ -912,6 +917,10 @@ pub struct CurseForgeImportReport {
     /// Blocked and failed files, enriched with provider links and a safe
     /// upload target for the recovery sheet.
     pub unresolved_files: Vec<UnresolvedModpackFile>,
+    /// Exact compatible Modrinth matches that were identified as client-only
+    /// and therefore intentionally not installed into the server's add-on
+    /// folder.
+    pub skipped_client_only_files: Vec<String>,
     pub disabled_client_only_overrides: Vec<PathBuf>,
     pub pack_name: String,
     pub pack_version: String,
@@ -1032,7 +1041,7 @@ pub fn import_curseforge(
                     ))
                 });
 
-            if let Some(installed_path) = try_install_confident_modrinth_match(
+            match try_install_confident_modrinth_match(
                 transport,
                 fs,
                 &add_on_folder,
@@ -1044,9 +1053,18 @@ pub fn import_curseforge(
                     version_label: &metadata.version_id,
                 },
             ) {
-                written.push(installed_path.clone());
-                report.installed_files.push(installed_path);
-                continue;
+                Some(ModrinthRecoveryOutcome::Installed(installed_path)) => {
+                    written.push(installed_path.clone());
+                    report.installed_files.push(installed_path);
+                    continue;
+                }
+                Some(ModrinthRecoveryOutcome::ClientOnly) => {
+                    report
+                        .skipped_client_only_files
+                        .push(file.file_name.clone());
+                    continue;
+                }
+                None => {}
             }
 
             report.blocked_files.push(pending.clone());

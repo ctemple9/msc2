@@ -519,6 +519,7 @@ export interface ModpackCreationSummary {
   provider: string;
   installedFiles: string[];
   unresolvedFiles: Schema['ModpackManualFileEntryDTO'][];
+  notInstalledFiles: string[];
 }
 
 /** Reads the pack-specific part of a successful server-create operation. */
@@ -536,6 +537,9 @@ export function modpackCreationSummary(
     const installedFiles = Array.isArray(summary.installedFiles)
       ? summary.installedFiles.filter((file): file is string => typeof file === 'string')
       : [];
+    const notInstalledFiles = Array.isArray(summary.notInstalledFiles)
+      ? summary.notInstalledFiles.filter((file): file is string => typeof file === 'string')
+      : [];
     if (
       typeof summary.packName !== 'string' ||
       typeof summary.packVersion !== 'string' ||
@@ -550,6 +554,7 @@ export function modpackCreationSummary(
       provider: summary.provider,
       installedFiles,
       unresolvedFiles,
+      notInstalledFiles,
     };
   } catch {
     return undefined;

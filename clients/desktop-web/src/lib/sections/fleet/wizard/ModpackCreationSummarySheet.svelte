@@ -90,6 +90,20 @@
       </section>
     {/if}
 
+    {#if summary.notInstalledFiles.length > 0}
+      <section class="not-installed" aria-labelledby="modpack-not-installed-title">
+        <h3 id="modpack-not-installed-title">Not installed on the server</h3>
+        <p>
+          These exact matches are client-only and belong in the player’s modpack, not the server.
+        </p>
+        <div class="file-list">
+          {#each summary.notInstalledFiles as file}
+            <span>{file}</span>
+          {/each}
+        </div>
+      </section>
+    {/if}
+
     <section class="downloaded" aria-labelledby="modpack-downloaded-title">
       <div class="section-heading">
         <div>
@@ -151,6 +165,7 @@
   }
   .attention,
   .complete,
+  .not-installed,
   .downloaded {
     padding-top: 16px;
     border-top: 1px solid var(--msc2-hairline-subtle);

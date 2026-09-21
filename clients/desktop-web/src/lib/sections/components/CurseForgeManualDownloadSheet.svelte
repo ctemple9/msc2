@@ -5,11 +5,12 @@
   // the user can open that page, choose or drop the matching JAR, retry after
   // a failed attempt, or explicitly skip the file. Every upload is bound to
   // POST /v1/modpacks/{operationId}/manual-file for validation on the agent.
+  import { onMount } from 'svelte';
   import Sheet from '../../components/base/Sheet.svelte';
   import Button from '../../components/base/Button.svelte';
   import Field from '../../components/base/Field.svelte';
   import VisibilityIcon from '../../components/base/VisibilityIcon.svelte';
-  import { getPlatform } from '../../platform';
+  import { getPlatform, openExternal } from '../../platform';
   import type { Schema, ScreenApi } from '../shared/types';
   import { errorMessage, mutate } from '../shared/types';
   import { addonPaths } from './model';
@@ -30,9 +31,20 @@
   let curseforgeApiKeyVisible = false;
   let curseforgeKeySaving = false;
   let curseforgeKeyNotice = '';
+  let curseforgeKeyConfigured: boolean | undefined;
 
   $: allResolved = remaining.length === 0;
   $: hasCurseForgeFiles = remaining.some((entry) => entry.provider === 'CurseForge');
+
+  onMount(async () => {
+    if (!api) return;
+    try {
+      const status = await api.get<Schema['CurseForgeApiKeyStatusDTO']>('/v1/config/curseforge');
+      curseforgeKeyConfigured = status.configured;
+    } catch {
+      curseforgeKeyConfigured = undefined;
+    }
+  });
 
   function pickBrowserFile(): Promise<{ name: string; bytes: Uint8Array } | null> {
     return new Promise((resolve) => {
@@ -140,6 +152,22 @@
     }
   }
 
+  async function openProviderPage(event: MouseEvent, url: string): Promise<void> {
+    event.preventDefault();
+    try {
+      await openExternal(url);
+    } catch (error) {
+      errorByFile = {
+        ...errorByFile,
+        __link: errorMessage(error) || 'The provider page could not be opened.',
+      };
+    }
+  }
+
+  async function openCurseForgeConsole(event: MouseEvent): Promise<void> {
+    await openProviderPage(event, 'https://console.curseforge.com/');
+  }
+
   async function saveCurseForgeKey(): Promise<void> {
     if (!curseforgeApiKey.trim() || curseforgeKeySaving) return;
     curseforgeKeySaving = true;
@@ -152,8 +180,8 @@
       );
       curseforgeApiKey = '';
       if (status.configured) {
+        curseforgeKeyConfigured = true;
         curseforgeKeyNotice = 'CurseForge API key saved for this agent.';
-        showCurseForgeKeySetup = false;
       } else {
         curseforgeKeyNotice = 'The agent did not save a CurseForge API key.';
       }
@@ -186,12 +214,20 @@
     </p>
     {#if hasCurseForgeFiles}
       <div class="key-actions">
-        <span class="key-hint">Need to update the provider credential?</span>
+        <span class="key-hint"
+          >{curseforgeKeyConfigured
+            ? 'CurseForge API key is configured for this agent.'
+            : 'Need to update the provider credential?'}</span
+        >
         <Button
           variant="secondary"
           size="sm"
           onclick={() => (showCurseForgeKeySetup = !showCurseForgeKeySetup)}
-          >{showCurseForgeKeySetup ? 'Hide key setup' : 'Set up CurseForge key…'}</Button
+          >{showCurseForgeKeySetup
+            ? 'Hide key setup'
+            : curseforgeKeyConfigured
+              ? 'Update CurseForge key…'
+              : 'Set up CurseForge key…'}</Button
         >
       </div>
     {/if}
@@ -199,8 +235,8 @@
       <div class="key-setup">
         <p class="key-explain">
           The key is saved on the connected agent and is never shown again.
-          <a href="https://console.curseforge.com/" target="_blank" rel="noreferrer"
-            >Open CurseForge API Console</a
+          <button type="button" class="provider-link" onclick={openCurseForgeConsole}
+            >Open CurseForge API Console</button
           >
         </p>
         <div class="key-control">
@@ -245,6 +281,7 @@
       Drop a downloaded JAR here, or choose it beside the matching file below.
     </div>
     {#if errorByFile.__drop}<p class="error drop-error">{errorByFile.__drop}</p>{/if}
+    {#if errorByFile.__link}<p class="error drop-error">{errorByFile.__link}</p>{/if}
     <div class="list">
       {#each remaining as entry (entry.fileId)}
         <div class="row">
@@ -257,27 +294,34 @@
               >
             {/if}
             {#if entry.projectUrl}
-              <a class="provider-link" href={entry.projectUrl} target="_blank" rel="noreferrer">
+              <button
+                type="button"
+                class="provider-link"
+                onclick={(event) => void openProviderPage(event, entry.projectUrl ?? '')}
+              >
                 Open {entry.provider ?? 'provider'} page
-              </a>
+              </button>
             {/if}
             {#if errorByFile[entry.fileId]}
               <span class="error">{errorByFile[entry.fileId]}</span>
             {/if}
           </div>
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={staging.has(entry.fileId)}
-            onclick={() => void stageAndBind(entry)}
-          >
-            {staging.has(entry.fileId)
-              ? 'Staging…'
-              : errorByFile[entry.fileId]
-                ? 'Retry'
-                : 'Choose File…'}
-          </Button>
-          <Button size="sm" variant="secondary" onclick={() => void skipEntry(entry)}>Skip</Button>
+          <div class="actions">
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={staging.has(entry.fileId)}
+              onclick={() => void stageAndBind(entry)}
+            >
+              {staging.has(entry.fileId)
+                ? 'Staging…'
+                : errorByFile[entry.fileId]
+                  ? 'Retry'
+                  : 'Choose File…'}
+            </Button>
+            <Button size="sm" variant="secondary" onclick={() => void skipEntry(entry)}>Skip</Button
+            >
+          </div>
         </div>
       {/each}
     </div>
@@ -342,8 +386,23 @@
   }
   .provider-link {
     width: fit-content;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
     font-size: 11px;
     color: var(--msc2-text-secondary);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .provider-link:hover {
+    color: var(--msc2-text-primary);
+  }
+  .actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 8px;
   }
   .error {
     font-size: 11px;
@@ -372,7 +431,7 @@
     line-height: 1.5;
     color: var(--msc2-text-tertiary);
   }
-  .key-explain a {
+  .key-explain .provider-link {
     color: var(--msc2-text-secondary);
   }
   .key-setup {

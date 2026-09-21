@@ -5,6 +5,7 @@
   export let value = '';
   export let disabled = false;
   export let width = '100%';
+  export let ariaLabel = '';
   export let onchange: ((value: string) => void) | undefined = undefined;
 
   function handleChange(event: Event) {
@@ -14,7 +15,13 @@
 </script>
 
 <div class="wrap" style="width: {width};">
-  <select class="select" {disabled} bind:value onchange={handleChange}>
+  <select
+    class="select"
+    {disabled}
+    aria-label={ariaLabel || undefined}
+    bind:value
+    onchange={handleChange}
+  >
     {#each options as option (option.value)}
       <option value={option.value}>{option.label}</option>
     {/each}

@@ -19,7 +19,6 @@
   export let activeWorldName: string | undefined = undefined;
   export let loading = false;
   export let onSelect: ((profile: Schema['PlayerProfileDTO']) => void) | undefined = undefined;
-  export let onReload: (() => void) | undefined = undefined;
 
   let searchText = '';
   let sortOrder: ProfileSortOrder = 'lastSeen';
@@ -56,16 +55,6 @@
         </button>
       {/if}
       <Select options={sortOptions} bind:value={sortOrder} width="auto" />
-      {#if onReload}
-        <button
-          type="button"
-          class="reload"
-          aria-label="Reload player profiles from disk"
-          onclick={onReload}
-        >
-          <Icon name="download" size={14} />
-        </button>
-      {/if}
     </div>
   </div>
 
@@ -149,14 +138,6 @@
   }
   .hidden-toggle {
     font-size: 10px;
-    color: var(--msc2-text-tertiary);
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-  }
-  .reload {
-    display: inline-flex;
     color: var(--msc2-text-tertiary);
     background: none;
     border: none;

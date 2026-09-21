@@ -178,7 +178,6 @@
     loading={profilesLoading}
     activeWorldName={worldName}
     onSelect={(profile) => (selectedProfile = profile)}
-    onReload={() => void loadProfiles()}
   />
 </div>
 

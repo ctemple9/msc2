@@ -40,6 +40,7 @@
   import Badge from '../../components/base/Badge.svelte';
   import StatusDot from '../../components/base/StatusDot.svelte';
   import EmptyState from '../../components/base/EmptyState.svelte';
+  import Select from '../../components/base/Select.svelte';
   import Menu from '../../components/base/Menu.svelte';
   import VersionPickerSheet from './VersionPickerSheet.svelte';
   import PluginBrowserSheet from './PluginBrowserSheet.svelte';
@@ -115,6 +116,13 @@
   $: anyAddonUpdatable = addons.some((addon) => addon.bucket === 'updateAvailable');
   let addonSearch = '';
   let addonFilter: ComponentState | 'all' = 'all';
+  const addonFilterOptions = [
+    { value: 'all', label: 'All states' },
+    { value: 'installed', label: 'Installed' },
+    { value: 'missing', label: 'Missing' },
+    { value: 'unresolved', label: 'Unresolved' },
+    { value: 'disabled', label: 'Disabled' },
+  ];
   $: visibleAddons = filterAddons(addons, addonSearch, addonFilter);
   $: installedAddonCount = addons.filter((addon) => addonState(addon) !== 'unresolved').length;
   $: svcAddon = addons.find(isSimpleVoiceChatAddon);
@@ -613,17 +621,12 @@
               placeholder="Search name or filename"
               bind:value={addonSearch}
             />
-            <select
-              class="state-filter"
-              aria-label="Filter components by state"
+            <Select
+              options={addonFilterOptions}
               bind:value={addonFilter}
-            >
-              <option value="all">All states</option>
-              <option value="installed">Installed</option>
-              <option value="missing">Missing</option>
-              <option value="unresolved">Unresolved</option>
-              <option value="disabled">Disabled</option>
-            </select>
+              width="auto"
+              ariaLabel="Filter components by state"
+            />
           </div>
           {#if !addonsLoaded}
             <p class="loading-state" role="status">Loading installed plugins…</p>
@@ -947,8 +950,7 @@
     gap: 8px;
     margin-bottom: 8px;
   }
-  .component-search,
-  .state-filter {
+  .component-search {
     min-height: 30px;
     box-sizing: border-box;
     color: var(--msc2-text-primary);
@@ -963,11 +965,7 @@
     flex: 1;
     padding: 6px 9px;
   }
-  .state-filter {
-    padding: 0 8px;
-  }
-  .component-search:focus-visible,
-  .state-filter:focus-visible {
+  .component-search:focus-visible {
     outline: none;
     border-color: var(--msc2-hairline-field-focus);
   }

@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 15 is the priority next phase; Phase 14 is paused with P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, P14.17, P14.18, P14.19, P14.26, P14.27, P14.28, P14.29, P14.30, P14.31, P14.32, P14.33, P14.34, P14.35, P14.36, and P14.37 awaiting verification. P14.38 records twelve unverified static-review findings and is awaiting owner triage.
-> **Next move:** Cameron reviews the Phase 15 plan, then execution begins with P15.1. Phase 14 verification and P14.38 triage remain recorded and paused until Phase 15 is complete or Cameron explicitly resumes Phase 14. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> **Next move:** Cameron verifies P15.1, then execution continues with P15.2. Phase 14 verification and P14.38 triage remain recorded and paused until Phase 15 is complete or Cameron explicitly resumes Phase 14. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -156,7 +156,7 @@ The current rolling plan says the outstanding Phase 14 verification and triage s
 
 ### P15.1 — Move Java selection into server creation
 
-- **Status:** planned
+- **Status:** awaiting verification
 - **Files:** `crates/msc-domain/src/java_runtime.rs`, `crates/msc-application/src/provisioning.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/routes/versions.rs`, `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`, `clients/desktop-web/src/lib/sections/fleet/wizard/model.ts`, `clients/desktop-web/src/lib/sections/server-editor/JavaInstallSheet.svelte`, `clients/desktop-web/src/lib/sections/server-editor/JavaTab.svelte`, `clients/desktop-web/src/lib/help/SetupIntro.svelte`
 - **What:** Make Java selection a required step after the Minecraft version and loader are known. Reuse detection and installation, assign the chosen runtime to the new server, block continuation without an explicit selection, and reuse the same flow during onboarding. Restyle the detected-runtime sheet to match the dark MSC Install Java sheet.
 - **Verify:** `cargo fmt --all -- --check && cargo check -p msc-domain -p msc-application -p msc-agent && npm --prefix clients/desktop-web run check`

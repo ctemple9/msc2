@@ -47,7 +47,7 @@
   import { ApiError } from '../../../api/client';
   import { onboardingAnchor } from '../../../help/tourAnchors';
   import type { Schema, ScreenApi } from '../../shared/types';
-  import { errorMessage, mutate } from '../../shared/types';
+  import { errorMessage } from '../../shared/types';
   import { serverEditorPaths } from '../../server-editor/model';
   import {
     canAdvanceConfigure,
@@ -60,7 +60,9 @@
     hasAddOnsStep,
     importDisplayNameFromPath,
     importServerFromDraft,
+    javaSelectionKey,
     ServerCreationError,
+    versionsForCreatePath,
     wizardStepLabels,
     type WizardPath,
   } from './model';
@@ -83,7 +85,14 @@
   let createWarnings: string[] = [];
   let showJavaRecovery = false;
   let showJavaInstall = false;
+  let showJavaSelection = false;
+  let javaSelectionLoading = false;
+  let javaSelectionError = '';
+  let javaRuntimes: Schema['JavaRuntimeDTO'][] = [];
+  let javaSelectedPath = '';
+  let javaInstallMode: 'selection' | 'recovery' = 'recovery';
   let javaRequiredMajor = 25;
+  let javaMinecraftVersion = '';
   let javaFailureMessage = '';
 
   $: tourPathLocked = $activeTourStep === 'choose-path';
@@ -141,7 +150,25 @@
     (currentStep === 5 && path === 'fresh' && showAddOns);
 
   function continueStep(): void {
-    if (currentStep < totalSteps && canContinue) currentStep += 1;
+    if (currentStep >= totalSteps || !canContinue) return;
+    if (
+      javaSelectionBelongsHere() &&
+      !hasCurrentJavaSelection() &&
+      !showJavaSelection &&
+      !showJavaInstall
+    ) {
+      void openJavaSelection();
+      return;
+    }
+    currentStep += 1;
+  }
+
+  function javaSelectionBelongsHere(): boolean {
+    return draft.serverType === 'java' && currentStep === 2 && (path === 'fresh' || showModpack);
+  }
+
+  function hasCurrentJavaSelection(): boolean {
+    return Boolean(draft.javaPath && draft.javaSelectionKey === javaSelectionKey(draft));
   }
 
   function handleImportScanned(): void {
@@ -156,6 +183,8 @@
       importSourcePath: undefined,
       importIsZip: false,
       importScan: undefined,
+      javaPath: undefined,
+      javaSelectionKey: undefined,
     };
   }
 
@@ -165,6 +194,10 @@
 
   async function beginCreate(): Promise<void> {
     if (!canCreateServer(displayName) || isCreating) return;
+    if (draft.serverType === 'java' && !hasCurrentJavaSelection()) {
+      await openJavaSelection();
+      return;
+    }
     isCreating = true;
     statusMessage =
       path === 'importExisting' && !showModpack ? 'Importing server…' : 'Creating server…';
@@ -191,6 +224,84 @@
     return [8, 17, 21, 25].includes(major) ? major : 25;
   }
 
+  function requiredJavaMajorForVersion(version: string | undefined): number {
+    const numericParts = (version ?? '')
+      .split('.')
+      .map((part) => Number(part))
+      .filter((part) => Number.isFinite(part));
+    const first = numericParts[0];
+    if (first === 1) {
+      const minor = numericParts[1] ?? 0;
+      if (minor >= 21) return 21;
+      if (minor >= 17) return 17;
+      return 8;
+    }
+    return 25;
+  }
+
+  async function resolveJavaMinecraftVersion(): Promise<string | undefined> {
+    const packVersion = draft.stagedModpack?.inspection.minecraftVersion?.trim();
+    if (packVersion) return packVersion;
+    if (!api || draft.serverType !== 'java') return undefined;
+    const response = await api.get<Schema['VersionsResponseDTO']>(
+      versionsForCreatePath('java', draft.javaFlavor),
+    );
+    const entry = draft.versionId
+      ? response.versions?.find((candidate) => candidate.id === draft.versionId)
+      : (response.versions?.find((candidate) => candidate.isLatest) ?? response.versions?.[0]);
+    return entry?.mcVersion;
+  }
+
+  async function openJavaSelection(): Promise<void> {
+    if (!api || javaSelectionLoading) return;
+    showJavaSelection = true;
+    javaSelectionLoading = true;
+    javaSelectionError = '';
+    javaSelectedPath = '';
+    try {
+      const minecraftVersion = await resolveJavaMinecraftVersion();
+      javaMinecraftVersion = minecraftVersion ?? 'the selected Minecraft version';
+      javaRequiredMajor = requiredJavaMajorForVersion(minecraftVersion);
+      const response = await api.get<Schema['JavaRuntimesResponseDTO']>(
+        serverEditorPaths.javaRuntimes,
+      );
+      javaRuntimes = response.runtimes ?? [];
+    } catch (error) {
+      javaSelectionError = errorMessage(error);
+      javaRuntimes = [];
+    } finally {
+      javaSelectionLoading = false;
+    }
+  }
+
+  function runtimeCanRun(runtime: Schema['JavaRuntimeDTO']): boolean {
+    return (runtime.majorVersion ?? 0) >= javaRequiredMajor;
+  }
+
+  function chooseJavaRuntime(runtime: Schema['JavaRuntimeDTO']): void {
+    if (runtimeCanRun(runtime)) javaSelectedPath = runtime.executablePath;
+  }
+
+  function closeJavaSelection(): void {
+    if (!javaSelectionLoading) showJavaSelection = false;
+  }
+
+  function confirmJavaSelection(): void {
+    if (!javaSelectedPath) return;
+    draft = {
+      ...draft,
+      javaPath: javaSelectedPath,
+      javaSelectionKey: javaSelectionKey(draft),
+    };
+    showJavaSelection = false;
+  }
+
+  function openJavaInstallFromSelection(): void {
+    javaInstallMode = 'selection';
+    showJavaSelection = false;
+    showJavaInstall = true;
+  }
+
   function offerJavaRecovery(error: unknown): boolean {
     const code =
       error instanceof ServerCreationError
@@ -215,12 +326,14 @@
   }
 
   function openJavaInstall(): void {
+    javaInstallMode = 'recovery';
     showJavaRecovery = false;
     showJavaInstall = true;
   }
 
   function closeJavaInstall(): void {
     showJavaInstall = false;
+    if (javaInstallMode === 'selection') showJavaSelection = true;
   }
 
   async function selectInstalledJava(event: {
@@ -230,16 +343,21 @@
     if (!event.runtimePath) {
       throw new Error(`Java ${event.major} installed, but MSC could not select its runtime path.`);
     }
-    await mutate<Schema['JavaConfigResponseDTO']>(api, serverEditorPaths.javaConfig, {
-      executablePath: event.runtimePath,
-    });
+    javaSelectedPath = event.runtimePath;
+    draft = {
+      ...draft,
+      javaPath: event.runtimePath,
+      javaSelectionKey: javaSelectionKey(draft),
+    };
   }
 </script>
 
 <Sheet
   title="Add Server"
   size="lg"
-  onClose={isCreating || showJavaRecovery || showJavaInstall ? undefined : onClose}
+  onClose={isCreating || showJavaRecovery || showJavaSelection || showJavaInstall
+    ? undefined
+    : onClose}
 >
   <div class="wizard" use:onboardingAnchor={'ob_wizard_sheet'}>
     <div class="steps" role="list" aria-label="Add Server progress">
@@ -377,9 +495,65 @@
   <JavaInstallSheet
     {api}
     initialMajor={javaRequiredMajor}
+    selectionScope="this server"
     onClose={closeJavaInstall}
     onInstalled={selectInstalledJava}
   />
+{/if}
+
+{#if showJavaSelection}
+  <Sheet title="Choose Java for this server" size="sm" onClose={closeJavaSelection}>
+    <p class="selection-explain">
+      {javaMinecraftVersion} uses Java {javaRequiredMajor}. Select the runtime MSC should use for
+      this server. This choice does not change Java for your other servers.
+    </p>
+    {#if javaSelectionLoading}
+      <p class="selection-explain">Detecting installed Java runtimes…</p>
+    {:else if javaSelectionError}
+      <p class="selection-explain warn">{javaSelectionError}</p>
+    {:else if javaRuntimes.length === 0}
+      <p class="selection-explain warn">
+        No Java runtimes were detected. Install Java {javaRequiredMajor}, then return here to select
+        it.
+      </p>
+    {:else}
+      <div class="runtime-list" role="radiogroup" aria-label="Java runtime for this server">
+        {#each javaRuntimes as runtime (runtime.executablePath)}
+          <button
+            type="button"
+            class="runtime-choice"
+            class:selected={javaSelectedPath === runtime.executablePath}
+            class:incompatible={!runtimeCanRun(runtime)}
+            disabled={!runtimeCanRun(runtime)}
+            onclick={() => chooseJavaRuntime(runtime)}
+          >
+            <span class="runtime-copy">
+              <span class="runtime-heading">
+                <span class="runtime-version"
+                  >{runtime.majorVersion ? `Java ${runtime.majorVersion}` : 'Java'}</span
+                >
+                <span class="runtime-name">{runtime.name}</span>
+              </span>
+              <span class="runtime-path">{runtime.executablePath}</span>
+            </span>
+            <span class="runtime-action"
+              >{runtimeCanRun(runtime) ? 'Select' : 'Needs newer Java'}</span
+            >
+          </button>
+        {/each}
+      </div>
+    {/if}
+    <div class="selection-footer">
+      <Button variant="secondary" onclick={openJavaInstallFromSelection}>Install Java…</Button>
+      <span class="selection-spacer"></span>
+      <Button variant="secondary" onclick={closeJavaSelection}>Cancel</Button>
+      <Button
+        variant="primary"
+        disabled={!javaSelectedPath || javaSelectionLoading}
+        onclick={confirmJavaSelection}>Use selected Java</Button
+      >
+    </div>
+  </Sheet>
 {/if}
 
 <style>
@@ -540,5 +714,87 @@
     justify-content: flex-end;
     gap: 8px;
     margin-top: 20px;
+  }
+
+  .selection-explain {
+    margin: 0 0 12px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--msc2-text-tertiary);
+  }
+  .selection-explain.warn {
+    color: var(--msc2-status-warn);
+  }
+  .runtime-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 280px;
+    overflow-y: auto;
+    margin-bottom: 14px;
+  }
+  .runtime-choice {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    padding: 11px 14px;
+    background: var(--msc2-tier-chrome);
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: var(--msc2-text-primary);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .runtime-choice.selected {
+    border-color: rgba(255, 255, 255, 0.32);
+  }
+  .runtime-choice.incompatible {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .runtime-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+  }
+  .runtime-heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+  }
+  .runtime-version {
+    font-weight: 500;
+  }
+  .runtime-name,
+  .runtime-path {
+    overflow: hidden;
+    color: var(--msc2-text-tertiary);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .runtime-name {
+    font-size: 11px;
+  }
+  .runtime-path {
+    font-family: var(--msc2-font-mono, monospace);
+    font-size: 10.5px;
+  }
+  .runtime-action {
+    flex-shrink: 0;
+    color: var(--msc2-text-tertiary);
+    font-size: 10px;
+  }
+  .selection-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .selection-spacer {
+    flex: 1;
   }
 </style>

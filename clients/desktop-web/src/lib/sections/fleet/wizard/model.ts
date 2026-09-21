@@ -213,6 +213,10 @@ export interface WizardDraft {
   /** `undefined` means "download latest" -- the oracle's own `nil` sentinel
    *  on `selectedVersionEntry`. Set only when the Source picker pins one. */
   versionId: string | undefined;
+  /** The runtime explicitly selected for this server creation only. */
+  javaPath: string | undefined;
+  /** The version/loader context for which `javaPath` was selected. */
+  javaSelectionKey: string | undefined;
   enableCrossPlay: boolean;
   enableXboxBroadcast: boolean;
   /** `AddServerWizardView.swift`'s `bedrockVersion` -- free text, not a
@@ -378,6 +382,8 @@ export function defaultWizardDraft(): WizardDraft {
     javaCategory: 'standard',
     javaFlavor: 'paper',
     versionId: undefined,
+    javaPath: undefined,
+    javaSelectionKey: undefined,
     enableCrossPlay: false,
     enableXboxBroadcast: false,
     bedrockVersion: 'LATEST',
@@ -401,6 +407,19 @@ export function defaultWizardDraft(): WizardDraft {
     importMaxPlayers: 20,
     importEulaAccepted: false,
   };
+}
+
+/** Prevents a runtime selected for one loader or Minecraft version from being
+ * silently reused after the user changes that choice. */
+export function javaSelectionKey(draft: WizardDraft): string {
+  const inspection = draft.stagedModpack?.inspection;
+  return [
+    draft.serverType,
+    draft.javaFlavor,
+    draft.versionId ?? 'latest',
+    inspection?.minecraftVersion ?? '',
+    inspection?.loaderVersion ?? '',
+  ].join('|');
 }
 
 /**
@@ -562,6 +581,7 @@ export function buildServerCreateRequest(
   }
   if (draft.serverType === 'java') {
     body.javaFlavor = draft.javaFlavor;
+    if (draft.javaPath) body.javaPath = draft.javaPath;
     if (draft.versionId) body.versionId = draft.versionId;
     body.port = draft.javaPort;
     body.enableCrossPlay = draft.enableCrossPlay;

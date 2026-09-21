@@ -8,6 +8,7 @@
   export let api: ScreenApi | undefined = undefined;
   export let initialMajor = 25;
   export let canControl = true;
+  export let selectionScope = 'this host';
   export let onClose: () => void;
   export let onInstalled: (event: {
     major: number;
@@ -82,8 +83,8 @@
   {#if installedMajor !== undefined}
     <p class="success-title">Java {installedMajor} installed successfully.</p>
     <p class="explain">
-      MSC installed the Adoptium Temurin runtime and selected it for this host. Return to your
-      server setup and try again.
+      MSC installed the Adoptium Temurin runtime and selected it for {selectionScope}. Return to
+      your server setup and try again.
     </p>
     <div class="footer">
       <Button variant="primary" onclick={onClose}>Okay</Button>

@@ -8,8 +8,9 @@
   import { getPlatform, openExternal } from '../platform';
   import type { PlatformKind } from '../platform/types';
   import { errorMessage, mutate } from '../sections/shared/types';
-  import type { Schema, ScreenApi } from '../sections/shared/types';
-  import { pollOperation, serverEditorPaths } from '../sections/server-editor/model';
+  import type { ScreenApi } from '../sections/shared/types';
+  import JavaInstallSheet from '../sections/server-editor/JavaInstallSheet.svelte';
+  import { serverEditorPaths } from '../sections/server-editor/model';
 
   export let compact = false;
   export let headingId = 'first-launch-title';
@@ -23,23 +24,6 @@
     ['Fabric', 'Lightweight mods. Fast updates, great for optimization.'],
     ['Forge', 'Classic modding platform. Widest mod selection.'],
     ['NeoForge', 'Forge’s modern successor. More active development.'],
-  ] as const;
-
-  const javaInstallOptions = [
-    {
-      major: 25,
-      title: 'Java 25',
-      minecraftRange: 'Minecraft 26.1 (latest) and newer',
-      recommended: true,
-    },
-    {
-      major: 21,
-      title: 'Java 21',
-      minecraftRange: 'Minecraft 1.20.5 – 1.21.x',
-      recommended: false,
-    },
-    { major: 17, title: 'Java 17', minecraftRange: 'Minecraft 1.17 – 1.20.4', recommended: false },
-    { major: 8, title: 'Java 8', minecraftRange: 'Minecraft 1.16.5 and older', recommended: false },
   ] as const;
 
   const pageMeta = [
@@ -64,13 +48,10 @@
   let rootStatus: 'checking' | 'ready' | 'unavailable' | 'unknown' = 'checking';
   let javaStatus: 'checking' | 'found' | 'not-found' | 'unavailable' | 'unknown' = 'checking';
   let javaRuntimes: Array<{ executablePath: string; majorVersion?: number }> = [];
+  let javaExplicitlySelected = false;
   let rootPickerBusy = false;
   let javaPickerBusy = false;
   let showJavaInstallPicker = false;
-  let selectedJavaMajor: number = javaInstallOptions[0].major;
-  let javaInstallBusy = false;
-  let javaInstallStatusLine = '';
-  let javaInstallFailure = '';
   let xboxStatus: 'checking' | 'installed' | 'not-installed' | 'downloading' | 'unavailable' =
     'checking';
   let xboxFilename = '';
@@ -117,7 +98,9 @@
         ? 'Checking…'
         : javaStatus === 'not-found'
           ? 'Not found'
-          : 'Unavailable';
+          : javaStatus === 'unknown'
+            ? 'Select a runtime'
+            : 'Unavailable';
   $: xboxTone = xboxStatus === 'installed' ? 'ok' : xboxStatus === 'unavailable' ? 'error' : 'warn';
   $: xboxLabel =
     xboxStatus === 'installed'
@@ -214,8 +197,14 @@
             (!configured || runtime.executablePath === configured),
         ) ?? javaRuntimes.find((runtime) => (runtime.majorVersion ?? 0) >= 21);
       if (usable) {
-        javaStatus = 'found';
-        if (!configured) javaPath = usable.executablePath;
+        if (configured || pathToSave !== undefined) {
+          javaStatus = 'found';
+          javaExplicitlySelected = true;
+        } else {
+          javaPath = usable.executablePath;
+          javaStatus = 'unknown';
+          javaMessage = 'Select a detected runtime or enter a path before continuing.';
+        }
       } else {
         javaStatus = 'not-found';
         javaMessage = 'No Java 21 or later runtime was found on this host.';
@@ -224,6 +213,14 @@
       javaStatus = 'unavailable';
       javaMessage = 'The selected agent could not verify Java.';
     }
+  }
+
+  async function selectDetectedJava(runtime: {
+    executablePath: string;
+    majorVersion?: number;
+  }): Promise<void> {
+    javaPath = runtime.executablePath;
+    await probeJava(runtime.executablePath);
   }
 
   async function probeXbox(): Promise<void> {
@@ -295,44 +292,17 @@
     }
   }
 
-  async function installJava(): Promise<void> {
-    if (!api || javaInstallBusy) return;
-    javaInstallBusy = true;
-    javaInstallFailure = '';
-    javaInstallStatusLine = 'Starting install…';
-    try {
-      const result = await mutate<Schema['JavaRuntimeInstallResultDTO']>(
-        api,
-        serverEditorPaths.javaRuntimeInstall,
-        { major: selectedJavaMajor },
-      );
-      const operation = await pollOperation(api, result.operationId, (tick) => {
-        javaInstallStatusLine = tick.statusLine ?? javaInstallStatusLine;
-      });
-      if (!operation || operation.state !== 'succeeded') {
-        javaInstallFailure =
-          operation?.error?.message ?? result.message ?? 'The install did not complete.';
-        javaInstallBusy = false;
-        return;
-      }
-      showJavaInstallPicker = false;
-      javaInstallBusy = false;
-      javaInstallStatusLine = '';
-      await probeJava();
-      if (javaStatus !== 'found') {
-        javaMessage = 'Java was installed. Click Check for Java to refresh the detected runtimes.';
-      }
-    } catch (caught) {
-      javaInstallFailure = errorMessage(caught);
-      javaInstallBusy = false;
-    }
+  function closeJavaInstallPicker(): void {
+    showJavaInstallPicker = false;
   }
 
-  function closeJavaInstallPicker(): void {
-    if (javaInstallBusy) return;
-    showJavaInstallPicker = false;
-    javaInstallStatusLine = '';
-    javaInstallFailure = '';
+  async function handleInstalledJava(event: {
+    major: number;
+    runtimePath?: string;
+  }): Promise<void> {
+    if (!event.runtimePath) return;
+    javaPath = event.runtimePath;
+    await probeJava(event.runtimePath);
   }
 
   async function validateAndSaveHost(): Promise<void> {
@@ -348,8 +318,9 @@
       });
       serversRoot = result.path;
       rootStatus = 'ready';
-      if (wantsJava && javaStatus !== 'found') await probeJava(javaPath);
-      if (!wantsJava || javaStatus === 'found') setupPage = 3;
+      if (wantsJava && (javaStatus !== 'found' || !javaExplicitlySelected))
+        await probeJava(javaPath);
+      if (!wantsJava || (javaStatus === 'found' && javaExplicitlySelected)) setupPage = 3;
     } catch {
       rootStatus = 'unavailable';
       rootMessage = 'The agent could not save this folder. Use an absolute path it can access.';
@@ -644,11 +615,36 @@
                 }}>Use PATH</Button
               >
             </div>
+            {#if javaRuntimes.length > 0}
+              <div class="runtime-list" role="listbox" aria-label="Detected Java runtimes">
+                {#each javaRuntimes as runtime (runtime.executablePath)}
+                  <button
+                    type="button"
+                    class="runtime-option"
+                    class:selected={javaPath === runtime.executablePath && javaExplicitlySelected}
+                    disabled={(runtime.majorVersion ?? 0) < 21}
+                    onclick={() => void selectDetectedJava(runtime)}
+                  >
+                    <span class="runtime-info">
+                      <span class="runtime-heading">
+                        <span class="runtime-version"
+                          >{runtime.majorVersion ? `Java ${runtime.majorVersion}` : 'Java'}</span
+                        >
+                        <span class="runtime-name">{runtime.executablePath}</span>
+                      </span>
+                    </span>
+                    <span class="runtime-action"
+                      >{(runtime.majorVersion ?? 0) >= 21 ? 'Select' : 'Needs Java 21'}</span
+                    >
+                  </button>
+                {/each}
+              </div>
+            {/if}
             <div class="field-row">
               <Button
                 variant="secondary"
                 size="sm"
-                disabled={!api || javaInstallBusy}
+                disabled={!api}
                 onclick={() => (showJavaInstallPicker = true)}>Install Java…</Button
               >
             </div>
@@ -836,49 +832,12 @@
   {/key}
 
   {#if showJavaInstallPicker}
-    <Sheet
-      title="Install Java"
-      size="sm"
-      onClose={javaInstallBusy ? undefined : closeJavaInstallPicker}
-    >
-      <p class="explain">
-        Pick the version that matches your Minecraft version. MSC downloads and installs it for this
-        host.
-      </p>
-      <div class="list" role="radiogroup" aria-label="Java version to install">
-        {#each javaInstallOptions as option (option.major)}
-          <button
-            type="button"
-            class="install-option"
-            class:selected={selectedJavaMajor === option.major}
-            disabled={javaInstallBusy}
-            onclick={() => (selectedJavaMajor = option.major)}
-          >
-            <span class="runtime-info">
-              <span class="runtime-heading">
-                <span class="runtime-version">{option.title}</span>
-                {#if option.recommended}<span class="tag">Recommended</span>{/if}
-              </span>
-              <span class="runtime-path">{option.minecraftRange}</span>
-            </span>
-          </button>
-        {/each}
-      </div>
-      {#if javaInstallStatusLine && javaInstallBusy}<p class="explain">
-          {javaInstallStatusLine}
-        </p>{/if}
-      {#if javaInstallFailure}<p class="explain warn">{javaInstallFailure}</p>{/if}
-      <div class="footer">
-        <Button variant="secondary" disabled={javaInstallBusy} onclick={closeJavaInstallPicker}
-          >Close</Button
-        >
-        <Button
-          variant="primary"
-          disabled={javaInstallBusy || !api}
-          onclick={() => void installJava()}>{javaInstallBusy ? 'Installing…' : 'Install'}</Button
-        >
-      </div>
-    </Sheet>
+    <JavaInstallSheet
+      {api}
+      onClose={closeJavaInstallPicker}
+      onInstalled={handleInstalledJava}
+      selectionScope="this host"
+    />
   {/if}
 
   {#if completionMessage}<p class="hint warn" role="alert">{completionMessage}</p>{/if}
@@ -1157,38 +1116,48 @@
   .hint.warn {
     color: var(--msc2-status-warn);
   }
-  .explain {
-    margin: 0 0 12px;
-    color: var(--msc2-text-tertiary);
-    font-size: 12px;
-    line-height: 1.5;
-  }
-  .explain.warn {
-    color: var(--msc2-status-warn);
-  }
-  .list {
+  .runtime-list {
     display: flex;
     flex-direction: column;
     gap: 6px;
+    max-height: 180px;
+    overflow-y: auto;
+    margin-top: 12px;
   }
-  .install-option {
+  .runtime-option {
     display: flex;
     width: 100%;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 11px 14px;
+    padding: 10px 12px;
     border: 1px solid transparent;
     border-radius: 8px;
     color: var(--msc2-text-primary);
-    background: transparent;
+    background: var(--msc2-tier-chrome);
+    font: inherit;
     text-align: left;
     cursor: pointer;
   }
-  .install-option:hover,
-  .install-option.selected {
+  .runtime-option.selected {
     border-color: var(--msc2-hairline);
-    background: var(--msc2-tier-content);
+  }
+  .runtime-option:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .runtime-name,
+  .runtime-action {
+    color: var(--msc2-text-tertiary);
+    font-size: 10.5px;
+  }
+  .runtime-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .runtime-action {
+    flex-shrink: 0;
   }
   .runtime-info {
     display: flex;
@@ -1205,24 +1174,6 @@
     color: var(--msc2-text-primary);
     font-size: 12px;
     font-weight: 500;
-  }
-  .runtime-path {
-    overflow: hidden;
-    color: var(--msc2-text-tertiary);
-    font-family: var(--msc2-font-mono);
-    font-size: 11px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .tag {
-    color: var(--msc2-text-tertiary);
-    font-size: 10px;
-  }
-  .footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    margin-top: 16px;
   }
   .link-button {
     display: inline-flex;

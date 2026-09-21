@@ -493,10 +493,11 @@
     <section class="zone">
       <p class="msc2-type-overline">Modpack Imports</p>
       <p class="hint">
-        CurseForge modpacks need an API key to resolve their files. Create one at
+        CurseForge modpacks need an API key to resolve their files. You can create one in the
         <a href="https://console.curseforge.com/" target="_blank" rel="noreferrer"
-          >console.curseforge.com</a
-        >. The key is stored securely on this agent and is never shown again.
+          >CurseForge API Console</a
+        >, or enter it when an import asks for it. The key is stored securely on this agent and is
+        never shown again.
       </p>
       <Card padding="0">
         <div class="row">

@@ -1973,7 +1973,7 @@ pub async fn import_modpack(
             return error_response(
                 StatusCode::BAD_REQUEST,
                 "missing_curseforge_api_key",
-                "This CurseForge modpack needs an API key. Save one in MSC Settings, then retry the import.",
+                "This CurseForge modpack needs an API key. Save one in the import sheet or MSC Settings, then retry the import.",
             );
         }
     }

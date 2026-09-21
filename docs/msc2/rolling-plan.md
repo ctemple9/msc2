@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 15 is the priority next phase; Phase 14 is paused with P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, P14.17, P14.18, P14.19, P14.26, P14.27, P14.28, P14.29, P14.30, P14.31, P14.32, P14.33, P14.34, P14.35, P14.36, and P14.37 awaiting verification. P14.38 records twelve unverified static-review findings and is awaiting owner triage.
-> **Next move:** Cameron verifies P15.1, then execution continues with P15.2. Phase 14 verification and P14.38 triage remain recorded and paused until Phase 15 is complete or Cameron explicitly resumes Phase 14. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> **Next move:** Cameron verifies P15.2, then execution continues with P15.3. Phase 14 verification and P14.38 triage remain recorded and paused until Phase 15 is complete or Cameron explicitly resumes Phase 14. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -165,7 +165,7 @@ The current rolling plan says the outstanding Phase 14 verification and triage s
 
 ### P15.2 — Add inline CurseForge API-key setup
 
-- **Status:** planned
+- **Status:** awaiting verification
 - **Files:** `crates/msc-domain/src/app_config_schema.rs`, `crates/msc-application/src/curseforge_manual.rs`, `crates/msc-application/src/modpacks.rs`, `crates/msc-agent/src/routes/components.rs`, `clients/desktop-web/src/lib/sections/components/ImportModpackSheet.svelte`, `clients/desktop-web/src/lib/sections/components/CurseForgeManualDownloadSheet.svelte`, `clients/desktop-web/src/lib/sections/app-settings/AppSettingsSheet.svelte`
 - **What:** Detect a missing CurseForge key before manifest import fails. Show the reason, provide the approved CurseForge API Console link, save the key from the sheet, resume the import, and allow the prompt to be skipped or reopened during manual-file recovery.
 - **Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-agent && npm --prefix clients/desktop-web run check`

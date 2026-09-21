@@ -12,9 +12,11 @@
   // POST /v1/modpacks/{operationId}/manual-file.
   import Sheet from '../../components/base/Sheet.svelte';
   import Button from '../../components/base/Button.svelte';
+  import Field from '../../components/base/Field.svelte';
+  import VisibilityIcon from '../../components/base/VisibilityIcon.svelte';
   import { getPlatform } from '../../platform';
   import type { Schema, ScreenApi } from '../shared/types';
-  import { mutate } from '../shared/types';
+  import { errorMessage, mutate } from '../shared/types';
   import { addonPaths } from './model';
 
   export let api: ScreenApi | undefined = undefined;
@@ -27,6 +29,11 @@
   let staging: Set<string> = new Set();
   let errorByFile: Record<string, string> = {};
   let fileInput: HTMLInputElement;
+  let showCurseForgeKeySetup = false;
+  let curseforgeApiKey = '';
+  let curseforgeApiKeyVisible = false;
+  let curseforgeKeySaving = false;
+  let curseforgeKeyNotice = '';
 
   $: allResolved = remaining.length === 0;
 
@@ -81,6 +88,30 @@
       staging = next;
     }
   }
+
+  async function saveCurseForgeKey(): Promise<void> {
+    if (!curseforgeApiKey.trim() || curseforgeKeySaving) return;
+    curseforgeKeySaving = true;
+    curseforgeKeyNotice = '';
+    try {
+      const status = await mutate<Schema['CurseForgeApiKeyStatusDTO']>(
+        api,
+        '/v1/config/curseforge',
+        { apiKey: curseforgeApiKey.trim() },
+      );
+      curseforgeApiKey = '';
+      if (status.configured) {
+        curseforgeKeyNotice = 'CurseForge API key saved for this agent.';
+        showCurseForgeKeySetup = false;
+      } else {
+        curseforgeKeyNotice = 'The agent did not save a CurseForge API key.';
+      }
+    } catch (error) {
+      curseforgeKeyNotice = errorMessage(error) || 'The CurseForge API key could not be saved.';
+    } finally {
+      curseforgeKeySaving = false;
+    }
+  }
 </script>
 
 <Sheet
@@ -103,6 +134,54 @@
       automatically. Find and download each one from CurseForge yourself, then stage it here to
       resume the import.
     </p>
+    <div class="key-actions">
+      <span class="key-hint">Need to update the provider credential?</span>
+      <Button
+        variant="secondary"
+        size="sm"
+        onclick={() => (showCurseForgeKeySetup = !showCurseForgeKeySetup)}
+        >{showCurseForgeKeySetup ? 'Hide key setup' : 'Set up CurseForge key…'}</Button
+      >
+    </div>
+    {#if showCurseForgeKeySetup}
+      <div class="key-setup">
+        <p class="key-explain">
+          The key is saved on the connected agent and is never shown again.
+          <a href="https://console.curseforge.com/" target="_blank" rel="noreferrer"
+            >Open CurseForge API Console</a
+          >
+        </p>
+        <div class="key-control">
+          <Field
+            bind:value={curseforgeApiKey}
+            type={curseforgeApiKeyVisible ? 'text' : 'password'}
+            placeholder="Paste API key"
+            width="100%"
+            onkeydown={(event) => event.key === 'Enter' && void saveCurseForgeKey()}
+          />
+          <button
+            type="button"
+            class="visibility-toggle"
+            aria-label={curseforgeApiKeyVisible ? 'Hide API key' : 'Show API key'}
+            aria-pressed={curseforgeApiKeyVisible}
+            title={curseforgeApiKeyVisible ? 'Hide API key' : 'Show API key'}
+            onclick={() => (curseforgeApiKeyVisible = !curseforgeApiKeyVisible)}
+          >
+            <VisibilityIcon visible={curseforgeApiKeyVisible} />
+          </button>
+        </div>
+        {#if curseforgeKeyNotice}<p class="key-notice" role="status">{curseforgeKeyNotice}</p>{/if}
+        <div class="key-footer">
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={curseforgeKeySaving || !curseforgeApiKey.trim()}
+            onclick={() => void saveCurseForgeKey()}
+            >{curseforgeKeySaving ? 'Saving…' : 'Save key'}</Button
+          >
+        </div>
+      </div>
+    {/if}
     <div class="list">
       {#each remaining as entry (entry.fileId)}
         <div class="row">
@@ -178,6 +257,53 @@
     display: flex;
     justify-content: flex-end;
     gap: 8px;
+  }
+  .key-actions,
+  .key-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .key-hint,
+  .key-explain,
+  .key-notice {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--msc2-text-tertiary);
+  }
+  .key-explain a {
+    color: var(--msc2-text-secondary);
+  }
+  .key-setup {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 0;
+    border-top: 1px solid var(--msc2-hairline-subtle);
+    border-bottom: 1px solid var(--msc2-hairline-subtle);
+  }
+  .key-notice {
+    color: var(--msc2-status-warn);
+  }
+  .key-control {
+    position: relative;
+  }
+  .visibility-toggle {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    display: grid;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    transform: translateY(-50%);
+    place-items: center;
+    border: 0;
+    background: transparent;
+    color: var(--msc2-text-tertiary);
+    cursor: pointer;
   }
   .hidden-input {
     position: absolute;

@@ -7,10 +7,13 @@
   // CurseForgeManualDownloadSheet instead of finishing here.
   import Sheet from '../../components/base/Sheet.svelte';
   import Button from '../../components/base/Button.svelte';
+  import Field from '../../components/base/Field.svelte';
   import Select from '../../components/base/Select.svelte';
+  import VisibilityIcon from '../../components/base/VisibilityIcon.svelte';
+  import { ApiError } from '../../api/client';
   import { getPlatform } from '../../platform';
   import type { Schema, ScreenApi } from '../shared/types';
-  import { mutate } from '../shared/types';
+  import { errorMessage, mutate } from '../shared/types';
   import { addonPaths } from './model';
 
   export let api: ScreenApi | undefined = undefined;
@@ -24,14 +27,30 @@
   type Step =
     | { kind: 'stage' }
     | { kind: 'inspecting' }
-    | { kind: 'review'; inspection: Schema['ModpackInspectionResultDTO']; stagedUploadId: string }
+    | ReviewStep
+    | {
+        kind: 'curseforge-key';
+        inspection: Schema['ModpackInspectionResultDTO'];
+        stagedUploadId: string;
+        reason?: string;
+      }
     | { kind: 'importing' }
     | { kind: 'done'; message: string }
     | { kind: 'failed'; message: string };
 
+  type ReviewStep = {
+    kind: 'review';
+    inspection: Schema['ModpackInspectionResultDTO'];
+    stagedUploadId: string;
+  };
+
   let step: Step = { kind: 'stage' };
   let action: 'import' | 'replace' = 'import';
   let fileInput: HTMLInputElement;
+  let curseforgeApiKey = '';
+  let curseforgeApiKeyVisible = false;
+  let curseforgeKeySaving = false;
+  let curseforgeKeyNotice = '';
 
   function pickBrowserFile(): Promise<{ name: string; bytes: Uint8Array } | null> {
     return new Promise((resolve) => {
@@ -67,18 +86,41 @@
         addonPaths.inspectPack,
         { stagedUploadId: staged.stagedUploadId },
       );
-      step = { kind: 'review', inspection, stagedUploadId: staged.stagedUploadId };
+      const review: ReviewStep = {
+        kind: 'review',
+        inspection,
+        stagedUploadId: staged.stagedUploadId,
+      };
+      if (inspection.format === 'curseforge') {
+        try {
+          const keyStatus =
+            await api.get<Schema['CurseForgeApiKeyStatusDTO']>('/v1/config/curseforge');
+          if (!keyStatus.configured) {
+            step = {
+              kind: 'curseforge-key',
+              inspection,
+              stagedUploadId: staged.stagedUploadId,
+            };
+            return;
+          }
+        } catch {
+          // The import request remains the authoritative check if the status
+          // endpoint is unavailable or the client is talking to an older agent.
+        }
+      }
+      step = review;
     } catch (error) {
       step = {
         kind: 'failed',
-        message: error instanceof Error ? error.message : 'Failed to inspect this archive.',
+        message: errorMessage(error) || 'Failed to inspect this archive.',
       };
     }
   }
 
   async function startImport(): Promise<void> {
     if (step.kind !== 'review') return;
-    const { stagedUploadId } = step;
+    const review = step;
+    const { stagedUploadId } = review;
     step = { kind: 'importing' };
     try {
       const result = await mutate<Schema['ModpackImportResultDTO']>(api, addonPaths.importPack, {
@@ -94,10 +136,58 @@
       step = { kind: 'done', message: result.message };
       onImported();
     } catch (error) {
+      if (error instanceof ApiError && error.error.code === 'missing_curseforge_api_key') {
+        step = {
+          kind: 'curseforge-key',
+          inspection: review.inspection,
+          stagedUploadId: review.stagedUploadId,
+          reason: error.error.message,
+        };
+        return;
+      }
       step = {
         kind: 'failed',
-        message: error instanceof Error ? error.message : 'Failed to start the import.',
+        message: errorMessage(error) || 'Failed to start the import.',
       };
+    }
+  }
+
+  function skipCurseForgeKeySetup(): void {
+    if (step.kind !== 'curseforge-key') return;
+    step = {
+      kind: 'review',
+      inspection: step.inspection,
+      stagedUploadId: step.stagedUploadId,
+    };
+    curseforgeKeyNotice = '';
+  }
+
+  async function saveCurseForgeKeyAndResume(): Promise<void> {
+    if (step.kind !== 'curseforge-key' || !curseforgeApiKey.trim() || curseforgeKeySaving) return;
+    const pending = step;
+    curseforgeKeySaving = true;
+    curseforgeKeyNotice = '';
+    try {
+      const status = await mutate<Schema['CurseForgeApiKeyStatusDTO']>(
+        api,
+        '/v1/config/curseforge',
+        { apiKey: curseforgeApiKey.trim() },
+      );
+      curseforgeApiKey = '';
+      if (!status.configured) {
+        curseforgeKeyNotice = 'The agent did not save a CurseForge API key.';
+        return;
+      }
+      step = {
+        kind: 'review',
+        inspection: pending.inspection,
+        stagedUploadId: pending.stagedUploadId,
+      };
+      await startImport();
+    } catch (error) {
+      curseforgeKeyNotice = errorMessage(error) || 'The CurseForge API key could not be saved.';
+    } finally {
+      curseforgeKeySaving = false;
     }
   }
 </script>
@@ -121,6 +211,49 @@
     </div>
   {:else if step.kind === 'inspecting'}
     <p class="explain">Inspecting archive…</p>
+  {:else if step.kind === 'curseforge-key'}
+    <div class="body">
+      <p class="lede">CurseForge key required</p>
+      <p class="explain">
+        This archive is a CurseForge modpack. MSC needs an API key to look up its files before the
+        import can begin. The key is saved on the connected agent and is never shown again.
+      </p>
+      {#if step.reason}<p class="key-notice" role="alert">{step.reason}</p>{/if}
+      <p class="key-link">
+        <a href="https://console.curseforge.com/" target="_blank" rel="noreferrer"
+          >Open CurseForge API Console</a
+        >
+      </p>
+      <div class="key-control">
+        <Field
+          bind:value={curseforgeApiKey}
+          type={curseforgeApiKeyVisible ? 'text' : 'password'}
+          placeholder="Paste API key"
+          width="100%"
+          onkeydown={(event) => event.key === 'Enter' && void saveCurseForgeKeyAndResume()}
+        />
+        <button
+          type="button"
+          class="visibility-toggle"
+          aria-label={curseforgeApiKeyVisible ? 'Hide API key' : 'Show API key'}
+          aria-pressed={curseforgeApiKeyVisible}
+          title={curseforgeApiKeyVisible ? 'Hide API key' : 'Show API key'}
+          onclick={() => (curseforgeApiKeyVisible = !curseforgeApiKeyVisible)}
+        >
+          <VisibilityIcon visible={curseforgeApiKeyVisible} />
+        </button>
+      </div>
+      {#if curseforgeKeyNotice}<p class="key-notice" role="alert">{curseforgeKeyNotice}</p>{/if}
+      <div class="footer">
+        <Button variant="secondary" onclick={skipCurseForgeKeySetup}>Skip for now</Button>
+        <Button
+          variant="primary"
+          disabled={curseforgeKeySaving || !curseforgeApiKey.trim()}
+          onclick={() => void saveCurseForgeKeyAndResume()}
+          >{curseforgeKeySaving ? 'Saving…' : 'Save key and continue'}</Button
+        >
+      </div>
+    </div>
   {:else if step.kind === 'review'}
     <div class="body">
       <div class="summary">
@@ -211,6 +344,37 @@
   }
   .error-text {
     color: var(--msc2-status-warn);
+  }
+  .key-notice {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--msc2-status-warn);
+  }
+  .key-link {
+    margin: 0;
+    font-size: 12px;
+  }
+  .key-link a {
+    color: var(--msc2-text-secondary);
+  }
+  .key-control {
+    position: relative;
+  }
+  .visibility-toggle {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    display: grid;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    transform: translateY(-50%);
+    place-items: center;
+    border: 0;
+    background: transparent;
+    color: var(--msc2-text-tertiary);
+    cursor: pointer;
   }
   .explain {
     margin: 0;

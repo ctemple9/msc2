@@ -89,16 +89,19 @@
     if (!api?.upload) return;
     const picked =
       supplied ??
-      (await (await getPlatform()).pickFile({ label: `Choose ${entry.fileName}` }, () => pickBrowserFile()));
+      (await (
+        await getPlatform()
+      ).pickFile({ label: `Choose ${entry.fileName}` }, () => pickBrowserFile()));
     if (!picked) return;
     staging = new Set(staging).add(entry.fileId);
     const nextErrors = { ...errorByFile };
     delete nextErrors[entry.fileId];
     errorByFile = nextErrors;
     try {
-      const purpose = entry.provider && entry.provider !== 'CurseForge'
-        ? 'modpack-unresolved-file'
-        : 'curseforge-manual-file';
+      const purpose =
+        entry.provider && entry.provider !== 'CurseForge'
+          ? 'modpack-unresolved-file'
+          : 'curseforge-manual-file';
       const staged = await api.upload(purpose, picked.bytes, {
         operationId,
         fileId: entry.fileId,
@@ -269,7 +272,9 @@
             <span class="name">{entry.projectName || entry.fileName}</span>
             <span class="filename">{entry.fileName}</span>
             {#if entry.provider || entry.reason}
-              <span class="reason">{entry.provider ?? 'Provider'}: {entry.reason ?? 'Needs attention'}</span>
+              <span class="reason"
+                >{entry.provider ?? 'Provider'}: {entry.reason ?? 'Needs attention'}</span
+              >
             {/if}
             {#if entry.projectUrl}
               <a class="provider-link" href={entry.projectUrl} target="_blank" rel="noreferrer">
@@ -292,9 +297,7 @@
                 ? 'Retry'
                 : 'Choose File…'}
           </Button>
-          <Button size="sm" variant="secondary" onclick={() => void skipEntry(entry)}>
-            Skip
-          </Button>
+          <Button size="sm" variant="secondary" onclick={() => void skipEntry(entry)}>Skip</Button>
         </div>
       {/each}
     </div>

@@ -1,4 +1,4 @@
-import type { Schema, ScreenApi } from '../shared/types';
+import type { ComponentState, Schema, ScreenApi } from '../shared/types';
 
 export { addonPaths, addonStatusLabel, demoAddons } from '../addons/model';
 
@@ -149,6 +149,64 @@ export function componentStatusLabel(component: Schema['ComponentStatusDTO']): s
   }
   if (component.note) return component.note;
   return component.isUpToDate ? 'Up to date' : 'Update available';
+}
+
+export function componentState(component: Schema['ComponentStatusDTO']): ComponentState {
+  return component.installedVersion === undefined && component.installedLabel === undefined
+    ? 'missing'
+    : 'installed';
+}
+
+export function addonFilename(addon: Schema['AddonItemDTO']): string {
+  const filename = addon.jarStem.endsWith('.jar') ? addon.jarStem : `${addon.jarStem}.jar`;
+  return addon.isEnabled || filename.endsWith('.disabled') ? filename : `${filename}.disabled`;
+}
+
+export function addonState(addon: Schema['AddonItemDTO']): ComponentState {
+  if (addon.bucket === 'unresolved') return 'unresolved';
+  if (!addon.isEnabled) return 'disabled';
+  // An unlinked jar is present on disk, but MSC has not established its
+  // provider identity. Keep that distinct from a healthy installed entry.
+  return addon.bucket === 'unlinked' ? 'unresolved' : 'installed';
+}
+
+export function componentStateLabel(state: ComponentState): string {
+  switch (state) {
+    case 'installed':
+      return 'Installed';
+    case 'missing':
+      return 'Missing';
+    case 'unresolved':
+      return 'Unresolved';
+    case 'disabled':
+      return 'Disabled';
+  }
+}
+
+export function componentStateTone(state: ComponentState): 'ok' | 'warn' | 'error' {
+  switch (state) {
+    case 'installed':
+      return 'ok';
+    case 'missing':
+      return 'error';
+    case 'unresolved':
+    case 'disabled':
+      return 'warn';
+  }
+}
+
+export function filterAddons(
+  addons: Schema['AddonItemDTO'][],
+  query: string,
+  state: ComponentState | 'all',
+): Schema['AddonItemDTO'][] {
+  const normalizedQuery = query.trim().toLowerCase();
+  return addons.filter((addon) => {
+    const matchesState = state === 'all' || addonState(addon) === state;
+    const searchText =
+      `${addon.displayName} ${addon.jarStem} ${addonFilename(addon)}`.toLowerCase();
+    return matchesState && (!normalizedQuery || searchText.includes(normalizedQuery));
+  });
 }
 
 export function formatCount(n: number): string {

@@ -2,6 +2,9 @@ import type { components } from '../../api/generated';
 
 export type Schema = components['schemas'];
 
+/** The four user-facing inventory states shown by Components. */
+export type ComponentState = 'installed' | 'missing' | 'unresolved' | 'disabled';
+
 /** The screen layer talks through this small adapter so browser and Tauri keep one workflow. */
 export interface ScreenApi {
   get<T>(path: string): Promise<T>;

@@ -46,15 +46,20 @@
   import PlayitSetupSheet from '../server-editor/PlayitSetupSheet.svelte';
   import ProjectDetailSheet from './ProjectDetailSheet.svelte';
   import { getPlatform } from '../../platform';
-  import type { Schema, ScreenProps } from '../shared/types';
+  import type { ComponentState, Schema, ScreenProps } from '../shared/types';
   import { call, mutate } from '../shared/types';
   import {
     addOnKind,
     addonPaths,
-    addonStatusLabel,
     broadcastPaths,
     componentPaths,
     componentStatusLabel,
+    componentState,
+    componentStateLabel,
+    componentStateTone,
+    addonFilename,
+    addonState,
+    filterAddons,
     demoBroadcastAutostart,
     demoBroadcastStatus,
     demoJarStatus,
@@ -108,6 +113,10 @@
   );
   $: addonFolderName = isModded ? 'mods' : 'plugins';
   $: anyAddonUpdatable = addons.some((addon) => addon.bucket === 'updateAvailable');
+  let addonSearch = '';
+  let addonFilter: ComponentState | 'all' = 'all';
+  $: visibleAddons = filterAddons(addons, addonSearch, addonFilter);
+  $: installedAddonCount = addons.filter((addon) => addonState(addon) !== 'unresolved').length;
   $: svcAddon = addons.find(isSimpleVoiceChatAddon);
 
   let notice = '';
@@ -540,7 +549,10 @@
               </span>
             </div>
             {#if primaryComponent && !isModded}
-              <span class="status-label">{componentStatusLabel(primaryComponent)}</span>
+              <StatusDot
+                tone={componentStateTone(componentState(primaryComponent))}
+                label={componentStatusLabel(primaryComponent)}
+              />
             {/if}
             <Button
               size="sm"
@@ -578,7 +590,10 @@
         </section>
         <section class="zone">
           <div class="section-header">
-            <p class="msc2-type-overline">{isModded ? 'Mods' : 'Plugins'}</p>
+            <div class="addon-heading">
+              <p class="msc2-type-overline">{isModded ? 'Mods' : 'Plugins'}</p>
+              <span class="count-label">{installedAddonCount} installed</span>
+            </div>
             {#if anyAddonUpdatable}
               <Button
                 size="sm"
@@ -590,15 +605,40 @@
               </Button>
             {/if}
           </div>
+          <div class="component-controls">
+            <input
+              class="component-search"
+              type="search"
+              aria-label={`Search ${isModded ? 'mods' : 'plugins'} by name or filename`}
+              placeholder="Search name or filename"
+              bind:value={addonSearch}
+            />
+            <select
+              class="state-filter"
+              aria-label="Filter components by state"
+              bind:value={addonFilter}
+            >
+              <option value="all">All states</option>
+              <option value="installed">Installed</option>
+              <option value="missing">Missing</option>
+              <option value="unresolved">Unresolved</option>
+              <option value="disabled">Disabled</option>
+            </select>
+          </div>
           {#if !addonsLoaded}
             <p class="loading-state" role="status">Loading installed plugins…</p>
           {:else if addons.length === 0}
             <EmptyState title={`No ${isModded ? 'mods' : 'plugins'} installed`}>
               <Icon name="box" size={26} slot="icon" />
             </EmptyState>
+          {:else if visibleAddons.length === 0}
+            <EmptyState
+              title="No matching components"
+              message="Try a different name, filename, or state."
+            />
           {:else}
             <Card padding="0">
-              {#each addons as addon, index (addon.jarStem)}
+              {#each visibleAddons as addon, index (addon.jarStem)}
                 <div
                   class="addon-row"
                   class:bordered={index > 0}
@@ -632,15 +672,16 @@
                           <span class="row-affordance"><Icon name="chevron" size={10} /></span>
                         </span>
                         <span class="subtitle">
-                          {addon.currentVersion ?? 'Unknown version'}
+                          {addonFilename(addon)} · {addon.currentVersion ?? 'Unknown version'}
                           {#if addon.bucket === 'updateAvailable' && addon.availableVersion}
                             → {addon.availableVersion}
                           {/if}
                         </span>
                       </div>
-                      {#if addonStatusLabel(addon)}
-                        <StatusDot tone="warn" label={addonStatusLabel(addon) ?? ''} />
-                      {/if}
+                      <StatusDot
+                        tone={componentStateTone(addonState(addon))}
+                        label={componentStateLabel(addonState(addon))}
+                      />
                     </button>
                     {#if addon.bucket === 'updateAvailable'}
                       <Button
@@ -890,6 +931,45 @@
     align-items: center;
     gap: 12px;
     padding: 12px 14px;
+  }
+  .addon-heading {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .count-label {
+    font-size: 11px;
+    color: var(--msc2-text-tertiary);
+  }
+  .component-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .component-search,
+  .state-filter {
+    min-height: 30px;
+    box-sizing: border-box;
+    color: var(--msc2-text-primary);
+    background: var(--msc2-tier-terminal);
+    border: 1px solid var(--msc2-hairline-field);
+    border-radius: var(--msc2-radius-2);
+    font: inherit;
+    font-size: 12px;
+  }
+  .component-search {
+    min-width: 0;
+    flex: 1;
+    padding: 6px 9px;
+  }
+  .state-filter {
+    padding: 0 8px;
+  }
+  .component-search:focus-visible,
+  .state-filter:focus-visible {
+    outline: none;
+    border-color: var(--msc2-hairline-field-focus);
   }
   .addon-row.bordered {
     border-top: 1px solid var(--msc2-hairline-subtle);

@@ -372,8 +372,10 @@ fn component_rows(server: &msc_domain::app_config_schema::ConfigServer) -> Vec<C
             note: None,
         });
         // Geyser and Floodgate are managed compatibility helpers, not
-        // catalog add-ons.  Their builds have no provider-backed update check
-        // yet, so expose the installed fact and say that honestly.
+        // catalog add-ons.  Keep a row even when one is absent so the
+        // Components tab can distinguish a missing helper from an inventory
+        // that was never checked. Their builds have no provider-backed update
+        // check yet, so expose the installed fact and say that honestly.
         let installation = geyser::installation(&StdFileSystem, Path::new(&server.server_dir));
         for (name, installed, plugin_path) in [
             (
@@ -387,29 +389,30 @@ fn component_rows(server: &msc_domain::app_config_schema::ConfigServer) -> Vec<C
                 installation.floodgate_path.as_deref(),
             ),
         ] {
-            if installed {
-                let installed_metadata = plugin_path
-                    .and_then(|path| geyser::installed_plugin_version(&StdFileSystem, path));
-                let installed_label = installed_metadata.as_ref().map(|metadata| {
-                    metadata
-                        .build
-                        .map(|build| build.to_string())
-                        .unwrap_or_else(|| metadata.version.clone())
-                });
-                rows.push(ComponentStatusDto {
-                    name: name.to_string(),
-                    installed_build: installed_metadata
-                        .as_ref()
-                        .and_then(|metadata| metadata.build),
-                    latest_build: None,
-                    installed_version: installed_metadata.map(|metadata| metadata.version),
-                    latest_version: None,
-                    is_up_to_date: false,
-                    installed_label: installed_label.or_else(|| Some("installed".to_string())),
-                    updatable: Some(false),
-                    note: Some("update_information_unavailable".to_string()),
-                });
-            }
+            let installed_metadata = installed.then(|| {
+                plugin_path.and_then(|path| geyser::installed_plugin_version(&StdFileSystem, path))
+            });
+            let installed_metadata = installed_metadata.flatten();
+            let installed_label = installed_metadata.as_ref().map(|metadata| {
+                metadata
+                    .build
+                    .map(|build| build.to_string())
+                    .unwrap_or_else(|| metadata.version.clone())
+            });
+            rows.push(ComponentStatusDto {
+                name: name.to_string(),
+                installed_build: installed_metadata
+                    .as_ref()
+                    .and_then(|metadata| metadata.build),
+                latest_build: None,
+                installed_version: installed_metadata.map(|metadata| metadata.version),
+                latest_version: None,
+                is_up_to_date: false,
+                installed_label: installed_label
+                    .or_else(|| installed.then(|| "installed".to_string())),
+                updatable: Some(false),
+                note: installed.then(|| "update_information_unavailable".to_string()),
+            });
         }
     }
     rows
@@ -798,21 +801,44 @@ pub async fn get_addons(
             &links,
         )
     };
-    Json(AddonsResponseDto {
-        addons: plan
-            .items
-            .into_iter()
-            .map(|item| AddonItemDto {
-                jar_stem: item.jar_stem,
-                display_name: item.display_name,
-                is_enabled: item.is_enabled,
-                project_id: item.project_id,
-                current_version: item.current_version,
-                available_version: item.available_version_label,
-                bucket: addon_bucket_name(item.bucket).to_string(),
+    let mut addon_items: Vec<AddonItemDto> = plan
+        .items
+        .into_iter()
+        .map(|item| AddonItemDto {
+            jar_stem: item.jar_stem,
+            display_name: item.display_name,
+            is_enabled: item.is_enabled,
+            project_id: item.project_id,
+            current_version: item.current_version,
+            available_version: item.available_version_label,
+            bucket: addon_bucket_name(item.bucket).to_string(),
+            icon_url: None,
+        })
+        .collect();
+    // P15.3 keeps unresolved files structured against the paused import
+    // operation. Project them into the same inventory so Components can
+    // search and count them without scraping the human-readable notes.
+    let pending_addons: Vec<AddonItemDto> = {
+        let pending_imports = state.pending_modpack_imports.lock().unwrap();
+        pending_imports
+            .values()
+            .filter(|pending| pending.server_id == server.id)
+            .flat_map(|pending| pending.remaining_files.iter())
+            .map(|file| AddonItemDto {
+                jar_stem: file.file_name.clone(),
+                display_name: file.project_name.clone(),
+                is_enabled: true,
+                project_id: None,
+                current_version: None,
+                available_version: None,
+                bucket: "unresolved".to_string(),
                 icon_url: None,
             })
-            .collect(),
+            .collect()
+    };
+    addon_items.extend(pending_addons);
+    Json(AddonsResponseDto {
+        addons: addon_items,
         is_resolving: server.check_addon_updates && query.local,
         server_supports_addons: true,
         pack_managed: Some(server.pack_managed),

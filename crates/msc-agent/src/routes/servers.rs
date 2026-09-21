@@ -17,8 +17,8 @@ use msc_api::dto::{
     ServerCreateWorldSettingsDto, ServerDeleteRequestDto, ServerDeleteResultDto,
     ServerDirectoryRequestDto, ServerDirectoryResultDto, ServerDirectorySizeResponseDto, ServerDto,
     ServerEulaRequestDto, ServerEulaResultDto, ServerImportRequestDto, ServerImportResultDto,
-    ServerImportScanResponseDto, ServerImportWorldDto, ServerRenameRequestDto,
-    ServerRenameResultDto, ServerTransferExportResultDto,
+    ServerImportScanResponseDto, ServerImportWorldDto, ServerNotesRequestDto, ServerNotesResultDto,
+    ServerRenameRequestDto, ServerRenameResultDto, ServerTransferExportResultDto,
 };
 use msc_application::fleet::{
     self, AcceptEulaError, DeleteServerError, EulaState, RenameServerError,
@@ -71,6 +71,7 @@ pub async fn list(State(state): State<LifecycleRoutesState>) -> Json<Vec<ServerD
                 name: server.name,
                 directory: server.directory,
                 server_type: server.server_type,
+                notes: server.notes,
                 java_flavor: server.java_flavor,
                 game_port: server.game_port,
                 bedrock_port: server.bedrock_port,
@@ -83,6 +84,46 @@ pub async fn list(State(state): State<LifecycleRoutesState>) -> Json<Vec<ServerD
         })
         .collect();
     Json(servers)
+}
+
+pub async fn update_notes(
+    State(state): State<LifecycleRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    body: Result<Json<ServerNotesRequestDto>, JsonRejection>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Fleet) {
+        return response;
+    }
+    let Json(body) = match body {
+        Ok(body) => body,
+        Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
+    };
+    let server_id = body.server_id.trim().to_string();
+    if server_id.is_empty() {
+        return invalid_body("missing_server_id", "serverId is required.");
+    }
+
+    match state.update_server_notes(&server_id, &body.notes) {
+        Ok(()) => Json(ServerNotesResultDto {
+            success: true,
+            message: "Server notes updated.".to_string(),
+            server_id: Some(server_id),
+            notes: body.notes,
+        })
+        .into_response(),
+        Err(TryMutateError::Domain(
+            crate::routes::lifecycle::UpdateServerNotesError::ServerNotFound,
+        )) => error_response(
+            StatusCode::NOT_FOUND,
+            "server_not_found",
+            "Server not found.",
+        ),
+        Err(TryMutateError::Save(error)) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal_error",
+            &error.to_string(),
+        ),
+    }
 }
 
 pub async fn export_transfer(

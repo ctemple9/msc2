@@ -129,6 +129,10 @@ pub struct ServerDto {
     pub name: String,
     pub directory: String,
     pub server_type: String,
+    /// Notes belong to the agent-owned server record, so every connected
+    /// client sees the same Overview text.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub notes: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub java_flavor: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -146,6 +150,23 @@ pub struct ServerDto {
     pub host_address: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runtime: Option<BedrockRuntimeStateDto>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerNotesRequestDto {
+    pub server_id: String,
+    pub notes: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerNotesResultDto {
+    pub success: bool,
+    pub message: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_id: Option<String>,
+    pub notes: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

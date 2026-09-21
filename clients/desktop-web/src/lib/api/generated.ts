@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 427805fc92b5a3cd5b9284b0c34acf05e173f1565e80ead39b6fb604aa9681f2
+// Contract SHA-256: 11175764d44f4c8594a3b73946922a852c839262d64744a14e4490d028e50eb2
 
 export interface paths {
   '/v1/active-server': {
@@ -4625,6 +4625,82 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/servers/notes': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Update a server's Overview notes */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['ServerNotesRequestDTO'];
+        };
+      };
+      responses: {
+        /** @description Server notes updated */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ServerNotesResultDTO'];
+          };
+        };
+        /** @description missing_body / invalid_json / missing_server_id */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description server_not_found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description internal error */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/servers/rename': {
     parameters: {
       query?: never;
@@ -7811,6 +7887,8 @@ export interface components {
       id: string;
       javaFlavor?: string;
       name: string;
+      /** @description Agent-owned Overview notes for this server. */
+      notes?: string;
       /** @description Whether Playit is enabled for this server. */
       playitEnabled?: boolean;
       /** @description Optional current Bedrock runtime state for an imported or created server. */
@@ -7929,6 +8007,20 @@ export interface components {
       id: string;
       name: string;
       sizeBytes: number;
+    } & {
+      [key: string]: unknown;
+    };
+    ServerNotesRequestDTO: {
+      notes: string;
+      serverId: string;
+    } & {
+      [key: string]: unknown;
+    };
+    ServerNotesResultDTO: {
+      message: string;
+      notes: string;
+      serverId?: string;
+      success: boolean;
     } & {
       [key: string]: unknown;
     };

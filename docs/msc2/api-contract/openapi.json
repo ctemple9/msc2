@@ -4077,6 +4077,78 @@
         "x-permission-category": "none"
       }
     },
+    "/v1/servers/notes": {
+      "post": {
+        "summary": "Update a server's Overview notes",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServerNotesRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Server notes updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerNotesResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json / missing_server_id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "invalid_body"
+          },
+          "403": {
+            "description": "forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "forbidden"
+          },
+          "404": {
+            "description": "server_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "not_found"
+          },
+          "500": {
+            "description": "internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "internal_error"
+          }
+        },
+        "x-permission-category": "fleet"
+      }
+    },
     "/v1/servers/size": {
       "get": {
         "summary": "Measure a registered server's directory",
@@ -9831,6 +9903,10 @@
           "directory": {
             "type": "string"
           },
+          "notes": {
+            "type": "string",
+            "description": "Agent-owned Overview notes for this server."
+          },
           "serverType": {
             "type": "string"
           },
@@ -9869,6 +9945,43 @@
           "name",
           "directory",
           "serverType"
+        ]
+      },
+      "ServerNotesRequestDTO": {
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverId",
+          "notes"
+        ]
+      },
+      "ServerNotesResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "serverId": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "message",
+          "notes"
         ]
       },
       "RemoteAPIStatus": {

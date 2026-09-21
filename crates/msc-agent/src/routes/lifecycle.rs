@@ -1194,6 +1194,24 @@ impl LifecycleRoutesState {
             .try_mutate(|config| msc_application::fleet::rename_server(config, server_id, new_name))
     }
 
+    pub fn update_server_notes(
+        &self,
+        server_id: &str,
+        notes: &str,
+    ) -> Result<(), TryMutateError<UpdateServerNotesError>> {
+        self.inner.app_config.try_mutate(|config| {
+            let Some(server) = config
+                .servers
+                .iter_mut()
+                .find(|server| server.id == server_id)
+            else {
+                return Err(UpdateServerNotesError::ServerNotFound);
+            };
+            server.notes = notes.to_owned();
+            Ok(())
+        })
+    }
+
     pub fn update_server_directory(
         &self,
         server_id: &str,
@@ -2483,12 +2501,18 @@ impl From<msc_application::operations::LifecycleOperationError> for LifecycleRou
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UpdateServerNotesError {
+    ServerNotFound,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RegisteredServerDtoParts {
     pub id: String,
     pub name: String,
     pub directory: String,
     pub server_type: String,
+    pub notes: String,
     pub java_flavor: Option<String>,
     pub game_port: Option<i64>,
     pub bedrock_port: Option<i64>,
@@ -2891,6 +2915,7 @@ impl AgentServerRegistry {
                 name: server.display_name.clone(),
                 directory: server.server_dir.clone(),
                 server_type: server.server_type.raw_value().to_string(),
+                notes: server.notes.clone(),
                 java_flavor: (server.server_type == ServerType::Java)
                     .then(|| server.java_flavor.raw_value().to_string()),
                 game_port: if server.server_type == ServerType::Java {

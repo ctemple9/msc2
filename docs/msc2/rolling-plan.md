@@ -298,8 +298,8 @@ The ATM10 discovery work and this additional usability work share Phase 15, but 
 
 ### P15.7 — Make server notes host-owned
 
-- **Status:** planned
-- **Files:** `crates/msc-api/src/dto/lifecycle.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `docs/msc2/api-contract/openapi.json`, `clients/desktop-web/src/lib/api/generated.ts`, `clients/desktop-web/src/lib/sections/home/HomeSection.svelte`, `clients/desktop-web/src/lib/sections/home/notes.ts`
+- **Status:** awaiting verification
+- **Files:** `crates/msc-api/src/dto/lifecycle.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `docs/msc2/api-contract/openapi.json`, `clients/desktop-web/src/lib/api/generated.ts`, `clients/desktop-web/src/lib/sections/home/HomeSection.svelte`, `clients/desktop-web/src/lib/sections/home/notes.ts`, `clients/desktop-web/src/lib/sections/components/CurseForgeManualDownloadSheet.svelte`
 - **What:** Add server-scoped notes to the agent-owned server contract, provide read/write API behavior, replace client-local storage, and migrate or merge existing local notes once. Keep the unresolved-modpack note block compatible with the same server-owned field.
 - **Verify:** `cargo fmt --all -- --check && cargo check -p msc-api -p msc-application -p msc-agent && npm --prefix clients/desktop-web run check`
 - **Batch:** G — server-owned notes

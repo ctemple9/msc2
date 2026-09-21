@@ -13,7 +13,7 @@
   import ActiveWorldCard from './ActiveWorldCard.svelte';
   import ChatCard from './ChatCard.svelte';
   import { parseChatFeed, type ChatFeedMessage } from './chatFeed';
-  import { readNotes, writeNotes } from './notes';
+  import { clearLegacyNotes, mergeLegacyNotes, readLegacyNotes } from './notes';
   import type { Schema, ScreenProps } from '../shared/types';
   import { call, mutate } from '../shared/types';
 
@@ -44,6 +44,9 @@
   let chatMessages: ChatFeedMessage[] = [];
   let notesText = '';
   let notesTimer: ReturnType<typeof setTimeout> | undefined;
+  let notesSyncKey = '';
+  let notesSyncGeneration = 0;
+  let notesSaveNotice = '';
 
   $: activeServer = servers.find((s) => s.id === serverId);
   $: activeSlot = worlds.slots.find((s) => s.id === worlds.activeSlotId);
@@ -76,9 +79,60 @@
     }
   }
 
+  async function syncNotes(): Promise<void> {
+    const server = servers.find((candidate) => candidate.id === serverId);
+    if (!server) return;
+
+    const key = `${hostId}:${server.id}`;
+    if (notesSyncKey === key) return;
+    notesSyncKey = key;
+    const generation = ++notesSyncGeneration;
+    const serverNotes = server.notes ?? '';
+    const legacyNotes = readLegacyNotes(hostId, server.id);
+    const mergedNotes = mergeLegacyNotes(serverNotes, legacyNotes);
+
+    if (legacyNotes && mergedNotes !== serverNotes && api) {
+      try {
+        await mutate(api, '/v1/servers/notes', {
+          serverId: server.id,
+          notes: mergedNotes,
+        });
+        clearLegacyNotes(hostId, server.id);
+      } catch {
+        // Keep the host copy authoritative if migration cannot be saved yet.
+        notesText = serverNotes;
+        return;
+      }
+    } else if (legacyNotes && mergedNotes === serverNotes) {
+      clearLegacyNotes(hostId, server.id);
+    }
+
+    if (generation === notesSyncGeneration) notesText = mergedNotes;
+  }
+
   function onNotesInput(): void {
     if (notesTimer) clearTimeout(notesTimer);
-    notesTimer = setTimeout(() => writeNotes(hostId, serverId, notesText), 400);
+    const server = activeServer;
+    const targetApi = api;
+    if (!server || !targetApi) return;
+    const targetKey = `${hostId}:${server.id}`;
+    const text = notesText;
+    notesTimer = setTimeout(async () => {
+      try {
+        await mutate(targetApi, '/v1/servers/notes', {
+          serverId: server.id,
+          notes: text,
+        });
+        if (notesSyncKey === targetKey) {
+          notesSaveNotice = 'Saved on this host.';
+          servers = servers.map((candidate) =>
+            candidate.id === server.id ? { ...candidate, notes: text } : candidate,
+          );
+        }
+      } catch {
+        if (notesSyncKey === targetKey) notesSaveNotice = 'Could not save to this host.';
+      }
+    }, 400);
   }
 
   let refreshTimer: ReturnType<typeof setInterval> | undefined;
@@ -98,7 +152,6 @@
 
   onMount(() => {
     mounted = true;
-    notesText = readNotes(hostId, serverId);
     if (active) startPolling();
   });
 
@@ -110,6 +163,7 @@
 
   $: if (mounted && active) startPolling();
   $: if (mounted && !active) stopPolling();
+  $: if (mounted && active) void syncNotes();
   $: if (mounted && active && healthRefreshVersion !== appliedHealthRefreshVersion) {
     appliedHealthRefreshVersion = healthRefreshVersion;
     void loadHealth();
@@ -179,7 +233,8 @@
         oninput={onNotesInput}
         placeholder="Notes for this server…"
       ></textarea>
-      <p class="notes-hint">Auto-saved as you type. Visible only in this app.</p>
+      <p class="notes-hint">Auto-saved as you type. Shared with every client on this host.</p>
+      {#if notesSaveNotice}<p class="notes-status" role="status">{notesSaveNotice}</p>{/if}
     </Card>
   </section>
 </div>
@@ -245,6 +300,11 @@
   }
   .notes-hint {
     margin: 6px 0 0;
+    font-size: 10px;
+    color: var(--msc2-text-tertiary);
+  }
+  .notes-status {
+    margin: 4px 0 0;
     font-size: 10px;
     color: var(--msc2-text-tertiary);
   }

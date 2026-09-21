@@ -12,19 +12,15 @@
   import { getPlatform } from '../../platform';
   import type { Schema, ScreenApi } from '../shared/types';
   import { errorMessage, mutate } from '../shared/types';
-  import { writeUnresolvedModpackNotes } from '../home/notes';
   import { addonPaths } from './model';
 
   export let api: ScreenApi | undefined = undefined;
   export let operationId: string;
   export let files: Schema['ModpackManualFileEntryDTO'][];
-  export let hostId = 'local-agent';
-  export let serverId = 'survival';
   export let onClose: () => void;
   export let onAllResolved: () => void;
 
   let remaining = files;
-  let skippedFiles: Schema['ModpackManualFileEntryDTO'][] = [];
   let staging: Set<string> = new Set();
   let errorByFile: Record<string, string> = {};
   let fileInput: HTMLInputElement;
@@ -56,24 +52,6 @@
   }
 
   type PickedFile = { name: string; bytes: Uint8Array };
-
-  function updateNotes(next: Schema['ModpackManualFileEntryDTO'][] = remaining): void {
-    writeUnresolvedModpackNotes(
-      hostId,
-      serverId,
-      next.map((entry) => ({
-        fileName: entry.fileName,
-        provider: entry.provider,
-        reason: entry.reason,
-      })),
-      skippedFiles.map((entry) => ({
-        fileName: entry.fileName,
-        provider: entry.provider,
-        reason: entry.reason,
-        skipped: true,
-      })),
-    );
-  }
 
   function entryForFileName(name: string): Schema['ModpackManualFileEntryDTO'] | undefined {
     const lower = name.toLowerCase();
@@ -114,7 +92,6 @@
         { fileId: entry.fileId, stagedUploadId: staged.stagedUploadId },
       );
       remaining = result.remainingManualFiles;
-      updateNotes();
       if (result.allFilesResolved) onAllResolved();
     } catch (error) {
       errorByFile = {
@@ -150,9 +127,7 @@
         addonPaths.manualFile(operationId),
         { fileId: entry.fileId, action: 'skip' },
       );
-      skippedFiles = [...skippedFiles, entry];
       remaining = result.remainingManualFiles;
-      updateNotes();
       if (result.allFilesResolved) onAllResolved();
     } catch (error) {
       errorByFile = {

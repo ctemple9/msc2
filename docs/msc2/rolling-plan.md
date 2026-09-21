@@ -413,6 +413,15 @@ The ATM10 discovery work and this additional usability work share Phase 15, but 
 - **Batch:** K — add-server confirmation polish
 - **Commit:** `P15.19: increase server-created confirmation emphasis`
 
+### P15.20 — Keep client-only overrides out of the server and count local mods
+
+- **Status:** awaiting verification
+- **Files:** `crates/msc-application/src/modpacks.rs`, `clients/desktop-web/src/lib/sections/components/model.ts`, `docs/msc2/rolling-plan.md`
+- **What:** Identify client-only override jars before merging pack overrides into the server, preserve the existing post-merge safeguard for already-present files, and treat active local jars without a provider link as installed in Components. Pending import files remain unresolved, and disabled jars remain disabled.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-agent && cargo clippy -p msc-application -p msc-agent -- -D warnings && npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** K — modpack and Components inventory corrections
+- **Commit:** `P15.20: count local mods and skip client-only overrides`
+
 ### Additional Phase 15 scope — world packs and modpack identity
 
 Here is the full plan we discussed. This is only recorded in the chat for now; I have not added it to the rolling plan.

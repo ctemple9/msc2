@@ -165,9 +165,9 @@ export function addonFilename(addon: Schema['AddonItemDTO']): string {
 export function addonState(addon: Schema['AddonItemDTO']): ComponentState {
   if (addon.bucket === 'unresolved') return 'unresolved';
   if (!addon.isEnabled) return 'disabled';
-  // An unlinked jar is present on disk, but MSC has not established its
-  // provider identity. Keep that distinct from a healthy installed entry.
-  return addon.bucket === 'unlinked' ? 'unresolved' : 'installed';
+  // An unlinked jar is still present and active on disk. Provider identity
+  // affects update actions, not whether the local file is installed.
+  return 'installed';
 }
 
 export function componentStateLabel(state: ComponentState): string {

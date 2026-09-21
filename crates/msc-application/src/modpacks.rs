@@ -493,12 +493,30 @@ pub fn import_mrpack(
         return Ok(report);
     }
 
-    merge_directory_into(fs, &staged_dir.join("overrides"), server_dir, &mut written);
-    merge_directory_into(
+    let mut skipped_client_only_overrides = Vec::new();
+    for override_root in ["overrides", "server-overrides"] {
+        let source_folder = staged_dir
+            .join(override_root)
+            .join(add_on_kind.folder_name());
+        skipped_client_only_overrides.extend(client_only_override_paths(
+            transport,
+            fs,
+            &source_folder,
+        ));
+    }
+    merge_directory_into_excluding(
+        fs,
+        &staged_dir.join("overrides"),
+        server_dir,
+        &mut written,
+        &skipped_client_only_overrides,
+    );
+    merge_directory_into_excluding(
         fs,
         &staged_dir.join("server-overrides"),
         server_dir,
         &mut written,
+        &skipped_client_only_overrides,
     );
 
     let add_on_folder = server_dir.join(add_on_kind.folder_name());
@@ -642,16 +660,17 @@ fn rollback_written(fs: &dyn FileSystem, written: &[PathBuf]) {
 /// or no `server-overrides/` in this particular archive) is silently
 /// skipped, not an error (`fixtures/modpack-import/
 /// missing-overrides-folder-in-archive-silently-skipped-not-an-error.json`).
-fn merge_directory_into(
+fn merge_directory_into_excluding(
     fs: &dyn FileSystem,
     src_dir: &Path,
     dest_root: &Path,
     written: &mut Vec<PathBuf>,
+    excluded: &[PathBuf],
 ) {
     if !matches!(fs.stat(src_dir), Ok(m) if m.is_dir) {
         return;
     }
-    merge_dir_recursive(fs, src_dir, dest_root, written);
+    merge_dir_recursive(fs, src_dir, dest_root, written, excluded);
 }
 
 fn merge_dir_recursive(
@@ -659,6 +678,7 @@ fn merge_dir_recursive(
     src_dir: &Path,
     dest_dir: &Path,
     written: &mut Vec<PathBuf>,
+    excluded: &[PathBuf],
 ) {
     if fs.create_dir_all(dest_dir).is_err() {
         return;
@@ -667,6 +687,9 @@ fn merge_dir_recursive(
         return;
     };
     for entry in entries {
+        if excluded.contains(&entry) {
+            continue;
+        }
         let Some(name) = entry.file_name() else {
             continue;
         };
@@ -675,7 +698,7 @@ fn merge_dir_recursive(
             continue;
         };
         if meta.is_dir {
-            merge_dir_recursive(fs, &entry, &dest, written);
+            merge_dir_recursive(fs, &entry, &dest, written, excluded);
         } else if let Ok(bytes) = fs.read(&entry)
             && fs.write(&dest, &bytes).is_ok()
         {
@@ -684,20 +707,20 @@ fn merge_dir_recursive(
     }
 }
 
-/// Tier 0 (hardcoded blocklist) then Tier 2 (Modrinth `server_side`, via a
-/// hash-identify + batched 100-id project fetch — this module's own doc
-/// explains why Tier 3 isn't built here) — an override jar Tier 0 already
-/// disabled is never also hash-identified.
-fn classify_override_jars(
+/// Identifies client-only jars in an archive override folder before that
+/// folder is merged into the server. The same two-tier rules used for the
+/// post-merge classifier are shared here so a client-only override never
+/// needs to be written into `mods/` and renamed afterward.
+fn client_only_override_paths(
     transport: &dyn AddonTransport,
     fs: &dyn FileSystem,
     add_on_folder: &Path,
 ) -> Vec<PathBuf> {
-    let mut disabled = Vec::new();
     let Ok(entries) = fs.list(add_on_folder) else {
-        return disabled;
+        return Vec::new();
     };
 
+    let mut client_only = Vec::new();
     let mut remaining: Vec<(PathBuf, String)> = Vec::new();
     for path in entries {
         let Some(name) = path
@@ -708,17 +731,17 @@ fn classify_override_jars(
             continue;
         };
         if !name.to_lowercase().ends_with(".jar") {
-            continue; // already-disabled (.jar.disabled) entries are never reclassified.
+            continue;
         }
         let stem = name.trim_end_matches(".jar");
         if modpack::known_client_only_reason(stem).is_some() {
-            disable_override_jar(fs, &path, &mut disabled);
+            client_only.push(path);
         } else {
             remaining.push((path, name));
         }
     }
     if remaining.is_empty() {
-        return disabled;
+        return client_only;
     }
 
     let mut hash_to_path: HashMap<String, PathBuf> = HashMap::new();
@@ -731,14 +754,14 @@ fn classify_override_jars(
         }
     }
     let Ok(identify) = provider::modrinth_versions_from_hashes(transport, &hashes) else {
-        return disabled;
+        return client_only;
     };
     if identify.is_empty() {
-        return disabled;
+        return client_only;
     }
     let project_ids: Vec<String> = identify.values().map(|v| v.project_id.clone()).collect();
     let Ok(projects) = provider::modrinth_projects(transport, &project_ids) else {
-        return disabled;
+        return client_only;
     };
     let by_id: HashMap<&str, &serde_json::Value> = projects
         .iter()
@@ -755,10 +778,29 @@ fn classify_override_jars(
         let server_side = project.get("server_side").and_then(|v| v.as_str());
         let title = project.get("title").and_then(|v| v.as_str());
         if modpack::client_only_reason(server_side, title, None).is_some() {
-            disable_override_jar(fs, path, &mut disabled);
+            client_only.push(path.clone());
         }
     }
-    disabled
+    client_only
+}
+
+/// Tier 0 (hardcoded blocklist) then Tier 2 (Modrinth `server_side`, via a
+/// hash-identify + batched 100-id project fetch — this module's own doc
+/// explains why Tier 3 isn't built here) — an override jar Tier 0 already
+/// disabled is never also hash-identified.
+fn classify_override_jars(
+    transport: &dyn AddonTransport,
+    fs: &dyn FileSystem,
+    add_on_folder: &Path,
+) -> Vec<PathBuf> {
+    client_only_override_paths(transport, fs, add_on_folder)
+        .into_iter()
+        .filter_map(|path| {
+            let mut disabled = Vec::new();
+            disable_override_jar(fs, &path, &mut disabled);
+            disabled.into_iter().next()
+        })
+        .collect()
 }
 
 fn disable_override_jar(fs: &dyn FileSystem, path: &Path, disabled: &mut Vec<PathBuf>) {
@@ -1215,11 +1257,19 @@ pub fn import_curseforge(
         return Ok(report);
     }
 
-    merge_directory_into(
+    let skipped_client_only_overrides = client_only_override_paths(
+        transport,
+        fs,
+        &staged_dir
+            .join(&metadata.overrides_folder)
+            .join(add_on_kind.folder_name()),
+    );
+    merge_directory_into_excluding(
         fs,
         &staged_dir.join(&metadata.overrides_folder),
         server_dir,
         &mut written,
+        &skipped_client_only_overrides,
     );
     report.disabled_client_only_overrides = classify_override_jars(transport, fs, &add_on_folder);
 

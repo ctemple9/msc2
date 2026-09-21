@@ -10,14 +10,16 @@
   export let onClose: (() => void) | undefined = undefined;
   /** Keep the sheet mounted while a parent-owned operation continues behind it. */
   export let visible = true;
+  /** Backdrop dismissal is opt-in so an accidental click cannot discard sheet state. */
+  export let dismissOnBackdrop = false;
   /** Reports the close button's rect to the guided tour under this id, when
    *  set. Additive -- most sheets leave it unset. See tourAnchors.ts. */
   export let closeAnchorId: string | undefined = undefined;
 
   const widths = { sm: '480px', md: '640px', lg: '820px' } as const;
 
-  function dismissOnBackdrop(event: MouseEvent) {
-    if (event.target === event.currentTarget) onClose?.();
+  function handleBackdropClick(event: MouseEvent) {
+    if (dismissOnBackdrop && event.target === event.currentTarget) onClose?.();
   }
 
   function dismissOnEscape(event: KeyboardEvent) {
@@ -27,7 +29,7 @@
 
 <svelte:window onkeydown={onClose ? dismissOnEscape : undefined} />
 
-<div class:hidden={!visible} class="scrim" role="presentation" onclick={dismissOnBackdrop}>
+<div class:hidden={!visible} class="scrim" role="presentation" onclick={handleBackdropClick}>
   <div
     class="sheet"
     style="width: {widths[size]};"

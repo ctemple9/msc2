@@ -47,6 +47,7 @@
 
 <svelte:window onkeydown={dismissOnEscape} />
 
+<!-- This is a transient action menu, so clicking away intentionally dismisses it. -->
 <div class="scrim" role="presentation" onclick={onClose} oncontextmenu={onClose}></div>
 <div class="menu" use:bind style="left: {left}px; top: {top}px;" role="menu">
   {#each items as item (item.label)}

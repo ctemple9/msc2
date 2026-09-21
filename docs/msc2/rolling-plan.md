@@ -343,7 +343,7 @@ The ATM10 discovery work and this additional usability work share Phase 15, but 
 
 ### P15.12 — Stop sheets closing on backdrop clicks
 
-- **Status:** planned
+- **Status:** awaiting verification
 - **Files:** `clients/desktop-web/src/lib/components/base/Sheet.svelte`, `clients/desktop-web/src/lib/components/ConfirmDialog.svelte`, `clients/desktop-web/src/lib/components/base/Menu.svelte`, `clients/desktop-web/src/lib/components/shell/ConsoleDock.svelte`, `clients/desktop-web/src/lib/sections/components/ImportModpackSheet.svelte`, `clients/desktop-web/src/lib/sections/server-editor/ServerEditorSheet.svelte`
 - **What:** Make outside-click dismissal opt-in rather than the default for sheets. Clicking the scrim must leave an open sheet and its in-progress text untouched; explicit close buttons, Cancel actions, and Escape remain available. Audit custom overlays separately so transient menus and intentional confirmation behavior are not changed accidentally.
 - **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check && rg -n "dismissOnBackdrop|event\.target === event\.currentTarget|onclick=.*onClose" clients/desktop-web/src/lib/components clients/desktop-web/src/lib/sections`

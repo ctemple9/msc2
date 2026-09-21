@@ -11,6 +11,7 @@
 </script>
 
 {#if open}
+  <!-- Confirmation dialogs intentionally keep their existing cancel-on-backdrop behavior. -->
   <div
     class="backdrop"
     role="presentation"

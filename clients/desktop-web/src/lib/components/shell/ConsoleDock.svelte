@@ -385,6 +385,7 @@
   </div>
 
   {#if !collapsed && showFilters}
+    <!-- Filters are a transient popover; outside click intentionally closes them. -->
     <div class="scrim" role="presentation" onclick={closeFilters}></div>
     <div class="filter-panel" role="dialog" aria-label="Console filters">
       <div class="filter-panel-header">

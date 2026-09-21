@@ -6,8 +6,10 @@
   // operation after this step.
   import { onDestroy, onMount } from 'svelte';
   import Button from '../../../components/base/Button.svelte';
+  import Field from '../../../components/base/Field.svelte';
+  import VisibilityIcon from '../../../components/base/VisibilityIcon.svelte';
   import { onboardingAnchor } from '../../../help/tourAnchors';
-  import { getPlatform } from '../../../platform';
+  import { getPlatform, openExternal } from '../../../platform';
   import type { PickedFile } from '../../../platform/types';
   import type { Schema, ScreenApi } from '../../shared/types';
   import { errorMessage, mutate } from '../../shared/types';
@@ -26,6 +28,12 @@
   let supportsDrop = false;
   let unsubscribeDrop: (() => void) | undefined;
   let fileFilter = '';
+  let curseforgeApiKey = '';
+  let curseforgeApiKeyVisible = false;
+  let curseforgeKeySaving = false;
+  let curseforgeKeyNotice = '';
+
+  const curseforgeApiConsoleUrl = 'https://console.curseforge.com/';
 
   onMount(async () => {
     const platform = await getPlatform();
@@ -41,6 +49,16 @@
 
   function baseName(path: string): string {
     return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
+  }
+
+  async function openCurseForgeConsole(event: MouseEvent): Promise<void> {
+    event.preventDefault();
+    try {
+      await openExternal(curseforgeApiConsoleUrl);
+    } catch (error) {
+      curseforgeKeyNotice =
+        errorMessage(error) || 'The CurseForge API Console could not be opened.';
+    }
   }
 
   function flavorForLoader(
@@ -97,33 +115,63 @@
     if (!api?.upload) throw new Error('Modpack staging needs a connected agent.');
     isScanning = true;
     scanError = undefined;
+    curseforgeKeyNotice = '';
     try {
       const staged = await api.upload('modpack-archive', bytes);
-      const inspection = await mutate<Schema['ModpackInspectionResultDTO']>(
-        api,
-        addonPaths.inspectPack,
-        { stagedUploadId: staged.stagedUploadId },
-      );
-      const detected = flavorForLoader(inspection.loaderName);
-      draft = {
-        ...draft,
-        serverName: inspection.packName?.trim() || baseName(fileName).replace(/\.[^.]+$/, ''),
-        serverType: 'java',
-        ...(detected ?? {}),
-        stagedModpack: {
-          fileName,
-          stagedUploadId: staged.stagedUploadId,
-          inspection,
-        },
-        importSourcePath: undefined,
-        importIsZip: false,
-        importScan: undefined,
-        importActiveWorldName: undefined,
-      };
+      await inspectStagedModpack(fileName, staged.stagedUploadId);
     } catch (error) {
       throw error;
     } finally {
       isScanning = false;
+    }
+  }
+
+  async function inspectStagedModpack(fileName: string, stagedUploadId: string): Promise<void> {
+    if (!api) throw new Error('Modpack inspection needs a connected agent.');
+    const inspection = await mutate<Schema['ModpackInspectionResultDTO']>(
+      api,
+      addonPaths.inspectPack,
+      { stagedUploadId },
+    );
+    const detected = flavorForLoader(inspection.loaderName);
+    draft = {
+      ...draft,
+      serverName: inspection.packName?.trim() || baseName(fileName).replace(/\.[^.]+$/, ''),
+      serverType: 'java',
+      ...(detected ?? {}),
+      stagedModpack: {
+        fileName,
+        stagedUploadId,
+        inspection,
+      },
+      importSourcePath: undefined,
+      importIsZip: false,
+      importScan: undefined,
+      importActiveWorldName: undefined,
+    };
+  }
+
+  async function saveCurseForgeKey(): Promise<void> {
+    if (!api || !curseforgeApiKey.trim() || curseforgeKeySaving || !draft.stagedModpack) return;
+    curseforgeKeySaving = true;
+    curseforgeKeyNotice = '';
+    try {
+      const status = await mutate<Schema['CurseForgeApiKeyStatusDTO']>(
+        api,
+        '/v1/config/curseforge',
+        { apiKey: curseforgeApiKey.trim() },
+      );
+      if (!status.configured) {
+        curseforgeKeyNotice = 'MSC did not save a CurseForge API key.';
+        return;
+      }
+      curseforgeApiKey = '';
+      curseforgeKeyNotice = 'Key saved. Checking CurseForge files…';
+      await inspectStagedModpack(draft.stagedModpack.fileName, draft.stagedModpack.stagedUploadId);
+    } catch (error) {
+      curseforgeKeyNotice = errorMessage(error) || 'The CurseForge API key could not be saved.';
+    } finally {
+      curseforgeKeySaving = false;
     }
   }
 
@@ -208,6 +256,8 @@
       importScan: undefined,
     };
     scanError = undefined;
+    curseforgeApiKey = '';
+    curseforgeKeyNotice = '';
   }
 </script>
 
@@ -279,10 +329,52 @@
     {/if}
 
     {#if inspection.format === 'curseforge' && inspection.curseforgeLookupAvailable === false}
-      <p class="hint warn">
-        MSC could not check this pack's CurseForge files. Verify the API key in MSC Settings →
-        Modpack Imports, then choose the file again to retry.
-      </p>
+      <div class="curseforge-setup">
+        <p class="hint warn">
+          MSC could not check this pack's CurseForge files. Enter or update the API key below and
+          MSC will check them again. You can manage this key later in MSC Settings → Modpack
+          Imports.
+        </p>
+        <p class="key-explain">
+          Create or manage the key in the
+          <a
+            href={curseforgeApiConsoleUrl}
+            target="_blank"
+            rel="noreferrer"
+            onclick={(event) => void openCurseForgeConsole(event)}>CurseForge API Console</a
+          >. The key is saved securely on this agent and is never shown again.
+        </p>
+        <div class="key-control">
+          <Field
+            bind:value={curseforgeApiKey}
+            type={curseforgeApiKeyVisible ? 'text' : 'password'}
+            placeholder="Paste API key"
+            width="100%"
+            disabled={curseforgeKeySaving}
+            onkeydown={(event) => event.key === 'Enter' && void saveCurseForgeKey()}
+          />
+          <button
+            type="button"
+            class="visibility-toggle"
+            aria-label={curseforgeApiKeyVisible ? 'Hide API key' : 'Show API key'}
+            aria-pressed={curseforgeApiKeyVisible}
+            title={curseforgeApiKeyVisible ? 'Hide API key' : 'Show API key'}
+            onclick={() => (curseforgeApiKeyVisible = !curseforgeApiKeyVisible)}
+          >
+            <VisibilityIcon visible={curseforgeApiKeyVisible} />
+          </button>
+        </div>
+        {#if curseforgeKeyNotice}<p class="key-notice" role="status">{curseforgeKeyNotice}</p>{/if}
+        <div class="key-footer">
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={curseforgeKeySaving || !curseforgeApiKey.trim()}
+            onclick={() => void saveCurseForgeKey()}
+            >{curseforgeKeySaving ? 'Checking…' : 'Save key and retry'}</Button
+          >
+        </div>
+      </div>
     {:else if inspection.format === 'mrpack'}
       <p class="hint">
         This Modrinth pack downloads from its manifest; no CurseForge API key is needed.
@@ -312,8 +404,11 @@
       </details>
     {/if}
 
-    <Button variant="secondary" size="sm" onclick={chooseDifferentFile}
-      >Choose a different file</Button
+    <Button
+      variant="secondary"
+      size="sm"
+      disabled={curseforgeKeySaving}
+      onclick={chooseDifferentFile}>Choose a different file</Button
     >
   {:else if isScanning}
     <div class="status">
@@ -427,6 +522,60 @@
     padding: 12px 14px;
     background: var(--msc2-tier-chrome);
     border-radius: 10px;
+  }
+  .curseforge-setup {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 0;
+    border-top: 1px solid var(--msc2-hairline-subtle);
+    border-bottom: 1px solid var(--msc2-hairline-subtle);
+  }
+  .key-explain,
+  .key-notice {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--msc2-text-tertiary);
+  }
+  .key-explain a {
+    color: var(--msc2-text-secondary);
+  }
+  .key-notice {
+    color: var(--msc2-status-warn);
+  }
+  .key-control {
+    position: relative;
+  }
+  .key-control :global(.field) {
+    padding-right: 42px;
+  }
+  .visibility-toggle {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    display: grid;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    transform: translateY(-50%);
+    place-items: center;
+    border: 0;
+    background: transparent;
+    color: var(--msc2-text-tertiary);
+    cursor: pointer;
+  }
+  .visibility-toggle:hover {
+    color: var(--msc2-text-primary);
+  }
+  .visibility-toggle:focus-visible {
+    outline: 2px solid var(--msc2-hairline);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+  .key-footer {
+    display: flex;
+    justify-content: flex-end;
   }
   .contents {
     gap: 10px;

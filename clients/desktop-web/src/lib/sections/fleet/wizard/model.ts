@@ -742,7 +742,12 @@ export async function scanImportSource(
  *  `WorldStep.svelte`'s identical `staging`/`stageError` precedent), so this
  *  only needs to check the durable half. */
 export function canAdvanceUpload(draft: WizardDraft): boolean {
-  return draft.importScan !== undefined || draft.stagedModpack !== undefined;
+  if (draft.importScan !== undefined) return true;
+  const inspection = draft.stagedModpack?.inspection;
+  return Boolean(
+    draft.stagedModpack &&
+    !(inspection?.format === 'curseforge' && inspection.curseforgeLookupAvailable === false),
+  );
 }
 
 /** `AddServerWizardView.swift`'s displayName prefill on reaching Confirm for

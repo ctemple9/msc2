@@ -93,7 +93,9 @@
 <div class="confirm" use:onboardingAnchor={'ob_confirm_page'}>
   {#if createSucceeded}
     <div class="success">
-      <StatusDot tone="ok" showDot={false} label="{displayName || draft.serverName} created" />
+      <div class="success-label">
+        <StatusDot tone="ok" showDot={false} label="{displayName || draft.serverName} created" />
+      </div>
       <p class="hint">
         {#if isExistingImport}
           Open Server Settings to review defaults.{#if !draft.importEulaAccepted}
@@ -423,5 +425,9 @@
     flex-direction: column;
     gap: 8px;
     padding: 8px 0;
+  }
+  .success-label :global(.label) {
+    font-size: 18px;
+    font-weight: 600;
   }
 </style>

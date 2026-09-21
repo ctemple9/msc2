@@ -334,7 +334,7 @@ The ATM10 discovery work and this additional usability work share Phase 15, but 
 
 ### P15.11 — Hide the Modrinth browse scrollbar
 
-- **Status:** planned
+- **Status:** awaiting verification
 - **Files:** `clients/desktop-web/src/lib/sections/components/PluginBrowserSheet.svelte`
 - **What:** Hide the visible scrollbar in the Modrinth browse results while preserving scrolling with the wheel, trackpad, keyboard, and touch input. Keep the results container bounded and usable at the current sheet size.
 - **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`

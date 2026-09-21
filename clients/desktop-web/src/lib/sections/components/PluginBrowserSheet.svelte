@@ -249,6 +249,12 @@
     gap: 4px;
     max-height: 480px;
     overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .results::-webkit-scrollbar {
+    display: none;
+    width: 0;
   }
   .result {
     display: flex;

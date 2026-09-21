@@ -95,8 +95,8 @@
         <h3 id="modpack-recovered-title">Recovered from Modrinth</h3>
         <p>
           {summary.recoveredModrinthFiles.length} file{summary.recoveredModrinthFiles.length === 1
-            ? ''
-            : 's'} were installed automatically from Modrinth.
+            ? ' was'
+            : 's were'} installed automatically from Modrinth.
         </p>
         <div class="file-list">
           {#each summary.recoveredModrinthFiles as file}
@@ -159,6 +159,7 @@
   .intro p,
   .section-heading p,
   .complete p,
+  .recovered p,
   .empty {
     margin: 4px 0 0;
     color: var(--msc2-text-tertiary);
@@ -237,6 +238,9 @@
   .file-list span {
     padding-bottom: 6px;
     border-bottom: 1px solid var(--msc2-hairline-subtle);
+  }
+  .recovered .file-list span:last-child {
+    border-bottom: 0;
   }
   .error {
     margin: 10px 0 0;

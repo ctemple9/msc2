@@ -386,6 +386,15 @@ The ATM10 discovery work and this additional usability work share Phase 15, but 
 - **Batch:** K — modpack summary corrections
 - **Commit:** `P15.16: clarify server files recovered during modpack import`
 
+### P15.17 — Polish modpack completion summary wording
+
+- **Status:** awaiting verification
+- **Files:** `crates/msc-agent/src/routes/components.rs`, `clients/desktop-web/src/lib/sections/fleet/wizard/ModpackCreationSummarySheet.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Clarify that manual-download counts may change before import finishes, style the Modrinth recovery supporting sentence like the other summary subtitles, correct singular grammar, and remove the duplicate divider after the recovered-file list.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-agent && npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** K — modpack summary corrections
+- **Commit:** `P15.17: polish modpack completion summary wording`
+
 ### Additional Phase 15 scope — world packs and modpack identity
 
 Here is the full plan we discussed. This is only recorded in the chat for now; I have not added it to the rolling plan.

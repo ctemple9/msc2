@@ -2004,7 +2004,7 @@ fn modpack_inspection_response(
             Vec::new()
         } else {
             vec![format!(
-                "{} file(s) require manual completion before import can finish.",
+                "{} file(s) may require manual completion before import can finish. MSC will confirm at the end.",
                 inspection.manual_downloads.len()
             )]
         },

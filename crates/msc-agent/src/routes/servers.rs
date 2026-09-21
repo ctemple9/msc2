@@ -2072,25 +2072,31 @@ fn pack_unresolved_files(
 }
 
 fn pack_summary(report: &provisioning::PackApplyReport) -> serde_json::Value {
-    let (pack_name, pack_version, provider, installed_files, unresolved_files, not_installed_files) =
-        match report {
-            provisioning::PackApplyReport::Mrpack(report) => (
-                &report.pack_name,
-                &report.pack_version,
-                "Modrinth",
-                &report.installed_files,
-                &report.unresolved_files,
-                Vec::new(),
-            ),
-            provisioning::PackApplyReport::CurseForge(report) => (
-                &report.pack_name,
-                &report.pack_version,
-                "CurseForge",
-                &report.installed_files,
-                &report.unresolved_files,
-                report.skipped_client_only_files.clone(),
-            ),
-        };
+    let (
+        pack_name,
+        pack_version,
+        provider,
+        installed_files,
+        recovered_modrinth_files,
+        unresolved_files,
+    ) = match report {
+        provisioning::PackApplyReport::Mrpack(report) => (
+            &report.pack_name,
+            &report.pack_version,
+            "Modrinth",
+            &report.installed_files,
+            Vec::new(),
+            &report.unresolved_files,
+        ),
+        provisioning::PackApplyReport::CurseForge(report) => (
+            &report.pack_name,
+            &report.pack_version,
+            "CurseForge",
+            &report.installed_files,
+            report.recovered_modrinth_files.clone(),
+            &report.unresolved_files,
+        ),
+    };
     let installed_files: Vec<String> = installed_files
         .iter()
         .map(|path| {
@@ -2101,6 +2107,16 @@ fn pack_summary(report: &provisioning::PackApplyReport) -> serde_json::Value {
         })
         .collect();
     let installed_count = installed_files.len();
+    let recovered_modrinth_files: Vec<String> = recovered_modrinth_files
+        .iter()
+        .map(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .map(str::to_owned)
+                .unwrap_or_else(|| path.to_string_lossy().into_owned())
+        })
+        .collect();
+    let recovered_modrinth_count = recovered_modrinth_files.len();
     let unresolved_files: Vec<serde_json::Value> = unresolved_files
         .iter()
         .map(|file| {
@@ -2115,17 +2131,16 @@ fn pack_summary(report: &provisioning::PackApplyReport) -> serde_json::Value {
         })
         .collect();
     let unresolved_count = unresolved_files.len();
-    let not_installed_count = not_installed_files.len();
     serde_json::json!({
         "packName": pack_name,
         "packVersion": pack_version,
         "provider": provider,
         "installedFiles": installed_files,
         "installedCount": installed_count,
+        "recoveredModrinthFiles": recovered_modrinth_files,
+        "recoveredModrinthCount": recovered_modrinth_count,
         "unresolvedFiles": unresolved_files,
         "unresolvedCount": unresolved_count,
-        "notInstalledFiles": not_installed_files,
-        "notInstalledCount": not_installed_count,
     })
 }
 

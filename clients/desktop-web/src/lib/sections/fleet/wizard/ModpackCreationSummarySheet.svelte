@@ -85,19 +85,21 @@
       </section>
     {:else}
       <section class="complete" aria-label="Modpack download status">
-        <h3>All pack files downloaded</h3>
-        <p>MSC installed every manifest file it could identify for this pack.</p>
+        <h3>Server files ready</h3>
+        <p>MSC installed every server-side file it could identify for this pack.</p>
       </section>
     {/if}
 
-    {#if summary.notInstalledFiles.length > 0}
-      <section class="not-installed" aria-labelledby="modpack-not-installed-title">
-        <h3 id="modpack-not-installed-title">Not installed on the server</h3>
+    {#if summary.recoveredModrinthFiles.length > 0}
+      <section class="recovered" aria-labelledby="modpack-recovered-title">
+        <h3 id="modpack-recovered-title">Recovered from Modrinth</h3>
         <p>
-          These exact matches are client-only and belong in the player’s modpack, not the server.
+          {summary.recoveredModrinthFiles.length} file{summary.recoveredModrinthFiles.length === 1
+            ? ''
+            : 's'} were installed automatically from Modrinth.
         </p>
         <div class="file-list">
-          {#each summary.notInstalledFiles as file}
+          {#each summary.recoveredModrinthFiles as file}
             <span>{file}</span>
           {/each}
         </div>
@@ -107,10 +109,10 @@
     <section class="downloaded" aria-labelledby="modpack-downloaded-title">
       <div class="section-heading">
         <div>
-          <h3 id="modpack-downloaded-title">Downloaded</h3>
+          <h3 id="modpack-downloaded-title">Downloaded directly</h3>
           <p>
-            {summary.installedFiles.length} file{summary.installedFiles.length === 1 ? '' : 's'} installed
-            in the server.
+            {summary.installedFiles.length} file{summary.installedFiles.length === 1 ? '' : 's'} downloaded
+            directly into the server.
           </p>
         </div>
       </div>
@@ -165,7 +167,7 @@
   }
   .attention,
   .complete,
-  .not-installed,
+  .recovered,
   .downloaded {
     padding-top: 16px;
     border-top: 1px solid var(--msc2-hairline-subtle);

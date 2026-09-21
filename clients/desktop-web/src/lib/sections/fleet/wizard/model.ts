@@ -518,8 +518,8 @@ export interface ModpackCreationSummary {
   packVersion: string;
   provider: string;
   installedFiles: string[];
+  recoveredModrinthFiles: string[];
   unresolvedFiles: Schema['ModpackManualFileEntryDTO'][];
-  notInstalledFiles: string[];
 }
 
 /** Reads the pack-specific part of a successful server-create operation. */
@@ -537,8 +537,8 @@ export function modpackCreationSummary(
     const installedFiles = Array.isArray(summary.installedFiles)
       ? summary.installedFiles.filter((file): file is string => typeof file === 'string')
       : [];
-    const notInstalledFiles = Array.isArray(summary.notInstalledFiles)
-      ? summary.notInstalledFiles.filter((file): file is string => typeof file === 'string')
+    const recoveredModrinthFiles = Array.isArray(summary.recoveredModrinthFiles)
+      ? summary.recoveredModrinthFiles.filter((file): file is string => typeof file === 'string')
       : [];
     if (
       typeof summary.packName !== 'string' ||
@@ -553,8 +553,8 @@ export function modpackCreationSummary(
       packVersion: summary.packVersion,
       provider: summary.provider,
       installedFiles,
+      recoveredModrinthFiles,
       unresolvedFiles,
-      notInstalledFiles,
     };
   } catch {
     return undefined;

@@ -774,7 +774,15 @@ fn disable_override_jar(fs: &dyn FileSystem, path: &Path, disabled: &mut Vec<Pat
 struct ModrinthRecoveryRequest<'a> {
     project_name: Option<&'a str>,
     expected_file_name: &'a str,
-    version_label: &'a str,
+}
+
+#[derive(Clone)]
+enum ModrinthRecoveryMatch {
+    Server {
+        download_url: String,
+        version_number: String,
+    },
+    ClientOnly,
 }
 
 enum ModrinthRecoveryOutcome {
@@ -782,14 +790,12 @@ enum ModrinthRecoveryOutcome {
     ClientOnly,
 }
 
-fn try_install_confident_modrinth_match(
+fn find_confident_modrinth_match(
     transport: &dyn AddonTransport,
-    fs: &dyn FileSystem,
-    add_on_folder: &Path,
     flavor: JavaServerFlavor,
     minecraft_version: &str,
     request: ModrinthRecoveryRequest<'_>,
-) -> Option<ModrinthRecoveryOutcome> {
+) -> Option<ModrinthRecoveryMatch> {
     let project_name = request
         .project_name
         .filter(|name| !name.trim().is_empty())?;
@@ -838,18 +844,39 @@ fn try_install_confident_modrinth_match(
             .then(|| (file.url.clone(), version.version_number.clone()))
     })?;
     if hit.is_client_only() {
-        return Some(ModrinthRecoveryOutcome::ClientOnly);
+        return Some(ModrinthRecoveryMatch::ClientOnly);
     }
+    Some(ModrinthRecoveryMatch::Server {
+        download_url,
+        version_number,
+    })
+}
+
+fn install_confident_modrinth_match(
+    transport: &dyn AddonTransport,
+    fs: &dyn FileSystem,
+    add_on_folder: &Path,
+    expected_file_name: &str,
+    version_label: &str,
+    matched: ModrinthRecoveryMatch,
+) -> Option<ModrinthRecoveryOutcome> {
+    let ModrinthRecoveryMatch::Server {
+        download_url,
+        version_number,
+    } = matched
+    else {
+        return Some(ModrinthRecoveryOutcome::ClientOnly);
+    };
     if fs.create_dir_all(add_on_folder).is_err() {
         return None;
     }
-    let destination = add_on_folder.join(request.expected_file_name);
+    let destination = add_on_folder.join(expected_file_name);
     addon_store::install_verified_file(
         transport,
         fs,
         &download_url,
         if version_number.is_empty() {
-            request.version_label
+            version_label
         } else {
             &version_number
         },
@@ -917,10 +944,11 @@ pub struct CurseForgeImportReport {
     /// Blocked and failed files, enriched with provider links and a safe
     /// upload target for the recovery sheet.
     pub unresolved_files: Vec<UnresolvedModpackFile>,
-    /// Exact compatible Modrinth matches that were identified as client-only
-    /// and therefore intentionally not installed into the server's add-on
-    /// folder.
-    pub skipped_client_only_files: Vec<String>,
+    /// Files recovered from an exact compatible Modrinth match after the
+    /// CurseForge download was unavailable. These are kept separate from
+    /// direct CurseForge downloads so the completion summary can explain
+    /// where each installed file came from.
+    pub recovered_modrinth_files: Vec<PathBuf>,
     pub disabled_client_only_overrides: Vec<PathBuf>,
     pub pack_name: String,
     pub pack_version: String,
@@ -972,14 +1000,9 @@ pub fn import_curseforge(
     })?;
     let by_file_id: HashMap<i64, &msc_domain::addon_provider::CurseForgeFile> =
         resolved.iter().map(|f| (f.id, f)).collect();
-    let blocked_mod_ids: Vec<i64> = resolved
-        .iter()
-        .filter(|file| file.download_url.is_none())
-        .map(|file| file.mod_id)
-        .collect();
-    let blocked_projects =
-        provider::curseforge_mods(transport, secrets, &blocked_mod_ids).unwrap_or_default();
-    let projects_by_id: HashMap<i64, &msc_domain::addon_provider::CurseForgeMod> = blocked_projects
+    let mod_ids: Vec<i64> = resolved.iter().map(|file| file.mod_id).collect();
+    let projects = provider::curseforge_mods(transport, secrets, &mod_ids).unwrap_or_default();
+    let projects_by_id: HashMap<i64, &msc_domain::addon_provider::CurseForgeMod> = projects
         .iter()
         .map(|project| (project.id, project))
         .collect();
@@ -990,6 +1013,8 @@ pub fn import_curseforge(
         ..Default::default()
     };
     let mut written: Vec<PathBuf> = Vec::new();
+    let mut modrinth_match_cache: HashMap<(String, String), Option<ModrinthRecoveryMatch>> =
+        HashMap::new();
 
     for manifest_file in &metadata.files {
         if should_cancel() {
@@ -1041,29 +1066,43 @@ pub fn import_curseforge(
                     ))
                 });
 
-            match try_install_confident_modrinth_match(
-                transport,
-                fs,
-                &add_on_folder,
-                flavor,
-                &metadata.minecraft_version,
-                ModrinthRecoveryRequest {
-                    project_name: project.map(|project| project.name.as_str()),
-                    expected_file_name: &file.file_name,
-                    version_label: &metadata.version_id,
-                },
-            ) {
-                Some(ModrinthRecoveryOutcome::Installed(installed_path)) => {
-                    written.push(installed_path.clone());
-                    report.installed_files.push(installed_path);
-                    continue;
+            let match_key = (
+                project_name.to_ascii_lowercase(),
+                file.file_name.to_ascii_lowercase(),
+            );
+            let modrinth_match = modrinth_match_cache
+                .entry(match_key)
+                .or_insert_with(|| {
+                    find_confident_modrinth_match(
+                        transport,
+                        flavor,
+                        &metadata.minecraft_version,
+                        ModrinthRecoveryRequest {
+                            project_name: project.map(|project| project.name.as_str()),
+                            expected_file_name: &file.file_name,
+                        },
+                    )
+                })
+                .clone();
+
+            match modrinth_match {
+                Some(server_match @ ModrinthRecoveryMatch::Server { .. }) => {
+                    if let Some(ModrinthRecoveryOutcome::Installed(installed_path)) =
+                        install_confident_modrinth_match(
+                            transport,
+                            fs,
+                            &add_on_folder,
+                            &file.file_name,
+                            &metadata.version_id,
+                            server_match,
+                        )
+                    {
+                        written.push(installed_path.clone());
+                        report.recovered_modrinth_files.push(installed_path);
+                        continue;
+                    }
                 }
-                Some(ModrinthRecoveryOutcome::ClientOnly) => {
-                    report
-                        .skipped_client_only_files
-                        .push(file.file_name.clone());
-                    continue;
-                }
+                Some(ModrinthRecoveryMatch::ClientOnly) => continue,
                 None => {}
             }
 
@@ -1080,6 +1119,31 @@ pub fn import_curseforge(
             });
             continue;
         };
+        let project = projects_by_id.get(&file.mod_id).copied();
+        let project_name = project
+            .map(|project| project.name.clone())
+            .unwrap_or_else(|| file.file_name.clone());
+        let match_key = (
+            project_name.to_ascii_lowercase(),
+            file.file_name.to_ascii_lowercase(),
+        );
+        let modrinth_match = modrinth_match_cache
+            .entry(match_key)
+            .or_insert_with(|| {
+                find_confident_modrinth_match(
+                    transport,
+                    flavor,
+                    &metadata.minecraft_version,
+                    ModrinthRecoveryRequest {
+                        project_name: project.map(|project| project.name.as_str()),
+                        expected_file_name: &file.file_name,
+                    },
+                )
+            })
+            .clone();
+        if matches!(modrinth_match, Some(ModrinthRecoveryMatch::ClientOnly)) {
+            continue;
+        }
         let dest = add_on_folder.join(&file.file_name);
         if fs.create_dir_all(&add_on_folder).is_err() {
             let reason = "could not create destination directory".to_string();

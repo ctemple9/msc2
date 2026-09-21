@@ -208,6 +208,157 @@ The current rolling plan says the outstanding Phase 14 verification and triage s
 - **Batch:** F — end-to-end review
 - **Commit:** `P15.6: record ATM10 workflow acceptance`
 
+### Additional Phase 15 scope — server state and interaction fixes
+
+The following discussion summary is recorded verbatim:
+
+### 1. Server notes are currently client-local
+
+The notes are stored in browser/Tauri `localStorage` under a host-and-server key. The UI even says “Visible only in this app.”
+
+They should become server-owned metadata:
+
+- stored by the MSC agent with the server;
+- available to every connected client;
+- read and written through the API;
+- still scoped to the selected server;
+- existing local notes should receive a one-time migration or merge path.
+
+I recommend the server becoming authoritative for all future edits.
+
+### 2. Current app size
+
+I measured the open MSC window:
+
+**1240 × 760 pixels**
+
+The configured default is currently **1100 × 760** in [`tauri.conf.json`](/Users/camerontemple/msc2/clients/desktop-web/src-tauri/tauri.conf.json:17).
+
+So the likely change is:
+
+- default width: `1240`;
+- default height: `760`;
+- only affect the initial/default window size, not force-resize users who already customized their window.
+
+### 3. Modrinth browser scrollbar
+
+The Modrinth browser has its own scroll container inside `PluginBrowserSheet.svelte`. We can hide the visible scrollbar while preserving mouse-wheel, trackpad, keyboard, and touch scrolling.
+
+This is a small visual fix.
+
+### 4. Minecraft day/time regression
+
+The day changing from 34 to 49 means the existing relative-time fix is still incorrect in practice.
+
+This should be treated as a correction to the existing Phase 14 time work, not a new feature:
+
+- Dawn, dusk, and night must target the current Minecraft day;
+- the day number must not change;
+- the calculation must use the server’s current absolute time;
+- the behavior must work consistently across supported runtimes.
+
+This needs to be revisited before Phase 14 can be considered correct.
+
+### 5. Live world time in the Active World card
+
+Add a compact world-time line inside the existing Active World card without increasing its size.
+
+For example:
+
+`Day 34 · 18:42`
+
+It should:
+
+- update while the server is connected;
+- use Minecraft world time, not the computer’s clock;
+- remain compact enough to preserve the current card dimensions;
+- show an unavailable/disconnected state when the server cannot provide it.
+
+### 6. Sheets should not close when clicking outside
+
+I found the shared cause: [`Sheet.svelte`](/Users/camerontemple/msc2/clients/desktop-web/src/lib/components/base/Sheet.svelte:19) currently closes whenever the click lands on the backdrop.
+
+The better global behavior is:
+
+- clicking outside a sheet does nothing;
+- the close button still closes it;
+- Escape still closes it;
+- Cancel buttons still work;
+- text selection or accidental mouse release cannot destroy the current sheet.
+
+You do not need to enumerate every sheet. We can audit the shared `Sheet` component plus custom overlays such as confirmation dialogs and menus. Examples are only useful if a particular sheet behaves differently from the shared pattern.
+
+I’d group these into three future work areas:
+
+1. Server-owned notes and live world-time data.
+2. Correct Minecraft day-preserving time actions.
+3. Window, scrollbar, and sheet interaction polish.
+
+The ATM10 discovery work and this additional usability work share Phase 15, but the time correction remains explicitly tied back to the paused Phase 14 implementation so it cannot be treated as finished merely because the new client controls exist.
+
+### P15.7 — Make server notes host-owned
+
+- **Status:** planned
+- **Files:** `crates/msc-api/src/dto/lifecycle.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `docs/msc2/api-contract/openapi.json`, `clients/desktop-web/src/lib/api/generated.ts`, `clients/desktop-web/src/lib/sections/home/HomeSection.svelte`, `clients/desktop-web/src/lib/sections/home/notes.ts`
+- **What:** Add server-scoped notes to the agent-owned server contract, provide read/write API behavior, replace client-local storage, and migrate or merge existing local notes once. Keep the unresolved-modpack note block compatible with the same server-owned field.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-api -p msc-application -p msc-agent && npm --prefix clients/desktop-web run check`
+- **Batch:** G — server-owned notes
+- **Commit:** `P15.7: move server notes to the agent`
+
+### P15.8 — Reconcile same-day time behavior
+
+- **Status:** planned
+- **Files:** `crates/msc-domain/src/time.rs`, `crates/msc-agent/src/routes/commands.rs`, `clients/desktop-web/src/lib/components/shell/sidebar/QuickCommandsSection.svelte`, `clients/desktop-web/src/lib/components/shell/ConsoleDock.svelte`, `clients/desktop-web/src/lib/sections/console/CommandPaletteSheet.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Revisit the P14 relative-time implementation after the observed day 34 → 49 regression. Dawn, dusk, and night must derive their absolute target from the server’s current day and preserve that day across Java and Bedrock where supported. Record the observed failure and the acceptance rule before closing the correction.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-domain -p msc-agent && npm --prefix clients/desktop-web run check`
+- **Batch:** H — same-day time correction
+- **Commit:** `P15.8: preserve the current Minecraft day`
+
+### P15.9 — Show live world time in Active World
+
+- **Status:** planned
+- **Files:** `crates/msc-api/src/dto/status.rs`, `crates/msc-agent/src/routes/performance.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-domain/src/time.rs`, `clients/desktop-web/src/lib/api/generated.ts`, `clients/desktop-web/src/lib/sections/home/HomeSection.svelte`, `clients/desktop-web/src/lib/sections/home/ActiveWorldCard.svelte`
+- **What:** Expose the active world’s current Minecraft day and time through the existing live status/performance path. Render one compact line inside the existing Active World card without increasing its dimensions, and show a clear unavailable state when the server is disconnected or cannot answer.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-api -p msc-agent -p msc-application && npm --prefix clients/desktop-web run check`
+- **Batch:** G — server-owned notes
+- **Commit:** `P15.9: show live active-world time`
+
+### P15.10 — Set the default desktop window size
+
+- **Status:** planned
+- **Files:** `clients/desktop-web/src-tauri/tauri.conf.json`
+- **What:** Change the Tauri default window size from 1100×760 to the captured current size, 1240×760. This changes the initial default only and must not force-resize a user’s existing customized window.
+- **Verify:** `python3 -m json.tool clients/desktop-web/src-tauri/tauri.conf.json >/dev/null`
+- **Batch:** I — desktop presentation polish
+- **Commit:** `P15.10: set the current desktop window default`
+
+### P15.11 — Hide the Modrinth browse scrollbar
+
+- **Status:** planned
+- **Files:** `clients/desktop-web/src/lib/sections/components/PluginBrowserSheet.svelte`
+- **What:** Hide the visible scrollbar in the Modrinth browse results while preserving scrolling with the wheel, trackpad, keyboard, and touch input. Keep the results container bounded and usable at the current sheet size.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** I — desktop presentation polish
+- **Commit:** `P15.11: hide the Modrinth browse scrollbar`
+
+### P15.12 — Stop sheets closing on backdrop clicks
+
+- **Status:** planned
+- **Files:** `clients/desktop-web/src/lib/components/base/Sheet.svelte`, `clients/desktop-web/src/lib/components/ConfirmDialog.svelte`, `clients/desktop-web/src/lib/components/base/Menu.svelte`, `clients/desktop-web/src/lib/components/shell/ConsoleDock.svelte`, `clients/desktop-web/src/lib/sections/components/ImportModpackSheet.svelte`, `clients/desktop-web/src/lib/sections/server-editor/ServerEditorSheet.svelte`
+- **What:** Make outside-click dismissal opt-in rather than the default for sheets. Clicking the scrim must leave an open sheet and its in-progress text untouched; explicit close buttons, Cancel actions, and Escape remain available. Audit custom overlays separately so transient menus and intentional confirmation behavior are not changed accidentally.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check && rg -n "dismissOnBackdrop|event\.target === event\.currentTarget|onclick=.*onClose" clients/desktop-web/src/lib/components clients/desktop-web/src/lib/sections`
+- **Batch:** I — desktop interaction polish
+- **Commit:** `P15.12: make sheet dismissal explicit`
+
+### P15.13 — Review the additional Phase 15 acceptance flow
+
+- **Status:** planned
+- **Files:** `docs/msc2/capabilities/phase15-acceptance.md`, `docs/msc2/rolling-plan.md`, `clients/desktop-web/src/lib/sections/home/HomeSection.svelte`, `clients/desktop-web/src/lib/sections/home/ActiveWorldCard.svelte`, `clients/desktop-web/src/lib/components/base/Sheet.svelte`, `clients/desktop-web/src-tauri/tauri.conf.json`
+- **What:** Record acceptance evidence for server notes visible from a second client, the 1240×760 initial window, same-day Dawn/Dusk/Night behavior, live Active World time without card growth, hidden Modrinth scrollbar, and sheets surviving outside clicks. Confirm the new behavior does not regress explicit close, Cancel, Escape, or existing modpack note updates.
+- **Verify:** `cargo check -p msc-agent -p msc-application && npm --prefix clients/desktop-web run check`
+- **Batch:** J — additional Phase 15 review
+- **Commit:** `P15.13: record additional Phase 15 acceptance`
+
 ## Proposed Phase 14 — operational refinements
 
 This phase turns the issues reported from real use into four bounded areas:

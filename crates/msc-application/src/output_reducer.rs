@@ -163,6 +163,15 @@ pub fn is_paper_ready_line(clean: &str) -> bool {
     clean.contains("Done (")
 }
 
+/// Modern NeoForge prints one overall TPS line followed by one line per
+/// dimension. The overall line feeds the live metric parser; these companion
+/// lines are part of the same automatic monitoring reply and must not be
+/// mistaken for ordinary server output by the console classifier.
+pub fn is_neoforge_dimension_tps_line(clean: &str) -> bool {
+    let lower = clean.to_ascii_lowercase();
+    lower.contains(" tps (") && lower.contains("ms/tick") && !lower.contains("overall:")
+}
+
 pub fn parse_java_player_name(clean: &str, marker: &str) -> Option<String> {
     let before_marker = clean.split_once(marker)?.0;
     let name = before_marker.split_whitespace().last()?.trim();

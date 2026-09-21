@@ -25,6 +25,7 @@ use msc_application::lifecycle::{
     ConsoleSink, ImportedJavaServer, JavaServerRepository, LifecycleError, LifecycleService,
     LifecycleState, ServerId,
 };
+use msc_application::output_reducer::is_neoforge_dimension_tps_line;
 use msc_application::status::{LifecycleStatusSnapshot, PerformanceSnapshot};
 use msc_application::transfer::TransferExportServerInput;
 use msc_domain::app_config_schema::{AppConfig, ConfigServer};
@@ -311,11 +312,17 @@ struct TickQueryReplyState {
     expires_at: Instant,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct NeoForgeTpsReplyState {
+    expires_at: Instant,
+}
+
 #[derive(Debug, Default)]
 struct ConsoleCorrelation {
     pending: VecDeque<PendingControllerReply>,
     spark: Option<SparkReplyState>,
     tick_query: Option<TickQueryReplyState>,
+    neoforge_tps: Option<NeoForgeTpsReplyState>,
 }
 
 impl ConsoleCorrelation {
@@ -349,6 +356,7 @@ impl ConsoleCorrelation {
         self.pending.clear();
         self.spark = None;
         self.tick_query = None;
+        self.neoforge_tps = None;
     }
 
     fn classify(&mut self, line: &str) -> ConsoleLineOrigin {
@@ -361,6 +369,9 @@ impl ConsoleCorrelation {
             return ConsoleLineOrigin::Controller;
         }
         if self.classify_tick_query_continuation(&lower) {
+            return ConsoleLineOrigin::Controller;
+        }
+        if self.classify_neoforge_tps_continuation(&lower) {
             return ConsoleLineOrigin::Controller;
         }
         if is_actionable_server_line(&lower) {
@@ -386,7 +397,29 @@ impl ConsoleCorrelation {
                 expires_at: Instant::now() + CONTROLLER_REPLY_TTL,
             });
         }
+        if reply.kind == ControllerReplyKind::Tps
+            && msc_domain::tps::parse_neoforge(&clean).is_some()
+        {
+            self.neoforge_tps = Some(NeoForgeTpsReplyState {
+                expires_at: Instant::now() + CONTROLLER_REPLY_TTL,
+            });
+        }
         ConsoleLineOrigin::Controller
+    }
+
+    fn classify_neoforge_tps_continuation(&mut self, lower: &str) -> bool {
+        let Some(state) = self.neoforge_tps else {
+            return false;
+        };
+        if state.expires_at <= Instant::now() || is_actionable_server_line(lower) {
+            self.neoforge_tps = None;
+            return false;
+        }
+        if is_neoforge_dimension_tps_line(lower) {
+            return true;
+        }
+        self.neoforge_tps = None;
+        false
     }
 
     fn classify_tick_query_continuation(&mut self, lower: &str) -> bool {

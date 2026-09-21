@@ -20,9 +20,10 @@
   let history: string[] = [];
   let favorites: string[] = ['/list', 'save-all'];
   let notice = '';
+  const humanConsoleTail = `${livePaths.tail}&hideAuto=true`;
 
   onMount(async () => {
-    lines = humanConsoleLines(await call(api, lines, livePaths.tail));
+    lines = humanConsoleLines(await call(api, lines, humanConsoleTail));
   });
   $: visibleLines = paused ? lines : filterLines(lines, search, level);
 
@@ -33,7 +34,7 @@
     try {
       notice = (await mutate<Schema['CommandResult']>(api, livePaths.command, { command: next }))
         .result;
-      lines = humanConsoleLines(await call(api, lines, livePaths.tail));
+      lines = humanConsoleLines(await call(api, lines, humanConsoleTail));
       command = '';
     } catch (error) {
       notice = errorMessage(error);

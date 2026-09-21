@@ -293,7 +293,10 @@ fn is_spark_metrics_output(lower: &str) -> bool {
     let Some((_, report)) = lower.split_once("[spark/info]:") else {
         return lower.contains("tps from last 5s, 10s, 1m, 5m, 15m")
             || lower.contains("tick durations (min/med/95%ile/max ms)")
-            || lower.contains("cpu usage from last 10s, 1m, 15m");
+            || lower.contains("cpu usage from last 10s, 1m, 15m")
+            || lower.contains(" tps (")
+                && lower.contains("ms/tick")
+                && !lower.contains("overall:");
     };
     let report = report.replace("[⚡]", "");
     let report = report.trim();
@@ -302,6 +305,7 @@ fn is_spark_metrics_output(lower: &str) -> bool {
         || report.contains("tick durations (min/med/95%ile/max ms)")
         || report.contains("cpu usage from last 10s, 1m, 15m")
         || report.contains("%") && (report.contains("(system)") || report.contains("(process)"))
+        || report.contains(" tps (") && report.contains("ms/tick") && !report.contains("overall:")
         || decimal_value_count(report) >= 5
 }
 

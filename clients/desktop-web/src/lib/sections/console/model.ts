@@ -51,7 +51,8 @@ export function isHumanConsoleLine(line: ConsoleLine): boolean {
 }
 
 export function humanConsoleLines(lines: readonly ConsoleLine[]): ConsoleLine[] {
-  return lines.filter(isHumanConsoleLine);
+  const automatic = automaticConsoleLineKeys(lines);
+  return lines.filter((line) => isHumanConsoleLine(line) && !automatic.has(consoleLineKey(line)));
 }
 
 export const demoConsole: ConsoleLine[] = [
@@ -309,6 +310,7 @@ function knownMetricLine(lower: string): boolean {
     lower.includes('average time per tick') ||
     lower.includes('target tick rate') ||
     lower.includes('percentiles: p50') ||
+    (lower.includes(' tps (') && lower.includes('ms/tick') && !lower.includes('overall:')) ||
     (lower.includes('there are') && lower.includes('players online')) ||
     lower.includes('[primary session] updated session')
   );

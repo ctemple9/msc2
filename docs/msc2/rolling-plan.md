@@ -359,6 +359,231 @@ The ATM10 discovery work and this additional usability work share Phase 15, but 
 - **Batch:** J — additional Phase 15 review
 - **Commit:** `P15.13: record additional Phase 15 acceptance`
 
+### Additional Phase 15 scope — world packs and modpack identity
+
+Here is the full plan we discussed. This is only recorded in the chat for now; I have not added it to the rolling plan.
+
+## Overall scope
+
+We are adding three focused concepts:
+
+1. Java datapacks.
+2. Modpack identity for servers created from modpacks.
+3. Bedrock behavior packs.
+
+Client-only content is deliberately out of scope:
+
+- Java shader packs;
+- Java client resource packs;
+- Bedrock resource-pack browsing;
+- skin packs;
+- client-only mods.
+
+Resource-pack dependencies still need to be detected where required for a behavior pack to function correctly.
+
+## Java Worlds tab
+
+The Java Worlds tab should be organized as:
+
+1. World Slots
+2. Datapacks
+3. Backups
+
+### Datapacks section
+
+The Datapacks section belongs to the selected world slot because Java datapacks are world-owned. Vanilla Java stores them inside the world’s `datapacks/` directory. [Mojang’s datapack documentation](https://www.minecraft.net/de-de/article/minecraft-snapshot-17w43a)
+
+The section should show:
+
+- datapacks installed in the selected slot;
+- datapack name and version;
+- Minecraft-version compatibility;
+- enabled or disabled state;
+- provider and source information;
+- update availability when known.
+
+It should include a:
+
+```text
+Browse Datapacks
+```
+
+button, similar to the existing Browse Mods button.
+
+The first provider should likely be Modrinth, which already has a Data Packs catalog. [Modrinth Data Packs](https://modrinth.com/discover/datapacks)
+
+### Datapack installation behavior
+
+Installing a datapack should:
+
+- target the currently selected world slot;
+- download and validate the datapack archive;
+- verify its Java pack metadata;
+- check Minecraft-version compatibility;
+- prevent archive path traversal or malformed contents;
+- preserve provider, version, and hash information;
+- create a backup before changing the world;
+- require the server to be stopped when necessary;
+- make the datapack travel with the world slot.
+
+A datapack installed into World Slot A should not appear in World Slot B. It should follow the slot through:
+
+- activation;
+- duplication;
+- backup;
+- restore;
+- export;
+- import.
+
+Later controls should support:
+
+- enable;
+- disable;
+- update;
+- remove;
+- reload or restart when required.
+
+World-generation datapacks deserve a warning because removing one does not undo terrain already generated using it.
+
+If no world slot is selected, the section should explain that the user must select one first.
+
+## Modpack identity in Components
+
+Modpack installation already happens during server creation or import. The new behavior is simply to make the imported pack visible afterward.
+
+At the top of the Components tab, servers created from modpacks should show a compact read-only summary such as:
+
+```text
+Modpack
+All the Mods 10 Lite
+Version 1.0.x · CurseForge
+```
+
+The summary should:
+
+- appear above the component list;
+- show the pack name;
+- show the imported pack version;
+- show the provider, such as CurseForge or Modrinth;
+- remain compact;
+- be persisted as server metadata;
+- be absent for ordinary non-modpack servers;
+- not duplicate the full list of installed mods.
+
+The Components tab remains responsible for the individual mods. The modpack summary only answers:
+
+> What pack is this server based on?
+
+If a server was imported from a modpack but the metadata is missing, MSC should not guess from the installed mods. It should either omit the summary or show that the source metadata is unavailable.
+
+## Bedrock Worlds tab
+
+For Bedrock Dedicated Server, the Worlds tab should use the same structure with an edition-specific second section:
+
+1. World Slots
+2. Behavior Packs
+3. Backups
+
+### Behavior Packs section
+
+Behavior packs are the closest Bedrock equivalent to Java datapacks. They can change gameplay behavior, entities, items, recipes, loot, spawning, trades, functions, and scripts. [Microsoft’s behavior-pack documentation](https://learn.microsoft.com/en-us/minecraft/creator/documents/behaviorpackfromscratch?view=minecraft-bedrock-stable)
+
+The section should include:
+
+```text
+Browse Behavior Packs
+```
+
+It should show behavior packs for the selected Bedrock world slot, including:
+
+- name;
+- version;
+- minimum Bedrock version;
+- enabled or disabled state;
+- provider and source;
+- UUID;
+- dependencies;
+- update availability when known.
+
+### Bedrock world-scoped decision
+
+Bedrock Dedicated Server can technically keep packs in shared server-level folders or inside an individual world folder. We are intentionally choosing world-scoped behavior packs for MSC because it is simpler and matches the World Slots model.
+
+That means:
+
+- Behavior Pack A installed for World Slot A does not automatically affect World Slot B.
+- Activating another slot changes the visible behavior-pack list.
+- Duplicating or backing up a slot includes its behavior-pack state.
+- Restoring a slot restores the pack configuration with it.
+
+The shared BDS folders can remain an implementation detail or future feature. They are not part of this first design. [Bedrock Dedicated Server pack layout](https://learn.microsoft.com/en-us/minecraft/creator/documents/bedrockserver/getting-started?view=minecraft-bedrock-stable)
+
+### Behavior-pack dependencies
+
+Some behavior packs require a linked resource pack. We are not building a resource-pack browser, but MSC must still inspect and explain that dependency.
+
+The options should be:
+
+- install the required linked resource pack automatically as part of the add-on;
+- or stop and explain that the behavior pack cannot be installed alone.
+
+MSC must not silently install an incomplete behavior pack. Bedrock manifests explicitly support pack dependencies. [Bedrock manifest reference](https://learn.microsoft.com/en-us/minecraft/creator/reference/content/addonsreference/packmanifest?view=minecraft-bedrock-stable)
+
+## Shared implementation shape
+
+The backend can share a general world-pack model, but the user-facing names and validation rules should remain edition-specific:
+
+```text
+Java world pack       → datapack
+Bedrock world pack    → behavior pack
+```
+
+Each installed pack should retain:
+
+- pack kind;
+- world-slot ID;
+- provider;
+- project ID or URL;
+- version;
+- file name;
+- checksum;
+- compatibility information;
+- enabled state;
+- dependency information.
+
+The installation system should remain separate from the Java mod/plugin system because the destinations and lifecycles differ:
+
+- Java mods/plugins are server-owned runtime components.
+- Java datapacks are world-owned.
+- Bedrock behavior packs are world-owned in MSC, even though BDS supports shared storage.
+- Modpacks are distribution metadata plus collections of other components.
+
+## Resulting MSC experience
+
+A Java server would expose:
+
+```text
+Worlds
+├── World Slots
+├── Datapacks
+└── Backups
+
+Components
+└── Imported Modpack summary
+    └── Mods and other installed components
+```
+
+A Bedrock server would expose:
+
+```text
+Worlds
+├── World Slots
+├── Behavior Packs
+└── Backups
+```
+
+This gives Java and Bedrock parallel concepts without pretending their underlying pack systems are identical.
+
 ## Proposed Phase 14 — operational refinements
 
 This phase turns the issues reported from real use into four bounded areas:

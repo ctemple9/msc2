@@ -35,6 +35,7 @@
   let curseforgeKeyNotice = '';
 
   $: allResolved = remaining.length === 0;
+  $: hasCurseForgeFiles = remaining.some((entry) => entry.provider === 'CurseForge');
 
   function pickBrowserFile(): Promise<{ name: string; bytes: Uint8Array } | null> {
     return new Promise((resolve) => {
@@ -202,20 +203,21 @@
     </div>
   {:else}
     <p class="explain">
-      These files' authors disabled CurseForge's API distribution, so they can't be downloaded
-      automatically. Find and download each one from CurseForge yourself, then stage it here to
-      resume the import.
+      These files could not be downloaded automatically. Use the provider link for each file to
+      download it, then stage it here to resume the import.
     </p>
-    <div class="key-actions">
-      <span class="key-hint">Need to update the provider credential?</span>
-      <Button
-        variant="secondary"
-        size="sm"
-        onclick={() => (showCurseForgeKeySetup = !showCurseForgeKeySetup)}
-        >{showCurseForgeKeySetup ? 'Hide key setup' : 'Set up CurseForge key…'}</Button
-      >
-    </div>
-    {#if showCurseForgeKeySetup}
+    {#if hasCurseForgeFiles}
+      <div class="key-actions">
+        <span class="key-hint">Need to update the provider credential?</span>
+        <Button
+          variant="secondary"
+          size="sm"
+          onclick={() => (showCurseForgeKeySetup = !showCurseForgeKeySetup)}
+          >{showCurseForgeKeySetup ? 'Hide key setup' : 'Set up CurseForge key…'}</Button
+        >
+      </div>
+    {/if}
+    {#if showCurseForgeKeySetup && hasCurseForgeFiles}
       <div class="key-setup">
         <p class="key-explain">
           The key is saved on the connected agent and is never shown again.

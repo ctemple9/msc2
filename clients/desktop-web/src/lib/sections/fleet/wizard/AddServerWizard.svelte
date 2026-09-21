@@ -232,7 +232,8 @@
     const first = numericParts[0];
     if (first === 1) {
       const minor = numericParts[1] ?? 0;
-      if (minor >= 21) return 21;
+      const patch = numericParts[2] ?? 0;
+      if (minor >= 21 || (minor === 20 && patch >= 5)) return 21;
       if (minor >= 17) return 17;
       return 8;
     }

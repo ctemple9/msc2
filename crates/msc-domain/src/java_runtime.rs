@@ -41,8 +41,9 @@ pub fn required_java_major(minecraft_version: Option<&str>) -> i64 {
     if first == 1 {
         // Classic "1.x" scheme (up to 1.21.x, the last before year-based numbering).
         let minor = numeric_parts.get(1).copied().unwrap_or(0);
-        if minor >= 21 {
-            return 21; // 1.20.5 / 1.21.x -> Java 21
+        let patch = numeric_parts.get(2).copied().unwrap_or(0);
+        if minor >= 21 || (minor == 20 && patch >= 5) {
+            return 21; // 1.20.5+ / 1.21.x -> Java 21
         }
         if minor >= 17 {
             return 17; // 1.17-1.20.4 -> Java 17

@@ -201,10 +201,10 @@ The current rolling plan says the outstanding Phase 14 verification and triage s
 
 ### P15.6 — Review the ATM10 end-to-end flow
 
-- **Status:** planned
-- **Files:** `docs/msc2/capabilities/phase15-acceptance.md`, `docs/msc2/rolling-plan.md`, `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`, `clients/desktop-web/src/lib/sections/components/ImportModpackSheet.svelte`, `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`, `clients/desktop-web/src/lib/sections/console/ConsoleSection.svelte`, `clients/desktop-web/src/lib/sections/server-editor/JavaInstallSheet.svelte`
-- **What:** Use the Fabric 1.20.1/Java 17 and ATM10 Lite/NeoForge 1.21.1/Java 21 scenario as the first acceptance case, then confirm the same Java and modpack-import behavior is generic for every supported modpack and provider. Verify the inline key setup, unresolved-file recovery, drag-and-drop validation, skip-and-notes behavior, Components search, readable console, and Java-sheet visual parity before closing the phase.
-- **Verify:** `cargo check -p msc-agent -p msc-application && npm --prefix clients/desktop-web run check`
+- **Status:** awaiting verification
+- **Files:** `docs/msc2/capabilities/phase15-acceptance.md`, `docs/msc2/rolling-plan.md`, `crates/msc-domain/src/java_runtime.rs`, `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`, `clients/desktop-web/src/lib/sections/components/ImportModpackSheet.svelte`, `clients/desktop-web/src/lib/sections/components/CurseForgeManualDownloadSheet.svelte`, `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`, `clients/desktop-web/src/lib/sections/console/ConsoleSection.svelte`, `clients/desktop-web/src/lib/sections/server-editor/JavaInstallSheet.svelte`
+- **What:** Use the Fabric 1.20.1/Java 17 and ATM10 Lite/NeoForge 1.21.1/Java 21 scenario as the first acceptance case, then review the same Java and modpack-import behavior for every supported modpack and provider. Correct the shared 1.20.5+ Java requirement and keep unresolved-file recovery provider-neutral. Record the inline key setup, unresolved-file recovery, drag-and-drop validation, skip-and-notes behavior, Components search, readable console, Java-sheet visual parity, and the remaining owner-verification boundary before closing the phase.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-domain -p msc-application -p msc-agent && npm --prefix clients/desktop-web run check`
 - **Batch:** F — end-to-end review
 - **Commit:** `P15.6: record ATM10 workflow acceptance`
 

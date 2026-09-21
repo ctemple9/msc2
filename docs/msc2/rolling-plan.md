@@ -359,6 +359,15 @@ The ATM10 discovery work and this additional usability work share Phase 15, but 
 - **Batch:** J — additional Phase 15 review
 - **Commit:** `P15.13: record additional Phase 15 acceptance`
 
+### P15.14 — Show the modpack creation summary
+
+- **Status:** awaiting verification
+- **Files:** `crates/msc-agent/src/main.rs`, `crates/msc-agent/src/routes/components.rs`, `crates/msc-agent/src/routes/servers.rs`, `clients/desktop-web/src/lib/sections/fleet/wizard/model.ts`, `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`, `clients/desktop-web/src/lib/sections/fleet/wizard/ModpackCreationSummarySheet.svelte`, `clients/desktop-web/src/lib/sections/components/CurseForgeManualDownloadSheet.svelte`
+- **What:** Preserve the unresolved-file report when a new server is created from a modpack, share that recovery state with the Components routes, return a pack summary in the completed create operation, and show a post-creation sheet with unresolved files first, downloaded filenames below, and a direct handoff to the existing manual recovery flow. Keep unresolved files available after the summary closes and write them to server notes.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-agent -p msc-application && cargo clippy -p msc-agent -p msc-application -- -D warnings && npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** K — modpack creation handoff
+- **Commit:** `P15.14: show modpack creation summary`
+
 ### Additional Phase 15 scope — world packs and modpack identity
 
 Here is the full plan we discussed. This is only recorded in the chat for now; I have not added it to the rolling plan.

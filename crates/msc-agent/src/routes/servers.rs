@@ -50,6 +50,7 @@ use uuid::Uuid;
 
 use crate::auth::{AuthenticatedCredential, production_secret_store};
 use crate::help::detect_local_ip;
+use crate::routes::components::PendingModpackImports;
 use crate::routes::lifecycle::{
     LifecycleRoutesState, TryMutateError, error_response, invalid_body, require_permission,
 };
@@ -1407,6 +1408,7 @@ pub async fn create(
     State(state): State<LifecycleRoutesState>,
     Extension(credential): Extension<AuthenticatedCredential>,
     Extension(staging): Extension<StagingStore>,
+    Extension(pending_modpack_imports): Extension<PendingModpackImports>,
     body: Result<Json<serde_json::Value>, JsonRejection>,
 ) -> Response {
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Fleet) {
@@ -1639,6 +1641,7 @@ pub async fn create(
                 home_dir,
                 servers_root,
                 staged_modpack,
+                pending_modpack_imports,
             )
         })
         .await
@@ -1803,6 +1806,7 @@ fn run_create_server(
     home_dir: PathBuf,
     servers_root: PathBuf,
     staged_modpack: Option<StagedUpload>,
+    pending_modpack_imports: PendingModpackImports,
 ) {
     let should_cancel = state.operations().cancellation_check(&operation_id);
     if should_cancel() {
@@ -1904,9 +1908,19 @@ fn run_create_server(
         );
         let _ = StdFileSystem.remove(&staged_modpack.path);
         match result {
-            Ok(created) => {
-                let mut created = created.created;
+            Ok(created_from_pack) => {
+                let unresolved_files = pack_unresolved_files(&created_from_pack.pack_report);
+                let pack_summary = pack_summary(&created_from_pack.pack_report);
+                let mut created = created_from_pack.created;
+                let created_server_id = created.config.id.clone();
                 created.config.check_addon_updates = check_addon_updates;
+                if !unresolved_files.is_empty() {
+                    pending_modpack_imports.insert(
+                        operation_id.as_str().to_string(),
+                        created_server_id.clone(),
+                        unresolved_files.clone(),
+                    );
+                }
                 let flavor = created.config.java_flavor;
                 finish_created_server(
                     &state,
@@ -1916,7 +1930,16 @@ fn run_create_server(
                     accept_eula,
                     None,
                     enable_voice_chat,
+                    Some(pack_summary),
                 );
+                if !unresolved_files.is_empty() {
+                    crate::routes::components::persist_unresolved_modpack_notes(
+                        &state,
+                        &created_server_id,
+                        &unresolved_files,
+                        &[],
+                    );
+                }
             }
             Err(error) => {
                 let code = if matches!(error, CreateFromPackError::Cancelled) {
@@ -1996,6 +2019,7 @@ fn run_create_server(
                 accept_eula,
                 java_compatibility_warning,
                 enable_voice_chat,
+                None,
             );
         }
         Err(error) => {
@@ -2038,6 +2062,68 @@ fn redeem_modpack_upload(
     Ok(Some(entry))
 }
 
+fn pack_unresolved_files(
+    report: &provisioning::PackApplyReport,
+) -> Vec<msc_application::modpacks::UnresolvedModpackFile> {
+    match report {
+        provisioning::PackApplyReport::Mrpack(report) => report.unresolved_files.clone(),
+        provisioning::PackApplyReport::CurseForge(report) => report.unresolved_files.clone(),
+    }
+}
+
+fn pack_summary(report: &provisioning::PackApplyReport) -> serde_json::Value {
+    let (pack_name, pack_version, provider, installed_files, unresolved_files) = match report {
+        provisioning::PackApplyReport::Mrpack(report) => (
+            &report.pack_name,
+            &report.pack_version,
+            "Modrinth",
+            &report.installed_files,
+            &report.unresolved_files,
+        ),
+        provisioning::PackApplyReport::CurseForge(report) => (
+            &report.pack_name,
+            &report.pack_version,
+            "CurseForge",
+            &report.installed_files,
+            &report.unresolved_files,
+        ),
+    };
+    let installed_files: Vec<String> = installed_files
+        .iter()
+        .map(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .map(str::to_owned)
+                .unwrap_or_else(|| path.to_string_lossy().into_owned())
+        })
+        .collect();
+    let installed_count = installed_files.len();
+    let unresolved_files: Vec<serde_json::Value> = unresolved_files
+        .iter()
+        .map(|file| {
+            serde_json::json!({
+                "fileId": file.file_id,
+                "fileName": file.file_name,
+                "projectName": file.project_name,
+                "provider": file.provider,
+                "reason": file.reason,
+                "projectUrl": file.project_url,
+            })
+        })
+        .collect();
+    let unresolved_count = unresolved_files.len();
+    serde_json::json!({
+        "packName": pack_name,
+        "packVersion": pack_version,
+        "provider": provider,
+        "installedFiles": installed_files,
+        "installedCount": installed_count,
+        "unresolvedFiles": unresolved_files,
+        "unresolvedCount": unresolved_count,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
 fn finish_created_server(
     state: &LifecycleRoutesState,
     operation_id: &OperationId,
@@ -2046,6 +2132,7 @@ fn finish_created_server(
     accept_eula: bool,
     java_compatibility_warning: Option<String>,
     enable_voice_chat: bool,
+    pack_summary: Option<serde_json::Value>,
 ) {
     let mut created = created;
     created.config.playit_voice_chat_enabled = enable_voice_chat && created.config.playit_enabled;
@@ -2078,6 +2165,9 @@ fn finish_created_server(
             );
             if let Some(warning) = java_compatibility_warning {
                 result_map.insert("javaCompatibilityWarning".to_string(), warning);
+            }
+            if let Some(pack_summary) = pack_summary {
+                result_map.insert("modpackSummary".to_string(), pack_summary.to_string());
             }
             let _ = state.finish_operation_success(
                 operation_id,

@@ -245,6 +245,7 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
     // `BackupsRoutesState` (adds the `&'static BackupScheduler` handle
     // `POST /v1/backups/config` reconfigures on a settings change).
     let shared_staging = routes::worlds::StagingStore::default();
+    let pending_modpack_imports = routes::components::PendingModpackImports::default();
     let worlds = routes::worlds::router(routes::worlds::WorldsRoutesState::with_staging(
         lifecycle_state.clone(),
         shared_staging.clone(),
@@ -252,6 +253,7 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
     let components = routes::components::router(routes::components::ComponentsRoutesState::new(
         lifecycle_state.clone(),
         shared_staging.clone(),
+        pending_modpack_imports.clone(),
     ));
     let backups = routes::backups::router(routes::backups::BackupsRoutesState {
         lifecycle: lifecycle_state.clone(),
@@ -341,7 +343,8 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
         // A staged modpack is created by the shared upload route but
         // redeemed by server creation, so both route groups need this one
         // in-memory, purpose-tagged store.
-        .layer(Extension(shared_staging));
+        .layer(Extension(shared_staging))
+        .layer(Extension(pending_modpack_imports));
 
     let host_reset = Router::new()
         .route("/host/reset", post(routes::host_reset::reset))

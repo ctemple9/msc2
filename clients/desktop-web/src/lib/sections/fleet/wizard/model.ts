@@ -512,6 +512,50 @@ export class ServerCreationError extends Error {
   }
 }
 
+export interface ModpackCreationSummary {
+  operationId: string;
+  packName: string;
+  packVersion: string;
+  provider: string;
+  installedFiles: string[];
+  unresolvedFiles: Schema['ModpackManualFileEntryDTO'][];
+}
+
+/** Reads the pack-specific part of a successful server-create operation. */
+export function modpackCreationSummary(
+  operation: Schema['OperationDTO'],
+): ModpackCreationSummary | undefined {
+  const result = operation.result as unknown as Record<string, unknown> | null | undefined;
+  const encoded = result?.modpackSummary;
+  if (typeof encoded !== 'string') return undefined;
+  try {
+    const summary = JSON.parse(encoded) as Record<string, unknown>;
+    const unresolvedFiles = Array.isArray(summary.unresolvedFiles)
+      ? (summary.unresolvedFiles as Schema['ModpackManualFileEntryDTO'][])
+      : [];
+    const installedFiles = Array.isArray(summary.installedFiles)
+      ? summary.installedFiles.filter((file): file is string => typeof file === 'string')
+      : [];
+    if (
+      typeof summary.packName !== 'string' ||
+      typeof summary.packVersion !== 'string' ||
+      typeof summary.provider !== 'string'
+    ) {
+      return undefined;
+    }
+    return {
+      operationId: operation.id,
+      packName: summary.packName,
+      packVersion: summary.packVersion,
+      provider: summary.provider,
+      installedFiles,
+      unresolvedFiles,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 export async function pollOperation(
   api: ScreenApi | undefined,
   operationId: string,
@@ -667,7 +711,7 @@ export async function createServerFromDraft(
   draft: WizardDraft,
   displayName: string,
   onProgress?: (statusLine: string) => void,
-): Promise<{ warnings: string[] }> {
+): Promise<{ warnings: string[]; modpackSummary?: ModpackCreationSummary }> {
   const result = await mutate<Schema['ServerCreateResultDTO']>(
     api,
     fleetMutationPaths.create,
@@ -688,6 +732,7 @@ export async function createServerFromDraft(
   }
 
   const warnings: string[] = [];
+  const modpackSummary = operation ? modpackCreationSummary(operation) : undefined;
   if (draft.worldSourceMode === 'backupZip' && draft.stagedWorldBackup) {
     try {
       await redeemStagedWorldBackup(api, draft.stagedWorldBackup);
@@ -702,7 +747,7 @@ export async function createServerFromDraft(
       warnings.push(`${pendingAddOnLabel(addOn)}: ${errorMessage(error)}`);
     }
   }
-  return { warnings };
+  return { warnings, modpackSummary };
 }
 
 // ---------------------------------------------------------------------------

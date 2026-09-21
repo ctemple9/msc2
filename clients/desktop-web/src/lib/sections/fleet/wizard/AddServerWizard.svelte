@@ -43,6 +43,7 @@
   import UploadStep from './UploadStep.svelte';
   import ReviewStep from './ReviewStep.svelte';
   import ConfirmStep from './ConfirmStep.svelte';
+  import ModpackCreationSummarySheet from './ModpackCreationSummarySheet.svelte';
   import JavaInstallSheet from '../../server-editor/JavaInstallSheet.svelte';
   import { ApiError } from '../../../api/client';
   import { onboardingAnchor } from '../../../help/tourAnchors';
@@ -62,8 +63,10 @@
     importServerFromDraft,
     javaSelectionKey,
     ServerCreationError,
+    modpackCreationSummary,
     versionsForCreatePath,
     wizardStepLabels,
+    type ModpackCreationSummary,
     type WizardPath,
   } from './model';
 
@@ -83,6 +86,8 @@
   let statusMessage = '';
   let createSucceeded = false;
   let createWarnings: string[] = [];
+  let modpackSummary: ModpackCreationSummary | undefined;
+  let showModpackSummary = false;
   let showJavaRecovery = false;
   let showJavaInstall = false;
   let showJavaSelection = false;
@@ -203,14 +208,20 @@
       path === 'importExisting' && !showModpack ? 'Importing server…' : 'Creating server…';
     const onProgress = (line: string) => (statusMessage = line);
     try {
-      const { warnings } =
-        path === 'importExisting' && !showModpack
-          ? await importServerFromDraft(api, draft, displayName, onProgress)
-          : await createServerFromDraft(api, draft, displayName, onProgress);
-      createWarnings = warnings;
+      let createdPackSummary: ModpackCreationSummary | undefined;
+      if (path === 'importExisting' && !showModpack) {
+        const result = await importServerFromDraft(api, draft, displayName, onProgress);
+        createWarnings = result.warnings;
+      } else {
+        const result = await createServerFromDraft(api, draft, displayName, onProgress);
+        createWarnings = result.warnings;
+        createdPackSummary = result.modpackSummary;
+      }
+      modpackSummary = createdPackSummary;
       createSucceeded = true;
       tourServerCreated.set(true);
       onCreated();
+      if (createdPackSummary) showModpackSummary = true;
     } catch (error) {
       if (!offerJavaRecovery(error)) statusMessage = errorMessage(error);
     } finally {
@@ -474,6 +485,14 @@
     </div>
   </div>
 </Sheet>
+
+{#if showModpackSummary && modpackSummary}
+  <ModpackCreationSummarySheet
+    {api}
+    bind:summary={modpackSummary}
+    onClose={() => (showModpackSummary = false)}
+  />
+{/if}
 
 {#if showJavaRecovery}
   <Sheet title="Java version required" size="sm" onClose={cancelJavaRecovery}>

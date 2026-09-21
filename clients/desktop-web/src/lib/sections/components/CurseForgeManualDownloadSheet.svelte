@@ -19,6 +19,7 @@
   export let files: Schema['ModpackManualFileEntryDTO'][];
   export let onClose: () => void;
   export let onAllResolved: () => void;
+  export let onRemainingChange: (files: Schema['ModpackManualFileEntryDTO'][]) => void = () => {};
 
   let remaining = files;
   let staging: Set<string> = new Set();
@@ -92,6 +93,7 @@
         { fileId: entry.fileId, stagedUploadId: staged.stagedUploadId },
       );
       remaining = result.remainingManualFiles;
+      onRemainingChange(remaining);
       if (result.allFilesResolved) onAllResolved();
     } catch (error) {
       errorByFile = {
@@ -128,6 +130,7 @@
         { fileId: entry.fileId, action: 'skip' },
       );
       remaining = result.remainingManualFiles;
+      onRemainingChange(remaining);
       if (result.allFilesResolved) onAllResolved();
     } catch (error) {
       errorByFile = {

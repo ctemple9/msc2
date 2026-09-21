@@ -58,7 +58,7 @@ const STAGING_TTL_SECONDS: u64 = 30 * 60;
 pub struct ComponentsRoutesState {
     pub lifecycle: LifecycleRoutesState,
     staging: StagingStore,
-    pending_modpack_imports: Arc<Mutex<HashMap<String, PendingModpackImport>>>,
+    pending_modpack_imports: PendingModpackImports,
 }
 
 #[derive(Debug, Clone)]
@@ -66,6 +66,35 @@ struct PendingModpackImport {
     remaining_files: Vec<modpacks::UnresolvedModpackFile>,
     skipped_files: Vec<modpacks::UnresolvedModpackFile>,
     server_id: String,
+}
+
+/// Shared between the components routes and server creation so a modpack
+/// created as part of a new server has the same manual-recovery state as a
+/// modpack imported into an existing server.
+#[derive(Clone, Default)]
+pub(crate) struct PendingModpackImports {
+    entries: Arc<Mutex<HashMap<String, PendingModpackImport>>>,
+}
+
+impl PendingModpackImports {
+    pub(crate) fn insert(
+        &self,
+        operation_id: String,
+        server_id: String,
+        remaining_files: Vec<modpacks::UnresolvedModpackFile>,
+    ) {
+        if remaining_files.is_empty() {
+            return;
+        }
+        self.entries.lock().unwrap().insert(
+            operation_id,
+            PendingModpackImport {
+                remaining_files: remaining_files.clone(),
+                skipped_files: Vec::new(),
+                server_id: server_id.clone(),
+            },
+        );
+    }
 }
 
 fn unresolved_file_dto(file: &modpacks::UnresolvedModpackFile) -> ModpackManualFileDto {
@@ -81,7 +110,7 @@ fn unresolved_file_dto(file: &modpacks::UnresolvedModpackFile) -> ModpackManualF
 
 const UNRESOLVED_NOTES_MARKER: &str = "[MSC unresolved modpack files]";
 
-fn persist_unresolved_notes(
+pub(crate) fn persist_unresolved_modpack_notes(
     state: &LifecycleRoutesState,
     server_id: &str,
     pending: &[modpacks::UnresolvedModpackFile],
@@ -121,11 +150,15 @@ fn persist_unresolved_notes(
 }
 
 impl ComponentsRoutesState {
-    pub fn new(lifecycle: LifecycleRoutesState, staging: StagingStore) -> Self {
+    pub fn new(
+        lifecycle: LifecycleRoutesState,
+        staging: StagingStore,
+        pending_modpack_imports: PendingModpackImports,
+    ) -> Self {
         Self {
             lifecycle,
             staging,
-            pending_modpack_imports: Arc::new(Mutex::new(HashMap::new())),
+            pending_modpack_imports,
         }
     }
 }
@@ -583,7 +616,7 @@ pub async fn begin_staged_upload(
                 (Ok(operation_id), Ok(file_id)) => (operation_id, file_id),
                 (Err(response), _) | (_, Err(response)) => return response,
             };
-            let pending = state.pending_modpack_imports.lock().unwrap();
+            let pending = state.pending_modpack_imports.entries.lock().unwrap();
             let Some(entry) = pending.get(operation_id) else {
                 return error_response(
                     StatusCode::NOT_FOUND,
@@ -819,7 +852,7 @@ pub async fn get_addons(
     // operation. Project them into the same inventory so Components can
     // search and count them without scraping the human-readable notes.
     let pending_addons: Vec<AddonItemDto> = {
-        let pending_imports = state.pending_modpack_imports.lock().unwrap();
+        let pending_imports = state.pending_modpack_imports.entries.lock().unwrap();
         pending_imports
             .values()
             .filter(|pending| pending.server_id == server.id)
@@ -2173,15 +2206,17 @@ pub async fn import_modpack(
                     result_map,
                 );
             } else {
-                state.pending_modpack_imports.lock().unwrap().insert(
+                state.pending_modpack_imports.insert(
                     operation_id.as_str().to_string(),
-                    PendingModpackImport {
-                        remaining_files: unresolved_files.clone(),
-                        skipped_files: Vec::new(),
-                        server_id: server.id.clone(),
-                    },
+                    server.id.clone(),
+                    unresolved_files.clone(),
                 );
-                persist_unresolved_notes(&state.lifecycle, &server.id, &unresolved_files, &[]);
+                persist_unresolved_modpack_notes(
+                    &state.lifecycle,
+                    &server.id,
+                    &unresolved_files,
+                    &[],
+                );
             }
             (
                 StatusCode::ACCEPTED,
@@ -2244,7 +2279,7 @@ pub async fn complete_modpack_manual_file(
         Ok(body) => body,
         Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
     };
-    let mut pending = state.pending_modpack_imports.lock().unwrap();
+    let mut pending = state.pending_modpack_imports.entries.lock().unwrap();
     let Some(import) = pending.get_mut(&operation_id) else {
         return error_response(
             StatusCode::NOT_FOUND,
@@ -2355,7 +2390,7 @@ pub async fn complete_modpack_manual_file(
             BTreeMap::new(),
         );
     }
-    persist_unresolved_notes(&state.lifecycle, &server_id, &remaining_files, &skipped);
+    persist_unresolved_modpack_notes(&state.lifecycle, &server_id, &remaining_files, &skipped);
     let response = Json(ModpackManualFileResultDto {
         success: true,
         message: if action == "skip" {

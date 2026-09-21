@@ -97,6 +97,8 @@ impl StatusRoutesState {
             ram_used_mb: metric(snapshot.ram_used_mb, "performance.ram"),
             ram_max_mb: metric(snapshot.ram_max_mb, "performance.ram"),
             world_size_mb: metric(snapshot.world_size_mb, "performance.world-size"),
+            world_day: None,
+            world_time_ticks: None,
             server_type: snapshot.server_type,
             runtime: None,
         }

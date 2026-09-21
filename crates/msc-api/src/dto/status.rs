@@ -47,6 +47,13 @@ pub struct PerformanceSnapshotDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[serde(rename = "worldSizeMB")]
     pub world_size_mb: Option<PerformanceMetricNumberDto>,
+    /// Current Minecraft daylight-cycle day, when the running server has
+    /// answered the agent's world-time query.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub world_day: Option<i64>,
+    /// Current time-of-day in Minecraft ticks (0..=23,999), when available.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub world_time_ticks: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub server_type: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

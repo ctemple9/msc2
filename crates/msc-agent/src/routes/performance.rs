@@ -11,6 +11,7 @@ pub async fn performance(
     State(state): State<LifecycleRoutesState>,
 ) -> Json<PerformanceSnapshotDto> {
     let snapshot = state.performance_snapshot();
+    let world_time = state.live_world_time();
     Json(PerformanceSnapshotDto {
         ts: snapshot.ts,
         tps_1m: metric(snapshot.tps_1m, "performance.tps"),
@@ -21,6 +22,8 @@ pub async fn performance(
         ram_used_mb: metric(snapshot.ram_used_mb, "performance.ram"),
         ram_max_mb: metric(snapshot.ram_max_mb, "performance.ram"),
         world_size_mb: metric(snapshot.world_size_mb, "performance.world-size"),
+        world_day: world_time.map(|time| time.day),
+        world_time_ticks: world_time.map(|time| time.daytime_ticks),
         server_type: snapshot.server_type,
         runtime: state
             .active_config_server()

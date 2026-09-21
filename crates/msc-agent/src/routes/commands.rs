@@ -16,7 +16,7 @@ use msc_application::world_safety::{self, SafetyConfirmation};
 
 use crate::auth::AuthenticatedCredential;
 use crate::routes::lifecycle::{
-    LifecycleRoutesState, error_response, invalid_body, lifecycle_error_response,
+    LifecycleRoutesState, TimeQueryKind, error_response, invalid_body, lifecycle_error_response,
     lifecycle_route_error_response, require_permission,
 };
 
@@ -217,6 +217,7 @@ async fn query_runtime_time(
     server_type: msc_domain::identity::ServerType,
     query: &str,
 ) -> Result<i64, Response> {
+    let expected_kind = TimeQueryKind::from_command(query);
     let before = state.time_observation();
     let send_query: Result<(), Response> = match server_type {
         msc_domain::identity::ServerType::Java => state
@@ -228,15 +229,14 @@ async fn query_runtime_time(
             .map(|_| ())
             .map_err(lifecycle_route_error_response),
     };
-    if let Err(response) = send_query {
-        return Err(response);
-    }
+    send_query?;
 
     let deadline = Instant::now() + RELATIVE_TIME_QUERY_TIMEOUT;
     loop {
         state.drain_time_query_events();
         let observation = state.time_observation();
         if observation.generation != before.generation
+            && observation.query_kind == expected_kind
             && let Some(value) = observation.query_value
         {
             return Ok(value);

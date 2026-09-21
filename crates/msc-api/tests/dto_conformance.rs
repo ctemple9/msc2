@@ -382,6 +382,8 @@ fn dto_conformance_performance_snapshot_matches_schema() {
             value: 512.0,
             help_id: Some("performance.world-size".to_string()),
         }),
+        world_day: None,
+        world_time_ticks: None,
         server_type: Some("paper".to_string()),
         runtime: None,
     };

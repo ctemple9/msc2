@@ -10046,6 +10046,16 @@
           "worldSizeMB": {
             "$ref": "#/components/schemas/PerformanceMetricNumberDTO"
           },
+          "worldDay": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Current Minecraft daylight-cycle day when the running server has answered the agent's world-time query."
+          },
+          "worldTimeTicks": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Current Minecraft time-of-day in ticks (0 through 23,999) when available."
+          },
           "serverType": {
             "type": "string"
           },

@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 11175764d44f4c8594a3b73946922a852c839262d64744a14e4490d028e50eb2
+// Contract SHA-256: 83328bce6d573b271702a976c7bc9159c714e4f857c1a2b670fb6be3daa1c52b
 
 export interface paths {
   '/v1/active-server': {
@@ -7301,7 +7301,17 @@ export interface components {
       /** @description Paper-family's real 15-minute rolling average from the same /tps reply as tps1m. Absent for single-value flavors (Forge/vanilla) and Bedrock. */
       tps15m?: components['schemas']['PerformanceMetricNumberDTO'];
       ts: string;
+      /**
+       * Format: int64
+       * @description Current Minecraft daylight-cycle day when the running server has answered the agent's world-time query.
+       */
+      worldDay?: number;
       worldSizeMB?: components['schemas']['PerformanceMetricNumberDTO'];
+      /**
+       * Format: int64
+       * @description Current Minecraft time-of-day in ticks (0 through 23,999) when available.
+       */
+      worldTimeTicks?: number;
     } & {
       [key: string]: unknown;
     };

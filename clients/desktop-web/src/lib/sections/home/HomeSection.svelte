@@ -208,6 +208,7 @@
         <ActiveWorldCard
           {api}
           slot={activeSlot}
+          {performance}
           {isBedrock}
           difficulty={settingField('difficulty')}
           gamemode={settingField('gamemode')}

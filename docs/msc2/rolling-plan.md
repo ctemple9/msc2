@@ -316,8 +316,8 @@ The ATM10 discovery work and this additional usability work share Phase 15, but 
 
 ### P15.9 — Show live world time in Active World
 
-- **Status:** planned
-- **Files:** `crates/msc-api/src/dto/status.rs`, `crates/msc-agent/src/routes/performance.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-domain/src/time.rs`, `clients/desktop-web/src/lib/api/generated.ts`, `clients/desktop-web/src/lib/sections/home/HomeSection.svelte`, `clients/desktop-web/src/lib/sections/home/ActiveWorldCard.svelte`
+- **Status:** awaiting verification
+- **Files:** `crates/msc-api/src/dto/status.rs`, `crates/msc-api/tests/dto_conformance.rs`, `crates/msc-agent/src/routes/commands.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/performance.rs`, `crates/msc-agent/src/routes/status.rs`, `crates/msc-domain/src/time.rs`, `docs/msc2/api-contract/openapi.json`, `clients/desktop-web/src/lib/api/generated.ts`, `clients/desktop-web/src/lib/sections/home/HomeSection.svelte`, `clients/desktop-web/src/lib/sections/home/ActiveWorldCard.svelte`
 - **What:** Expose the active world’s current Minecraft day and time through the existing live status/performance path. Render one compact line inside the existing Active World card without increasing its dimensions, and show a clear unavailable state when the server is disconnected or cannot answer.
 - **Verify:** `cargo fmt --all -- --check && cargo check -p msc-api -p msc-agent -p msc-application && npm --prefix clients/desktop-web run check`
 - **Batch:** G — server-owned notes

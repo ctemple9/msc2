@@ -1,7 +1,8 @@
 <script lang="ts">
-  // MSC 1 OverviewActiveWorldCardView, minus the in-game day/time clock —
-  // that reads level.dat directly in MSC 1; the agent contract has no
-  // equivalent field, so it is honestly omitted here rather than faked.
+  // MSC 1 OverviewActiveWorldCardView, with live world time supplied by the
+  // agent's performance snapshot rather than a client-side clock or disk
+  // read. The card keeps that line compact so it remains an activity card,
+  // not a second statistics panel.
   // Thumbnails use the same deterministic gradient placeholder MSC 1 falls
   // back to when a slot has no saved photo. Saved thumbnails are fetched
   // through the authenticated screen API because CSS image requests cannot
@@ -15,6 +16,7 @@
 
   export let api: ScreenApi | undefined = undefined;
   export let slot: Schema['WorldSlotDTO'] | undefined = undefined;
+  export let performance: Schema['PerformanceSnapshotDTO'] | undefined = undefined;
   export let isBedrock = false;
   export let difficulty: string | undefined = undefined;
   export let gamemode: string | undefined = undefined;
@@ -74,6 +76,20 @@
     const baseHue = hue(name);
     return `background: linear-gradient(160deg, hsl(${baseHue} 40% 42%), hsl(${(baseHue + 30) % 360} 45% 22%));`;
   }
+
+  function formatWorldTime(ticks: number | undefined): string | undefined {
+    if (ticks === undefined || !Number.isFinite(ticks)) return undefined;
+    const daytimeTicks = ((Math.trunc(ticks) % 24000) + 24000) % 24000;
+    const clockTicks = (daytimeTicks + 6000) % 24000;
+    const hours = Math.floor(clockTicks / 1000);
+    const minutes = Math.floor(((clockTicks % 1000) * 60) / 1000);
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  }
+
+  $: worldTimeLabel =
+    performance?.worldDay !== undefined && performance?.worldTimeTicks !== undefined
+      ? `Day ${performance.worldDay} · ${formatWorldTime(performance.worldTimeTicks)}`
+      : undefined;
 </script>
 
 <Card padding="14px 16px">
@@ -102,6 +118,13 @@
       {#if gamemode}<div class="fact">
           <span class="k">Mode</span><span class="v">{gamemode}</span>
         </div>{/if}
+    </div>
+
+    <div class="world-time" aria-live="polite">
+      <span class="k">World time</span>
+      <span class:unavailable={!worldTimeLabel} class="v">
+        {worldTimeLabel ?? 'Unavailable'}
+      </span>
     </div>
 
     <div class="actions">
@@ -181,6 +204,16 @@
     display: flex;
     gap: 8px;
     justify-content: center;
+  }
+  .world-time {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin: 0 0 12px;
+  }
+  .world-time .unavailable {
+    color: var(--msc2-text-tertiary);
+    font-weight: 400;
   }
   .actions :global(.btn) {
     flex: 1;

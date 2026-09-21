@@ -250,6 +250,33 @@ struct LifecycleRoutesInner {
 pub(crate) struct TimeObservation {
     pub generation: u64,
     pub query_value: Option<i64>,
+    pub query_kind: Option<TimeQueryKind>,
+    pub world_day: Option<i64>,
+    pub daytime_ticks: Option<i64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TimeQueryKind {
+    Day,
+    Daytime,
+    Gametime,
+}
+
+impl TimeQueryKind {
+    pub(crate) fn from_command(command: &str) -> Option<Self> {
+        match command {
+            "time query day" => Some(Self::Day),
+            "time query daytime" => Some(Self::Daytime),
+            "time query gametime" => Some(Self::Gametime),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LiveWorldTime {
+    pub day: i64,
+    pub daytime_ticks: i64,
 }
 
 pub struct AgentServerRegistry {
@@ -286,7 +313,9 @@ enum ControllerReplyKind {
     Tps,
     SparkTps,
     TickQuery,
-    TimeQuery,
+    TimeQueryDay,
+    TimeQueryDaytime,
+    TimeQueryGametime,
     SaveAllFlush,
     SaveOff,
     SaveOn,
@@ -320,6 +349,7 @@ struct NeoForgeTpsReplyState {
 #[derive(Debug, Default)]
 struct ConsoleCorrelation {
     pending: VecDeque<PendingControllerReply>,
+    last_matched_reply: Option<ControllerReplyKind>,
     spark: Option<SparkReplyState>,
     tick_query: Option<TickQueryReplyState>,
     neoforge_tps: Option<NeoForgeTpsReplyState>,
@@ -337,9 +367,9 @@ impl ConsoleCorrelation {
             "tps" | "forge tps" | "neoforge tps" => ControllerReplyKind::Tps,
             "spark tps" => ControllerReplyKind::SparkTps,
             "tick query" => ControllerReplyKind::TickQuery,
-            "time query day" | "time query daytime" | "time query gametime" => {
-                ControllerReplyKind::TimeQuery
-            }
+            "time query day" => ControllerReplyKind::TimeQueryDay,
+            "time query daytime" => ControllerReplyKind::TimeQueryDaytime,
+            "time query gametime" => ControllerReplyKind::TimeQueryGametime,
             "save-all flush" => ControllerReplyKind::SaveAllFlush,
             "save-off" => ControllerReplyKind::SaveOff,
             "save-on" => ControllerReplyKind::SaveOn,
@@ -356,12 +386,14 @@ impl ConsoleCorrelation {
 
     fn clear(&mut self) {
         self.pending.clear();
+        self.last_matched_reply = None;
         self.spark = None;
         self.tick_query = None;
         self.neoforge_tps = None;
     }
 
     fn classify(&mut self, line: &str) -> ConsoleLineOrigin {
+        self.last_matched_reply = None;
         self.pending
             .retain(|reply| reply.expires_at > Instant::now());
         let clean = strip_ansi(line);
@@ -391,6 +423,7 @@ impl ConsoleCorrelation {
             .pending
             .remove(index)
             .expect("reply index came from pending");
+        self.last_matched_reply = Some(reply.kind);
         if reply.kind == ControllerReplyKind::SparkTps {
             self.spark = Some(SparkReplyState::ExpectValues { guard: 12 });
         }
@@ -407,6 +440,10 @@ impl ConsoleCorrelation {
             });
         }
         ConsoleLineOrigin::Controller
+    }
+
+    fn take_last_matched_reply(&mut self) -> Option<ControllerReplyKind> {
+        self.last_matched_reply.take()
     }
 
     fn classify_neoforge_tps_continuation(&mut self, lower: &str) -> bool {
@@ -500,8 +537,15 @@ fn reply_matches(kind: ControllerReplyKind, clean: &str, lower: &str) -> bool {
         }
         ControllerReplyKind::SparkTps => lower.contains("tps from last 5s, 10s, 1m, 5m, 15m"),
         ControllerReplyKind::TickQuery => is_tick_query_report_line(clean, lower),
-        ControllerReplyKind::TimeQuery => {
-            msc_domain::time::parse_time_query_response(clean).is_some()
+        ControllerReplyKind::TimeQueryDay => {
+            lower.contains("timeline minecraft:day is at") || lower.contains("the time is ")
+        }
+        ControllerReplyKind::TimeQueryDaytime => {
+            lower.contains("timeline minecraft:daytime is at") || lower.contains("the time is ")
+        }
+        ControllerReplyKind::TimeQueryGametime => {
+            lower.contains("the game time is ")
+                || lower.contains("timeline minecraft:gametime is at")
         }
         ControllerReplyKind::SaveAllFlush => is_java_save_confirmation(lower),
         ControllerReplyKind::SaveOff | ControllerReplyKind::SaveHold => {
@@ -887,6 +931,7 @@ impl LifecycleRoutesState {
         self.stop_all_playit_helpers();
         self.inner.app_config.reset_in_memory();
         self.inner.lifecycle.lock().unwrap().clear_selection();
+        self.clear_time_observation();
         *self.inner.bedrock_active_server_id.lock().unwrap() = None;
         self.inner.reconciliation.lock().unwrap().clear();
     }
@@ -1103,16 +1148,61 @@ impl LifecycleRoutesState {
         *self.inner.time_observation.lock().unwrap()
     }
 
+    pub fn live_world_time(&self) -> Option<LiveWorldTime> {
+        if !self.status_snapshot().running {
+            return None;
+        }
+        let observation = self.time_observation();
+        Some(LiveWorldTime {
+            day: observation.world_day?,
+            daytime_ticks: observation.daytime_ticks?,
+        })
+    }
+
+    fn clear_time_observation(&self) {
+        *self.inner.time_observation.lock().unwrap() = TimeObservation::default();
+    }
+
     pub(crate) fn record_time_query_line(&self, line: &str, origin: ConsoleLineOrigin) {
         if origin != ConsoleLineOrigin::Controller {
             return;
         }
-        let Some(query_value) = msc_domain::time::parse_time_query_response(line) else {
+        let query_kind = self
+            .inner
+            .console_correlation
+            .lock()
+            .expect("console correlation lock poisoned")
+            .take_last_matched_reply()
+            .and_then(|reply| match reply {
+                ControllerReplyKind::TimeQueryDay => Some(TimeQueryKind::Day),
+                ControllerReplyKind::TimeQueryDaytime => Some(TimeQueryKind::Daytime),
+                ControllerReplyKind::TimeQueryGametime => Some(TimeQueryKind::Gametime),
+                _ => None,
+            });
+        let Some(query_kind) = query_kind else {
+            return;
+        };
+        let query_value = match query_kind {
+            TimeQueryKind::Day => msc_domain::time::parse_day_query_response(line),
+            TimeQueryKind::Daytime | TimeQueryKind::Gametime => {
+                msc_domain::time::parse_time_query_response(line)
+            }
+        };
+        let Some(query_value) = query_value else {
             return;
         };
         let mut observation = self.inner.time_observation.lock().unwrap();
         observation.generation = observation.generation.wrapping_add(1);
         observation.query_value = Some(query_value);
+        observation.query_kind = Some(query_kind);
+        match query_kind {
+            TimeQueryKind::Day => observation.world_day = Some(query_value),
+            TimeQueryKind::Daytime => {
+                observation.daytime_ticks =
+                    Some(query_value.rem_euclid(msc_domain::time::MINECRAFT_DAY_TICKS));
+            }
+            TimeQueryKind::Gametime => {}
+        }
     }
 
     pub(crate) fn drain_time_query_events(&self) {
@@ -1345,6 +1435,9 @@ impl LifecycleRoutesState {
             })?;
         let previous_server_id = self.active_server_id();
         let changing_active_server = previous_server_id.as_deref() != Some(server_id.as_str());
+        if changing_active_server {
+            self.clear_time_observation();
+        }
         if changing_active_server
             && (self.status_snapshot().running
                 || self
@@ -2049,9 +2142,18 @@ impl LifecycleRoutesState {
     fn spawn_bedrock_pump(&self) {
         let state = self.clone();
         let handle = tokio::spawn(async move {
+            let mut last_world_time_poll = Instant::now();
             loop {
                 state.drain_bedrock_events();
                 let runtime_state = state.inner.bedrock_runtime.state();
+                if matches!(
+                    runtime_state,
+                    msc_application::bedrock_runtime::BedrockRuntimeState::Running
+                ) && last_world_time_poll.elapsed() >= Duration::from_secs(5)
+                {
+                    state.poll_bedrock_world_time();
+                    last_world_time_poll = Instant::now();
+                }
                 if state.bedrock_operation_cancel_requested() {
                     match runtime_state {
                         msc_application::bedrock_runtime::BedrockRuntimeState::Starting
@@ -2188,6 +2290,21 @@ impl LifecycleRoutesState {
                 self.register_controller_command(command);
             }
         }
+        self.poll_world_time_with_java(&mut lifecycle);
+    }
+
+    fn poll_world_time_with_java(&self, lifecycle: &mut LifecycleService<'static>) {
+        for command in ["time query day", "time query daytime"] {
+            if lifecycle.send_command(command).is_ok() {
+                self.register_controller_command(command);
+            }
+        }
+    }
+
+    fn poll_bedrock_world_time(&self) {
+        for command in ["time query day", "time query daytime"] {
+            let _ = self.send_bedrock_controller_command(command);
+        }
     }
 
     fn enforce_first_start_safety_cap(&self) {
@@ -2295,6 +2412,7 @@ impl LifecycleRoutesState {
 
     fn handle_process_termination(&self, clean_stop_success: bool) {
         self.clear_console_correlation();
+        self.clear_time_observation();
         if let Some(server_id) = self.active_server_id() {
             self.stop_helpers_for_server(&server_id);
         }

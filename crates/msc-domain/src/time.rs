@@ -122,3 +122,16 @@ pub fn parse_time_query_response(line: &str) -> Option<i64> {
         digits.parse::<i64>().ok().map(|value| sign * value)
     })
 }
+
+/// Parses the daylight-cycle day query into a day number across runtime
+/// response formats. Legacy servers return the day number directly, while
+/// modern Paper's timeline response reports the absolute day timeline in
+/// ticks.
+pub fn parse_day_query_response(line: &str) -> Option<i64> {
+    let value = parse_time_query_response(line)?;
+    if line.contains("Timeline minecraft:day is at ") {
+        Some(value.div_euclid(MINECRAFT_DAY_TICKS))
+    } else {
+        Some(value)
+    }
+}

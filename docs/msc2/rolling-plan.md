@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 14 operational refinements are in progress; P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, P14.17, P14.18, P14.19, P14.26, P14.27, P14.28, P14.29, P14.30, P14.31, P14.32, P14.33, P14.34, P14.35, P14.36, and P14.37 are awaiting verification. P14.38 records twelve unverified static-review findings and is awaiting owner triage.
-> **Next move:** Cameron runs the outstanding Phase 14 verification commands, including the focused release-signature regression check in P14.26, signing-pipeline validation in P14.32, active-world size verification in P14.34, and the console-delivery, tick-query, and helper-output classification checks in P14.35–P14.37, and closes each step if its behavior is sound. Cameron then triages the P14.38 findings before any implementation work is scheduled. P14.32 identifies a release-key rotation and one-time manual recovery install as prerequisites to restoring automatic updates for already-installed binaries. P14.33 prepares recovery release v0.1.8; release only after world-size and console behavior are verified, CI is green, and the rotated key verifies its detached signature. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phase 15 is the priority next phase; Phase 14 is paused with P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, P14.17, P14.18, P14.19, P14.26, P14.27, P14.28, P14.29, P14.30, P14.31, P14.32, P14.33, P14.34, P14.35, P14.36, and P14.37 awaiting verification. P14.38 records twelve unverified static-review findings and is awaiting owner triage.
+> **Next move:** Cameron reviews the Phase 15 plan, then execution begins with P15.1. Phase 14 verification and P14.38 triage remain recorded and paused until Phase 15 is complete or Cameron explicitly resumes Phase 14. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -13,7 +13,7 @@ This is the working state of the build. The vision documents say where MSC 2 is 
 
 Phases come from `msc2-port-plan.md`. Steps are written as work arrives rather than being invented in advance. Each step has a status, file scope, description, verification command, commit subject, and batch classification.
 
-Phase 12 is complete. Phase 14 is active, with P14.4–P14.19 awaiting owner verification. P14.19 records the gate handoff; the phase remains open until the live Minecraft, real OS-install, and retained-client evidence in the acceptance note is confirmed.
+Phase 12 is complete. Phase 15 is the priority next phase and is planned for execution before Phase 14 resumes. Phase 14 is paused, with its outstanding verification, release, console, and static-review work preserved below.
 
 ## Current phase
 
@@ -34,7 +34,179 @@ Phase 12 is complete. Phase 14 is active, with P14.4–P14.19 awaiting owner ver
 | 11 | Desktop and web clients | complete |
 | 12 | Client redesign and post-phase corrections | complete |
 | 13 | Full-screen terminal client | retired by D-034 |
-| 14 | Operational refinements: time, console, packaging, and remote hosts | in progress |
+| 15 | Java, modpack import, components, and console usability fixes | priority next phase |
+| 14 | Operational refinements: time, console, packaging, and remote hosts | paused |
+
+## Proposed Phase 15 — Java and modpack workflow fixes
+
+This phase is the priority next phase. The following scope summary is recorded
+verbatim from Cameron's approved recap:
+
+**Scope amendment (2026-09-20):** ATM10 Lite is the discovery case, not the
+product boundary. Java selection, CurseForge credential handling, unresolved
+file recovery, notes, Components search, and console behavior must work for
+every supported modpack and provider. ATM10 is the first end-to-end acceptance
+case because it exposed the problems.
+
+Yes. I’d treat this as six bounded improvements, not one large “modpack issue.”
+
+## Recommended order
+
+### 1. Fix Java selection during server creation
+
+This is the most fundamental problem because it blocks creating a server.
+
+The create-server flow should:
+
+- determine the required Java major from the Minecraft version and loader;
+- show detected compatible runtimes;
+- offer “Install Java” when needed;
+- require the user to explicitly select a runtime before continuing;
+- assign that runtime to the new server only.
+
+The same Java-selection component should be reused by onboarding.
+
+The detected-runtime sheet also needs a visual correction: dark MSC rows, restrained typography, secondary paths, and normal MSC buttons matching the existing “Install Java” sheet.
+
+### 2. Add CurseForge key setup inside import
+
+When a CurseForge manifest needs an API key:
+
+- explain why the key is needed;
+- provide a direct “Open CurseForge API Console” link;
+- allow the key to be entered and saved in the sheet;
+- resume the import after saving;
+- offer the same setup again during unresolved-file recovery;
+- allow the user to skip.
+
+The important principle is: missing credentials should be recoverable inside the flow, not discovered only after a failed import.
+
+### 3. Build the missing-mod recovery flow
+
+After importing a modpack, MSC should show an actual inventory of unresolved files:
+
+- mod name;
+- filename;
+- provider;
+- reason it was not downloaded;
+- download/project link.
+
+Then MSC should:
+
+1. Look for confident matches on Modrinth.
+2. Download exact compatible matches automatically.
+3. List everything still unresolved.
+4. Let the user open selected or all download links.
+5. Provide a drag-and-drop area for downloaded JARs.
+6. Check each dropped JAR and confirm whether it is the expected file.
+7. Let the user skip unresolved files.
+8. Write the remaining missing mods into the server’s Overview notes.
+9. Preserve the unresolved state so the user can return later.
+
+The app should never silently substitute an approximate mod. Automatic Modrinth downloads should require a trustworthy identity and compatibility match.
+
+### 4. Improve the Components tab
+
+Add:
+
+- a visible installed-mod count;
+- search by mod name and filename;
+- clear states for installed, missing, unresolved, and disabled components.
+
+This should make it unnecessary to manually compare the manifest against the component list.
+
+### 5. Quiet the ATM10 console
+
+MSC’s own TPS and dimension-monitoring traffic should not appear as noisy human console output.
+
+Recommended behavior:
+
+- preserve the metrics in the metrics/statistics UI;
+- keep real server messages in the console;
+- hide or separately classify MSC-generated monitoring commands and responses;
+- ensure monitoring cannot push useful human console history out of the buffer.
+
+This should be handled as a general console/telemetry rule, not an ATM10-only exception.
+
+### 6. Review the complete flow
+
+The end-to-end acceptance scenario should be:
+
+- Existing Fabric 1.20.1 server continues using Java 17.
+- User creates ATM10 Lite / NeoForge 1.21.1.
+- MSC requires Java 21 and lets the user detect, install, and select it.
+- CurseForge import asks for the missing key inline.
+- Unavailable mods are listed clearly.
+- Modrinth matches download automatically.
+- Remaining mods can be opened, dragged in, verified, or skipped.
+- Missing files appear in server notes.
+- Components shows a count and supports search.
+- Console remains readable while metrics continue working.
+
+## How I’d sequence the actual work
+
+1. Java runtime selection and shared visual component.
+2. CurseForge credential prompt.
+3. Unresolved modpack recovery.
+4. Components count/search.
+5. Console telemetry separation.
+6. Final visual and end-to-end review.
+
+The current rolling plan says the outstanding Phase 14 verification and triage should happen before new implementation work is scheduled. Once that is cleared, these can be added as separate, narrowly scoped steps rather than mixed into one risky change.
+
+### P15.1 — Move Java selection into server creation
+
+- **Status:** planned
+- **Files:** `crates/msc-domain/src/java_runtime.rs`, `crates/msc-application/src/provisioning.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/routes/versions.rs`, `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`, `clients/desktop-web/src/lib/sections/fleet/wizard/model.ts`, `clients/desktop-web/src/lib/sections/server-editor/JavaInstallSheet.svelte`, `clients/desktop-web/src/lib/sections/server-editor/JavaTab.svelte`, `clients/desktop-web/src/lib/help/SetupIntro.svelte`
+- **What:** Make Java selection a required step after the Minecraft version and loader are known. Reuse detection and installation, assign the chosen runtime to the new server, block continuation without an explicit selection, and reuse the same flow during onboarding. Restyle the detected-runtime sheet to match the dark MSC Install Java sheet.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-domain -p msc-application -p msc-agent && npm --prefix clients/desktop-web run check`
+- **Batch:** A — Java selection and presentation
+- **Commit:** `P15.1: require Java selection during server creation`
+
+### P15.2 — Add inline CurseForge API-key setup
+
+- **Status:** planned
+- **Files:** `crates/msc-domain/src/app_config_schema.rs`, `crates/msc-application/src/curseforge_manual.rs`, `crates/msc-application/src/modpacks.rs`, `crates/msc-agent/src/routes/components.rs`, `clients/desktop-web/src/lib/sections/components/ImportModpackSheet.svelte`, `clients/desktop-web/src/lib/sections/components/CurseForgeManualDownloadSheet.svelte`, `clients/desktop-web/src/lib/sections/app-settings/AppSettingsSheet.svelte`
+- **What:** Detect a missing CurseForge key before manifest import fails. Show the reason, provide the approved CurseForge API Console link, save the key from the sheet, resume the import, and allow the prompt to be skipped or reopened during manual-file recovery.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-agent && npm --prefix clients/desktop-web run check`
+- **Batch:** B — provider credentials
+- **Commit:** `P15.2: add inline CurseForge key setup`
+
+### P15.3 — Complete unresolved modpack files
+
+- **Status:** planned
+- **Files:** `crates/msc-domain/src/modpack_manifest.rs`, `crates/msc-domain/src/modpack.rs`, `crates/msc-application/src/modpacks.rs`, `crates/msc-application/src/curseforge_manual.rs`, `crates/msc-application/src/addon_updates.rs`, `crates/msc-agent/src/routes/components.rs`, `clients/desktop-web/src/lib/sections/components/ImportModpackSheet.svelte`, `clients/desktop-web/src/lib/sections/components/CurseForgeManualDownloadSheet.svelte`, `clients/desktop-web/src/lib/sections/components/ProjectDetailSheet.svelte`, `clients/desktop-web/src/lib/sections/home/notes.ts`
+- **What:** Return named unresolved files with reasons and links. Resolve confident Modrinth matches automatically, expose remaining provider links, validate dragged-in JARs against the expected file, support skip and retry, and persist the remaining list in the server Overview notes without using notes as the structured source of truth.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-domain -p msc-application -p msc-agent && npm --prefix clients/desktop-web run check`
+- **Batch:** C — unresolved modpack recovery
+- **Commit:** `P15.3: finish unresolved modpack files`
+
+### P15.4 — Add Components count and search
+
+- **Status:** planned
+- **Files:** `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`, `clients/desktop-web/src/lib/sections/components/model.ts`, `clients/desktop-web/src/lib/sections/shared/types.ts`, `crates/msc-agent/src/routes/components.rs`
+- **What:** Show the installed mod count, search by name and filename, and distinguish installed, missing, unresolved, and disabled components in the Components tab.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** D — component discoverability
+- **Commit:** `P15.4: add component count and search`
+
+### P15.5 — Keep monitoring traffic out of human console history
+
+- **Status:** planned
+- **Files:** `crates/msc-infrastructure/src/console_buffer.rs`, `crates/msc-application/src/output_reducer.rs`, `crates/msc-agent/src/ws/console.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `clients/desktop-web/src/lib/sections/console/ConsoleSection.svelte`, `clients/desktop-web/src/lib/sections/console/model.ts`, `clients/desktop-web/src/lib/components/shell/ConsoleDock.svelte`
+- **What:** Build on P14.35–P14.37 so TPS, dimension, and other MSC-generated monitoring output is classified separately from genuine server output. Keep metrics working, preserve useful console history, and make automatic diagnostics available without flooding the human console. Do not add an ATM10-only exception.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-infrastructure -p msc-application -p msc-agent && npm --prefix clients/desktop-web run check`
+- **Batch:** E — console clarity
+- **Commit:** `P15.5: separate monitoring traffic from console history`
+
+### P15.6 — Review the ATM10 end-to-end flow
+
+- **Status:** planned
+- **Files:** `docs/msc2/capabilities/phase15-acceptance.md`, `docs/msc2/rolling-plan.md`, `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`, `clients/desktop-web/src/lib/sections/components/ImportModpackSheet.svelte`, `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`, `clients/desktop-web/src/lib/sections/console/ConsoleSection.svelte`, `clients/desktop-web/src/lib/sections/server-editor/JavaInstallSheet.svelte`
+- **What:** Use the Fabric 1.20.1/Java 17 and ATM10 Lite/NeoForge 1.21.1/Java 21 scenario as the first acceptance case, then confirm the same Java and modpack-import behavior is generic for every supported modpack and provider. Verify the inline key setup, unresolved-file recovery, drag-and-drop validation, skip-and-notes behavior, Components search, readable console, and Java-sheet visual parity before closing the phase.
+- **Verify:** `cargo check -p msc-agent -p msc-application && npm --prefix clients/desktop-web run check`
+- **Batch:** F — end-to-end review
+- **Commit:** `P15.6: record ATM10 workflow acceptance`
 
 ## Proposed Phase 14 — operational refinements
 

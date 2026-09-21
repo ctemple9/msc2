@@ -303,6 +303,9 @@ impl WorldsRoutesState {
 #[derive(Debug, Clone)]
 pub(crate) struct StagedUpload {
     pub(crate) purpose: StagedUploadPurposeDto,
+    pub(crate) file_name: Option<String>,
+    pub(crate) operation_id: Option<String>,
+    pub(crate) file_id: Option<String>,
     pub(crate) expires_at_unix: u64,
     pub(crate) max_bytes: u64,
     pub(crate) path: PathBuf,
@@ -1768,6 +1771,9 @@ pub async fn begin_staged_upload(
         id.clone(),
         StagedUpload {
             purpose: body.purpose,
+            file_name: body.file_name.clone(),
+            operation_id: body.operation_id.clone(),
+            file_id: body.file_id.clone(),
             expires_at_unix,
             max_bytes: MAX_STAGED_UPLOAD_BYTES,
             path,
@@ -3394,6 +3400,7 @@ mod tests {
             Some(Json(StagedUploadBeginRequestDto {
                 purpose: StagedUploadPurposeDto::WorldImport,
                 content_type: None,
+                file_name: None,
                 operation_id: None,
                 file_id: None,
             })),
@@ -3480,6 +3487,7 @@ mod tests {
             Some(Json(StagedUploadBeginRequestDto {
                 purpose: StagedUploadPurposeDto::WorldThumbnail,
                 content_type: Some("image/png".to_string()),
+                file_name: None,
                 operation_id: None,
                 file_id: None,
             })),
@@ -3564,6 +3572,7 @@ mod tests {
             Some(Json(StagedUploadBeginRequestDto {
                 purpose: StagedUploadPurposeDto::WorldThumbnail,
                 content_type: None,
+                file_name: None,
                 operation_id: None,
                 file_id: None,
             })),
@@ -3612,6 +3621,7 @@ mod tests {
             Some(Json(StagedUploadBeginRequestDto {
                 purpose: StagedUploadPurposeDto::WorldImport,
                 content_type: None,
+                file_name: None,
                 operation_id: None,
                 file_id: None,
             })),
@@ -3727,6 +3737,7 @@ mod tests {
             Some(Json(StagedUploadBeginRequestDto {
                 purpose: StagedUploadPurposeDto::ActiveWorldReplace,
                 content_type: None,
+                file_name: None,
                 operation_id: None,
                 file_id: None,
             })),
@@ -3816,6 +3827,7 @@ mod tests {
             Some(Json(StagedUploadBeginRequestDto {
                 purpose: StagedUploadPurposeDto::WorldImport,
                 content_type: None,
+                file_name: None,
                 operation_id: None,
                 file_id: None,
             })),

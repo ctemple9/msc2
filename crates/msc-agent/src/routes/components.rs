@@ -28,7 +28,7 @@ use msc_api::dto::{
 use msc_application::addon_updates;
 use msc_application::addons::{self, AddonMutationError};
 use msc_application::client_export::{self, ClientSideStatus};
-use msc_application::curseforge_manual::{self, PendingManualFile};
+use msc_application::curseforge_manual;
 use msc_application::geyser;
 use msc_application::modpacks;
 use msc_domain::addon_provider::{self, AddonProviderError};
@@ -63,7 +63,61 @@ pub struct ComponentsRoutesState {
 
 #[derive(Debug, Clone)]
 struct PendingModpackImport {
-    remaining_manual_files: Vec<PendingManualFile>,
+    remaining_files: Vec<modpacks::UnresolvedModpackFile>,
+    skipped_files: Vec<modpacks::UnresolvedModpackFile>,
+    server_id: String,
+}
+
+fn unresolved_file_dto(file: &modpacks::UnresolvedModpackFile) -> ModpackManualFileDto {
+    ModpackManualFileDto {
+        file_id: file.file_id.clone(),
+        file_name: file.file_name.clone(),
+        project_name: file.project_name.clone(),
+        provider: Some(file.provider.clone()),
+        reason: Some(file.reason.clone()),
+        project_url: file.project_url.clone(),
+    }
+}
+
+const UNRESOLVED_NOTES_MARKER: &str = "[MSC unresolved modpack files]";
+
+fn persist_unresolved_notes(
+    state: &LifecycleRoutesState,
+    server_id: &str,
+    pending: &[modpacks::UnresolvedModpackFile],
+    skipped: &[modpacks::UnresolvedModpackFile],
+) {
+    let _ = state.try_mutate_config(|config| {
+        let server = config
+            .servers
+            .iter_mut()
+            .find(|server| server.id == server_id)
+            .ok_or(())?;
+        let base = server
+            .notes
+            .split_once(UNRESOLVED_NOTES_MARKER)
+            .map(|(before, _)| before.trim_end())
+            .unwrap_or(server.notes.trim_end())
+            .to_string();
+        let mut lines = Vec::new();
+        for file in pending.iter().chain(skipped) {
+            let state_label = if skipped.iter().any(|item| item.file_id == file.file_id) {
+                "skipped"
+            } else {
+                "unresolved"
+            };
+            lines.push(format!(
+                "- {} [{}; {}] — {}",
+                file.file_name, state_label, file.provider, file.reason
+            ));
+        }
+        server.notes = if lines.is_empty() {
+            base
+        } else {
+            format!("{base}\n\n{UNRESOLVED_NOTES_MARKER}\n{}", lines.join("\n"))
+        };
+        Ok::<(), ()>(())
+    });
 }
 
 impl ComponentsRoutesState {
@@ -510,7 +564,8 @@ pub async fn begin_staged_upload(
         | StagedUploadPurposeDto::WorldThumbnail => MAX_STAGED_UPLOAD_BYTES,
         StagedUploadPurposeDto::ModpackArchive => MAX_STAGED_UPLOAD_BYTES,
         StagedUploadPurposeDto::AddonLocalFile => MAX_LOCAL_ADDON_UPLOAD_BYTES,
-        StagedUploadPurposeDto::CurseforgeManualFile => {
+        StagedUploadPurposeDto::CurseforgeManualFile
+        | StagedUploadPurposeDto::ModpackUnresolvedFile => {
             let operation_id = body
                 .operation_id
                 .as_deref()
@@ -534,9 +589,9 @@ pub async fn begin_staged_upload(
                 );
             };
             let Some(file) = entry
-                .remaining_manual_files
+                .remaining_files
                 .iter()
-                .find(|file| file.file_id.to_string() == file_id)
+                .find(|file| file.file_id == file_id)
             else {
                 return error_response(
                     StatusCode::NOT_FOUND,
@@ -544,7 +599,7 @@ pub async fn begin_staged_upload(
                     "No pending manual file matched that fileId.",
                 );
             };
-            file.expected_byte_size
+            file.pending.expected_byte_size
         }
     };
 
@@ -556,6 +611,9 @@ pub async fn begin_staged_upload(
         id.clone(),
         StagedUpload {
             purpose: body.purpose,
+            file_name: body.file_name.clone(),
+            operation_id: body.operation_id.clone(),
+            file_id: body.file_id.clone(),
             expires_at_unix,
             max_bytes,
             path,
@@ -1871,6 +1929,11 @@ fn modpack_inspection_response(
                 file_id: file.file_name.clone(),
                 file_name: file.file_name.clone(),
                 project_name: file.mod_name.clone(),
+                provider: Some("CurseForge".to_string()),
+                reason: Some(
+                    "The author blocks CurseForge API downloads for this file.".to_string(),
+                ),
+                project_url: Some(file.project_page_url.clone()),
             })
             .collect(),
         curseforge_lookup_available: matches!(
@@ -2027,7 +2090,7 @@ pub async fn import_modpack(
         })
         .map(|report| {
             (
-                Vec::new(),
+                report.unresolved_files,
                 report.pack_name,
                 report.pack_version,
                 report.cancelled,
@@ -2047,6 +2110,7 @@ pub async fn import_modpack(
         )
         .map_err(|error| error.to_string())
         .and_then(|report| {
+            let unresolved_files = report.unresolved_files.clone();
             set_pack_metadata(
                 &state.lifecycle,
                 &server.id,
@@ -2054,7 +2118,7 @@ pub async fn import_modpack(
                 &report.pack_version,
             )?;
             Ok((
-                report.blocked_files,
+                unresolved_files,
                 report.pack_name,
                 report.pack_version,
                 report.cancelled,
@@ -2067,13 +2131,13 @@ pub async fn import_modpack(
     let _ = std::fs::remove_file(&entry.path);
 
     let response = match result {
-        Ok((blocked_files, pack_name, pack_version, cancelled)) => {
+        Ok((unresolved_files, pack_name, pack_version, cancelled)) => {
             if cancelled {
                 let _ = state
                     .lifecycle
                     .operations()
                     .cancel(&operation_id, "Modpack import cancelled.");
-            } else if blocked_files.is_empty() {
+            } else if unresolved_files.is_empty() {
                 let mut result_map = BTreeMap::new();
                 result_map.insert("packName".to_string(), pack_name);
                 result_map.insert("packVersion".to_string(), pack_version);
@@ -2086,30 +2150,29 @@ pub async fn import_modpack(
                 state.pending_modpack_imports.lock().unwrap().insert(
                     operation_id.as_str().to_string(),
                     PendingModpackImport {
-                        remaining_manual_files: blocked_files.clone(),
+                        remaining_files: unresolved_files.clone(),
+                        skipped_files: Vec::new(),
+                        server_id: server.id.clone(),
                     },
                 );
+                persist_unresolved_notes(&state.lifecycle, &server.id, &unresolved_files, &[]);
             }
             (
                 StatusCode::ACCEPTED,
                 Json(ModpackImportResultDto {
                     success: true,
-                    message: if blocked_files.is_empty() {
+                    message: if unresolved_files.is_empty() {
                         "Import started.".to_string()
                     } else {
                         format!(
                             "Import paused: {} file(s) need manual completion.",
-                            blocked_files.len()
+                            unresolved_files.len()
                         )
                     },
                     operation_id: operation_id.as_str().to_string(),
-                    pending_manual_files: blocked_files
+                    pending_manual_files: unresolved_files
                         .iter()
-                        .map(|file| ModpackManualFileDto {
-                            file_id: file.file_id.to_string(),
-                            file_name: file.expected_file_name.clone(),
-                            project_name: file.expected_file_name.clone(),
-                        })
+                        .map(unresolved_file_dto)
                         .collect(),
                 }),
             )
@@ -2155,28 +2218,6 @@ pub async fn complete_modpack_manual_file(
         Ok(body) => body,
         Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
     };
-    let entry = state
-        .staging
-        .uploads
-        .lock()
-        .unwrap()
-        .remove(&body.staged_upload_id);
-    let Some(entry) = entry else {
-        return error_response(
-            StatusCode::NOT_FOUND,
-            "not_found",
-            "Unknown or already-redeemed staged upload.",
-        );
-    };
-    if now_unix() > entry.expires_at_unix
-        || !matches!(entry.purpose, StagedUploadPurposeDto::CurseforgeManualFile)
-    {
-        return error_response(
-            StatusCode::NOT_FOUND,
-            "not_found",
-            "Unknown or already-redeemed staged upload.",
-        );
-    }
     let mut pending = state.pending_modpack_imports.lock().unwrap();
     let Some(import) = pending.get_mut(&operation_id) else {
         return error_response(
@@ -2186,9 +2227,9 @@ pub async fn complete_modpack_manual_file(
         );
     };
     let Some(index) = import
-        .remaining_manual_files
+        .remaining_files
         .iter()
-        .position(|file| file.file_id.to_string() == body.file_id)
+        .position(|file| file.file_id == body.file_id)
     else {
         return error_response(
             StatusCode::NOT_FOUND,
@@ -2196,63 +2237,119 @@ pub async fn complete_modpack_manual_file(
             "No pending manual file matched that fileId.",
         );
     };
-    let pending_file = import.remaining_manual_files[index].clone();
-    let staged_filename = entry
-        .path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("uploaded.jar")
-        .to_string();
-    let completion = curseforge_manual::complete_pending_file(
-        &StdFileSystem,
-        &entry.path,
-        &staged_filename,
-        &pending_file,
-        import.remaining_manual_files.len() == 1,
-    );
-    let _ = std::fs::remove_file(&entry.path);
-    match completion {
-        Ok(_) => {
-            import.remaining_manual_files.remove(index);
-            let all_files_resolved = import.remaining_manual_files.is_empty();
-            let remaining = import
-                .remaining_manual_files
-                .iter()
-                .map(|file| ModpackManualFileDto {
-                    file_id: file.file_id.to_string(),
-                    file_name: file.expected_file_name.clone(),
-                    project_name: file.expected_file_name.clone(),
-                })
-                .collect::<Vec<_>>();
-            if all_files_resolved {
-                pending.remove(&operation_id);
-                let _ = state.lifecycle.finish_operation_success(
-                    &msc_domain::operation::OperationId::new(operation_id.clone()),
-                    "Imported modpack.",
-                    BTreeMap::new(),
-                );
-            }
-            let response = Json(ModpackManualFileResultDto {
-                success: true,
-                message: if all_files_resolved {
-                    "File accepted; import resumed.".to_string()
-                } else {
-                    "File accepted; waiting for the remaining manual files.".to_string()
-                },
-                operation_id: operation_id.clone(),
-                remaining_manual_files: remaining,
-                all_files_resolved,
-            })
-            .into_response();
-            audit(
-                &state.lifecycle,
-                &credential,
-                "POST",
-                "/v1/modpacks/:operation_id/manual-file",
-                response.status(),
+    let action = if body.action.trim().is_empty() {
+        "upload"
+    } else {
+        body.action.as_str()
+    };
+    let unresolved = import.remaining_files[index].clone();
+    if action == "skip" {
+        import.remaining_files.remove(index);
+        import.skipped_files.push(unresolved);
+    } else if action == "upload" {
+        let Some(staged_upload_id) = body.staged_upload_id.as_deref() else {
+            return invalid_body("missing_staged_upload_id", "stagedUploadId is required.");
+        };
+        let entry = state
+            .staging
+            .uploads
+            .lock()
+            .unwrap()
+            .get(staged_upload_id)
+            .cloned();
+        let Some(entry) = entry else {
+            return error_response(
+                StatusCode::NOT_FOUND,
+                "not_found",
+                "Unknown or already-redeemed staged upload.",
             );
-            response
+        };
+        if now_unix() > entry.expires_at_unix
+            || !matches!(
+                entry.purpose,
+                StagedUploadPurposeDto::CurseforgeManualFile
+                    | StagedUploadPurposeDto::ModpackUnresolvedFile
+            )
+            || entry.operation_id.as_deref() != Some(operation_id.as_str())
+            || entry.file_id.as_deref() != Some(body.file_id.as_str())
+        {
+            return error_response(
+                StatusCode::NOT_FOUND,
+                "not_found",
+                "Unknown or already-redeemed staged upload.",
+            );
         }
-        Err(error) => invalid_body("invalid_body", &error.to_string()),
+        state
+            .staging
+            .uploads
+            .lock()
+            .unwrap()
+            .remove(staged_upload_id);
+        let staged_filename = entry
+            .file_name
+            .or_else(|| {
+                entry
+                    .path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .map(str::to_string)
+            })
+            .unwrap_or_else(|| "uploaded.jar".to_string());
+        let completion = curseforge_manual::complete_pending_file_with_hash(
+            &StdFileSystem,
+            &entry.path,
+            &staged_filename,
+            &unresolved.pending,
+            import.remaining_files.len() == 1,
+            unresolved.expected_sha512.as_deref(),
+        );
+        let _ = std::fs::remove_file(&entry.path);
+        if let Err(error) = completion {
+            return invalid_body("invalid_body", &error.to_string());
+        }
+        import.remaining_files.remove(index);
+    } else {
+        return invalid_body("invalid_action", "action must be upload or skip.");
     }
+
+    let all_files_resolved = import.remaining_files.is_empty();
+    let remaining = import
+        .remaining_files
+        .iter()
+        .map(unresolved_file_dto)
+        .collect::<Vec<_>>();
+    let server_id = import.server_id.clone();
+    let skipped = import.skipped_files.clone();
+    let remaining_files = import.remaining_files.clone();
+    if all_files_resolved {
+        pending.remove(&operation_id);
+        let _ = state.lifecycle.finish_operation_success(
+            &msc_domain::operation::OperationId::new(operation_id.clone()),
+            "Imported modpack with unresolved files skipped.",
+            BTreeMap::new(),
+        );
+    }
+    persist_unresolved_notes(&state.lifecycle, &server_id, &remaining_files, &skipped);
+    let response = Json(ModpackManualFileResultDto {
+        success: true,
+        message: if action == "skip" {
+            "File skipped; the remaining list was saved to Overview notes.".to_string()
+        } else if all_files_resolved {
+            "File accepted; import resumed.".to_string()
+        } else {
+            "File accepted; waiting for the remaining files.".to_string()
+        },
+        operation_id: operation_id.clone(),
+        remaining_manual_files: remaining,
+        all_files_resolved,
+    })
+    .into_response();
+    audit(
+        &state.lifecycle,
+        &credential,
+        "POST",
+        "/v1/modpacks/:operation_id/manual-file",
+        response.status(),
+    );
+    response
 }

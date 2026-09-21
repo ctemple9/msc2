@@ -16,3 +16,36 @@ export function writeNotes(hostId: string, serverId: string, text: string): void
   if (typeof localStorage === 'undefined') return;
   localStorage.setItem(key(hostId, serverId), text);
 }
+
+export type UnresolvedModpackNote = {
+  fileName: string;
+  provider?: string;
+  reason?: string;
+  skipped?: boolean;
+};
+
+const unresolvedMarker = '[MSC unresolved modpack files]';
+
+/** Keeps the Overview copy readable while the agent's operation state remains
+ * the structured source of truth. */
+export function writeUnresolvedModpackNotes(
+  hostId: string,
+  serverId: string,
+  pending: UnresolvedModpackNote[],
+  skipped: UnresolvedModpackNote[] = [],
+): void {
+  const current = readNotes(hostId, serverId);
+  const base = current.split(unresolvedMarker)[0].trimEnd();
+  const entries = [...pending, ...skipped];
+  if (entries.length === 0) {
+    writeNotes(hostId, serverId, base);
+    return;
+  }
+  const lines = entries.map((entry) => {
+    const status = entry.skipped ? 'skipped' : 'unresolved';
+    const provider = entry.provider ? `; ${entry.provider}` : '';
+    const reason = entry.reason ? ` — ${entry.reason}` : '';
+    return `- ${entry.fileName} [${status}${provider}]${reason}`;
+  });
+  writeNotes(hostId, serverId, `${base}\n\n${unresolvedMarker}\n${lines.join('\n')}`);
+}

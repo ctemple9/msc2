@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 7b5391ff5c3c39a96681cafc6702eb67bc366109b7f99a5dfca12c7ef5e8b737
+// Contract SHA-256: 427805fc92b5a3cd5b9284b0c34acf05e173f1565e80ead39b6fb604aa9681f2
 
 export interface paths {
   '/v1/active-server': {
@@ -7089,12 +7089,23 @@ export interface components {
       fileId: string;
       fileName: string;
       projectName?: string;
+      /** @description The provider page where the user can obtain the exact file. */
+      projectUrl?: string;
+      /** @description Provider that still owns the unresolved file, such as Modrinth or CurseForge. */
+      provider?: string;
+      /** @description Why MSC could not install the file automatically. */
+      reason?: string;
     } & {
       [key: string]: unknown;
     };
     ModpackManualFileRequestDTO: {
+      /**
+       * @description upload validates and installs the staged file; skip records the unresolved file in Overview notes without installing it.
+       * @enum {string}
+       */
+      action?: 'upload' | 'skip';
       fileId: string;
-      stagedUploadId: string;
+      stagedUploadId?: string;
     } & {
       [key: string]: unknown;
     };
@@ -8050,6 +8061,8 @@ export interface components {
       contentType?: string;
       /** @description Required, curseforge-manual-file only: which of the operation's pending blocked files this upload is for. */
       fileId?: string;
+      /** @description The client-provided name of the file in this staged upload, used to preserve the provider's expected filename during manual modpack recovery. */
+      fileName?: string;
       /** @description Required, curseforge-manual-file only: the pending modpack-import operation this upload resumes. The agent looks up the expected file's own reported byte size/name from CurseForge's file metadata already recorded against that operation -- maxBytes on the result is sized to that exact file, not a flat ceiling. */
       operationId?: string;
       /** @enum {string} */
@@ -8059,7 +8072,8 @@ export interface components {
         | 'world-thumbnail'
         | 'modpack-archive'
         | 'addon-local-file'
-        | 'curseforge-manual-file';
+        | 'curseforge-manual-file'
+        | 'modpack-unresolved-file';
     } & {
       [key: string]: unknown;
     };

@@ -169,6 +169,21 @@ pub struct ModpackInspection {
     pub staged_dir: PathBuf,
 }
 
+/// One file the import could not install automatically. The operation keeps
+/// this structured record until the user uploads the exact JAR or chooses to
+/// skip it; the client-facing Overview note is only a readable projection.
+#[derive(Debug, Clone)]
+pub struct UnresolvedModpackFile {
+    pub file_id: String,
+    pub file_name: String,
+    pub project_name: String,
+    pub provider: String,
+    pub reason: String,
+    pub project_url: Option<String>,
+    pub pending: crate::curseforge_manual::PendingManualFile,
+    pub expected_sha512: Option<String>,
+}
+
 /// Identifies `archive_path`'s format and parses its manifest — no
 /// extraction, no network call, no filesystem write beyond reading the
 /// archive itself. Exposed separately from [`inspect_staged_archive`] so a
@@ -412,6 +427,10 @@ pub struct MrpackImportReport {
     /// log-and-continue shape (`fixtures/modpack-import/
     /// file-download-all-mirrors-fail-recorded-in-failed-list-loop-continues-to-next-file.json`).
     pub failed_files: Vec<(String, String)>,
+    /// Failed downloads are actionable rather than silently lost. The route
+    /// exposes these through the same upload/skip checkpoint as blocked
+    /// CurseForge files.
+    pub unresolved_files: Vec<UnresolvedModpackFile>,
     /// Override jars this import disabled as client-only (Tier 0/Tier 2 —
     /// see this module's own doc on the Tier 3 gap).
     pub disabled_client_only_overrides: Vec<PathBuf>,
@@ -505,17 +524,22 @@ fn install_one_manifest_file(
     let dest = match addon_store::resolve_pack_file_dest(fs, server_dir, &file.path, home_dir) {
         Ok(d) => d,
         Err(e) => {
-            report.failed_files.push((file.path.clone(), e.to_string()));
+            let reason = e.to_string();
+            report
+                .failed_files
+                .push((file.path.clone(), reason.clone()));
+            record_mrpack_unresolved(report, fs, file, server_dir, home_dir, reason, None);
             return;
         }
     };
     if let Some(parent) = dest.parent()
         && fs.create_dir_all(parent).is_err()
     {
-        report.failed_files.push((
-            file.path.clone(),
-            "could not create destination directory".to_string(),
-        ));
+        let reason = "could not create destination directory".to_string();
+        report
+            .failed_files
+            .push((file.path.clone(), reason.clone()));
+        record_mrpack_unresolved_at_dest(report, file, dest, reason, None);
         return;
     }
 
@@ -548,10 +572,59 @@ fn install_one_manifest_file(
             Err(_) => continue,
         }
     }
-    report.failed_files.push((
-        file.path.clone(),
-        "all mirrors failed or checksum mismatch".to_string(),
-    ));
+    let reason = "all mirrors failed or checksum mismatch".to_string();
+    report
+        .failed_files
+        .push((file.path.clone(), reason.clone()));
+    record_mrpack_unresolved_at_dest(report, file, dest, reason, file.downloads.first().cloned());
+}
+
+fn record_mrpack_unresolved(
+    report: &mut MrpackImportReport,
+    fs: &dyn FileSystem,
+    file: &MrpackFileEntry,
+    server_dir: &Path,
+    home_dir: &Path,
+    reason: String,
+    project_url: Option<String>,
+) {
+    let Ok(dest) = addon_store::resolve_pack_file_dest(fs, server_dir, &file.path, home_dir) else {
+        return;
+    };
+    record_mrpack_unresolved_at_dest(report, file, dest, reason, project_url);
+}
+
+fn record_mrpack_unresolved_at_dest(
+    report: &mut MrpackImportReport,
+    file: &MrpackFileEntry,
+    dest: PathBuf,
+    reason: String,
+    project_url: Option<String>,
+) {
+    report.unresolved_files.push(UnresolvedModpackFile {
+        file_id: format!("mrpack:{}", file.path),
+        file_name: Path::new(&file.path)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or(&file.path)
+            .to_string(),
+        project_name: file.path.clone(),
+        provider: "Modrinth".to_string(),
+        reason,
+        project_url,
+        pending: crate::curseforge_manual::PendingManualFile {
+            project_id: 0,
+            file_id: 0,
+            expected_file_name: Path::new(&file.path)
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or(&file.path)
+                .to_string(),
+            expected_byte_size: file.file_size,
+            dest,
+        },
+        expected_sha512: file.hashes.sha512.clone(),
+    });
 }
 
 fn rollback_written(fs: &dyn FileSystem, written: &[PathBuf]) {
@@ -694,6 +767,94 @@ fn disable_override_jar(fs: &dyn FileSystem, path: &Path, disabled: &mut Vec<Pat
     }
 }
 
+/// A blocked CurseForge file may still have an exact, compatible Modrinth
+/// counterpart. MSC only uses that route when the project title matches
+/// exactly after normalization and the selected Modrinth file has the same
+/// filename; a merely similar search result is left for the user to review.
+struct ModrinthRecoveryRequest<'a> {
+    project_name: Option<&'a str>,
+    expected_file_name: &'a str,
+    version_label: &'a str,
+}
+
+fn try_install_confident_modrinth_match(
+    transport: &dyn AddonTransport,
+    fs: &dyn FileSystem,
+    add_on_folder: &Path,
+    flavor: JavaServerFlavor,
+    minecraft_version: &str,
+    request: ModrinthRecoveryRequest<'_>,
+) -> Option<PathBuf> {
+    let project_name = request
+        .project_name
+        .filter(|name| !name.trim().is_empty())?;
+    let loaders: Vec<String> = flavor
+        .modrinth_loader_facets()
+        .iter()
+        .map(|loader| loader.to_string())
+        .collect();
+    let Ok(search) = provider::modrinth_search(
+        transport,
+        project_name,
+        "mod",
+        &loaders,
+        Some(minecraft_version),
+        10,
+        0,
+    ) else {
+        return None;
+    };
+    let project_id =
+        crate::addon_updates::find_confident_dependency_match(project_name, &search.hits)?;
+    let hit = search
+        .hits
+        .iter()
+        .find(|hit| hit.project_id == project_id)?;
+    if hit.is_client_only() {
+        return None;
+    }
+    let Ok(versions) = provider::modrinth_project_versions(
+        transport,
+        &project_id,
+        &loaders,
+        Some(minecraft_version),
+    ) else {
+        return None;
+    };
+    let expected_lower = request.expected_file_name.to_ascii_lowercase();
+    let (download_url, version_number) = versions.iter().find_map(|version| {
+        if !version.game_versions.iter().any(|v| v == minecraft_version)
+            || !version
+                .loaders
+                .iter()
+                .any(|loader| loaders.iter().any(|wanted| wanted == loader))
+        {
+            return None;
+        }
+        let file = msc_domain::addon_provider::modrinth_primary_file(&version.files)?;
+        (file.filename.to_ascii_lowercase() == expected_lower)
+            .then(|| (file.url.clone(), version.version_number.clone()))
+    })?;
+    if fs.create_dir_all(add_on_folder).is_err() {
+        return None;
+    }
+    let destination = add_on_folder.join(request.expected_file_name);
+    addon_store::install_verified_file(
+        transport,
+        fs,
+        &download_url,
+        if version_number.is_empty() {
+            request.version_label
+        } else {
+            &version_number
+        },
+        None,
+        &destination,
+    )
+    .is_ok()
+    .then_some(destination)
+}
+
 // ---------------------------------------------------------------------
 // P8.20: transactional CurseForge import
 // ---------------------------------------------------------------------
@@ -748,6 +909,9 @@ pub struct CurseForgeImportReport {
     /// — D-027's own pending list, ready for `curseforge_manual::
     /// complete_pending_file` once the client uploads each one.
     pub blocked_files: Vec<crate::curseforge_manual::PendingManualFile>,
+    /// Blocked and failed files, enriched with provider links and a safe
+    /// upload target for the recovery sheet.
+    pub unresolved_files: Vec<UnresolvedModpackFile>,
     pub disabled_client_only_overrides: Vec<PathBuf>,
     pub pack_name: String,
     pub pack_version: String,
@@ -799,6 +963,17 @@ pub fn import_curseforge(
     })?;
     let by_file_id: HashMap<i64, &msc_domain::addon_provider::CurseForgeFile> =
         resolved.iter().map(|f| (f.id, f)).collect();
+    let blocked_mod_ids: Vec<i64> = resolved
+        .iter()
+        .filter(|file| file.download_url.is_none())
+        .map(|file| file.mod_id)
+        .collect();
+    let blocked_projects =
+        provider::curseforge_mods(transport, secrets, &blocked_mod_ids).unwrap_or_default();
+    let projects_by_id: HashMap<i64, &msc_domain::addon_provider::CurseForgeMod> = blocked_projects
+        .iter()
+        .map(|project| (project.id, project))
+        .collect();
 
     let mut report = CurseForgeImportReport {
         pack_name: metadata.name.clone(),
@@ -813,6 +988,23 @@ pub fn import_curseforge(
             break;
         }
         let Some(file) = by_file_id.get(&manifest_file.file_id) else {
+            let pending = crate::curseforge_manual::PendingManualFile {
+                project_id: manifest_file.project_id,
+                file_id: manifest_file.file_id,
+                expected_file_name: format!("file-{}.jar", manifest_file.file_id),
+                expected_byte_size: 0,
+                dest: add_on_folder.join(format!("file-{}.jar", manifest_file.file_id)),
+            };
+            report.unresolved_files.push(UnresolvedModpackFile {
+                file_id: manifest_file.file_id.to_string(),
+                file_name: pending.expected_file_name.clone(),
+                project_name: "Unknown CurseForge file".to_string(),
+                provider: "CurseForge".to_string(),
+                reason: "CurseForge did not return metadata for this file.".to_string(),
+                project_url: None,
+                pending,
+                expected_sha512: None,
+            });
             report.failed_files.push((
                 manifest_file.file_id,
                 "CurseForge did not return this file id".to_string(),
@@ -820,23 +1012,78 @@ pub fn import_curseforge(
             continue;
         };
         let Some(download_url) = &file.download_url else {
-            report
-                .blocked_files
-                .push(crate::curseforge_manual::PendingManualFile {
-                    project_id: manifest_file.project_id,
-                    file_id: manifest_file.file_id,
-                    expected_file_name: file.file_name.clone(),
-                    expected_byte_size: file.file_length,
-                    dest: add_on_folder.join(&file.file_name),
+            let pending = crate::curseforge_manual::PendingManualFile {
+                project_id: manifest_file.project_id,
+                file_id: manifest_file.file_id,
+                expected_file_name: file.file_name.clone(),
+                expected_byte_size: file.file_length,
+                dest: add_on_folder.join(&file.file_name),
+            };
+            let project = projects_by_id.get(&file.mod_id).copied();
+            let project_name = project
+                .map(|project| project.name.clone())
+                .unwrap_or_else(|| file.file_name.clone());
+            let project_url = project
+                .and_then(|project| project.website_url().map(str::to_string))
+                .or_else(|| {
+                    Some(format!(
+                        "https://www.curseforge.com/minecraft/search?search={}",
+                        file.file_name.replace(' ', "%20")
+                    ))
                 });
+
+            if let Some(installed_path) = try_install_confident_modrinth_match(
+                transport,
+                fs,
+                &add_on_folder,
+                flavor,
+                &metadata.minecraft_version,
+                ModrinthRecoveryRequest {
+                    project_name: project.map(|project| project.name.as_str()),
+                    expected_file_name: &file.file_name,
+                    version_label: &metadata.version_id,
+                },
+            ) {
+                written.push(installed_path.clone());
+                report.installed_files.push(installed_path);
+                continue;
+            }
+
+            report.blocked_files.push(pending.clone());
+            report.unresolved_files.push(UnresolvedModpackFile {
+                file_id: manifest_file.file_id.to_string(),
+                file_name: file.file_name.clone(),
+                project_name,
+                provider: "CurseForge".to_string(),
+                reason: "The author blocks CurseForge API downloads for this file.".to_string(),
+                project_url,
+                pending,
+                expected_sha512: None,
+            });
             continue;
         };
         let dest = add_on_folder.join(&file.file_name);
         if fs.create_dir_all(&add_on_folder).is_err() {
-            report.failed_files.push((
-                manifest_file.file_id,
-                "could not create destination directory".to_string(),
-            ));
+            let reason = "could not create destination directory".to_string();
+            report
+                .failed_files
+                .push((manifest_file.file_id, reason.clone()));
+            report.unresolved_files.push(UnresolvedModpackFile {
+                file_id: manifest_file.file_id.to_string(),
+                file_name: file.file_name.clone(),
+                project_name: file.file_name.clone(),
+                provider: "CurseForge".to_string(),
+                reason,
+                project_url: None,
+                pending: crate::curseforge_manual::PendingManualFile {
+                    project_id: manifest_file.project_id,
+                    file_id: manifest_file.file_id,
+                    expected_file_name: file.file_name.clone(),
+                    expected_byte_size: file.file_length,
+                    dest: dest.clone(),
+                },
+                expected_sha512: None,
+            });
             continue;
         }
         match addon_store::install_verified_file(
@@ -852,9 +1099,31 @@ pub fn import_curseforge(
                 report.installed_files.push(dest);
             }
             Err(e) => {
+                let reason = e.to_string();
                 report
                     .failed_files
-                    .push((manifest_file.file_id, e.to_string()));
+                    .push((manifest_file.file_id, reason.clone()));
+                report.unresolved_files.push(UnresolvedModpackFile {
+                    file_id: manifest_file.file_id.to_string(),
+                    file_name: file.file_name.clone(),
+                    project_name: projects_by_id
+                        .get(&file.mod_id)
+                        .map(|project| project.name.clone())
+                        .unwrap_or_else(|| file.file_name.clone()),
+                    provider: "CurseForge".to_string(),
+                    reason,
+                    project_url: projects_by_id
+                        .get(&file.mod_id)
+                        .and_then(|project| project.website_url().map(str::to_string)),
+                    pending: crate::curseforge_manual::PendingManualFile {
+                        project_id: manifest_file.project_id,
+                        file_id: manifest_file.file_id,
+                        expected_file_name: file.file_name.clone(),
+                        expected_byte_size: file.file_length,
+                        dest: dest.clone(),
+                    },
+                    expected_sha512: None,
+                });
             }
         }
     }

@@ -12528,11 +12528,16 @@
               "world-thumbnail",
               "modpack-archive",
               "addon-local-file",
-              "curseforge-manual-file"
+              "curseforge-manual-file",
+              "modpack-unresolved-file"
             ]
           },
           "contentType": {
             "type": "string"
+          },
+          "fileName": {
+            "type": "string",
+            "description": "The client-provided name of the file in this staged upload, used to preserve the provider's expected filename during manual modpack recovery."
           },
           "operationId": {
             "type": "string",
@@ -12612,6 +12617,18 @@
           },
           "projectName": {
             "type": "string"
+          },
+          "provider": {
+            "type": "string",
+            "description": "Provider that still owns the unresolved file, such as Modrinth or CurseForge."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why MSC could not install the file automatically."
+          },
+          "projectUrl": {
+            "type": "string",
+            "description": "The provider page where the user can obtain the exact file."
           }
         },
         "required": [
@@ -12767,11 +12784,18 @@
           },
           "stagedUploadId": {
             "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "upload",
+              "skip"
+            ],
+            "description": "upload validates and installs the staged file; skip records the unresolved file in Overview notes without installing it."
           }
         },
         "required": [
-          "fileId",
-          "stagedUploadId"
+          "fileId"
         ]
       },
       "ModpackManualFileResultDTO": {

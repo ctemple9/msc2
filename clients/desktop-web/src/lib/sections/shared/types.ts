@@ -13,8 +13,9 @@ export interface ScreenApi {
   upload?(
     purpose: Schema['StagedUploadBeginRequestDTO']['purpose'],
     bytes: Uint8Array,
-    /** curseforge-manual-file only: which pending operation/file this upload resumes. */
-    options?: { operationId?: string; fileId?: string },
+    /** Modpack recovery uploads are bound to one operation/file and retain the
+     * browser's original name for exact filename validation. */
+    options?: { operationId?: string; fileId?: string; fileName?: string },
   ): Promise<Schema['StagedUploadCompleteResultDTO']>;
   download?(id: string, maxBytes?: number): Promise<Uint8Array>;
 }

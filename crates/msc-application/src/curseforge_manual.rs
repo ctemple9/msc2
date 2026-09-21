@@ -63,6 +63,7 @@ pub enum ManualFileError {
         expected: u64,
         actual: u64,
     },
+    HashMismatch,
     /// The uploaded bytes don't open as a real zip/jar archive at all.
     NotAValidJar,
     Io(String),
@@ -75,6 +76,7 @@ impl fmt::Display for ManualFileError {
             Self::SizeMismatch { expected, actual } => {
                 write!(f, "uploaded file is {actual} bytes, expected {expected}")
             }
+            Self::HashMismatch => write!(f, "uploaded file does not match the modpack hash"),
             Self::NotAValidJar => write!(f, "uploaded file is not a valid jar/zip archive"),
             Self::Io(e) => write!(f, "{e}"),
         }
@@ -135,6 +137,26 @@ pub fn complete_pending_file(
     pending: &PendingManualFile,
     is_only_remaining_pending: bool,
 ) -> Result<PathBuf, ManualFileError> {
+    complete_pending_file_with_hash(
+        fs,
+        staged_local_path,
+        staged_filename,
+        pending,
+        is_only_remaining_pending,
+        None,
+    )
+}
+
+/// Variant used by `.mrpack` recovery, where the manifest supplies a
+/// publisher hash in addition to the filename and byte-size checks.
+pub fn complete_pending_file_with_hash(
+    fs: &dyn FileSystem,
+    staged_local_path: &Path,
+    staged_filename: &str,
+    pending: &PendingManualFile,
+    is_only_remaining_pending: bool,
+    expected_sha512: Option<&str>,
+) -> Result<PathBuf, ManualFileError> {
     if !filename_matches(
         &pending.expected_file_name,
         staged_filename,
@@ -145,7 +167,7 @@ pub fn complete_pending_file(
     let meta = fs
         .stat(staged_local_path)
         .map_err(|e| ManualFileError::Io(e.to_string()))?;
-    if meta.size != pending.expected_byte_size {
+    if pending.expected_byte_size > 0 && meta.size != pending.expected_byte_size {
         return Err(ManualFileError::SizeMismatch {
             expected: pending.expected_byte_size,
             actual: meta.size,
@@ -162,6 +184,12 @@ pub fn complete_pending_file(
     let bytes = fs
         .read(staged_local_path)
         .map_err(|e| ManualFileError::Io(e.to_string()))?;
+    if let Some(expected) = expected_sha512 {
+        let actual = msc_infrastructure::download_staging::sha512_hex(&bytes);
+        if !actual.eq_ignore_ascii_case(expected) {
+            return Err(ManualFileError::HashMismatch);
+        }
+    }
     fs.write(&pending.dest, &bytes)
         .map_err(|e| ManualFileError::Io(e.to_string()))?;
     Ok(pending.dest.clone())

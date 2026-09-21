@@ -3481,6 +3481,9 @@ mod tests {
             "pack-upload".to_string(),
             StagedUpload {
                 purpose: msc_api::dto::StagedUploadPurposeDto::ModpackArchive,
+                file_name: None,
+                operation_id: None,
+                file_id: None,
                 expires_at_unix: now_unix() + 60,
                 max_bytes: 1024,
                 path: staged_path.clone(),

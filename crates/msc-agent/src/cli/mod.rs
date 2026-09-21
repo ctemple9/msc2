@@ -1433,6 +1433,12 @@ async fn stage_file_upload(
             &StagedUploadBeginRequestDto {
                 purpose,
                 content_type: None,
+                file_name: Some(
+                    path.file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .into_owned(),
+                ),
                 operation_id,
                 file_id,
             },
@@ -1955,6 +1961,7 @@ async fn run_world(common: CommonArgs, command: WorldCommand) -> Result<(), CliE
                     &StagedUploadBeginRequestDto {
                         purpose: StagedUploadPurposeDto::WorldImport,
                         content_type: None,
+                        file_name: None,
                         operation_id: None,
                         file_id: None,
                     },
@@ -1992,6 +1999,7 @@ async fn run_world(common: CommonArgs, command: WorldCommand) -> Result<(), CliE
                             &StagedUploadBeginRequestDto {
                                 purpose: StagedUploadPurposeDto::ActiveWorldReplace,
                                 content_type: None,
+                                file_name: None,
                                 operation_id: None,
                                 file_id: None,
                             },
@@ -2870,7 +2878,8 @@ async fn run_modpack(common: CommonArgs, command: ModpackCommand) -> Result<(), 
                     &format!("/v1/modpacks/{operation_id}/manual-file"),
                     &ModpackManualFileRequestDto {
                         file_id,
-                        staged_upload_id,
+                        staged_upload_id: Some(staged_upload_id),
+                        action: "upload".to_string(),
                     },
                 )
                 .await?;

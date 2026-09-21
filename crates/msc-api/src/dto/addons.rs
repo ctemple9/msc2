@@ -305,6 +305,16 @@ pub struct ModpackManualFileDto {
     pub file_id: String,
     pub file_name: String,
     pub project_name: String,
+    /// Provider that still owns the unresolved file, such as Modrinth or
+    /// CurseForge. Older agents omit this field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+    /// Why MSC could not install the file automatically.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// The provider page where the user can obtain the exact file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -368,7 +378,12 @@ pub struct ModpackImportResultDto {
 #[serde(rename_all = "camelCase")]
 pub struct ModpackManualFileRequestDto {
     pub file_id: String,
-    pub staged_upload_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub staged_upload_id: Option<String>,
+    /// `upload` accepts and validates the staged JAR; `skip` leaves it out of
+    /// the server and records it in the Overview notes.
+    #[serde(default)]
+    pub action: String,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]

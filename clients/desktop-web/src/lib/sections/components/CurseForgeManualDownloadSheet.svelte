@@ -1,15 +1,10 @@
 <script lang="ts">
-  // Ports CurseForgeManualDownloadSheet.swift's purpose (D-027): resolve every
-  // CurseForge file an author blocked from API distribution before the
-  // modpack-import operation can finish. MSC 1 opens each file's own
-  // CurseForge download page directly and watches ~/Downloads for the
-  // matching jar to appear; ModpackManualFileEntryDTO carries only
-  // fileId/fileName/projectName -- no project or file URL -- so there's
-  // nothing to build a real "Open in CurseForge" link from here. Instead:
-  // the user finds and downloads the file themselves (named plainly below),
-  // then stages it through the same file-picker pattern the rest of this
-  // client uses and this sheet binds it to the pending operation via
-  // POST /v1/modpacks/{operationId}/manual-file.
+  // Ports CurseForgeManualDownloadSheet.swift's purpose (D-027): resolve
+  // provider-blocked or failed modpack files before the import operation can
+  // finish. The agent supplies the reason and provider page when it has one;
+  // the user can open that page, choose or drop the matching JAR, retry after
+  // a failed attempt, or explicitly skip the file. Every upload is bound to
+  // POST /v1/modpacks/{operationId}/manual-file for validation on the agent.
   import Sheet from '../../components/base/Sheet.svelte';
   import Button from '../../components/base/Button.svelte';
   import Field from '../../components/base/Field.svelte';
@@ -17,15 +12,19 @@
   import { getPlatform } from '../../platform';
   import type { Schema, ScreenApi } from '../shared/types';
   import { errorMessage, mutate } from '../shared/types';
+  import { writeUnresolvedModpackNotes } from '../home/notes';
   import { addonPaths } from './model';
 
   export let api: ScreenApi | undefined = undefined;
   export let operationId: string;
   export let files: Schema['ModpackManualFileEntryDTO'][];
+  export let hostId = 'local-agent';
+  export let serverId = 'survival';
   export let onClose: () => void;
   export let onAllResolved: () => void;
 
   let remaining = files;
+  let skippedFiles: Schema['ModpackManualFileEntryDTO'][] = [];
   let staging: Set<string> = new Set();
   let errorByFile: Record<string, string> = {};
   let fileInput: HTMLInputElement;
@@ -55,20 +54,55 @@
     });
   }
 
-  async function stageAndBind(entry: Schema['ModpackManualFileEntryDTO']): Promise<void> {
+  type PickedFile = { name: string; bytes: Uint8Array };
+
+  function updateNotes(next: Schema['ModpackManualFileEntryDTO'][] = remaining): void {
+    writeUnresolvedModpackNotes(
+      hostId,
+      serverId,
+      next.map((entry) => ({
+        fileName: entry.fileName,
+        provider: entry.provider,
+        reason: entry.reason,
+      })),
+      skippedFiles.map((entry) => ({
+        fileName: entry.fileName,
+        provider: entry.provider,
+        reason: entry.reason,
+        skipped: true,
+      })),
+    );
+  }
+
+  function entryForFileName(name: string): Schema['ModpackManualFileEntryDTO'] | undefined {
+    const lower = name.toLowerCase();
+    return (
+      remaining.find((entry) => entry.fileName.toLowerCase() === lower) ??
+      (remaining.length === 1 ? remaining[0] : undefined)
+    );
+  }
+
+  async function stageAndBind(
+    entry: Schema['ModpackManualFileEntryDTO'],
+    supplied?: PickedFile,
+  ): Promise<void> {
     if (!api?.upload) return;
-    const picked = await (
-      await getPlatform()
-    ).pickFile({ label: `Choose ${entry.fileName}` }, () => pickBrowserFile());
+    const picked =
+      supplied ??
+      (await (await getPlatform()).pickFile({ label: `Choose ${entry.fileName}` }, () => pickBrowserFile()));
     if (!picked) return;
     staging = new Set(staging).add(entry.fileId);
     const nextErrors = { ...errorByFile };
     delete nextErrors[entry.fileId];
     errorByFile = nextErrors;
     try {
-      const staged = await api.upload('curseforge-manual-file', picked.bytes, {
+      const purpose = entry.provider && entry.provider !== 'CurseForge'
+        ? 'modpack-unresolved-file'
+        : 'curseforge-manual-file';
+      const staged = await api.upload(purpose, picked.bytes, {
         operationId,
         fileId: entry.fileId,
+        fileName: picked.name,
       });
       const result = await mutate<Schema['ModpackManualFileResultDTO']>(
         api,
@@ -76,6 +110,7 @@
         { fileId: entry.fileId, stagedUploadId: staged.stagedUploadId },
       );
       remaining = result.remainingManualFiles;
+      updateNotes();
       if (result.allFilesResolved) onAllResolved();
     } catch (error) {
       errorByFile = {
@@ -86,6 +121,40 @@
       const next = new Set(staging);
       next.delete(entry.fileId);
       staging = next;
+    }
+  }
+
+  async function handleDrop(event: DragEvent): Promise<void> {
+    event.preventDefault();
+    const file = event.dataTransfer?.files?.[0];
+    if (!file) return;
+    const entry = entryForFileName(file.name);
+    if (!entry) {
+      errorByFile = {
+        ...errorByFile,
+        __drop: 'Drop a file whose name matches one of the unresolved entries.',
+      };
+      return;
+    }
+    await stageAndBind(entry, { name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) });
+  }
+
+  async function skipEntry(entry: Schema['ModpackManualFileEntryDTO']): Promise<void> {
+    try {
+      const result = await mutate<Schema['ModpackManualFileResultDTO']>(
+        api,
+        addonPaths.manualFile(operationId),
+        { fileId: entry.fileId, action: 'skip' },
+      );
+      skippedFiles = [...skippedFiles, entry];
+      remaining = result.remainingManualFiles;
+      updateNotes();
+      if (result.allFilesResolved) onAllResolved();
+    } catch (error) {
+      errorByFile = {
+        ...errorByFile,
+        [entry.fileId]: errorMessage(error) || 'That file could not be skipped.',
+      };
     }
   }
 
@@ -182,12 +251,31 @@
         </div>
       </div>
     {/if}
+    <div
+      class="drop-area"
+      role="button"
+      tabindex="0"
+      aria-label="Drop a downloaded modpack file"
+      ondragover={(event) => event.preventDefault()}
+      ondrop={handleDrop}
+    >
+      Drop a downloaded JAR here, or choose it beside the matching file below.
+    </div>
+    {#if errorByFile.__drop}<p class="error drop-error">{errorByFile.__drop}</p>{/if}
     <div class="list">
       {#each remaining as entry (entry.fileId)}
         <div class="row">
           <div class="info">
             <span class="name">{entry.projectName || entry.fileName}</span>
             <span class="filename">{entry.fileName}</span>
+            {#if entry.provider || entry.reason}
+              <span class="reason">{entry.provider ?? 'Provider'}: {entry.reason ?? 'Needs attention'}</span>
+            {/if}
+            {#if entry.projectUrl}
+              <a class="provider-link" href={entry.projectUrl} target="_blank" rel="noreferrer">
+                Open {entry.provider ?? 'provider'} page
+              </a>
+            {/if}
             {#if errorByFile[entry.fileId]}
               <span class="error">{errorByFile[entry.fileId]}</span>
             {/if}
@@ -198,7 +286,14 @@
             disabled={staging.has(entry.fileId)}
             onclick={() => void stageAndBind(entry)}
           >
-            {staging.has(entry.fileId) ? 'Staging…' : 'Choose File…'}
+            {staging.has(entry.fileId)
+              ? 'Staging…'
+              : errorByFile[entry.fileId]
+                ? 'Retry'
+                : 'Choose File…'}
+          </Button>
+          <Button size="sm" variant="secondary" onclick={() => void skipEntry(entry)}>
+            Skip
           </Button>
         </div>
       {/each}
@@ -221,6 +316,15 @@
     flex-direction: column;
     gap: 4px;
     margin-bottom: 12px;
+  }
+  .drop-area {
+    margin: 4px 0 10px;
+    padding: 12px;
+    border: 1px dashed var(--msc2-hairline);
+    border-radius: 7px;
+    color: var(--msc2-text-tertiary);
+    font-size: 11px;
+    text-align: center;
   }
   .row {
     display: flex;
@@ -249,9 +353,21 @@
     font-size: 11px;
     color: var(--msc2-text-tertiary);
   }
+  .reason {
+    font-size: 11px;
+    color: var(--msc2-status-warn);
+  }
+  .provider-link {
+    width: fit-content;
+    font-size: 11px;
+    color: var(--msc2-text-secondary);
+  }
   .error {
     font-size: 11px;
     color: var(--msc2-status-error);
+  }
+  .drop-error {
+    margin: 0 0 8px;
   }
   .footer {
     display: flex;

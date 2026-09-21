@@ -395,6 +395,15 @@ The ATM10 discovery work and this additional usability work share Phase 15, but 
 - **Batch:** K — modpack summary corrections
 - **Commit:** `P15.17: polish modpack completion summary wording`
 
+### P15.18 — Simplify server-created confirmation status
+
+- **Status:** awaiting verification
+- **Files:** `clients/desktop-web/src/lib/sections/fleet/wizard/ConfirmStep.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Keep the green created-state label but hide the decorative status dot, leaving a text-only confirmation in the final Add Server step.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** K — add-server confirmation polish
+- **Commit:** `P15.18: simplify server-created confirmation status`
+
 ### Additional Phase 15 scope — world packs and modpack identity
 
 Here is the full plan we discussed. This is only recorded in the chat for now; I have not added it to the rolling plan.

@@ -12,9 +12,10 @@
   // AddServerWizard's own footer rather than this component growing its own.
   //
   // Success state reuses StatusDot (docs/msc2/antiAIslop.md tell #12's own
-  // "correct usage" example -- a defined state, always labeled) instead of
-  // the oracle's large accent-colored checkmark circle, which is exactly
-  // the icon-in-a-tinted-box tell (#6) applied to a status readout.
+  // "correct usage" example -- a defined state, always labeled) with its
+  // decorative dot hidden, instead of the oracle's large accent-colored
+  // checkmark circle, which is exactly the icon-in-a-tinted-box tell (#6)
+  // applied to a status readout.
   //
   // P12.18h adds the Import path's own summary/hint branch alongside the
   // Fresh one this step already had -- same component, same "parent owns
@@ -92,7 +93,7 @@
 <div class="confirm" use:onboardingAnchor={'ob_confirm_page'}>
   {#if createSucceeded}
     <div class="success">
-      <StatusDot tone="ok" label="{displayName || draft.serverName} created" />
+      <StatusDot tone="ok" showDot={false} label="{displayName || draft.serverName} created" />
       <p class="hint">
         {#if isExistingImport}
           Open Server Settings to review defaults.{#if !draft.importEulaAccepted}

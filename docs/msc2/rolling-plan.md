@@ -352,7 +352,7 @@ The ATM10 discovery work and this additional usability work share Phase 15, but 
 
 ### P15.13 — Review the additional Phase 15 acceptance flow
 
-- **Status:** planned
+- **Status:** awaiting verification
 - **Files:** `docs/msc2/capabilities/phase15-acceptance.md`, `docs/msc2/rolling-plan.md`, `clients/desktop-web/src/lib/sections/home/HomeSection.svelte`, `clients/desktop-web/src/lib/sections/home/ActiveWorldCard.svelte`, `clients/desktop-web/src/lib/components/base/Sheet.svelte`, `clients/desktop-web/src-tauri/tauri.conf.json`
 - **What:** Record acceptance evidence for server notes visible from a second client, the 1240×760 initial window, same-day Dawn/Dusk/Night behavior, live Active World time without card growth, hidden Modrinth scrollbar, and sheets surviving outside clicks. Confirm the new behavior does not regress explicit close, Cancel, Escape, or existing modpack note updates.
 - **Verify:** `cargo check -p msc-agent -p msc-application && npm --prefix clients/desktop-web run check`

@@ -2240,7 +2240,8 @@ impl LifecycleRoutesState {
             match event {
                 BedrockRuntimeEvent::ConsoleLine(line) => {
                     let origin = self.console_line_origin(&line);
-                    if !self.record_time_query_line(&line, origin) {
+                    let internal_time_query = self.record_time_query_line(&line, origin);
+                    if !internal_time_query && !Self::is_hidden_time_query_line(&line) {
                         self.inner
                             .console
                             .push(ConsoleLine::with_origin("bedrock", None, origin, line));
@@ -2438,7 +2439,8 @@ impl LifecycleRoutesState {
             ProcessEvent::Output { .. } | ProcessEvent::Exited(_) => "stdout",
         };
         let origin = self.console_line_origin(text);
-        if !self.record_time_query_line(text, origin) {
+        let internal_time_query = self.record_time_query_line(text, origin);
+        if !internal_time_query && !Self::is_hidden_time_query_line(text) {
             self.inner.console.push(ConsoleLine::with_origin(
                 source,
                 None,
@@ -2446,6 +2448,22 @@ impl LifecycleRoutesState {
                 text.to_string(),
             ));
         }
+    }
+
+    fn is_hidden_time_query_line(line: &str) -> bool {
+        let clean = strip_ansi(line).trim().to_ascii_lowercase();
+        let command = clean
+            .strip_prefix("> ")
+            .unwrap_or(&clean)
+            .trim_start_matches('/');
+        if matches!(command, "time query day" | "time query daytime") {
+            return true;
+        }
+        let message = command
+            .rsplit_once(']')
+            .map(|(_, message)| message.trim())
+            .unwrap_or(command);
+        message.starts_with("day is ") || message.starts_with("daytime is ")
     }
 
     fn console_line_origin(&self, line: &str) -> ConsoleLineOrigin {

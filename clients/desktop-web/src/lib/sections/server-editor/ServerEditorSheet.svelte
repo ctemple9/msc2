@@ -110,6 +110,7 @@
           server={currentServer}
           {isActive}
           {canControl}
+          {onServersChanged}
           onRequestActivate={requestActivate}
         />
       {:else}

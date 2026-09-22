@@ -736,7 +736,11 @@
                   <span class="name">MCXboxBroadcast</span>
                   <Badge variant="category">Broadcast</Badge>
                 </div>
-                <span class="subtitle">{jarStatus.filename ?? 'Not downloaded'}</span>
+                <span class="subtitle"
+                  >{jarStatus.version
+                    ? `Version ${jarStatus.version}`
+                    : (jarStatus.filename ?? 'Not downloaded')}</span
+                >
               </div>
               <span class="status-label">{jarStatus.installed ? 'Installed' : 'Missing'}</span>
               <Button
@@ -763,7 +767,11 @@
                 <span class="name">MCXboxBroadcast</span>
                 <Badge variant="category">Broadcast</Badge>
               </div>
-              <span class="subtitle">{jarStatus.filename ?? 'Not downloaded'}</span>
+              <span class="subtitle"
+                >{jarStatus.version
+                  ? `Version ${jarStatus.version}`
+                  : (jarStatus.filename ?? 'Not downloaded')}</span
+              >
             </div>
             <StatusDot
               tone={broadcastStatus.bedrockBroadcastRunning ? 'ok' : 'error'}

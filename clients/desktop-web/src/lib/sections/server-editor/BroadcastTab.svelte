@@ -28,6 +28,7 @@
   export let server: Schema['ServerDTO'];
   export let isActive = false;
   export let canControl = true;
+  export let onServersChanged: () => Promise<void> = async () => {};
   export let onRequestActivate: () => void;
 
   $: isJava = server.serverType !== 'bedrock';
@@ -95,6 +96,15 @@
         enabled,
       });
       xboxEnabled = enabled;
+      await onServersChanged();
+      if (enabled && !broadcastRunning && serverStatus.running) {
+        const result = await mutate<Schema['BroadcastSimpleResultDTO']>(
+          api,
+          serverEditorPaths.broadcastStart,
+        );
+        if (result.operationId) await pollOperation(api, result.operationId);
+        status = await call(api, status, serverEditorPaths.broadcastStatus);
+      }
     } catch (error) {
       notice = errorMessage(error);
     } finally {

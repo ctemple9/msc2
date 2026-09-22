@@ -1524,28 +1524,32 @@ pub async fn broadcast_jar_status(
     State(state): State<NetworkingState>,
 ) -> Json<BroadcastJarStatusDto> {
     let directory = state.helper_cache.join("xbox-broadcast");
-    let filename = std::fs::read_dir(directory)
+    let artifact = std::fs::read_dir(directory)
         .ok()
         .into_iter()
         .flatten()
         .find_map(|version| {
             let version = version.ok()?.path();
-            std::fs::read_dir(version)
+            std::fs::read_dir(&version)
                 .ok()?
                 .flatten()
                 .find_map(|entry| {
                     let path = entry.path();
                     if path.extension().and_then(|ext| ext.to_str()) == Some("jar") {
-                        Some(path.file_name()?.to_string_lossy().into_owned())
+                        Some((
+                            path.file_name()?.to_string_lossy().into_owned(),
+                            version.file_name()?.to_string_lossy().into_owned(),
+                        ))
                     } else {
                         None
                     }
                 })
         });
     Json(BroadcastJarStatusDto {
-        installed: filename.is_some(),
+        installed: artifact.is_some(),
         downloading: false,
-        filename,
+        filename: artifact.as_ref().map(|(filename, _)| filename.clone()),
+        version: artifact.map(|(_, version)| version),
     })
 }
 

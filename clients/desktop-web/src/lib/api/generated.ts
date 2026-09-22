@@ -6596,6 +6596,7 @@ export interface components {
       downloading: boolean;
       filename?: string;
       installed: boolean;
+      version?: string;
     } & {
       [key: string]: unknown;
     };

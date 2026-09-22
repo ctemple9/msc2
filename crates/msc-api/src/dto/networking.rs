@@ -252,6 +252,7 @@ pub struct BroadcastJarStatusDto {
     pub installed: bool,
     pub downloading: bool,
     pub filename: Option<String>,
+    pub version: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

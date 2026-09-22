@@ -442,7 +442,7 @@ The ATM10 discovery work and this additional usability work share Phase 15, but 
 
 ### Additional Phase 15 scope — world packs and modpack identity
 
-Here is the full plan we discussed. This is only recorded in the chat for now; I have not added it to the rolling plan.
+This scope and its planned implementation steps are recorded here for Phase 15.
 
 ## Overall scope
 
@@ -460,7 +460,7 @@ Client-only content is deliberately out of scope:
 - skin packs;
 - client-only mods.
 
-Resource-pack dependencies still need to be detected where required for a behavior pack to function correctly.
+Resource-pack dependencies still need to be detected where required for a behavior pack to function correctly. If the linked resource pack is included with the downloaded add-on, MSC installs the complete add-on together. If it is not included, MSC stops and explains the missing dependency; it does not install an incomplete behavior pack or provide a separate resource-pack browser.
 
 ## Java Worlds tab
 
@@ -491,7 +491,7 @@ Browse Datapacks
 
 button, similar to the existing Browse Mods button.
 
-The first provider should likely be Modrinth, which already has a Data Packs catalog. [Modrinth Data Packs](https://modrinth.com/discover/datapacks)
+The first provider is Modrinth, which already has a Data Packs catalog. [Modrinth Data Packs](https://modrinth.com/discover/datapacks)
 
 ### Datapack installation behavior
 
@@ -603,10 +603,7 @@ The shared BDS folders can remain an implementation detail or future feature. Th
 
 Some behavior packs require a linked resource pack. We are not building a resource-pack browser, but MSC must still inspect and explain that dependency.
 
-The options should be:
-
-- install the required linked resource pack automatically as part of the add-on;
-- or stop and explain that the behavior pack cannot be installed alone.
+If the linked resource pack is included with the downloaded add-on, install it together with the behavior pack. Otherwise stop and explain that the behavior pack cannot be installed alone. Do not silently install an incomplete behavior pack.
 
 MSC must not silently install an incomplete behavior pack. Bedrock manifests explicitly support pack dependencies. [Bedrock manifest reference](https://learn.microsoft.com/en-us/minecraft/creator/reference/content/addonsreference/packmanifest?view=minecraft-bedrock-stable)
 
@@ -682,6 +679,51 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Verify:** `cargo fmt --all -- --check && cargo check -p msc-domain -p msc-application -p msc-agent && cargo clippy -p msc-domain -p msc-application -p msc-agent -- -D warnings`
 - **Batch:** M — modpack identity
 - **Commit:** `P15.24: persist modpack source identity`
+
+### P15.25 — Add world-slot pack metadata and lifecycle support
+
+- **Status:** awaiting verification
+- **Files:** `crates/msc-domain/src/world_profile.rs`, `crates/msc-domain/src/backup.rs`, `crates/msc-application/src/worlds.rs`, `crates/msc-application/src/backups.rs`, `crates/msc-infrastructure/src/archive.rs`, `crates/msc-infrastructure/src/world_store.rs`, `crates/msc-api/src/dto/worlds.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/backups.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-application/tests/backup_inventory.rs`, `docs/msc2/api-contract/openapi.json`, `clients/desktop-web/src/lib/api/generated.ts`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
+- **What:** Add edition-aware, world-slot-scoped pack records to the existing slot-profile API without routing world packs through the Java mod/plugin system. Keep pack files under the owning world root and carry provider, version, checksum, compatibility, enabled state, and dependency metadata through activation, duplication, backup, restore, export, and import. Backups retain the profile in their sidecar; exported archives carry it in a reserved entry that is not extracted into a Minecraft world. Preserve Java datapack and Bedrock behavior-pack validation as edition-specific rules, and ensure one slot's packs cannot appear in another slot.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-domain -p msc-api -p msc-infrastructure -p msc-application -p msc-agent && cargo clippy -p msc-domain -p msc-api -p msc-infrastructure -p msc-application -p msc-agent -- -D warnings`
+- **Batch:** N — world-slot pack model and persistence
+- **Commit:** `P15.25: persist packs with world slots`
+
+### P15.26 — Browse and install Java datapacks
+
+- **Status:** planned
+- **Files:** `crates/msc-domain/src/addon_provider.rs`, `crates/msc-infrastructure/src/addon_provider.rs`, `crates/msc-application/src/addons.rs`, `crates/msc-agent/src/routes/components.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-api/src/dto/addons.rs`, `crates/msc-api/src/dto/worlds.rs`, `docs/msc2/capabilities/phase15-world-packs.md`
+- **What:** Add the Modrinth Data Packs catalog and installation path for the selected Java world slot. Validate downloaded archives and Java pack metadata, check Minecraft-version compatibility, reject malformed or path-traversing archives, retain provider/version/hash details, back up the world before mutation, and require a stopped server when live changes are unsafe. Report enabled state and update availability when known; follow the P15.23 contract for controls deferred from the first release.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-domain -p msc-api -p msc-infrastructure -p msc-application -p msc-agent && cargo clippy -p msc-domain -p msc-api -p msc-infrastructure -p msc-application -p msc-agent -- -D warnings`
+- **Batch:** O — Java datapacks
+- **Commit:** `P15.26: add Java datapack installation`
+
+### P15.27 — Browse and install Bedrock behavior packs
+
+- **Status:** planned
+- **Files:** `crates/msc-domain/src/bedrock.rs`, `crates/msc-domain/src/addon_dependency.rs`, `crates/msc-infrastructure/src/addon_provider.rs`, `crates/msc-application/src/addons.rs`, `crates/msc-application/src/addon_dependencies.rs`, `crates/msc-application/src/bedrock_service.rs`, `crates/msc-agent/src/routes/bedrock.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-api/src/dto/addons.rs`, `crates/msc-api/src/dto/worlds.rs`, `docs/msc2/capabilities/phase15-world-packs.md`
+- **What:** Add behavior-pack discovery and installation for the selected Bedrock world slot. Validate manifests, UUIDs, versions, minimum Bedrock version, and dependencies. Install a linked resource pack only when it is included with the downloaded add-on; otherwise stop with an actionable explanation and leave the world unchanged. Keep behavior-pack files and configuration world-scoped even though BDS supports shared folders.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-domain -p msc-api -p msc-infrastructure -p msc-application -p msc-agent && cargo clippy -p msc-domain -p msc-api -p msc-infrastructure -p msc-application -p msc-agent -- -D warnings`
+- **Batch:** P — Bedrock behavior packs
+- **Commit:** `P15.27: add Bedrock behavior-pack installation`
+
+### P15.28 — Add world-pack and modpack views
+
+- **Status:** planned
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte`, `clients/desktop-web/src/lib/sections/worlds/model.ts`, `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`, `clients/desktop-web/src/lib/sections/components/model.ts`, `clients/desktop-web/src/lib/sections/addons/AddonsSection.svelte`, `clients/desktop-web/src/lib/sections/addons/model.ts`, `clients/desktop-web/src/lib/api/generated.ts`, `docs/msc2/capabilities/phase15-world-packs.md`
+- **What:** Organize Java Worlds as World Slots, Datapacks, and Backups, and Bedrock Worlds as World Slots, Behavior Packs, and Backups. Show packs for the selected slot with the agreed identity, compatibility, enabled state, source, dependency, and update information; provide the Java Browse Datapacks and Bedrock Browse Behavior Packs flows; explain when a slot must be selected or the server stopped. Show the compact read-only imported-modpack summary above Components without duplicating the component inventory.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** Q — world-pack and modpack client surfaces
+- **Commit:** `P15.28: show world packs and modpack identity`
+
+### P15.29 — Review world-pack portability and modpack identity
+
+- **Status:** planned
+- **Files:** `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`, `crates/msc-domain/src/world_profile.rs`, `crates/msc-application/src/worlds.rs`, `crates/msc-application/src/backups.rs`, `crates/msc-application/src/modpacks.rs`, `clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte`, `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`
+- **What:** Review the Java and Bedrock pack flows against the phase acceptance map: slot isolation and portability across activation, duplication, backup, restore, export, and import; archive and manifest validation; incomplete Bedrock dependency handling; correct imported-modpack identity; and readable edition-specific Worlds views. Record static findings and the remaining owner-run live Minecraft checks. Do not close the phase until the documented acceptance evidence is complete.
+- **Verify:** `rg -n "activation|duplication|backup|restore|export|import|path traversal|linked resource pack|modpack identity|owner verification" docs/msc2/capabilities/phase15-world-packs.md`
+- **Batch:** R — world-pack acceptance review
+- **Commit:** `P15.29: record world-pack acceptance`
 
 ## Proposed Phase 14 — operational refinements
 

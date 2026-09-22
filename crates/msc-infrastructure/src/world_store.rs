@@ -25,7 +25,8 @@ use crate::atomic_write::{AtomicWriteError, atomic_write};
 use crate::fs::FileSystem;
 use msc_domain::world::{self, WorldSlot};
 use msc_domain::world_profile::{
-    WorldGameplay, WorldGeneration, WorldIdentity, WorldProfile, WorldSafety, WorldSafetyState,
+    WorldGameplay, WorldGeneration, WorldIdentity, WorldPackRecord, WorldProfile, WorldSafety,
+    WorldSafetyState,
 };
 use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
@@ -186,6 +187,16 @@ pub fn load_profile(fs: &dyn FileSystem, server_dir: &Path, slot: &WorldSlot) ->
         .unwrap_or_else(|| migrated_profile(slot))
 }
 
+/// Returns the raw profile object for sidecars and portable slot metadata.
+/// Keeping it as JSON preserves pack fields introduced by a newer agent.
+pub fn load_profile_value(fs: &dyn FileSystem, server_dir: &Path, slot: &WorldSlot) -> Value {
+    fs.read(&metadata_path(server_dir, &slot.id))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+        .and_then(|value| value.get("profile").cloned())
+        .unwrap_or_else(|| encode_profile(&migrated_profile(slot)))
+}
+
 /// Persists the profile inside the slot's existing metadata document. The
 /// caller supplies a JSON value so forward-compatible profile properties can
 /// be copied without decoding and re-encoding them through an older schema.
@@ -320,6 +331,10 @@ fn encode_profile(profile: &WorldProfile) -> Value {
     );
     root.insert("gameplay".to_string(), encode_gameplay(&profile.gameplay));
     root.insert("safety".to_string(), encode_safety(&profile.safety));
+    root.insert(
+        "packs".to_string(),
+        serde_json::to_value(&profile.packs).expect("world pack records always serialize"),
+    );
     Value::Object(root)
 }
 
@@ -417,12 +432,18 @@ fn decode_profile(value: &Value) -> Option<WorldProfile> {
     let generation = decode_generation(root.get("generation").unwrap_or(&Value::Null));
     let gameplay = decode_gameplay(root.get("gameplay").unwrap_or(&Value::Null));
     let safety = decode_safety(root.get("safety").unwrap_or(&Value::Null));
+    let packs = root
+        .get("packs")
+        .cloned()
+        .and_then(|value| serde_json::from_value::<Vec<WorldPackRecord>>(value).ok())
+        .unwrap_or_default();
     Some(WorldProfile {
         schema_version,
         identity,
         generation,
         gameplay,
         safety,
+        packs,
     })
 }
 

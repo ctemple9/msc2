@@ -128,6 +128,7 @@ fn backup_inventory_sidecar_present_overrides_filename_derived_defaults() {
         slot_name: Some("Base Camp".to_string()),
         world_seed: Some("12345".to_string()),
         trigger_reason: "pre-restore".to_string(),
+        world_profile: None,
     };
     write_file(
         &zip_path.with_extension("meta.json"),

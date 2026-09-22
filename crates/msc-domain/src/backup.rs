@@ -37,6 +37,9 @@ pub struct BackupMeta {
     pub slot_name: Option<String>,
     pub world_seed: Option<String>,
     pub trigger_reason: String,
+    /// MSC 2's slot-local metadata extension. Optional so historical MSC 1
+    /// backup sidecars remain readable without fabricating a profile.
+    pub world_profile: Option<Value>,
 }
 
 impl BackupMeta {
@@ -53,6 +56,7 @@ impl BackupMeta {
             slot_name: opt_str(v, "slotName")?,
             world_seed: opt_str(v, "worldSeed")?,
             trigger_reason: req_str(v, "triggerReason")?,
+            world_profile: v.get("worldProfile").cloned(),
         })
     }
 
@@ -67,6 +71,9 @@ impl BackupMeta {
             "triggerReason".to_string(),
             Value::String(self.trigger_reason.clone()),
         );
+        if let Some(profile) = &self.world_profile {
+            m.insert("worldProfile".to_string(), profile.clone());
+        }
         Value::Object(m)
     }
 }

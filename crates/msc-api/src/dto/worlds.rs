@@ -16,7 +16,60 @@ pub struct WorldProfileDto {
     pub generation: WorldGenerationDto,
     pub gameplay: WorldGameplayDto,
     pub safety: WorldSafetyDto,
+    #[serde(default)]
+    pub packs: Vec<WorldPackRecordDto>,
     pub field_metadata: BTreeMap<String, WorldProfileFieldMetadataDto>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorldPackRecordDto {
+    pub id: String,
+    pub edition: String,
+    pub kind: String,
+    pub name: String,
+    #[serde(default)]
+    pub source: WorldPackSourceDto,
+    #[serde(default)]
+    pub files: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub checksum: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compatibility: Option<String>,
+    #[serde(default)]
+    pub minecraft_versions: Vec<String>,
+    #[serde(default = "pack_enabled_by_default")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub dependencies: Vec<WorldPackDependencyDto>,
+}
+
+fn pack_enabled_by_default() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct WorldPackSourceDto {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorldPackDependencyDto {
+    pub id: String,
+    pub kind: String,
+    #[serde(default)]
+    pub required: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]

@@ -7441,6 +7441,13 @@
           "safety": {
             "$ref": "#/components/schemas/WorldSafetyDTO"
           },
+          "packs": {
+            "type": "array",
+            "description": "Edition-specific pack records owned by this slot. Pack files stay below this world's root and travel with its archive.",
+            "items": {
+              "$ref": "#/components/schemas/WorldPackRecordDTO"
+            }
+          },
           "fieldMetadata": {
             "type": "object",
             "description": "Metadata keyed by stable profile field key. It tells clients which capability gates the field, when a change takes effect, how confidently the value was read, and where to find the explanation.",
@@ -7455,8 +7462,47 @@
           "generation",
           "gameplay",
           "safety",
+          "packs",
           "fieldMetadata"
         ]
+      },
+      "WorldPackRecordDTO": {
+        "type": "object",
+        "description": "Provider identity and compatibility metadata for a pack owned by one world slot.",
+        "properties": {
+          "id": { "type": "string" },
+          "edition": { "type": "string", "enum": ["java", "bedrock"] },
+          "kind": { "type": "string", "enum": ["java_datapack", "bedrock_behavior_pack"] },
+          "name": { "type": "string" },
+          "source": { "$ref": "#/components/schemas/WorldPackSourceDTO" },
+          "files": { "type": "array", "items": { "type": "string" }, "description": "Relative paths below the owning world root." },
+          "checksum": { "type": "string", "nullable": true },
+          "compatibility": { "type": "string", "nullable": true },
+          "minecraftVersions": { "type": "array", "items": { "type": "string" } },
+          "enabled": { "type": "boolean" },
+          "dependencies": { "type": "array", "items": { "$ref": "#/components/schemas/WorldPackDependencyDTO" } }
+        },
+        "required": ["id", "edition", "kind", "name", "source", "files", "minecraftVersions", "enabled", "dependencies"]
+      },
+      "WorldPackSourceDTO": {
+        "type": "object",
+        "properties": {
+          "provider": { "type": "string", "nullable": true },
+          "projectId": { "type": "string", "nullable": true },
+          "versionId": { "type": "string", "nullable": true },
+          "version": { "type": "string", "nullable": true },
+          "url": { "type": "string", "nullable": true }
+        },
+        "required": []
+      },
+      "WorldPackDependencyDTO": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "type": "string" },
+          "required": { "type": "boolean" }
+        },
+        "required": ["id", "kind", "required"]
       },
       "WorldIdentityDTO": {
         "type": "object",

@@ -37,6 +37,10 @@ use std::path::{Path, PathBuf};
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
+/// Reserved portable metadata entry. It is carried in slot exports but is
+/// never extracted into a running Minecraft world.
+pub const WORLD_PROFILE_ENTRY: &str = ".msc2-world-profile.json";
+
 /// A real Java world's region/entity/poi/data files number in the low
 /// thousands at most (`fixtures/world-archive-safety/
 /// extraction-entry-count-limit-exceeded-rejected.json`'s own reasoning);
@@ -258,6 +262,9 @@ pub fn extract_zip_with_limits(
             .by_index(i)
             .map_err(|e| ArchiveError::Corrupt(e.to_string()))?;
         let name = entry.name().to_string();
+        if name == WORLD_PROFILE_ENTRY {
+            continue;
+        }
         let dest = safe_join(dest_root, &name);
         if entry.is_dir() {
             fs::create_dir_all(&dest).map_err(ArchiveError::Io)?;
@@ -272,6 +279,67 @@ pub fn extract_zip_with_limits(
         apply_executable_bit(&dest, entry.unix_mode())?;
     }
 
+    Ok(())
+}
+
+/// Read the reserved profile entry from a world archive. Older exports
+/// simply return `Ok(None)`.
+pub fn read_world_profile(zip_path: &Path) -> Result<Option<serde_json::Value>, ArchiveError> {
+    let file = fs::File::open(zip_path).map_err(ArchiveError::Open)?;
+    let mut archive = ZipArchive::new(file).map_err(|e| ArchiveError::Corrupt(e.to_string()))?;
+    let mut entry = match archive.by_name(WORLD_PROFILE_ENTRY) {
+        Ok(entry) => entry,
+        Err(zip::result::ZipError::FileNotFound) => return Ok(None),
+        Err(error) => return Err(ArchiveError::Corrupt(error.to_string())),
+    };
+    if entry.size() > 1_048_576 {
+        return Err(ArchiveError::Corrupt(
+            "world profile metadata exceeds the 1 MiB limit".to_string(),
+        ));
+    }
+    let mut bytes = Vec::new();
+    entry.read_to_end(&mut bytes).map_err(ArchiveError::Io)?;
+    serde_json::from_slice(&bytes)
+        .map(Some)
+        .map_err(|error| ArchiveError::Corrupt(error.to_string()))
+}
+
+/// Stream-copy a world archive while attaching its raw slot profile. This
+/// keeps export metadata inside the single downloaded file without placing
+/// MSC files in the extracted Minecraft world.
+pub fn copy_with_world_profile(
+    source: &Path,
+    destination: &Path,
+    profile: &serde_json::Value,
+) -> Result<(), ArchiveError> {
+    validate_archive_safety(source)?;
+    let source_file = fs::File::open(source).map_err(ArchiveError::Open)?;
+    let mut input =
+        ZipArchive::new(source_file).map_err(|error| ArchiveError::Corrupt(error.to_string()))?;
+    let destination_file = fs::File::create(destination).map_err(ArchiveError::Io)?;
+    let mut output = ZipWriter::new(destination_file);
+    let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+    for index in 0..input.len() {
+        let mut entry = input
+            .by_index(index)
+            .map_err(|error| ArchiveError::Corrupt(error.to_string()))?;
+        let name = entry.name().to_string();
+        if name == WORLD_PROFILE_ENTRY {
+            continue;
+        }
+        output
+            .start_file(name, options)
+            .map_err(|error| ArchiveError::Corrupt(error.to_string()))?;
+        io::copy(&mut entry, &mut output).map_err(ArchiveError::Io)?;
+    }
+    output
+        .start_file(WORLD_PROFILE_ENTRY, options)
+        .map_err(|error| ArchiveError::Corrupt(error.to_string()))?;
+    serde_json::to_writer(&mut output, profile)
+        .map_err(|error| ArchiveError::Corrupt(error.to_string()))?;
+    output
+        .finish()
+        .map_err(|error| ArchiveError::Io(io::Error::other(error)))?;
     Ok(())
 }
 

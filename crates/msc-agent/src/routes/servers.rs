@@ -1390,6 +1390,7 @@ fn world_profile_from_create(dto: &ServerCreateWorldSettingsDto) -> WorldProfile
             supported_toggles: dto.gameplay.supported_toggles.clone(),
         },
         safety: Default::default(),
+        packs: Vec::new(),
     }
 }
 

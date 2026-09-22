@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: ae2baf2a93c51653c573e354f91c201c0b39246bf6b55cd8f8aa57277b6cc2f2
+// Contract SHA-256: 37697b81d18e5d1bad1563a64fac561cd5345d51be02f55cc8135c034523d712
 
 export interface paths {
   '/v1/active-server': {
@@ -8492,6 +8492,41 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    WorldPackDependencyDTO: {
+      id: string;
+      kind: string;
+      required: boolean;
+    } & {
+      [key: string]: unknown;
+    };
+    /** @description Provider identity and compatibility metadata for a pack owned by one world slot. */
+    WorldPackRecordDTO: {
+      checksum?: string | null;
+      compatibility?: string | null;
+      dependencies: components['schemas']['WorldPackDependencyDTO'][];
+      /** @enum {string} */
+      edition: 'java' | 'bedrock';
+      enabled: boolean;
+      /** @description Relative paths below the owning world root. */
+      files: string[];
+      id: string;
+      /** @enum {string} */
+      kind: 'java_datapack' | 'bedrock_behavior_pack';
+      minecraftVersions: string[];
+      name: string;
+      source: components['schemas']['WorldPackSourceDTO'];
+    } & {
+      [key: string]: unknown;
+    };
+    WorldPackSourceDTO: {
+      projectId?: string | null;
+      provider?: string | null;
+      url?: string | null;
+      version?: string | null;
+      versionId?: string | null;
+    } & {
+      [key: string]: unknown;
+    };
     WorldProfileChangeDTO: {
       key: string;
       reason?: string | null;
@@ -8509,6 +8544,8 @@ export interface components {
       gameplay: components['schemas']['WorldGameplayDTO'];
       generation: components['schemas']['WorldGenerationDTO'];
       identity: components['schemas']['WorldIdentityDTO'];
+      /** @description Edition-specific pack records owned by this slot. Pack files stay below this world's root and travel with its archive. */
+      packs: components['schemas']['WorldPackRecordDTO'][];
       safety: components['schemas']['WorldSafetyDTO'];
       /** @description World profile schema version. Version 1 is the initial MSC 2 shape. */
       schemaVersion: number;

@@ -58,11 +58,11 @@ use msc_api::dto::{
     WorldConvertRequestDto, WorldConvertResultDto, WorldCreateRequestDto, WorldDeleteRequestDto,
     WorldDuplicateRequestDto, WorldExportRequestDto, WorldExportResultDto, WorldGameplayDto,
     WorldGenerationDto, WorldIdentityDto, WorldImportRequestDto, WorldMutationResultDto,
-    WorldProfileDto, WorldProfileFieldMetadataDto, WorldRenameActiveWorldRequestDto,
-    WorldRenameRequestDto, WorldRepairRequestDto, WorldRepairResultDto,
-    WorldReplaceActiveRequestDto, WorldReplaceActiveResultDto, WorldReplaceRequestDto,
-    WorldSafetyDto, WorldSlotDto, WorldSlotWithProfileDto, WorldSlotsResponseDto,
-    WorldThumbnailUploadRequestDto,
+    WorldPackDependencyDto, WorldPackRecordDto, WorldPackSourceDto, WorldProfileDto,
+    WorldProfileFieldMetadataDto, WorldRenameActiveWorldRequestDto, WorldRenameRequestDto,
+    WorldRepairRequestDto, WorldRepairResultDto, WorldReplaceActiveRequestDto,
+    WorldReplaceActiveResultDto, WorldReplaceRequestDto, WorldSafetyDto, WorldSlotDto,
+    WorldSlotWithProfileDto, WorldSlotsResponseDto, WorldThumbnailUploadRequestDto,
 };
 #[cfg(test)]
 use msc_api::dto::{
@@ -78,7 +78,7 @@ use msc_application::worlds::{self, WorldError, WorldReplaceSource};
 use msc_domain::app_config_schema::ConfigServer;
 use msc_domain::identity::ServerType;
 use msc_domain::world::WorldSlot;
-use msc_domain::world_profile::{WorldProfile, WorldProfileField};
+use msc_domain::world_profile::{WorldPackRecord, WorldProfile, WorldProfileField};
 use msc_infrastructure::audit_log::Entry as AuditEntry;
 use msc_infrastructure::fs::{FileSystem, StdFileSystem};
 use msc_infrastructure::jar_provider::HttpTransport;
@@ -532,6 +532,37 @@ fn profile_to_dto(profile: &WorldProfile, server_type: ServerType) -> WorldProfi
             state: profile.safety.state.raw_value().to_string(),
             reasons: profile.safety.reasons.clone(),
         },
+        packs: profile
+            .packs
+            .iter()
+            .map(|pack| WorldPackRecordDto {
+                id: pack.id.clone(),
+                edition: pack.edition.clone(),
+                kind: pack.kind.clone(),
+                name: pack.name.clone(),
+                source: WorldPackSourceDto {
+                    provider: pack.source.provider.clone(),
+                    project_id: pack.source.project_id.clone(),
+                    version_id: pack.source.version_id.clone(),
+                    version: pack.source.version.clone(),
+                    url: pack.source.url.clone(),
+                },
+                files: pack.files.clone(),
+                checksum: pack.checksum.clone(),
+                compatibility: pack.compatibility.clone(),
+                minecraft_versions: pack.minecraft_versions.clone(),
+                enabled: pack.enabled,
+                dependencies: pack
+                    .dependencies
+                    .iter()
+                    .map(|dependency| WorldPackDependencyDto {
+                        id: dependency.id.clone(),
+                        kind: dependency.kind.clone(),
+                        required: dependency.required,
+                    })
+                    .collect(),
+            })
+            .collect(),
         field_metadata,
     }
 }
@@ -583,6 +614,7 @@ fn profile_key(key: &str) -> Option<&'static str> {
         "gameplay.supported-toggles" | "gameplay.supportedToggles" => {
             Some("gameplay.supported-toggles")
         }
+        "packs" => Some("packs"),
         _ => None,
     }
 }
@@ -686,6 +718,10 @@ fn apply_profile_change(
     key: &str,
     value: &serde_json::Value,
 ) -> Result<(), String> {
+    if key == "packs" {
+        profile.packs = decode_world_packs(value, server_type)?;
+        return Ok(());
+    }
     let field = WorldProfileField::ALL
         .into_iter()
         .find(|field| field.key() == key)
@@ -782,6 +818,52 @@ fn apply_profile_change(
         }
     }
     Ok(())
+}
+
+fn decode_world_packs(
+    value: &serde_json::Value,
+    server_type: ServerType,
+) -> Result<Vec<WorldPackRecord>, String> {
+    if value.is_null() {
+        return Ok(Vec::new());
+    }
+    let packs: Vec<WorldPackRecord> = serde_json::from_value(value.clone())
+        .map_err(|_| "packs must be an array of valid world-pack records".to_string())?;
+    let expected_kind = match server_type {
+        ServerType::Java => "java_datapack",
+        ServerType::Bedrock => "bedrock_behavior_pack",
+    };
+    let mut ids = std::collections::BTreeSet::new();
+    for pack in &packs {
+        if pack.id.trim().is_empty() || pack.name.trim().is_empty() {
+            return Err("world-pack id and name must not be empty".to_string());
+        }
+        if pack.edition != server_type.raw_value() || pack.kind != expected_kind {
+            return Err(format!(
+                "{} records are not supported for this server edition",
+                pack.kind
+            ));
+        }
+        if !ids.insert(&pack.id) {
+            return Err(format!("duplicate world-pack id: {}", pack.id));
+        }
+        for path in &pack.files {
+            let path = std::path::Path::new(path);
+            if path.as_os_str().is_empty()
+                || path.is_absolute()
+                || path.components().any(|part| {
+                    matches!(
+                        part,
+                        std::path::Component::ParentDir | std::path::Component::RootDir
+                    )
+                })
+                || path.to_string_lossy().contains(['\\', ':'])
+            {
+                return Err("world-pack file paths must stay inside the selected world".to_string());
+            }
+        }
+    }
+    Ok(packs)
 }
 
 pub async fn get_profile(

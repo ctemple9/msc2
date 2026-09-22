@@ -22,6 +22,7 @@ use msc_application::backups::{self, RestoreError};
 use msc_domain::backup as domain_backup;
 use msc_domain::identity::ServerType;
 use msc_infrastructure::audit_log::Entry as AuditEntry;
+use msc_infrastructure::backup_store;
 use msc_infrastructure::backup_store::BackupEntry;
 use msc_infrastructure::fs::StdFileSystem;
 use msc_infrastructure::world_store;
@@ -357,6 +358,8 @@ pub async fn restore(
     let slots = world_store::load_slots(&StdFileSystem, &server_dir);
     let marker = world_store::load_explicit_active_slot_id(&StdFileSystem, &server_dir);
     let active_id = msc_domain::world::resolve_active_slot_id(&slots, marker.as_deref());
+    let portable_profile = backup_store::read_sidecar(&StdFileSystem, &entry.zip_path)
+        .and_then(|meta| meta.world_profile);
     if let (Some(backup_slot), Some(active_slot)) = (entry.slot_id.as_deref(), active_id.as_deref())
         && backup_slot != active_slot
     {
@@ -392,10 +395,15 @@ pub async fn restore(
         );
         let zip_path = entry.zip_path.clone();
         let backup_slot_id = entry.slot_id.clone();
+        let restore_target_slot = active_id
+            .as_deref()
+            .and_then(|id| slots.iter().find(|slot| slot.id == id))
+            .cloned();
+        let restore_server_dir = server_dir.clone();
         let result = tokio::task::spawn_blocking(move || {
             backups::restore_backup(
                 &StdFileSystem,
-                &server_dir,
+                &restore_server_dir,
                 server_type,
                 raw_level_name.as_deref(),
                 &zip_path,
@@ -412,6 +420,23 @@ pub async fn restore(
         .await;
         match result {
             Ok(Ok(_)) => {
+                if let (Some(profile), Some(slot)) = (portable_profile, restore_target_slot)
+                    && let Err(error) = world_store::save_profile_value(
+                        &StdFileSystem,
+                        &server_dir,
+                        &slot,
+                        &profile,
+                    )
+                {
+                    let _ = task_lifecycle.operations().fail(
+                        &task_operation_id,
+                        "metadata_restore_failed",
+                        format!(
+                            "World restored, but its pack metadata could not be restored: {error}"
+                        ),
+                    );
+                    return;
+                }
                 let mut result = BTreeMap::new();
                 result.insert("result".to_string(), "restored".to_string());
                 let _ = task_lifecycle.operations().succeed(

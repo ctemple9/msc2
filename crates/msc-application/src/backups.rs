@@ -278,6 +278,12 @@ pub fn create_backup(
     let reason = trigger_reason
         .map(str::to_string)
         .unwrap_or_else(|| domain_backup::default_trigger_reason(is_automatic).to_string());
+    let world_profile = association.slot_id.as_deref().and_then(|slot_id| {
+        world_store::load_slots(fs, server_dir)
+            .into_iter()
+            .find(|slot| slot.id == slot_id)
+            .map(|slot| world_store::load_profile_value(fs, server_dir, &slot))
+    });
     let meta = BackupMeta {
         server_id: server_id.map(str::to_string),
         server_display_name: server_display_name.map(str::to_string),
@@ -285,6 +291,7 @@ pub fn create_backup(
         slot_name: association.slot_name.clone(),
         world_seed: association.world_seed.clone(),
         trigger_reason: reason.clone(),
+        world_profile,
     };
     let sidecar_written = backup_store::write_sidecar(fs, &zip_path, &meta).is_ok();
 

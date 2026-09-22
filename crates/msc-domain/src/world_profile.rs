@@ -11,6 +11,7 @@
 //! persistence and capability layers populate in later steps.
 
 use crate::identity::ServerType;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 /// Version written beside every persisted world profile.
@@ -322,6 +323,58 @@ pub struct WorldGameplay {
     pub supported_toggles: BTreeMap<String, bool>,
 }
 
+/// Provider and source identity retained with a pack when the provider
+/// offers those values. The values stay strings so new providers can be
+/// added without changing the world-slot schema.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorldPackSource {
+    pub provider: Option<String>,
+    pub project_id: Option<String>,
+    pub version_id: Option<String>,
+    pub version: Option<String>,
+    pub url: Option<String>,
+}
+
+/// One pack installed in a particular world slot. `kind` is edition
+/// specific (`java_datapack` or `bedrock_behavior_pack`); paths are
+/// relative to that slot's world root, never a shared server pack folder.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorldPackRecord {
+    pub id: String,
+    pub edition: String,
+    pub kind: String,
+    pub name: String,
+    #[serde(default)]
+    pub source: WorldPackSource,
+    #[serde(default)]
+    pub files: Vec<String>,
+    #[serde(default)]
+    pub checksum: Option<String>,
+    #[serde(default)]
+    pub compatibility: Option<String>,
+    #[serde(default)]
+    pub minecraft_versions: Vec<String>,
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub dependencies: Vec<WorldPackDependency>,
+}
+
+fn default_enabled() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorldPackDependency {
+    pub id: String,
+    pub kind: String,
+    #[serde(default)]
+    pub required: bool,
+}
+
 /// Safety is disclosed separately from gameplay values because Bedrock can
 /// retain an achievement-disabled consequence after cheats or experiments are
 /// later turned off.
@@ -349,6 +402,9 @@ pub struct WorldProfile {
     pub generation: WorldGeneration,
     pub gameplay: WorldGameplay,
     pub safety: WorldSafety,
+    /// Pack records belong to this slot. The actual pack files live below
+    /// the corresponding world folder and travel inside the world archive.
+    pub packs: Vec<WorldPackRecord>,
 }
 
 impl Default for WorldProfile {
@@ -365,6 +421,7 @@ impl WorldProfile {
             generation: WorldGeneration::default(),
             gameplay: WorldGameplay::default(),
             safety: WorldSafety::default(),
+            packs: Vec::new(),
         }
     }
 }

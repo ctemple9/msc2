@@ -992,7 +992,11 @@ pub fn export_slot_zip(
         fs.remove(destination_path)?;
     }
     let source_zip = world_store::zip_path(server_dir, &slot.id);
-    copy_via_fs(fs, &source_zip, destination_path)?;
+    let profile = world_store::load_profile_value(fs, server_dir, slot);
+    if let Err(error) = archive::copy_with_world_profile(&source_zip, destination_path, &profile) {
+        let _ = fs.remove(destination_path);
+        return Err(error.into());
+    }
     Ok(())
 }
 
@@ -1045,9 +1049,11 @@ pub(crate) fn read_sidecar_world_seed(zip_path: &Path) -> Option<String> {
 
 fn read_sidecar_world_profile(zip_path: &Path) -> Option<serde_json::Value> {
     let sidecar = zip_path.with_extension("meta.json");
-    let bytes = std::fs::read(sidecar).ok()?;
-    let value: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
-    value.get("worldProfile").cloned()
+    std::fs::read(sidecar)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+        .and_then(|value| value.get("worldProfile").cloned())
+        .or_else(|| archive::read_world_profile(zip_path).ok().flatten())
 }
 
 /// Reads world metadata from an archive without changing the archive. The

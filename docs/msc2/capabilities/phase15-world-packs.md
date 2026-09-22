@@ -18,6 +18,17 @@ separate review.
 | Pack and identity presentation | Each connected client renders agent-owned state | Existing Worlds and Components surfaces consume the agent API; clients do not own files or decide identity | `clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte`, `components/ComponentsSection.svelte`, corresponding `model.ts` files, generated API types | Java and Bedrock show their edition-specific world-slot organization. The selected slot controls the displayed pack list. The Components summary is compact and read-only and does not duplicate the inventory. |
 | Backup and transfer portability | Host agent; backup/transfer operations | Agent backups and world import/export preserve slot-associated files and metadata | `crates/msc-domain/src/backup.rs`; `crates/msc-application/src/backups.rs`, `worlds.rs`, `transfer.rs`; `crates/msc-infrastructure/src/backup_store.rs`, `world_store.rs`; `crates/msc-api/src/dto/backups.rs`; `crates/msc-agent/src/routes/backups.rs`, `worlds.rs` | Round-trip a slot through each named lifecycle operation and compare slot association and pack metadata. Existing server-wide backup behavior remains intact. |
 
+P15.25 uses `GET` and `POST /v1/worlds/{slotId}/profile` for the first
+pack-record API. The profile's `packs` array carries edition, pack kind,
+provider/source, version, checksum, compatibility, enabled state, relative
+world paths, and dependencies. Java records use `java_datapack`; Bedrock
+records use `bedrock_behavior_pack`. The agent rejects a record from the wrong
+edition and file paths that can leave the selected world's root. Pack files
+remain in the archived Java or Bedrock world folder. Export archives carry the
+raw world profile in a reserved metadata entry that is not extracted into the
+Minecraft world; backup sidecars carry the same profile. The existing slot
+profile copy path carries records through activation and duplication.
+
 ## Contract decisions
 
 - **D-030 is Approved.** Cameron confirmed that each slot owns a versioned

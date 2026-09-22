@@ -56,6 +56,13 @@ export type AnchorRect = { top: number; left: number; width: number; height: num
 /** Window event emitted after a real anchored control receives a click. */
 export const ONBOARDING_ANCHOR_ACTION_EVENT = 'msc:onboarding-anchor-action';
 
+/** Reports a completed anchored action after its UI transition has finished. */
+export function dispatchOnboardingAnchorAction(anchorId: string): void {
+  window.dispatchEvent(
+    new CustomEvent(ONBOARDING_ANCHOR_ACTION_EVENT, { detail: { anchorId } }),
+  );
+}
+
 /** Live viewport rects of every mounted `use:onboardingAnchor` element, keyed by anchor id. */
 export const anchorFrames = writable<Record<string, AnchorRect>>({});
 
@@ -122,9 +129,7 @@ export function onboardingAnchor(node: HTMLElement, anchorId: string | undefined
 
   function announceAction(): void {
     if (!id) return;
-    window.dispatchEvent(
-      new CustomEvent(ONBOARDING_ANCHOR_ACTION_EVENT, { detail: { anchorId: id } }),
-    );
+    dispatchOnboardingAnchorAction(id);
   }
 
   function report(): void {

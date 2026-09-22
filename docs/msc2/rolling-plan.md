@@ -833,6 +833,15 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Batch:** AD — package the onboarding correction
 - **Commit:** `P15.41: package onboarding fix in agent UI`
 
+### P15.42 — Advance the tour only after Java selection closes
+
+- **Status:** awaiting verification
+- **Files:** `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`, `clients/desktop-web/src/lib/help/tourAnchors.ts`, `crates/msc-agent/web-ui/**`, `docs/msc2/rolling-plan.md`
+- **What:** Remove the tour action anchor from Configure's Continue button while Java selection is pending. After a runtime is confirmed, advance to Network, wait for Svelte to remove the Java sheet, then dispatch the deferred tour action so “How will friends connect?” appears against the visible Network step. Keep Cancel on Configure without advancing the tour.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run bundle:identity`
+- **Batch:** AE — sequence onboarding after Java selection
+- **Commit:** `P15.42: advance onboarding after Java selection`
+
 ## Proposed Phase 14 — operational refinements
 
 This phase turns the issues reported from real use into four bounded areas:

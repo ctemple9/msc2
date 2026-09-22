@@ -32,7 +32,7 @@
   // worlds/WorldConversionWizard.svelte's identical `onClose={... ?
   // undefined : onClose}` precedent for a durable operation already
   // in flight.
-  import { onDestroy } from 'svelte';
+  import { onDestroy, tick } from 'svelte';
   import Sheet from '../../../components/base/Sheet.svelte';
   import Button from '../../../components/base/Button.svelte';
   import { activeTourStep, tourServerContext, tourServerCreated } from '../../../help/onboarding';
@@ -46,7 +46,10 @@
   import ModpackCreationSummarySheet from './ModpackCreationSummarySheet.svelte';
   import JavaInstallSheet from '../../server-editor/JavaInstallSheet.svelte';
   import { ApiError } from '../../../api/client';
-  import { onboardingAnchor } from '../../../help/tourAnchors';
+  import {
+    dispatchOnboardingAnchorAction,
+    onboardingAnchor,
+  } from '../../../help/tourAnchors';
   import type { Schema, ScreenApi } from '../../shared/types';
   import { errorMessage } from '../../shared/types';
   import { serverEditorPaths } from '../../server-editor/model';
@@ -316,6 +319,9 @@
     if (continueAfterJavaSelection) {
       continueAfterJavaSelection = false;
       currentStep += 1;
+      if ($activeTourStep === 'server-settings') {
+        void tick().then(() => dispatchOnboardingAnchorAction('ob_wizard_continue'));
+      }
     }
   }
 
@@ -486,14 +492,18 @@
           Create Server
         </Button>
       {:else}
-        <Button
-          variant="primary"
-          anchorId={javaSelectionBelongsHere() && !hasCurrentJavaSelection()
-            ? undefined
-            : 'ob_wizard_continue'}
-          onclick={continueStep}
-          disabled={!canContinue}>Continue</Button
-        >
+        {#if javaSelectionBelongsHere() && !hasCurrentJavaSelection()}
+          <Button variant="primary" onclick={continueStep} disabled={!canContinue}
+            >Continue</Button
+          >
+        {:else}
+          <Button
+            variant="primary"
+            anchorId="ob_wizard_continue"
+            onclick={continueStep}
+            disabled={!canContinue}>Continue</Button
+          >
+        {/if}
       {/if}
     </div>
   </div>

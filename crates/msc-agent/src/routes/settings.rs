@@ -143,7 +143,7 @@ fn build_settings_response(
             server_name,
             server_running: state.status_snapshot().running,
             editable: true,
-            sections: bedrock_sections(&settings.model),
+            sections: bedrock_sections(&settings.model, &settings.raw),
             note: None,
             runtime: runtime_for(state),
         };
@@ -204,7 +204,10 @@ fn apply_settings_update(
                     restart_required,
                     applied_keys: Vec::new(),
                     rejected: (!ownership_rejections.is_empty()).then_some(ownership_rejections),
-                    sections: Some(bedrock_sections(&result.settings.model)),
+                    sections: Some(bedrock_sections(
+                        &result.settings.model,
+                        &result.settings.raw,
+                    )),
                     runtime: runtime_for(state),
                 })
                 .into_response()
@@ -255,7 +258,10 @@ fn apply_settings_update(
                     restart_required,
                     applied_keys: result.applied_keys,
                     rejected: (!ownership_rejections.is_empty()).then_some(ownership_rejections),
-                    sections: Some(bedrock_sections(&result.settings.model)),
+                    sections: Some(bedrock_sections(
+                        &result.settings.model,
+                        &result.settings.raw,
+                    )),
                     runtime: runtime_for(state),
                 })
                 .into_response()
@@ -560,36 +566,130 @@ fn java_sections(model: &ServerPropertiesModel) -> Vec<SettingsSectionDto> {
 
 fn bedrock_sections(
     model: &msc_domain::bedrock::BedrockPropertiesModel,
+    raw: &std::collections::BTreeMap<String, String>,
 ) -> Vec<SettingsSectionDto> {
-    let field = |key: &str, label: &str, value: String, r#type: &str| SettingFieldDto {
+    // BDS grows properties between releases, so expose supported controls
+    // from the raw file while preserving every key outside this typed list.
+    let raw_value = |key: &str, default: &str| {
+        raw.get(key)
+            .map(String::as_str)
+            .unwrap_or(default)
+            .to_owned()
+    };
+    let raw_int = |key: &str, default: i64| {
+        raw.get(key)
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(default)
+    };
+    let raw_bool =
+        |key: &str, default: bool| raw.get(key).map(|value| value == "true").unwrap_or(default);
+    let int_unbounded = |key: &str, label: &str, value: i64, min: i64| SettingFieldDto {
         key: key.to_owned(),
         label: label.to_owned(),
-        r#type: r#type.to_owned(),
-        value,
-        min_int: None,
+        r#type: "int".to_owned(),
+        value: value.to_string(),
+        min_int: Some(min),
         max_int: None,
         unit: None,
         max_length: None,
         options: None,
         help_id: None,
     };
+    let options = |values: &[&str]| {
+        values
+            .iter()
+            .map(|value| SettingOptionDto {
+                value: (*value).to_owned(),
+                label: match *value {
+                    "visitor" => "Visitor".to_owned(),
+                    "member" => "Member".to_owned(),
+                    "operator" => "Operator".to_owned(),
+                    _ => (*value).to_owned(),
+                },
+            })
+            .collect()
+    };
     vec![
         SettingsSectionDto {
-            id: "bedrock".to_owned(),
-            title: "Bedrock".to_owned(),
-            icon: "cube".to_owned(),
+            id: "server".to_owned(),
+            title: "Server".to_owned(),
+            icon: "slider.horizontal.3".to_owned(),
             fields: vec![
-                field(
+                string_field(
+                    "server-name",
+                    "Server Name (shown to players)",
+                    &raw_value("server-name", "Dedicated Server"),
+                    None,
+                    None,
+                ),
+                int_field(
                     "max-players",
                     "Max Players",
-                    model.max_players.to_string(),
-                    "int",
+                    model.max_players,
+                    1,
+                    1_000,
+                    None,
+                    None,
                 ),
-                field(
+                bool_field(
                     "online-mode",
                     "Online Mode",
-                    model.online_mode.to_string(),
-                    "bool",
+                    model.online_mode,
+                    Some("settings.online-mode"),
+                ),
+            ],
+        },
+        SettingsSectionDto {
+            id: "access".to_owned(),
+            title: "Access".to_owned(),
+            icon: "people".to_owned(),
+            fields: vec![
+                bool_field(
+                    "allow-list",
+                    "Require Allowlist",
+                    raw_bool("allow-list", false),
+                    None,
+                ),
+                enum_field(
+                    "default-player-permission-level",
+                    "Default Permission for New Players",
+                    &raw_value("default-player-permission-level", "member"),
+                    options(&["visitor", "member", "operator"]),
+                    None,
+                ),
+                int_unbounded(
+                    "player-idle-timeout",
+                    "Idle Timeout (0 = never)",
+                    raw_int("player-idle-timeout", 30),
+                    0,
+                ),
+            ],
+        },
+        SettingsSectionDto {
+            id: "performance".to_owned(),
+            title: "Performance".to_owned(),
+            icon: "chart".to_owned(),
+            fields: vec![
+                int_unbounded(
+                    "view-distance",
+                    "View Distance",
+                    raw_int("view-distance", 32),
+                    5,
+                ),
+                int_field(
+                    "tick-distance",
+                    "Simulation Distance",
+                    raw_int("tick-distance", 4),
+                    4,
+                    12,
+                    Some("chunks"),
+                    None,
+                ),
+                int_unbounded(
+                    "max-threads",
+                    "Thread Limit (0 = automatic)",
+                    raw_int("max-threads", 8),
+                    0,
                 ),
             ],
         },
@@ -598,17 +698,77 @@ fn bedrock_sections(
             title: "Network".to_owned(),
             icon: "network".to_owned(),
             fields: vec![
-                field(
+                int_field(
                     "server-port",
                     "Server Port (UDP)",
-                    model.server_port.to_string(),
-                    "int",
+                    model.server_port,
+                    1,
+                    65_535,
+                    None,
+                    Some("settings.server-port"),
                 ),
-                field(
+                int_field(
                     "server-portv6",
                     "Server Port (IPv6 UDP)",
-                    model.server_port_v6.to_string(),
-                    "int",
+                    model.server_port_v6,
+                    1,
+                    65_535,
+                    None,
+                    Some("settings.server-port"),
+                ),
+                bool_field(
+                    "enable-lan-visibility",
+                    "LAN Discovery (uses default ports)",
+                    raw_bool("enable-lan-visibility", true),
+                    None,
+                ),
+            ],
+        },
+        SettingsSectionDto {
+            id: "advanced".to_owned(),
+            title: "Advanced".to_owned(),
+            icon: "gear".to_owned(),
+            fields: vec![
+                bool_field(
+                    "disable-custom-skins",
+                    "Disable Custom Skins",
+                    raw_bool("disable-custom-skins", false),
+                    None,
+                ),
+                enum_field(
+                    "chat-restriction",
+                    "Chat Restriction",
+                    &raw_value("chat-restriction", "None"),
+                    options(&["None", "Dropped", "Disabled"]),
+                    None,
+                ),
+                int_field(
+                    "compression-threshold",
+                    "Compression Threshold",
+                    raw_int("compression-threshold", 1),
+                    0,
+                    65_535,
+                    Some("bytes"),
+                    None,
+                ),
+                enum_field(
+                    "compression-algorithm",
+                    "Compression Algorithm",
+                    &raw_value("compression-algorithm", "zlib"),
+                    options(&["zlib", "snappy"]),
+                    None,
+                ),
+                bool_field(
+                    "disable-player-interaction",
+                    "Tell Clients to Ignore Player Interaction",
+                    raw_bool("disable-player-interaction", false),
+                    None,
+                ),
+                bool_field(
+                    "content-log-file-enabled",
+                    "Log Content Errors to File",
+                    raw_bool("content-log-file-enabled", false),
+                    None,
                 ),
             ],
         },

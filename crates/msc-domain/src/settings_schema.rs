@@ -163,6 +163,8 @@ pub fn java_setting_contract(key: &str) -> Option<SettingContract> {
 /// accepted by the compatibility validator, but naming them here prevents a
 /// future route from deciding ownership by whichever screen happens to render
 /// the value first.
+/// New `server.properties` values require a restart until the agent applies
+/// them through a verified live Bedrock command as part of the same update.
 pub fn bedrock_setting_contract(key: &str) -> Option<SettingContract> {
     let contract = match key {
         "difficulty" | "gamemode" => world_contract(
@@ -196,19 +198,42 @@ pub fn bedrock_setting_contract(key: &str) -> Option<SettingContract> {
             Some("handbook.bedrock"),
         ),
         "max-players" => server_contract(SettingApplyPolicy::LiveSafe, "server.capacity", None),
+        "server-name" => {
+            server_contract(SettingApplyPolicy::RestartRequired, "server.settings", None)
+        }
+        "allow-list" | "default-player-permission-level" => {
+            server_contract(SettingApplyPolicy::RestartRequired, "server.access", None)
+        }
         "online-mode" => server_contract(
             SettingApplyPolicy::RestartRequired,
             "server.access",
             Some("settings.online-mode"),
         ),
-        "server-port" | "server-portv6" => server_contract(
+        "player-idle-timeout" => server_contract(
+            SettingApplyPolicy::RestartRequired,
+            "server.players",
+            Some("settings.player-idle-timeout"),
+        ),
+        "view-distance" | "tick-distance" => server_contract(
+            SettingApplyPolicy::RestartRequired,
+            "server.visibility",
+            None,
+        ),
+        "server-port" | "server-portv6" | "enable-lan-visibility" => server_contract(
             SettingApplyPolicy::RestartRequired,
             "server.network",
             Some("settings.server-port"),
         ),
-        "force-gamemode" | "default-player-permission-level" => {
-            server_contract(SettingApplyPolicy::LiveSafe, "server.runtime", None)
+        "max-threads"
+        | "disable-custom-skins"
+        | "chat-restriction"
+        | "compression-threshold"
+        | "compression-algorithm"
+        | "disable-player-interaction"
+        | "content-log-file-enabled" => {
+            server_contract(SettingApplyPolicy::RestartRequired, "server.runtime", None)
         }
+        "force-gamemode" => server_contract(SettingApplyPolicy::LiveSafe, "server.runtime", None),
         _ => return None,
     };
     Some(contract)

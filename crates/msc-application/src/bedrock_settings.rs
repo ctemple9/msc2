@@ -116,16 +116,44 @@ pub fn update(
 }
 
 fn validate_change(key: &str, value: &str) -> Result<(), &'static str> {
-    const BOOLEAN_KEYS: &[&str] = &["online-mode", "allow-cheats"];
-    const INTEGER_KEYS: &[&str] = &["max-players", "server-port", "server-portv6"];
+    const BOOLEAN_KEYS: &[&str] = &[
+        "online-mode",
+        "allow-cheats",
+        "allow-list",
+        "enable-lan-visibility",
+        "disable-custom-skins",
+        "disable-player-interaction",
+        "content-log-file-enabled",
+    ];
+    const INTEGER_KEYS: &[&str] = &[
+        "max-players",
+        "server-port",
+        "server-portv6",
+        "player-idle-timeout",
+        "view-distance",
+        "tick-distance",
+        "max-threads",
+        "compression-threshold",
+    ];
     const ENUM_KEYS: &[(&str, &[&str])] = &[
         ("difficulty", &["peaceful", "easy", "normal", "hard"]),
         (
             "gamemode",
             &["survival", "creative", "adventure", "spectator"],
         ),
+        (
+            "default-player-permission-level",
+            &["visitor", "member", "operator"],
+        ),
+        ("chat-restriction", &["None", "Dropped", "Disabled"]),
+        ("compression-algorithm", &["zlib", "snappy"]),
     ];
 
+    if key == "server-name" {
+        return (!value.trim().is_empty() && !value.contains(';'))
+            .then_some(())
+            .ok_or("server-name must be non-empty and cannot contain a semicolon");
+    }
     if key == "level-name" {
         return (!value.trim().is_empty())
             .then_some(())
@@ -142,6 +170,23 @@ fn validate_change(key: &str, value: &str) -> Result<(), &'static str> {
             .map_err(|_| "value must be an integer")?;
         if matches!(key, "server-port" | "server-portv6") && !(1..=65_535).contains(&parsed) {
             return Err("port must be between 1 and 65535");
+        }
+        match key {
+            "max-players" if parsed < 1 => return Err("max-players must be positive"),
+            "player-idle-timeout" if parsed < 0 => {
+                return Err("player-idle-timeout cannot be negative");
+            }
+            "view-distance" if parsed < 5 => {
+                return Err("view-distance must be at least 5");
+            }
+            "tick-distance" if !(4..=12).contains(&parsed) => {
+                return Err("tick-distance must be between 4 and 12");
+            }
+            "max-threads" if parsed < 0 => return Err("max-threads cannot be negative"),
+            "compression-threshold" if !(0..=65_535).contains(&parsed) => {
+                return Err("compression-threshold must be between 0 and 65535");
+            }
+            _ => {}
         }
         return Ok(());
     }
@@ -167,6 +212,20 @@ pub fn editable_keys() -> BTreeSet<&'static str> {
         "gamemode",
         "server-port",
         "server-portv6",
+        "server-name",
+        "allow-list",
+        "default-player-permission-level",
+        "enable-lan-visibility",
+        "player-idle-timeout",
+        "view-distance",
+        "tick-distance",
+        "max-threads",
+        "disable-custom-skins",
+        "chat-restriction",
+        "compression-threshold",
+        "compression-algorithm",
+        "disable-player-interaction",
+        "content-log-file-enabled",
     ]
     .into_iter()
     .collect()

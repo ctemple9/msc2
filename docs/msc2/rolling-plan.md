@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 15 is the priority next phase; Phase 14 is paused with P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, P14.17, P14.18, P14.19, P14.26, P14.27, P14.28, P14.29, P14.30, P14.31, P14.32, P14.33, P14.34, P14.35, P14.36, and P14.37 awaiting verification. P14.38 records twelve unverified static-review findings and is awaiting owner triage.
-> **Next move:** Cameron verifies P15.3, P15.4, and P15.5. Phase 14 verification and P14.38 triage remain recorded and paused until Phase 15 is complete or Cameron explicitly resumes Phase 14. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> **Next move:** Cameron verifies P15.3, P15.4, P15.5, P15.45, and P15.46. Phase 14 verification and P14.38 triage remain recorded and paused until Phase 15 is complete or Cameron explicitly resumes Phase 14. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -868,6 +868,15 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
 - **Batch:** AH — Manage Servers presentation
 - **Commit:** `P15.45: remove host dots from Manage Servers`
+
+### P15.46 — Expand Bedrock server settings with balanced parity
+
+- **Status:** awaiting verification
+- **Files:** `crates/msc-domain/src/settings_schema.rs`, `crates/msc-application/src/bedrock_settings.rs`, `crates/msc-agent/src/routes/settings.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Match Java's useful server controls where Bedrock has corresponding properties: server-list name, allowlist, default permission for new players, idle timeout, view distance, simulation distance via tick-distance, LAN discovery, and thread limit. Add custom-skin and chat controls plus an Advanced section for compression threshold/algorithm, player-interaction behavior, and content logging. Keep the common Server/Access/Performance/Network organization recognizable while labeling Bedrock-specific behavior accurately; retain unknown properties, report a restart for new values that lack a verified live-apply command, and keep world-profile values out of this server settings surface per D-030.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-domain -p msc-application -p msc-agent -- -D warnings && npm --prefix clients/desktop-web run check`
+- **Batch:** AJ — Bedrock settings parity
+- **Commit:** `P15.46: expand Bedrock server settings`
 
 ## Proposed Phase 14 — operational refinements
 

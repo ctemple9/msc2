@@ -815,6 +815,15 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Batch:** AB — unfiltered Bedrock pack discovery
 - **Commit:** `P15.39: show all Bedrock behavior packs`
 
+### P15.40 — Wait for Java selection before advancing onboarding
+
+- **Status:** awaiting verification
+- **Files:** `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** When Configure's Continue action opens required Java selection, defer both wizard progression and the onboarding tour's Continue action until a runtime is confirmed. Confirmation advances to Network and then reveals “How will friends connect?”; cancelling keeps the tour on Configure.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** AC — Java selection and onboarding sequencing
+- **Commit:** `P15.40: defer onboarding until Java is selected`
+
 ## Proposed Phase 14 — operational refinements
 
 This phase turns the issues reported from real use into four bounded areas:

@@ -96,6 +96,9 @@
   let javaRuntimes: Schema['JavaRuntimeDTO'][] = [];
   let javaSelectedPath = '';
   let javaInstallMode: 'selection' | 'recovery' = 'recovery';
+  // Configure's Continue is intercepted by Java selection; defer its tour
+  // action until a runtime is confirmed.
+  let continueAfterJavaSelection = false;
   let javaRequiredMajor = 25;
   let javaMinecraftVersion = '';
   let javaFailureMessage = '';
@@ -162,6 +165,7 @@
       !showJavaSelection &&
       !showJavaInstall
     ) {
+      continueAfterJavaSelection = true;
       void openJavaSelection();
       return;
     }
@@ -295,7 +299,10 @@
   }
 
   function closeJavaSelection(): void {
-    if (!javaSelectionLoading) showJavaSelection = false;
+    if (!javaSelectionLoading) {
+      showJavaSelection = false;
+      continueAfterJavaSelection = false;
+    }
   }
 
   function confirmJavaSelection(): void {
@@ -306,6 +313,10 @@
       javaSelectionKey: javaSelectionKey(draft),
     };
     showJavaSelection = false;
+    if (continueAfterJavaSelection) {
+      continueAfterJavaSelection = false;
+      currentStep += 1;
+    }
   }
 
   function openJavaInstallFromSelection(): void {
@@ -477,7 +488,9 @@
       {:else}
         <Button
           variant="primary"
-          anchorId="ob_wizard_continue"
+          anchorId={javaSelectionBelongsHere() && !hasCurrentJavaSelection()
+            ? undefined
+            : 'ob_wizard_continue'}
           onclick={continueStep}
           disabled={!canContinue}>Continue</Button
         >
@@ -569,6 +582,9 @@
       <Button variant="secondary" onclick={closeJavaSelection}>Cancel</Button>
       <Button
         variant="primary"
+        anchorId={continueAfterJavaSelection && $activeTourStep === 'server-settings'
+          ? 'ob_wizard_continue'
+          : undefined}
         disabled={!javaSelectedPath || javaSelectionLoading}
         onclick={confirmJavaSelection}>Use selected Java</Button
       >

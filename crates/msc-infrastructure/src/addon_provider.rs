@@ -27,6 +27,7 @@ use std::fmt;
 use std::time::Duration;
 
 use msc_domain::addon_provider::{self as domain, AddonProviderError};
+use serde::Deserialize;
 
 use crate::secret_store::SecretStore;
 
@@ -604,6 +605,181 @@ pub fn curseforge_files(
         result.extend(domain::curseforge_decode_files(&text)?);
     }
     Ok(result)
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CurseForgeSearchHit {
+    pub id: i64,
+    pub name: String,
+    pub slug: String,
+    #[serde(default)]
+    pub summary: String,
+    #[serde(default)]
+    pub download_count: i64,
+    #[serde(default)]
+    pub logo: Option<CurseForgeLogo>,
+    #[serde(default)]
+    pub latest_files_indexes: Vec<CurseForgeLatestFileIndex>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CurseForgeLogo {
+    pub url: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CurseForgeLatestFileIndex {
+    pub file_id: i64,
+    #[serde(default)]
+    pub filename: String,
+    #[serde(default)]
+    pub game_version: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct CurseForgeSearchEnvelope {
+    data: Vec<CurseForgeSearchHit>,
+}
+
+/// Search CurseForge's Minecraft Bedrock catalog (game 1303). Bedrock
+/// content is not a Java Modrinth project, so it uses the already configured
+/// CurseForge credential and stays behind the host agent.
+pub fn curseforge_search_bedrock_addons(
+    transport: &dyn AddonTransport,
+    secrets: &dyn SecretStore,
+    query: &str,
+    game_version: Option<&str>,
+    limit: u32,
+    offset: u32,
+) -> Result<Vec<CurseForgeSearchHit>, AddonProviderError> {
+    let api_key = curseforge_api_key(secrets)?;
+    let classes_url = format!("{}/v1/games/1303/classes", curseforge_base());
+    let classes_response = transport
+        .get(
+            &classes_url,
+            "CurseForge Bedrock add-on categories",
+            &[("x-api-key", api_key.as_str())],
+            RESPONSE_MAX_BYTES,
+        )
+        .map_err(map_transport_err)?;
+    domain::ensure_curseforge_ok(classes_response.status)?;
+    let classes_body = bytes_to_utf8(classes_response.body, "CurseForge Bedrock categories")?;
+    let classes: serde_json::Value = serde_json::from_str(&classes_body)
+        .map_err(|error| malformed("CurseForge Bedrock categories", error))?;
+    let addon_class_id = classes
+        .get("data")
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+        .find(|class| {
+            class
+                .get("slug")
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|slug| slug.eq_ignore_ascii_case("addons"))
+                || class
+                    .get("name")
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(|name| name.eq_ignore_ascii_case("addons"))
+        })
+        .and_then(|class| class.get("id"))
+        .and_then(serde_json::Value::as_i64)
+        .ok_or_else(|| {
+            AddonProviderError::Network(
+                "CurseForge did not return its Bedrock Addons category.".to_string(),
+            )
+        })?;
+    let mut url = format!(
+        "{}/v1/mods/search?gameId=1303&classId={addon_class_id}&searchFilter={}&pageSize={}&index={}",
+        curseforge_base(),
+        urlencode(query),
+        limit.clamp(1, 50),
+        offset.min(10_000),
+    );
+    if let Some(version) = game_version.filter(|version| !version.is_empty()) {
+        url.push_str("&gameVersion=");
+        url.push_str(&urlencode(version));
+    }
+    let response = transport
+        .get(
+            &url,
+            "CurseForge Bedrock add-on search",
+            &[("x-api-key", api_key.as_str())],
+            RESPONSE_MAX_BYTES,
+        )
+        .map_err(map_transport_err)?;
+    domain::ensure_curseforge_ok(response.status)?;
+    let body = bytes_to_utf8(response.body, "CurseForge Bedrock add-on search")?;
+    let result: CurseForgeSearchEnvelope = serde_json::from_str(&body)
+        .map_err(|error| malformed("CurseForge Bedrock add-on search", error))?;
+    Ok(result.data)
+}
+
+/// Resolve a file's API download URL when batch metadata did not include one.
+pub fn curseforge_bedrock_file_download_url(
+    transport: &dyn AddonTransport,
+    secrets: &dyn SecretStore,
+    project_id: i64,
+    file_id: i64,
+) -> Result<Option<String>, AddonProviderError> {
+    let api_key = curseforge_api_key(secrets)?;
+    let url = format!(
+        "{}/v1/mods/{project_id}/files/{file_id}/download-url",
+        curseforge_base()
+    );
+    let response = transport
+        .get(
+            &url,
+            "CurseForge Bedrock file download URL",
+            &[("x-api-key", api_key.as_str())],
+            RESPONSE_MAX_BYTES,
+        )
+        .map_err(map_transport_err)?;
+    if response.status == 404 {
+        return Ok(None);
+    }
+    domain::ensure_curseforge_ok(response.status)?;
+    let body = bytes_to_utf8(response.body, "CurseForge Bedrock file URL")?;
+    let decoded: serde_json::Value = serde_json::from_str(&body)
+        .map_err(|error| malformed("CurseForge Bedrock file URL", error))?;
+    Ok(decoded
+        .get("data")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned))
+}
+
+/// Download a selected CurseForge add-on file only from its official CDN.
+pub fn download_curseforge_bedrock_addon(
+    transport: &dyn AddonTransport,
+    url: &str,
+) -> Result<Vec<u8>, AddonProviderError> {
+    let host = url
+        .strip_prefix("https://")
+        .and_then(|rest| rest.split('/').next())
+        .and_then(|authority| authority.rsplit('@').next())
+        .and_then(|authority| authority.split(':').next());
+    if !host.is_some_and(|host| {
+        let host = host.to_ascii_lowercase();
+        host == "forgecdn.net" || host.ends_with(".forgecdn.net")
+    }) {
+        return Err(AddonProviderError::InvalidDirectUrl);
+    }
+    let response = transport
+        .get(
+            url,
+            "CurseForge Bedrock add-on download",
+            &[],
+            DATAPACK_MAX_BYTES,
+        )
+        .map_err(map_transport_err)?;
+    domain::ensure_curseforge_ok(response.status)?;
+    if response.body.is_empty() {
+        return Err(AddonProviderError::Network(
+            "CurseForge returned an empty Bedrock add-on file.".to_string(),
+        ));
+    }
+    Ok(response.body)
 }
 
 /// `CurseForgeAPI.mods(modIds:apiKey:)`.

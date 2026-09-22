@@ -6493,6 +6493,42 @@
         }
       }
     },
+    "/v1/catalog/behaviorpacks": {
+      "get": {
+        "summary": "Search CurseForge Minecraft Bedrock add-ons for a Bedrock version",
+        "operationId": "searchBedrockBehaviorPacks",
+        "x-permission-category": "none",
+        "parameters": [
+          {"name": "q", "in": "query", "required": false, "schema": {"type": "string"}},
+          {"name": "gameVersion", "in": "query", "required": false, "schema": {"type": "string"}},
+          {"name": "offset", "in": "query", "required": false, "schema": {"type": "integer", "minimum": 0}}
+        ],
+        "responses": {
+          "200": {"description": "Matching CurseForge Bedrock add-ons and compatible files", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/BedrockBehaviorPackSearchResponseDTO"}}}},
+          "409": {"description": "CurseForge API key is not configured", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDTO"}}}},
+          "502": {"description": "CurseForge search failed", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDTO"}}}}
+        }
+      }
+    },
+    "/v1/worlds/{slotId}/behaviorpacks/install": {
+      "post": {
+        "summary": "Install a CurseForge Bedrock behavior pack and bundled linked resource packs into one world slot",
+        "operationId": "installBedrockBehaviorPack",
+        "x-permission-category": "worlds",
+        "parameters": [
+          {"name": "slotId", "in": "path", "required": true, "schema": {"type": "string"}}
+        ],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/BedrockBehaviorPackInstallRequestDTO"}}}},
+        "responses": {
+          "200": {"description": "Behavior packs installed and recorded in the slot profile", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/BedrockBehaviorPackInstallResultDTO"}}}},
+          "400": {"description": "Invalid request body", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDTO"}}}},
+          "409": {"description": "Server running, wrong edition, incompatible version, or provider download unavailable", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDTO"}}}},
+          "422": {"description": "Invalid pack archive, manifest, UUID, or unresolved dependency", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDTO"}}}},
+          "500": {"description": "World archive or slot profile could not be written", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDTO"}}}},
+          "502": {"description": "CurseForge request or download failed", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDTO"}}}}
+        }
+      }
+    },
     "/v1/worlds/{slotId}/profile": {
       "get": {
         "summary": "Read one world slot's saved profile and runtime metadata",
@@ -7514,6 +7550,28 @@
         "type": "object",
         "properties": {"result": {"type": "string", "enum": ["installed"]}, "pack": {"$ref": "#/components/schemas/WorldPackRecordDTO"}},
         "required": ["result", "pack"]
+      },
+      "BedrockBehaviorPackCatalogItemDTO": {
+        "type": "object",
+        "properties": {
+          "projectId": {"type": "string"}, "slug": {"type": "string"}, "title": {"type": "string"},
+          "description": {"type": "string"}, "downloads": {"type": "integer"}, "iconURL": {"type": "string", "nullable": true},
+          "fileId": {"type": "integer", "format": "int64"}, "fileName": {"type": "string"}, "minecraftVersion": {"type": "string"}
+        },
+        "required": ["projectId", "slug", "title", "description", "downloads", "fileId", "fileName", "minecraftVersion"]
+      },
+      "BedrockBehaviorPackSearchResponseDTO": {
+        "type": "object",
+        "properties": {"results": {"type": "array", "items": {"$ref": "#/components/schemas/BedrockBehaviorPackCatalogItemDTO"}}, "gameVersion": {"type": "string", "nullable": true}},
+        "required": ["results"]
+      },
+      "BedrockBehaviorPackInstallRequestDTO": {
+        "type": "object", "properties": {"projectId": {"type": "string"}, "fileId": {"type": "integer", "format": "int64"}},
+        "required": ["projectId", "fileId"]
+      },
+      "BedrockBehaviorPackInstallResultDTO": {
+        "type": "object", "properties": {"operationId": {"type": "string"}, "packs": {"type": "array", "items": {"$ref": "#/components/schemas/WorldPackRecordDTO"}}},
+        "required": ["operationId", "packs"]
       },
       "WorldPackRecordDTO": {
         "type": "object",

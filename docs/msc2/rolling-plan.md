@@ -700,10 +700,10 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 
 ### P15.27 — Browse and install Bedrock behavior packs
 
-- **Status:** planned
-- **Files:** `crates/msc-domain/src/bedrock.rs`, `crates/msc-domain/src/addon_dependency.rs`, `crates/msc-infrastructure/src/addon_provider.rs`, `crates/msc-application/src/addons.rs`, `crates/msc-application/src/addon_dependencies.rs`, `crates/msc-application/src/bedrock_service.rs`, `crates/msc-agent/src/routes/bedrock.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-api/src/dto/addons.rs`, `crates/msc-api/src/dto/worlds.rs`, `docs/msc2/capabilities/phase15-world-packs.md`
-- **What:** Add behavior-pack discovery and installation for the selected Bedrock world slot. Validate manifests, UUIDs, versions, minimum Bedrock version, and dependencies. Install a linked resource pack only when it is included with the downloaded add-on; otherwise stop with an actionable explanation and leave the world unchanged. Keep behavior-pack files and configuration world-scoped even though BDS supports shared folders.
-- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-domain -p msc-api -p msc-infrastructure -p msc-application -p msc-agent && cargo clippy -p msc-domain -p msc-api -p msc-infrastructure -p msc-application -p msc-agent -- -D warnings`
+- **Status:** awaiting verification
+- **Files:** `crates/msc-domain/src/bedrock.rs`, `crates/msc-infrastructure/src/addon_provider.rs`, `crates/msc-application/src/addons.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-api/src/dto/worlds.rs`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
+- **What:** Browse CurseForge's Bedrock Addons catalog using the existing host-side key, then install a selected file into the chosen world slot. Validate archive paths and manifests, pack/module/dependency UUIDs and versions, and minimum Bedrock version. Install linked resource packs only when bundled; otherwise explain the missing pack and leave the world unchanged. Keep files and pack lists inside the owning world despite BDS's shared pack folders. The provider choice is Proposed until separately reviewed.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-domain -p msc-api -p msc-infrastructure -p msc-application -p msc-agent && cargo clippy -p msc-domain -p msc-api -p msc-infrastructure -p msc-application -p msc-agent -- -D warnings && python3 -m json.tool docs/msc2/api-contract/openapi.json >/dev/null`
 - **Batch:** P — Bedrock behavior packs
 - **Commit:** `P15.27: add Bedrock behavior-pack installation`
 

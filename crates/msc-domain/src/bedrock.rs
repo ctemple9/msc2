@@ -9,6 +9,157 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::net::IpAddr;
 
+/// Identity and compatibility information read from a Bedrock behavior-pack
+/// manifest. Keep the original version representation because Bedrock accepts
+/// both numeric vectors and, in newer manifests, semantic-version strings.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BehaviorPackManifest {
+    pub name: String,
+    pub uuid: String,
+    pub version: String,
+    pub minimum_bedrock_version: String,
+    pub dependencies: Vec<BehaviorPackDependency>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BehaviorPackDependency {
+    pub uuid: String,
+    pub version: String,
+}
+
+/// Parse and validate the pack identity needed before a downloaded archive is
+/// allowed to change a world. Dependencies on script APIs have a `module_name`
+/// rather than a UUID and are intentionally not treated as bundled packs.
+pub fn parse_behavior_pack_manifest(contents: &[u8]) -> Result<BehaviorPackManifest, String> {
+    parse_bedrock_pack_manifest(contents, true)
+}
+
+pub fn parse_resource_pack_manifest(contents: &[u8]) -> Result<BehaviorPackManifest, String> {
+    parse_bedrock_pack_manifest(contents, false)
+}
+
+fn parse_bedrock_pack_manifest(
+    contents: &[u8],
+    behavior_pack: bool,
+) -> Result<BehaviorPackManifest, String> {
+    let label = if behavior_pack {
+        "behavior-pack"
+    } else {
+        "resource-pack"
+    };
+    let root: serde_json::Value = serde_json::from_slice(contents)
+        .map_err(|error| format!("The {label} manifest is not valid JSON: {error}"))?;
+    let header = root
+        .get("header")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| format!("The {label} manifest has no header."))?;
+    let name = header
+        .get("name")
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| format!("The {label} manifest has no name."))?
+        .to_owned();
+    let uuid = header
+        .get("uuid")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| format!("The {label} manifest has no UUID."))?
+        .to_owned();
+    if uuid::Uuid::parse_str(&uuid).is_err() {
+        return Err(format!("The {label} manifest contains an invalid UUID."));
+    }
+    let version = manifest_version(header.get("version"))
+        .ok_or_else(|| format!("The {label} manifest has no valid version."))?;
+    let minimum_bedrock_version = manifest_version(root.get("min_engine_version"))
+        .ok_or_else(|| format!("The {label} manifest has no valid minimum Bedrock version."))?;
+
+    let modules = root
+        .get("modules")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| format!("The {label} manifest has no modules."))?;
+    let allowed_types: &[&str] = if behavior_pack {
+        &["data", "script"]
+    } else {
+        &["resources"]
+    };
+    let mut module_uuids = std::collections::BTreeSet::new();
+    for module in modules {
+        let module_type = module
+            .get("type")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| format!("The {label} manifest has a module with no type."))?;
+        if !allowed_types.contains(&module_type) {
+            return Err(format!("The archive does not contain a Bedrock {label}."));
+        }
+        let module_uuid = module
+            .get("uuid")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| format!("The {label} manifest has a module with no UUID."))?;
+        if uuid::Uuid::parse_str(module_uuid).is_err()
+            || !module_uuids.insert(module_uuid.to_ascii_lowercase())
+        {
+            return Err(format!(
+                "The {label} manifest contains an invalid or duplicate module UUID."
+            ));
+        }
+        manifest_version(module.get("version"))
+            .ok_or_else(|| format!("The {label} manifest has a module with no valid version."))?;
+    }
+
+    let mut dependencies = Vec::new();
+    if let Some(values) = root.get("dependencies") {
+        let values = values
+            .as_array()
+            .ok_or_else(|| format!("The {label} dependencies are not an array."))?;
+        for dependency in values {
+            if dependency
+                .get("module_name")
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|name| !name.is_empty())
+            {
+                continue;
+            }
+            let uuid = dependency
+                .get("uuid")
+                .and_then(serde_json::Value::as_str)
+                .ok_or_else(|| format!("The {label} manifest has a dependency without a UUID."))?;
+            if uuid::Uuid::parse_str(uuid).is_err() {
+                return Err(format!(
+                    "The {label} manifest has an invalid dependency UUID."
+                ));
+            }
+            let version = manifest_version(dependency.get("version")).ok_or_else(|| {
+                format!("The {label} manifest has a dependency without a valid version.")
+            })?;
+            dependencies.push(BehaviorPackDependency {
+                uuid: uuid.to_owned(),
+                version,
+            });
+        }
+    }
+
+    Ok(BehaviorPackManifest {
+        name,
+        uuid,
+        version,
+        minimum_bedrock_version,
+        dependencies,
+    })
+}
+
+fn manifest_version(value: Option<&serde_json::Value>) -> Option<String> {
+    match value? {
+        serde_json::Value::String(value) if !value.trim().is_empty() => Some(value.clone()),
+        serde_json::Value::Array(parts) if !parts.is_empty() => {
+            let numbers: Option<Vec<String>> = parts
+                .iter()
+                .map(|part| part.as_u64().map(|number| number.to_string()))
+                .collect();
+            numbers.map(|numbers| numbers.join("."))
+        }
+        _ => None,
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BedrockPropertiesModel {
     pub level_name: String,

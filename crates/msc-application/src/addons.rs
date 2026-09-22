@@ -171,10 +171,10 @@ pub fn install_java_datapack(
     let metadata: serde_json::Value = serde_json::from_slice(metadata_bytes).map_err(|error| {
         JavaDatapackError::Invalid(format!("The datapack pack.mcmeta is invalid JSON: {error}"))
     })?;
-    if !metadata
+    if metadata
         .pointer("/pack/pack_format")
         .and_then(serde_json::Value::as_u64)
-        .is_some_and(|format| format > 0)
+        .is_none_or(|format| format == 0)
         || metadata.pointer("/pack/description").is_none()
     {
         return Err(JavaDatapackError::Invalid(
@@ -273,6 +273,481 @@ pub fn install_java_datapack(
         installed_paths,
         backup_path,
     ))
+}
+
+#[derive(Debug)]
+pub enum BedrockBehaviorPackError {
+    Invalid(String),
+    IncompatibleVersion,
+    Io(String),
+}
+
+impl fmt::Display for BedrockBehaviorPackError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Invalid(message) | Self::Io(message) => f.write_str(message),
+            Self::IncompatibleVersion => f.write_str(
+                "This behavior pack requires a newer Bedrock version than the server provides.",
+            ),
+        }
+    }
+}
+
+/// Validates a downloaded `.mcpack`/`.mcaddon`, installs its behavior packs
+/// (and any bundled linked resource packs) into one Bedrock world's archive,
+/// and keeps a recovery copy before replacing that archive.
+pub fn install_bedrock_behavior_pack(
+    world_zip_path: &Path,
+    archive_bytes: &[u8],
+    source_name: &str,
+    source_version: &str,
+    source_url: &str,
+    bedrock_version: &str,
+) -> Result<(Vec<msc_domain::world_profile::WorldPackRecord>, PathBuf), BedrockBehaviorPackError> {
+    use msc_domain::bedrock::{parse_behavior_pack_manifest, parse_resource_pack_manifest};
+    use msc_domain::world_profile::{WorldPackDependency, WorldPackRecord, WorldPackSource};
+
+    struct PackContent {
+        uuid: String,
+        name: String,
+        version: String,
+        minimum: String,
+        dependencies: Vec<msc_domain::bedrock::BehaviorPackDependency>,
+        behavior: bool,
+        files: Vec<(String, Vec<u8>)>,
+        expanded_size: u64,
+    }
+
+    fn clean_path(name: &str) -> Result<String, BedrockBehaviorPackError> {
+        let normalized = name.replace('\\', "/");
+        let path = Path::new(&normalized);
+        if normalized.is_empty()
+            || normalized.starts_with('/')
+            || normalized.contains(':')
+            || path.components().any(|component| {
+                matches!(
+                    component,
+                    std::path::Component::ParentDir
+                        | std::path::Component::RootDir
+                        | std::path::Component::Prefix(_)
+                )
+            })
+        {
+            return Err(BedrockBehaviorPackError::Invalid(
+                "The add-on archive contains a path outside the pack.".to_string(),
+            ));
+        }
+        Ok(normalized)
+    }
+
+    fn read_pack(bytes: &[u8]) -> Result<PackContent, BedrockBehaviorPackError> {
+        let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|error| {
+            BedrockBehaviorPackError::Invalid(format!("Invalid Bedrock pack archive: {error}"))
+        })?;
+        if zip.is_empty() || zip.len() > 20_000 {
+            return Err(BedrockBehaviorPackError::Invalid(
+                "The Bedrock pack archive is empty or contains too many files.".to_string(),
+            ));
+        }
+        let mut files = Vec::new();
+        let mut expanded = 0_u64;
+        let mut manifest = None;
+        for index in 0..zip.len() {
+            let mut entry = zip.by_index(index).map_err(|error| {
+                BedrockBehaviorPackError::Invalid(format!("Could not read Bedrock pack: {error}"))
+            })?;
+            if entry.is_dir() {
+                continue;
+            }
+            let name = clean_path(entry.name())?;
+            if entry
+                .unix_mode()
+                .is_some_and(|mode| mode & 0o170000 == 0o120000)
+            {
+                return Err(BedrockBehaviorPackError::Invalid(
+                    "The Bedrock pack contains a symbolic link.".to_string(),
+                ));
+            }
+            expanded = expanded.saturating_add(entry.size());
+            if expanded > 2 * 1024 * 1024 * 1024 {
+                return Err(BedrockBehaviorPackError::Invalid(
+                    "The unpacked Bedrock pack exceeds the 2 GB safety limit.".to_string(),
+                ));
+            }
+            let mut contents = Vec::with_capacity(entry.size().min(16 * 1024 * 1024) as usize);
+            entry.read_to_end(&mut contents).map_err(|error| {
+                BedrockBehaviorPackError::Invalid(format!("Could not read Bedrock pack: {error}"))
+            })?;
+            if name == "manifest.json" || name.ends_with("/manifest.json") {
+                if manifest.is_some() {
+                    return Err(BedrockBehaviorPackError::Invalid(
+                        "The pack archive contains more than one manifest.".to_string(),
+                    ));
+                }
+                manifest = Some((name.clone(), contents.clone()));
+            }
+            files.push((name, contents));
+        }
+        let (manifest_path, manifest_bytes) = manifest.ok_or_else(|| {
+            BedrockBehaviorPackError::Invalid(
+                "The Bedrock add-on does not contain a pack manifest.".to_string(),
+            )
+        })?;
+        let wrapper = manifest_path.strip_suffix("manifest.json").unwrap_or("");
+        if !wrapper.is_empty() && files.iter().any(|(name, _)| !name.starts_with(wrapper)) {
+            return Err(BedrockBehaviorPackError::Invalid(
+                "Pack files do not share the directory containing manifest.json.".to_string(),
+            ));
+        }
+        let raw: serde_json::Value = serde_json::from_slice(&manifest_bytes).map_err(|error| {
+            BedrockBehaviorPackError::Invalid(format!("Invalid Bedrock manifest: {error}"))
+        })?;
+        let behavior = raw
+            .get("modules")
+            .and_then(serde_json::Value::as_array)
+            .is_some_and(|modules| {
+                modules.iter().any(|module| {
+                    matches!(
+                        module.get("type").and_then(serde_json::Value::as_str),
+                        Some("data" | "script")
+                    )
+                })
+            });
+        let parsed = if behavior {
+            parse_behavior_pack_manifest(&manifest_bytes)
+        } else {
+            parse_resource_pack_manifest(&manifest_bytes)
+        }
+        .map_err(BedrockBehaviorPackError::Invalid)?;
+        let uuid = parsed.uuid;
+        let name = parsed.name;
+        let version = parsed.version;
+        let minimum = parsed.minimum_bedrock_version;
+        let dependencies = parsed.dependencies;
+        let relative_files = files
+            .into_iter()
+            .map(|(name, bytes)| {
+                (
+                    name.strip_prefix(wrapper).unwrap_or(&name).to_owned(),
+                    bytes,
+                )
+            })
+            .collect();
+        Ok(PackContent {
+            uuid,
+            name,
+            version,
+            minimum,
+            dependencies,
+            behavior,
+            files: relative_files,
+            expanded_size: expanded,
+        })
+    }
+
+    fn version_tuple(value: &str) -> Option<(u64, u64, u64)> {
+        let core = value.split(['-', '+']).next()?;
+        let parts = core
+            .split('.')
+            .take(3)
+            .map(|part| part.parse::<u64>().ok())
+            .collect::<Option<Vec<_>>>()?;
+        (parts.len() == 3).then(|| (parts[0], parts[1], parts[2]))
+    }
+
+    let mut incoming = zip::ZipArchive::new(Cursor::new(archive_bytes)).map_err(|error| {
+        BedrockBehaviorPackError::Invalid(format!("Invalid Bedrock add-on archive: {error}"))
+    })?;
+    if incoming.is_empty() || incoming.len() > 20_000 {
+        return Err(BedrockBehaviorPackError::Invalid(
+            "The Bedrock add-on archive is empty or contains too many entries.".to_string(),
+        ));
+    }
+    let mut payloads = Vec::<Vec<u8>>::new();
+    let mut total_size = 0_u64;
+    for index in 0..incoming.len() {
+        let mut entry = incoming.by_index(index).map_err(|error| {
+            BedrockBehaviorPackError::Invalid(format!("Could not read add-on archive: {error}"))
+        })?;
+        if entry.is_dir() {
+            continue;
+        }
+        let name = clean_path(entry.name())?;
+        if entry
+            .unix_mode()
+            .is_some_and(|mode| mode & 0o170000 == 0o120000)
+        {
+            return Err(BedrockBehaviorPackError::Invalid(
+                "The add-on archive contains a symbolic link.".into(),
+            ));
+        }
+        total_size = total_size.saturating_add(entry.size());
+        if total_size > 2 * 1024 * 1024 * 1024 {
+            return Err(BedrockBehaviorPackError::Invalid(
+                "The add-on archive exceeds the 2 GB safety limit.".into(),
+            ));
+        }
+        let mut bytes = Vec::with_capacity(entry.size().min(16 * 1024 * 1024) as usize);
+        entry
+            .read_to_end(&mut bytes)
+            .map_err(|error| BedrockBehaviorPackError::Invalid(error.to_string()))?;
+        if name.to_ascii_lowercase().ends_with(".mcpack") {
+            payloads.push(bytes);
+        }
+    }
+    if payloads.is_empty() {
+        payloads.push(archive_bytes.to_vec());
+    }
+    let mut packs = Vec::new();
+    let mut seen = std::collections::BTreeSet::new();
+    let mut total_expanded_size = 0_u64;
+    for payload in payloads {
+        let pack = read_pack(&payload)?;
+        total_expanded_size = total_expanded_size.saturating_add(pack.expanded_size);
+        if total_expanded_size > 2 * 1024 * 1024 * 1024 {
+            return Err(BedrockBehaviorPackError::Invalid(
+                "The complete Bedrock add-on exceeds the 2 GB unpacked safety limit.".into(),
+            ));
+        }
+        if !seen.insert(pack.uuid.to_ascii_lowercase()) {
+            return Err(BedrockBehaviorPackError::Invalid(
+                "The add-on contains duplicate pack UUIDs.".into(),
+            ));
+        }
+        let minimum_version = version_tuple(&pack.minimum).ok_or_else(|| {
+            BedrockBehaviorPackError::Invalid(format!(
+                "{} declares an unreadable minimum Bedrock version.",
+                pack.name
+            ))
+        })?;
+        let current_version = version_tuple(bedrock_version).ok_or_else(|| {
+            BedrockBehaviorPackError::Invalid(
+                "The running Bedrock server version cannot be compared with pack requirements."
+                    .to_string(),
+            )
+        })?;
+        if minimum_version > current_version {
+            return Err(BedrockBehaviorPackError::IncompatibleVersion);
+        }
+        packs.push(pack);
+    }
+    let behavior_ids: std::collections::BTreeSet<String> = packs
+        .iter()
+        .filter(|pack| pack.behavior)
+        .map(|pack| pack.uuid.to_ascii_lowercase())
+        .collect();
+    if behavior_ids.is_empty() {
+        return Err(BedrockBehaviorPackError::Invalid(
+            "The add-on contains no behavior pack.".into(),
+        ));
+    }
+    let resource_ids: std::collections::BTreeSet<String> = packs
+        .iter()
+        .filter(|pack| !pack.behavior)
+        .map(|pack| pack.uuid.to_ascii_lowercase())
+        .collect();
+    let bundled_versions: std::collections::BTreeMap<String, &str> = packs
+        .iter()
+        .map(|pack| (pack.uuid.to_ascii_lowercase(), pack.version.as_str()))
+        .collect();
+    for pack in &packs {
+        for dependency in &pack.dependencies {
+            let dependency_id = dependency.uuid.to_ascii_lowercase();
+            if !behavior_ids.contains(&dependency_id) && !resource_ids.contains(&dependency_id) {
+                return Err(BedrockBehaviorPackError::Invalid(format!(
+                    "{} requires pack {} (version {}) which is not included in this add-on. Include the linked pack before installing. The world was not changed.",
+                    pack.name, dependency.uuid, dependency.version
+                )));
+            }
+            if bundled_versions.get(&dependency_id).copied() != Some(dependency.version.as_str()) {
+                return Err(BedrockBehaviorPackError::Invalid(format!(
+                    "{} requires pack {} version {}, but the bundled pack has a different version. The world was not changed.",
+                    pack.name, dependency.uuid, dependency.version
+                )));
+            }
+        }
+    }
+
+    let mut world = zip::ZipArchive::new(
+        std::fs::File::open(world_zip_path)
+            .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?,
+    )
+    .map_err(|error| {
+        BedrockBehaviorPackError::Invalid(format!(
+            "The selected Bedrock world archive is invalid: {error}"
+        ))
+    })?;
+    let mut behavior_config = serde_json::Value::Array(Vec::new());
+    let mut resource_config = serde_json::Value::Array(Vec::new());
+    for (name, value) in [
+        ("world_behavior_packs.json", &mut behavior_config),
+        ("world_resource_packs.json", &mut resource_config),
+    ] {
+        for index in 0..world.len() {
+            let mut entry = world
+                .by_index(index)
+                .map_err(|error| BedrockBehaviorPackError::Invalid(error.to_string()))?;
+            if entry.name() == name {
+                let mut bytes = Vec::new();
+                entry
+                    .read_to_end(&mut bytes)
+                    .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?;
+                *value = serde_json::from_slice::<serde_json::Value>(&bytes).map_err(|_| {
+                    BedrockBehaviorPackError::Invalid(format!(
+                        "The world's {name} file is malformed; no changes were made."
+                    ))
+                })?;
+                if !value.is_array() {
+                    return Err(BedrockBehaviorPackError::Invalid(format!(
+                        "The world's {name} file is not a pack list; no changes were made."
+                    )));
+                }
+                break;
+            }
+        }
+    }
+    let temp_path =
+        world_zip_path.with_extension(format!("{}.behavior-pack.tmp", uuid::Uuid::new_v4()));
+    let temp_file = std::fs::File::create(&temp_path)
+        .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?;
+    let mut output = zip::ZipWriter::new(temp_file);
+    let options = zip::write::SimpleFileOptions::default();
+    let mut existing = std::collections::BTreeSet::new();
+    for index in 0..world.len() {
+        let mut entry = world
+            .by_index(index)
+            .map_err(|error| BedrockBehaviorPackError::Invalid(error.to_string()))?;
+        let name = entry.name().to_owned();
+        existing.insert(name.clone());
+        if name == "world_behavior_packs.json" || name == "world_resource_packs.json" {
+            continue;
+        }
+        if entry.is_dir() {
+            output
+                .add_directory(name, options)
+                .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?;
+        } else {
+            output
+                .start_file(name, options)
+                .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?;
+            std::io::copy(&mut entry, &mut output)
+                .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?;
+        }
+    }
+    let mut installed = Vec::new();
+    for pack in &packs {
+        let folder = if pack.behavior {
+            "behavior_packs"
+        } else {
+            "resource_packs"
+        };
+        let root = format!("{folder}/{}/", pack.uuid);
+        for (name, bytes) in &pack.files {
+            let path = format!("{root}{name}");
+            if existing.contains(&path) {
+                let _ = std::fs::remove_file(&temp_path);
+                return Err(BedrockBehaviorPackError::Invalid(
+                    "A pack file conflicts with an existing file in this world.".into(),
+                ));
+            }
+            output
+                .start_file(&path, options)
+                .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?;
+            output
+                .write_all(bytes)
+                .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?;
+        }
+        installed.push(WorldPackRecord {
+            id: pack.uuid.clone(),
+            edition: "bedrock".into(),
+            kind: "bedrock_behavior_pack".into(),
+            name: pack.name.clone(),
+            source: WorldPackSource {
+                provider: Some("curseforge".into()),
+                project_id: Some(source_name.to_owned()),
+                version_id: Some(source_version.to_owned()),
+                version: Some(pack.version.clone()),
+                url: Some(source_url.to_owned()),
+            },
+            files: pack
+                .files
+                .iter()
+                .map(|(name, _)| format!("{folder}/{}/{name}", pack.uuid))
+                .collect(),
+            checksum: Some(msc_infrastructure::download_staging::sha512_hex(
+                archive_bytes,
+            )),
+            compatibility: Some(format!(
+                "Bedrock {minimum} or newer",
+                minimum = pack.minimum
+            )),
+            minecraft_versions: vec![bedrock_version.to_owned()],
+            enabled: true,
+            dependencies: pack
+                .dependencies
+                .iter()
+                .map(|dependency| WorldPackDependency {
+                    id: dependency.uuid.clone(),
+                    kind: if resource_ids.contains(&dependency.uuid.to_ascii_lowercase()) {
+                        "linked_resource_pack".into()
+                    } else {
+                        "behavior_pack".into()
+                    },
+                    required: true,
+                })
+                .collect(),
+        });
+    }
+    for pack in &packs {
+        let target = if pack.behavior {
+            &mut behavior_config
+        } else {
+            &mut resource_config
+        };
+        target.as_array_mut().expect("initialized as array").push(serde_json::json!({"pack_id": pack.uuid, "version": pack.version.split('.').filter_map(|part| part.parse::<u64>().ok()).collect::<Vec<_>>() }));
+    }
+    for (name, config) in [
+        ("world_behavior_packs.json", behavior_config),
+        ("world_resource_packs.json", resource_config),
+    ] {
+        output
+            .start_file(name, options)
+            .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?;
+        output
+            .write_all(
+                serde_json::to_string_pretty(&config)
+                    .unwrap_or_default()
+                    .as_bytes(),
+            )
+            .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?;
+    }
+    output
+        .finish()
+        .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?
+        .sync_all()
+        .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?;
+    let backup_path =
+        world_zip_path.with_extension(format!("{}.pre-behavior-pack.bak", uuid::Uuid::new_v4()));
+    std::fs::copy(world_zip_path, &backup_path).map_err(|error| {
+        let _ = std::fs::remove_file(&temp_path);
+        BedrockBehaviorPackError::Io(format!("Could not back up the selected world: {error}"))
+    })?;
+    if let Err(error) = std::fs::remove_file(world_zip_path) {
+        let _ = std::fs::remove_file(&temp_path);
+        let _ = std::fs::remove_file(&backup_path);
+        return Err(BedrockBehaviorPackError::Io(format!(
+            "Could not prepare the selected world for replacement: {error}"
+        )));
+    }
+    if let Err(error) = std::fs::rename(&temp_path, world_zip_path) {
+        let _ = std::fs::copy(&backup_path, world_zip_path);
+        let _ = std::fs::remove_file(&temp_path);
+        return Err(BedrockBehaviorPackError::Io(format!(
+            "Could not replace the selected world archive; the recovery copy is at {}: {error}",
+            backup_path.display()
+        )));
+    }
+    Ok((installed, backup_path))
 }
 
 fn safe_pack_path(value: &str) -> String {

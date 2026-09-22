@@ -40,6 +40,31 @@ replacement. The updated slot profile records source, version, compatibility,
 enabled state, file paths, and SHA-512. Update availability is not reported
 until a provider check supplies it.
 
+P15.27's **Proposed** provider choice is CurseForge's Minecraft Bedrock
+catalog because Modrinth's first-provider decision applies only to Java
+datapacks. The agent
+looks up the Bedrock `Addons` class from CurseForge's game metadata, searches
+that class, and returns immutable project/file IDs plus the candidate game
+version. It uses the existing host-side CurseForge API key; the key never
+reaches a client. `GET /v1/catalog/behaviorpacks` accepts `q`, `gameVersion`,
+and `offset`; `POST /v1/worlds/{slotId}/behaviorpacks/install` accepts the
+selected project and file IDs. The agent verifies that the file belongs to
+the selected project, resolves its official download URL, and accepts payloads
+only from CurseForge's ForgeCDN.
+
+Before replacing the selected world's archive, installation validates every
+archive path and symbolic-link flag, caps expanded content, requires a valid
+behavior-pack manifest and UUID, and checks pack versions and the minimum
+Bedrock version. Any UUID dependency not provided by another bundled behavior
+pack or linked resource pack stops installation before the world changes. A
+bundled resource pack is copied into that same slot and added to the slot's
+`world_resource_packs.json`; behavior packs are added to
+`world_behavior_packs.json`. A recovery copy of the prior world archive is
+made before replacement, and the selected slot profile records the behavior
+pack source, immutable CurseForge file ID, checksum, compatibility, paths, and
+dependencies. CurseForge files with no API download URL remain unavailable for
+one-click installation and receive a clear manual-download response.
+
 ## Contract decisions
 
 - **D-030 is Approved.** Cameron confirmed that each slot owns a versioned

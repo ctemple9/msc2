@@ -81,6 +81,42 @@ pub struct JavaDatapackInstallRequestDto {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct BedrockBehaviorPackCatalogItemDto {
+    pub project_id: String,
+    pub slug: String,
+    pub title: String,
+    pub description: String,
+    pub downloads: i64,
+    #[serde(rename = "iconURL", default, skip_serializing_if = "Option::is_none")]
+    pub icon_url: Option<String>,
+    pub file_id: i64,
+    pub file_name: String,
+    pub minecraft_version: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BedrockBehaviorPackSearchResponseDto {
+    pub results: Vec<BedrockBehaviorPackCatalogItemDto>,
+    pub game_version: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BedrockBehaviorPackInstallRequestDto {
+    pub project_id: String,
+    pub file_id: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BedrockBehaviorPackInstallResultDto {
+    pub operation_id: String,
+    pub packs: Vec<WorldPackRecordDto>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct JavaDatapackInstallResultDto {
     pub result: String,
     pub pack: WorldPackRecordDto,

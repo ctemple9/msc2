@@ -1,6 +1,6 @@
 # MSC 2 — Decision Register
 
-**Revision:** 1.18 · **Date:** 2026-09-11
+**Revision:** 1.19 · **Date:** 2026-09-21
 **Owner:** Cameron Temple
 
 **Purpose:** the authoritative record of *what was decided, by whom, and why*. The product and engineering documents describe the destination; this document explains how it was chosen, what was rejected, and when a decision should be reopened.
@@ -821,6 +821,28 @@ state, and a `helpId` with each profile field. The existing `/v1/settings`
 response remains the server-settings surface after the split; it does not gain
 a second copy of the world profile.
 
+**Phase 15 world-pack and modpack-identity contract (Proposed).** Java
+datapacks and Bedrock behavior packs are owned by their `WorldSlot`; pack files
+and their per-world enabled/dependency state follow that slot through
+activation, duplication, backup, restore, export, and import. Java datapacks
+start with Modrinth as the provider. A bundled Bedrock linked resource pack is
+installed with its behavior pack; if it is absent, installation stops before
+the world changes. Imported modpack name, provider, and version are
+server-owned source metadata, separate from the installed component inventory.
+MSC never infers that identity from installed files. Client-only packs and a
+separate Bedrock resource-pack browser are out of scope. Enable, disable,
+update, and remove are later controls unless Phase 15 acceptance evidence shows
+one is needed for a usable first release. This contract remains **Proposed**
+until the owner confirms the world-profile ownership boundary; P15.24–P15.28
+must not begin before that confirmation.
+
+The capability/API boundary is host-agent-owned: world-slot pack operations
+belong under the Worlds API and use the selected slot ID; backups and transfer
+operations preserve the slot's pack files and metadata. Imported modpack
+identity belongs to server metadata and is exposed through the server or
+components read model, never reconstructed by a client. The concrete DTO and
+route shape is specified by the Phase 15 acceptance map before implementation.
+
 **Rationale.** A saved world must remain portable and predictable when a user
 switches slots, restores a backup, or moves the server to another host. The
 screen that happened to contain a control in MSC 1 cannot provide that
@@ -1109,6 +1131,7 @@ Recorded because each produced a confident wrong answer, and each is the kind of
 
 | Rev | Date | Change |
 |---|---|---|
+| 1.19 | 2026-09-21 | Recorded the proposed Phase 15 world-pack and modpack-identity contract and its D-030 approval gate. |
 | 1.18 | 2026-09-11 | Simplified the guided SSH trust flow: first connection remembers the remote identity without displaying its fingerprint; changed identities remain blocked until explicitly trusted, without showing key values. |
 | 1.17 | 2026-09-11 | Recorded the P14.19 gate handoff contract: backup and helper output join monitoring traffic for console-retention purposes, and static evidence does not close the phase gate without live Minecraft, OS-install, and retained-client verification. |
 | 1.16 | 2026-09-11 | Added the P14.16 remote connection hardening addendum: categorized failures, explicit host-key review, loopback forwarding, redaction, and host-switch isolation. |

@@ -665,6 +665,15 @@ Worlds
 
 This gives Java and Bedrock parallel concepts without pretending their underlying pack systems are identical.
 
+### P15.23 — Freeze the world-pack and modpack-identity contract
+
+- **Status:** awaiting verification
+- **Files:** `docs/msc2/msc2-decisions.md`, `docs/msc2/msc2-engineering.md`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
+- **What:** Map each requirement to its owner, API boundary, source files, and acceptance evidence in `docs/msc2/capabilities/phase15-world-packs.md`. Record that datapacks and behavior packs belong to a world slot, identify how slot activation, duplication, backup, restore, export, and import preserve pack state, define server-owned modpack identity and the no-guessing behavior, set Modrinth as the first Java datapack provider, and record the Bedrock rule for bundled linked resource packs. Keep D-030 Proposed unless Cameron confirms its world-profile ownership contract; do not begin P15.24–P15.28 until that boundary is confirmed. Explicitly keep client-only packs and separate Bedrock resource-pack browsing out of scope, and identify enable/disable/update/remove as later controls unless the acceptance map shows they are required for the first usable release.
+- **Verify:** `rg -n "world slot|Modrinth|linked resource pack|modpack identity|D-030|enable|disable|update|remove" docs/msc2/capabilities/phase15-world-packs.md docs/msc2/msc2-decisions.md docs/msc2/msc2-engineering.md`
+- **Batch:** L — world-pack contract and acceptance map
+- **Commit:** `P15.23: define world-pack contracts`
+
 ## Proposed Phase 14 — operational refinements
 
 This phase turns the issues reported from real use into four bounded areas:

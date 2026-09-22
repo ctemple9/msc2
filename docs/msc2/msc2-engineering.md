@@ -755,3 +755,39 @@ Content format (Markdown with front-matter is the obvious candidate) · embedded
 | Self-update mechanics for app + agent + sidecar as a set | Phase 11 | macOS/Windows only; Linux defers to the package manager. |
 | Console history bound — lines, bytes, or time? | Phase 4 | Affects reconnect behavior and agent memory. |
 | Does the CLI ship in the agent binary or separately? | Phase 4 | Assumed same binary; confirm against packaging. |
+
+---
+
+## 20. World packs and modpack identity (Phase 15, Proposed)
+
+World packs are scoped to a world slot. Java datapacks live with their Java
+world; Bedrock behavior packs are also world-scoped in MSC, even where BDS
+supports shared pack folders. The selected slot determines the pack inventory.
+Activation, duplication, backup, restore, export, and import must preserve that
+slot's pack files and configuration without exposing them in another slot.
+
+Keep edition-specific names, manifests, compatibility checks, and dependency
+rules at the boundary. Java datapacks use Modrinth as the first catalog
+provider. A Bedrock behavior pack may install a linked resource pack only when
+that resource pack is bundled in the same downloaded add-on. Otherwise the
+operation stops before changing the world and explains the missing dependency.
+There is no separate Bedrock resource-pack browser. Client-only packs are out
+of scope. Enable, disable, update, and remove are later controls unless the
+acceptance map demonstrates that one is required for the first usable release.
+
+Imported modpack identity is server-owned metadata: source pack name, provider,
+and imported version when available. It is separate from installed mods and
+other components. Missing source fields remain unavailable; MSC does not guess
+identity from installed files. Ordinary servers have no modpack identity.
+
+The API boundary is agent-owned. World-pack reads and mutations are keyed by
+world-slot ID under the Worlds capability; backup and transfer operations own
+portability. Modpack identity is read from server metadata through the server
+or Components surface. The API remains the only implementation boundary, so
+desktop, browser, and CLI clients do not manipulate pack files directly.
+Concrete routes and DTOs are to be frozen before implementation rather than
+assumed here. The traceability table and source map are maintained in
+`docs/msc2/capabilities/phase15-world-packs.md`.
+
+This contract is **Proposed** and does not promote D-030. Cameron must confirm
+the world-profile ownership boundary before P15.24–P15.28 implementation starts.

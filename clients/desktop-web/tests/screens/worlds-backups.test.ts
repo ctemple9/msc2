@@ -92,6 +92,7 @@ describe('world profiles -- settings stay with the slot', () => {
       supportedToggles: {},
     },
     safety: { state: 'safe', reasons: [] },
+    packs: [],
     fieldMetadata: {},
   };
 

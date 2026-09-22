@@ -140,6 +140,9 @@ run.
   source, version, dependency, compatibility, checksum, and enabled state.
   Components displays a compact read-only identity summary with unavailable
   values made explicit.
+- P15.31 aligns the world-pack browser with the Components browser's search,
+  provider/version line, flat icon-led results, and compact Add action while
+  retaining Java and Bedrock-specific install requests.
 
 ### Remaining owner-run acceptance evidence
 

@@ -30,6 +30,8 @@
   import { onDestroy, onMount } from 'svelte';
   import Icon from '../../components/base/Icon.svelte';
   import Button from '../../components/base/Button.svelte';
+  import Badge from '../../components/base/Badge.svelte';
+  import Card from '../../components/base/Card.svelte';
   import EmptyState from '../../components/base/EmptyState.svelte';
   import Menu from '../../components/base/Menu.svelte';
   import Sheet from '../../components/base/Sheet.svelte';

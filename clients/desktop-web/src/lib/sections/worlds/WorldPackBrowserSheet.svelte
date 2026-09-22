@@ -2,9 +2,11 @@
   import Sheet from '../../components/base/Sheet.svelte';
   import Button from '../../components/base/Button.svelte';
   import Field from '../../components/base/Field.svelte';
-  import Card from '../../components/base/Card.svelte';
+  import EmptyState from '../../components/base/EmptyState.svelte';
+  import Icon from '../../components/base/Icon.svelte';
   import type { Schema, ScreenApi } from '../shared/types';
   import { errorMessage, mutate } from '../shared/types';
+  import { formatCount } from '../components/model';
   import { pollOperation } from './model';
 
   export let api: ScreenApi | undefined;
@@ -19,6 +21,7 @@
   let bedrockResults: Schema['BedrockBehaviorPackCatalogItemDTO'][] = [];
   let loading = false;
   let installing = '';
+  let installed = new Set<string>();
   let notice = '';
   let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -71,6 +74,7 @@
         { projectId: item.projectId, versionId: version.id },
       );
       notice = `${result.pack.name} installed.`;
+      installed = new Set(installed).add(item.projectId);
       onInstalled();
     } catch (error) {
       notice = errorMessage(error);
@@ -96,6 +100,7 @@
         );
       }
       notice = `${item.title} installed.`;
+      installed = new Set(installed).add(item.projectId);
       onInstalled();
     } catch (error) {
       notice = errorMessage(error);
@@ -111,105 +116,189 @@
 </script>
 
 <Sheet title={bedrock ? 'Browse Behavior Packs' : 'Browse Datapacks'} size="lg" {onClose}>
-  <div class="browser">
-    <p class="intro">
-      {bedrock
-        ? 'Search CurseForge Bedrock add-ons. The host agent uses its configured API key.'
-        : 'Search Modrinth Java datapacks. Select a result to install its latest published version.'}
-      {#if minecraftVersion}
-        Minecraft {minecraftVersion}.{/if}
-    </p>
+  <div class="header">
     <Field
       bind:value={query}
-      placeholder={bedrock ? 'Search behavior packs' : 'Search datapacks'}
+      placeholder={bedrock ? 'Search behavior packs…' : 'Search datapacks…'}
     />
-    {#if notice}<p class="notice" role="status">{notice}</p>{/if}
-    {#if loading}
-      <p class="quiet" role="status">Searching…</p>
-    {:else if bedrock}
-      {#each bedrockResults as item (item.fileId)}
-        <Card padding="12px 14px">
-          <div class="result">
-            <div class="info">
-              <span class="name">{item.title}</span>
-              <span class="quiet">{item.fileName} · Minecraft {item.minecraftVersion}</span>
-              <span class="quiet">{item.description}</span>
-            </div>
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={!!installing}
-              onclick={() => void installBedrock(item)}
-            >
-              {installing === item.projectId ? 'Installing…' : 'Install'}
-            </Button>
-          </div>
-        </Card>
-      {:else}
-        <p class="quiet">No behavior packs found. Try another search.</p>
-      {/each}
-    {:else}
-      {#each results as item (item.projectId)}
-        <Card padding="12px 14px">
-          <div class="result">
-            <div class="info">
-              <span class="name">{item.title}</span>
-              <span class="quiet">{item.author} · {item.downloads.toLocaleString()} downloads</span>
-              <span class="quiet">{item.description}</span>
-            </div>
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={!!installing}
-              onclick={() => void installJava(item)}
-            >
-              {installing === item.projectId ? 'Installing…' : 'Install latest'}
-            </Button>
-          </div>
-        </Card>
-      {:else}
-        <p class="quiet">No datapacks found. Try another search.</p>
-      {/each}
-    {/if}
+    <p class="subtitle">
+      {bedrock ? 'CurseForge' : 'Modrinth'}{minecraftVersion
+        ? ` · Minecraft ${minecraftVersion}`
+        : ''}
+    </p>
   </div>
+  {#if notice}<p class="notice" role="status">{notice}</p>{/if}
+
+  {#if loading && (bedrock ? bedrockResults.length === 0 : results.length === 0)}
+    <p class="explain" role="status">Searching…</p>
+  {:else if bedrock && bedrockResults.length === 0}
+    <EmptyState title="No behavior packs found" message="Try a different search term.">
+      <Icon name="box" size={26} slot="icon" />
+    </EmptyState>
+  {:else if !bedrock && results.length === 0}
+    <EmptyState title="No datapacks found" message="Try a different search term.">
+      <Icon name="box" size={26} slot="icon" />
+    </EmptyState>
+  {:else if bedrock}
+    <div class="results">
+      {#each bedrockResults as item (item.fileId)}
+        <div class="result">
+          <div class="result-link">
+            <div class="icon">
+              {#if item.iconURL}
+                <img src={item.iconURL} alt="" width="40" height="40" loading="lazy" />
+              {:else}
+                <Icon name="box" size={18} />
+              {/if}
+            </div>
+            <div class="info">
+              <span class="title">{item.title}</span>
+              <p class="meta">{item.fileName} · Minecraft {item.minecraftVersion}</p>
+              <p class="description">{item.description}</p>
+            </div>
+          </div>
+          {#if installed.has(item.projectId)}
+            <span class="added">Added</span>
+          {:else if installing === item.projectId}
+            <span class="added">Installing…</span>
+          {:else}
+            <Button size="sm" variant="secondary" onclick={() => void installBedrock(item)}
+              >Add</Button
+            >
+          {/if}
+        </div>
+      {/each}
+    </div>
+  {:else}
+    <div class="results">
+      {#each results as item (item.projectId)}
+        <div class="result">
+          <div class="result-link">
+            <div class="icon">
+              {#if item.iconURL}
+                <img src={item.iconURL} alt="" width="40" height="40" loading="lazy" />
+              {:else}
+                <Icon name="box" size={18} />
+              {/if}
+            </div>
+            <div class="info">
+              <span class="title">{item.title}</span>
+              <p class="meta">by {item.author} · {formatCount(item.downloads)} downloads</p>
+              <p class="description">{item.description}</p>
+            </div>
+          </div>
+          {#if installed.has(item.projectId)}
+            <span class="added">Added</span>
+          {:else if installing === item.projectId}
+            <span class="added">Installing…</span>
+          {:else}
+            <Button size="sm" variant="secondary" onclick={() => void installJava(item)}>Add</Button
+            >
+          {/if}
+        </div>
+      {/each}
+    </div>
+  {/if}
 </Sheet>
 
 <style>
-  .browser {
+  .header {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
+    margin-bottom: 12px;
   }
-  .intro,
-  .notice,
-  .quiet {
+  .subtitle {
     margin: 0;
-    color: var(--msc2-text-secondary);
-    font-size: 12px;
-    line-height: 1.5;
+    font-size: 11px;
+    color: var(--msc2-text-tertiary);
   }
   .notice {
-    color: var(--msc2-status-warn);
+    margin: 0 0 10px;
+    font-size: 12px;
+    color: var(--msc2-text-secondary);
   }
-  .result {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
+  .explain {
+    margin: 0;
+    font-size: 12px;
+    color: var(--msc2-text-tertiary);
   }
-  .info {
+  .results {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    min-width: 0;
+    max-height: 480px;
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
-  .name {
-    color: var(--msc2-text-primary);
+  .results::-webkit-scrollbar {
+    display: none;
+    width: 0;
+  }
+  .result {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 0;
+    border-top: 1px solid var(--msc2-hairline-subtle);
+  }
+  .result:first-child {
+    border-top: none;
+  }
+  .result-link {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    min-width: 0;
+    flex: 1;
+  }
+  .info {
+    min-width: 0;
+    flex: 1;
+  }
+  .icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--msc2-tier-chrome);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--msc2-text-tertiary);
+  }
+  .icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .title {
     font-size: 13px;
     font-weight: 500;
+    color: var(--msc2-text-primary);
   }
-  .quiet {
+  .meta {
+    margin: 2px 0 0;
+    font-size: 11px;
     color: var(--msc2-text-tertiary);
-    overflow-wrap: anywhere;
+  }
+  .description {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: var(--msc2-text-secondary);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .added {
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--msc2-status-ok);
   }
 </style>

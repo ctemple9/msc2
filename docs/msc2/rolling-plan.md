@@ -734,6 +734,15 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Batch:** S — slot-copy portability correction
 - **Commit:** `P15.30: preserve slot profile on copy failure`
 
+### P15.31 — Match the world-pack browser to the Components browser
+
+- **Status:** awaiting verification
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldPackBrowserSheet.svelte`, `clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte`, `clients/desktop-web/tests/screens/worlds-backups.test.ts`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
+- **What:** Bring datapack and behavior-pack result browsing into line with the Components Modrinth browser: search field and quiet provider/version line at the top, icon-led flat result rows with author/download metadata and restrained descriptions, and a compact Add action. Keep the provider-specific install behavior and do not introduce nested result cards. Resolve the missing UI imports and update the existing world-profile fixture for the current schema so the static frontend check can run.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** T — world-pack browser presentation
+- **Commit:** `P15.31: align world-pack browser presentation`
+
 ## Proposed Phase 14 — operational refinements
 
 This phase turns the issues reported from real use into four bounded areas:

@@ -330,6 +330,12 @@ struct PendingControllerReply {
     expires_at: Instant,
 }
 
+#[derive(Debug, Clone)]
+struct PendingControllerCommandEcho {
+    command: String,
+    expires_at: Instant,
+}
+
 #[derive(Debug, Clone, Copy)]
 enum SparkReplyState {
     ExpectValues { guard: u8 },
@@ -349,7 +355,9 @@ struct NeoForgeTpsReplyState {
 #[derive(Debug, Default)]
 struct ConsoleCorrelation {
     pending: VecDeque<PendingControllerReply>,
+    pending_command_echoes: VecDeque<PendingControllerCommandEcho>,
     last_matched_reply: Option<ControllerReplyKind>,
+    last_matched_command_echo: bool,
     spark: Option<SparkReplyState>,
     tick_query: Option<TickQueryReplyState>,
     neoforge_tps: Option<NeoForgeTpsReplyState>,
@@ -357,12 +365,8 @@ struct ConsoleCorrelation {
 
 impl ConsoleCorrelation {
     fn register(&mut self, command: &str) {
-        let kind = match command
-            .trim()
-            .trim_start_matches('/')
-            .to_ascii_lowercase()
-            .as_str()
-        {
+        let command = command.trim().trim_start_matches('/').to_ascii_lowercase();
+        let kind = match command.as_str() {
             "list" => ControllerReplyKind::List,
             "tps" | "forge tps" | "neoforge tps" => ControllerReplyKind::Tps,
             "spark tps" => ControllerReplyKind::SparkTps,
@@ -382,11 +386,23 @@ impl ConsoleCorrelation {
             kind,
             expires_at: Instant::now() + CONTROLLER_REPLY_TTL,
         });
+        if matches!(
+            kind,
+            ControllerReplyKind::TimeQueryDay | ControllerReplyKind::TimeQueryDaytime
+        ) {
+            self.pending_command_echoes
+                .push_back(PendingControllerCommandEcho {
+                    command,
+                    expires_at: Instant::now() + CONTROLLER_REPLY_TTL,
+                });
+        }
     }
 
     fn clear(&mut self) {
         self.pending.clear();
+        self.pending_command_echoes.clear();
         self.last_matched_reply = None;
+        self.last_matched_command_echo = false;
         self.spark = None;
         self.tick_query = None;
         self.neoforge_tps = None;
@@ -394,10 +410,28 @@ impl ConsoleCorrelation {
 
     fn classify(&mut self, line: &str) -> ConsoleLineOrigin {
         self.last_matched_reply = None;
+        self.last_matched_command_echo = false;
         self.pending
             .retain(|reply| reply.expires_at > Instant::now());
+        self.pending_command_echoes
+            .retain(|echo| echo.expires_at > Instant::now());
         let clean = strip_ansi(line);
         let lower = clean.to_ascii_lowercase();
+
+        let command_echo = lower
+            .trim()
+            .strip_prefix("> ")
+            .unwrap_or(lower.trim())
+            .trim_start_matches('/');
+        if let Some(index) = self
+            .pending_command_echoes
+            .iter()
+            .position(|echo| echo.command == command_echo)
+        {
+            self.pending_command_echoes.remove(index);
+            self.last_matched_command_echo = true;
+            return ConsoleLineOrigin::Controller;
+        }
 
         if self.classify_spark_continuation(&lower) {
             return ConsoleLineOrigin::Controller;
@@ -444,6 +478,10 @@ impl ConsoleCorrelation {
 
     fn take_last_matched_reply(&mut self) -> Option<ControllerReplyKind> {
         self.last_matched_reply.take()
+    }
+
+    fn take_last_matched_command_echo(&mut self) -> bool {
+        std::mem::take(&mut self.last_matched_command_echo)
     }
 
     fn classify_neoforge_tps_continuation(&mut self, lower: &str) -> bool {
@@ -1171,18 +1209,25 @@ impl LifecycleRoutesState {
         if origin != ConsoleLineOrigin::Controller {
             return false;
         }
-        let query_kind = self
-            .inner
-            .console_correlation
-            .lock()
-            .expect("console correlation lock poisoned")
-            .take_last_matched_reply()
-            .and_then(|reply| match reply {
-                ControllerReplyKind::TimeQueryDay => Some(TimeQueryKind::Day),
-                ControllerReplyKind::TimeQueryDaytime => Some(TimeQueryKind::Daytime),
-                ControllerReplyKind::TimeQueryGametime => Some(TimeQueryKind::Gametime),
-                _ => None,
-            });
+        let (query_kind, command_echo) = {
+            let mut correlation = self
+                .inner
+                .console_correlation
+                .lock()
+                .expect("console correlation lock poisoned");
+            let query_kind = correlation
+                .take_last_matched_reply()
+                .and_then(|reply| match reply {
+                    ControllerReplyKind::TimeQueryDay => Some(TimeQueryKind::Day),
+                    ControllerReplyKind::TimeQueryDaytime => Some(TimeQueryKind::Daytime),
+                    ControllerReplyKind::TimeQueryGametime => Some(TimeQueryKind::Gametime),
+                    _ => None,
+                });
+            (query_kind, correlation.take_last_matched_command_echo())
+        };
+        if command_echo {
+            return true;
+        }
         let Some(query_kind) = query_kind else {
             return false;
         };

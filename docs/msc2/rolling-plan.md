@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 15 is the priority next phase; Phase 14 is paused with P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, P14.17, P14.18, P14.19, P14.26, P14.27, P14.28, P14.29, P14.30, P14.31, P14.32, P14.33, P14.34, P14.35, P14.36, and P14.37 awaiting verification. P14.38 records twelve unverified static-review findings and is awaiting owner triage.
-> **Next move:** Cameron verifies P15.3, P15.4, P15.5, P15.45, P15.46, P15.47, P15.48, P15.49, P15.50, P15.51, P15.52, P15.53, P15.54, P15.55, P15.56, P15.57, P15.58, P15.59, and P15.60. Phase 14 verification and P14.38 triage remain recorded and paused until Phase 15 is complete or Cameron explicitly resumes Phase 14. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> **Next move:** Cameron verifies P15.3, P15.4, P15.5, P15.45, P15.46, P15.47, P15.48, P15.49, P15.50, P15.51, P15.52, P15.53, P15.54, P15.55, P15.56, P15.57, P15.58, P15.59, P15.60, P15.61, P15.62, P15.63, P15.64, and P15.65. Phase 14 verification and P14.38 triage remain recorded and paused until Phase 15 is complete or Cameron explicitly resumes Phase 14. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -1039,6 +1039,16 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-agent`
 - **Batch:** N — Bedrock transport startup repair
 - **Commit:** `P15.64: restore NetherNet for current Bedrock clients`
+
+### P15.65 — Repair macOS Bedrock player connectivity
+
+- **Status:** awaiting verification
+- **Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `crates/msc-infrastructure/src/port_diagnostics.rs`, `crates/msc-infrastructure/src/bedrock_sidecar.rs`, `crates/msc-application/src/bedrock_settings.rs`, `crates/msc-agent/src/routes/bedrock_runtime.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/network_diagnostics.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Correct the live Intel-macOS failure in which BDS answered at the VM address but the host listener accepted and stranded every player datagram. Restore MSC 1's explicit reusable `0.0.0.0` UDP bind, forward and report client/guest connection failures, expire idle flow pairs, and require a real RakNet ping through the host listener before the sidecar emits ready. Keep only this single-port VM path on `transport=raknet`; native Linux and Windows retain `transport=nethernet`. The P15.64 NetherNet conclusion was drawn while the relay itself was broken and could not distinguish a transport failure from a forwarding failure. Replace the Bedrock TCP connectivity check with a protocol-valid RakNet ping, and force-terminate a supervised sidecar when its Rust owner is dropped so stopped/replaced agents do not accumulate orphan helpers. Live acceptance must prove loopback, LAN, hotspot/public forwarding, Xbox Broadcast transfer, bounded relay sockets after repeated probes, and sidecar cleanup after an agent restart.
+- **Implementation note (2026-09-22):** The live diagnosis proved `192.168.64.64:19000` returned a Bedrock 1.26.51/protocol-2193 RakNet pong while both `127.0.0.1:19000` and `10.0.0.142:19000` timed out through the old relay. Xbox Broadcast build 155 was current, the public IP matched its target, and the macOS application firewall was disabled. Twelve detached, listener-free sidecars from earlier agent runs were terminated without touching the current agent, VM, server, or Broadcast helper.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-infrastructure -p msc-application -p msc-agent --lib --bins --no-deps -- -D warnings && xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-65-build build CODE_SIGNING_ALLOWED=NO`
+- **Batch:** N — Bedrock transport and relay repair
+- **Commit:** `P15.65: repair macOS Bedrock player connectivity`
 
 ## Proposed Phase 14 — operational refinements
 

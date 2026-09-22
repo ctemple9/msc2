@@ -17,7 +17,9 @@ use msc_api::dto::{
 use msc_application::network_diagnostics::connectivity_summary_with_public_ip;
 use msc_domain::networking::DiagnosticResult;
 use msc_infrastructure::{
-    duckdns::normalize_hostname, port_diagnostics::probe_tcp, public_ip::detect as detect_public_ip,
+    duckdns::normalize_hostname,
+    port_diagnostics::{probe_bedrock, probe_tcp},
+    public_ip::detect as detect_public_ip,
 };
 use std::{path::Path, time::Duration};
 
@@ -82,10 +84,17 @@ pub async fn connectivity(
         java_server_port(Path::new(&server.server_dir)).unwrap_or(25565)
     };
     let running = state.status_snapshot().running;
+    let bedrock = server.server_type == msc_domain::identity::ServerType::Bedrock;
     let local = if running {
-        tokio::task::spawn_blocking(move || probe_tcp("127.0.0.1", port, Duration::from_secs(1)))
-            .await
-            .unwrap_or(DiagnosticResult::Unavailable)
+        tokio::task::spawn_blocking(move || {
+            if bedrock {
+                probe_bedrock("127.0.0.1", port, Duration::from_secs(1))
+            } else {
+                probe_tcp("127.0.0.1", port, Duration::from_secs(1))
+            }
+        })
+        .await
+        .unwrap_or(DiagnosticResult::Unavailable)
     } else {
         DiagnosticResult::NotAttempted
     };
@@ -122,12 +131,7 @@ pub async fn connectivity(
         },
     );
     Json(ConnectivityResponseDto {
-        server_type: if server.server_type == msc_domain::identity::ServerType::Bedrock {
-            "bedrock"
-        } else {
-            "java"
-        }
-        .into(),
+        server_type: if bedrock { "bedrock" } else { "java" }.into(),
         server_name: server.display_name.clone(),
         server_running: running,
         status: if running { "unknown" } else { "offline" }.into(),

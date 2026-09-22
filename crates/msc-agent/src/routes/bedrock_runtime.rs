@@ -319,6 +319,10 @@ impl BedrockRuntimeSelection {
         self.runtime.lock().unwrap().state()
     }
 
+    pub fn backend(&self) -> Option<BedrockRuntimeBackend> {
+        self.eligibility.lock().unwrap().backend
+    }
+
     /// Rebind the shared eligibility snapshot to the server that is about to
     /// become active. The runtime itself is shared by all Bedrock routes, so
     /// leaving the startup server's filesystem result in place would let one

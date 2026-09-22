@@ -70,24 +70,41 @@ pub fn load(fs: &dyn FileSystem, server_dir: &Path) -> BedrockSettings {
     }
 }
 
-/// Ensure Bedrock uses the transport required by current dedicated-server
-/// releases before the executable starts. The update is idempotent and keeps
-/// every other property, including keys MSC does not understand.
+/// Keep the macOS VM's player path on the single-port RakNet transport that
+/// its host-to-guest UDP relay can preserve. The update is idempotent and
+/// keeps every unrelated property, including keys MSC does not understand.
+pub fn ensure_raknet_transport(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+) -> Result<bool, BedrockSettingsError> {
+    ensure_transport(fs, server_dir, "raknet")
+}
+
+/// Keep native Linux and Windows BDS installations on their supported
+/// default transport while the macOS VM relay uses RakNet explicitly.
 pub fn ensure_nethernet_transport(
     fs: &dyn FileSystem,
     server_dir: &Path,
+) -> Result<bool, BedrockSettingsError> {
+    ensure_transport(fs, server_dir, "nethernet")
+}
+
+fn ensure_transport(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    transport: &str,
 ) -> Result<bool, BedrockSettingsError> {
     let current = load(fs, server_dir);
     let already_configured = current
         .raw
         .get("transport")
-        .is_some_and(|value| value.trim().eq_ignore_ascii_case("nethernet"));
+        .is_some_and(|value| value.trim().eq_ignore_ascii_case(transport));
     if already_configured {
         return Ok(false);
     }
 
     let mut raw = current.raw;
-    raw.insert("transport".to_string(), "nethernet".to_string());
+    raw.insert("transport".to_string(), transport.to_string());
     atomic_write(
         fs,
         &server_dir.join(PROPERTIES_FILE),

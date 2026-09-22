@@ -107,6 +107,15 @@ impl<'supervisor> BedrockSidecarProcess<'supervisor> {
     }
 }
 
+impl Drop for BedrockSidecarProcess<'_> {
+    fn drop(&mut self) {
+        if !self.eof {
+            let _ = self.process_supervisor.force_terminate(self.process);
+            self.eof = true;
+        }
+    }
+}
+
 pub fn sidecar_spawn_request(
     executable_path: impl Into<PathBuf>,
     working_directory: impl Into<PathBuf>,

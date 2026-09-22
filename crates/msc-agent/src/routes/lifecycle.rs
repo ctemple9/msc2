@@ -12,8 +12,8 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use msc_api::dto::{ActiveServerRequestDto, ErrorDto, PermissionCategoryDto, SimpleResultDto};
 use msc_application::bedrock_runtime::{
-    BedrockProvisionRequest, BedrockRuntimeError, BedrockRuntimeEvent, BedrockRuntimeState,
-    BedrockStartRequest, BedrockTerminationReason,
+    BedrockProvisionRequest, BedrockRuntimeBackend, BedrockRuntimeError, BedrockRuntimeEvent,
+    BedrockRuntimeState, BedrockStartRequest, BedrockTerminationReason,
 };
 #[cfg(test)]
 use msc_application::import::ImportedPaperServer;
@@ -2152,12 +2152,20 @@ impl LifecycleRoutesState {
         let result = self
             .provision_bedrock_server(&active)
             .and_then(|()| {
-                msc_application::bedrock_settings::ensure_nethernet_transport(
-                    &StdFileSystem,
-                    Path::new(&active.server_dir),
-                )
-                .map(|_| ())
-                .map_err(|error| {
+                let server_dir = Path::new(&active.server_dir);
+                let transport_result = match self.inner.bedrock_runtime.backend() {
+                    Some(BedrockRuntimeBackend::Sidecar) => {
+                        msc_application::bedrock_settings::ensure_raknet_transport(
+                            &StdFileSystem,
+                            server_dir,
+                        )
+                    }
+                    _ => msc_application::bedrock_settings::ensure_nethernet_transport(
+                        &StdFileSystem,
+                        server_dir,
+                    ),
+                };
+                transport_result.map(|_| ()).map_err(|error| {
                     BedrockRuntimeError::Provisioning(format!(
                         "could not configure Bedrock transport: {error}"
                     ))

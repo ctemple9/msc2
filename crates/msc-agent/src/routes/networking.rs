@@ -24,6 +24,7 @@ use msc_api::dto::{
     PlayitSetupAcceptedDto, PlayitSetupRequestDto, PlayitStatusDto, ResourcePackActivateRequestDto,
     ResourcePackItemDto, ResourcePackMutationResultDto, ResourcePackRemoveRequestDto,
     ResourcePackSetUrlRequestDto, ResourcePackToggleRequestDto, ResourcePacksResponseDto,
+    ServerPlayitRequestDto, ServerPlayitResultDto,
 };
 use msc_application::operations::LifecycleOperations;
 use msc_application::playit::{
@@ -99,6 +100,7 @@ impl PlayitLifecycleController {
                     self.operations,
                 )
             });
+            service.set_enabled(server.playit_enabled);
             if service.is_active() {
                 if service.lifecycle_status() == PlayitLifecycleStatus::Stopping {
                     self.schedule_playit_retry(&server.id, attempts, Instant::now());
@@ -491,6 +493,7 @@ impl NetworkingState {
 
         let mut services = self.playit_service(server);
         let service = services.get_mut(&server.id).expect("service was inserted");
+        service.set_enabled(server.playit_enabled);
         if service.lifecycle_status() == PlayitLifecycleStatus::Stopping {
             return Err("The existing Playit helper is still stopping.".into());
         }
@@ -578,6 +581,7 @@ impl NetworkingState {
 
 pub fn router(state: NetworkingState) -> Router {
     Router::new()
+        .route("/servers/playit", post(update_playit_enabled))
         .route("/playit", axum::routing::get(playit_status))
         .route("/playit/setup", post(playit_setup))
         .route("/playit/reset", post(playit_reset))
@@ -773,6 +777,7 @@ pub async fn playit_status(State(state): State<NetworkingState>) -> Response {
     let (has_secret, lifecycle_status) = {
         let mut services = state.playit_service(&server);
         let service = services.get_mut(&server.id).expect("service was inserted");
+        service.set_enabled(server.playit_enabled);
         (
             service.has_secret().unwrap_or(false),
             service.lifecycle_status(),
@@ -869,6 +874,74 @@ pub async fn playit_status(State(state): State<NetworkingState>) -> Response {
         note: status_note,
     })
     .into_response()
+}
+
+pub async fn update_playit_enabled(
+    State(state): State<NetworkingState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    body: Result<Json<ServerPlayitRequestDto>, axum::extract::rejection::JsonRejection>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Networking) {
+        return response;
+    }
+    let Json(body) = match body {
+        Ok(body) => body,
+        Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
+    };
+    let server_id = body.server_id.trim().to_string();
+    if server_id.is_empty() {
+        return invalid_body("missing_server_id", "serverId is required.");
+    }
+    let enabled = body.enabled;
+    match state.lifecycle.try_mutate_config(|config| {
+        let Some(server) = config
+            .servers
+            .iter_mut()
+            .find(|server| server.id == server_id)
+        else {
+            return Err("server_not_found");
+        };
+        server.playit_enabled = enabled;
+        Ok::<_, &str>(())
+    }) {
+        Ok(()) => {
+            if let Some(server) = state
+                .lifecycle
+                .app_config_snapshot()
+                .servers
+                .into_iter()
+                .find(|server| server.id == server_id)
+            {
+                let mut services = state.playit_service(&server);
+                let service = services.get_mut(&server.id).expect("service was inserted");
+                service.set_enabled(enabled);
+                if !enabled {
+                    let _ = service.stop();
+                }
+            }
+            Json(ServerPlayitResultDto {
+                success: true,
+                message: if enabled {
+                    "Playit enabled for this server.".to_string()
+                } else {
+                    "Playit disabled for this server.".to_string()
+                },
+                server_id: Some(server_id),
+                enabled,
+            })
+            .into_response()
+        }
+        Err(crate::routes::lifecycle::TryMutateError::Domain(_)) => error_response(
+            StatusCode::NOT_FOUND,
+            "server_not_found",
+            "Server not found.",
+        ),
+        Err(crate::routes::lifecycle::TryMutateError::Save(error)) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal_error",
+            &error.to_string(),
+        ),
+    }
 }
 
 /// `POST /v1/playit/setup` is the authenticated boundary for native account
@@ -1231,6 +1304,7 @@ pub async fn playit_start(
     };
     let mut services = state.playit_service(&server);
     let service = services.get_mut(&server.id).expect("service was inserted");
+    service.set_enabled(server.playit_enabled);
     if service.is_active() {
         return Json(PlayitActionResultDto {
             result: "already_running".into(),

@@ -818,6 +818,10 @@ impl<'a> PlayitService<'a> {
         &self.snapshot
     }
 
+    pub fn set_enabled(&mut self, enabled: bool) {
+        self.enabled = enabled;
+    }
+
     pub fn lifecycle_status(&self) -> PlayitLifecycleStatus {
         if self.lifecycle_status == PlayitLifecycleStatus::Stopped
             && self.enabled

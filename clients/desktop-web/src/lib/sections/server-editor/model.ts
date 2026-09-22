@@ -20,6 +20,7 @@ import type { Schema, ScreenApi } from '../shared/types';
 export const serverEditorPaths = {
   rename: '/v1/servers/rename',
   xboxBroadcast: '/v1/servers/xbox-broadcast',
+  playitEnabled: '/v1/servers/playit',
   directory: '/v1/servers/directory',
   directorySize: (serverId: string): string =>
     `/v1/servers/size?serverId=${encodeURIComponent(serverId)}`,

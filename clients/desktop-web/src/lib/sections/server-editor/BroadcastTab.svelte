@@ -145,6 +145,24 @@
     playit = await call(api, playit, serverEditorPaths.playit);
   }
 
+  async function setPlayitEnabled(enabled: boolean): Promise<void> {
+    if (!canControl || playitBusy || !playit) return;
+    playitBusy = true;
+    try {
+      await mutate<{ enabled: boolean }>(api, serverEditorPaths.playitEnabled, {
+        serverId: server.id,
+        enabled,
+      });
+      playit = { ...playit, playitEnabled: enabled };
+      await onServersChanged();
+      await refreshPlayit();
+    } catch (error) {
+      notice = errorMessage(error);
+    } finally {
+      playitBusy = false;
+    }
+  }
+
 </script>
 
 <div class="tab">
@@ -215,6 +233,18 @@
     <section class="zone">
       <p class="msc2-type-overline">Playit</p>
       <Card padding="0">
+        <div class="row">
+          <div class="toggle-info">
+            <span class="name">Playit for this server</span>
+            <span class="setup-state">Adds Playit tunnels without changing manual port forwarding.</span>
+          </div>
+          <Toggle
+            checked={playit?.playitEnabled ?? false}
+            label="Enable Playit for this server"
+            disabled={playitBusy || !canControl || !playit}
+            onchange={(enabled) => void setPlayitEnabled(enabled)}
+          />
+        </div>
         <div class="row">
           <div class="playit-status">
             <StatusDot

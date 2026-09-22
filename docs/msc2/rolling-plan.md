@@ -824,6 +824,15 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Batch:** AC — Java selection and onboarding sequencing
 - **Commit:** `P15.40: defer onboarding until Java is selected`
 
+### P15.41 — Include the onboarding fix in the agent web bundle
+
+- **Status:** awaiting verification
+- **Files:** `crates/msc-agent/web-ui/**`, `docs/msc2/rolling-plan.md`
+- **What:** Regenerate the agent's embedded production web UI from the current Svelte source so rebuilding or repairing the service serves P15.40's Java-selection/onboarding sequencing fix.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run bundle:identity`
+- **Batch:** AD — package the onboarding correction
+- **Commit:** `P15.41: package onboarding fix in agent UI`
+
 ## Proposed Phase 14 — operational refinements
 
 This phase turns the issues reported from real use into four bounded areas:

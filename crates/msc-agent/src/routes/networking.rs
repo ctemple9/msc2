@@ -204,12 +204,7 @@ impl PlayitLifecycleController {
     }
 
     fn start_broadcast_for_server(&self, server: &ConfigServer) {
-        if !server.xbox_broadcast_enabled
-            || !self
-                .lifecycle
-                .app_config_snapshot()
-                .xbox_broadcast_auto_start_enabled
-        {
+        if !server.xbox_broadcast_enabled {
             return;
         }
         let mut services = self

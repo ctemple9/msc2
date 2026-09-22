@@ -21,6 +21,7 @@
 
   let selectedMinecraftVersion = minecraftVersion;
   let versionLoading = true;
+  let showOtherVersions = false;
   let query = '';
   let results: Schema['CatalogItemDTO'][] = [];
   let bedrockResults: Schema['BedrockBehaviorPackCatalogItemDTO'][] = [];
@@ -123,9 +124,7 @@
     try {
       const params = new URLSearchParams();
       if (query.trim()) params.set('q', query.trim());
-      // Keep other-version packs visible for detail inspection. The result
-      // row blocks direct install, while the detail sheet offers "Install anyway".
-      if (!bedrock && selectedMinecraftVersion.trim()) {
+      if (selectedMinecraftVersion.trim() && (!bedrock || !showOtherVersions)) {
         params.set('gameVersion', selectedMinecraftVersion.trim());
       }
       const path = `${bedrock ? '/v1/catalog/behaviorpacks' : '/v1/catalog/datapacks'}?${params}`;
@@ -210,6 +209,7 @@
   $: {
     query;
     selectedMinecraftVersion;
+    showOtherVersions;
     scheduleSearch();
   }
 </script>
@@ -231,14 +231,39 @@
   {#if loading && (bedrock ? bedrockResults.length === 0 : results.length === 0)}
     <p class="explain" role="status">Searching…</p>
   {:else if bedrock && bedrockResults.length === 0}
-    <EmptyState title="No behavior packs found" message="Try a different search term.">
+    <EmptyState
+      title={selectedMinecraftVersion && !showOtherVersions
+        ? `No behavior packs found for Minecraft ${selectedMinecraftVersion}`
+        : 'No behavior packs found'}
+      message={selectedMinecraftVersion && !showOtherVersions
+        ? 'Try another search, or check packs for other Minecraft versions.'
+        : 'Try a different search term.'}
+    >
       <Icon name="box" size={26} slot="icon" />
+      {#if selectedMinecraftVersion && !showOtherVersions}
+        <Button
+          slot="action"
+          size="sm"
+          variant="secondary"
+          onclick={() => (showOtherVersions = true)}>Show other versions</Button
+        >
+      {/if}
     </EmptyState>
   {:else if !bedrock && results.length === 0}
     <EmptyState title="No datapacks found" message="Try a different search term.">
       <Icon name="box" size={26} slot="icon" />
     </EmptyState>
   {:else if bedrock}
+    {#if selectedMinecraftVersion}
+      <div class="version-filter">
+        <Toggle
+          checked={showOtherVersions}
+          label="Show other Minecraft versions"
+          onchange={(value) => (showOtherVersions = value)}
+        />
+        <span>Show other versions</span>
+      </div>
+    {/if}
     <div class="results">
       {#each bedrockResults as item (item.fileId)}
         {@const compatible =
@@ -489,6 +514,14 @@
   .explain {
     margin: 0;
     font-size: 12px;
+    color: var(--msc2-text-tertiary);
+  }
+  .version-filter {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 11px;
     color: var(--msc2-text-tertiary);
   }
   .results {

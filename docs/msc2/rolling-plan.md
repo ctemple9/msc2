@@ -797,6 +797,15 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Batch:** Z — Bedrock result compatibility guard
 - **Commit:** `P15.37: mark incompatible Bedrock results`
 
+### P15.38 — Search compatible Bedrock packs first
+
+- **Status:** awaiting verification
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldPackBrowserSheet.svelte`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
+- **What:** Pass the selected server's Bedrock version to CurseForge search by default so the result list contains compatible files. Add a “Show other versions” control and an empty-state action when no compatible results match; preserve the detail sheet's explicit “Install anyway” path.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** AA — compatible Bedrock catalog search
+- **Commit:** `P15.38: search compatible Bedrock packs first`
+
 ## Proposed Phase 14 — operational refinements
 
 This phase turns the issues reported from real use into four bounded areas:

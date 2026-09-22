@@ -114,6 +114,10 @@ impl<'a> XboxBroadcastService<'a> {
         self.enabled = enabled;
     }
 
+    pub fn process_is_running(&self) -> bool {
+        self.helpers.is_running(&self.key())
+    }
+
     pub fn save_password(&self, password: &str) -> Result<(), XboxBroadcastError> {
         let password = password.trim();
         if password.is_empty() {

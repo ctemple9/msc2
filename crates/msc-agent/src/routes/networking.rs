@@ -1302,12 +1302,16 @@ pub async fn broadcast_status(State(state): State<NetworkingState>) -> Response 
     };
     let mut services = state.broadcast_service(&server);
     let service = services.get_mut(&server.id).expect("service was inserted");
+    service.set_enabled(server.xbox_broadcast_enabled);
+    if let Err(error) = service.poll() {
+        return helper_error_response(error.to_string(), "broadcast_status_failed");
+    }
     match service.status() {
         Ok(status) => Json(BroadcastStatusDto {
             xbox_broadcast_running: matches!(
                 status.snapshot.status,
                 HelperStatus::Running | HelperStatus::Starting
-            ),
+            ) || service.process_is_running(),
             bedrock_broadcast_running: false,
             gamertag: status.gamertag,
         })
@@ -1439,6 +1443,10 @@ pub async fn broadcast_auth_prompt(State(state): State<NetworkingState>) -> Resp
     };
     let mut services = state.broadcast_service(&server);
     let service = services.get_mut(&server.id).expect("service was inserted");
+    service.set_enabled(server.xbox_broadcast_enabled);
+    if let Err(error) = service.poll() {
+        return helper_error_response(error.to_string(), "broadcast_status_failed");
+    }
     match service.status() {
         Ok(status) => Json(BroadcastAuthPromptDto {
             is_present: status.auth_prompt.is_some(),

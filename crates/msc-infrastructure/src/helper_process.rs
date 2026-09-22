@@ -303,6 +303,12 @@ impl<'supervisor> HelperProcessManager<'supervisor> {
         })
     }
 
+    pub fn is_running(&self, key: &HelperKey) -> bool {
+        self.helpers
+            .get(key)
+            .is_some_and(|helper| helper.pid.is_some())
+    }
+
     fn helper_mut(&mut self, key: &HelperKey) -> Result<&mut ManagedHelper, HelperProcessError> {
         self.helpers
             .get_mut(key)

@@ -35,7 +35,12 @@
   import { onDestroy, tick } from 'svelte';
   import Sheet from '../../../components/base/Sheet.svelte';
   import Button from '../../../components/base/Button.svelte';
-  import { activeTourStep, tourServerContext, tourServerCreated } from '../../../help/onboarding';
+  import {
+    activeTourStep,
+    tourJavaSelectionPending,
+    tourServerContext,
+    tourServerCreated,
+  } from '../../../help/onboarding';
   import ConfigureStep from './ConfigureStep.svelte';
   import NetworkStep from './NetworkStep.svelte';
   import WorldStep from './WorldStep.svelte';
@@ -118,6 +123,7 @@
   onDestroy(() => {
     tourServerContext.set(null);
     tourServerCreated.set(false);
+    tourJavaSelectionPending.set(false);
   });
 
   // `AddServerWizardView.swift`'s `hasAddOnsStep` -- inserts a sixth "Add-ons"
@@ -169,6 +175,9 @@
       !showJavaInstall
     ) {
       continueAfterJavaSelection = true;
+      // The anchor action is raised by the same browser click. Set this before
+      // opening the sheet so TourOverlay rejects that event synchronously.
+      tourJavaSelectionPending.set(true);
       void openJavaSelection();
       return;
     }
@@ -305,6 +314,7 @@
     if (!javaSelectionLoading) {
       showJavaSelection = false;
       continueAfterJavaSelection = false;
+      tourJavaSelectionPending.set(false);
     }
   }
 
@@ -320,8 +330,15 @@
       continueAfterJavaSelection = false;
       currentStep += 1;
       if ($activeTourStep === 'server-settings') {
-        void tick().then(() => dispatchOnboardingAnchorAction('ob_wizard_continue'));
+        void tick().then(() => {
+          tourJavaSelectionPending.set(false);
+          dispatchOnboardingAnchorAction('ob_wizard_continue');
+        });
+      } else {
+        tourJavaSelectionPending.set(false);
       }
+    } else {
+      tourJavaSelectionPending.set(false);
     }
   }
 
@@ -592,9 +609,6 @@
       <Button variant="secondary" onclick={closeJavaSelection}>Cancel</Button>
       <Button
         variant="primary"
-        anchorId={continueAfterJavaSelection && $activeTourStep === 'server-settings'
-          ? 'ob_wizard_continue'
-          : undefined}
         disabled={!javaSelectedPath || javaSelectionLoading}
         onclick={confirmJavaSelection}>Use selected Java</Button
       >

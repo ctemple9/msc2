@@ -842,6 +842,15 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Batch:** AE — sequence onboarding after Java selection
 - **Commit:** `P15.42: advance onboarding after Java selection`
 
+### P15.43 — Block the Configure tour action during Java selection
+
+- **Status:** awaiting verification
+- **Files:** `clients/desktop-web/src/lib/help/onboarding.ts`, `clients/desktop-web/src/lib/help/TourOverlay.svelte`, `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`, `crates/msc-agent/web-ui/**`, `docs/msc2/rolling-plan.md`
+- **What:** Make Java selection an explicit synchronous gate in the tour listener. Configure's Continue sets the gate before the browser reports its anchored click, so the tour cannot advance while the Java sheet is open. Confirming a Java runtime clears the gate only after that sheet closes, then advances the tour to Network. Bedrock retains its ordinary Continue behavior because it never sets the Java gate.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run bundle:identity`
+- **Batch:** AF — Java selection blocks the onboarding action
+- **Commit:** `P15.43: block onboarding during Java selection`
+
 ## Proposed Phase 14 — operational refinements
 
 This phase turns the issues reported from real use into four bounded areas:

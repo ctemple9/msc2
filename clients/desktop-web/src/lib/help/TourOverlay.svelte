@@ -21,7 +21,7 @@
     remeasureAll,
     scrollAnchorIntoView,
   } from './tourAnchors';
-  import { activeTourStep, tourServerCreated } from './onboarding';
+  import { activeTourStep, tourJavaSelectionPending, tourServerCreated } from './onboarding';
   import type { OnboardingStep } from './types';
 
   export let steps: readonly OnboardingStep[] = [];
@@ -80,7 +80,11 @@
         cardHidden = true;
         return;
       }
-      if (step && ACTION_ANCHORS[step.id] === anchorId) {
+      if (
+        step &&
+        ACTION_ANCHORS[step.id] === anchorId &&
+        !(step.id === 'server-settings' && $tourJavaSelectionPending)
+      ) {
         onAdvance(true);
       }
     };

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { bundleIdentity } from './lib/bundle-identity';
   import { ApiClient, ApiError } from './lib/api/client';
   import ApplicationShell from './lib/components/ApplicationShell.svelte';
@@ -10,6 +10,7 @@
   import UnknownSection from './routes/UnknownSection.svelte';
   import FirstStartSheet from './lib/sections/server-editor/FirstStartSheet.svelte';
   import StartupFailureSheet from './lib/sections/server-editor/StartupFailureSheet.svelte';
+  import BroadcastAuthSheet from './lib/sections/server-editor/BroadcastAuthSheet.svelte';
   import ServerEditorSheet from './lib/sections/server-editor/ServerEditorSheet.svelte';
   import { buildSectionPath } from './lib/navigation/route';
   import {
@@ -516,6 +517,11 @@
   let initiationServer: Schema['ServerDTO'] | undefined;
   let initiationVisible = false;
   let initiationComplete = false;
+  let broadcastAuth: Schema['BroadcastAuthPromptDTO'] | undefined;
+  let broadcastAuthTimer: ReturnType<typeof setInterval> | undefined;
+  let broadcastAuthRequest = 0;
+  let broadcastAuthContextServerId = '';
+  let hiddenBroadcastAuthKey = '';
   let startupFailure:
     | {
         serverName: string;
@@ -527,6 +533,65 @@
   let cancelTabPreload: (() => void) | undefined;
 
   $: activeServer = servers.find((server) => server.id === selectedServerId);
+
+  $: broadcastAuthShouldPoll =
+    clientReady &&
+    Boolean(activeServer) &&
+    !manageOpen &&
+    !headerEditingServer &&
+    !initiationVisible;
+
+  async function refreshBroadcastAuthPrompt(): Promise<void> {
+    const request = ++broadcastAuthRequest;
+    const serverId = selectedServerId;
+    if (!broadcastAuthShouldPoll) {
+      broadcastAuth = undefined;
+      return;
+    }
+    if (broadcastAuthContextServerId !== serverId) {
+      broadcastAuthContextServerId = serverId;
+      hiddenBroadcastAuthKey = '';
+    }
+    try {
+      const next = await screenApi.get<Schema['BroadcastAuthPromptDTO']>(
+        '/v1/broadcast/auth-prompt',
+      );
+      if (
+        request !== broadcastAuthRequest ||
+        serverId !== selectedServerId ||
+        !broadcastAuthShouldPoll
+      ) {
+        return;
+      }
+      if (!next.isPresent) {
+        broadcastAuth = undefined;
+        hiddenBroadcastAuthKey = '';
+        return;
+      }
+      const key = next.code ?? next.linkURL ?? 'present';
+      if (key !== hiddenBroadcastAuthKey) broadcastAuth = next;
+    } catch {
+      // The shell can continue while the agent is reconnecting. The next poll
+      // will pick up a newly available device-code prompt.
+    }
+  }
+
+  function closeBroadcastAuthPrompt(): void {
+    const prompt = broadcastAuth;
+    hiddenBroadcastAuthKey = prompt?.code ?? prompt?.linkURL ?? 'present';
+    broadcastAuth = undefined;
+  }
+
+  $: if (broadcastAuthShouldPoll && broadcastAuthTimer === undefined) {
+    void refreshBroadcastAuthPrompt();
+    broadcastAuthTimer = setInterval(() => void refreshBroadcastAuthPrompt(), 1000);
+  }
+  $: if (!broadcastAuthShouldPoll && broadcastAuthTimer !== undefined) {
+    clearInterval(broadcastAuthTimer);
+    broadcastAuthTimer = undefined;
+    broadcastAuth = undefined;
+    broadcastAuthRequest += 1;
+  }
 
   type HostResetResult = {
     operationId: string;
@@ -975,6 +1040,10 @@
     return () => window.removeEventListener('popstate', onPopState);
   });
 
+  onDestroy(() => {
+    if (broadcastAuthTimer !== undefined) clearInterval(broadcastAuthTimer);
+  });
+
   async function initializeShell(): Promise<void> {
     const platform = await getPlatform();
     isDesktopShell = platform.kind === 'tauri';
@@ -1144,6 +1213,14 @@
     </div>
   {/if}
 </ApplicationShell>
+
+{#if broadcastAuth?.isPresent}
+  <BroadcastAuthSheet
+    api={screenApi}
+    prompt={broadcastAuth}
+    onClose={closeBroadcastAuthPrompt}
+  />
+{/if}
 
 {#if initiationServer}
   <FirstStartSheet

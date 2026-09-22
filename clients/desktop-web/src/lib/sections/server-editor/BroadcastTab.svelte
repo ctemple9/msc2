@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
   // Ports ServerEditorBroadcastTab.swift (Java) -- Xbox broadcast runtime
   // controls plus the per-server Playit runtime panel. Host-wide Xbox account and
   // helper settings live in MSC Settings; this tab only controls this server.
@@ -20,7 +19,6 @@
   import Card from '../../components/base/Card.svelte';
   import Button from '../../components/base/Button.svelte';
   import Toggle from '../../components/base/Toggle.svelte';
-  import BroadcastAuthSheet from './BroadcastAuthSheet.svelte';
   import StatusDot from '../../components/base/StatusDot.svelte';
   import type { Schema, ScreenApi } from '../shared/types';
   import { call, errorMessage, mutate } from '../shared/types';
@@ -38,8 +36,6 @@
   let status: Schema['BroadcastStatusDTO'] | undefined;
   let playit: Schema['PlayitStatusResponseDTO'] | undefined;
   let serverStatus: Schema['RemoteAPIStatus'] = { running: false };
-  let broadcastAuth: Schema['BroadcastAuthPromptDTO'] | undefined;
-  let authTimer: ReturnType<typeof setInterval> | undefined;
 
   let broadcastBusy = false;
   let xboxEnabled = server.xboxBroadcastEnabled === true;
@@ -69,14 +65,9 @@
       call(api, status, serverEditorPaths.broadcastStatus),
       call(api, playit, serverEditorPaths.playit),
       call(api, serverStatus, serverEditorPaths.status),
-      call<Schema['BroadcastAuthPromptDTO']>(
-        api,
-        { isPresent: false },
-        serverEditorPaths.broadcastAuthPrompt,
-      ),
     ]);
     if (!isActive || loadVersion !== playitLoadVersion) return;
-    [status, playit, serverStatus, broadcastAuth] = nextValues;
+    [status, playit, serverStatus] = nextValues;
   }
 
   async function clearCredentials(): Promise<void> {
@@ -85,7 +76,6 @@
     try {
       await mutate(api, serverEditorPaths.broadcastCredentialsClear);
       notice = 'Xbox Broadcast credentials cleared.';
-      broadcastAuth = undefined;
     } catch (error) {
       notice = errorMessage(error);
     } finally {
@@ -149,16 +139,6 @@
     }
   }
 
-  $: if (isActive && authTimer === undefined) {
-    authTimer = setInterval(() => void loadAll(), 1000);
-  }
-  $: if (!isActive && authTimer !== undefined) {
-    clearInterval(authTimer);
-    authTimer = undefined;
-  }
-  onDestroy(() => {
-    if (authTimer !== undefined) clearInterval(authTimer);
-  });
 </script>
 
 <div class="tab">
@@ -262,14 +242,6 @@
     </section>
   {/if}
 </div>
-
-{#if broadcastAuth?.isPresent}
-  <BroadcastAuthSheet
-    {api}
-    prompt={broadcastAuth}
-    onClose={() => (broadcastAuth = undefined)}
-  />
-{/if}
 
 <style>
   .tab {

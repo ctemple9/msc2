@@ -36,6 +36,8 @@ export const serverEditorPaths = {
   broadcastAutostart: '/v1/broadcast/autostart',
   broadcastCredentials: '/v1/broadcast/credentials',
   broadcastAuthPromptDismiss: '/v1/broadcast/auth-prompt/dismiss',
+  broadcastAuthPrompt: '/v1/broadcast/auth-prompt',
+  broadcastCredentialsClear: '/v1/broadcast/credentials/clear',
   broadcastJarStatus: '/v1/broadcast/jar-status',
   broadcastDownloadJar: '/v1/broadcast/download-jar',
   broadcastStart: '/v1/broadcast/start',

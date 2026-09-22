@@ -601,6 +601,10 @@ pub fn router(state: NetworkingState) -> Router {
             axum::routing::get(broadcast_credentials).post(set_broadcast_credentials),
         )
         .route(
+            "/broadcast/credentials/clear",
+            post(clear_broadcast_credentials),
+        )
+        .route(
             "/config/curseforge",
             axum::routing::get(curseforge_api_key).post(set_curseforge_api_key),
         )
@@ -1520,6 +1524,46 @@ pub async fn set_broadcast_credentials(
             StatusCode::INTERNAL_SERVER_ERROR,
             "internal_error",
             "Could not save broadcast credentials.",
+        ),
+    }
+}
+
+pub async fn clear_broadcast_credentials(
+    State(state): State<NetworkingState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Broadcast) {
+        return response;
+    }
+    let config = state.lifecycle.app_config_snapshot();
+    let secret_keys = std::iter::once(
+        msc_infrastructure::xbox_broadcast::global_alt_password_secret_key().to_string(),
+    )
+    .chain(config.servers.iter().flat_map(|server| {
+        [
+            msc_infrastructure::xbox_broadcast::alt_password_secret_key(&server.id),
+            msc_infrastructure::xbox_broadcast::auth_token_secret_key(&server.id),
+        ]
+    }));
+    for key in secret_keys {
+        if let Err(error) = state.secrets.delete(&key) {
+            return helper_error_response(error.to_string(), "credential_store_failed");
+        }
+    }
+    match state.lifecycle.try_mutate_config(|config| {
+        config.xbox_broadcast_alt_email = None;
+        config.xbox_broadcast_alt_gamertag = None;
+        Ok::<_, std::convert::Infallible>(())
+    }) {
+        Ok(()) => Json(BroadcastSimpleResultDto {
+            result: "credentials_cleared".into(),
+            operation_id: None,
+        })
+        .into_response(),
+        Err(_) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal_error",
+            "Could not clear broadcast credentials.",
         ),
     }
 }

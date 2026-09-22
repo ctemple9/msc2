@@ -220,6 +220,7 @@ impl PlayitLifecycleController {
                 self.operations,
             )
         });
+        service.set_enabled(server.xbox_broadcast_enabled);
         let is_active = service.status().is_ok_and(|status| {
             matches!(
                 status.snapshot.status,
@@ -1621,6 +1622,7 @@ pub async fn start_broadcast(
     };
     let mut services = state.broadcast_service(&server);
     let service = services.get_mut(&server.id).expect("service was inserted");
+    service.set_enabled(server.xbox_broadcast_enabled);
     let workdir = PathBuf::from(&server.server_dir).join(".msc2-broadcast");
     let _ = std::fs::create_dir_all(&workdir);
     let launch = xbox_broadcast::XboxBroadcastLaunch {

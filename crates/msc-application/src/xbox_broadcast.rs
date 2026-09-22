@@ -110,6 +110,10 @@ impl<'a> XboxBroadcastService<'a> {
         })
     }
 
+    pub fn set_enabled(&mut self, enabled: bool) {
+        self.enabled = enabled;
+    }
+
     pub fn save_password(&self, password: &str) -> Result<(), XboxBroadcastError> {
         let password = password.trim();
         if password.is_empty() {

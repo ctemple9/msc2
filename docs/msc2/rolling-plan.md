@@ -718,12 +718,21 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 
 ### P15.29 — Review world-pack portability and modpack identity
 
-- **Status:** planned
+- **Status:** awaiting verification
 - **Files:** `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`, `crates/msc-domain/src/world_profile.rs`, `crates/msc-application/src/worlds.rs`, `crates/msc-application/src/backups.rs`, `crates/msc-application/src/modpacks.rs`, `clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte`, `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`
 - **What:** Review the Java and Bedrock pack flows against the phase acceptance map: slot isolation and portability across activation, duplication, backup, restore, export, and import; archive and manifest validation; incomplete Bedrock dependency handling; correct imported-modpack identity; and readable edition-specific Worlds views. Record static findings and the remaining owner-run live Minecraft checks. Do not close the phase until the documented acceptance evidence is complete.
 - **Verify:** `rg -n "activation|duplication|backup|restore|export|import|path traversal|linked resource pack|modpack identity|owner verification" docs/msc2/capabilities/phase15-world-packs.md`
 - **Batch:** R — world-pack acceptance review
 - **Commit:** `P15.29: record world-pack acceptance`
+
+### P15.30 — Preserve slot metadata when copying into an existing slot
+
+- **Status:** planned
+- **Files:** `crates/msc-application/src/worlds.rs`, `crates/msc-infrastructure/src/world_store.rs`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
+- **What:** Make `copy_slot_into_existing` preserve a consistent destination archive and profile when metadata persistence fails. Stage the replacement archive and profile, stop ignoring `save_metadata` and `copy_profile` errors, and retain enough rollback state that a returned failure does not leave source world files paired with the destination's old pack profile. Record the failure boundary in the acceptance map. Do not add tests; use the declared static checks and Cameron's manual verification.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-agent && cargo clippy -p msc-application -p msc-agent -- -D warnings`
+- **Batch:** S — slot-copy portability correction
+- **Commit:** `P15.30: preserve slot profile on copy failure`
 
 ## Proposed Phase 14 — operational refinements
 

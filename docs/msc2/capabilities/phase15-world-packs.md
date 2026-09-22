@@ -104,3 +104,64 @@ one-click installation and receive a clear manual-download response.
 
 The requirement-to-source crosswalk and remaining owner evidence are reviewed
 again in P15.29. This map does not close Phase 15 or its release gate.
+
+## P15.29 static review — 2026-09-21
+
+The implementation was inspected against the acceptance sequence. These are
+static findings; no live Minecraft, Bedrock, backup, or transfer scenario was
+run.
+
+### Findings
+
+| Severity | Finding | Evidence and effect |
+|---|---|---|
+| **Resolved by static re-review — backup profile restore** | The initial review incorrectly concluded that restore ignored the saved world profile. | `crates/msc-agent/src/routes/backups.rs` reads `world_profile` from the backup sidecar and writes it to the active slot after `restore_backup` succeeds. If that metadata write fails, the operation reports `metadata_restore_failed` with an explicit message that the world itself has already been restored. The live backup/restore round trip remains owner verification. |
+| **Open — error handling** | Copying a slot into an existing slot ignores profile-copy failure. | `copy_slot_into_existing` replaces the destination archive and then discards errors from both `save_metadata` and `copy_profile` (`crates/msc-application/src/worlds.rs`). A filesystem error can leave copied pack files paired with the old profile. This follows the pre-existing non-fatal metadata behavior, but conflicts with treating pack-profile portability as guaranteed. P15.30 is planned to make archive/profile copy failure handling preserve destination consistency. |
+
+### Static checks that passed by inspection
+
+- World profiles contain edition-specific pack records, including provider,
+  version, checksum, compatibility, enabled state, relative files, and
+  dependencies. They are stored per slot; duplicate and activation paths copy
+  the profile with the slot.
+- Export adds the profile as a reserved archive entry. Import reads that entry
+  when present, and archive extraction skips it so it does not enter the
+  Minecraft world. Backup creation writes the profile into its sidecar.
+- Java datapack installation validates archive entry paths, links, expansion
+  size, `pack.mcmeta`, and compatibility before replacing the world archive.
+- Bedrock installation validates nested archive paths, manifests, UUIDs,
+  versions, minimum Bedrock version, and dependencies before replacing the
+  world archive. A missing linked resource pack returns an error before
+  mutation; a bundled one is installed into the selected slot.
+- Modpack identity is captured from the imported manifest and saved in
+  server-owned configuration. Plain JAR ZIPs have no identity, and there is
+  no component-list inference path.
+- Worlds displays the selected slot's edition-matching pack list and its
+  source, version, dependency, compatibility, checksum, and enabled state.
+  Components displays a compact read-only identity summary with unavailable
+  values made explicit.
+
+### Remaining owner-run acceptance evidence
+
+Run these against a Java server and a supported Bedrock runtime before closing
+the Phase 15 gate:
+
+1. Install packs in slot A and verify slot B remains unchanged. Activate and
+   duplicate A, then confirm each slot has the expected files and profile.
+2. Back up a slot, change its pack state, restore the backup, and compare both
+   the world files and displayed profile. Confirm the successful restore path
+   applies the profile from the backup sidecar.
+3. Export a packed slot, import it as a new slot, activate it, and confirm the
+   reserved profile metadata never appears as a Minecraft world file.
+4. Try malformed, path-traversing, and incompatible Java and Bedrock archives;
+   confirm rejection leaves the selected world unchanged.
+5. For Bedrock, verify both a bundled linked resource pack and an add-on with
+   a missing linked resource pack; the latter must leave the world unchanged.
+6. Create/import a named modpack, restart the agent, and confirm its source
+   identity remains accurate; confirm an ordinary server has no identity.
+7. Walk through the Java and Bedrock Worlds views and Components summary with
+   realistic pack names and dependency lists, checking that the information is
+   readable at the supported desktop window size.
+
+P15.29 records the portability findings; it does not resolve them or close the
+phase gate.

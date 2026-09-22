@@ -52,6 +52,13 @@ export const KNOWN_TOUR_ANCHOR_IDS: ReadonlySet<string> = new Set([
 ]);
 
 export type AnchorRect = { top: number; left: number; width: number; height: number };
+type OnboardingAnchorConfig =
+  | string
+  | {
+      id: string | undefined;
+      announceAction: boolean;
+    }
+  | undefined;
 
 /** Window event emitted after a real anchored control receives a click. */
 export const ONBOARDING_ANCHOR_ACTION_EVENT = 'msc:onboarding-anchor-action';
@@ -124,8 +131,9 @@ export function scrollAnchorIntoView(anchorId: string, behavior: ScrollBehavior 
  * MSC 1's `contextualHelpAnchor`/`ContextualHelpAnchorModifier`: the element
  * reports itself; it never queries the tour to know if it should.
  */
-export function onboardingAnchor(node: HTMLElement, anchorId: string | undefined) {
-  let id = anchorId;
+export function onboardingAnchor(node: HTMLElement, config: OnboardingAnchorConfig) {
+  let id = anchorId(config);
+  let announceOnClick = shouldAnnounceAction(config);
 
   function announceAction(): void {
     if (!id) return;
@@ -159,23 +167,34 @@ export function onboardingAnchor(node: HTMLElement, anchorId: string | undefined
   report();
   const observer = new ResizeObserver(report);
   observer.observe(node);
-  node.addEventListener('click', announceAction);
+  if (announceOnClick) node.addEventListener('click', announceAction);
   window.addEventListener('resize', report);
   window.addEventListener('scroll', report, true);
 
   return {
-    update(nextId: string | undefined): void {
+    update(nextConfig: OnboardingAnchorConfig): void {
+      if (announceOnClick) node.removeEventListener('click', announceAction);
       clear(id);
-      id = nextId;
+      id = anchorId(nextConfig);
+      announceOnClick = shouldAnnounceAction(nextConfig);
       register(id);
       report();
+      if (announceOnClick) node.addEventListener('click', announceAction);
     },
     destroy(): void {
       observer.disconnect();
-      node.removeEventListener('click', announceAction);
+      if (announceOnClick) node.removeEventListener('click', announceAction);
       window.removeEventListener('resize', report);
       window.removeEventListener('scroll', report, true);
       clear(id);
     },
   };
+}
+
+function anchorId(config: OnboardingAnchorConfig): string | undefined {
+  return typeof config === 'string' ? config : config?.id;
+}
+
+function shouldAnnounceAction(config: OnboardingAnchorConfig): boolean {
+  return typeof config === 'string' || config?.announceAction === true;
 }

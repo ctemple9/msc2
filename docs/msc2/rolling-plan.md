@@ -851,6 +851,15 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Batch:** AF — Java selection blocks the onboarding action
 - **Commit:** `P15.43: block onboarding during Java selection`
 
+### P15.44 — Make wizard completion the only tour advance signal
+
+- **Status:** awaiting verification
+- **Files:** `clients/desktop-web/src/lib/components/base/Button.svelte`, `clients/desktop-web/src/lib/help/tourAnchors.ts`, `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`, `crates/msc-agent/web-ui/**`, `docs/msc2/rolling-plan.md`
+- **What:** Keep the wizard Continue button visible to the tour without allowing its browser click to advance the tour automatically. The wizard now sends the tour action only after it has completed its own transition. Required Java selection therefore leaves the tour on Configure; confirmation closes the Java sheet, advances to Network, then advances the tour. Bedrock continues directly because its transition completes immediately.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run bundle:identity`
+- **Batch:** AG — make wizard transitions control onboarding
+- **Commit:** `P15.44: sequence onboarding from wizard completion`
+
 ## Proposed Phase 14 — operational refinements
 
 This phase turns the issues reported from real use into four bounded areas:

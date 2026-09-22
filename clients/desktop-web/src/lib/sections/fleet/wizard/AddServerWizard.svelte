@@ -181,7 +181,14 @@
       void openJavaSelection();
       return;
     }
+    advanceWizardAndTour();
+  }
+
+  function advanceWizardAndTour(): void {
     currentStep += 1;
+    // Continue remains spotlightable, but its automatic click announcement is
+    // disabled. Only this completed wizard transition can advance the tour.
+    void tick().then(() => dispatchOnboardingAnchorAction('ob_wizard_continue'));
   }
 
   function javaSelectionBelongsHere(): boolean {
@@ -328,12 +335,9 @@
     showJavaSelection = false;
     if (continueAfterJavaSelection) {
       continueAfterJavaSelection = false;
-      currentStep += 1;
+      advanceWizardAndTour();
       if ($activeTourStep === 'server-settings') {
-        void tick().then(() => {
-          tourJavaSelectionPending.set(false);
-          dispatchOnboardingAnchorAction('ob_wizard_continue');
-        });
+        tourJavaSelectionPending.set(false);
       } else {
         tourJavaSelectionPending.set(false);
       }
@@ -517,6 +521,7 @@
           <Button
             variant="primary"
             anchorId="ob_wizard_continue"
+            announceOnboardingAction={false}
             onclick={continueStep}
             disabled={!canContinue}>Continue</Button
           >

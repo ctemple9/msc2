@@ -20,6 +20,9 @@
   /** Reports this button's rect to the guided tour under this id, when set.
    *  See src/lib/help/tourAnchors.ts. Additive -- most callers leave it unset. */
   export let anchorId: string | undefined = undefined;
+  /** Keep an element spotlightable while its owner controls when the tour may
+   * advance. Wizard Continue uses this for required interruption sheets. */
+  export let announceOnboardingAction = true;
 </script>
 
 <button
@@ -29,7 +32,9 @@
   {title}
   aria-label={variant === 'ghost-icon' ? label : undefined}
   {onclick}
-  use:onboardingAnchor={anchorId}
+  use:onboardingAnchor={
+    anchorId ? { id: anchorId, announceAction: announceOnboardingAction } : undefined
+  }
 >
   <slot />
 </button>

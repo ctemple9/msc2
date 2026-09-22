@@ -19,6 +19,7 @@
   let query = '';
   let results: Schema['CatalogItemDTO'][] = [];
   let bedrockResults: Schema['BedrockBehaviorPackCatalogItemDTO'][] = [];
+  let detailItem: Schema['BedrockBehaviorPackCatalogItemDTO'] | undefined;
   let loading = false;
   let installing = '';
   let installed = new Set<string>();
@@ -143,7 +144,7 @@
     <div class="results">
       {#each bedrockResults as item (item.fileId)}
         <div class="result">
-          <div class="result-link">
+          <button type="button" class="result-link" onclick={() => (detailItem = item)}>
             <div class="icon">
               {#if item.iconURL}
                 <img src={item.iconURL} alt="" width="40" height="40" loading="lazy" />
@@ -152,11 +153,14 @@
               {/if}
             </div>
             <div class="info">
-              <span class="title">{item.title}</span>
+              <span class="title-row">
+                <span class="title">{item.title}</span>
+                <Icon name="chevron" size={10} />
+              </span>
               <p class="meta">{item.fileName} · Minecraft {item.minecraftVersion}</p>
               <p class="description">{item.description}</p>
             </div>
-          </div>
+          </button>
           {#if installed.has(item.projectId)}
             <span class="added">Added</span>
           {:else if installing === item.projectId}
@@ -200,6 +204,49 @@
     </div>
   {/if}
 </Sheet>
+
+{#if detailItem}
+  <Sheet title={detailItem.title} size="lg" onClose={() => (detailItem = undefined)}>
+    <div class="detail-header">
+      <div class="detail-icon">
+        {#if detailItem.iconURL}
+          <img src={detailItem.iconURL} alt="" width="56" height="56" />
+        {:else}
+          <Icon name="box" size={22} />
+        {/if}
+      </div>
+      <div class="detail-heading">
+        <span class="detail-title">{detailItem.title}</span>
+        <p class="detail-stats">{formatCount(detailItem.downloads)} downloads</p>
+      </div>
+    </div>
+    <dl class="detail-metadata">
+      <div>
+        <dt>Minecraft version</dt>
+        <dd>{detailItem.minecraftVersion}</dd>
+      </div>
+      <div>
+        <dt>Pack file</dt>
+        <dd>{detailItem.fileName}</dd>
+      </div>
+    </dl>
+    <div class="detail-description">
+      <p class="detail-label">About this pack</p>
+      <p>{detailItem.description || 'No description provided.'}</p>
+    </div>
+    <div class="detail-actions">
+      {#if installed.has(detailItem.projectId)}
+        <span class="added">Added</span>
+      {:else if installing === detailItem.projectId}
+        <span class="added">Installing…</span>
+      {:else}
+        <Button size="sm" variant="secondary" onclick={() => void installBedrock(detailItem!)}
+          >Add behavior pack</Button
+        >
+      {/if}
+    </div>
+  </Sheet>
+{/if}
 
 <style>
   .header {
@@ -253,6 +300,26 @@
     gap: 12px;
     min-width: 0;
     flex: 1;
+    background: none;
+    border: none;
+    padding: 0;
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
+  }
+  .title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    color: var(--msc2-text-secondary);
+  }
+  .title-row .title {
+    color: var(--msc2-text-primary);
+  }
+  .title-row :global(svg) {
+    flex-shrink: 0;
   }
   .info {
     min-width: 0;
@@ -300,5 +367,78 @@
     font-size: 12px;
     font-weight: 500;
     color: var(--msc2-status-ok);
+  }
+  .detail-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+  .detail-icon {
+    flex: 0 0 56px;
+    width: 56px;
+    height: 56px;
+    overflow: hidden;
+    border-radius: 8px;
+    background: var(--msc2-tier-chrome);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--msc2-text-tertiary);
+  }
+  .detail-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .detail-heading {
+    min-width: 0;
+  }
+  .detail-title {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--msc2-text-primary);
+  }
+  .detail-stats {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: var(--msc2-text-tertiary);
+  }
+  .detail-metadata {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin: 0;
+    padding: 14px 0;
+    border-top: 1px solid var(--msc2-hairline-subtle);
+    border-bottom: 1px solid var(--msc2-hairline-subtle);
+  }
+  .detail-metadata dt,
+  .detail-label {
+    margin: 0;
+    font-size: 11px;
+    color: var(--msc2-text-tertiary);
+  }
+  .detail-metadata dd {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: var(--msc2-text-secondary);
+    overflow-wrap: anywhere;
+  }
+  .detail-description {
+    padding: 16px 0;
+  }
+  .detail-description > p:last-child {
+    margin: 7px 0 0;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--msc2-text-secondary);
+    white-space: pre-wrap;
+  }
+  .detail-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 12px;
+    border-top: 1px solid var(--msc2-hairline-subtle);
   }
 </style>

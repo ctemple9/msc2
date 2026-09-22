@@ -770,6 +770,15 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Batch:** W — Bedrock game identifier correction
 - **Commit:** `P15.34: use Minecraft CurseForge game ID`
 
+### P15.35 — Open Bedrock behavior-pack details
+
+- **Status:** awaiting verification
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldPackBrowserSheet.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Make each Bedrock behavior-pack result selectable, matching the Components browser's row-to-detail flow. Show the full available description, download count, Minecraft version, and pack filename in a detail sheet, with the existing Add operation available there.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** X — Bedrock behavior-pack details
+- **Commit:** `P15.35: open Bedrock behavior-pack details`
+
 ## Proposed Phase 14 — operational refinements
 
 This phase turns the issues reported from real use into four bounded areas:

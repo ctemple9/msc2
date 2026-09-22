@@ -72,6 +72,20 @@ pub struct WorldPackDependencyDto {
     pub required: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JavaDatapackInstallRequestDto {
+    pub project_id: String,
+    pub version_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JavaDatapackInstallResultDto {
+    pub result: String,
+    pub pack: WorldPackRecordDto,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct WorldIdentityDto {

@@ -44,6 +44,9 @@ pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
 /// longer input list is split into this many ids per request rather than
 /// growing the request (or the caller's assumed request count) unbounded.
 pub const MAX_BATCH_SIZE: usize = 100;
+/// Datapack archives are larger than provider metadata responses, but must
+/// remain bounded before their entries are inspected or copied.
+pub const DATAPACK_MAX_BYTES: u64 = 512 * 1024 * 1024;
 
 /// `docs/msc2/substrate/secret-storage.md` §9.
 pub const CURSEFORGE_API_KEY_SECRET: &str = "curseforge.api-key";
@@ -274,6 +277,70 @@ pub fn modrinth_search(
     domain::ensure_modrinth_ok(resp.status)?;
     let text = bytes_to_utf8(resp.body, "Modrinth search")?;
     domain::modrinth_decode_search(&text)
+}
+
+/// Modrinth catalog search for Java datapacks. It intentionally does not
+/// send a loader facet: datapacks target a Minecraft version and world,
+/// rather than Fabric/Forge/NeoForge.
+pub fn modrinth_search_datapacks(
+    transport: &dyn AddonTransport,
+    query: &str,
+    game_version: Option<&str>,
+    limit: u32,
+    offset: u32,
+) -> Result<domain::ModrinthSearchResult, AddonProviderError> {
+    let facets = domain::modrinth_datapack_facets(game_version);
+    let index = domain::modrinth_search_index(query);
+    let url = format!(
+        "{}/v2/search?query={}&facets={}&index={index}&limit={}&offset={}",
+        modrinth_base(),
+        urlencode(query),
+        urlencode(&facets),
+        limit.clamp(1, 100),
+        offset.min(10_000),
+    );
+    let response = transport
+        .get(&url, "Modrinth datapack search", &[], RESPONSE_MAX_BYTES)
+        .map_err(map_transport_err)?;
+    domain::ensure_modrinth_ok(response.status)?;
+    let text = bytes_to_utf8(response.body, "Modrinth datapack search")?;
+    domain::modrinth_decode_search(&text)
+}
+
+/// Fetch one provider version and its file metadata by immutable version ID.
+pub fn modrinth_version(
+    transport: &dyn AddonTransport,
+    version_id: &str,
+) -> Result<domain::ModrinthVersionInfo, AddonProviderError> {
+    let url = format!("{}/v2/version/{}", modrinth_base(), urlencode(version_id));
+    let response = transport
+        .get(&url, "Modrinth datapack version", &[], RESPONSE_MAX_BYTES)
+        .map_err(map_transport_err)?;
+    domain::ensure_modrinth_ok(response.status)?;
+    let text = bytes_to_utf8(response.body, "Modrinth datapack version")?;
+    domain::modrinth_decode_version(&text)
+}
+
+/// Download a selected provider file with a datapack-specific size ceiling.
+pub fn download_datapack(
+    transport: &dyn AddonTransport,
+    url: &str,
+) -> Result<Vec<u8>, AddonProviderError> {
+    if !url.starts_with("https://cdn.modrinth.com/") {
+        return Err(AddonProviderError::Network(
+            "Modrinth returned an untrusted datapack download URL.".to_string(),
+        ));
+    }
+    let response = transport
+        .get(url, "Modrinth datapack download", &[], DATAPACK_MAX_BYTES)
+        .map_err(map_transport_err)?;
+    domain::ensure_modrinth_ok(response.status)?;
+    if response.body.is_empty() {
+        return Err(AddonProviderError::Network(
+            "Modrinth returned an empty datapack archive.".to_string(),
+        ));
+    }
+    Ok(response.body)
 }
 
 pub fn modrinth_version_from_hash(

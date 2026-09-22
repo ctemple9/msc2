@@ -33,6 +33,7 @@
 //! this step.
 
 use std::fmt;
+use std::io::{Cursor, Read, Write};
 use std::path::{Path, PathBuf};
 
 use msc_domain::addon_provider::{self as domain, ModrinthVersionInfo};
@@ -53,6 +54,239 @@ use crate::addon_dependencies::{self, DependencyInstallReport};
 use crate::addon_updates::AddonUpdateItem;
 
 use std::collections::HashMap;
+
+#[derive(Debug)]
+pub enum JavaDatapackError {
+    Invalid(String),
+    IncompatibleVersion,
+    Io(String),
+}
+
+impl fmt::Display for JavaDatapackError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Invalid(message) | Self::Io(message) => f.write_str(message),
+            Self::IncompatibleVersion => f.write_str(
+                "This datapack version does not list the selected world's Minecraft version.",
+            ),
+        }
+    }
+}
+
+/// Checks a Modrinth datapack archive, then writes its files under the
+/// selected Java world's `datapacks` directory inside the slot archive.
+/// The prior archive is retained beside the slot before the replacement.
+pub fn install_java_datapack(
+    world_zip_path: &Path,
+    archive_bytes: &[u8],
+    version: &ModrinthVersionInfo,
+    project_id: &str,
+    project_title: &str,
+    minecraft_version: &str,
+) -> Result<(String, String, Vec<String>, PathBuf), JavaDatapackError> {
+    if !version
+        .game_versions
+        .iter()
+        .any(|value| value == minecraft_version)
+    {
+        return Err(JavaDatapackError::IncompatibleVersion);
+    }
+    let selected_file = domain::modrinth_primary_file(&version.files)
+        .ok_or_else(|| JavaDatapackError::Invalid("The selected version has no archive.".into()))?;
+    if let Some(expected) = selected_file.hashes.get("sha512") {
+        let actual = msc_infrastructure::download_staging::sha512_hex(archive_bytes);
+        if !actual.eq_ignore_ascii_case(expected) {
+            return Err(JavaDatapackError::Invalid(
+                "The downloaded datapack failed its SHA-512 check.".into(),
+            ));
+        }
+    }
+
+    let mut incoming = zip::ZipArchive::new(Cursor::new(archive_bytes))
+        .map_err(|error| JavaDatapackError::Invalid(format!("Invalid datapack ZIP: {error}")))?;
+    if incoming.is_empty() || incoming.len() > 20_000 {
+        return Err(JavaDatapackError::Invalid(
+            "The datapack archive is empty or contains too many entries.".into(),
+        ));
+    }
+    let mut pack_files = Vec::<(String, Vec<u8>)>::new();
+    let mut expanded_size = 0_u64;
+    for index in 0..incoming.len() {
+        let mut entry = incoming.by_index(index).map_err(|error| {
+            JavaDatapackError::Invalid(format!("Could not read datapack archive: {error}"))
+        })?;
+        if entry.is_dir() {
+            continue;
+        }
+        let name = entry.name().replace('\\', "/");
+        let path = Path::new(&name);
+        if name.starts_with('/')
+            || name.contains(':')
+            || path.components().any(|component| {
+                matches!(
+                    component,
+                    std::path::Component::ParentDir
+                        | std::path::Component::RootDir
+                        | std::path::Component::Prefix(_)
+                )
+            })
+            || entry
+                .unix_mode()
+                .is_some_and(|mode| mode & 0o170000 == 0o120000)
+        {
+            return Err(JavaDatapackError::Invalid(
+                "The datapack archive contains an unsafe path or symbolic link.".into(),
+            ));
+        }
+        expanded_size = expanded_size.saturating_add(entry.size());
+        if expanded_size > 2 * 1024 * 1024 * 1024 {
+            return Err(JavaDatapackError::Invalid(
+                "The unpacked datapack exceeds the 2 GB safety limit.".into(),
+            ));
+        }
+        let mut bytes = Vec::with_capacity(entry.size().min(16 * 1024 * 1024) as usize);
+        entry.read_to_end(&mut bytes).map_err(|error| {
+            JavaDatapackError::Invalid(format!("Could not read datapack file: {error}"))
+        })?;
+        pack_files.push((name, bytes));
+    }
+    let (metadata_name, metadata_bytes) = pack_files
+        .iter()
+        .find(|(name, _)| name == "pack.mcmeta" || name.ends_with("/pack.mcmeta"))
+        .ok_or_else(|| {
+            JavaDatapackError::Invalid(
+                "The archive does not contain Java datapack metadata (pack.mcmeta).".into(),
+            )
+        })?;
+    let wrapper = metadata_name.strip_suffix("pack.mcmeta").unwrap_or("");
+    if !wrapper.is_empty()
+        && pack_files
+            .iter()
+            .any(|(name, _)| !name.starts_with(wrapper))
+    {
+        return Err(JavaDatapackError::Invalid(
+            "Datapack files do not share the directory containing pack.mcmeta.".into(),
+        ));
+    }
+    let metadata: serde_json::Value = serde_json::from_slice(metadata_bytes).map_err(|error| {
+        JavaDatapackError::Invalid(format!("The datapack pack.mcmeta is invalid JSON: {error}"))
+    })?;
+    if !metadata
+        .pointer("/pack/pack_format")
+        .and_then(serde_json::Value::as_u64)
+        .is_some_and(|format| format > 0)
+        || metadata.pointer("/pack/description").is_none()
+    {
+        return Err(JavaDatapackError::Invalid(
+            "The datapack pack.mcmeta is missing a valid pack format or description.".into(),
+        ));
+    }
+    let pack_folder = format!(
+        "{}-{}",
+        safe_pack_path(project_id),
+        safe_pack_path(&version.id)
+    );
+
+    let world_file = std::fs::File::open(world_zip_path)
+        .map_err(|error| JavaDatapackError::Io(format!("Could not read world archive: {error}")))?;
+    let mut world = zip::ZipArchive::new(world_file).map_err(|error| {
+        JavaDatapackError::Invalid(format!("The selected world archive is invalid: {error}"))
+    })?;
+    let world_root = world
+        .file_names()
+        .find_map(|name| name.strip_suffix("level.dat"))
+        .unwrap_or("")
+        .to_string();
+    let datapack_root = format!("{world_root}datapacks/{pack_folder}/");
+    let existing: std::collections::HashSet<String> =
+        world.file_names().map(str::to_string).collect();
+    if existing.iter().any(|name| name.starts_with(&datapack_root)) {
+        return Err(JavaDatapackError::Invalid(
+            "This datapack version is already installed in the selected world.".into(),
+        ));
+    }
+    let temp_path = world_zip_path.with_extension(format!("{}.datapack.tmp", uuid::Uuid::new_v4()));
+    let temp_file = std::fs::File::create(&temp_path).map_err(|error| {
+        JavaDatapackError::Io(format!("Could not stage the updated world: {error}"))
+    })?;
+    let mut output = zip::ZipWriter::new(temp_file);
+    let options = zip::write::SimpleFileOptions::default();
+    for index in 0..world.len() {
+        let mut entry = world.by_index(index).map_err(|error| {
+            JavaDatapackError::Invalid(format!("Could not read world archive: {error}"))
+        })?;
+        let name = entry.name().to_string();
+        if entry.is_dir() {
+            output
+                .add_directory(name, options)
+                .map_err(|error| JavaDatapackError::Io(error.to_string()))?;
+        } else {
+            output
+                .start_file(name, options)
+                .map_err(|error| JavaDatapackError::Io(error.to_string()))?;
+            std::io::copy(&mut entry, &mut output)
+                .map_err(|error| JavaDatapackError::Io(error.to_string()))?;
+        }
+    }
+    let mut installed_paths = Vec::with_capacity(pack_files.len());
+    for (name, bytes) in &pack_files {
+        let name = name.strip_prefix(wrapper).unwrap_or(name);
+        let installed_name = format!("{datapack_root}{name}");
+        installed_paths.push(format!("datapacks/{pack_folder}/{name}"));
+        output
+            .start_file(installed_name, options)
+            .map_err(|error| JavaDatapackError::Io(error.to_string()))?;
+        output
+            .write_all(bytes)
+            .map_err(|error| JavaDatapackError::Io(error.to_string()))?;
+    }
+    output
+        .finish()
+        .map_err(|error| JavaDatapackError::Io(error.to_string()))?
+        .sync_all()
+        .map_err(|error| {
+            JavaDatapackError::Io(format!("Could not flush updated world: {error}"))
+        })?;
+    let backup_path =
+        world_zip_path.with_extension(format!("{}.pre-datapack.bak", uuid::Uuid::new_v4()));
+    std::fs::copy(world_zip_path, &backup_path).map_err(|error| {
+        JavaDatapackError::Io(format!("Could not back up the selected world: {error}"))
+    })?;
+    if world_zip_path.exists() {
+        std::fs::remove_file(world_zip_path).map_err(|error| {
+            let _ = std::fs::remove_file(&temp_path);
+            let _ = std::fs::remove_file(&backup_path);
+            JavaDatapackError::Io(format!("Could not replace the world archive: {error}"))
+        })?;
+    }
+    if let Err(error) = std::fs::rename(&temp_path, world_zip_path) {
+        let _ = std::fs::remove_file(&temp_path);
+        let _ = std::fs::copy(&backup_path, world_zip_path);
+        let _ = std::fs::remove_file(&backup_path);
+        return Err(JavaDatapackError::Io(format!(
+            "Could not replace the world archive: {error}"
+        )));
+    }
+    Ok((
+        project_title.to_string(),
+        msc_infrastructure::download_staging::sha512_hex(archive_bytes),
+        installed_paths,
+        backup_path,
+    ))
+}
+
+fn safe_pack_path(value: &str) -> String {
+    value
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, '-' | '_') {
+                character
+            } else {
+                '-'
+            }
+        })
+        .collect()
+}
 
 #[derive(Debug)]
 pub enum AddonMutationError {

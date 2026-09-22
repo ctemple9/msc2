@@ -691,8 +691,8 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 
 ### P15.26 — Browse and install Java datapacks
 
-- **Status:** planned
-- **Files:** `crates/msc-domain/src/addon_provider.rs`, `crates/msc-infrastructure/src/addon_provider.rs`, `crates/msc-application/src/addons.rs`, `crates/msc-agent/src/routes/components.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-api/src/dto/addons.rs`, `crates/msc-api/src/dto/worlds.rs`, `docs/msc2/capabilities/phase15-world-packs.md`
+- **Status:** awaiting verification
+- **Files:** `crates/msc-domain/src/addon_provider.rs`, `crates/msc-infrastructure/src/addon_provider.rs`, `crates/msc-application/src/addons.rs`, `crates/msc-agent/src/routes/components.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-api/src/dto/addons.rs`, `crates/msc-api/src/dto/worlds.rs`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
 - **What:** Add the Modrinth Data Packs catalog and installation path for the selected Java world slot. Validate downloaded archives and Java pack metadata, check Minecraft-version compatibility, reject malformed or path-traversing archives, retain provider/version/hash details, back up the world before mutation, and require a stopped server when live changes are unsafe. Report enabled state and update availability when known; follow the P15.23 contract for controls deferred from the first release.
 - **Verify:** `cargo fmt --all -- --check && cargo check -p msc-domain -p msc-api -p msc-infrastructure -p msc-application -p msc-agent && cargo clippy -p msc-domain -p msc-api -p msc-infrastructure -p msc-application -p msc-agent -- -D warnings`
 - **Batch:** O — Java datapacks

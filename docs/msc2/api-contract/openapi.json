@@ -6454,6 +6454,45 @@
         "operationId": "convertWorld"
       }
     },
+    "/v1/catalog/datapacks": {
+      "get": {
+        "summary": "Search Modrinth Java datapacks for a Minecraft version",
+        "operationId": "searchJavaDatapacks",
+        "x-permission-category": "none",
+        "parameters": [
+          {"name": "q", "in": "query", "required": false, "schema": {"type": "string"}},
+          {"name": "gameVersion", "in": "query", "required": false, "schema": {"type": "string"}},
+          {"name": "offset", "in": "query", "required": false, "schema": {"type": "integer", "minimum": 0}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching Modrinth datapack projects",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CatalogSearchResponseDTO"}}}
+          }
+        }
+      }
+    },
+    "/v1/worlds/{slotId}/datapacks/install": {
+      "post": {
+        "summary": "Install a Modrinth Java datapack into one world slot",
+        "operationId": "installJavaDatapack",
+        "x-permission-category": "worlds",
+        "parameters": [
+          {"name": "slotId", "in": "path", "required": true, "schema": {"type": "string"}}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/JavaDatapackInstallRequestDTO"}}}
+        },
+        "responses": {
+          "200": {"description": "Datapack installed and recorded in the slot profile", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/JavaDatapackInstallResultDTO"}}}},
+          "400": {"description": "Invalid request body", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDTO"}}}},
+          "409": {"description": "Server running or selected datapack is incompatible", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDTO"}}}},
+          "422": {"description": "Invalid datapack archive or metadata", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDTO"}}}},
+          "502": {"description": "Modrinth request or download failed", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDTO"}}}}
+        }
+      }
+    },
     "/v1/worlds/{slotId}/profile": {
       "get": {
         "summary": "Read one world slot's saved profile and runtime metadata",
@@ -7465,6 +7504,16 @@
           "packs",
           "fieldMetadata"
         ]
+      },
+      "JavaDatapackInstallRequestDTO": {
+        "type": "object",
+        "properties": {"projectId": {"type": "string"}, "versionId": {"type": "string"}},
+        "required": ["projectId", "versionId"]
+      },
+      "JavaDatapackInstallResultDTO": {
+        "type": "object",
+        "properties": {"result": {"type": "string", "enum": ["installed"]}, "pack": {"$ref": "#/components/schemas/WorldPackRecordDTO"}},
+        "required": ["result", "pack"]
       },
       "WorldPackRecordDTO": {
         "type": "object",

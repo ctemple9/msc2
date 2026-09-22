@@ -29,6 +29,17 @@ raw world profile in a reserved metadata entry that is not extracted into the
 Minecraft world; backup sidecars carry the same profile. The existing slot
 profile copy path carries records through activation and duplication.
 
+P15.26 adds `GET /v1/catalog/datapacks` and
+`POST /v1/worlds/{slotId}/datapacks/install`. Search uses Modrinth's
+`datapack` project category and the selected Minecraft version, without Java
+loader facets. Installation resolves an immutable version ID, checks the
+provider's Minecraft-version list and SHA-512 when published, validates ZIP
+paths and `pack.mcmeta`, and refuses changes while the selected active world
+is running. The prior slot archive is preserved as a recovery copy before
+replacement. The updated slot profile records source, version, compatibility,
+enabled state, file paths, and SHA-512. Update availability is not reported
+until a provider check supplies it.
+
 ## Contract decisions
 
 - **D-030 is Approved.** Cameron confirmed that each slot owns a versioned

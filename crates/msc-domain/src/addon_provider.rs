@@ -140,6 +140,18 @@ pub fn modrinth_search_index(query: &str) -> &'static str {
     }
 }
 
+/// Search Modrinth's `datapack` project category without applying Java
+/// loader facets. Datapacks are selected by Minecraft version and belong
+/// to a world, so Fabric/Forge loader categories would incorrectly hide
+/// valid projects.
+pub fn modrinth_datapack_facets(game_version: Option<&str>) -> String {
+    let mut groups = vec![vec!["project_type:datapack".to_string()]];
+    if let Some(version) = game_version.filter(|value| !value.is_empty()) {
+        groups.push(vec![format!("versions:{version}")]);
+    }
+    serde_json::to_string(&groups).expect("Vec<Vec<String>> always serializes")
+}
+
 /// Computed purely from `server_side` (`ModrinthAPI.swift:195`); `client_side`
 /// is irrelevant to this flag.
 pub fn modrinth_is_client_only(server_side: &str) -> bool {

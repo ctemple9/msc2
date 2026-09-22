@@ -245,6 +245,7 @@ pub fn router(state: ComponentsRoutesState) -> Router {
         .route("/staged-downloads/:id", get(download_staged_bytes))
         .route("/addons", get(get_addons))
         .route("/catalog/search", get(search_catalog))
+        .route("/catalog/datapacks", get(search_datapacks))
         .route("/catalog/projects/:project_id", get(get_catalog_project))
         .route(
             "/catalog/projects/:project_id/versions",
@@ -262,6 +263,54 @@ pub fn router(state: ComponentsRoutesState) -> Router {
             post(complete_modpack_manual_file),
         )
         .with_state(state)
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DatapackCatalogQuery {
+    q: Option<String>,
+    game_version: Option<String>,
+    offset: Option<u32>,
+}
+
+pub async fn search_datapacks(
+    Extension(_credential): Extension<AuthenticatedCredential>,
+    Query(query): Query<DatapackCatalogQuery>,
+) -> Response {
+    let transport = HttpTransport::new();
+    let search = match provider::modrinth_search_datapacks(
+        &transport,
+        query.q.as_deref().unwrap_or_default(),
+        query.game_version.as_deref(),
+        20,
+        query.offset.unwrap_or(0),
+    ) {
+        Ok(search) => search,
+        Err(error) => return provider_error(error),
+    };
+    Json(CatalogSearchResponseDto {
+        supports_addons: true,
+        addon_kind: Some("datapack".to_string()),
+        loader_name: None,
+        game_version: query.game_version,
+        results: search
+            .hits
+            .into_iter()
+            .map(|hit| CatalogItemDto {
+                project_id: hit.project_id,
+                slug: hit.slug,
+                title: hit.title,
+                description: hit.description,
+                author: hit.author,
+                downloads: hit.downloads,
+                icon_url: hit.icon_url,
+                is_client_only: false,
+                project_type: "datapack".to_string(),
+            })
+            .collect(),
+        note: None,
+    })
+    .into_response()
 }
 
 fn audit(

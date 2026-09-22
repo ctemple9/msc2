@@ -53,16 +53,17 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use msc_api::dto::{
-    ErrorDto, PermissionCategoryDto, StagedUploadPurposeDto, WorldActivateRequestDto,
-    WorldActivateResultDto, WorldChunkerDownloadResultDto, WorldConvertFormatsResponseDto,
-    WorldConvertRequestDto, WorldConvertResultDto, WorldCreateRequestDto, WorldDeleteRequestDto,
-    WorldDuplicateRequestDto, WorldExportRequestDto, WorldExportResultDto, WorldGameplayDto,
-    WorldGenerationDto, WorldIdentityDto, WorldImportRequestDto, WorldMutationResultDto,
-    WorldPackDependencyDto, WorldPackRecordDto, WorldPackSourceDto, WorldProfileDto,
-    WorldProfileFieldMetadataDto, WorldRenameActiveWorldRequestDto, WorldRenameRequestDto,
-    WorldRepairRequestDto, WorldRepairResultDto, WorldReplaceActiveRequestDto,
-    WorldReplaceActiveResultDto, WorldReplaceRequestDto, WorldSafetyDto, WorldSlotDto,
-    WorldSlotWithProfileDto, WorldSlotsResponseDto, WorldThumbnailUploadRequestDto,
+    ErrorDto, JavaDatapackInstallRequestDto, JavaDatapackInstallResultDto, PermissionCategoryDto,
+    StagedUploadPurposeDto, WorldActivateRequestDto, WorldActivateResultDto,
+    WorldChunkerDownloadResultDto, WorldConvertFormatsResponseDto, WorldConvertRequestDto,
+    WorldConvertResultDto, WorldCreateRequestDto, WorldDeleteRequestDto, WorldDuplicateRequestDto,
+    WorldExportRequestDto, WorldExportResultDto, WorldGameplayDto, WorldGenerationDto,
+    WorldIdentityDto, WorldImportRequestDto, WorldMutationResultDto, WorldPackDependencyDto,
+    WorldPackRecordDto, WorldPackSourceDto, WorldProfileDto, WorldProfileFieldMetadataDto,
+    WorldRenameActiveWorldRequestDto, WorldRenameRequestDto, WorldRepairRequestDto,
+    WorldRepairResultDto, WorldReplaceActiveRequestDto, WorldReplaceActiveResultDto,
+    WorldReplaceRequestDto, WorldSafetyDto, WorldSlotDto, WorldSlotWithProfileDto,
+    WorldSlotsResponseDto, WorldThumbnailUploadRequestDto,
 };
 #[cfg(test)]
 use msc_api::dto::{
@@ -126,6 +127,10 @@ pub fn router(state: WorldsRoutesState) -> Router {
         .route(
             "/worlds/:slot_id/profile",
             get(get_profile).post(update_profile),
+        )
+        .route(
+            "/worlds/:slot_id/datapacks/install",
+            post(install_java_datapack),
         )
         .route("/worlds/convert/formats", get(convert_formats))
         .route("/worlds/convert/chunker", post(download_chunker))
@@ -886,6 +891,246 @@ pub async fn get_profile(
         profile: profile_to_dto(&profile, server.server_type),
     })
     .into_response()
+}
+
+pub async fn install_java_datapack(
+    State(state): State<WorldsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    AxumPath(slot_id): AxumPath<String>,
+    body: Result<Json<JavaDatapackInstallRequestDto>, JsonRejection>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
+        return response;
+    }
+    let Json(body) = match body {
+        Ok(body) => body,
+        Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
+    };
+    let server = match active_server_or_response(&state.lifecycle) {
+        Ok(server) => server,
+        Err(response) => return response,
+    };
+    if resolved_active_slot_id(server_dir).as_deref() == Some(slot.id.as_str())
+        && state.lifecycle.status_snapshot().running
+    {
+        let _ = state.lifecycle.operations().fail(
+            operation_id.as_str(),
+            "server_running",
+            "Stop the server before changing a datapack in its active world.".to_string(),
+        );
+        return error_response(
+            StatusCode::CONFLICT,
+            "server_running",
+            "Stop the server before changing a datapack in its active world.",
+        );
+    }
+    if server.server_type != ServerType::Java {
+        return error_response(
+            StatusCode::CONFLICT,
+            "unsupported_server_type",
+            "Java datapacks can only be installed in Java worlds.",
+        );
+    }
+    let Some(minecraft_version) = server.minecraft_version.as_deref() else {
+        return error_response(
+            StatusCode::CONFLICT,
+            "unknown_minecraft_version",
+            "The server's Minecraft version is not available.",
+        );
+    };
+    let server_dir = Path::new(&server.server_dir);
+    let Some(slot) = find_slot(server_dir, &slot_id) else {
+        return error_response(StatusCode::NOT_FOUND, "not_found", "World slot not found.");
+    };
+    if resolved_active_slot_id(server_dir).as_deref() == Some(slot.id.as_str())
+        && state.lifecycle.status_snapshot().running
+    {
+        return error_response(
+            StatusCode::CONFLICT,
+            "server_running",
+            "Stop the server before changing a datapack in its active world.",
+        );
+    }
+
+    let transport = msc_infrastructure::addon_provider::HttpTransport::new();
+    let version =
+        match msc_infrastructure::addon_provider::modrinth_version(&transport, &body.version_id) {
+            Ok(version) if version.project_id == body.project_id => version,
+            Ok(_) => {
+                return invalid_body(
+                    "version_project_mismatch",
+                    "The selected version does not belong to that Modrinth project.",
+                );
+            }
+            Err(error) => {
+                return error_response(
+                    StatusCode::BAD_GATEWAY,
+                    "provider_error",
+                    &error.to_string(),
+                );
+            }
+        };
+    if !version
+        .game_versions
+        .iter()
+        .any(|value| value == minecraft_version)
+    {
+        return error_response(
+            StatusCode::CONFLICT,
+            "incompatible_version",
+            "This datapack version does not list the server's Minecraft version.",
+        );
+    }
+    let Some(file) = msc_domain::addon_provider::modrinth_primary_file(&version.files) else {
+        return error_response(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "missing_archive",
+            "The selected Modrinth version has no datapack archive.",
+        );
+    };
+    let archive = match msc_infrastructure::addon_provider::download_datapack(&transport, &file.url)
+    {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            return error_response(
+                StatusCode::BAD_GATEWAY,
+                "download_failed",
+                &error.to_string(),
+            );
+        }
+    };
+    let project =
+        match msc_infrastructure::addon_provider::modrinth_project(&transport, &body.project_id) {
+            Ok(project) => project,
+            Err(error) => {
+                return error_response(
+                    StatusCode::BAD_GATEWAY,
+                    "provider_error",
+                    &error.to_string(),
+                );
+            }
+        };
+    let operation_id = match begin_operation(
+        &state.lifecycle,
+        &server.id,
+        "world-datapack-install",
+        "Installing Java datapack.",
+    ) {
+        Ok(id) => id,
+        Err(response) => return response,
+    };
+    let (name, checksum, installed_paths, backup_path) =
+        match msc_application::addons::install_java_datapack(
+            &world_store::zip_path(server_dir, &slot.id),
+            &archive,
+            &version,
+            &body.project_id,
+            &project.title,
+            minecraft_version,
+        ) {
+            Ok(result) => result,
+            Err(msc_application::addons::JavaDatapackError::IncompatibleVersion) => {
+                let _ = state.lifecycle.operations().fail(
+                    operation_id.as_str(),
+                    "incompatible_version",
+                    "This datapack version does not list the server's Minecraft version."
+                        .to_string(),
+                );
+                return error_response(
+                    StatusCode::CONFLICT,
+                    "incompatible_version",
+                    "This datapack version does not list the server's Minecraft version.",
+                );
+            }
+            Err(error) => {
+                let _ = state.lifecycle.operations().fail(
+                    operation_id.as_str(),
+                    "invalid_datapack",
+                    error.to_string(),
+                );
+                return error_response(
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    "invalid_datapack",
+                    &error.to_string(),
+                );
+            }
+        };
+    let mut profile = world_store::load_profile(&StdFileSystem, server_dir, &slot);
+    let pack = WorldPackRecord {
+        id: format!("{}:{}", body.project_id, version.id),
+        edition: "java".to_string(),
+        kind: "java_datapack".to_string(),
+        name,
+        source: msc_domain::world_profile::WorldPackSource {
+            provider: Some("modrinth".to_string()),
+            project_id: Some(body.project_id),
+            version_id: Some(version.id.clone()),
+            version: Some(version.version_number),
+            url: Some(format!(
+                "https://modrinth.com/datapack/{}/version/{}",
+                project.slug, version.id
+            )),
+        },
+        files: installed_paths,
+        checksum: Some(format!("sha512:{checksum}")),
+        compatibility: Some("compatible".to_string()),
+        minecraft_versions: version.game_versions,
+        enabled: true,
+        dependencies: Vec::new(),
+    };
+    profile.packs.retain(|existing| existing.id != pack.id);
+    profile.packs.push(pack.clone());
+    if let Err(error) = world_store::save_profile(&StdFileSystem, server_dir, &slot, &profile) {
+        let _ = std::fs::copy(&backup_path, world_store::zip_path(server_dir, &slot.id));
+        let _ = state.lifecycle.operations().fail(
+            operation_id.as_str(),
+            "profile_write_failed",
+            error.to_string(),
+        );
+        return error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "profile_write_failed",
+            &error.to_string(),
+        );
+    }
+    let mut result = BTreeMap::new();
+    result.insert("packId".to_string(), pack.id.clone());
+    let _ = state.lifecycle.operations().succeed(
+        operation_id.as_str(),
+        "Java datapack installed.",
+        result,
+    );
+    let response = Json(JavaDatapackInstallResultDto {
+        result: "installed".to_string(),
+        pack: WorldPackRecordDto {
+            id: pack.id,
+            edition: pack.edition,
+            kind: pack.kind,
+            name: pack.name,
+            source: WorldPackSourceDto {
+                provider: pack.source.provider,
+                project_id: pack.source.project_id,
+                version_id: pack.source.version_id,
+                version: pack.source.version,
+                url: pack.source.url,
+            },
+            files: pack.files,
+            checksum: pack.checksum,
+            compatibility: pack.compatibility,
+            minecraft_versions: pack.minecraft_versions,
+            enabled: pack.enabled,
+            dependencies: Vec::new(),
+        },
+    })
+    .into_response();
+    audit(
+        &state.lifecycle,
+        &credential,
+        "POST",
+        "/v1/worlds/{slotId}/datapacks/install",
+        response.status(),
+    );
+    response
 }
 
 pub async fn update_profile(

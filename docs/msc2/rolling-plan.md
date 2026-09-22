@@ -1004,6 +1004,15 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Batch:** AX — existing-server Playit participation
 - **Commit:** `P15.60: enable Playit for existing servers`
 
+### P15.61 — Target Xbox Broadcast at the selected Bedrock server
+
+- **Status:** awaiting verification
+- **Files:** `crates/msc-infrastructure/src/xbox_broadcast.rs`, `crates/msc-agent/src/routes/networking.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Update the standalone MCXboxBroadcast `config.yml` in the server's `.msc2-broadcast` directory before every managed start or restart. Preserve authentication and friend-sync settings while replacing the session name, world name, target host, and target port. Resolve the target from an explicit Xbox Broadcast override, Playit, DuckDNS/public host configuration, or detected public/private host according to the saved IP mode; use the Bedrock port or explicit broadcast-port override instead of the helper's Geyser demo defaults. Refuse to start when no target host can be determined, and surface the reason in the agent console or HTTP error response.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-infrastructure -p msc-agent`
+- **Batch:** AY — Xbox Broadcast target correction
+- **Commit:** `P15.61: target Xbox Broadcast at the selected server`
+
 ## Proposed Phase 14 — operational refinements
 
 This phase turns the issues reported from real use into four bounded areas:

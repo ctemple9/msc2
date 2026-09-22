@@ -181,12 +181,77 @@ pub fn download_latest_jar(
 pub fn make_config_yaml(host: &str, port: Option<u16>, server_name: &str) -> String {
     let port = port.map_or_else(String::new, |port| port.to_string());
     format!(
-        "session:\n  update-interval: 30\n  query-server: true\n  session-info:\n    host-name: \"{}\"\n    world-name: \"{} World\"\n    ip: {}\n    port: {}\nfriend-sync:\n  auto-follow: true\n  auto-unfollow: true\n",
+        "session:\n  update-interval: 30\n  query-server: true\n  session-info:\n    host-name: \"{}\"\n    world-name: \"{} World\"\n    ip: \"{}\"\n    port: {}\nfriend-sync:\n  auto-follow: true\n  auto-unfollow: true\n",
         yaml_quote(server_name),
         yaml_quote(server_name),
-        host.trim(),
+        yaml_quote(host.trim()),
         port
     )
+}
+
+/// Update only the session target in an existing standalone configuration.
+///
+/// MCXboxBroadcast keeps authentication and friend-sync settings in this
+/// file, so replacing the whole file on every server start would discard
+/// operator choices. The standalone config is intentionally simple enough
+/// that a small indentation-aware patch is safer than adding a second YAML
+/// parser dependency to the agent.
+pub fn update_config_yaml(existing: &str, host: &str, port: u16, server_name: &str) -> String {
+    let mut output = Vec::new();
+    let mut in_session_info = false;
+    let mut found_session_info = false;
+    let mut replaced = [false; 4];
+    let values = [
+        ("host-name:", format!("\"{}\"", yaml_quote(server_name))),
+        (
+            "world-name:",
+            format!("\"{} World\"", yaml_quote(server_name)),
+        ),
+        ("ip:", format!("\"{}\"", yaml_quote(host.trim()))),
+        ("port:", port.to_string()),
+    ];
+
+    for line in existing.lines() {
+        let trimmed = line.trim_start();
+        if line.starts_with("  session-info:") {
+            in_session_info = true;
+            found_session_info = true;
+            output.push(line.to_owned());
+            continue;
+        }
+        if in_session_info
+            && !trimmed.is_empty()
+            && line.starts_with("  ")
+            && !line.starts_with("    ")
+        {
+            in_session_info = false;
+        }
+
+        if in_session_info {
+            let indent = &line[..line.len() - trimmed.len()];
+            let mut replaced_line = false;
+            for (index, (key, value)) in values.iter().enumerate() {
+                if trimmed.starts_with(key) {
+                    output.push(format!("{indent}{key} {value}"));
+                    replaced[index] = true;
+                    replaced_line = true;
+                    break;
+                }
+            }
+            if replaced_line {
+                continue;
+            }
+        }
+        output.push(line.to_owned());
+    }
+
+    if !found_session_info || replaced.iter().any(|value| !value) {
+        return make_config_yaml(host, Some(port), server_name);
+    }
+
+    let mut config = output.join("\n");
+    config.push('\n');
+    config
 }
 
 fn yaml_quote(value: &str) -> String {

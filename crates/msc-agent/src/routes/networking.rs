@@ -36,7 +36,7 @@ use msc_application::resource_packs::ResourcePackService;
 use msc_application::xbox_broadcast::{
     BroadcastOutputLine, XboxBroadcastError, XboxBroadcastService,
 };
-use msc_domain::app_config_schema::ConfigServer;
+use msc_domain::app_config_schema::{ConfigServer, XboxBroadcastIpMode};
 use msc_domain::helper::{FirstRunTransport, FirstStartTransportState, HelperStatus};
 use msc_domain::identity::ServerType;
 use msc_domain::networking::{PlayitTunnelSpec, patch_voice_chat_properties, playit_tunnel_specs};
@@ -48,7 +48,7 @@ use msc_infrastructure::playit::{PLAYIT_SECRET_KEY, PlayitSecretBridge};
 use msc_infrastructure::playit_api::PlayitHttpTransport;
 use msc_infrastructure::process::ProcessSupervisor;
 use msc_infrastructure::secret_store::SecretStore;
-use msc_infrastructure::{config_repository, xbox_broadcast};
+use msc_infrastructure::{config_repository, public_ip, xbox_broadcast};
 
 use crate::auth::AuthenticatedCredential;
 use crate::routes::lifecycle::{
@@ -241,6 +241,10 @@ impl PlayitLifecycleController {
         };
         let working_directory = PathBuf::from(&server.server_dir).join(".msc2-broadcast");
         if std::fs::create_dir_all(&working_directory).is_err() {
+            return;
+        }
+        if let Err(error) = prepare_broadcast_config(&self.lifecycle, server, &working_directory) {
+            self.lifecycle.append_console_line("xbox-broadcast", &error);
             return;
         }
         let launch = xbox_broadcast::XboxBroadcastLaunch {
@@ -756,6 +760,101 @@ fn append_broadcast_console_line(lifecycle: &LifecycleRoutesState, line: Broadca
         }
     };
     lifecycle.append_console_line("xbox-broadcast", &text);
+}
+
+fn split_broadcast_endpoint(value: &str) -> (String, Option<u16>) {
+    let value = value.trim();
+    if value.starts_with('[')
+        && let Some(close) = value.find(']')
+    {
+        let host = value[1..close].to_owned();
+        let port = value
+            .get(close + 1..)
+            .and_then(|suffix| suffix.strip_prefix(':'))
+            .and_then(|port| port.parse().ok());
+        return (host, port);
+    }
+    if value.matches(':').count() == 1
+        && let Some((host, port)) = value.rsplit_once(':')
+        && let Ok(port) = port.parse()
+    {
+        return (host.to_owned(), Some(port));
+    }
+    (value.to_owned(), None)
+}
+
+fn broadcast_target(
+    lifecycle: &LifecycleRoutesState,
+    server: &ConfigServer,
+) -> Result<(String, u16), String> {
+    let config = lifecycle.app_config_snapshot();
+    let explicit_host = server
+        .xbox_broadcast_host_override
+        .as_deref()
+        .map(str::trim)
+        .filter(|host| !host.is_empty())
+        .map(str::to_owned);
+    let (playit_host, playit_port) = config
+        .playit_bedrock_address
+        .as_deref()
+        .filter(|_| server.playit_enabled)
+        .map(split_broadcast_endpoint)
+        .unwrap_or_default();
+    let host = explicit_host.or_else(|| match server.xbox_broadcast_ip_mode {
+        XboxBroadcastIpMode::PrivateIp => crate::help::detect_local_ip(),
+        XboxBroadcastIpMode::PublicIp => config
+            .duckdns_hostname
+            .clone()
+            .or_else(|| server.public_host_override.clone())
+            .or_else(|| public_ip::detect(Duration::from_secs(2))),
+        XboxBroadcastIpMode::Auto => {
+            if server.playit_enabled && !playit_host.is_empty() {
+                Some(playit_host.clone())
+            } else {
+                config
+                    .duckdns_hostname
+                    .clone()
+                    .or_else(|| server.public_host_override.clone())
+                    .or_else(|| public_ip::detect(Duration::from_secs(2)))
+            }
+        }
+    });
+    let host = host
+        .filter(|host| !host.trim().is_empty())
+        .ok_or_else(|| {
+            "Xbox Broadcast could not determine a target host; set a public host override or configure a tunnel first."
+                .to_owned()
+        })?;
+    let port = server
+        .xbox_broadcast_port_override
+        .and_then(|port| u16::try_from(port).ok())
+        .filter(|port| *port > 0)
+        .or(playit_port)
+        .or_else(|| {
+            server
+                .bedrock_port
+                .and_then(|port| u16::try_from(port).ok())
+                .filter(|port| *port > 0)
+        })
+        .unwrap_or(19132);
+    Ok((host, port))
+}
+
+fn prepare_broadcast_config(
+    lifecycle: &LifecycleRoutesState,
+    server: &ConfigServer,
+    working_directory: &Path,
+) -> Result<(), String> {
+    let (host, port) = broadcast_target(lifecycle, server)?;
+    let path = working_directory.join("config.yml");
+    let existing = std::fs::read_to_string(&path).unwrap_or_default();
+    let config = xbox_broadcast::update_config_yaml(&existing, &host, port, &server.display_name);
+    std::fs::write(path, config).map_err(|error| {
+        format!(
+            "could not write Xbox Broadcast config for {}: {error}",
+            server.display_name
+        )
+    })
 }
 
 pub async fn playit_status(State(state): State<NetworkingState>) -> Response {
@@ -1755,6 +1854,9 @@ pub async fn start_broadcast(
     service.set_enabled(server.xbox_broadcast_enabled);
     let workdir = PathBuf::from(&server.server_dir).join(".msc2-broadcast");
     let _ = std::fs::create_dir_all(&workdir);
+    if let Err(error) = prepare_broadcast_config(&state.lifecycle, &server, &workdir) {
+        return helper_error_response(error, "broadcast_config_failed");
+    }
     let launch = xbox_broadcast::XboxBroadcastLaunch {
         java_path: PathBuf::from(state.lifecycle.app_config_snapshot().java_path),
         working_directory: workdir,

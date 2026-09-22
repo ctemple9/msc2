@@ -55,6 +55,9 @@ only from CurseForge's ForgeCDN.
 P15.32 corrects the CurseForge class lookup to
 `GET /v1/categories?gameId=1303&classesOnly=true`; the previous
 `/v1/games/1303/classes` path is not a CurseForge API route and returned 404.
+P15.33 labels failures from the category lookup separately from failures in
+the subsequent Bedrock add-on search, so provider status errors identify which
+request failed.
 
 Before replacing the selected world's archive, installation validates every
 archive path and symbolic-link flag, caps expanded content, requires a valid

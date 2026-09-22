@@ -752,6 +752,15 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Batch:** U — Bedrock catalog endpoint correction
 - **Commit:** `P15.32: correct Bedrock catalog category lookup`
 
+### P15.33 — Identify the failing Bedrock catalog request
+
+- **Status:** awaiting verification
+- **Files:** `crates/msc-infrastructure/src/addon_provider.rs`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
+- **What:** Preserve CurseForge's status and authorization errors while identifying whether the Bedrock class lookup or the subsequent add-on search failed. This makes another provider 404 actionable without exposing the API key.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-infrastructure -p msc-agent && cargo clippy -p msc-infrastructure -p msc-agent -- -D warnings`
+- **Batch:** V — Bedrock catalog error diagnosis
+- **Commit:** `P15.33: identify Bedrock catalog request failures`
+
 ## Proposed Phase 14 — operational refinements
 
 This phase turns the issues reported from real use into four bounded areas:

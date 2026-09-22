@@ -90,6 +90,15 @@ fn ensure_ok_generic(provider: &str, status: u16) -> Result<(), AddonProviderErr
     Ok(())
 }
 
+fn ensure_curseforge_ok_for(operation: &str, status: u16) -> Result<(), AddonProviderError> {
+    domain::ensure_curseforge_ok(status).map_err(|error| match error {
+        AddonProviderError::Network(message) => {
+            AddonProviderError::Network(format!("CurseForge {operation} failed: {message}"))
+        }
+        other => other,
+    })
+}
+
 // ---------------------------------------------------------------------
 // Transport boundary
 // ---------------------------------------------------------------------
@@ -667,7 +676,7 @@ pub fn curseforge_search_bedrock_addons(
             RESPONSE_MAX_BYTES,
         )
         .map_err(map_transport_err)?;
-    domain::ensure_curseforge_ok(classes_response.status)?;
+    ensure_curseforge_ok_for("Bedrock categories lookup", classes_response.status)?;
     let classes_body = bytes_to_utf8(classes_response.body, "CurseForge Bedrock categories")?;
     let classes: serde_json::Value = serde_json::from_str(&classes_body)
         .map_err(|error| malformed("CurseForge Bedrock categories", error))?;
@@ -712,7 +721,7 @@ pub fn curseforge_search_bedrock_addons(
             RESPONSE_MAX_BYTES,
         )
         .map_err(map_transport_err)?;
-    domain::ensure_curseforge_ok(response.status)?;
+    ensure_curseforge_ok_for("Bedrock add-on search", response.status)?;
     let body = bytes_to_utf8(response.body, "CurseForge Bedrock add-on search")?;
     let result: CurseForgeSearchEnvelope = serde_json::from_str(&body)
         .map_err(|error| malformed("CurseForge Bedrock add-on search", error))?;

@@ -109,7 +109,11 @@ pub fn parse_time_query_response(line: &str) -> Option<i64> {
     ]
     .into_iter()
     .find_map(|prefix| {
-        let tail = line.split_once(prefix)?.1.trim_start();
+        let tail = line
+            .split_once(prefix)
+            .map(|(_, tail)| tail)
+            .or_else(|| split_bedrock_time_response(line, prefix))?
+            .trim_start();
         let number = tail.strip_prefix('-').unwrap_or(tail);
         let digits = number
             .chars()
@@ -123,15 +127,52 @@ pub fn parse_time_query_response(line: &str) -> Option<i64> {
     })
 }
 
+fn split_bedrock_time_response<'a>(line: &'a str, prefix: &str) -> Option<&'a str> {
+    let bedrock_prefix = match prefix {
+        "The time is " => "daytime is ",
+        _ => return None,
+    };
+    let lower = line.to_ascii_lowercase();
+    let index = lower.find(bedrock_prefix)?;
+    let value_start = index + bedrock_prefix.len();
+    Some(&line[value_start..])
+}
+
 /// Parses the daylight-cycle day query into a day number across runtime
 /// response formats. Legacy servers return the day number directly, while
 /// modern Paper's timeline response reports the absolute day timeline in
 /// ticks.
 pub fn parse_day_query_response(line: &str) -> Option<i64> {
+    if let Some(tail) = split_bedrock_day_response(line) {
+        if let Some(value) = parse_integer_prefix(tail) {
+            return Some(value);
+        }
+    }
     let value = parse_time_query_response(line)?;
     if line.contains("Timeline minecraft:day is at ") {
         Some(value.div_euclid(MINECRAFT_DAY_TICKS))
     } else {
         Some(value)
     }
+}
+
+fn split_bedrock_day_response(line: &str) -> Option<&str> {
+    let lower = line.to_ascii_lowercase();
+    let index = lower.find("day is ")?;
+    let value_start = index + "day is ".len();
+    Some(&line[value_start..])
+}
+
+fn parse_integer_prefix(tail: &str) -> Option<i64> {
+    let tail = tail.trim_start();
+    let number = tail.strip_prefix('-').unwrap_or(tail);
+    let digits = number
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect::<String>();
+    if digits.is_empty() {
+        return None;
+    }
+    let sign = if tail.starts_with('-') { -1 } else { 1 };
+    digits.parse::<i64>().ok().map(|value| sign * value)
 }

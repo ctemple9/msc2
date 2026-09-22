@@ -538,10 +538,14 @@ fn reply_matches(kind: ControllerReplyKind, clean: &str, lower: &str) -> bool {
         ControllerReplyKind::SparkTps => lower.contains("tps from last 5s, 10s, 1m, 5m, 15m"),
         ControllerReplyKind::TickQuery => is_tick_query_report_line(clean, lower),
         ControllerReplyKind::TimeQueryDay => {
-            lower.contains("timeline minecraft:day is at") || lower.contains("the time is ")
+            lower.contains("timeline minecraft:day is at")
+                || lower.contains("the time is ")
+                || lower.contains("day is ")
         }
         ControllerReplyKind::TimeQueryDaytime => {
-            lower.contains("timeline minecraft:daytime is at") || lower.contains("the time is ")
+            lower.contains("timeline minecraft:daytime is at")
+                || lower.contains("the time is ")
+                || lower.contains("daytime is ")
         }
         ControllerReplyKind::TimeQueryGametime => {
             lower.contains("the game time is ")
@@ -1163,9 +1167,9 @@ impl LifecycleRoutesState {
         *self.inner.time_observation.lock().unwrap() = TimeObservation::default();
     }
 
-    pub(crate) fn record_time_query_line(&self, line: &str, origin: ConsoleLineOrigin) {
+    pub(crate) fn record_time_query_line(&self, line: &str, origin: ConsoleLineOrigin) -> bool {
         if origin != ConsoleLineOrigin::Controller {
-            return;
+            return false;
         }
         let query_kind = self
             .inner
@@ -1180,16 +1184,18 @@ impl LifecycleRoutesState {
                 _ => None,
             });
         let Some(query_kind) = query_kind else {
-            return;
+            return false;
         };
+        let hide_from_console = matches!(query_kind, TimeQueryKind::Day | TimeQueryKind::Daytime);
+        let clean = strip_ansi(line);
         let query_value = match query_kind {
-            TimeQueryKind::Day => msc_domain::time::parse_day_query_response(line),
+            TimeQueryKind::Day => msc_domain::time::parse_day_query_response(&clean),
             TimeQueryKind::Daytime | TimeQueryKind::Gametime => {
-                msc_domain::time::parse_time_query_response(line)
+                msc_domain::time::parse_time_query_response(&clean)
             }
         };
         let Some(query_value) = query_value else {
-            return;
+            return hide_from_console;
         };
         let mut observation = self.inner.time_observation.lock().unwrap();
         observation.generation = observation.generation.wrapping_add(1);
@@ -1203,6 +1209,7 @@ impl LifecycleRoutesState {
             }
             TimeQueryKind::Gametime => {}
         }
+        hide_from_console
     }
 
     pub(crate) fn drain_time_query_events(&self) {
@@ -2188,10 +2195,11 @@ impl LifecycleRoutesState {
             match event {
                 BedrockRuntimeEvent::ConsoleLine(line) => {
                     let origin = self.console_line_origin(&line);
-                    self.record_time_query_line(&line, origin);
-                    self.inner
-                        .console
-                        .push(ConsoleLine::with_origin("bedrock", None, origin, line));
+                    if !self.record_time_query_line(&line, origin) {
+                        self.inner
+                            .console
+                            .push(ConsoleLine::with_origin("bedrock", None, origin, line));
+                    }
                 }
                 BedrockRuntimeEvent::Ready { .. } => {
                     if self.bedrock_operation_cancel_requested() {
@@ -2385,13 +2393,14 @@ impl LifecycleRoutesState {
             ProcessEvent::Output { .. } | ProcessEvent::Exited(_) => "stdout",
         };
         let origin = self.console_line_origin(text);
-        self.record_time_query_line(text, origin);
-        self.inner.console.push(ConsoleLine::with_origin(
-            source,
-            None,
-            origin,
-            text.to_string(),
-        ));
+        if !self.record_time_query_line(text, origin) {
+            self.inner.console.push(ConsoleLine::with_origin(
+                source,
+                None,
+                origin,
+                text.to_string(),
+            ));
+        }
     }
 
     fn console_line_origin(&self, line: &str) -> ConsoleLineOrigin {

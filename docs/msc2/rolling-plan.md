@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 15 is the priority next phase; Phase 14 is paused with P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, P14.17, P14.18, P14.19, P14.26, P14.27, P14.28, P14.29, P14.30, P14.31, P14.32, P14.33, P14.34, P14.35, P14.36, and P14.37 awaiting verification. P14.38 records twelve unverified static-review findings and is awaiting owner triage.
-> **Next move:** Cameron verifies P15.3, P15.4, P15.5, P15.45, and P15.46. Phase 14 verification and P14.38 triage remain recorded and paused until Phase 15 is complete or Cameron explicitly resumes Phase 14. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> **Next move:** Cameron verifies P15.3, P15.4, P15.5, P15.45, P15.46, and P15.47. Phase 14 verification and P14.38 triage remain recorded and paused until Phase 15 is complete or Cameron explicitly resumes Phase 14. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -877,6 +877,15 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-domain -p msc-application -p msc-agent -- -D warnings && npm --prefix clients/desktop-web run check`
 - **Batch:** AJ — Bedrock settings parity
 - **Commit:** `P15.46: expand Bedrock server settings`
+
+### P15.47 — Show Bedrock world time in Overview without console polling output
+
+- **Status:** awaiting verification
+- **Files:** `crates/msc-domain/src/time.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Recognize Bedrock `Day is …` and `Daytime is …` replies, feed them into the shared live world-time observation, and omit the automatic polling replies from console history. The existing Overview poll then updates the Active World card with the current day and time.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-domain -p msc-application -p msc-agent -- -D warnings`
+- **Batch:** AK — live Bedrock world time
+- **Commit:** `P15.47: show Bedrock world time without console polling output`
 
 ## Proposed Phase 14 — operational refinements
 

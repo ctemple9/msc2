@@ -655,7 +655,10 @@ pub fn curseforge_search_bedrock_addons(
     offset: u32,
 ) -> Result<Vec<CurseForgeSearchHit>, AddonProviderError> {
     let api_key = curseforge_api_key(secrets)?;
-    let classes_url = format!("{}/v1/games/1303/classes", curseforge_base());
+    let classes_url = format!(
+        "{}/v1/categories?gameId=1303&classesOnly=true",
+        curseforge_base()
+    );
     let classes_response = transport
         .get(
             &classes_url,

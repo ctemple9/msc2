@@ -743,6 +743,15 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Batch:** T — world-pack browser presentation
 - **Commit:** `P15.31: align world-pack browser presentation`
 
+### P15.32 — Correct the CurseForge Bedrock category request
+
+- **Status:** awaiting verification
+- **Files:** `crates/msc-infrastructure/src/addon_provider.rs`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
+- **What:** Use CurseForge's documented `/v1/categories` endpoint with the Bedrock game ID and `classesOnly=true` to resolve its Addons class. Keep the existing CurseForge provider choice; the 404 came from requesting a non-existent API path.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-infrastructure -p msc-agent && cargo clippy -p msc-infrastructure -p msc-agent -- -D warnings`
+- **Batch:** U — Bedrock catalog endpoint correction
+- **Commit:** `P15.32: correct Bedrock catalog category lookup`
+
 ## Proposed Phase 14 — operational refinements
 
 This phase turns the issues reported from real use into four bounded areas:

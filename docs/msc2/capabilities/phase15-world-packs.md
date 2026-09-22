@@ -43,7 +43,7 @@ until a provider check supplies it.
 P15.27's **Proposed** provider choice is CurseForge's Minecraft Bedrock
 catalog because Modrinth's first-provider decision applies only to Java
 datapacks. The agent
-looks up the Bedrock `Addons` class from CurseForge's game metadata, searches
+looks up the Bedrock `Addons` class through CurseForge's categories endpoint, searches
 that class, and returns immutable project/file IDs plus the candidate game
 version. It uses the existing host-side CurseForge API key; the key never
 reaches a client. `GET /v1/catalog/behaviorpacks` accepts `q`, `gameVersion`,
@@ -51,6 +51,10 @@ and `offset`; `POST /v1/worlds/{slotId}/behaviorpacks/install` accepts the
 selected project and file IDs. The agent verifies that the file belongs to
 the selected project, resolves its official download URL, and accepts payloads
 only from CurseForge's ForgeCDN.
+
+P15.32 corrects the CurseForge class lookup to
+`GET /v1/categories?gameId=1303&classesOnly=true`; the previous
+`/v1/games/1303/classes` path is not a CurseForge API route and returned 404.
 
 Before replacing the selected world's archive, installation validates every
 archive path and symbolic-link flag, caps expanded content, requires a valid

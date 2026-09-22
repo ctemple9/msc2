@@ -2152,7 +2152,7 @@ impl LifecycleRoutesState {
         let result = self
             .provision_bedrock_server(&active)
             .and_then(|()| {
-                msc_application::bedrock_settings::ensure_nethernet_transport(
+                msc_application::bedrock_settings::ensure_raknet_transport(
                     &StdFileSystem,
                     Path::new(&active.server_dir),
                 )

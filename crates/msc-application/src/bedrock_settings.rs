@@ -70,10 +70,12 @@ pub fn load(fs: &dyn FileSystem, server_dir: &Path) -> BedrockSettings {
     }
 }
 
-/// Ensure Bedrock uses the transport supported by current dedicated-server
-/// releases before the executable is started. The update is idempotent and
-/// keeps every other property, including keys MSC does not understand.
-pub fn ensure_nethernet_transport(
+/// Ensure Bedrock uses the direct UDP transport before the executable starts.
+/// MSC publishes an IP and UDP port for direct joins, Playit, and the
+/// Xbox Broadcast redirect; those paths speak RakNet. The update is
+/// idempotent and keeps every other property, including keys MSC does not
+/// understand.
+pub fn ensure_raknet_transport(
     fs: &dyn FileSystem,
     server_dir: &Path,
 ) -> Result<bool, BedrockSettingsError> {
@@ -81,13 +83,13 @@ pub fn ensure_nethernet_transport(
     let already_configured = current
         .raw
         .get("transport")
-        .is_some_and(|value| value.trim().eq_ignore_ascii_case("nethernet"));
+        .is_some_and(|value| value.trim().eq_ignore_ascii_case("raknet"));
     if already_configured {
         return Ok(false);
     }
 
     let mut raw = current.raw;
-    raw.insert("transport".to_string(), "nethernet".to_string());
+    raw.insert("transport".to_string(), "raknet".to_string());
     atomic_write(
         fs,
         &server_dir.join(PROPERTIES_FILE),

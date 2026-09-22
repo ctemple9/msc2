@@ -1022,6 +1022,15 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Batch:** N — Bedrock transport startup repair
 - **Commit:** `P15.62: normalize Bedrock transport before startup`
 
+### P15.63 — Use RakNet for MSC player connection paths
+
+- **Status:** awaiting verification
+- **Files:** `crates/msc-application/src/bedrock_settings.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Correct P15.62's transport choice. MSC's direct server address, Playit UDP tunnel, and Xbox Broadcast redirect all target the Bedrock server's advertised UDP endpoint, so startup must use `transport=raknet`. Migrate an existing `transport=nethernet` file on the next start while preserving every unrelated property; this removes the RakNet handshake failure shown by the iOS client.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-agent`
+- **Batch:** N — Bedrock transport startup repair
+- **Commit:** `P15.63: use RakNet for MSC player connection paths`
+
 ## Proposed Phase 14 — operational refinements
 
 This phase turns the issues reported from real use into four bounded areas:

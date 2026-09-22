@@ -3,10 +3,12 @@
   import Button from '../../components/base/Button.svelte';
   import Field from '../../components/base/Field.svelte';
   import EmptyState from '../../components/base/EmptyState.svelte';
+  import Badge from '../../components/base/Badge.svelte';
   import Icon from '../../components/base/Icon.svelte';
+  import Toggle from '../../components/base/Toggle.svelte';
   import type { Schema, ScreenApi } from '../shared/types';
   import { errorMessage, mutate } from '../shared/types';
-  import { formatCount } from '../components/model';
+  import { formatCount, parseInlineMarkdown, sanitizeCurseForgeBody } from '../components/model';
   import { pollOperation } from './model';
 
   export let api: ScreenApi | undefined;
@@ -20,11 +22,81 @@
   let results: Schema['CatalogItemDTO'][] = [];
   let bedrockResults: Schema['BedrockBehaviorPackCatalogItemDTO'][] = [];
   let detailItem: Schema['BedrockBehaviorPackCatalogItemDTO'] | undefined;
+  let detail: Schema['BedrockBehaviorPackDetailDTO'] | undefined;
+  let detailLoading = false;
+  let detailError = '';
+  let stableOnly = true;
+  let expandedFileIds = new Set<number>();
+  let detailRequestId = 0;
   let loading = false;
   let installing = '';
   let installed = new Set<string>();
   let notice = '';
   let timer: ReturnType<typeof setTimeout> | undefined;
+
+  $: visibleFiles = (detail?.files ?? []).filter((file) => !stableOnly || file.releaseType === 1);
+  $: projectURL =
+    detail?.sourceURL ??
+    (detail?.slug
+      ? `https://www.curseforge.com/minecraft-bedrock/addons/${encodeURIComponent(detail.slug)}`
+      : undefined);
+  $: aboutParagraphs = sanitizeCurseForgeBody(detail?.description ?? '')
+    .split('\n\n')
+    .filter((paragraph) => paragraph.trim().length > 0);
+
+  async function showBedrockDetail(
+    item: Schema['BedrockBehaviorPackCatalogItemDTO'],
+  ): Promise<void> {
+    const requestId = ++detailRequestId;
+    detailItem = item;
+    detail = undefined;
+    detailLoading = true;
+    detailError = '';
+    expandedFileIds = new Set();
+    stableOnly = true;
+    if (!api) {
+      detailLoading = false;
+      detailError = 'Connect to an agent to load pack details.';
+      return;
+    }
+    try {
+      const loaded = await api.get<Schema['BedrockBehaviorPackDetailDTO']>(
+        `/v1/catalog/behaviorpacks/${encodeURIComponent(item.projectId)}`,
+      );
+      if (requestId !== detailRequestId) return;
+      detail = loaded;
+      if (!loaded.files.some((file) => file.releaseType === 1)) stableOnly = false;
+    } catch (error) {
+      if (requestId === detailRequestId) detailError = errorMessage(error);
+    } finally {
+      if (requestId === detailRequestId) detailLoading = false;
+    }
+  }
+
+  function closeBedrockDetail(): void {
+    detailRequestId += 1;
+    detailItem = undefined;
+    detail = undefined;
+  }
+
+  function toggleFileDetails(fileId: number): void {
+    const next = new Set(expandedFileIds);
+    if (next.has(fileId)) next.delete(fileId);
+    else next.add(fileId);
+    expandedFileIds = next;
+  }
+
+  function fileReleaseLabel(releaseType: number): string {
+    if (releaseType === 1) return 'release';
+    if (releaseType === 2) return 'beta';
+    return 'alpha';
+  }
+
+  function fileReleaseTone(releaseType: number): 'ok' | 'warn' | 'error' {
+    if (releaseType === 1) return 'ok';
+    if (releaseType === 2) return 'warn';
+    return 'error';
+  }
 
   async function search(): Promise<void> {
     if (!api) return;
@@ -84,7 +156,10 @@
     }
   }
 
-  async function installBedrock(item: Schema['BedrockBehaviorPackCatalogItemDTO']): Promise<void> {
+  async function installBedrock(
+    item: Schema['BedrockBehaviorPackCatalogItemDTO'],
+    fileId = item.fileId,
+  ): Promise<void> {
     if (!api) return;
     installing = item.projectId;
     notice = '';
@@ -92,7 +167,7 @@
       const result = await mutate<Schema['BedrockBehaviorPackInstallResultDTO']>(
         api,
         `/v1/worlds/${encodeURIComponent(slotId)}/behaviorpacks/install`,
-        { projectId: item.projectId, fileId: item.fileId },
+        { projectId: item.projectId, fileId },
       );
       const operation = await pollOperation(api, result.operationId);
       if (operation?.state !== 'succeeded') {
@@ -144,7 +219,7 @@
     <div class="results">
       {#each bedrockResults as item (item.fileId)}
         <div class="result">
-          <button type="button" class="result-link" onclick={() => (detailItem = item)}>
+          <button type="button" class="result-link" onclick={() => void showBedrockDetail(item)}>
             <div class="icon">
               {#if item.iconURL}
                 <img src={item.iconURL} alt="" width="40" height="40" loading="lazy" />
@@ -206,45 +281,160 @@
 </Sheet>
 
 {#if detailItem}
-  <Sheet title={detailItem.title} size="lg" onClose={() => (detailItem = undefined)}>
-    <div class="detail-header">
-      <div class="detail-icon">
-        {#if detailItem.iconURL}
-          <img src={detailItem.iconURL} alt="" width="56" height="56" />
-        {:else}
-          <Icon name="box" size={22} />
-        {/if}
+  <Sheet title={detail?.title ?? detailItem.title} size="lg" onClose={closeBedrockDetail}>
+    {#if detailLoading}
+      <p class="explain" role="status">Loading pack details…</p>
+    {:else if detailError}
+      <p class="detail-error" role="alert">{detailError}</p>
+    {:else if detail}
+      <div class="detail-header">
+        <div class="detail-icon">
+          {#if detail.iconURL}
+            <img src={detail.iconURL} alt="" width="56" height="56" />
+          {:else}
+            <Icon name="box" size={22} />
+          {/if}
+        </div>
+        <div class="detail-heading">
+          <span class="detail-title">{detail.title}</span>
+          {#if detail.author}<p class="detail-byline">by {detail.author}</p>{/if}
+          <p class="detail-stats">{formatCount(detail.downloads)} downloads</p>
+        </div>
       </div>
-      <div class="detail-heading">
-        <span class="detail-title">{detailItem.title}</span>
-        <p class="detail-stats">{formatCount(detailItem.downloads)} downloads</p>
-      </div>
-    </div>
-    <dl class="detail-metadata">
-      <div>
-        <dt>Minecraft version</dt>
-        <dd>{detailItem.minecraftVersion}</dd>
-      </div>
-      <div>
-        <dt>Pack file</dt>
-        <dd>{detailItem.fileName}</dd>
-      </div>
-    </dl>
-    <div class="detail-description">
-      <p class="detail-label">About this pack</p>
-      <p>{detailItem.description || 'No description provided.'}</p>
-    </div>
-    <div class="detail-actions">
-      {#if installed.has(detailItem.projectId)}
-        <span class="added">Added</span>
-      {:else if installing === detailItem.projectId}
-        <span class="added">Installing…</span>
-      {:else}
-        <Button size="sm" variant="secondary" onclick={() => void installBedrock(detailItem!)}
-          >Add behavior pack</Button
+
+      {#if projectURL}
+        <a class="provider-link" href={projectURL} target="_blank" rel="noopener noreferrer"
+          >View on CurseForge</a
         >
       {/if}
-    </div>
+
+      {#if minecraftVersion}
+        {@const hasCompatibleFile = detail.files.some((file) =>
+          file.gameVersions.includes(minecraftVersion),
+        )}
+        <p class="compat" class:warn={!hasCompatibleFile}>
+          {hasCompatibleFile
+            ? `A version is available for your server (${minecraftVersion}).`
+            : `No version yet for Minecraft ${minecraftVersion}. You can still install another version below, at your own risk.`}
+        </p>
+      {/if}
+
+      {#if detail.gallery.length > 0}
+        <section class="detail-section">
+          <h3>Gallery</h3>
+          <div class="gallery">
+            {#each detail.gallery as image (image.url)}
+              <img src={image.url} alt={image.title ?? ''} loading="lazy" />
+            {/each}
+          </div>
+        </section>
+      {/if}
+
+      <section class="detail-section">
+        <h3>About</h3>
+        {#if aboutParagraphs.length > 0}
+          <div class="about">
+            {#each aboutParagraphs as paragraph, index (index)}
+              <p>
+                {#each parseInlineMarkdown(paragraph) as segment}
+                  {#if segment.type === 'bold'}<strong>{segment.text}</strong
+                    >{:else if segment.type === 'link'}<a
+                      href={segment.href}
+                      target="_blank"
+                      rel="noopener noreferrer">{segment.text}</a
+                    >{:else}{segment.text}{/if}
+                {/each}
+              </p>
+            {/each}
+          </div>
+        {:else}
+          <p class="explain">No description provided.</p>
+        {/if}
+      </section>
+
+      <section class="detail-section">
+        <div class="section-header">
+          <h3>Versions</h3>
+          <div class="stable-toggle">
+            <Toggle
+              checked={stableOnly}
+              label="Stable only"
+              onchange={(value) => (stableOnly = value)}
+            />
+            <span>Stable only</span>
+          </div>
+        </div>
+        {#if visibleFiles.length === 0}
+          <p class="explain">No published files found.</p>
+        {:else}
+          <div class="versions">
+            {#each visibleFiles.slice(0, 40) as file (file.id)}
+              {@const compatible =
+                !!minecraftVersion && file.gameVersions.includes(minecraftVersion)}
+              {@const compatibilityLabel = !minecraftVersion
+                ? 'Version unknown'
+                : compatible
+                  ? 'Compatible'
+                  : 'Other version'}
+              {@const expanded = expandedFileIds.has(file.id)}
+              <div class="version-row">
+                <button
+                  type="button"
+                  class="version-toggle"
+                  onclick={() => toggleFileDetails(file.id)}
+                  aria-expanded={expanded}
+                >
+                  <span class="chevron" class:open={expanded}
+                    ><Icon name="chevron" size={11} /></span
+                  >
+                  <span class="version-main">
+                    <span class="version-line">
+                      <span class="version-name">{file.displayName}</span>
+                      <Badge variant="status" tone={fileReleaseTone(file.releaseType)}>
+                        {fileReleaseLabel(file.releaseType)}
+                      </Badge>
+                      <Badge variant="status" tone={compatible ? 'ok' : 'warn'}>
+                        {compatibilityLabel}
+                      </Badge>
+                    </span>
+                    <span class="version-mc">{file.gameVersions.slice(0, 4).join(', ')}</span>
+                  </span>
+                </button>
+                {#if installed.has(detail.projectId)}
+                  <span class="added">Added</span>
+                {:else if installing === detail.projectId}
+                  <span class="added">Installing…</span>
+                {:else}
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onclick={() => void installBedrock(detailItem!, file.id)}
+                    >{compatible ? 'Install' : 'Install anyway'}</Button
+                  >
+                {/if}
+              </div>
+              {#if expanded}
+                <div class="version-detail">
+                  <p class="detail-label">Supported Minecraft versions</p>
+                  <div class="version-tags">
+                    {#each file.gameVersions as version (version)}
+                      <span class="tag" class:highlight={version === minecraftVersion}
+                        >{version}</span
+                      >
+                    {/each}
+                  </div>
+                  <p class="version-downloads">
+                    {formatCount(file.downloads)} downloads · {file.fileName}
+                  </p>
+                </div>
+              {/if}
+            {/each}
+          </div>
+        {/if}
+      </section>
+
+      {#if notice}<p class="notice" role="status">{notice}</p>{/if}
+    {/if}
   </Sheet>
 {/if}
 
@@ -404,41 +594,163 @@
     font-size: 12px;
     color: var(--msc2-text-tertiary);
   }
-  .detail-metadata {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-    margin: 0;
-    padding: 14px 0;
-    border-top: 1px solid var(--msc2-hairline-subtle);
-    border-bottom: 1px solid var(--msc2-hairline-subtle);
+  .detail-byline {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: var(--msc2-text-secondary);
   }
-  .detail-metadata dt,
+  .provider-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 0 10px;
+    border: 1px solid var(--msc2-hairline-subtle);
+    border-radius: 7px;
+    color: var(--msc2-text-primary);
+    font-size: 12px;
+    text-decoration: none;
+  }
+  .provider-link:hover {
+    background: var(--msc2-neutral-muted);
+  }
+  .compat {
+    margin: 14px 0;
+    font-size: 12px;
+    color: var(--msc2-status-ok);
+  }
+  .compat.warn,
+  .detail-error {
+    color: var(--msc2-status-warn);
+  }
+  .detail-section {
+    margin: 18px 0;
+  }
+  .detail-section h3 {
+    margin: 0 0 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--msc2-text-primary);
+  }
+  .gallery {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+  .gallery img {
+    width: 220px;
+    height: 124px;
+    object-fit: cover;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+  .about {
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--msc2-text-secondary);
+  }
+  .about p {
+    margin: 0 0 8px;
+    white-space: pre-wrap;
+  }
+  .about a {
+    color: var(--msc2-text-primary);
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .stable-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--msc2-text-tertiary);
+  }
+  .versions {
+    display: flex;
+    flex-direction: column;
+  }
+  .version-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 0;
+    border-top: 1px solid var(--msc2-hairline-subtle);
+  }
+  .version-toggle {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+  }
+  .chevron {
+    display: inline-flex;
+    flex: 0 0 12px;
+    margin-top: 4px;
+    color: var(--msc2-text-tertiary);
+    transition: transform 120ms ease;
+  }
+  .chevron.open {
+    transform: rotate(90deg);
+  }
+  .version-main {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+  .version-line {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .version-name {
+    font-size: 12px;
+    color: var(--msc2-text-primary);
+  }
+  .version-mc,
+  .version-downloads {
+    font-size: 11px;
+    color: var(--msc2-text-tertiary);
+  }
+  .version-detail {
+    padding: 4px 0 10px 22px;
+  }
   .detail-label {
     margin: 0;
     font-size: 11px;
     color: var(--msc2-text-tertiary);
   }
-  .detail-metadata dd {
-    margin: 4px 0 0;
-    font-size: 12px;
-    color: var(--msc2-text-secondary);
-    overflow-wrap: anywhere;
-  }
-  .detail-description {
-    padding: 16px 0;
-  }
-  .detail-description > p:last-child {
-    margin: 7px 0 0;
-    font-size: 13px;
-    line-height: 1.55;
-    color: var(--msc2-text-secondary);
-    white-space: pre-wrap;
-  }
-  .detail-actions {
+  .version-tags {
     display: flex;
-    justify-content: flex-end;
-    padding-top: 12px;
-    border-top: 1px solid var(--msc2-hairline-subtle);
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 6px;
+  }
+  .tag {
+    padding: 3px 7px;
+    border-radius: 5px;
+    background: var(--msc2-neutral-muted);
+    color: var(--msc2-text-secondary);
+    font-size: 10px;
+  }
+  .tag.highlight {
+    background: var(--msc2-status-ok-tint);
+    color: var(--msc2-status-ok);
+  }
+  .version-downloads {
+    margin: 8px 0 0;
   }
 </style>

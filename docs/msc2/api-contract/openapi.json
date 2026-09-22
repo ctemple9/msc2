@@ -6510,6 +6510,22 @@
         }
       }
     },
+    "/v1/catalog/behaviorpacks/{projectId}": {
+      "get": {
+        "summary": "Get a CurseForge Bedrock add-on's description, gallery, and version files",
+        "operationId": "getBedrockBehaviorPackDetail",
+        "x-permission-category": "none",
+        "parameters": [
+          {"name": "projectId", "in": "path", "required": true, "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {"description": "CurseForge Bedrock add-on detail and published files", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/BedrockBehaviorPackDetailDTO"}}}},
+          "400": {"description": "Invalid project ID", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDTO"}}}},
+          "409": {"description": "CurseForge API key is not configured", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDTO"}}}},
+          "502": {"description": "CurseForge project detail request failed", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDTO"}}}}
+        }
+      }
+    },
     "/v1/worlds/{slotId}/behaviorpacks/install": {
       "post": {
         "summary": "Install a CurseForge Bedrock behavior pack and bundled linked resource packs into one world slot",
@@ -7564,6 +7580,33 @@
         "type": "object",
         "properties": {"results": {"type": "array", "items": {"$ref": "#/components/schemas/BedrockBehaviorPackCatalogItemDTO"}}, "gameVersion": {"type": "string", "nullable": true}},
         "required": ["results"]
+      },
+      "BedrockBehaviorPackDetailDTO": {
+        "type": "object",
+        "properties": {
+          "projectId": {"type": "string"}, "slug": {"type": "string"}, "title": {"type": "string"},
+          "author": {"type": "string", "nullable": true}, "description": {"type": "string"},
+          "downloads": {"type": "integer"}, "iconURL": {"type": "string", "nullable": true},
+          "sourceURL": {"type": "string", "nullable": true},
+          "gallery": {"type": "array", "items": {"$ref": "#/components/schemas/BedrockBehaviorPackImageDTO"}},
+          "files": {"type": "array", "items": {"$ref": "#/components/schemas/BedrockBehaviorPackFileDTO"}}
+        },
+        "required": ["projectId", "slug", "title", "description", "downloads", "gallery", "files"]
+      },
+      "BedrockBehaviorPackImageDTO": {
+        "type": "object",
+        "properties": {"title": {"type": "string", "nullable": true}, "url": {"type": "string"}},
+        "required": ["url"]
+      },
+      "BedrockBehaviorPackFileDTO": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "integer", "format": "int64"}, "displayName": {"type": "string"},
+          "fileName": {"type": "string"}, "releaseType": {"type": "integer"},
+          "downloads": {"type": "integer"}, "fileDate": {"type": "string"},
+          "gameVersions": {"type": "array", "items": {"type": "string"}}
+        },
+        "required": ["id", "displayName", "fileName", "releaseType", "downloads", "fileDate", "gameVersions"]
       },
       "BedrockBehaviorPackInstallRequestDTO": {
         "type": "object", "properties": {"projectId": {"type": "string"}, "fileId": {"type": "integer", "format": "int64"}},

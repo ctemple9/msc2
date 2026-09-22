@@ -779,6 +779,15 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Batch:** X — Bedrock behavior-pack details
 - **Commit:** `P15.35: open Bedrock behavior-pack details`
 
+### P15.36 — Match Bedrock pack details to the Mods browser
+
+- **Status:** awaiting verification
+- **Files:** `crates/msc-infrastructure/src/addon_provider.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-api/src/dto/worlds.rs`, `docs/msc2/api-contract/openapi.json`, `clients/desktop-web/src/lib/api/generated.ts`, `clients/desktop-web/src/lib/sections/components/model.ts`, `clients/desktop-web/src/lib/sections/worlds/WorldPackBrowserSheet.svelte`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
+- **What:** Add an authenticated agent route that loads a Bedrock add-on's full CurseForge description, screenshots, and published files. Expand the detail sheet to show the gallery, safe formatted description, release types, and a selectable version list that highlights files tagged for the selected Minecraft version and installs the chosen file.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-infrastructure -p msc-agent && cargo clippy -p msc-infrastructure -p msc-agent -- -D warnings && npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run api:check`
+- **Batch:** Y — Bedrock detail parity
+- **Commit:** `P15.36: match Bedrock details to Mods browser`
+
 ## Proposed Phase 14 — operational refinements
 
 This phase turns the issues reported from real use into four bounded areas:

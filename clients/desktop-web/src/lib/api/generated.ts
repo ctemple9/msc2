@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 59794cf9bc18accf3d64797152755606ea9aa3962b42a5cda8d994aa356cd0be
+// Contract SHA-256: b30e840384e859a6ba00c6ef90983ac4550c3b29733af448b1b10e786ac28a62
 
 export interface paths {
   '/v1/active-server': {
@@ -987,6 +987,23 @@ export interface paths {
     };
     /** Search CurseForge Minecraft Bedrock add-ons for a Bedrock version */
     get: operations['searchBedrockBehaviorPacks'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/catalog/behaviorpacks/{projectId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get a CurseForge Bedrock add-on's description, gallery, and version files */
+    get: operations['getBedrockBehaviorPackDetail'];
     put?: never;
     post?: never;
     delete?: never;
@@ -6455,6 +6472,38 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    BedrockBehaviorPackDetailDTO: {
+      author?: string | null;
+      description: string;
+      downloads: number;
+      files: components['schemas']['BedrockBehaviorPackFileDTO'][];
+      gallery: components['schemas']['BedrockBehaviorPackImageDTO'][];
+      iconURL?: string | null;
+      projectId: string;
+      slug: string;
+      sourceURL?: string | null;
+      title: string;
+    } & {
+      [key: string]: unknown;
+    };
+    BedrockBehaviorPackFileDTO: {
+      displayName: string;
+      downloads: number;
+      fileDate: string;
+      fileName: string;
+      gameVersions: string[];
+      /** Format: int64 */
+      id: number;
+      releaseType: number;
+    } & {
+      [key: string]: unknown;
+    };
+    BedrockBehaviorPackImageDTO: {
+      title?: string | null;
+      url: string;
+    } & {
+      [key: string]: unknown;
+    };
     BedrockBehaviorPackInstallRequestDTO: {
       /** Format: int64 */
       fileId: number;
@@ -9207,6 +9256,55 @@ export interface operations {
         };
       };
       /** @description CurseForge search failed */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
+  getBedrockBehaviorPackDetail: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        projectId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description CurseForge Bedrock add-on detail and published files */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['BedrockBehaviorPackDetailDTO'];
+        };
+      };
+      /** @description Invalid project ID */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description CurseForge API key is not configured */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description CurseForge project detail request failed */
       502: {
         headers: {
           [name: string]: unknown;

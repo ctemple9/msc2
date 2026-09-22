@@ -103,6 +103,42 @@ pub struct BedrockBehaviorPackSearchResponseDto {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct BedrockBehaviorPackDetailDto {
+    pub project_id: String,
+    pub slug: String,
+    pub title: String,
+    pub author: Option<String>,
+    pub description: String,
+    pub downloads: i64,
+    #[serde(rename = "iconURL", default, skip_serializing_if = "Option::is_none")]
+    pub icon_url: Option<String>,
+    #[serde(rename = "sourceURL")]
+    pub source_url: Option<String>,
+    pub gallery: Vec<BedrockBehaviorPackImageDto>,
+    pub files: Vec<BedrockBehaviorPackFileDto>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BedrockBehaviorPackImageDto {
+    pub title: Option<String>,
+    pub url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BedrockBehaviorPackFileDto {
+    pub id: i64,
+    pub display_name: String,
+    pub file_name: String,
+    pub release_type: i32,
+    pub downloads: i64,
+    pub file_date: String,
+    pub game_versions: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BedrockBehaviorPackInstallRequestDto {
     pub project_id: String,
     pub file_id: i64,

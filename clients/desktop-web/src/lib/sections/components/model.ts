@@ -322,6 +322,28 @@ export function sanitizeModrinthBody(raw: string): string {
   return s.trim();
 }
 
+/** CurseForge serves project descriptions as HTML. Convert a small, safe
+ *  formatting subset to the same text markup understood by the detail view;
+ *  provider HTML is never injected into the page. */
+export function sanitizeCurseForgeBody(raw: string): string {
+  let text = raw;
+  for (const tag of ['script', 'style', 'iframe', 'object', 'embed', 'svg', 'video']) {
+    text = text.replace(new RegExp(`<${tag}\\b[\\s\\S]*?<\\/${tag}\\s*>`, 'gi'), '');
+  }
+  text = text
+    .replace(/<!--([\s\S]*?)-->/g, '')
+    .replace(/<h[1-6]\b[^>]*>([\s\S]*?)<\/h[1-6]\s*>/gi, '\n\n**$1**\n\n')
+    .replace(/<(strong|b)\b[^>]*>/gi, '**')
+    .replace(/<\/(strong|b)\s*>/gi, '**')
+    .replace(/<(em|i)\b[^>]*>/gi, '*')
+    .replace(/<\/(em|i)\s*>/gi, '*')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<li\b[^>]*>/gi, '\n- ')
+    .replace(/<\/(li|p|div|section|ul|ol|blockquote|tr)\s*>/gi, '\n\n')
+    .replace(/<[^>]*>/g, '');
+  return sanitizeModrinthBody(text);
+}
+
 export type InlineSegment =
   | { type: 'text'; text: string }
   | { type: 'bold'; text: string }

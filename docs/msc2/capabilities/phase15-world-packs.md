@@ -176,6 +176,16 @@ the Phase 15 gate:
 P15.29 records the portability findings; it does not resolve them or close the
 phase gate.
 
+### Bedrock catalog detail view — P15.36
+
+The behavior-pack browser uses CurseForge's mod, description, and file
+resources through `GET /v1/catalog/behaviorpacks/{projectId}`. The response
+keeps third-party HTML as data; the client renders only a small safe formatting
+subset, alongside the project's screenshots and up to 50 published files.
+Version rows show release status and whether a file's Minecraft version tags
+match the selected server version. The selected file ID is the one sent to the
+existing slot-local install route. The Modrinth Java detail flow is unchanged.
+
 ### P15.30 failure boundary
 
 `copy_slot_into_existing` stages the incoming archive, moves an existing

@@ -648,6 +648,137 @@ pub struct CurseForgeLatestFileIndex {
     pub game_version: String,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CurseForgeBedrockProject {
+    pub id: i64,
+    pub name: String,
+    pub slug: String,
+    #[serde(default)]
+    pub summary: String,
+    #[serde(default)]
+    pub download_count: i64,
+    #[serde(default)]
+    pub authors: Vec<CurseForgeAuthor>,
+    #[serde(default)]
+    pub logo: Option<CurseForgeLogo>,
+    #[serde(default)]
+    pub screenshots: Vec<CurseForgeScreenshot>,
+    #[serde(default)]
+    pub links: CurseForgeProjectLinks,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CurseForgeAuthor {
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CurseForgeScreenshot {
+    #[serde(default)]
+    pub title: Option<String>,
+    pub url: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CurseForgeProjectLinks {
+    #[serde(default)]
+    pub website_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CurseForgeBedrockFile {
+    pub id: i64,
+    #[serde(default)]
+    pub display_name: Option<String>,
+    pub file_name: String,
+    #[serde(default)]
+    pub release_type: i32,
+    #[serde(default)]
+    pub download_count: i64,
+    #[serde(default)]
+    pub file_date: String,
+    #[serde(default)]
+    pub game_versions: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CurseForgeSingleDataEnvelope<T> {
+    data: T,
+}
+
+#[derive(Debug, Deserialize)]
+struct CurseForgeListDataEnvelope<T> {
+    data: Vec<T>,
+}
+
+/// Load the full Bedrock add-on details used by the browser's detail sheet.
+/// CurseForge exposes summary/screenshots on the mod record, the long body on
+/// its description endpoint, and Minecraft compatibility on individual files.
+pub fn curseforge_bedrock_project_detail(
+    transport: &dyn AddonTransport,
+    secrets: &dyn SecretStore,
+    project_id: i64,
+) -> Result<(CurseForgeBedrockProject, String, Vec<CurseForgeBedrockFile>), AddonProviderError> {
+    let api_key = curseforge_api_key(secrets)?;
+    let headers = [("x-api-key", api_key.as_str())];
+
+    let project_url = format!("{}/v1/mods/{project_id}", curseforge_base());
+    let response = transport
+        .get(
+            &project_url,
+            "CurseForge Bedrock project details",
+            &headers,
+            RESPONSE_MAX_BYTES,
+        )
+        .map_err(map_transport_err)?;
+    ensure_curseforge_ok_for("Bedrock project details", response.status)?;
+    let body = bytes_to_utf8(response.body, "CurseForge Bedrock project details")?;
+    let project: CurseForgeSingleDataEnvelope<CurseForgeBedrockProject> =
+        serde_json::from_str(&body)
+            .map_err(|error| malformed("CurseForge Bedrock project details", error))?;
+
+    let description_url = format!(
+        "{}/v1/mods/{project_id}/description?raw=true",
+        curseforge_base()
+    );
+    let response = transport
+        .get(
+            &description_url,
+            "CurseForge Bedrock project description",
+            &headers,
+            RESPONSE_MAX_BYTES,
+        )
+        .map_err(map_transport_err)?;
+    ensure_curseforge_ok_for("Bedrock project description", response.status)?;
+    let body = bytes_to_utf8(response.body, "CurseForge Bedrock project description")?;
+    let description: CurseForgeSingleDataEnvelope<String> = serde_json::from_str(&body)
+        .map_err(|error| malformed("CurseForge Bedrock project description", error))?;
+
+    let files_url = format!(
+        "{}/v1/mods/{project_id}/files?pageSize=50&index=0",
+        curseforge_base()
+    );
+    let response = transport
+        .get(
+            &files_url,
+            "CurseForge Bedrock project files",
+            &headers,
+            RESPONSE_MAX_BYTES,
+        )
+        .map_err(map_transport_err)?;
+    ensure_curseforge_ok_for("Bedrock project files", response.status)?;
+    let body = bytes_to_utf8(response.body, "CurseForge Bedrock project files")?;
+    let files: CurseForgeListDataEnvelope<CurseForgeBedrockFile> = serde_json::from_str(&body)
+        .map_err(|error| malformed("CurseForge Bedrock project files", error))?;
+
+    Ok((project.data, description.data, files.data))
+}
+
 #[derive(Debug, Deserialize)]
 struct CurseForgeSearchEnvelope {
     data: Vec<CurseForgeSearchHit>,

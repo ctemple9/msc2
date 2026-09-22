@@ -137,6 +137,10 @@ pub fn router(state: WorldsRoutesState) -> Router {
         )
         .route("/catalog/behaviorpacks", get(search_bedrock_behavior_packs))
         .route(
+            "/catalog/behaviorpacks/:project_id",
+            get(get_bedrock_behavior_pack_detail),
+        )
+        .route(
             "/worlds/:slot_id/behaviorpacks/install",
             post(install_bedrock_behavior_pack),
         )
@@ -1196,6 +1200,85 @@ pub async fn search_bedrock_behavior_packs(
             })
             .collect(),
         game_version: query.game_version,
+    })
+    .into_response()
+}
+
+pub async fn get_bedrock_behavior_pack_detail(
+    Extension(_credential): Extension<AuthenticatedCredential>,
+    AxumPath(project_id): AxumPath<String>,
+) -> Response {
+    let project_id = match project_id.parse::<i64>() {
+        Ok(id) if id > 0 => id,
+        _ => {
+            return error_response(
+                StatusCode::BAD_REQUEST,
+                "invalid_project_id",
+                "The CurseForge project ID must be a positive integer.",
+            );
+        }
+    };
+    let secrets = match crate::auth::production_secret_store() {
+        Ok(secrets) => secrets,
+        Err(error) => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "secret_store_unavailable",
+                &error.to_string(),
+            );
+        }
+    };
+    let transport = msc_infrastructure::addon_provider::HttpTransport::new();
+    let (project, description, files) =
+        match msc_infrastructure::addon_provider::curseforge_bedrock_project_detail(
+            &transport,
+            secrets.as_ref(),
+            project_id,
+        ) {
+            Ok(detail) => detail,
+            Err(error) => {
+                let (status, code) = match error {
+                    msc_domain::addon_provider::AddonProviderError::MissingApiKey => {
+                        (StatusCode::CONFLICT, "missing_curseforge_api_key")
+                    }
+                    msc_domain::addon_provider::AddonProviderError::Unauthorized => {
+                        (StatusCode::UNAUTHORIZED, "curseforge_unauthorized")
+                    }
+                    _ => (StatusCode::BAD_GATEWAY, "provider_error"),
+                };
+                return error_response(status, code, &error.to_string());
+            }
+        };
+
+    Json(msc_api::dto::BedrockBehaviorPackDetailDto {
+        project_id: project.id.to_string(),
+        slug: project.slug,
+        title: project.name,
+        author: project.authors.first().map(|author| author.name.clone()),
+        description,
+        downloads: project.download_count,
+        icon_url: project.logo.map(|logo| logo.url),
+        source_url: project.links.website_url,
+        gallery: project
+            .screenshots
+            .into_iter()
+            .map(|image| msc_api::dto::BedrockBehaviorPackImageDto {
+                title: image.title,
+                url: image.url,
+            })
+            .collect(),
+        files: files
+            .into_iter()
+            .map(|file| msc_api::dto::BedrockBehaviorPackFileDto {
+                id: file.id,
+                display_name: file.display_name.unwrap_or_else(|| file.file_name.clone()),
+                file_name: file.file_name,
+                release_type: file.release_type,
+                downloads: file.download_count,
+                file_date: file.file_date,
+                game_versions: file.game_versions,
+            })
+            .collect(),
     })
     .into_response()
 }

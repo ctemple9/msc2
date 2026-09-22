@@ -863,6 +863,13 @@ fn find_confident_modrinth_match(
         .hits
         .iter()
         .find(|hit| hit.project_id == project_id)?;
+    // Project-level server-side metadata is enough to reject a confident
+    // client-only match. Requiring an exact downloadable filename first
+    // would miss renamed/alternate CurseForge files, which the later
+    // hash-based safety pass would only disable after downloading them.
+    if hit.is_client_only() {
+        return Some(ModrinthRecoveryMatch::ClientOnly);
+    }
     let Ok(versions) = provider::modrinth_project_versions(
         transport,
         &project_id,
@@ -885,9 +892,6 @@ fn find_confident_modrinth_match(
         (file.filename.to_ascii_lowercase() == expected_lower)
             .then(|| (file.url.clone(), version.version_number.clone()))
     })?;
-    if hit.is_client_only() {
-        return Some(ModrinthRecoveryMatch::ClientOnly);
-    }
     Some(ModrinthRecoveryMatch::Server {
         download_url,
         version_number,

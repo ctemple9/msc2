@@ -422,6 +422,15 @@ The ATM10 discovery work and this additional usability work share Phase 15, but 
 - **Batch:** K — modpack and Components inventory corrections
 - **Commit:** `P15.20: count local mods and skip client-only overrides`
 
+### P15.21 — Skip client-only CurseForge files before download
+
+- **Status:** awaiting verification
+- **Files:** `crates/msc-application/src/modpacks.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Apply a confident Modrinth project's `server_side: unsupported` classification before requiring an exact compatible filename match. This lets the CurseForge manifest import skip client-only projects before downloading them or counting them as installed; the post-download classifier remains a safeguard for content it could not confidently classify earlier.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-agent && cargo clippy -p msc-application -p msc-agent -- -D warnings`
+- **Batch:** K — modpack and Components inventory corrections
+- **Commit:** `P15.21: skip client-only CurseForge files before download`
+
 ### Additional Phase 15 scope — world packs and modpack identity
 
 Here is the full plan we discussed. This is only recorded in the chat for now; I have not added it to the rolling plan.

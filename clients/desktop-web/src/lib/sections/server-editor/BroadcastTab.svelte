@@ -18,6 +18,7 @@
   // of the IP-mode-aware preview.
   import Card from '../../components/base/Card.svelte';
   import Button from '../../components/base/Button.svelte';
+  import Toggle from '../../components/base/Toggle.svelte';
   import StatusDot from '../../components/base/StatusDot.svelte';
   import type { Schema, ScreenApi } from '../shared/types';
   import { call, errorMessage, mutate } from '../shared/types';
@@ -36,6 +37,7 @@
   let serverStatus: Schema['RemoteAPIStatus'] = { running: false };
 
   let broadcastBusy = false;
+  let xboxEnabled = server.xboxBroadcastEnabled === true;
   let playitBusy = false;
 
   let notice = '';
@@ -84,6 +86,22 @@
     }
   }
 
+  async function setXboxEnabled(enabled: boolean): Promise<void> {
+    if (!canControl || broadcastBusy) return;
+    broadcastBusy = true;
+    try {
+      await mutate<{ enabled: boolean }>(api, serverEditorPaths.xboxBroadcast, {
+        serverId: server.id,
+        enabled,
+      });
+      xboxEnabled = enabled;
+    } catch (error) {
+      notice = errorMessage(error);
+    } finally {
+      broadcastBusy = false;
+    }
+  }
+
   async function togglePlayit(): Promise<void> {
     if (!isActive || playitBusy || !playit) return;
     playitBusy = true;
@@ -122,8 +140,13 @@
         <div class="row">
           <div class="toggle-info">
             <span class="name">Xbox Broadcast settings</span>
-            <span class="setup-state">Manage the account and helper in MSC Settings.</span>
+            <span class="setup-state">Enable this server, then start the helper below.</span>
           </div>
+          <Toggle
+            checked={xboxEnabled}
+            label="Enable Xbox Broadcast"
+            onchange={(enabled) => void setXboxEnabled(enabled)}
+          />
         </div>
         <div class="row bordered">
           <span class="name">Join address</span>

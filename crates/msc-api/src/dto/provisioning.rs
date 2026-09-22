@@ -115,6 +115,22 @@ pub struct ServerRenameRequestDto {
     pub name: String,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerXboxBroadcastRequestDto {
+    pub server_id: String,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerXboxBroadcastResultDto {
+    pub success: bool,
+    pub message: String,
+    pub server_id: Option<String>,
+    pub enabled: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ServerRenameResultDto {

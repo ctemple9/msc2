@@ -270,6 +270,10 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
     let lifecycle = Router::new()
         .route("/servers", get(routes::servers::list))
         .route("/servers/notes", post(routes::servers::update_notes))
+        .route(
+            "/servers/xbox-broadcast",
+            post(routes::servers::update_xbox_broadcast),
+        )
         .route("/servers/export", post(routes::servers::export_transfer))
         .route("/servers/size", get(routes::servers::directory_size))
         .route("/servers/import", post(routes::servers::import))

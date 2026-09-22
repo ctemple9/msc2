@@ -19,6 +19,7 @@ import type { Schema, ScreenApi } from '../shared/types';
 // reads/writes it unconditionally, with no `isActive` gate.
 export const serverEditorPaths = {
   rename: '/v1/servers/rename',
+  xboxBroadcast: '/v1/servers/xbox-broadcast',
   directory: '/v1/servers/directory',
   directorySize: (serverId: string): string =>
     `/v1/servers/size?serverId=${encodeURIComponent(serverId)}`,

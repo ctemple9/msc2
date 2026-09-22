@@ -19,6 +19,7 @@ use msc_api::dto::{
     ServerEulaRequestDto, ServerEulaResultDto, ServerImportRequestDto, ServerImportResultDto,
     ServerImportScanResponseDto, ServerImportWorldDto, ServerNotesRequestDto, ServerNotesResultDto,
     ServerRenameRequestDto, ServerRenameResultDto, ServerTransferExportResultDto,
+    ServerXboxBroadcastRequestDto, ServerXboxBroadcastResultDto,
 };
 use msc_application::fleet::{
     self, AcceptEulaError, DeleteServerError, EulaState, RenameServerError,
@@ -123,6 +124,58 @@ pub async fn update_notes(
             "Server not found.",
         ),
         Err(TryMutateError::Save(error)) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal_error",
+            &error.to_string(),
+        ),
+    }
+}
+
+pub async fn update_xbox_broadcast(
+    State(state): State<LifecycleRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    body: Result<Json<ServerXboxBroadcastRequestDto>, JsonRejection>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Broadcast) {
+        return response;
+    }
+    let Json(body) = match body {
+        Ok(body) => body,
+        Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
+    };
+    let server_id = body.server_id.trim().to_string();
+    if server_id.is_empty() {
+        return invalid_body("missing_server_id", "serverId is required.");
+    }
+    let enabled = body.enabled;
+    match state.try_mutate_config(|config| {
+        let Some(server) = config
+            .servers
+            .iter_mut()
+            .find(|server| server.id == server_id)
+        else {
+            return Err("server_not_found");
+        };
+        server.xbox_broadcast_enabled = enabled;
+        Ok::<_, &str>(())
+    }) {
+        Ok(()) => Json(ServerXboxBroadcastResultDto {
+            success: true,
+            message: if enabled {
+                "Xbox Broadcast enabled for this server.".to_string()
+            } else {
+                "Xbox Broadcast disabled for this server.".to_string()
+            },
+            server_id: Some(server_id),
+            enabled,
+        })
+        .into_response(),
+        Err(crate::routes::lifecycle::TryMutateError::Domain(_)) => error_response(
+            StatusCode::NOT_FOUND,
+            "server_not_found",
+            "Server not found.",
+        ),
+        Err(crate::routes::lifecycle::TryMutateError::Save(error)) => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
             "internal_error",
             &error.to_string(),

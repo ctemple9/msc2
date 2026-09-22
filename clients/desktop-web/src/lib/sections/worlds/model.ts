@@ -116,6 +116,7 @@ export type WorldProfile = {
     reasons: string[];
   };
   fieldMetadata: Record<string, WorldProfileFieldMetadata>;
+  packs: Schema['WorldPackRecordDTO'][];
 };
 
 export type WorldSlotWithProfile = {

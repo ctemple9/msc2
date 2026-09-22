@@ -709,8 +709,8 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 
 ### P15.28 — Add world-pack and modpack views
 
-- **Status:** planned
-- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte`, `clients/desktop-web/src/lib/sections/worlds/model.ts`, `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`, `clients/desktop-web/src/lib/sections/components/model.ts`, `clients/desktop-web/src/lib/sections/addons/AddonsSection.svelte`, `clients/desktop-web/src/lib/sections/addons/model.ts`, `clients/desktop-web/src/lib/api/generated.ts`, `docs/msc2/capabilities/phase15-world-packs.md`
+- **Status:** awaiting verification
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte`, `clients/desktop-web/src/lib/sections/worlds/WorldPackBrowserSheet.svelte`, `clients/desktop-web/src/lib/sections/worlds/model.ts`, `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`, `clients/desktop-web/src/lib/sections/components/model.ts`, `clients/desktop-web/src/lib/sections/addons/AddonsSection.svelte`, `clients/desktop-web/src/lib/sections/addons/model.ts`, `clients/desktop-web/src/lib/api/generated.ts`, `docs/msc2/capabilities/phase15-world-packs.md`
 - **What:** Organize Java Worlds as World Slots, Datapacks, and Backups, and Bedrock Worlds as World Slots, Behavior Packs, and Backups. Show packs for the selected slot with the agreed identity, compatibility, enabled state, source, dependency, and update information; provide the Java Browse Datapacks and Bedrock Browse Behavior Packs flows; explain when a slot must be selected or the server stopped. Show the compact read-only imported-modpack summary above Components without duplicating the component inventory.
 - **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
 - **Batch:** Q — world-pack and modpack client surfaces

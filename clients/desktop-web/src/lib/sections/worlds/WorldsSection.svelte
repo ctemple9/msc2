@@ -36,6 +36,7 @@
   import WorldSlotCard from './WorldSlotCard.svelte';
   import WorldSettingsForm from './WorldSettingsForm.svelte';
   import BackupsPanel from './BackupsPanel.svelte';
+  import WorldPackBrowserSheet from './WorldPackBrowserSheet.svelte';
   import CreateWorldSheet from './CreateWorldSheet.svelte';
   import RenameWorldSheet from './RenameWorldSheet.svelte';
   import WorldRepairSheet from './WorldRepairSheet.svelte';
@@ -81,6 +82,7 @@
   let notice: string | undefined;
 
   let showCreate = false;
+  let showPackBrowser = false;
   let renamingSlot: Schema['WorldSlotDTO'] | undefined;
   let repairOpen = false;
   let convertingSlot: Schema['WorldSlotDTO'] | undefined;
@@ -560,6 +562,74 @@
     />
   {/if}
 
+  <section class="zone">
+    <div class="section-header">
+      <div class="overline">
+        <span class="msc2-type-overline">{isBedrock ? 'Behavior Packs' : 'Datapacks'}</span>
+      </div>
+      <Button
+        size="sm"
+        variant="secondary"
+        disabled={!selectedSlot || busy || worlds.serverRunning}
+        title={!selectedSlot
+          ? 'Select a world slot first'
+          : worlds.serverRunning
+            ? 'Stop the server before installing a world pack'
+            : undefined}
+        onclick={() => (showPackBrowser = true)}
+      >
+        {isBedrock ? 'Browse Behavior Packs' : 'Browse Datapacks'}
+      </Button>
+    </div>
+    {#if !selectedSlot}
+      <p class="ownership">
+        Select a world slot to see its {isBedrock ? 'behavior packs' : 'datapacks'}.
+      </p>
+    {:else if worlds.serverRunning}
+      <p class="ownership">Stop the server before installing packs into a world slot.</p>
+    {/if}
+    {#if selectedSlot}
+      {@const packs = profiles[selectedSlot.id]?.profile.packs ?? []}
+      {#if packs.length === 0}
+        <p class="ownership">
+          No {isBedrock ? 'behavior packs' : 'datapacks'} recorded for {selectedSlot.name}.
+        </p>
+      {:else}
+        <Card padding="0">
+          {#each packs.filter((pack) => pack.edition === (isBedrock ? 'bedrock' : 'java')) as pack, index (pack.id)}
+            <div class="pack-row" class:bordered={index > 0}>
+              <div class="pack-info">
+                <span class="pack-name">{pack.name}</span>
+                <span class="ownership">
+                  {pack.source.provider ?? 'Source unavailable'}
+                  {#if pack.source.version}
+                    · {pack.source.version}{/if}
+                  {#if pack.source.versionId && !pack.source.version}
+                    · {pack.source.versionId}{/if}
+                </span>
+                {#if pack.dependencies.length}
+                  <span class="ownership"
+                    >Dependencies: {pack.dependencies
+                      .map((dependency) => dependency.id)
+                      .join(', ')}</span
+                  >
+                {/if}
+                {#if pack.compatibility}<span class="ownership">{pack.compatibility}</span>{/if}
+                <span class="ownership">
+                  {pack.checksum ? `Checksum ${pack.checksum}` : 'Checksum unavailable'}
+                  · Update availability not reported
+                </span>
+              </div>
+              <Badge variant="status" tone={pack.enabled ? 'ok' : 'warn'}
+                >{pack.enabled ? 'Enabled' : 'Disabled'}</Badge
+              >
+            </div>
+          {/each}
+        </Card>
+      {/if}
+    {/if}
+  </section>
+
   {#if actionMenu}
     {@const menuSlot = actionMenu.slot}
     <Menu
@@ -614,6 +684,16 @@
     onImportLegacy={(backup) => void importLegacyBackup(backup)}
   />
 </div>
+
+{#if showPackBrowser && selectedSlot}
+  <WorldPackBrowserSheet
+    {api}
+    bedrock={isBedrock}
+    slotId={selectedSlot.id}
+    onClose={() => (showPackBrowser = false)}
+    onInstalled={() => void loadProfiles()}
+  />
+{/if}
 
 {#if showCreate}
   <CreateWorldSheet
@@ -835,5 +915,26 @@
   }
   .empty-action {
     margin-top: 10px;
+  }
+  .pack-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 12px 16px;
+  }
+  .pack-row.bordered {
+    border-top: 1px solid var(--msc2-hairline-faint);
+  }
+  .pack-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+  .pack-name {
+    color: var(--msc2-text-primary);
+    font-size: 13px;
+    font-weight: 500;
   }
 </style>

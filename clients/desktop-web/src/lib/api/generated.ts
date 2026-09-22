@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 37697b81d18e5d1bad1563a64fac561cd5345d51be02f55cc8135c034523d712
+// Contract SHA-256: 59794cf9bc18accf3d64797152755606ea9aa3962b42a5cda8d994aa356cd0be
 
 export interface paths {
   '/v1/active-server': {
@@ -970,6 +970,40 @@ export interface paths {
         };
       };
     };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/catalog/behaviorpacks': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Search CurseForge Minecraft Bedrock add-ons for a Bedrock version */
+    get: operations['searchBedrockBehaviorPacks'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/catalog/datapacks': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Search Modrinth Java datapacks for a Minecraft version */
+    get: operations['searchJavaDatapacks'];
     put?: never;
     post?: never;
     delete?: never;
@@ -5691,6 +5725,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/worlds/{slotId}/behaviorpacks/install': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Install a CurseForge Bedrock behavior pack and bundled linked resource packs into one world slot */
+    post: operations['installBedrockBehaviorPack'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/worlds/{slotId}/datapacks/install': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Install a Modrinth Java datapack into one world slot */
+    post: operations['installJavaDatapack'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/worlds/{slotId}/profile': {
     parameters: {
       query?: never;
@@ -6370,6 +6438,39 @@ export interface components {
       backups: components['schemas']['BackupItemDTO'][];
       /** @description Optional runtime state for the active server's backup source. */
       runtime?: components['schemas']['BedrockRuntimeStateDTO'];
+    } & {
+      [key: string]: unknown;
+    };
+    BedrockBehaviorPackCatalogItemDTO: {
+      description: string;
+      downloads: number;
+      /** Format: int64 */
+      fileId: number;
+      fileName: string;
+      iconURL?: string | null;
+      minecraftVersion: string;
+      projectId: string;
+      slug: string;
+      title: string;
+    } & {
+      [key: string]: unknown;
+    };
+    BedrockBehaviorPackInstallRequestDTO: {
+      /** Format: int64 */
+      fileId: number;
+      projectId: string;
+    } & {
+      [key: string]: unknown;
+    };
+    BedrockBehaviorPackInstallResultDTO: {
+      operationId: string;
+      packs: components['schemas']['WorldPackRecordDTO'][];
+    } & {
+      [key: string]: unknown;
+    };
+    BedrockBehaviorPackSearchResponseDTO: {
+      gameVersion?: string | null;
+      results: components['schemas']['BedrockBehaviorPackCatalogItemDTO'][];
     } & {
       [key: string]: unknown;
     };
@@ -7061,6 +7162,19 @@ export interface components {
     JavaConfigSetRequestDTO: {
       executablePath?: string;
       extraFlags?: string;
+    } & {
+      [key: string]: unknown;
+    };
+    JavaDatapackInstallRequestDTO: {
+      projectId: string;
+      versionId: string;
+    } & {
+      [key: string]: unknown;
+    };
+    JavaDatapackInstallResultDTO: {
+      pack: components['schemas']['WorldPackRecordDTO'];
+      /** @enum {string} */
+      result: 'installed';
     } & {
       [key: string]: unknown;
     };
@@ -9061,6 +9175,72 @@ export interface operations {
       };
     };
   };
+  searchBedrockBehaviorPacks: {
+    parameters: {
+      query?: {
+        gameVersion?: string;
+        offset?: number;
+        q?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Matching CurseForge Bedrock add-ons and compatible files */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['BedrockBehaviorPackSearchResponseDTO'];
+        };
+      };
+      /** @description CurseForge API key is not configured */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description CurseForge search failed */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
+  searchJavaDatapacks: {
+    parameters: {
+      query?: {
+        gameVersion?: string;
+        offset?: number;
+        q?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Matching Modrinth datapack projects */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['CatalogSearchResponseDTO'];
+        };
+      };
+    };
+  };
   installComponent: {
     parameters: {
       query?: never;
@@ -9724,6 +9904,139 @@ export interface operations {
       };
       /** @description staged_upload_expired / max_bytes_exceeded */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
+  installBedrockBehaviorPack: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slotId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['BedrockBehaviorPackInstallRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Behavior packs installed and recorded in the slot profile */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['BedrockBehaviorPackInstallResultDTO'];
+        };
+      };
+      /** @description Invalid request body */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Server running, wrong edition, incompatible version, or provider download unavailable */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Invalid pack archive, manifest, UUID, or unresolved dependency */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description World archive or slot profile could not be written */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description CurseForge request or download failed */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
+  installJavaDatapack: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slotId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['JavaDatapackInstallRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Datapack installed and recorded in the slot profile */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['JavaDatapackInstallResultDTO'];
+        };
+      };
+      /** @description Invalid request body */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Server running or selected datapack is incompatible */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Invalid datapack archive or metadata */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Modrinth request or download failed */
+      502: {
         headers: {
           [name: string]: unknown;
         };

@@ -518,6 +518,23 @@
 
   {#if notice}<p class="notice" role="status">{notice}</p>{/if}
 
+  {#if activeServer?.modpackIdentity}
+    <section class="modpack-summary" aria-label="Imported modpack">
+      <span class="msc2-type-overline">Imported Modpack</span>
+      <div class="modpack-line">
+        <span class="modpack-name">{activeServer.modpackIdentity.name ?? 'Name unavailable'}</span>
+        <span class="modpack-source">
+          {activeServer.modpackIdentity.provider ?? 'Provider unavailable'}
+          {#if activeServer.modpackIdentity.version}
+            · {activeServer.modpackIdentity.version}
+          {:else}
+            · Version unavailable
+          {/if}
+        </span>
+      </div>
+    </section>
+  {/if}
+
   {#if !coreLoaded}
     <p class="loading-state" role="status">Loading component information…</p>
   {:else}
@@ -892,6 +909,27 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
+  }
+  .modpack-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 0 2px 4px;
+  }
+  .modpack-line {
+    display: flex;
+    align-items: baseline;
+    gap: 9px;
+    flex-wrap: wrap;
+  }
+  .modpack-name {
+    color: var(--msc2-text-primary);
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .modpack-source {
+    color: var(--msc2-text-tertiary);
+    font-size: 12px;
   }
   .section-header {
     display: flex;

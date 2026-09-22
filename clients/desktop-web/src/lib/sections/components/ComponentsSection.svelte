@@ -478,7 +478,7 @@
   onMount(() => {
     mounted = true;
     if (!serverId) void loadAll();
-    refreshTimer = setInterval(() => void loadAll(), 10000);
+    refreshTimer = setInterval(() => void loadAll(), 1000);
   });
   onDestroy(() => {
     mounted = false;
@@ -488,7 +488,7 @@
 
   $: if (mounted && active && refreshTimer === undefined) {
     void loadAll();
-    refreshTimer = setInterval(() => void loadAll(), 10000);
+    refreshTimer = setInterval(() => void loadAll(), 1000);
   }
   $: if (mounted && !active && refreshTimer !== undefined) {
     clearInterval(refreshTimer);

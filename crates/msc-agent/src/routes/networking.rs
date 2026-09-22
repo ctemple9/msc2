@@ -1311,15 +1311,19 @@ pub async fn broadcast_status(State(state): State<NetworkingState>) -> Response 
         return helper_error_response(error.to_string(), "broadcast_status_failed");
     }
     match service.status() {
-        Ok(status) => Json(BroadcastStatusDto {
-            xbox_broadcast_running: matches!(
+        Ok(status) => {
+            let running = matches!(
                 status.snapshot.status,
                 HelperStatus::Running | HelperStatus::Starting
-            ) || service.process_is_running(),
-            bedrock_broadcast_running: false,
-            gamertag: status.gamertag,
-        })
-        .into_response(),
+            ) || service.process_is_running();
+            let is_bedrock = server.server_type == ServerType::Bedrock;
+            Json(BroadcastStatusDto {
+                xbox_broadcast_running: running && !is_bedrock,
+                bedrock_broadcast_running: running && is_bedrock,
+                gamertag: status.gamertag,
+            })
+            .into_response()
+        }
         Err(error) => helper_error_response(error.to_string(), "broadcast_status_failed"),
     }
 }

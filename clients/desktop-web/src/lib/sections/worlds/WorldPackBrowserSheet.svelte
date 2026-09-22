@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import Sheet from '../../components/base/Sheet.svelte';
   import Button from '../../components/base/Button.svelte';
   import Field from '../../components/base/Field.svelte';
@@ -18,6 +19,8 @@
   export let onClose: () => void;
   export let onInstalled: () => void;
 
+  let selectedMinecraftVersion = minecraftVersion;
+  let versionLoading = true;
   let query = '';
   let results: Schema['CatalogItemDTO'][] = [];
   let bedrockResults: Schema['BedrockBehaviorPackCatalogItemDTO'][] = [];
@@ -33,6 +36,21 @@
   let installed = new Set<string>();
   let notice = '';
   let timer: ReturnType<typeof setTimeout> | undefined;
+
+  onMount(async () => {
+    if (!bedrock || selectedMinecraftVersion.trim() || !api) {
+      versionLoading = false;
+      return;
+    }
+    try {
+      const version = await api.get<Schema['VersionsResponseDTO']>('/v1/versions');
+      selectedMinecraftVersion = version.currentVersion ?? '';
+    } catch {
+      // The pack list remains browseable if the selected server version is unavailable.
+    } finally {
+      versionLoading = false;
+    }
+  });
 
   $: visibleFiles = (detail?.files ?? []).filter((file) => !stableOnly || file.releaseType === 1);
   $: projectURL =
@@ -105,7 +123,11 @@
     try {
       const params = new URLSearchParams();
       if (query.trim()) params.set('q', query.trim());
-      if (minecraftVersion.trim()) params.set('gameVersion', minecraftVersion.trim());
+      // Keep other-version packs visible for detail inspection. The result
+      // row blocks direct install, while the detail sheet offers "Install anyway".
+      if (!bedrock && selectedMinecraftVersion.trim()) {
+        params.set('gameVersion', selectedMinecraftVersion.trim());
+      }
       const path = `${bedrock ? '/v1/catalog/behaviorpacks' : '/v1/catalog/datapacks'}?${params}`;
       if (bedrock) {
         const response = await api.get<Schema['BedrockBehaviorPackSearchResponseDTO']>(path);
@@ -187,6 +209,7 @@
 
   $: {
     query;
+    selectedMinecraftVersion;
     scheduleSearch();
   }
 </script>
@@ -198,8 +221,8 @@
       placeholder={bedrock ? 'Search behavior packs…' : 'Search datapacks…'}
     />
     <p class="subtitle">
-      {bedrock ? 'CurseForge' : 'Modrinth'}{minecraftVersion
-        ? ` · Minecraft ${minecraftVersion}`
+      {bedrock ? 'CurseForge' : 'Modrinth'}{selectedMinecraftVersion
+        ? ` · Minecraft ${selectedMinecraftVersion}`
         : ''}
     </p>
   </div>
@@ -218,6 +241,8 @@
   {:else if bedrock}
     <div class="results">
       {#each bedrockResults as item (item.fileId)}
+        {@const compatible =
+          !!selectedMinecraftVersion && item.minecraftVersion === selectedMinecraftVersion}
         <div class="result">
           <button type="button" class="result-link" onclick={() => void showBedrockDetail(item)}>
             <div class="icon">
@@ -240,6 +265,12 @@
             <span class="added">Added</span>
           {:else if installing === item.projectId}
             <span class="added">Installing…</span>
+          {:else if versionLoading}
+            <span class="added">Checking version…</span>
+          {:else if !selectedMinecraftVersion}
+            <Badge variant="status" tone="warn">Version unknown</Badge>
+          {:else if !compatible}
+            <Badge variant="status" tone="warn">Other version</Badge>
           {:else}
             <Button size="sm" variant="secondary" onclick={() => void installBedrock(item)}
               >Add</Button
@@ -308,14 +339,14 @@
         >
       {/if}
 
-      {#if minecraftVersion}
+      {#if selectedMinecraftVersion}
         {@const hasCompatibleFile = detail.files.some((file) =>
-          file.gameVersions.includes(minecraftVersion),
+          file.gameVersions.includes(selectedMinecraftVersion),
         )}
         <p class="compat" class:warn={!hasCompatibleFile}>
           {hasCompatibleFile
-            ? `A version is available for your server (${minecraftVersion}).`
-            : `No version yet for Minecraft ${minecraftVersion}. You can still install another version below, at your own risk.`}
+            ? `A version is available for your server (${selectedMinecraftVersion}).`
+            : `No version yet for Minecraft ${selectedMinecraftVersion}. You can still install another version below, at your own risk.`}
         </p>
       {/if}
 
@@ -370,8 +401,8 @@
           <div class="versions">
             {#each visibleFiles.slice(0, 40) as file (file.id)}
               {@const compatible =
-                !!minecraftVersion && file.gameVersions.includes(minecraftVersion)}
-              {@const compatibilityLabel = !minecraftVersion
+                !!selectedMinecraftVersion && file.gameVersions.includes(selectedMinecraftVersion)}
+              {@const compatibilityLabel = !selectedMinecraftVersion
                 ? 'Version unknown'
                 : compatible
                   ? 'Compatible'
@@ -418,7 +449,7 @@
                   <p class="detail-label">Supported Minecraft versions</p>
                   <div class="version-tags">
                     {#each file.gameVersions as version (version)}
-                      <span class="tag" class:highlight={version === minecraftVersion}
+                      <span class:highlight={version === selectedMinecraftVersion} class="tag"
                         >{version}</span
                       >
                     {/each}

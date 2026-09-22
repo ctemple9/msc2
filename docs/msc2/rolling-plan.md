@@ -788,6 +788,15 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Batch:** Y — Bedrock detail parity
 - **Commit:** `P15.36: match Bedrock details to Mods browser`
 
+### P15.37 — Mark incompatible packs in Bedrock search results
+
+- **Status:** awaiting verification
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldPackBrowserSheet.svelte`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
+- **What:** Read the active Bedrock server version when the browser opens, keep other-version search results available for inspection, and offer direct Add only when the selected server version is known to match. Show an “Other version” or “Version unknown” status otherwise. Keep “Install anyway” available in the detail version list.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** Z — Bedrock result compatibility guard
+- **Commit:** `P15.37: mark incompatible Bedrock results`
+
 ## Proposed Phase 14 — operational refinements
 
 This phase turns the issues reported from real use into four bounded areas:

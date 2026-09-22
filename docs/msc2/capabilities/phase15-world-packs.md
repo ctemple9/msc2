@@ -52,9 +52,9 @@ selected project and file IDs. The agent verifies that the file belongs to
 the selected project, resolves its official download URL, and accepts payloads
 only from CurseForge's ForgeCDN.
 
-P15.32 corrects the CurseForge class lookup to
-`GET /v1/categories?gameId=1303&classesOnly=true`; the previous
-`/v1/games/1303/classes` path is not a CurseForge API route and returned 404.
+P15.32 corrected the CurseForge class lookup route. P15.34 corrects its game
+identifier to Minecraft's CurseForge game ID, `432`, in both category lookup
+and search; the former `1303` value caused the category request to return 404.
 P15.33 labels failures from the category lookup separately from failures in
 the subsequent Bedrock add-on search, so provider status errors identify which
 request failed.

@@ -761,6 +761,15 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Batch:** V — Bedrock catalog error diagnosis
 - **Commit:** `P15.33: identify Bedrock catalog request failures`
 
+### P15.34 — Use Minecraft's CurseForge game ID for Bedrock packs
+
+- **Status:** awaiting verification
+- **Files:** `crates/msc-infrastructure/src/addon_provider.rs`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
+- **What:** Use Minecraft's CurseForge game ID (`432`) for both Bedrock Addons category lookup and search. Keep resolving the Addons class from provider metadata instead of hardcoding its class ID.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-infrastructure -p msc-agent && cargo clippy -p msc-infrastructure -p msc-agent -- -D warnings`
+- **Batch:** W — Bedrock game identifier correction
+- **Commit:** `P15.34: use Minecraft CurseForge game ID`
+
 ## Proposed Phase 14 — operational refinements
 
 This phase turns the issues reported from real use into four bounded areas:

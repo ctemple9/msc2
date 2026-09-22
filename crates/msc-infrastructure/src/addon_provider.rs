@@ -45,6 +45,7 @@ pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
 /// longer input list is split into this many ids per request rather than
 /// growing the request (or the caller's assumed request count) unbounded.
 pub const MAX_BATCH_SIZE: usize = 100;
+const CURSEFORGE_MINECRAFT_GAME_ID: u32 = 432;
 /// Datapack archives are larger than provider metadata responses, but must
 /// remain bounded before their entries are inspected or copied.
 pub const DATAPACK_MAX_BYTES: u64 = 512 * 1024 * 1024;
@@ -665,7 +666,7 @@ pub fn curseforge_search_bedrock_addons(
 ) -> Result<Vec<CurseForgeSearchHit>, AddonProviderError> {
     let api_key = curseforge_api_key(secrets)?;
     let classes_url = format!(
-        "{}/v1/categories?gameId=1303&classesOnly=true",
+        "{}/v1/categories?gameId={CURSEFORGE_MINECRAFT_GAME_ID}&classesOnly=true",
         curseforge_base()
     );
     let classes_response = transport
@@ -703,7 +704,7 @@ pub fn curseforge_search_bedrock_addons(
             )
         })?;
     let mut url = format!(
-        "{}/v1/mods/search?gameId=1303&classId={addon_class_id}&searchFilter={}&pageSize={}&index={}",
+        "{}/v1/mods/search?gameId={CURSEFORGE_MINECRAFT_GAME_ID}&classId={addon_class_id}&searchFilter={}&pageSize={}&index={}",
         curseforge_base(),
         urlencode(query),
         limit.clamp(1, 50),

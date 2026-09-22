@@ -727,7 +727,7 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 
 ### P15.30 — Preserve slot metadata when copying into an existing slot
 
-- **Status:** planned
+- **Status:** awaiting verification
 - **Files:** `crates/msc-application/src/worlds.rs`, `crates/msc-infrastructure/src/world_store.rs`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
 - **What:** Make `copy_slot_into_existing` preserve a consistent destination archive and profile when metadata persistence fails. Stage the replacement archive and profile, stop ignoring `save_metadata` and `copy_profile` errors, and retain enough rollback state that a returned failure does not leave source world files paired with the destination's old pack profile. Record the failure boundary in the acceptance map. Do not add tests; use the declared static checks and Cameron's manual verification.
 - **Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-agent && cargo clippy -p msc-application -p msc-agent -- -D warnings`

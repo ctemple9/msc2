@@ -929,11 +929,9 @@ pub fn duplicate_slot(
 /// destructive by design (overwrites `destination`'s world data), but
 /// never touches `destination`'s real archive until the source has
 /// already been copied into a scratch file inside `destination`'s own
-/// slot directory — a mid-copy failure leaves `destination` completely
-/// untouched and removes the orphaned scratch file
-/// (`fixtures/world-mutations/copy-into-existing-mid-copy-failure-preserves-destination.json`).
-/// A metadata-save failure afterward is non-fatal, matching source's own
-/// comment: world data is already in place by that point.
+/// slot directory. The old archive stays under a unique recovery name until
+/// both the archive swap and the combined slot/profile metadata write succeed;
+/// a failed metadata write restores the old archive before returning.
 pub fn copy_slot_into_existing(
     fs: &dyn FileSystem,
     server_dir: &Path,
@@ -957,8 +955,40 @@ pub fn copy_slot_into_existing(
     }
 
     let dest_zip = world_store::zip_path(server_dir, &destination.id);
-    let _ = fs.remove(&dest_zip);
-    fs.rename(&temp_zip, &dest_zip)?;
+    let old_archive = match fs.stat(&dest_zip) {
+        Ok(metadata) if metadata.is_file => {
+            let recovery_zip =
+                dest_dir.join(format!("world.replace.{}.rollback.zip", Uuid::new_v4()));
+            if let Err(error) = fs.rename(&dest_zip, &recovery_zip) {
+                let _ = fs.remove(&temp_zip);
+                return Err(error.into());
+            }
+            Some(recovery_zip)
+        }
+        Ok(_) => {
+            let _ = fs.remove(&temp_zip);
+            return Err(io::Error::other("destination world archive is not a file").into());
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+        Err(error) => {
+            let _ = fs.remove(&temp_zip);
+            return Err(error.into());
+        }
+    };
+
+    if let Err(error) = fs.rename(&temp_zip, &dest_zip) {
+        if let Some(recovery_zip) = &old_archive
+            && let Err(rollback_error) = fs.rename(recovery_zip, &dest_zip)
+        {
+            return Err(io::Error::other(format!(
+                "could not install copied world ({error}); prior archive remains at {} because rollback failed ({rollback_error})",
+                recovery_zip.display()
+            ))
+            .into());
+        }
+        let _ = fs.remove(&temp_zip);
+        return Err(error.into());
+    }
 
     let mut updated = destination.clone();
     updated.created_at = now.to_string();
@@ -966,8 +996,43 @@ pub fn copy_slot_into_existing(
     updated.world_seed = source.world_seed.clone();
     updated.zip_size_bytes = zip_size_bytes(fs, &dest_zip);
 
-    let _ = world_store::save_metadata(fs, server_dir, &updated);
-    let _ = world_store::copy_profile(fs, server_dir, source, server_dir, &updated);
+    let source_profile = world_store::load_profile_value(fs, server_dir, source);
+    if let Err(error) = world_store::save_profile_value(fs, server_dir, &updated, &source_profile) {
+        if let Err(remove_error) = fs.remove(&dest_zip) {
+            if let Some(recovery_zip) = &old_archive {
+                return match fs.rename(recovery_zip, &dest_zip) {
+                    Ok(()) => Err(io::Error::other(format!(
+                        "could not save copied slot metadata ({error}); removing the new archive failed ({remove_error}), but the prior archive was restored"
+                    ))
+                    .into()),
+                    Err(rollback_error) => Err(io::Error::other(format!(
+                        "could not save copied slot metadata ({error}); new archive removal failed ({remove_error}); prior archive remains at {} because rollback failed ({rollback_error})",
+                        recovery_zip.display()
+                    ))
+                    .into()),
+                };
+            }
+            return Err(io::Error::other(format!(
+                "could not save copied slot metadata ({error}); new archive could not be removed ({remove_error})"
+            ))
+            .into());
+        }
+
+        if let Some(recovery_zip) = &old_archive
+            && let Err(rollback_error) = fs.rename(recovery_zip, &dest_zip)
+        {
+            return Err(io::Error::other(format!(
+                "could not save copied slot metadata ({error}); prior archive remains at {} because rollback failed ({rollback_error})",
+                recovery_zip.display()
+            ))
+            .into());
+        }
+        return Err(error.into());
+    }
+
+    if let Some(recovery_zip) = old_archive {
+        let _ = fs.remove(&recovery_zip);
+    }
     Ok(updated)
 }
 

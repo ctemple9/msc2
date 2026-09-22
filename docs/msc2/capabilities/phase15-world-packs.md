@@ -116,7 +116,7 @@ run.
 | Severity | Finding | Evidence and effect |
 |---|---|---|
 | **Resolved by static re-review — backup profile restore** | The initial review incorrectly concluded that restore ignored the saved world profile. | `crates/msc-agent/src/routes/backups.rs` reads `world_profile` from the backup sidecar and writes it to the active slot after `restore_backup` succeeds. If that metadata write fails, the operation reports `metadata_restore_failed` with an explicit message that the world itself has already been restored. The live backup/restore round trip remains owner verification. |
-| **Open — error handling** | Copying a slot into an existing slot ignores profile-copy failure. | `copy_slot_into_existing` replaces the destination archive and then discards errors from both `save_metadata` and `copy_profile` (`crates/msc-application/src/worlds.rs`). A filesystem error can leave copied pack files paired with the old profile. This follows the pre-existing non-fatal metadata behavior, but conflicts with treating pack-profile portability as guaranteed. P15.30 is planned to make archive/profile copy failure handling preserve destination consistency. |
+| **Addressed in P15.30 — error handling** | Copying a slot into an existing slot previously ignored metadata and profile-copy failures. | The application now retains the old archive under a unique recovery name while installing the replacement and atomically saving the updated slot metadata with the source profile. A metadata-write failure removes the replacement and restores the prior archive before returning the write error. If rollback itself fails, the returned error identifies the retained recovery archive. Cameron should verify the successful copy path and review the reported rollback boundary. |
 
 ### Static checks that passed by inspection
 
@@ -165,3 +165,14 @@ the Phase 15 gate:
 
 P15.29 records the portability findings; it does not resolve them or close the
 phase gate.
+
+### P15.30 failure boundary
+
+`copy_slot_into_existing` stages the incoming archive, moves an existing
+destination archive to a unique rollback path, then installs the staged archive
+and writes the updated slot metadata plus source profile in one atomic metadata
+write. If that write fails, the new archive is removed and the prior archive
+is restored before the error is returned. If the archive rollback itself
+fails, the error includes the retained rollback path so the previous world
+data remains recoverable. A successful operation removes the rollback archive;
+failure to clean up that extra file does not invalidate the committed copy.

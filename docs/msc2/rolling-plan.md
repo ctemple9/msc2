@@ -431,6 +431,15 @@ The ATM10 discovery work and this additional usability work share Phase 15, but 
 - **Batch:** K — modpack and Components inventory corrections
 - **Commit:** `P15.21: skip client-only CurseForge files before download`
 
+### P15.22 — Keep client-only files and shader packs out of imported servers
+
+- **Status:** awaiting verification
+- **Files:** `crates/msc-domain/src/addon_provider.rs`, `crates/msc-infrastructure/src/addon_provider.rs`, `crates/msc-application/src/modpacks.rs`, `crates/msc-application/tests/modrinth_pack_import.rs`, `crates/msc-application/tests/curseforge_pack_import.rs`, `crates/msc-application/tests/modpack_server_creation.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Use CurseForge's exact SHA-1 file hashes for pre-download Modrinth identification; apply the same exact-hash client-only check to Modrinth manifests; exclude shader/resource-pack paths and non-JAR files in `mods/` before merge/download; inspect newly written JARs afterward and delete identified client-only files instead of leaving disabled files; remove deleted files from import counts, and fail the import if cleanup itself fails.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-infrastructure -p msc-domain -p msc-agent && cargo clippy -p msc-application -p msc-infrastructure -p msc-domain -p msc-agent -- -D warnings`
+- **Batch:** K — modpack and Components inventory corrections
+- **Commit:** `P15.22: exclude client-only files and shader packs`
+
 ### Additional Phase 15 scope — world packs and modpack identity
 
 Here is the full plan we discussed. This is only recorded in the chat for now; I have not added it to the rolling plan.

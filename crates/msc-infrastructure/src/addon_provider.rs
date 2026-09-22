@@ -302,12 +302,30 @@ pub fn modrinth_versions_from_hashes(
     transport: &dyn AddonTransport,
     sha512s: &[String],
 ) -> Result<HashMap<String, domain::ModrinthVersionInfo>, AddonProviderError> {
+    modrinth_versions_from_hashes_with_algorithm(transport, sha512s, "sha512")
+}
+
+/// Exact file lookup for CurseForge's SHA-1 hashes, used before downloading
+/// the file so client-only projects can be rejected using the same identity
+/// Modrinth already knows.
+pub fn modrinth_versions_from_sha1_hashes(
+    transport: &dyn AddonTransport,
+    sha1s: &[String],
+) -> Result<HashMap<String, domain::ModrinthVersionInfo>, AddonProviderError> {
+    modrinth_versions_from_hashes_with_algorithm(transport, sha1s, "sha1")
+}
+
+fn modrinth_versions_from_hashes_with_algorithm(
+    transport: &dyn AddonTransport,
+    hashes: &[String],
+    algorithm: &str,
+) -> Result<HashMap<String, domain::ModrinthVersionInfo>, AddonProviderError> {
     let mut result = HashMap::new();
-    for chunk in sha512s.chunks(MAX_BATCH_SIZE) {
+    for chunk in hashes.chunks(MAX_BATCH_SIZE) {
         let Some(ids) = domain::modrinth_versions_from_hashes_plan(chunk) else {
             continue;
         };
-        let body = serde_json::json!({ "hashes": ids, "algorithm": "sha512" });
+        let body = serde_json::json!({ "hashes": ids, "algorithm": algorithm });
         let url = format!("{}/v2/version_files", modrinth_base());
         let resp = transport
             .post_json(

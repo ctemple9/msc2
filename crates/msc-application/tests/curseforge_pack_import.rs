@@ -133,13 +133,8 @@ impl AddonTransport for DownloadTransport {
             });
         }
         if url.ends_with("/v2/version_files") {
-            // Post-download override-jar classification (`classify_override_jars`)
-            // hash-identifies every jar in the add-on folder, CurseForge-
-            // resolved ones included -- the manifest carries no per-file
-            // env the way `.mrpack` does, so Tier 0/Tier 2 classification
-            // runs over the whole folder, per this phase's own
-            // "CurseForge-imported jar... checks known_client_only_reason
-            // (Tier 0) first" finding. No hits here -- nothing to disable.
+            // Hash-based preflight and post-download cleanup both query
+            // Modrinth. These synthetic files have no Modrinth identity.
             return Ok(RawResponse {
                 status: 200,
                 body: b"{}".to_vec(),

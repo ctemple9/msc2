@@ -536,6 +536,16 @@ pub struct CurseForgeFile {
     /// needed this field) is unaffected.
     #[serde(rename = "fileLength", default)]
     pub file_length: u64,
+    #[serde(default)]
+    pub hashes: Vec<CurseForgeFileHash>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CurseForgeFileHash {
+    pub value: String,
+    /// CurseForge uses 1 for SHA-1 and 2 for MD5. SHA-1 is the hash
+    /// Modrinth can use for an exact pre-download identity lookup.
+    pub algo: i64,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]

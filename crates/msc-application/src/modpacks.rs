@@ -35,7 +35,7 @@
 //! `overrides/` then `server-overrides/` (server-overrides wins on
 //! conflict, matching `fixtures/modpack-import/
 //! overrides-copied-before-server-overrides-so-server-overrides-wins-on-conflict.json`),
-//! and classifies the resulting override jars.
+//! and removes client-only assets from the resulting server tree.
 //!
 //! **Scope boundary, decided and documented (not silently assumed):**
 //! per this crate's own P8.1 finding (`phase8-scope.md`), MSC 1 has no
@@ -63,23 +63,13 @@
 //! pre-import bytes by this function; that gap is called out explicitly
 //! here rather than claimed as covered.
 //!
-//! **Tier 3 (embedded-jar `environment`) client-only classification for
-//! override jars is not built by this step**, flagged honestly rather
-//! than silently dropped: `classify_override_jars` runs Tier 0 (hardcoded
-//! blocklist) then Tier 2 (Modrinth `server_side`, via the same
-//! hash-identify + batched-project-fetch shape `addon_updates.rs`/
-//! `addon_dependencies.rs` already established), but never reads an
-//! override jar's own embedded `fabric.mod.json`/`mods.toml`
-//! `environment` field as the Tier 3 fallback `msc_domain::modpack::
-//! client_only_reason`'s own signature supports — Tier 2 already covers
-//! the common case (an override jar published on Modrinth), and building
-//! a second embedded-metadata reader distinct from
-//! `add_on_inventory.rs`'s existing mod-id/name/version one was out of
-//! reach for this step's own time budget. A jar with no Modrinth hash hit
-//! and a client-only embedded manifest will not be auto-disabled by this
-//! function today.
+//! Client-only files are excluded before manifest downloads or override
+//! merges whenever their manifest/provider metadata or exact Modrinth hash
+//! identifies them. A post-write pass removes known client-only jars and
+//! shader assets as a backstop; it also reconciles the import report so
+//! removed files are not presented as installed.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::path::{Path, PathBuf};
 
@@ -91,7 +81,7 @@ use msc_domain::modpack_manifest::{
 };
 
 use msc_infrastructure::addon_provider::{self as provider, AddonTransport};
-use msc_infrastructure::addon_store::{self, DisableOutcome};
+use msc_infrastructure::addon_store;
 use msc_infrastructure::archive::{self, ArchiveError};
 use msc_infrastructure::download_staging::{ExpectedChecksum, sha512_hex};
 use msc_infrastructure::fs::FileSystem;
@@ -405,6 +395,7 @@ fn resolve_manual_downloads(
 pub enum MrpackImportError {
     PackManaged,
     NoAddOnKind,
+    ClientFileCleanup(PathBuf),
 }
 
 impl fmt::Display for MrpackImportError {
@@ -412,6 +403,13 @@ impl fmt::Display for MrpackImportError {
         match self {
             Self::PackManaged => write!(f, "this server is managed by a different modpack"),
             Self::NoAddOnKind => write!(f, "this server flavor has no add-on folder"),
+            Self::ClientFileCleanup(path) => {
+                write!(
+                    f,
+                    "could not remove client-only pack file {}",
+                    path.display()
+                )
+            }
         }
     }
 }
@@ -431,9 +429,8 @@ pub struct MrpackImportReport {
     /// exposes these through the same upload/skip checkpoint as blocked
     /// CurseForge files.
     pub unresolved_files: Vec<UnresolvedModpackFile>,
-    /// Override jars this import disabled as client-only (Tier 0/Tier 2 —
-    /// see this module's own doc on the Tier 3 gap).
-    pub disabled_client_only_overrides: Vec<PathBuf>,
+    /// Client-only files removed from this import before completion.
+    pub removed_client_only_files: Vec<PathBuf>,
     pub pack_name: String,
     pub pack_version: String,
     /// `true` if `should_cancel` fired before the file-download phase
@@ -462,7 +459,7 @@ pub fn import_mrpack(
     if modpack::pack_replace_refused(pack_managed, explicit_replace_intent) {
         return Err(MrpackImportError::PackManaged);
     }
-    let add_on_kind = flavor.add_on_kind().ok_or(MrpackImportError::NoAddOnKind)?;
+    let _add_on_kind = flavor.add_on_kind().ok_or(MrpackImportError::NoAddOnKind)?;
 
     let mut report = MrpackImportReport {
         pack_name: manifest.name.clone(),
@@ -470,6 +467,22 @@ pub fn import_mrpack(
         ..Default::default()
     };
     let mut written: Vec<PathBuf> = Vec::new();
+    let manifest_sha1s: Vec<String> = manifest
+        .files
+        .iter()
+        .filter(|file| {
+            !modpack::is_manifest_server_unsupported(file.env.as_ref())
+                && !modpack_path_is_client_only(&file.path)
+                && !known_client_only_mod_path(&file.path)
+        })
+        .filter_map(|file| {
+            file.hashes
+                .sha1
+                .as_ref()
+                .map(|hash| hash.to_ascii_lowercase())
+        })
+        .collect();
+    let client_only_sha1s = modrinth_client_only_hashes(transport, &manifest_sha1s);
 
     for file in &manifest.files {
         if should_cancel() {
@@ -483,6 +496,7 @@ pub fn import_mrpack(
             home_dir,
             file,
             &manifest.version_id,
+            &client_only_sha1s,
             &mut report,
             &mut written,
         );
@@ -495,9 +509,7 @@ pub fn import_mrpack(
 
     let mut skipped_client_only_overrides = Vec::new();
     for override_root in ["overrides", "server-overrides"] {
-        let source_folder = staged_dir
-            .join(override_root)
-            .join(add_on_kind.folder_name());
+        let source_folder = staged_dir.join(override_root);
         skipped_client_only_overrides.extend(client_only_override_paths(
             transport,
             fs,
@@ -518,9 +530,14 @@ pub fn import_mrpack(
         &mut written,
         &skipped_client_only_overrides,
     );
-
-    let add_on_folder = server_dir.join(add_on_kind.folder_name());
-    report.disabled_client_only_overrides = classify_override_jars(transport, fs, &add_on_folder);
+    let removed = match remove_imported_client_files(transport, fs, server_dir, &mut written) {
+        Ok(removed) => removed,
+        Err(path) => {
+            return Err(MrpackImportError::ClientFileCleanup(path));
+        }
+    };
+    report.removed_client_only_files = removed.clone();
+    remove_reported_paths(&mut report, &removed);
 
     Ok(report)
 }
@@ -533,10 +550,19 @@ fn install_one_manifest_file(
     home_dir: &Path,
     file: &MrpackFileEntry,
     version_label: &str,
+    client_only_sha1s: &HashSet<String>,
     report: &mut MrpackImportReport,
     written: &mut Vec<PathBuf>,
 ) {
-    if modpack::is_manifest_server_unsupported(file.env.as_ref()) {
+    if modpack::is_manifest_server_unsupported(file.env.as_ref())
+        || modpack_path_is_client_only(&file.path)
+        || known_client_only_mod_path(&file.path)
+        || file
+            .hashes
+            .sha1
+            .as_ref()
+            .is_some_and(|hash| client_only_sha1s.contains(&hash.to_ascii_lowercase()))
+    {
         return; // Tier 1 pre-filter: client-only, skipped, not a failure.
     }
     let dest = match addon_store::resolve_pack_file_dest(fs, server_dir, &file.path, home_dir) {
@@ -707,46 +733,77 @@ fn merge_dir_recursive(
     }
 }
 
-/// Identifies client-only jars in an archive override folder before that
-/// folder is merged into the server. The same two-tier rules used for the
-/// post-merge classifier are shared here so a client-only override never
-/// needs to be written into `mods/` and renamed afterward.
+/// Excludes shaderpack directories, non-JAR files under `mods/`, known
+/// client-only mods, and Modrinth-identified client-only jars before the
+/// override tree is merged into the server.
 fn client_only_override_paths(
     transport: &dyn AddonTransport,
     fs: &dyn FileSystem,
-    add_on_folder: &Path,
+    override_root: &Path,
 ) -> Vec<PathBuf> {
-    let Ok(entries) = fs.list(add_on_folder) else {
-        return Vec::new();
-    };
-
+    let mut pending = vec![override_root.to_path_buf()];
     let mut client_only = Vec::new();
     let mut remaining: Vec<(PathBuf, String)> = Vec::new();
-    for path in entries {
-        let Some(name) = path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .map(str::to_string)
-        else {
+    while let Some(folder) = pending.pop() {
+        let Ok(entries) = fs.list(&folder) else {
             continue;
         };
-        if !name.to_lowercase().ends_with(".jar") {
+        for path in entries {
+            let Ok(metadata) = fs.stat(&path) else {
+                continue;
+            };
+            let Ok(relative) = path.strip_prefix(override_root) else {
+                continue;
+            };
+            if metadata.is_dir {
+                if is_client_pack_asset_path(relative) {
+                    client_only.push(path);
+                } else {
+                    pending.push(path);
+                }
+                continue;
+            }
+            if is_client_pack_asset_path(relative) || is_non_jar_mod_file(relative) {
+                client_only.push(path);
+                continue;
+            }
+            if !path_in_mods_folder(relative) {
+                continue;
+            }
+            let Some(name) = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .map(str::to_string)
+            else {
+                continue;
+            };
+            if known_client_only_mod_filename(&name) {
+                client_only.push(path);
+            } else {
+                remaining.push((path, name));
+            }
+        }
+    }
+    client_only.extend(modrinth_client_only_paths(transport, fs, &remaining));
+    client_only
+}
+
+fn modrinth_client_only_paths(
+    transport: &dyn AddonTransport,
+    fs: &dyn FileSystem,
+    candidates: &[(PathBuf, String)],
+) -> Vec<PathBuf> {
+    let mut hash_to_path = HashMap::new();
+    let mut hashes = Vec::new();
+    let mut client_only = Vec::new();
+    for (path, _) in candidates {
+        if crate::add_on_inventory::mod_jar_metadata(path)
+            .and_then(|(_, _, _, environment)| environment)
+            .is_some_and(|environment| environment == "client")
+        {
+            client_only.push(path.clone());
             continue;
         }
-        let stem = name.trim_end_matches(".jar");
-        if modpack::known_client_only_reason(stem).is_some() {
-            client_only.push(path);
-        } else {
-            remaining.push((path, name));
-        }
-    }
-    if remaining.is_empty() {
-        return client_only;
-    }
-
-    let mut hash_to_path: HashMap<String, PathBuf> = HashMap::new();
-    let mut hashes: Vec<String> = Vec::new();
-    for (path, _) in &remaining {
         if let Ok(bytes) = fs.read(path) {
             let hash = sha512_hex(&bytes);
             hash_to_path.insert(hash.clone(), path.clone());
@@ -756,9 +813,6 @@ fn client_only_override_paths(
     let Ok(identify) = provider::modrinth_versions_from_hashes(transport, &hashes) else {
         return client_only;
     };
-    if identify.is_empty() {
-        return client_only;
-    }
     let project_ids: Vec<String> = identify.values().map(|v| v.project_id.clone()).collect();
     let Ok(projects) = provider::modrinth_projects(transport, &project_ids) else {
         return client_only;
@@ -767,46 +821,193 @@ fn client_only_override_paths(
         .iter()
         .filter_map(|p| p.get("id").and_then(|v| v.as_str()).map(|id| (id, p)))
         .collect();
-
-    for (hash, path) in &hash_to_path {
-        let Some(version) = identify.get(hash) else {
-            continue;
-        };
-        let Some(project) = by_id.get(version.project_id.as_str()) else {
-            continue;
-        };
-        let server_side = project.get("server_side").and_then(|v| v.as_str());
-        let title = project.get("title").and_then(|v| v.as_str());
-        if modpack::client_only_reason(server_side, title, None).is_some() {
-            client_only.push(path.clone());
-        }
-    }
+    client_only.extend(
+        identify
+            .iter()
+            .filter_map(|(hash, version)| {
+                let project = by_id.get(version.project_id.as_str())?;
+                let server_side = project.get("server_side").and_then(|v| v.as_str());
+                let title = project.get("title").and_then(|v| v.as_str());
+                let is_shader =
+                    project.get("project_type").and_then(|v| v.as_str()) == Some("shader");
+                (is_shader || modpack::client_only_reason(server_side, title, None).is_some())
+                    .then(|| hash_to_path.get(hash).cloned())
+                    .flatten()
+            })
+            .collect::<Vec<_>>(),
+    );
     client_only
 }
 
-/// Tier 0 (hardcoded blocklist) then Tier 2 (Modrinth `server_side`, via a
-/// hash-identify + batched 100-id project fetch — this module's own doc
-/// explains why Tier 3 isn't built here) — an override jar Tier 0 already
-/// disabled is never also hash-identified.
-fn classify_override_jars(
+fn remove_client_only_files(
     transport: &dyn AddonTransport,
     fs: &dyn FileSystem,
-    add_on_folder: &Path,
-) -> Vec<PathBuf> {
-    client_only_override_paths(transport, fs, add_on_folder)
+    server_dir: &Path,
+    paths: &[PathBuf],
+) -> Result<Vec<PathBuf>, PathBuf> {
+    let mut remove = Vec::new();
+    let mut jars = Vec::new();
+    for path in paths {
+        let Ok(relative) = path.strip_prefix(server_dir) else {
+            continue;
+        };
+        if is_client_pack_asset_path(relative) || is_non_jar_mod_file(relative) {
+            remove.push(path.clone());
+        } else if path_in_mods_folder(relative)
+            && path
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("jar"))
+        {
+            let name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or_default();
+            if known_client_only_mod_filename(name) {
+                remove.push(path.clone());
+            } else {
+                jars.push((path.clone(), name.to_string()));
+            }
+        }
+    }
+    remove.extend(modrinth_client_only_paths(transport, fs, &jars));
+    remove.sort();
+    remove.dedup();
+    let mut removed = Vec::new();
+    for path in remove {
+        if fs.remove(&path).is_err() {
+            return Err(path);
+        }
+        removed.push(path);
+    }
+    Ok(removed)
+}
+
+fn is_client_pack_asset_path(path: &Path) -> bool {
+    path.components()
+        .next()
+        .and_then(|component| component.as_os_str().to_str())
+        .is_some_and(|part| {
+            part.eq_ignore_ascii_case("shaderpacks") || part.eq_ignore_ascii_case("resourcepacks")
+        })
+}
+
+fn path_in_mods_folder(path: &Path) -> bool {
+    path.components()
+        .next()
+        .and_then(|component| component.as_os_str().to_str())
+        .is_some_and(|part| part.eq_ignore_ascii_case("mods"))
+}
+
+fn is_non_jar_mod_file(path: &Path) -> bool {
+    path_in_mods_folder(path)
+        && !path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("jar"))
+}
+
+fn modrinth_client_only_hashes(
+    transport: &dyn AddonTransport,
+    hashes: &[String],
+) -> HashSet<String> {
+    if hashes.is_empty() {
+        return HashSet::new();
+    }
+    let Ok(identify) = provider::modrinth_versions_from_sha1_hashes(transport, hashes) else {
+        return HashSet::new();
+    };
+    let project_ids: Vec<String> = identify.values().map(|v| v.project_id.clone()).collect();
+    let Ok(projects) = provider::modrinth_projects(transport, &project_ids) else {
+        return HashSet::new();
+    };
+    let by_id: HashMap<&str, &serde_json::Value> = projects
+        .iter()
+        .filter_map(|p| p.get("id").and_then(|v| v.as_str()).map(|id| (id, p)))
+        .collect();
+    identify
         .into_iter()
-        .filter_map(|path| {
-            let mut disabled = Vec::new();
-            disable_override_jar(fs, &path, &mut disabled);
-            disabled.into_iter().next()
+        .filter_map(|(hash, version)| {
+            let project = by_id.get(version.project_id.as_str())?;
+            let server_side = project.get("server_side").and_then(|v| v.as_str());
+            let title = project.get("title").and_then(|v| v.as_str());
+            let is_shader = project.get("project_type").and_then(|v| v.as_str()) == Some("shader");
+            (is_shader || modpack::client_only_reason(server_side, title, None).is_some())
+                .then_some(hash)
         })
         .collect()
 }
 
-fn disable_override_jar(fs: &dyn FileSystem, path: &Path, disabled: &mut Vec<PathBuf>) {
-    if let Ok(DisableOutcome::Disabled(p)) = addon_store::disable_for_classification(fs, path) {
-        disabled.push(p);
-    }
+fn curseforge_client_only_file_ids(
+    transport: &dyn AddonTransport,
+    files: &[msc_domain::addon_provider::CurseForgeFile],
+) -> HashSet<i64> {
+    let hashes: Vec<String> = files
+        .iter()
+        .flat_map(|file| {
+            file.hashes
+                .iter()
+                .filter(|hash| hash.algo == 1)
+                .map(|hash| hash.value.to_ascii_lowercase())
+        })
+        .collect();
+    let client_hashes = modrinth_client_only_hashes(transport, &hashes);
+    files
+        .iter()
+        .filter(|file| {
+            file.hashes.iter().any(|hash| {
+                hash.algo == 1 && client_hashes.contains(&hash.value.to_ascii_lowercase())
+            })
+        })
+        .map(|file| file.id)
+        .collect()
+}
+
+fn modpack_path_is_client_only(path: &str) -> bool {
+    let path = Path::new(path);
+    is_client_pack_asset_path(path) || is_non_jar_mod_file(path)
+}
+
+fn known_client_only_mod_path(path: &str) -> bool {
+    let path = Path::new(path);
+    path_in_mods_folder(path)
+        && path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(known_client_only_mod_filename)
+}
+
+fn known_client_only_mod_filename(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower
+        .strip_suffix(".jar")
+        .is_some_and(|stem| modpack::known_client_only_reason(stem).is_some())
+}
+
+fn remove_reported_paths(report: &mut MrpackImportReport, removed: &[PathBuf]) {
+    report
+        .installed_files
+        .retain(|path| !removed.contains(path));
+}
+
+fn remove_reported_curseforge_paths(report: &mut CurseForgeImportReport, removed: &[PathBuf]) {
+    report
+        .installed_files
+        .retain(|path| !removed.contains(path));
+    report
+        .recovered_modrinth_files
+        .retain(|path| !removed.contains(path));
+}
+
+fn remove_imported_client_files(
+    transport: &dyn AddonTransport,
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    written: &mut Vec<PathBuf>,
+) -> Result<Vec<PathBuf>, PathBuf> {
+    let removed = remove_client_only_files(transport, fs, server_dir, written)?;
+    written.retain(|path| !removed.contains(path));
+    Ok(removed)
 }
 
 /// A blocked CurseForge file may still have an exact, compatible Modrinth
@@ -866,7 +1067,7 @@ fn find_confident_modrinth_match(
     // Project-level server-side metadata is enough to reject a confident
     // client-only match. Requiring an exact downloadable filename first
     // would miss renamed/alternate CurseForge files, which the later
-    // hash-based safety pass would only disable after downloading them.
+    // hash-based safety pass would only remove them after downloading them.
     if hit.is_client_only() {
         return Some(ModrinthRecoveryMatch::ClientOnly);
     }
@@ -957,6 +1158,7 @@ pub enum CurseForgeImportError {
     /// stops the import the same way a missing key does, for the same
     /// "half-resolved is worse than a clean refusal" reason.
     Provider(String),
+    ClientFileCleanup(PathBuf),
 }
 
 impl fmt::Display for CurseForgeImportError {
@@ -966,6 +1168,13 @@ impl fmt::Display for CurseForgeImportError {
             Self::NoAddOnKind => write!(f, "this server flavor has no add-on folder"),
             Self::MissingApiKey => write!(f, "no CurseForge API key is configured"),
             Self::Provider(m) => write!(f, "{m}"),
+            Self::ClientFileCleanup(path) => {
+                write!(
+                    f,
+                    "could not remove client-only pack file {}",
+                    path.display()
+                )
+            }
         }
     }
 }
@@ -995,7 +1204,7 @@ pub struct CurseForgeImportReport {
     /// direct CurseForge downloads so the completion summary can explain
     /// where each installed file came from.
     pub recovered_modrinth_files: Vec<PathBuf>,
-    pub disabled_client_only_overrides: Vec<PathBuf>,
+    pub removed_client_only_files: Vec<PathBuf>,
     pub pack_name: String,
     pub pack_version: String,
     pub cancelled: bool,
@@ -1052,6 +1261,7 @@ pub fn import_curseforge(
         .iter()
         .map(|project| (project.id, project))
         .collect();
+    let client_only_file_ids = curseforge_client_only_file_ids(transport, &resolved);
 
     let mut report = CurseForgeImportReport {
         pack_name: metadata.name.clone(),
@@ -1091,6 +1301,12 @@ pub fn import_curseforge(
             ));
             continue;
         };
+        if !file.file_name.to_ascii_lowercase().ends_with(".jar")
+            || known_client_only_mod_filename(&file.file_name)
+            || client_only_file_ids.contains(&file.id)
+        {
+            continue;
+        }
         let Some(download_url) = &file.download_url else {
             let pending = crate::curseforge_manual::PendingManualFile {
                 project_id: manifest_file.project_id,
@@ -1261,13 +1477,8 @@ pub fn import_curseforge(
         return Ok(report);
     }
 
-    let skipped_client_only_overrides = client_only_override_paths(
-        transport,
-        fs,
-        &staged_dir
-            .join(&metadata.overrides_folder)
-            .join(add_on_kind.folder_name()),
-    );
+    let skipped_client_only_overrides =
+        client_only_override_paths(transport, fs, &staged_dir.join(&metadata.overrides_folder));
     merge_directory_into_excluding(
         fs,
         &staged_dir.join(&metadata.overrides_folder),
@@ -1275,7 +1486,14 @@ pub fn import_curseforge(
         &mut written,
         &skipped_client_only_overrides,
     );
-    report.disabled_client_only_overrides = classify_override_jars(transport, fs, &add_on_folder);
+    let removed = match remove_imported_client_files(transport, fs, server_dir, &mut written) {
+        Ok(removed) => removed,
+        Err(path) => {
+            return Err(CurseForgeImportError::ClientFileCleanup(path));
+        }
+    };
+    report.removed_client_only_files = removed.clone();
+    remove_reported_curseforge_paths(&mut report, &removed);
 
     Ok(report)
 }

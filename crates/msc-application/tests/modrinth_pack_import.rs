@@ -518,7 +518,7 @@ fn import_allowed_on_pack_managed_server_with_explicit_replace_intent() {
 }
 
 #[test]
-fn import_tier0_disables_known_client_only_override_jar() {
+fn import_tier0_removes_known_client_only_override_jar() {
     let tmp = TempDir::new("tier0-classify");
     let server_dir = tmp.path().join("server");
     let staged_dir = tmp.path().join("staged");
@@ -530,7 +530,7 @@ fn import_tier0_disables_known_client_only_override_jar() {
     let m = manifest(vec![]);
     let transport = FakeTransport::new();
 
-    let report = run_import(
+    let _report = run_import(
         &transport,
         &server_dir,
         &m,
@@ -542,13 +542,12 @@ fn import_tier0_disables_known_client_only_override_jar() {
     )
     .unwrap();
 
-    assert_eq!(report.disabled_client_only_overrides.len(), 1);
-    assert!(server_dir.join("mods/iris-1.7.jar.disabled").exists());
     assert!(!server_dir.join("mods/iris-1.7.jar").exists());
+    assert!(!server_dir.join("mods/iris-1.7.jar.disabled").exists());
 }
 
 #[test]
-fn import_tier2_disables_modrinth_server_unsupported_override_jar() {
+fn import_tier2_removes_modrinth_server_unsupported_override_jar() {
     let tmp = TempDir::new("tier2-classify");
     let server_dir = tmp.path().join("server");
     let staged_dir = tmp.path().join("staged");
@@ -575,7 +574,7 @@ fn import_tier2_disables_modrinth_server_unsupported_override_jar() {
             .with_projects(projects),
     );
 
-    let report = run_import(
+    let _report = run_import(
         &transport,
         &server_dir,
         &m,
@@ -587,6 +586,6 @@ fn import_tier2_disables_modrinth_server_unsupported_override_jar() {
     )
     .unwrap();
 
-    assert_eq!(report.disabled_client_only_overrides.len(), 1);
-    assert!(server_dir.join("mods/decor.jar.disabled").exists());
+    assert!(!server_dir.join("mods/decor.jar").exists());
+    assert!(!server_dir.join("mods/decor.jar.disabled").exists());
 }

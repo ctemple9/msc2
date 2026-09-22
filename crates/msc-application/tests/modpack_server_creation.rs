@@ -248,8 +248,8 @@ impl AddonTransport for FakeTransport {
 /// No override jars ever get identified against Modrinth in this file's
 /// fixtures (every manifest-declared mod is a synthetic, unpublished
 /// fake) — every case registers this same empty `version_files` response
-/// so `classify_override_jars` runs its real hash-identify call and finds
-/// nothing, rather than skipping that call entirely.
+/// so client-only preflight and cleanup find nothing rather than skipping
+/// their provider lookup entirely.
 fn no_modrinth_hits(t: FakeTransport) -> FakeTransport {
     t.with_post("/v2/version_files", 200, serde_json::json!({}))
 }

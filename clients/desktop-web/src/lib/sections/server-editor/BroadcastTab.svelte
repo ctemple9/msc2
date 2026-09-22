@@ -20,6 +20,7 @@
   import Button from '../../components/base/Button.svelte';
   import Toggle from '../../components/base/Toggle.svelte';
   import StatusDot from '../../components/base/StatusDot.svelte';
+  import PlayitSetupSheet from './PlayitSetupSheet.svelte';
   import type { Schema, ScreenApi } from '../shared/types';
   import { call, errorMessage, mutate } from '../shared/types';
   import { pollOperation, serverEditorPaths } from './model';
@@ -40,6 +41,7 @@
   let broadcastBusy = false;
   let xboxEnabled = server.xboxBroadcastEnabled === true;
   let playitBusy = false;
+  let showPlayitSetup = false;
 
   let notice = '';
   let loaded = false;
@@ -139,6 +141,10 @@
     }
   }
 
+  async function refreshPlayit(): Promise<void> {
+    playit = await call(api, playit, serverEditorPaths.playit);
+  }
+
 </script>
 
 <div class="tab">
@@ -224,7 +230,16 @@
             <Button
               variant="secondary"
               size="sm"
-              disabled={playitBusy || !playit?.playitEnabled || !canControl}
+              disabled={!playit?.playitEnabled || !canControl || playitBusy}
+              onclick={() => (showPlayitSetup = true)}
+              >{playit?.hasSecretKey ? 'Manage setup…' : 'Set up…'}</Button
+            >
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={
+                playitBusy || !playit?.playitEnabled || !playit?.hasSecretKey || !canControl
+              }
               onclick={togglePlayit}>{playit?.isRunning ? 'Stop' : 'Start'}</Button
             >
           </div>
@@ -242,6 +257,17 @@
     </section>
   {/if}
 </div>
+
+{#if showPlayitSetup}
+  <PlayitSetupSheet
+    {api}
+    {playit}
+    context="settings"
+    onClose={() => (showPlayitSetup = false)}
+    onComplete={() => void loadAll()}
+    onReset={() => void refreshPlayit()}
+  />
+{/if}
 
 <style>
   .tab {

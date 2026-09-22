@@ -806,6 +806,15 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Batch:** AA — compatible Bedrock catalog search
 - **Commit:** `P15.38: search compatible Bedrock packs first`
 
+### P15.39 — Show all Bedrock behavior packs across versions
+
+- **Status:** awaiting verification
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldPackBrowserSheet.svelte`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
+- **What:** Search the full CurseForge Bedrock add-on catalog without filtering by the selected server version. Keep all results selectable for details, show version compatibility in each result, withhold direct Add for a version mismatch, and preserve the detail view's explicit “Install anyway” action. Remove the redundant “Show other versions” toggle and its version-filtered empty state.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** AB — unfiltered Bedrock pack discovery
+- **Commit:** `P15.39: show all Bedrock behavior packs`
+
 ## Proposed Phase 14 — operational refinements
 
 This phase turns the issues reported from real use into four bounded areas:

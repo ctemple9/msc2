@@ -185,12 +185,12 @@ subset, alongside the project's screenshots and up to 50 published files.
 Version rows show release status and whether a file's Minecraft version tags
 match the selected server version. The selected file ID is the one sent to the
 existing slot-local install route. The Modrinth Java detail flow is unchanged.
-The result list searches for files matching the selected server version first.
-“Show other versions” removes that filter so other releases remain available
-for inspection, marked “Other version” and without a direct Add action. If the
-selected server version cannot be read, the list marks versions “Version
-unknown” and withholds direct installation. The detail list keeps its explicit
-“Install anyway” action for those files.
+The result list searches the full CurseForge catalog without a Minecraft
+version filter, so packs for other versions remain available to inspect. A
+result marked “Other version” opens its details instead of offering direct Add;
+the detail list keeps its explicit “Install anyway” action. If the selected
+server version cannot be read, the list marks versions “Version unknown” and
+withholds direct installation.
 
 ### P15.30 failure boundary
 

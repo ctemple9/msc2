@@ -1031,6 +1031,15 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Batch:** N — Bedrock transport startup repair
 - **Commit:** `P15.63: use RakNet for MSC player connection paths`
 
+### P15.64 — Restore NetherNet for current Bedrock clients
+
+- **Status:** awaiting verification
+- **Files:** `crates/msc-application/src/bedrock_settings.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Correct P15.63 after live Bedrock 1.26.51 rejected the automatic `transport=raknet` value. MSC-managed startup now restores `transport=nethernet`, which is the transport the current Bedrock client requires for player connections. The broadcast helper's host and UDP port remain separate connection metadata; they do not change the Bedrock server transport setting.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-agent`
+- **Batch:** N — Bedrock transport startup repair
+- **Commit:** `P15.64: restore NetherNet for current Bedrock clients`
+
 ## Proposed Phase 14 — operational refinements
 
 This phase turns the issues reported from real use into four bounded areas:

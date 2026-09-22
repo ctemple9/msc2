@@ -860,6 +860,15 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Batch:** AG — make wizard transitions control onboarding
 - **Commit:** `P15.44: sequence onboarding from wizard completion`
 
+### P15.45 — Remove host dots from Manage Servers
+
+- **Status:** awaiting verification
+- **Files:** `clients/desktop-web/src/lib/sections/fleet/ManageSheet.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Hide the status circles beside host names in Manage Servers while keeping the host names, their status colors, server counts, and host actions unchanged.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** AH — Manage Servers presentation
+- **Commit:** `P15.45: remove host dots from Manage Servers`
+
 ## Proposed Phase 14 — operational refinements
 
 This phase turns the issues reported from real use into four bounded areas:

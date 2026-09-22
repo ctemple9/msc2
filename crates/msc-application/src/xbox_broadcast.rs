@@ -154,6 +154,13 @@ impl<'a> XboxBroadcastService<'a> {
         if !self.enabled {
             return Err(XboxBroadcastError::Disabled);
         }
+        if matches!(self.snapshot.status, HelperStatus::Stopped)
+            && let Some(operation_id) = self.active_operation.take()
+        {
+            self.operations
+                .cancel(&operation_id, "Previous Xbox Broadcast start ended.")
+                .map_err(|error| XboxBroadcastError::Operation(error.to_string()))?;
+        }
         let key = self.key();
         let operation_id = self
             .operations
@@ -297,6 +304,11 @@ impl<'a> XboxBroadcastService<'a> {
             .force_terminate(&self.key())
             .map_err(map_process_error)?;
         self.snapshot = HelperSnapshot::stopped();
+        if let Some(operation_id) = self.active_operation.take() {
+            self.operations
+                .cancel(&operation_id, "Xbox Broadcast stopped.")
+                .map_err(|error| XboxBroadcastError::Operation(error.to_string()))?;
+        }
         Ok(())
     }
 

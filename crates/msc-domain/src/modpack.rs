@@ -161,6 +161,31 @@ fn modrinth_project_id_from_url(url: &str) -> Option<String> {
 
 // --- Modpack metadata policy ---
 
+/// The source identity of a pack import. Missing fields stay absent: the
+/// installed component list is not reliable evidence for reconstructing them.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ModpackIdentity {
+    pub name: Option<String>,
+    pub provider: Option<String>,
+    pub version: Option<String>,
+}
+
+impl ModpackIdentity {
+    pub fn source(provider: &str, name: Option<&str>, version: Option<&str>) -> Self {
+        fn available(value: Option<&str>) -> Option<String> {
+            value
+                .filter(|value| !value.trim().is_empty())
+                .map(str::to_string)
+        }
+
+        Self {
+            name: available(name),
+            provider: available(Some(provider)),
+            version: available(version),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AddonMutationKind {
     Install,

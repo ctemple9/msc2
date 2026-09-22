@@ -73,6 +73,9 @@ pub async fn list(State(state): State<LifecycleRoutesState>) -> Json<Vec<ServerD
                 directory: server.directory,
                 server_type: server.server_type,
                 notes: server.notes,
+                modpack_identity: server
+                    .modpack_identity
+                    .map(crate::routes::lifecycle::modpack_identity_dto),
                 java_flavor: server.java_flavor,
                 game_port: server.game_port,
                 bedrock_port: server.bedrock_port,

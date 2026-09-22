@@ -758,7 +758,7 @@ Content format (Markdown with front-matter is the obvious candidate) · embedded
 
 ---
 
-## 20. World packs and modpack identity (Phase 15, Proposed)
+## 20. World packs and modpack identity (Phase 15, Proposed; D-030 Approved)
 
 World packs are scoped to a world slot. Java datapacks live with their Java
 world; Bedrock behavior packs are also world-scoped in MSC, even where BDS
@@ -789,5 +789,6 @@ Concrete routes and DTOs are to be frozen before implementation rather than
 assumed here. The traceability table and source map are maintained in
 `docs/msc2/capabilities/phase15-world-packs.md`.
 
-This contract is **Proposed** and does not promote D-030. Cameron must confirm
-the world-profile ownership boundary before P15.24–P15.28 implementation starts.
+The world-profile ownership boundary is approved under D-030. The remaining
+Phase 15 pack-provider and lifecycle contract in this section remains
+**Proposed**.

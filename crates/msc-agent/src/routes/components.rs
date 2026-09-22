@@ -568,6 +568,7 @@ fn set_pack_metadata(
     server_id: &str,
     pack_name: &str,
     pack_version: &str,
+    identity: msc_domain::modpack::ModpackIdentity,
 ) -> Result<(), String> {
     state
         .try_mutate_config(|config| {
@@ -579,6 +580,7 @@ fn set_pack_metadata(
             server.pack_managed = true;
             server.pack_name = Some(pack_name.to_string());
             server.pack_version = Some(pack_version.to_string());
+            server.modpack_identity = Some(identity);
             Ok::<(), ()>(())
         })
         .map_err(|_: TryMutateError<()>| "Could not persist pack metadata.".to_string())
@@ -797,6 +799,7 @@ pub async fn get_addons(
             server_supports_addons: false,
             pack_managed: None,
             pack_name: None,
+            modpack_identity: None,
             check_addon_updates: None,
             note: Some("No active server.".to_string()),
         })
@@ -809,6 +812,10 @@ pub async fn get_addons(
             server_supports_addons: false,
             pack_managed: Some(server.pack_managed),
             pack_name: server.pack_name.clone(),
+            modpack_identity: server
+                .modpack_identity
+                .clone()
+                .map(crate::routes::lifecycle::modpack_identity_dto),
             check_addon_updates: Some(server.check_addon_updates),
             note: Some("This server flavor has no add-ons.".to_string()),
         })
@@ -876,6 +883,9 @@ pub async fn get_addons(
         server_supports_addons: true,
         pack_managed: Some(server.pack_managed),
         pack_name: server.pack_name,
+        modpack_identity: server
+            .modpack_identity
+            .map(crate::routes::lifecycle::modpack_identity_dto),
         check_addon_updates: Some(server.check_addon_updates),
         note: None,
     })
@@ -2124,6 +2134,7 @@ pub async fn import_modpack(
         Err(error) => return crate::routes::operations::operation_error_response(error),
     };
 
+    let identity = modpacks::source_identity(&inspection.format);
     let result = match &inspection.format {
         modpacks::InspectedFormat::Mrpack(manifest) => modpacks::import_mrpack(
             &transport,
@@ -2139,12 +2150,15 @@ pub async fn import_modpack(
         )
         .map_err(|error| error.to_string())
         .and_then(|report| {
-            set_pack_metadata(
-                &state.lifecycle,
-                &server.id,
-                &report.pack_name,
-                &report.pack_version,
-            )?;
+            if let Some(identity) = identity.clone() {
+                set_pack_metadata(
+                    &state.lifecycle,
+                    &server.id,
+                    &report.pack_name,
+                    &report.pack_version,
+                    identity,
+                )?;
+            }
             Ok(report)
         })
         .map(|report| {
@@ -2170,12 +2184,15 @@ pub async fn import_modpack(
         .map_err(|error| error.to_string())
         .and_then(|report| {
             let unresolved_files = report.unresolved_files.clone();
-            set_pack_metadata(
-                &state.lifecycle,
-                &server.id,
-                &report.pack_name,
-                &report.pack_version,
-            )?;
+            if let Some(identity) = identity.clone() {
+                set_pack_metadata(
+                    &state.lifecycle,
+                    &server.id,
+                    &report.pack_name,
+                    &report.pack_version,
+                    identity,
+                )?;
+            }
             Ok((
                 unresolved_files,
                 report.pack_name,

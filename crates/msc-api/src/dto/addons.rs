@@ -91,6 +91,8 @@ pub struct AddonsResponseDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pack_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modpack_identity: Option<super::lifecycle::ModpackIdentityDto>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub check_addon_updates: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,

@@ -29,6 +29,7 @@
 //! round-trips through MSC 2 untouched rather than being silently dropped.
 
 use crate::identity::{JavaServerFlavor, ServerType};
+use crate::modpack::ModpackIdentity;
 use serde_json::{Map, Value};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
@@ -518,6 +519,7 @@ pub struct ConfigServer {
     pub pack_managed: bool,
     pub pack_name: Option<String>,
     pub pack_version: Option<String>,
+    pub modpack_identity: Option<ModpackIdentity>,
 }
 
 impl ConfigServer {
@@ -587,6 +589,7 @@ impl ConfigServer {
             pack_managed: false,
             pack_name: None,
             pack_version: None,
+            modpack_identity: None,
         }
     }
 
@@ -695,6 +698,22 @@ impl ConfigServer {
         let pack_managed = opt_bool(v, "pack_managed", false)?;
         let pack_name = opt_str(v, "pack_name")?;
         let pack_version = opt_str(v, "pack_version")?;
+        let modpack_identity = match present(v, "modpack_identity") {
+            Some(Value::Object(identity)) => Some(ModpackIdentity {
+                name: opt_str(&Value::Object(identity.clone()), "name")?,
+                provider: opt_str(&Value::Object(identity.clone()), "provider")?,
+                version: opt_str(&Value::Object(identity.clone()), "version")?,
+            }),
+            Some(_) => return Err(err("field \"modpack_identity\" is not an object")),
+            None if pack_managed => Some(ModpackIdentity {
+                name: pack_name.clone().filter(|name| !name.trim().is_empty()),
+                provider: None,
+                version: pack_version
+                    .clone()
+                    .filter(|version| !version.trim().is_empty()),
+            }),
+            None => None,
+        };
 
         Ok(Self {
             id,
@@ -743,6 +762,7 @@ impl ConfigServer {
             pack_managed,
             pack_name,
             pack_version,
+            modpack_identity,
         })
     }
 
@@ -879,6 +899,13 @@ impl ConfigServer {
         m.insert("pack_managed".into(), Value::Bool(self.pack_managed));
         insert_opt_str(&mut m, "pack_name", &self.pack_name);
         insert_opt_str(&mut m, "pack_version", &self.pack_version);
+        if let Some(identity) = &self.modpack_identity {
+            let mut encoded = Map::new();
+            insert_opt_str(&mut encoded, "name", &identity.name);
+            insert_opt_str(&mut encoded, "provider", &identity.provider);
+            insert_opt_str(&mut encoded, "version", &identity.version);
+            m.insert("modpack_identity".into(), Value::Object(encoded));
+        }
 
         Value::Object(m)
     }

@@ -1,6 +1,6 @@
 # MSC 2 — Decision Register
 
-**Revision:** 1.19 · **Date:** 2026-09-21
+**Revision:** 1.20 · **Date:** 2026-09-21
 **Owner:** Cameron Temple
 
 **Purpose:** the authoritative record of *what was decided, by whom, and why*. The product and engineering documents describe the destination; this document explains how it was chosen, what was rejected, and when a decision should be reopened.
@@ -58,7 +58,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 | D-027 | The CurseForge manual-download workflow has no home once agent and client are different machines | Open | — |
 | D-028 | Bedrock macOS support is Intel-only for Phase 10; Apple Silicon is deferred | **Approved** | 2026-08-22 |
 | D-029 | Reset this client is separate from reset this host | **Approved** | 2026-08-28 |
-| D-030 | World-local settings travel with slots; runtime policy stays server-owned | Proposed | — |
+| D-030 | World-local settings travel with slots; runtime policy stays server-owned | **Approved** | 2026-09-21 |
 | D-032 | Signed application manifests gate local MSC updates | **Approved** | 2026-09-07 |
 | D-033 | Native iOS and supported mobile access retired from v1 | **Approved** | 2026-09-07 |
 | D-034 | Full-screen terminal UI retired from MSC 2 | **Approved** | 2026-09-07 |
@@ -765,7 +765,7 @@ The HTTP route never installs or uninstalls an operating-system service. A local
 
 ## D-030 — World-local settings travel with slots; runtime policy stays server-owned
 
-**Status:** Proposed · **Origin:** P12.23 contract freeze and MSC 1 runtime/storage audit · **Approved by:** — · **Date:** 2026-08-28
+**Status:** Approved · **Origin:** P12.23 contract freeze and MSC 1 runtime/storage audit · **Approved by:** Cameron Temple · **Date:** 2026-09-21
 
 **Context.** MSC 1 places world values and server values in the same
 `server.properties` editor. That presentation is convenient, but it is not a
@@ -832,9 +832,9 @@ server-owned source metadata, separate from the installed component inventory.
 MSC never infers that identity from installed files. Client-only packs and a
 separate Bedrock resource-pack browser are out of scope. Enable, disable,
 update, and remove are later controls unless Phase 15 acceptance evidence shows
-one is needed for a usable first release. This contract remains **Proposed**
-until the owner confirms the world-profile ownership boundary; P15.24–P15.28
-must not begin before that confirmation.
+one is needed for a usable first release. The world-profile ownership boundary
+above is owner-confirmed. The remaining Phase 15 world-pack contract stays
+**Proposed** until separately approved.
 
 The capability/API boundary is host-agent-owned: world-slot pack operations
 belong under the Worlds API and use the selected slot ID; backups and transfer
@@ -1131,6 +1131,7 @@ Recorded because each produced a confident wrong answer, and each is the kind of
 
 | Rev | Date | Change |
 |---|---|---|
+| 1.20 | 2026-09-21 | Recorded Cameron's approval of D-030's world-profile ownership boundary. |
 | 1.19 | 2026-09-21 | Recorded the proposed Phase 15 world-pack and modpack-identity contract and its D-030 approval gate. |
 | 1.18 | 2026-09-11 | Simplified the guided SSH trust flow: first connection remembers the remote identity without displaying its fingerprint; changed identities remain blocked until explicitly trusted, without showing key values. |
 | 1.17 | 2026-09-11 | Recorded the P14.19 gate handoff contract: backup and helper output join monitoring traffic for console-retention purposes, and static evidence does not close the phase gate without live Minecraft, OS-install, and retained-client verification. |

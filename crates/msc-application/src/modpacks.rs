@@ -140,6 +140,25 @@ pub enum InspectedFormat {
     },
 }
 
+/// Capture source identity from the archive manifest itself. Reports may
+/// contain fallback display text, which is useful to the UI but is not
+/// evidence that the manifest supplied a name or version.
+pub fn source_identity(format: &InspectedFormat) -> Option<modpack::ModpackIdentity> {
+    match format {
+        InspectedFormat::Mrpack(manifest) => Some(modpack::ModpackIdentity::source(
+            "modrinth",
+            Some(&manifest.name),
+            Some(&manifest.version_id),
+        )),
+        InspectedFormat::CurseForge(metadata) => Some(modpack::ModpackIdentity::source(
+            "curseforge",
+            Some(&metadata.name),
+            Some(&metadata.version_id),
+        )),
+        InspectedFormat::PlainJarZip { .. } => None,
+    }
+}
+
 #[derive(Debug)]
 pub struct ModpackInspection {
     pub format: InspectedFormat,

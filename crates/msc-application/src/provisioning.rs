@@ -1884,6 +1884,7 @@ pub fn create_server_from_pack(
         created.config.pack_managed = true;
         created.config.pack_name = Some(pack_name);
         created.config.pack_version = Some(pack_version);
+        created.config.modpack_identity = modpacks::source_identity(&inspection.format);
 
         Ok(CreatedFromPack {
             created,

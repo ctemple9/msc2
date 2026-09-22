@@ -9907,6 +9907,10 @@
             "type": "string",
             "description": "Agent-owned Overview notes for this server."
           },
+          "modpackIdentity": {
+            "$ref": "#/components/schemas/ModpackIdentityDTO",
+            "description": "Source manifest identity for servers created from or imported from a recognized modpack. Missing fields remain absent."
+          },
           "serverType": {
             "type": "string"
           },
@@ -9946,6 +9950,15 @@
           "directory",
           "serverType"
         ]
+      },
+      "ModpackIdentityDTO": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "provider": { "type": "string" },
+          "version": { "type": "string" }
+        },
+        "description": "Source identity read from a recognized modpack manifest. Unknown or missing manifest values are omitted; component files are never used to infer identity."
       },
       "ServerNotesRequestDTO": {
         "type": "object",
@@ -10445,6 +10458,9 @@
           },
           "packName": {
             "type": "string"
+          },
+          "modpackIdentity": {
+            "$ref": "#/components/schemas/ModpackIdentityDTO"
           },
           "checkAddonUpdates": {
             "type": "boolean"

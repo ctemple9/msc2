@@ -2636,12 +2636,23 @@ pub struct RegisteredServerDtoParts {
     pub directory: String,
     pub server_type: String,
     pub notes: String,
+    pub modpack_identity: Option<msc_domain::modpack::ModpackIdentity>,
     pub java_flavor: Option<String>,
     pub game_port: Option<i64>,
     pub bedrock_port: Option<i64>,
     pub first_start_required: bool,
     pub playit_enabled: bool,
     pub xbox_broadcast_enabled: bool,
+}
+
+pub fn modpack_identity_dto(
+    identity: msc_domain::modpack::ModpackIdentity,
+) -> msc_api::dto::ModpackIdentityDto {
+    msc_api::dto::ModpackIdentityDto {
+        name: identity.name,
+        provider: identity.provider,
+        version: identity.version,
+    }
 }
 
 pub async fn start(
@@ -3039,6 +3050,7 @@ impl AgentServerRegistry {
                 directory: server.server_dir.clone(),
                 server_type: server.server_type.raw_value().to_string(),
                 notes: server.notes.clone(),
+                modpack_identity: server.modpack_identity.clone(),
                 java_flavor: (server.server_type == ServerType::Java)
                     .then(|| server.java_flavor.raw_value().to_string()),
                 game_port: if server.server_type == ServerType::Java {

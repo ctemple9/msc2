@@ -5,6 +5,17 @@ use std::collections::HashMap;
 use super::BedrockRuntimeStateDto;
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModpackIdentityDto {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+}
+
 /// `ServerImportRequestDTO`'s frozen shape (`docs/msc2/api-contract/openapi.json`).
 /// `action` preserves the real values
 /// `scan|importExisting|importTransfer|rescan`; `importKind` preserves
@@ -133,6 +144,8 @@ pub struct ServerDto {
     /// client sees the same Overview text.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub notes: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modpack_identity: Option<ModpackIdentityDto>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub java_flavor: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -669,10 +669,19 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 
 - **Status:** awaiting verification
 - **Files:** `docs/msc2/msc2-decisions.md`, `docs/msc2/msc2-engineering.md`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
-- **What:** Map each requirement to its owner, API boundary, source files, and acceptance evidence in `docs/msc2/capabilities/phase15-world-packs.md`. Record that datapacks and behavior packs belong to a world slot, identify how slot activation, duplication, backup, restore, export, and import preserve pack state, define server-owned modpack identity and the no-guessing behavior, set Modrinth as the first Java datapack provider, and record the Bedrock rule for bundled linked resource packs. Keep D-030 Proposed unless Cameron confirms its world-profile ownership contract; do not begin P15.24–P15.28 until that boundary is confirmed. Explicitly keep client-only packs and separate Bedrock resource-pack browsing out of scope, and identify enable/disable/update/remove as later controls unless the acceptance map shows they are required for the first usable release.
+- **What:** Map each requirement to its owner, API boundary, source files, and acceptance evidence in `docs/msc2/capabilities/phase15-world-packs.md`. Record that datapacks and behavior packs belong to a world slot, identify how slot activation, duplication, backup, restore, export, and import preserve pack state, define server-owned modpack identity and the no-guessing behavior, set Modrinth as the first Java datapack provider, and record the Bedrock rule for bundled linked resource packs. D-030 is now owner-confirmed; the remaining Phase 15 pack contract stays proposed. Explicitly keep client-only packs and separate Bedrock resource-pack browsing out of scope, and identify enable/disable/update/remove as later controls unless the acceptance map shows they are required for the first usable release.
 - **Verify:** `rg -n "world slot|Modrinth|linked resource pack|modpack identity|D-030|enable|disable|update|remove" docs/msc2/capabilities/phase15-world-packs.md docs/msc2/msc2-decisions.md docs/msc2/msc2-engineering.md`
 - **Batch:** L — world-pack contract and acceptance map
 - **Commit:** `P15.23: define world-pack contracts`
+
+### P15.24 — Persist modpack identity with the server
+
+- **Status:** awaiting verification
+- **Files:** `crates/msc-domain/src/modpack.rs`, `crates/msc-domain/src/app_config_schema.rs`, `crates/msc-infrastructure/src/config_repository.rs`, `crates/msc-application/src/modpacks.rs`, `crates/msc-application/src/provisioning.rs`, `crates/msc-api/src/dto/lifecycle.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/components.rs`, `docs/msc2/api-contract/openapi.json`, `clients/desktop-web/src/lib/api/generated.ts`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/msc2-decisions.md`, `docs/msc2/msc2-engineering.md`
+- **What:** Preserve the source pack name, provider, and imported version as server-owned metadata for servers created or imported from a modpack. Expose that metadata through the API, keep it with the server through ordinary server operations, and represent unavailable source metadata honestly. Do not infer pack identity from the installed component list; ordinary servers remain without a modpack identity.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-domain -p msc-application -p msc-agent && cargo clippy -p msc-domain -p msc-application -p msc-agent -- -D warnings`
+- **Batch:** M — modpack identity
+- **Commit:** `P15.24: persist modpack source identity`
 
 ## Proposed Phase 14 — operational refinements
 

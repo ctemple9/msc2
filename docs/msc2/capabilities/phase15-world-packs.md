@@ -1,11 +1,12 @@
 # Phase 15 — World packs and modpack identity
 
-**Step:** P15.23 · **Status:** awaiting owner confirmation of D-030 · **Date:** 2026-09-21
+**Step:** P15.23 · **Status:** D-030 confirmed; acceptance map awaiting verification · **Date:** 2026-09-21
 
 This is the contract and acceptance map for P15.24–P15.29. It records the
 Phase 15 scope approved in Cameron's 2026-09-20 recap. The detailed world-slot
-ownership rule remains **Proposed** under D-030. No backend implementation
-step in this workstream starts until Cameron confirms that boundary.
+ownership rule is **Approved** under D-030. The remaining world-pack
+implementation contract stays **Proposed** pending acceptance evidence and
+separate review.
 
 ## Ownership and API boundary
 
@@ -19,11 +20,9 @@ step in this workstream starts until Cameron confirms that boundary.
 
 ## Contract decisions
 
-- **D-030 remains Proposed.** The owner has not confirmed that each slot owns a
-  versioned world profile. This map uses slot ownership for packs as the
-  proposed implementation contract, pending that confirmation. P15.24–P15.28
-  are blocked at this boundary; documentation and source inspection may
-  continue.
+- **D-030 is Approved.** Cameron confirmed that each slot owns a versioned
+  world profile. The remaining pack-provider and lifecycle details in this
+  map stay Proposed pending acceptance evidence and separate review.
 - **Java provider:** Modrinth is the first datapack catalog. Provider records
   retain project/source, version, and checksum when available.
 - **Bedrock dependency:** install a linked resource pack only when it is

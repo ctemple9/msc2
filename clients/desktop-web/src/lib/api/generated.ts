@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 83328bce6d573b271702a976c7bc9159c714e4f857c1a2b670fb6be3daa1c52b
+// Contract SHA-256: ae2baf2a93c51653c573e354f91c201c0b39246bf6b55cd8f8aa57277b6cc2f2
 
 export interface paths {
   '/v1/active-server': {
@@ -6250,6 +6250,7 @@ export interface components {
       addons: components['schemas']['AddonItemDTO'][];
       checkAddonUpdates?: boolean;
       isResolving: boolean;
+      modpackIdentity?: components['schemas']['ModpackIdentityDTO'];
       /** @description Set when a provider was unreachable during this resolve pass (provider_unavailable) -- addons still reflect last-known persisted state, not a fabricated fresh result. */
       note?: string;
       packManaged: boolean;
@@ -7114,6 +7115,14 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    /** @description Source identity read from a recognized modpack manifest. Unknown or missing manifest values are omitted; component files are never used to infer identity. */
+    ModpackIdentityDTO: {
+      name?: string;
+      provider?: string;
+      version?: string;
+    } & {
+      [key: string]: unknown;
+    };
     ModpackImportRequestDTO: {
       /**
        * @description import: the active server is not yet pack-managed. replace: an explicit whole-pack replacement of an already pack-managed server. Sending import against an already pack-managed server, or replace against one that isn't, is refused as ambiguous (409 conflict) -- the client must know and say which case this is, never guessed server-side.
@@ -7896,6 +7905,8 @@ export interface components {
       hostAddress?: string;
       id: string;
       javaFlavor?: string;
+      /** @description Source manifest identity for servers created from or imported from a recognized modpack. Missing fields remain absent. */
+      modpackIdentity?: components['schemas']['ModpackIdentityDTO'];
       name: string;
       /** @description Agent-owned Overview notes for this server. */
       notes?: string;

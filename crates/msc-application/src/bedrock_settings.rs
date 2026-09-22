@@ -70,6 +70,33 @@ pub fn load(fs: &dyn FileSystem, server_dir: &Path) -> BedrockSettings {
     }
 }
 
+/// Ensure Bedrock uses the transport supported by current dedicated-server
+/// releases before the executable is started. The update is idempotent and
+/// keeps every other property, including keys MSC does not understand.
+pub fn ensure_nethernet_transport(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+) -> Result<bool, BedrockSettingsError> {
+    let current = load(fs, server_dir);
+    let already_configured = current
+        .raw
+        .get("transport")
+        .is_some_and(|value| value.trim().eq_ignore_ascii_case("nethernet"));
+    if already_configured {
+        return Ok(false);
+    }
+
+    let mut raw = current.raw;
+    raw.insert("transport".to_string(), "nethernet".to_string());
+    atomic_write(
+        fs,
+        &server_dir.join(PROPERTIES_FILE),
+        render_raw_properties(&raw).as_bytes(),
+    )
+    .map_err(|error| BedrockSettingsError::AtomicWrite(error.to_string()))?;
+    Ok(true)
+}
+
 /// Validate and apply a sparse update. Invalid fields are rejected without
 /// changing the candidate, so a mixed request can safely save only its valid
 /// subset while retaining the prior file for every rejected value.

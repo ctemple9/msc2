@@ -2149,16 +2149,30 @@ impl LifecycleRoutesState {
             "Starting Bedrock server.",
         )?;
         let memory_gb = active.max_ram_gb.max(1.0).ceil() as u32;
-        let result = self.provision_bedrock_server(&active).and_then(|()| {
-            self.inner.bedrock_runtime.start(BedrockStartRequest {
-                memory_gb,
-                bedrock_port: active
-                    .bedrock_port
-                    .unwrap_or(19132)
-                    .try_into()
-                    .unwrap_or(19132),
+        let result = self
+            .provision_bedrock_server(&active)
+            .and_then(|()| {
+                msc_application::bedrock_settings::ensure_nethernet_transport(
+                    &StdFileSystem,
+                    Path::new(&active.server_dir),
+                )
+                .map(|_| ())
+                .map_err(|error| {
+                    BedrockRuntimeError::Provisioning(format!(
+                        "could not configure Bedrock transport: {error}"
+                    ))
+                })
             })
-        });
+            .and_then(|()| {
+                self.inner.bedrock_runtime.start(BedrockStartRequest {
+                    memory_gb,
+                    bedrock_port: active
+                        .bedrock_port
+                        .unwrap_or(19132)
+                        .try_into()
+                        .unwrap_or(19132),
+                })
+            });
         if let Err(error) = result {
             let message = error.to_string();
             msc_application::diagnostics::record_startup_failure(

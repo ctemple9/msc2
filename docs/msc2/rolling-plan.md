@@ -1013,6 +1013,15 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Batch:** AY — Xbox Broadcast target correction
 - **Commit:** `P15.61: target Xbox Broadcast at the selected server`
 
+### P15.62 — Normalize the Bedrock transport before startup
+
+- **Status:** awaiting verification
+- **Files:** `crates/msc-application/src/bedrock_settings.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Before every MSC-managed Bedrock start, preserve the existing `server.properties` keys and ensure `transport=nethernet`. The update is idempotent, applies to imported and provisioned servers, and fails the start with a clear provisioning error if the file cannot be written. This addresses current Bedrock releases that reject the legacy transport and prevents the setting from being lost on future restarts.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-agent`
+- **Batch:** N — Bedrock transport startup repair
+- **Commit:** `P15.62: normalize Bedrock transport before startup`
+
 ## Proposed Phase 14 — operational refinements
 
 This phase turns the issues reported from real use into four bounded areas:

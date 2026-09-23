@@ -2155,10 +2155,11 @@ impl LifecycleRoutesState {
                 let server_dir = Path::new(&active.server_dir);
                 let transport_result = match self.inner.bedrock_runtime.backend() {
                     Some(BedrockRuntimeBackend::Sidecar) => {
-                        // BDS permits one advertised IP for a NetherNet UDP
-                        // range. Prefer the public address so both forwarded
-                        // and router-hairpin clients receive the same ICE
-                        // candidate, then fall back to LAN-only operation.
+                        // BDS permits one advertised IP for the NetherNet UDP
+                        // mappings. Prefer the public address so both
+                        // forwarded and router-hairpin clients receive the
+                        // same ICE candidate, then fall back to LAN-only
+                        // operation.
                         let advertised_addresses =
                             msc_infrastructure::public_ip::detect(Duration::from_secs(2))
                                 .or_else(crate::help::detect_local_ip)

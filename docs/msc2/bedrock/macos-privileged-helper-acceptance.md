@@ -70,3 +70,19 @@ server is ready.` The exact inspector command above reported `17 passed, 0
 failed`: the helper log contains `Server started`, TCP `19001` returned BDS's
 `HTTP/1.1 404 Not Found`, UDP `19002-19033` were all bound, no rollback was
 present, and only the launchd-managed root helper process remained.
+
+## P15.76 — explicit NetherNet mappings
+
+The sidecar's 32 BDS UDP relays remain the bounded range immediately after the
+TCP signaling port. MSC now writes that range as individual public-to-private
+mappings rather than BDS range shorthand. For the installed acceptance port
+`19001`, the property must therefore enumerate public and private ports
+`19002` through `19033` one at a time, for example
+`PUBLIC_IP:19002:19002,...,PUBLIC_IP:19033:19033`. Xbox Broadcast retains its
+separate UDP `19034-19049` ICE range.
+
+The agent requires exactly one valid advertised IP address (public discovery,
+with the existing LAN fallback) and validates the final `server-udp-ports`
+value against the 32 relay listeners before BDS starts. This static correction
+does not claim the remote-player or Xbox Broadcast acceptance that belongs to
+P15.77.

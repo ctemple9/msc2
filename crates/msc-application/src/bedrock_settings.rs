@@ -40,6 +40,7 @@ pub enum BedrockSettingsError {
     Io(io::Error),
     AtomicWrite(String),
     InvalidPort(String),
+    InvalidNethernetMapping(String),
 }
 
 impl fmt::Display for BedrockSettingsError {
@@ -48,6 +49,7 @@ impl fmt::Display for BedrockSettingsError {
             Self::Io(error) => write!(f, "{error}"),
             Self::AtomicWrite(error) => write!(f, "{error}"),
             Self::InvalidPort(error) => write!(f, "{error}"),
+            Self::InvalidNethernetMapping(error) => write!(f, "{error}"),
         }
     }
 }
@@ -76,38 +78,36 @@ pub const NETHERNET_UDP_PORT_COUNT: u16 = 32;
 
 /// Configure the macOS VM for NetherNet's TCP signaling socket and bounded
 /// UDP gameplay range. Advertised addresses name the host-side relays rather
-/// than the guest's private VZ address.
+/// than the guest's private VZ address. BDS 1.26.51 is more reliable when the
+/// NAT mapping is enumerated one port at a time instead of using range syntax.
 pub fn ensure_sidecar_nethernet_transport(
     fs: &dyn FileSystem,
     server_dir: &Path,
     server_port: u16,
     advertised_addresses: &[String],
 ) -> Result<bool, BedrockSettingsError> {
-    let (udp_start, udp_end) = nethernet_udp_port_range(server_port).ok_or_else(|| {
-        BedrockSettingsError::InvalidPort(format!(
-            "port {server_port} leaves no room for the NetherNet UDP relay range"
-        ))
-    })?;
-    let range = format!("{udp_start}-{udp_end}");
-    let mappings = advertised_addresses
-        .iter()
-        .filter_map(|address| address.parse::<std::net::IpAddr>().ok())
-        .map(|address| match address {
-            std::net::IpAddr::V4(address) => format!("{address}:{range}:{range}"),
-            std::net::IpAddr::V6(address) => format!("[{address}]:{range}:{range}"),
-        })
-        .collect::<Vec<_>>();
-    let udp_ports = if mappings.is_empty() {
-        range
-    } else {
-        mappings.join(",")
-    };
+    let address = parse_advertised_address(advertised_addresses)?;
+    let udp_ports = render_nethernet_udp_mappings(server_port, address)?;
+    validate_nethernet_udp_mappings(&udp_ports, server_port, address)?;
 
-    ensure_properties(
+    let changed = ensure_properties(
         fs,
         server_dir,
         &[("transport", "nethernet"), ("server-udp-ports", &udp_ports)],
-    )
+    )?;
+
+    let configured = load(fs, server_dir)
+        .raw
+        .get("server-udp-ports")
+        .cloned()
+        .ok_or_else(|| {
+            BedrockSettingsError::InvalidNethernetMapping(
+                "Bedrock server.properties is missing server-udp-ports after NetherNet configuration"
+                    .to_owned(),
+            )
+        })?;
+    validate_nethernet_udp_mappings(&configured, server_port, address)?;
+    Ok(changed)
 }
 
 /// Keep native Linux and Windows BDS installations on their supported
@@ -129,6 +129,75 @@ pub fn nethernet_udp_port_range(server_port: u16) -> Option<(u16, u16)> {
     }
 }
 
+fn parse_advertised_address(
+    advertised_addresses: &[String],
+) -> Result<std::net::IpAddr, BedrockSettingsError> {
+    let [address] = advertised_addresses else {
+        return Err(BedrockSettingsError::InvalidNethernetMapping(format!(
+            "NetherNet requires exactly one public or LAN advertised IP address; discovered {}",
+            advertised_addresses.len()
+        )));
+    };
+    let address = address.trim().parse::<std::net::IpAddr>().map_err(|_| {
+        BedrockSettingsError::InvalidNethernetMapping(format!(
+            "NetherNet advertised address is not a valid IP address: {address:?}"
+        ))
+    })?;
+    if address.is_unspecified() {
+        return Err(BedrockSettingsError::InvalidNethernetMapping(
+            "NetherNet advertised address cannot be an unspecified address".to_owned(),
+        ));
+    }
+    Ok(address)
+}
+
+fn render_nethernet_udp_mappings(
+    server_port: u16,
+    address: std::net::IpAddr,
+) -> Result<String, BedrockSettingsError> {
+    let (udp_start, udp_end) = nethernet_udp_port_range(server_port).ok_or_else(|| {
+        BedrockSettingsError::InvalidPort(format!(
+            "port {server_port} leaves no room for the NetherNet UDP relay range"
+        ))
+    })?;
+    if server_port == 0 {
+        return Err(BedrockSettingsError::InvalidPort(
+            "NetherNet signaling port must be between 1 and 65535".to_owned(),
+        ));
+    }
+
+    let mappings = (udp_start..=udp_end)
+        .map(|port| match address {
+            std::net::IpAddr::V4(address) => format!("{address}:{port}:{port}"),
+            std::net::IpAddr::V6(address) => format!("[{address}]:{port}:{port}"),
+        })
+        .collect::<Vec<_>>();
+    Ok(mappings.join(","))
+}
+
+fn validate_nethernet_udp_mappings(
+    configured: &str,
+    server_port: u16,
+    address: std::net::IpAddr,
+) -> Result<(), BedrockSettingsError> {
+    let expected = render_nethernet_udp_mappings(server_port, address)?;
+    let mapping_count = configured
+        .split(',')
+        .filter(|mapping| !mapping.trim().is_empty())
+        .count();
+    if mapping_count != usize::from(NETHERNET_UDP_PORT_COUNT) || configured != expected {
+        let (udp_start, udp_end) = nethernet_udp_port_range(server_port).ok_or_else(|| {
+            BedrockSettingsError::InvalidPort(format!(
+                "port {server_port} leaves no room for the NetherNet UDP relay range"
+            ))
+        })?;
+        return Err(BedrockSettingsError::InvalidNethernetMapping(format!(
+            "server-udp-ports must contain {NETHERNET_UDP_PORT_COUNT} individual public-to-private mappings for {address} covering UDP {udp_start}-{udp_end}; found {mapping_count} mappings"
+        )));
+    }
+    Ok(())
+}
+
 fn ensure_properties(
     fs: &dyn FileSystem,
     server_dir: &Path,
@@ -136,10 +205,13 @@ fn ensure_properties(
 ) -> Result<bool, BedrockSettingsError> {
     let current = load(fs, server_dir);
     let already_configured = expected.iter().all(|(key, expected_value)| {
-        current
-            .raw
-            .get(*key)
-            .is_some_and(|value| value.trim().eq_ignore_ascii_case(expected_value))
+        current.raw.get(*key).is_some_and(|value| {
+            if *key == "server-udp-ports" {
+                value == *expected_value
+            } else {
+                value.trim().eq_ignore_ascii_case(expected_value)
+            }
+        })
     });
     if already_configured {
         return Ok(false);

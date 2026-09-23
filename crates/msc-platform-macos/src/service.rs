@@ -15,7 +15,7 @@ use msc_infrastructure::service::{
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -24,6 +24,12 @@ use security_framework::os::macos::code_signing::{
 };
 
 const EXPECTED_PORT_ENV: &str = "MSC2_EXPECTED_PORT";
+pub const BEDROCK_HELPER_SERVICE_NAME: &str = "com.ctemple.msc2.bedrock-helper";
+pub const BEDROCK_HELPER_SOCKET_PATH: &str = "/var/run/msc2/bedrock.sock";
+const BEDROCK_HELPER_INSTALL_ROOT: &str = "/Library/Application Support/MSC 2/bedrock-helper";
+const BEDROCK_HELPER_RUNTIME_ROOT: &str = "/var/run/msc2";
+const BEDROCK_HELPER_PLIST_TEMPLATE: &str =
+    include_str!("../../../packaging/macos/com.ctemple.msc2.bedrock-helper.plist.in");
 
 /// The installation key lives as a plain 0600 file next to the rest of the
 /// secret store's encrypted files, not in the System keychain — see
@@ -35,6 +41,52 @@ pub const LOCAL_BOOTSTRAP_KEY_FILE_NAME: &str = "local-bootstrap.key";
 
 pub fn local_bootstrap_key_path(secrets_dir: &Path) -> PathBuf {
     secrets_dir.join(LOCAL_BOOTSTRAP_KEY_FILE_NAME)
+}
+
+/// Returns the UID that the desktop and agent already use for local MSC data.
+/// The helper receives this numeric identity because it authenticates the
+/// accepted Unix-socket peer by UID, not by a username string supplied over
+/// IPC.
+pub fn installing_user_uid() -> u32 {
+    unsafe { libc::getuid() as u32 }
+}
+
+/// The privileged helper is installed from the signed desktop bundle, but
+/// never executed from that bundle. The administrator transaction copies
+/// these three files into the fixed root-owned installation directory before
+/// launchd is allowed to start the helper.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BedrockHelperInstallRequest {
+    pub helper_binary: PathBuf,
+    pub kernel: PathBuf,
+    pub initramfs: PathBuf,
+    pub allowed_uid: u32,
+    pub approved_roots: Vec<PathBuf>,
+}
+
+impl BedrockHelperInstallRequest {
+    pub fn new(
+        helper_binary: impl Into<PathBuf>,
+        kernel: impl Into<PathBuf>,
+        initramfs: impl Into<PathBuf>,
+        allowed_uid: u32,
+        approved_roots: impl IntoIterator<Item = impl Into<PathBuf>>,
+    ) -> Self {
+        Self {
+            helper_binary: helper_binary.into(),
+            kernel: kernel.into(),
+            initramfs: initramfs.into(),
+            allowed_uid,
+            approved_roots: approved_roots.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BedrockHelperInspection {
+    pub state: ServiceState,
+    pub pid: Option<u32>,
+    pub detail: String,
 }
 
 /// Verifies the live process behind a local socket against the designated
@@ -261,17 +313,15 @@ impl<L: Launchctl> MacosLaunchdServiceManager<L> {
     }
 }
 
-/// Installs and starts the real LaunchDaemon through macOS's administrator
-/// prompt. The desktop process remains unprivileged; only the plist copy and
-/// launchd registration run in the elevated shell. Neither secret this
-/// bootstrap path uses needs privileged provisioning any more (see
-/// `secret_store.rs`'s module doc): the caller is expected to have already
-/// written the installation key file itself, unprivileged, at
-/// `local_bootstrap_key_path` under `MSC2_MACOS_SECRET_STORE_DIR`, before
-/// calling this — checked here so a missing key fails closed with a clear
-/// error instead of installing a service that can never complete bootstrap.
+/// Installs and starts the real LaunchDaemon pair through macOS's
+/// administrator prompt. The desktop process remains unprivileged; only the
+/// plist copies, helper resources, and launchd registration run in the
+/// elevated shell. The helper is optional because Apple Silicon has no
+/// supported Bedrock VM sidecar; when it is absent, any stale helper from an
+/// older Intel installation is removed as part of the same pair transaction.
 pub fn install_and_start_elevated(
     request: ServiceInstallRequest,
+    helper: Option<BedrockHelperInstallRequest>,
 ) -> Result<ServiceStatusReport, ServiceError> {
     let secrets_dir = request
         .environment
@@ -306,18 +356,43 @@ pub fn install_and_start_elevated(
         ))
     })?;
 
-    let destination = shell_quote(&plist_path.display().to_string());
-    let temporary = shell_quote(&temporary_plist.display().to_string());
-    let service_target = shell_quote(&format!("system/{}", request.service_name.as_str()));
-    let command = format!(
-        "if [ -e {destination} ]; then /bin/launchctl bootout system {destination} >/dev/null 2>&1 || true; fi; \
-/usr/bin/install -o root -g wheel -m 644 {temporary} {destination}; \
-/bin/launchctl bootstrap system {destination}; \
-/bin/launchctl kickstart -k {service_target}"
+    let temporary_helper_plist = helper
+        .as_ref()
+        .map(|helper| {
+            let path = std::env::temp_dir().join(format!(
+                "msc2-{}.{}.plist",
+                BEDROCK_HELPER_SERVICE_NAME,
+                std::process::id()
+            ));
+            let plist = render_bedrock_helper_plist(helper)?;
+            fs::write(&path, plist).map_err(|error| {
+                ServiceError::Platform(format!(
+                    "writing temporary Bedrock helper plist {}: {error}",
+                    path.display()
+                ))
+            })?;
+            Ok::<PathBuf, ServiceError>(path)
+        })
+        .transpose()?;
+
+    validate_request(&request)?;
+    if let Some(helper) = helper.as_ref() {
+        validate_helper_request(helper)?;
+    }
+
+    let command = elevated_pair_install_command(
+        &request,
+        &plist_path,
+        &temporary_plist,
+        helper.as_ref(),
+        temporary_helper_plist.as_deref(),
     );
 
     let result = run_as_administrator(&command);
     let _ = fs::remove_file(&temporary_plist);
+    if let Some(path) = temporary_helper_plist {
+        let _ = fs::remove_file(path);
+    }
     result?;
 
     wait_for_service_state(&request.service_name, ServiceState::Running)
@@ -355,6 +430,57 @@ pub fn uninstall_elevated(service_name: &str) -> Result<ServiceStatusReport, Ser
         &msc_infrastructure::service::ServiceName::new(service_name),
         ServiceState::NotInstalled,
     )
+}
+
+/// Reads the helper's ordinary launchd state without asking for an
+/// administrator password. The plist and fixed artifact paths are checked as
+/// well, so the desktop can distinguish "stopped" from an incomplete or
+/// tampered helper installation.
+pub fn inspect_bedrock_helper() -> Result<BedrockHelperInspection, ServiceError> {
+    let plist_path = PathBuf::from(format!(
+        "/Library/LaunchDaemons/{BEDROCK_HELPER_SERVICE_NAME}.plist"
+    ));
+    if !plist_path.is_file() {
+        return Ok(BedrockHelperInspection {
+            state: ServiceState::NotInstalled,
+            pid: None,
+            detail: "The privileged Bedrock helper is not installed.".to_string(),
+        });
+    }
+
+    let artifact_error = inspect_bedrock_helper_artifacts();
+    let launchctl = SystemLaunchctl;
+    let launch_output = match launchctl.print(&service_target(BEDROCK_HELPER_SERVICE_NAME)) {
+        Ok(output) => match parse_pid(&output) {
+            Some(_) => ServiceState::Running,
+            None => ServiceState::Stopped,
+        },
+        Err(ServiceError::Platform(message)) if is_missing_service_output(&message) => {
+            ServiceState::Stopped
+        }
+        Err(error) => return Err(error),
+    };
+    if let Err(error) = artifact_error {
+        return Ok(BedrockHelperInspection {
+            state: ServiceState::Stopped,
+            pid: None,
+            detail: error,
+        });
+    }
+
+    let pid = launchctl
+        .print(&service_target(BEDROCK_HELPER_SERVICE_NAME))
+        .ok()
+        .and_then(|output| parse_pid(&output));
+    Ok(BedrockHelperInspection {
+        state: launch_output,
+        pid,
+        detail: if launch_output == ServiceState::Running {
+            "The privileged Bedrock helper is running as a root LaunchDaemon.".to_string()
+        } else {
+            "The privileged Bedrock helper is installed but stopped.".to_string()
+        },
+    })
 }
 
 fn wait_for_service_state(
@@ -403,15 +529,221 @@ fn shell_quote(value: &str) -> String {
 }
 
 fn elevated_stop_command(service_name: &str) -> String {
-    format!("/bin/launchctl stop {}", shell_quote(service_name))
+    format!(
+        "/bin/launchctl stop {agent}; /bin/launchctl stop {helper} >/dev/null 2>&1 || true",
+        agent = shell_quote(service_name),
+        helper = shell_quote(BEDROCK_HELPER_SERVICE_NAME),
+    )
 }
 
 fn elevated_uninstall_command(service_name: &str) -> String {
     let plist_path = format!("/Library/LaunchDaemons/{service_name}.plist");
+    let helper_plist_path = format!("/Library/LaunchDaemons/{BEDROCK_HELPER_SERVICE_NAME}.plist");
     format!(
-        "if [ -e {path} ]; then /bin/launchctl bootout system {path} >/dev/null 2>&1 || true; /bin/rm -f {path}; fi",
-        path = shell_quote(&plist_path),
+        "if [ -e {agent} ]; then /bin/launchctl bootout system {agent} >/dev/null 2>&1 || true; /bin/rm -f {agent}; fi; \
+if [ -e {helper_plist} ]; then /bin/launchctl bootout system {helper_plist} >/dev/null 2>&1 || true; /bin/rm -f {helper_plist}; fi; \
+/bin/rm -rf {helper_root}; /bin/rmdir {runtime_root} >/dev/null 2>&1 || true; /bin/rmdir /var/log/msc2 >/dev/null 2>&1 || true",
+        agent = shell_quote(&plist_path),
+        helper_plist = shell_quote(&helper_plist_path),
+        helper_root = shell_quote(BEDROCK_HELPER_INSTALL_ROOT),
+        runtime_root = shell_quote(BEDROCK_HELPER_RUNTIME_ROOT),
     )
+}
+
+fn validate_helper_request(request: &BedrockHelperInstallRequest) -> Result<(), ServiceError> {
+    if request.allowed_uid == 0 {
+        return Err(ServiceError::InvalidDefinition(
+            "Bedrock helper must be configured for a regular installing user".to_string(),
+        ));
+    }
+    for (label, path) in [
+        ("helper executable", &request.helper_binary),
+        ("kernel", &request.kernel),
+        ("initramfs", &request.initramfs),
+    ] {
+        if !path.is_absolute() {
+            return Err(ServiceError::InvalidDefinition(format!(
+                "Bedrock helper {label} path must be absolute: {}",
+                path.display()
+            )));
+        }
+        if !path.is_file() {
+            return Err(ServiceError::InvalidDefinition(format!(
+                "Bedrock helper {label} is missing: {}",
+                path.display()
+            )));
+        }
+    }
+    if request
+        .helper_binary
+        .metadata()
+        .map_err(|error| {
+            ServiceError::InvalidDefinition(format!(
+                "could not inspect Bedrock helper executable {}: {error}",
+                request.helper_binary.display()
+            ))
+        })?
+        .permissions()
+        .mode()
+        & 0o111
+        == 0
+    {
+        return Err(ServiceError::InvalidDefinition(format!(
+            "Bedrock helper executable is not executable: {}",
+            request.helper_binary.display()
+        )));
+    }
+    if request.approved_roots.is_empty() {
+        return Err(ServiceError::InvalidDefinition(
+            "Bedrock helper requires at least one approved server root".to_string(),
+        ));
+    }
+    for root in &request.approved_roots {
+        if !root.is_absolute() {
+            return Err(ServiceError::InvalidDefinition(format!(
+                "Bedrock helper approved root must be absolute: {}",
+                root.display()
+            )));
+        }
+        if !root.is_dir() {
+            return Err(ServiceError::InvalidDefinition(format!(
+                "Bedrock helper approved root is not a directory: {}",
+                root.display()
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn render_bedrock_helper_plist(
+    request: &BedrockHelperInstallRequest,
+) -> Result<String, ServiceError> {
+    validate_helper_request(request)?;
+    let approved_root_arguments = request
+        .approved_roots
+        .iter()
+        .map(|root| {
+            format!(
+                "<string>--approved-root</string>\n<string>{}</string>",
+                xml_escape(&root.display().to_string())
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    Ok(BEDROCK_HELPER_PLIST_TEMPLATE
+        .replace("@ALLOWED_UID@", &request.allowed_uid.to_string())
+        .replace("@APPROVED_ROOT_ARGUMENTS@", &approved_root_arguments))
+}
+
+fn elevated_pair_install_command(
+    request: &ServiceInstallRequest,
+    agent_plist_path: &Path,
+    temporary_agent_plist: &Path,
+    helper: Option<&BedrockHelperInstallRequest>,
+    temporary_helper_plist: Option<&Path>,
+) -> String {
+    let helper_plist_path = format!("/Library/LaunchDaemons/{BEDROCK_HELPER_SERVICE_NAME}.plist");
+    let helper_source = helper.map(|request| {
+        (
+            request.helper_binary.display().to_string(),
+            request.kernel.display().to_string(),
+            request.initramfs.display().to_string(),
+        )
+    });
+    let helper_install = if let (Some((binary, kernel, initramfs)), Some(plist)) =
+        (helper_source, temporary_helper_plist)
+    {
+        format!(
+            "helper_stage=$(/usr/bin/mktemp -d /private/tmp/msc2-bedrock-helper.XXXXXX); \
+/usr/bin/install -d -o root -g wheel -m 755 \"$helper_stage\"; \
+/usr/bin/install -o root -g wheel -m 755 {binary} \"$helper_stage/BedrockSidecar\"; \
+/usr/bin/install -o root -g wheel -m 644 {kernel} \"$helper_stage/vmlinuz-kata\"; \
+/usr/bin/install -o root -g wheel -m 644 {initramfs} \"$helper_stage/appliance-initramfs.gz\"; \
+/usr/bin/plutil -lint {plist} >/dev/null; \
+/usr/bin/install -d -o root -g wheel -m 755 {helper_root_parent} {runtime_root} /var/log/msc2; \
+if [ -e {helper_plist} ]; then /bin/launchctl bootout system {helper_plist} >/dev/null 2>&1 || true; fi; \
+if [ -e {agent_plist} ]; then /bin/launchctl bootout system {agent_plist} >/dev/null 2>&1 || true; fi; \
+/bin/rm -rf {helper_root}; /bin/mv \"$helper_stage\" {helper_root}; \
+/usr/bin/install -o root -g wheel -m 644 {plist} {helper_plist}; \
+/usr/bin/install -o root -g wheel -m 644 {temporary_agent} {agent_plist}; \
+/bin/launchctl bootstrap system {helper_plist}; /bin/launchctl bootstrap system {agent_plist}; \
+/bin/launchctl kickstart -k {helper_target}; /bin/launchctl kickstart -k {agent_target}; \
+/bin/launchctl print {helper_target} >/dev/null",
+            binary = shell_quote(&binary),
+            kernel = shell_quote(&kernel),
+            initramfs = shell_quote(&initramfs),
+            plist = shell_quote(&plist.display().to_string()),
+            temporary_agent = shell_quote(&temporary_agent_plist.display().to_string()),
+            agent_plist = shell_quote(&agent_plist_path.display().to_string()),
+            helper_plist = shell_quote(&helper_plist_path),
+            helper_root = shell_quote(BEDROCK_HELPER_INSTALL_ROOT),
+            helper_root_parent = shell_quote("/Library/Application Support/MSC 2"),
+            runtime_root = shell_quote(BEDROCK_HELPER_RUNTIME_ROOT),
+            helper_target = shell_quote(&format!("system/{BEDROCK_HELPER_SERVICE_NAME}")),
+            agent_target = shell_quote(&format!("system/{}", request.service_name.as_str())),
+        )
+    } else {
+        format!(
+            "if [ -e {helper_plist} ]; then /bin/launchctl bootout system {helper_plist} >/dev/null 2>&1 || true; /bin/rm -f {helper_plist}; fi; \
+/bin/rm -rf {helper_root}; \
+if [ -e {agent_plist} ]; then /bin/launchctl bootout system {agent_plist} >/dev/null 2>&1 || true; fi; \
+/usr/bin/install -o root -g wheel -m 644 {temporary_agent} {agent_plist}; \
+/bin/launchctl bootstrap system {agent_plist}; /bin/launchctl kickstart -k {agent_target}",
+            helper_plist = shell_quote(&helper_plist_path),
+            helper_root = shell_quote(BEDROCK_HELPER_INSTALL_ROOT),
+            temporary_agent = shell_quote(&temporary_agent_plist.display().to_string()),
+            agent_plist = shell_quote(&agent_plist_path.display().to_string()),
+            agent_target = shell_quote(&format!("system/{}", request.service_name.as_str())),
+        )
+    };
+    let transaction_prefix = format!(
+        "backup=$(/usr/bin/mktemp -d /private/tmp/msc2-service-backup.XXXXXX); helper_stage=; \
+agent_was_present=0; helper_was_present=0; helper_root_was_present=0; \
+agent_was_running=0; helper_was_running=0; \
+if [ -e {agent_plist} ]; then /bin/cp -p {agent_plist} \"$backup/agent.plist\"; agent_was_present=1; /bin/launchctl print {agent_target} >/dev/null 2>&1 && agent_was_running=1 || true; fi; \
+if [ -e {helper_plist} ]; then /bin/cp -p {helper_plist} \"$backup/helper.plist\"; helper_was_present=1; /bin/launchctl print {helper_target} >/dev/null 2>&1 && helper_was_running=1 || true; fi; \
+if [ -d {helper_root} ]; then /bin/cp -Rp {helper_root} \"$backup/helper-root\"; helper_root_was_present=1; fi; \
+rollback() {{ status=$?; if [ \"$status\" -ne 0 ]; then /bin/launchctl bootout system {helper_plist} >/dev/null 2>&1 || true; /bin/launchctl bootout system {agent_plist} >/dev/null 2>&1 || true; /bin/rm -f {agent_plist} {helper_plist}; /bin/rm -rf {helper_root}; if [ \"$agent_was_present\" -eq 1 ]; then /usr/bin/install -o root -g wheel -m 644 \"$backup/agent.plist\" {agent_plist}; /bin/launchctl bootstrap system {agent_plist} >/dev/null 2>&1 || true; [ \"$agent_was_running\" -eq 1 ] && /bin/launchctl kickstart -k {agent_target} >/dev/null 2>&1 || true; fi; if [ \"$helper_was_present\" -eq 1 ]; then /usr/bin/install -o root -g wheel -m 644 \"$backup/helper.plist\" {helper_plist}; fi; if [ \"$helper_root_was_present\" -eq 1 ]; then /bin/mv \"$backup/helper-root\" {helper_root}; fi; if [ \"$helper_was_present\" -eq 1 ]; then /bin/launchctl bootstrap system {helper_plist} >/dev/null 2>&1 || true; [ \"$helper_was_running\" -eq 1 ] && /bin/launchctl kickstart -k {helper_target} >/dev/null 2>&1 || true; fi; fi; [ -z \"$helper_stage\" ] || /bin/rm -rf \"$helper_stage\"; /bin/rm -rf \"$backup\"; exit \"$status\"; }}; trap rollback EXIT",
+        agent_plist = shell_quote(&agent_plist_path.display().to_string()),
+        helper_plist = shell_quote(&helper_plist_path),
+        helper_root = shell_quote(BEDROCK_HELPER_INSTALL_ROOT),
+        agent_target = shell_quote(&format!("system/{}", request.service_name.as_str())),
+        helper_target = shell_quote(&format!("system/{BEDROCK_HELPER_SERVICE_NAME}")),
+    );
+    let transaction_success = "/bin/rm -rf \"$backup\"; trap - EXIT";
+    format!(
+        "/bin/sh -c {}",
+        shell_quote(&format!(
+            "set -eu; {transaction_prefix}; {helper_install}; {transaction_success}"
+        ))
+    )
+}
+
+fn inspect_bedrock_helper_artifacts() -> Result<(), String> {
+    for path in [
+        PathBuf::from(BEDROCK_HELPER_INSTALL_ROOT),
+        PathBuf::from(format!(
+            "/Library/LaunchDaemons/{BEDROCK_HELPER_SERVICE_NAME}.plist"
+        )),
+        Path::new(BEDROCK_HELPER_INSTALL_ROOT).join("BedrockSidecar"),
+        Path::new(BEDROCK_HELPER_INSTALL_ROOT).join("vmlinuz-kata"),
+        Path::new(BEDROCK_HELPER_INSTALL_ROOT).join("appliance-initramfs.gz"),
+    ] {
+        let metadata = fs::symlink_metadata(&path).map_err(|error| {
+            format!(
+                "privileged Bedrock helper artifact is missing at {}: {error}",
+                path.display()
+            )
+        })?;
+        let mode = metadata.permissions().mode();
+        if metadata.uid() != 0 || mode & 0o022 != 0 {
+            return Err(format!(
+                "privileged Bedrock helper artifact has unsafe ownership or mode at {}",
+                path.display()
+            ));
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -421,16 +753,16 @@ mod tests {
     #[test]
     fn elevated_stop_uses_the_bare_launchd_label() {
         let command = elevated_stop_command("com.ctemple.msc2.agent");
-        assert_eq!(command, "/bin/launchctl stop 'com.ctemple.msc2.agent'");
+        assert!(command.starts_with("/bin/launchctl stop 'com.ctemple.msc2.agent'"));
+        assert!(command.contains("com.ctemple.msc2.bedrock-helper"));
     }
 
     #[test]
     fn elevated_uninstall_removes_the_system_launchdaemon() {
         let command = elevated_uninstall_command("com.ctemple.msc2.agent");
-        assert_eq!(
-            command,
-            "if [ -e '/Library/LaunchDaemons/com.ctemple.msc2.agent.plist' ]; then /bin/launchctl bootout system '/Library/LaunchDaemons/com.ctemple.msc2.agent.plist' >/dev/null 2>&1 || true; /bin/rm -f '/Library/LaunchDaemons/com.ctemple.msc2.agent.plist'; fi"
-        );
+        assert!(command.contains("/Library/LaunchDaemons/com.ctemple.msc2.agent.plist"));
+        assert!(command.contains("/Library/LaunchDaemons/com.ctemple.msc2.bedrock-helper.plist"));
+        assert!(command.contains("/Library/Application Support/MSC 2/bedrock-helper"));
     }
 }
 

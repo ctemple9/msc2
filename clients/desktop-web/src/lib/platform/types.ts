@@ -33,6 +33,13 @@ export interface AgentServiceStatus {
   readonly state: 'not-installed' | 'stopped' | 'running' | 'unavailable';
   readonly pid?: number;
   readonly detail: string;
+  readonly helper?: BedrockHelperServiceStatus;
+}
+
+export interface BedrockHelperServiceStatus {
+  readonly state: 'not-installed' | 'stopped' | 'running';
+  readonly pid?: number;
+  readonly detail: string;
 }
 
 export type UpdateState = 'current' | 'staged' | 'unavailable';

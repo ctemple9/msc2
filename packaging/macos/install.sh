@@ -94,6 +94,9 @@ fi
 
 install -d -m 0755 "$PATH_DIR" "$VERSION_ROOT"
 install -m 0755 "$SOURCE_BINARY" "$INSTALL_BINARY"
+if [[ -f "$SCRIPT_DIR/BEDROCK-HELPER-PLIST.in" ]]; then
+  install -m 0644 "$SCRIPT_DIR/BEDROCK-HELPER-PLIST.in" "$VERSION_ROOT/BEDROCK-HELPER-PLIST.in"
+fi
 if [[ -d "$SCRIPT_DIR/sidecar" ]]; then
   install -d -m 0755 "$VERSION_ROOT/sidecar"
   for sidecar_file in BedrockSidecar vmlinuz-kata appliance-initramfs.gz; do

@@ -73,6 +73,16 @@ struct AgentServiceStatus {
     state: &'static str,
     pid: Option<u32>,
     detail: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    helper: Option<BedrockHelperServiceStatus>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BedrockHelperServiceStatus {
+    state: &'static str,
+    pid: Option<u32>,
+    detail: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -797,7 +807,8 @@ fn manage_agent_service(action: AgentServiceAction) -> Result<AgentServiceStatus
         AgentServiceAction::Install | AgentServiceAction::Repair => {
             let request = agent_install_request()?;
             let expected_binary = request.binary_path.clone();
-            let report = msc_platform_macos::service::install_and_start_elevated(request)
+            let helper = bedrock_helper_install_request()?;
+            let report = msc_platform_macos::service::install_and_start_elevated(request, helper)
                 .map_err(|error| error.to_string())?;
             ensure_service_report_uses_binary(report, &expected_binary)?
         }
@@ -944,6 +955,36 @@ fn agent_install_request() -> Result<ServiceInstallRequest, String> {
         )
         .env("MSC2_MACOS_DESKTOP_REQUIREMENT", desktop_requirement);
     Ok(request.run_user(installing_user()?))
+}
+
+#[cfg(target_os = "macos")]
+fn bedrock_helper_install_request(
+) -> Result<Option<msc_platform_macos::service::BedrockHelperInstallRequest>, String> {
+    #[cfg(target_arch = "x86_64")]
+    {
+        let sidecar_directory = packaged_bedrock_sidecar_directory()?;
+        let approved_root = msc_infrastructure::config_repository::default_servers_root();
+        std::fs::create_dir_all(&approved_root).map_err(|error| {
+            format!(
+                "Could not create the Bedrock helper approved server root {}: {error}",
+                approved_root.display()
+            )
+        })?;
+        return Ok(Some(
+            msc_platform_macos::service::BedrockHelperInstallRequest::new(
+                sidecar_directory.join("BedrockSidecar"),
+                sidecar_directory.join("vmlinuz-kata"),
+                sidecar_directory.join("appliance-initramfs.gz"),
+                msc_platform_macos::service::installing_user_uid(),
+                [approved_root],
+            ),
+        ));
+    }
+
+    #[cfg(not(target_arch = "x86_64"))]
+    {
+        Ok(None)
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -1201,7 +1242,27 @@ fn report_status(report: ServiceStatusReport) -> AgentServiceStatus {
         state,
         pid: report.pid,
         detail: detail.to_string(),
+        helper: bedrock_helper_status(),
     }
+}
+
+#[cfg(target_os = "macos")]
+fn bedrock_helper_status() -> Option<BedrockHelperServiceStatus> {
+    let inspection = msc_platform_macos::service::inspect_bedrock_helper().ok()?;
+    Some(BedrockHelperServiceStatus {
+        state: match inspection.state {
+            ServiceState::NotInstalled => "not-installed",
+            ServiceState::Stopped => "stopped",
+            ServiceState::Running => "running",
+        },
+        pid: inspection.pid,
+        detail: inspection.detail,
+    })
+}
+
+#[cfg(not(target_os = "macos"))]
+fn bedrock_helper_status() -> Option<BedrockHelperServiceStatus> {
+    None
 }
 
 fn report_status_for_packaged_agent(
@@ -1219,6 +1280,7 @@ fn report_status_for_packaged_agent(
             pid: report.pid,
             detail: "The installed agent belongs to a different desktop build. Repair service before connecting."
                 .to_string(),
+            helper: bedrock_helper_status(),
         };
     }
     report_status(report)

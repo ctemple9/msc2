@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+<key>Label</key>
+<string>com.ctemple.msc2.bedrock-helper</string>
+<key>ProgramArguments</key>
+<array>
+<string>/Library/Application Support/MSC 2/bedrock-helper/BedrockSidecar</string>
+<string>--service</string>
+<string>--socket-path</string>
+<string>/var/run/msc2/bedrock.sock</string>
+<string>--allowed-uid</string>
+<string>@ALLOWED_UID@</string>
+@APPROVED_ROOT_ARGUMENTS@
+</array>
+<key>WorkingDirectory</key>
+<string>/Library/Application Support/MSC 2/bedrock-helper</string>
+<key>StandardOutPath</key>
+<string>/var/log/msc2/bedrock-helper.log</string>
+<key>StandardErrorPath</key>
+<string>/var/log/msc2/bedrock-helper.log</string>
+<key>RunAtLoad</key>
+<true/>
+<key>KeepAlive</key>
+<true/>
+</dict>
+</plist>

@@ -1146,8 +1146,8 @@ context. Direct child-process launch remains only an explicit development path.
 
 ### P15.73 — Install and maintain the privileged helper safely
 
-- **Status:** planned
-- **Files:** `crates/msc-platform-macos/src/service.rs`, desktop service-install bridge and DTOs, macOS packaging/release files, helper LaunchDaemon plist/template, `docs/msc2/rolling-plan.md`
+- **Status:** awaiting verification
+- **Files:** `crates/msc-platform-macos/src/service.rs`, `clients/desktop-web/src-tauri/Cargo.lock`, desktop service-install bridge and DTOs, macOS packaging/release files, helper LaunchDaemon plist/template, `docs/msc2/rolling-plan.md`
 - **What:** Extend the existing administrator-authorized macOS service transaction to install, upgrade, bootstrap, inspect, and uninstall the Bedrock helper beside the normal agent. The helper plist runs as root without `UserName`; its executable, plist, appliance, and support resources are root-owned and not writable by the installing user. Create a root-owned runtime directory and a socket owned only by the configured user, roll back both services coherently on a partial install, and preserve headless operation before login. Do not use a mutable developer build or staging path as the production helper executable.
 - **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-platform-macos --lib --no-deps -- -D warnings && npm --prefix clients/desktop-web run check`
 - **Batch:** N3 — privileged helper installation

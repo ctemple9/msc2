@@ -56,6 +56,8 @@ install -m 0755 "$WORKSPACE_ROOT/packaging/macos/install.sh" "$PACKAGE_ROOT/inst
 install -m 0755 "$WORKSPACE_ROOT/packaging/macos/uninstall.sh" "$PACKAGE_ROOT/uninstall.sh"
 install -m 0644 "$WORKSPACE_ROOT/docs/msc2/clients/headless-installation.md" \
   "$PACKAGE_ROOT/HEADLESS-INSTALL.md"
+install -m 0644 "$WORKSPACE_ROOT/packaging/macos/com.ctemple.msc2.bedrock-helper.plist.in" \
+  "$PACKAGE_ROOT/BEDROCK-HELPER-PLIST.in"
 if [[ "$INCLUDE_SIDECAR" == true ]]; then
   mkdir -p "$PACKAGE_ROOT/sidecar"
   install -m 0755 "$STAGED_AGENT/sidecar/BedrockSidecar" "$PACKAGE_ROOT/sidecar/BedrockSidecar"

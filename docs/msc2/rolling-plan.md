@@ -1128,7 +1128,7 @@ context. Direct child-process launch remains only an explicit development path.
 
 ### P15.71 — Add the constrained Bedrock helper service mode
 
-- **Status:** planned
+- **Status:** awaiting verification
 - **Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `sidecar/bedrock/BedrockSidecarMain.swift`, sidecar project and entitlement files, `docs/msc2/rolling-plan.md`
 - **What:** Give the signed Swift sidecar an explicit privileged service mode that listens only on a local Unix-domain socket and reuses the existing newline-delimited command/event protocol. Resolve and verify the peer UID with the macOS socket credential API, reject every UID except the configured installing user, bound request size, reject unknown commands, canonicalize shared paths before enforcing the approved Bedrock roots, and allow only one supervised VM session at a time. A client disconnect, helper termination, or failed provision must tear down the VM and relays deterministically. Preserve the existing foreground command mode for development diagnostics only.
 - **Verify:** `xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-71-build build CODE_SIGNING_ALLOWED=NO`

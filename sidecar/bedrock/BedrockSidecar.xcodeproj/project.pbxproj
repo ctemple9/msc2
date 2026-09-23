@@ -9,7 +9,7 @@
 /* Begin PBXBuildFile section */
 		A00000000000000000000011 /* BedrockSidecar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000001 /* BedrockSidecar.swift */; };
 		A00000000000000000000012 /* BedrockSidecarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000002 /* BedrockSidecarTests.swift */; };
-		A00000000000000000000014 /* BedrockSidecar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000006 /* BedrockSidecar.swift */; };
+		A00000000000000000000018 /* BedrockSidecarMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0000000000000000000000A /* BedrockSidecarMain.swift */; };
 		A00000000000000000000015 /* BedrockSidecarCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000001 /* BedrockSidecarCore.swift */; };
 		A00000000000000000000016 /* vmlinuz-kata in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000007 /* vmlinuz-kata */; };
 		A00000000000000000000017 /* appliance-initramfs.gz in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000008 /* appliance-initramfs.gz */; };
@@ -21,7 +21,7 @@
 		A00000000000000000000003 /* BedrockSidecar.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BedrockSidecar.entitlements; sourceTree = "<group>"; };
 		A00000000000000000000004 /* BedrockSidecar */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = BedrockSidecar; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000000000000000000005 /* BedrockSidecarTests.xctest */ = {isa = PBXFileReference; explicitFileType = "wrapper.xctest"; includeInIndex = 0; path = BedrockSidecarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		A00000000000000000000006 /* BedrockSidecar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BedrockSidecar.swift; sourceTree = "<group>"; };
+		A0000000000000000000000A /* BedrockSidecarMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BedrockSidecarMain.swift; sourceTree = "<group>"; };
 		A00000000000000000000007 /* vmlinuz-kata */ = {isa = PBXFileReference; lastKnownFileType = file; name = vmlinuz-kata; path = "$(MSC2_BEDROCK_APPLIANCE_DIR)/vmlinuz-kata"; sourceTree = "<group>"; };
 		A00000000000000000000008 /* appliance-initramfs.gz */ = {isa = PBXFileReference; lastKnownFileType = archive.gzip; name = appliance-initramfs.gz; path = "$(MSC2_BEDROCK_APPLIANCE_DIR)/appliance-initramfs.gz"; sourceTree = "<group>"; };
 		A00000000000000000000009 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = README.md; sourceTree = "<group>"; };
@@ -33,7 +33,7 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		A00000000000000000000030 = {isa = PBXGroup; children = (A00000000000000000000001, A00000000000000000000006, A00000000000000000000003, A00000000000000000000032,); name = BedrockSidecar; sourceTree = "<group>"; };
+		A00000000000000000000030 = {isa = PBXGroup; children = (A00000000000000000000001, A0000000000000000000000A, A00000000000000000000003, A00000000000000000000032,); name = BedrockSidecar; sourceTree = "<group>"; };
 		A00000000000000000000031 = {isa = PBXGroup; children = (A00000000000000000000002,); name = Tests; path = Tests; sourceTree = "<group>"; };
 		A00000000000000000000032 = {isa = PBXGroup; children = (A00000000000000000000007, A00000000000000000000008, A00000000000000000000009,); name = Resources; path = Resources; sourceTree = "<group>"; };
 		A00000000000000000000033 = {isa = PBXGroup; children = (A00000000000000000000030, A00000000000000000000031, A00000000000000000000040,); sourceTree = "<group>"; };
@@ -72,7 +72,7 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		A00000000000000000000020 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000011, A00000000000000000000014,); runOnlyForDeploymentPostprocessing = 0; };
+		A00000000000000000000020 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000011, A00000000000000000000018,); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */

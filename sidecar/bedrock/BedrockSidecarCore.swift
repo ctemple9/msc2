@@ -5,6 +5,20 @@ import Virtualization
 
 private let protocolOutputLock = NSLock()
 
+func writeSidecarResponse(_ response: SidecarResponse, to handle: FileHandle = .standardOutput) {
+    do {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        var data = try encoder.encode(response)
+        data.append(0x0A)
+        protocolOutputLock.lock()
+        handle.write(data)
+        protocolOutputLock.unlock()
+    } catch {
+        FileHandle.standardError.write(Data("sidecar response encoding failed: \(error)\n".utf8))
+    }
+}
+
 private struct CodingKeyName: CodingKey {
     var stringValue: String
     var intValue: Int? { nil }
@@ -169,10 +183,12 @@ private enum ControllerState {
 }
 
 /// The only component in MSC 2 that knows about Virtualization.framework.
-/// It intentionally exposes no second API: stdin/stdout are the complete
-/// process boundary and `serverDirectory` is the only persistent state.
+/// It intentionally exposes no management API: the foreground diagnostic
+/// process and privileged service mode both carry this narrow protocol, while
+/// `serverDirectory` is the only persistent state.
 final class BedrockSidecarController: NSObject, @unchecked Sendable {
     private let resources: ApplianceResourceProvider
+    private let responseHandler: (SidecarResponse) -> Void
     private let stateLock = NSLock()
     private var state: ControllerState = .new
     private var vm: VZVirtualMachine?
@@ -190,9 +206,15 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
     private var bedrockReady = false
     private var gracefulStopWorkItem: DispatchWorkItem?
     private var didTerminate = false
+    private var shutdownCompletions: [() -> Void] = []
 
-    init(resources: ApplianceResourceProvider = BundleApplianceResources()) {
+    init(
+        resources: ApplianceResourceProvider = BundleApplianceResources(),
+        responseHandler: @escaping (SidecarResponse) -> Void = { response in
+            writeSidecarResponse(response)
+        }) {
         self.resources = resources
+        self.responseHandler = responseHandler
     }
 
     func handle(_ request: SidecarRequest) -> [SidecarResponse] {
@@ -334,6 +356,9 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         guard case .running = state, let input = guestInput else {
             return [.commandResult(ok: false, reason: "not-running")]
         }
+        guard !command.isEmpty, !command.contains("\n"), !command.contains("\r") else {
+            return [.commandResult(ok: false, reason: "invalid-command")]
+        }
         let payload = command.hasSuffix("\n") ? command : command + "\n"
         guard let data = payload.data(using: .utf8) else {
             return [.commandResult(ok: false, reason: "encoding-failure")]
@@ -369,6 +394,17 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         machine.stop { [weak self] _ in
             self?.finish(reason: "clean")
         }
+    }
+
+    /// Keep the controller alive until the VM and all host relays have been
+    /// torn down. The service socket uses this when its client disconnects.
+    func shutdown(completion: @escaping () -> Void) {
+        guard !didTerminate else {
+            completion()
+            return
+        }
+        shutdownCompletions.append(completion)
+        forceStop()
     }
 
     private func receiveGuestBytes(_ data: Data) {
@@ -495,20 +531,13 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         guestInput = nil
         vm = nil
         send(.terminated(reason))
+        let completions = shutdownCompletions
+        shutdownCompletions.removeAll()
+        completions.forEach { $0() }
     }
 
     private func send(_ response: SidecarResponse) {
-        do {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.sortedKeys]
-            var data = try encoder.encode(response)
-            data.append(0x0A)
-            protocolOutputLock.lock()
-            FileHandle.standardOutput.write(data)
-            protocolOutputLock.unlock()
-        } catch {
-            FileHandle.standardError.write(Data("sidecar response encoding failed: \(error)\n".utf8))
-        }
+        responseHandler(response)
     }
 
     static func parseGuestIP(_ line: String) -> String? {
@@ -1011,17 +1040,7 @@ func runSidecar() {
                 do {
                     let request = try JSONDecoder().decode(SidecarRequest.self, from: Data(line.utf8))
                     controller.handle(request).forEach { response in
-                        do {
-                            let encoder = JSONEncoder()
-                            encoder.outputFormatting = [.sortedKeys]
-                            var data = try encoder.encode(response)
-                            data.append(0x0A)
-                            protocolOutputLock.lock()
-                            FileHandle.standardOutput.write(data)
-                            protocolOutputLock.unlock()
-                        } catch {
-                            FileHandle.standardError.write(Data("sidecar response encoding failed: \(error)\n".utf8))
-                        }
+                        writeSidecarResponse(response)
                     }
                 } catch {
                     FileHandle.standardError.write(Data("sidecar protocol error: \(error.localizedDescription)\n".utf8))

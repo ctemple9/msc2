@@ -254,6 +254,86 @@ pub fn update_config_yaml(existing: &str, host: &str, port: u16, server_name: &s
     config
 }
 
+/// Configure build 155's NetherNet broadcaster without relying on its legacy
+/// RakNet status ping. The configured session details remain authoritative,
+/// and the helper gets a small, predictable UDP range separate from BDS.
+pub fn update_nethernet_config_yaml(
+    existing: &str,
+    host: &str,
+    port: u16,
+    server_name: &str,
+) -> String {
+    let config = update_config_yaml(existing, host, port, server_name);
+    let (ice_min, ice_max) = nethernet_broadcast_ice_port_range(port);
+    let has_query_server = config
+        .lines()
+        .any(|line| line.starts_with("  query-server:"));
+    let has_config_fallback = config
+        .lines()
+        .any(|line| line.starts_with("  config-fallback:"));
+    let has_ice_range = config
+        .lines()
+        .any(|line| line.starts_with("  ice-port-range:"));
+    let mut output = Vec::new();
+
+    for line in config.lines() {
+        if line.starts_with("  query-server:") {
+            output.push("  query-server: false".to_owned());
+            continue;
+        }
+        if line.starts_with("  config-fallback:") {
+            output.push("  config-fallback: true".to_owned());
+            continue;
+        }
+        if line.starts_with("    min:") {
+            output.push(format!("    min: {ice_min}"));
+            continue;
+        }
+        if line.starts_with("    max:") {
+            output.push(format!("    max: {ice_max}"));
+            continue;
+        }
+        if line.starts_with("  session-info:") {
+            if !has_query_server {
+                output.push("  query-server: false".to_owned());
+            }
+            if !has_config_fallback {
+                output.push("  config-fallback: true".to_owned());
+            }
+            if !has_ice_range {
+                output.push("  ice-port-range:".to_owned());
+                output.push(format!("    min: {ice_min}"));
+                output.push(format!("    max: {ice_max}"));
+            }
+        }
+        output.push(line.to_owned());
+    }
+
+    let mut config = output.join("\n");
+    config.push('\n');
+    config
+}
+
+/// BDS owns the first 32 UDP ports adjacent to the signaling port. Broadcast
+/// uses the next 16 only while a console joins the advertised friend session.
+pub fn nethernet_broadcast_ice_port_range(server_port: u16) -> (u16, u16) {
+    const BDS_PORT_COUNT: u16 = 32;
+    const BROADCAST_PORT_COUNT: u16 = 16;
+    const TOTAL_PORT_COUNT: u16 = BDS_PORT_COUNT + BROADCAST_PORT_COUNT;
+
+    if server_port <= u16::MAX - TOTAL_PORT_COUNT {
+        (
+            server_port + BDS_PORT_COUNT + 1,
+            server_port + TOTAL_PORT_COUNT,
+        )
+    } else {
+        (
+            server_port - TOTAL_PORT_COUNT,
+            server_port - BDS_PORT_COUNT - 1,
+        )
+    }
+}
+
 fn yaml_quote(value: &str) -> String {
     value.replace('\\', "\\\\").replace('"', "\\\"")
 }

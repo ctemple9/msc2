@@ -848,7 +848,8 @@ fn prepare_broadcast_config(
     let (host, port) = broadcast_target(lifecycle, server)?;
     let path = working_directory.join("config.yml");
     let existing = std::fs::read_to_string(&path).unwrap_or_default();
-    let config = xbox_broadcast::update_config_yaml(&existing, &host, port, &server.display_name);
+    let config =
+        xbox_broadcast::update_nethernet_config_yaml(&existing, &host, port, &server.display_name);
     std::fs::write(path, config).map_err(|error| {
         format!(
             "could not write Xbox Broadcast config for {}: {error}",

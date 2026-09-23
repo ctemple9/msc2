@@ -20,7 +20,7 @@ from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parents[2]
 KERNEL_SHA256 = "85ac495fce6bb6ee01206c8e022b65acad45ca3fcc2729ba377af33943c8b05e"
-INITRAMFS_SHA256 = "4a67a927c406ff45fa64ad00dc1b541a13d8b7bb0a1d40258697c28731166bb2"
+INITRAMFS_SHA256 = "35c1803369ff66242ce5443d43a1044d14e2bc0e1415245750be99d6f5186e0f"
 APPLIANCE_CHECKSUMS = {
     "vmlinuz-kata": KERNEL_SHA256,
     "appliance-initramfs.gz": INITRAMFS_SHA256,

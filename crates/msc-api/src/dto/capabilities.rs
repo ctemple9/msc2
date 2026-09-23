@@ -63,6 +63,20 @@ pub struct BedrockRuntimeStateDto {
     pub message: Option<String>,
     #[serde(rename = "helpId", default, skip_serializing_if = "Option::is_none")]
     pub help_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub diagnostics: Option<BedrockRuntimeDiagnosticsDto>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BedrockRuntimeDiagnosticsDto {
+    pub identity: String,
+    pub protocol: String,
+    pub owner_uid: u32,
+    pub owner_gid: u32,
+    pub path_ownership: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_teardown_reason: Option<String>,
 }
 
 impl BedrockRuntimeStateDto {

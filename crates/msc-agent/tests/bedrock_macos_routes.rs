@@ -84,6 +84,7 @@ impl SidecarTransport for FakeSidecarTransport {
             | SidecarFrame::CommandResult { .. }
             | SidecarFrame::ConsoleLine { .. }
             | SidecarFrame::Metrics { .. }
+            | SidecarFrame::Diagnostics { .. }
             | SidecarFrame::Terminated { .. } => {}
         }
         Ok(())

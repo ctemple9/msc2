@@ -51,6 +51,13 @@ pub fn installing_user_uid() -> u32 {
     unsafe { libc::getuid() as u32 }
 }
 
+/// Returns the installing user's primary group. The helper passes both values
+/// into the guest so files created through virtio-fs keep the same ownership
+/// as files created by the user-owned Rust agent.
+pub fn installing_user_gid() -> u32 {
+    unsafe { libc::getgid() as u32 }
+}
+
 /// The privileged helper is installed from the signed desktop bundle, but
 /// never executed from that bundle. The administrator transaction copies
 /// these three files into the fixed root-owned installation directory before
@@ -61,6 +68,7 @@ pub struct BedrockHelperInstallRequest {
     pub kernel: PathBuf,
     pub initramfs: PathBuf,
     pub allowed_uid: u32,
+    pub allowed_gid: u32,
     pub approved_roots: Vec<PathBuf>,
 }
 
@@ -70,6 +78,7 @@ impl BedrockHelperInstallRequest {
         kernel: impl Into<PathBuf>,
         initramfs: impl Into<PathBuf>,
         allowed_uid: u32,
+        allowed_gid: u32,
         approved_roots: impl IntoIterator<Item = impl Into<PathBuf>>,
     ) -> Self {
         Self {
@@ -77,6 +86,7 @@ impl BedrockHelperInstallRequest {
             kernel: kernel.into(),
             initramfs: initramfs.into(),
             allowed_uid,
+            allowed_gid,
             approved_roots: approved_roots.into_iter().map(Into::into).collect(),
         }
     }
@@ -632,6 +642,7 @@ fn render_bedrock_helper_plist(
         .join("\n");
     Ok(BEDROCK_HELPER_PLIST_TEMPLATE
         .replace("@ALLOWED_UID@", &request.allowed_uid.to_string())
+        .replace("@ALLOWED_GID@", &request.allowed_gid.to_string())
         .replace("@APPROVED_ROOT_ARGUMENTS@", &approved_root_arguments))
 }
 

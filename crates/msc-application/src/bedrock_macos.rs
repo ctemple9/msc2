@@ -6,9 +6,9 @@
 
 use crate::bedrock_runtime::{
     BedrockHost, BedrockProvisionRequest, BedrockRuntime, BedrockRuntimeBackend,
-    BedrockRuntimeCapabilities, BedrockRuntimeEligibility, BedrockRuntimeError,
-    BedrockRuntimeEvent, BedrockRuntimePaths, BedrockRuntimeState, BedrockSidecarResources,
-    BedrockStartRequest, SidecarReceive, SidecarRuntime, SidecarTransport,
+    BedrockRuntimeCapabilities, BedrockRuntimeDiagnostics, BedrockRuntimeEligibility,
+    BedrockRuntimeError, BedrockRuntimeEvent, BedrockRuntimePaths, BedrockRuntimeState,
+    BedrockSidecarResources, BedrockStartRequest, SidecarReceive, SidecarRuntime, SidecarTransport,
 };
 use msc_infrastructure::bedrock_sidecar::{
     BedrockSidecarProcess, SidecarReceive as ProcessSidecarReceive,
@@ -224,6 +224,10 @@ impl<T: SidecarTransport> MacosBedrockRuntime<T> {
 
     pub fn sidecar_mut(&mut self) -> &mut SidecarRuntime<T> {
         &mut self.inner
+    }
+
+    pub fn diagnostics(&self) -> Option<&BedrockRuntimeDiagnostics> {
+        self.inner.diagnostics()
     }
 
     fn require_supported(&self) -> Result<(), BedrockRuntimeError> {

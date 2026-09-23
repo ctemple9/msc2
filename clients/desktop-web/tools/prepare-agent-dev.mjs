@@ -21,7 +21,7 @@ const packageAgentDirectory = join(destinationRoot, 'package', 'agent');
 
 const applianceChecksums = {
   'vmlinuz-kata': '85ac495fce6bb6ee01206c8e022b65acad45ca3fcc2729ba377af33943c8b05e',
-  'appliance-initramfs.gz': '4a67a927c406ff45fa64ad00dc1b541a13d8b7bb0a1d40258697c28731166bb2',
+  'appliance-initramfs.gz': '35c1803369ff66242ce5443d43a1044d14e2bc0e1415245750be99d6f5186e0f',
 };
 
 const version = verifyVersions();

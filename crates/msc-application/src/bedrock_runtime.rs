@@ -387,6 +387,16 @@ pub struct BedrockRuntimeMetrics {
     pub ram_max_mb: Option<f64>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BedrockRuntimeDiagnostics {
+    pub identity: String,
+    pub protocol: String,
+    pub owner_uid: u32,
+    pub owner_gid: u32,
+    pub path_ownership: String,
+    pub last_teardown_reason: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum BedrockRuntimeEvent {
     Ready { address: Option<String>, port: u16 },
@@ -573,6 +583,15 @@ pub enum SidecarFrame {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         ram_max_mb: Option<f64>,
     },
+    Diagnostics {
+        identity: String,
+        protocol: String,
+        owner_uid: u32,
+        owner_gid: u32,
+        path_ownership: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        last_teardown_reason: Option<String>,
+    },
     Terminated {
         #[serde(with = "termination_reason_wire")]
         reason: BedrockTerminationReason,
@@ -624,6 +643,7 @@ pub struct SidecarRuntime<T> {
     capabilities: BedrockRuntimeCapabilities,
     state: BedrockRuntimeState,
     directory_mapping: Option<SidecarDirectoryMapping>,
+    diagnostics: Option<BedrockRuntimeDiagnostics>,
 }
 
 impl<T> SidecarRuntime<T> {
@@ -633,6 +653,7 @@ impl<T> SidecarRuntime<T> {
             capabilities: BedrockRuntimeCapabilities::supported(BedrockRuntimeBackend::Sidecar),
             state: BedrockRuntimeState::New,
             directory_mapping: None,
+            diagnostics: None,
         }
     }
 
@@ -646,6 +667,10 @@ impl<T> SidecarRuntime<T> {
 
     pub fn transport(&self) -> &T {
         &self.transport
+    }
+
+    pub fn diagnostics(&self) -> Option<&BedrockRuntimeDiagnostics> {
+        self.diagnostics.as_ref()
     }
 
     fn require_state(
@@ -686,7 +711,26 @@ impl<T> SidecarRuntime<T> {
                 }
             };
             match status {
-                SidecarReceive::Line(line) => return decode_frame(&line),
+                SidecarReceive::Line(line) => match decode_frame(&line)? {
+                    SidecarFrame::Diagnostics {
+                        identity,
+                        protocol,
+                        owner_uid,
+                        owner_gid,
+                        path_ownership,
+                        last_teardown_reason,
+                    } => {
+                        self.diagnostics = Some(BedrockRuntimeDiagnostics {
+                            identity,
+                            protocol,
+                            owner_uid,
+                            owner_gid,
+                            path_ownership,
+                            last_teardown_reason,
+                        });
+                    }
+                    frame => return Ok(frame),
+                },
                 SidecarReceive::Pending => std::thread::yield_now(),
                 SidecarReceive::Eof => {
                     self.state = BedrockRuntimeState::Unavailable;
@@ -858,6 +902,24 @@ impl<T: SidecarTransport> BedrockRuntime for SidecarRuntime<T> {
                     ram_used_mb,
                     ram_max_mb,
                 })))
+            }
+            SidecarFrame::Diagnostics {
+                identity,
+                protocol,
+                owner_uid,
+                owner_gid,
+                path_ownership,
+                last_teardown_reason,
+            } => {
+                self.diagnostics = Some(BedrockRuntimeDiagnostics {
+                    identity,
+                    protocol,
+                    owner_uid,
+                    owner_gid,
+                    path_ownership,
+                    last_teardown_reason,
+                });
+                Ok(None)
             }
             SidecarFrame::Terminated { reason } => {
                 self.require_state(

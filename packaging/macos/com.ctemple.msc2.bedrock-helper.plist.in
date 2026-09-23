@@ -12,6 +12,8 @@
 <string>/var/run/msc2/bedrock.sock</string>
 <string>--allowed-uid</string>
 <string>@ALLOWED_UID@</string>
+<string>--allowed-gid</string>
+<string>@ALLOWED_GID@</string>
 @APPROVED_ROOT_ARGUMENTS@
 </array>
 <key>WorkingDirectory</key>

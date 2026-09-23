@@ -10,9 +10,9 @@ use std::sync::{Arc, Mutex};
 use msc_api::dto::{BedrockBackendDto, BedrockRuntimeStateDto, HostOsDto};
 use msc_application::bedrock_runtime::{
     BedrockHost, BedrockProvisionRequest, BedrockRuntime, BedrockRuntimeBackend,
-    BedrockRuntimeEligibility, BedrockRuntimeEligibilityState, BedrockRuntimeError,
-    BedrockRuntimeEvent, BedrockRuntimeMetrics, BedrockRuntimePaths, BedrockRuntimeState,
-    BedrockSidecarResources, BedrockStartRequest,
+    BedrockRuntimeDiagnostics, BedrockRuntimeEligibility, BedrockRuntimeEligibilityState,
+    BedrockRuntimeError, BedrockRuntimeEvent, BedrockRuntimeMetrics, BedrockRuntimePaths,
+    BedrockRuntimeState, BedrockSidecarResources, BedrockStartRequest,
 };
 use msc_domain::identity::ServerType;
 use msc_infrastructure::bedrock_distribution::BedrockPlatform;
@@ -134,6 +134,18 @@ impl BedrockRuntimeHandle {
             Self::Windows(runtime) => runtime.process_id(),
             #[cfg(target_os = "macos")]
             Self::Macos(runtime) => runtime.process_id(),
+            Self::Unavailable => None,
+        }
+    }
+
+    fn diagnostics(&self) -> Option<BedrockRuntimeDiagnostics> {
+        match self {
+            #[cfg(target_os = "macos")]
+            Self::Macos(runtime) => runtime.diagnostics().cloned(),
+            #[cfg(target_os = "linux")]
+            Self::Linux(_) => None,
+            #[cfg(target_os = "windows")]
+            Self::Windows(_) => None,
             Self::Unavailable => None,
         }
     }
@@ -325,6 +337,16 @@ impl BedrockRuntimeSelection {
             }
         };
         let unavailable = state == "unavailable";
+        let diagnostics = self.runtime.lock().unwrap().diagnostics().map(|value| {
+            msc_api::dto::BedrockRuntimeDiagnosticsDto {
+                identity: value.identity,
+                protocol: value.protocol,
+                owner_uid: value.owner_uid,
+                owner_gid: value.owner_gid,
+                path_ownership: value.path_ownership,
+                last_teardown_reason: value.last_teardown_reason,
+            }
+        });
         BedrockRuntimeStateDto {
             state: state.to_owned(),
             backend: eligibility.backend.map(backend_dto),
@@ -337,6 +359,7 @@ impl BedrockRuntimeSelection {
             reason_code: eligibility.reason_code,
             message: Some(eligibility.message),
             help_id: unavailable.then(|| "bedrock.runtime-unavailable".to_owned()),
+            diagnostics,
         }
     }
 

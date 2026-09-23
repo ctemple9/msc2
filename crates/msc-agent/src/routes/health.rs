@@ -876,6 +876,7 @@ mod tests {
             reason_code: None,
             message: None,
             help_id: None,
+            diagnostics: None,
         });
         assert_eq!(native.severity, "green");
         assert_eq!(
@@ -890,6 +891,7 @@ mod tests {
             reason_code: None,
             message: None,
             help_id: None,
+            diagnostics: None,
         });
         assert_eq!(sidecar.severity, "green");
         assert_eq!(
@@ -904,6 +906,7 @@ mod tests {
             reason_code: Some("archive_missing".to_string()),
             message: Some("A verified Bedrock distribution is required before start.".to_string()),
             help_id: None,
+            diagnostics: None,
         });
         assert_eq!(provisioning.severity, "yellow");
         assert_eq!(

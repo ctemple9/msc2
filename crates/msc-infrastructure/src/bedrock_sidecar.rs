@@ -45,6 +45,11 @@ pub enum BedrockSidecarSocketError {
         expected: u32,
         actual: u32,
     },
+    WrongGroup {
+        path: PathBuf,
+        expected: u32,
+        actual: u32,
+    },
     WrongMode {
         path: PathBuf,
         actual: u32,
@@ -66,6 +71,7 @@ impl BedrockSidecarSocketError {
             Self::Missing { .. } => "helper_socket_missing",
             Self::NotSocket { .. } => "helper_socket_wrong_file_type",
             Self::WrongOwner { .. } => "helper_socket_wrong_owner",
+            Self::WrongGroup { .. } => "helper_socket_wrong_group",
             Self::WrongMode { .. } => "helper_socket_wrong_mode",
             Self::Connect { .. } => "helper_socket_unavailable",
             Self::Configure { .. } => "helper_socket_configuration_failed",
@@ -90,6 +96,15 @@ impl std::fmt::Display for BedrockSidecarSocketError {
             } => write!(
                 f,
                 "helper socket {} is owned by UID {actual}, expected installing UID {expected}",
+                path.display()
+            ),
+            Self::WrongGroup {
+                path,
+                expected,
+                actual,
+            } => write!(
+                f,
+                "helper socket {} is owned by GID {actual}, expected installing GID {expected}",
                 path.display()
             ),
             Self::WrongMode { path, actual } => write!(
@@ -157,6 +172,16 @@ impl BedrockSidecarSocket {
                 path,
                 expected: expected_uid,
                 actual: actual_uid,
+            });
+        }
+
+        let expected_gid = unsafe { libc::getegid() };
+        let actual_gid = metadata.gid();
+        if actual_gid != expected_gid {
+            return Err(BedrockSidecarSocketError::WrongGroup {
+                path,
+                expected: expected_gid,
+                actual: actual_gid,
             });
         }
 

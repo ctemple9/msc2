@@ -1,0 +1,82 @@
+#!/bin/busybox sh
+export PATH=/bin
+busybox mount -t proc proc /proc
+busybox mount -t sysfs sysfs /sys
+busybox mount -t devtmpfs devtmpfs /dev 2>/dev/null
+busybox mkdir -p /dev/shm /run
+busybox mount -t tmpfs tmpfs /dev/shm
+busybox mount -t tmpfs tmpfs /run
+echo ""
+echo "[appliance] MSC BDS appliance init starting"
+
+# VZ's virtio-fs share preserves numeric ownership. The root helper therefore
+# supplies the installing user's UID/GID on the kernel command line and BDS
+# drops to that identity before it opens the shared server directory.
+MSC_UID=0
+MSC_GID=0
+for parameter in $(busybox cat /proc/cmdline); do
+  case "$parameter" in
+    msc_uid=*) MSC_UID=${parameter#msc_uid=} ;;
+    msc_gid=*) MSC_GID=${parameter#msc_gid=} ;;
+  esac
+done
+case "$MSC_UID:$MSC_GID" in
+  ''|*[!0-9:]*|*:|:*|0:*) MSC_UID=0; MSC_GID=0 ;;
+esac
+
+busybox ip link set lo up
+# NIC is eth0 here (no systemd/udev predictable-naming).
+busybox ip link set eth0 up
+echo "[appliance] requesting DHCP on eth0..."
+busybox udhcpc -i eth0 -s /udhcpc.script -t 6 -T 2 -n -q || {
+  echo "[appliance] DHCP failed, falling back to static 192.168.64.2"
+  busybox ifconfig eth0 192.168.64.2 netmask 255.255.255.0 up
+  busybox route add default gw 192.168.64.1 dev eth0
+}
+echo "[appliance] mounting virtio-fs world share..."
+busybox mount -t virtiofs world /mnt || echo "[appliance] WARN: virtiofs mount failed"
+echo "[appliance] ip: $(busybox ip -4 addr show eth0 | busybox grep -o 'inet [0-9.]*')"
+echo "[appliance] connectivity check:"
+busybox ping -c1 -W2 1.1.1.1 >/dev/null 2>&1 && echo "  inet-ping OK" || echo "  inet-ping FAIL"
+echo "  --- /etc/resolv.conf ---"; busybox cat /etc/resolv.conf | busybox sed 's/^/  /'
+echo "  --- nslookup minecraft.net @1.1.1.1 ---"; busybox nslookup minecraft.net 1.1.1.1 2>&1 | busybox sed 's/^/  /'
+busybox ls -la /etc/ssl/certs/ca-certificates.crt 2>&1 | busybox sed 's/^/  ca: /'
+echo "  --- TCP :443 reachability ---"
+( echo | busybox nc -w 4 minecraft.net 443 >/dev/null 2>&1 && echo "  tcp-443 OK" ) || echo "  tcp-443 FAIL"
+( PREV_TOTAL=0; PREV_IDLE=0
+  while true; do
+    read CPU U N S IDLE IO IR SI REST < /proc/stat
+    TOTAL=$((U+N+S+IDLE+IO+IR+SI))
+    if [ "$PREV_TOTAL" -ne 0 ]; then
+      DT=$((TOTAL-PREV_TOTAL)); DI=$((IDLE-PREV_IDLE))
+      if [ "$DT" -gt 0 ]; then PCT=$(((100*(DT-DI))/DT)); else PCT=0; fi
+    else PCT=0; fi
+    PREV_TOTAL=$TOTAL; PREV_IDLE=$IDLE
+    MT=$(busybox awk '/MemTotal/{print int($2/1024)}' /proc/meminfo)
+    MA=$(busybox awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo)
+    echo "[MSCSTATS] cpu=$PCT memUsedMB=$((MT-MA)) memTotalMB=$MT"
+    busybox sleep 5
+  done ) &
+
+BDS_DIR=""
+if [ -x /mnt/bedrock_server ]; then BDS_DIR=/mnt
+elif [ -x /mnt/bds/bedrock_server ]; then BDS_DIR=/mnt/bds
+fi
+if [ -n "$BDS_DIR" ]; then
+  cd "$BDS_DIR"
+  export LD_LIBRARY_PATH=/lib/x86_64-linux-gnu:"$BDS_DIR"
+  export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+  export SSL_CERT_DIR=/etc/ssl/certs
+  export CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+  echo "[appliance] launching BDS from $BDS_DIR (stdin/stdout = console)..."
+  if [ "$MSC_UID" -gt 0 ]; then
+    busybox setpriv --reuid "$MSC_UID" --regid "$MSC_GID" --clear-groups "$BDS_DIR/bedrock_server"
+  else
+    "$BDS_DIR/bedrock_server"
+  fi
+  echo "[appliance] BDS exited — powering off"
+  busybox poweroff -f
+else
+  echo "[appliance] no bedrock_server in /mnt share — dropping to shell"
+  exec /bin/busybox sh
+fi

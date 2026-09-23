@@ -6527,6 +6527,14 @@ export interface components {
     BedrockRuntimeStateDTO: {
       /** @enum {string|null} */
       backend?: 'native' | 'vz-sidecar' | null;
+      diagnostics?: {
+        identity: string;
+        protocol: string;
+        ownerUid: number;
+        ownerGid: number;
+        pathOwnership: string;
+        lastTeardownReason?: string | null;
+      };
       /** @description Optional educational topic for the runtime reason. */
       helpId?: string | null;
       /** @enum {string|null} */

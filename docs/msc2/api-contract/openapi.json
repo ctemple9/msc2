@@ -11672,7 +11672,7 @@
       },
       "BedrockRuntimeStateDTO": {
         "type": "object",
-        "description": "Phase 10 runtime disclosure shared by existing v1 DTOs. It describes the current Bedrock backend state, not the separate published compatibility matrix.",
+        "description": "Phase 10 runtime disclosure shared by existing v1 DTOs. It describes the current Bedrock backend state, not the separate published compatibility matrix. Phase 15.74 adds local helper diagnostics without exposing privileged mutation controls.",
         "properties": {
           "state": {
             "type": "string",
@@ -11725,10 +11725,45 @@
             "type": "string",
             "nullable": true,
             "description": "Optional educational topic for the runtime reason."
+          },
+          "diagnostics": {
+            "$ref": "#/components/schemas/BedrockRuntimeDiagnosticsDTO",
+            "description": "Optional local helper identity, protocol, ownership, and teardown diagnostics."
           }
         },
         "required": [
           "state"
+        ]
+      },
+      "BedrockRuntimeDiagnosticsDTO": {
+        "type": "object",
+        "properties": {
+          "identity": {
+            "type": "string"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "ownerUid": {
+            "type": "integer"
+          },
+          "ownerGid": {
+            "type": "integer"
+          },
+          "pathOwnership": {
+            "type": "string"
+          },
+          "lastTeardownReason": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "identity",
+          "protocol",
+          "ownerUid",
+          "ownerGid",
+          "pathOwnership"
         ]
       },
       "PairingCreateRequestDTO": {

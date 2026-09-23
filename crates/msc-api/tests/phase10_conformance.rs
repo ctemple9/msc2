@@ -113,6 +113,7 @@ fn phase10_conformance_rust_runtime_field_is_additive_and_error_mapping_is_share
         reason_code: Some("no_test_hardware".to_owned()),
         message: Some("Bedrock is unavailable on this host.".to_owned()),
         help_id: Some("bedrock.runtime-unavailable".to_owned()),
+        diagnostics: None,
     };
     let result = ServerCreateResultDto {
         success: false,

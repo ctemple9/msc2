@@ -24,7 +24,7 @@ this port:
 | File | SHA-256 |
 |---|---|
 | `vmlinuz-kata` | `85ac495fce6bb6ee01206c8e022b65acad45ca3fcc2729ba377af33943c8b05e` |
-| `appliance-initramfs.gz` | `4a67a927c406ff45fa64ad00dc1b541a13d8b7bb0a1d40258697c28731166bb2` |
+| `appliance-initramfs.gz` | `35c1803369ff66242ce5443d43a1044d14e2bc0e1415245750be99d6f5186e0f` |
 
 The Xcode validation phase fails before compilation when either file is missing
 or a checksum differs. The pair is a verified distribution input rather than
@@ -37,3 +37,11 @@ verified first-run download.
 
 Apple Silicon is deliberately rejected before booting: Phase 10 ships only the
 Intel appliance and does not add an arm64 guest or Rosetta-for-Linux path.
+
+The checked-in `init` source is the guest-side ownership boundary. Rebuild the
+compressed initramfs after changing it with
+`sh tools/phase15/rebuild_bedrock_appliance.sh`, then update the checksum in
+the Xcode project and this file before packaging. The helper supplies the
+installing UID/GID as `msc_uid`/`msc_gid` kernel arguments; the guest runs BDS
+under those numeric IDs so virtio-fs writes retain the installing user's
+ownership.

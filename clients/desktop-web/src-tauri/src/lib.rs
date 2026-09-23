@@ -976,6 +976,7 @@ fn bedrock_helper_install_request(
                 sidecar_directory.join("vmlinuz-kata"),
                 sidecar_directory.join("appliance-initramfs.gz"),
                 msc_platform_macos::service::installing_user_uid(),
+                msc_platform_macos::service::installing_user_gid(),
                 [approved_root],
             ),
         ));

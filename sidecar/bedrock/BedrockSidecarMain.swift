@@ -6,11 +6,13 @@ private let maxServiceRequestBytes = 64 * 1024
 private struct PrivilegedServiceConfiguration {
     let socketPath: String
     let allowedUID: uid_t
+    let allowedGID: gid_t
     let approvedRoots: [String]
 
     init(arguments: [String]) throws {
         var socketPath: String?
         var allowedUID: uid_t?
+        var allowedGID: gid_t?
         var roots: [String] = []
         var index = 0
 
@@ -28,6 +30,12 @@ private struct PrivilegedServiceConfiguration {
                     throw ServiceConfigurationError.invalidValue("--allowed-uid")
                 }
                 allowedUID = uid_t(value)
+            case "--allowed-gid":
+                index += 1
+                guard index < arguments.count, let value = UInt32(arguments[index]) else {
+                    throw ServiceConfigurationError.invalidValue("--allowed-gid")
+                }
+                allowedGID = gid_t(value)
             case "--approved-root":
                 index += 1
                 guard index < arguments.count else { throw ServiceConfigurationError.missingValue("--approved-root") }
@@ -44,12 +52,16 @@ private struct PrivilegedServiceConfiguration {
         guard let allowedUID else {
             throw ServiceConfigurationError.missingValue("--allowed-uid")
         }
+        guard let allowedGID else {
+            throw ServiceConfigurationError.missingValue("--allowed-gid")
+        }
         guard !roots.isEmpty else {
             throw ServiceConfigurationError.missingValue("--approved-root")
         }
 
         self.socketPath = socketPath
         self.allowedUID = allowedUID
+        self.allowedGID = allowedGID
         self.approvedRoots = try roots.map(Self.canonicalApprovedRoot)
         for (index, root) in approvedRoots.enumerated() {
             if root == "/" {
@@ -75,19 +87,32 @@ private struct PrivilegedServiceConfiguration {
         return canonical
     }
 
-    func canonicalServerDirectory(_ path: String) -> String? {
-        guard path.hasPrefix("/"), let canonical = canonicalExistingPath(path) else { return nil }
+    func validateServerDirectory(_ path: String) -> Result<String, ServerDirectoryValidationError> {
+        guard path.hasPrefix("/") else { return .failure(.init("server-directory-must-be-absolute")) }
+        guard let canonical = canonicalExistingPath(path) else {
+            return .failure(.init("server-directory-path-invalid-or-missing"))
+        }
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: canonical, isDirectory: &isDirectory), isDirectory.boolValue else {
-            return nil
+            return .failure(.init("server-directory-is-not-a-directory"))
         }
-        guard approvedRoots.contains(where: { root in
-            canonical == root || canonical.hasPrefix(root + "/")
-        }) else {
-            return nil
+        guard approvedRoots.contains(where: { canonical.hasPrefix($0 + "/") }) else {
+            return .failure(.init("server-directory-outside-approved-bedrock-root"))
         }
-        return canonical
+        var info = stat()
+        guard lstat(canonical, &info) == 0,
+              info.st_uid == allowedUID,
+              info.st_gid == allowedGID else {
+            return .failure(.init("server-directory-owner-mismatch"))
+        }
+        return .success(canonical)
     }
+}
+
+private struct ServerDirectoryValidationError: Error {
+    let reason: String
+
+    init(_ reason: String) { self.reason = reason }
 }
 
 private enum ServiceConfigurationError: LocalizedError {
@@ -116,7 +141,7 @@ private final class UnixSocketListener: @unchecked Sendable {
     let path: String
     private(set) var descriptor: Int32
 
-    init(path: String, owner: uid_t) throws {
+    init(path: String, owner: uid_t, group: gid_t) throws {
         self.path = path
         self.descriptor = -1
         try Self.prepareSocketPath(path)
@@ -134,8 +159,12 @@ private final class UnixSocketListener: @unchecked Sendable {
             }
             guard result == 0 else { throw Self.posixError("bind helper socket") }
             guard listen(descriptor, 1) == 0 else { throw Self.posixError("listen on helper socket") }
+            let flags = fcntl(descriptor, F_GETFL, 0)
+            guard flags >= 0, fcntl(descriptor, F_SETFL, flags | O_NONBLOCK) == 0 else {
+                throw Self.posixError("make helper socket nonblocking")
+            }
             guard chmod(path, mode_t(0o600)) == 0 else { throw Self.posixError("restrict helper socket") }
-            guard chown(path, owner, gid_t.max) == 0 else { throw Self.posixError("assign helper socket owner") }
+            guard chown(path, owner, group) == 0 else { throw Self.posixError("assign helper socket owner") }
         } catch {
             Darwin.close(descriptor)
             self.descriptor = -1
@@ -215,7 +244,12 @@ private final class ServiceSession: @unchecked Sendable {
         self.handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
         self.writer = SocketResponseWriter(handle: self.handle)
         self.policy = policy
-        self.controller = BedrockSidecarController(responseHandler: { [writer] response in
+        self.controller = BedrockSidecarController(
+            guestFileOwner: BedrockGuestFileOwner(
+                uid: policy.allowedUID,
+                gid: policy.allowedGID,
+                identity: "root-helper"),
+            responseHandler: { [writer] response in
             writer.write(response)
         })
     }
@@ -282,11 +316,13 @@ private final class ServiceSession: @unchecked Sendable {
         let request = try JSONDecoder().decode(SidecarRequest.self, from: line)
         let gatedRequest: SidecarRequest
         if case .provision(let serverDirectory, let version) = request {
-            guard let canonical = policy.canonicalServerDirectory(serverDirectory) else {
-                writer.write(.provisioned(ok: false, reason: "server-directory-outside-approved-bedrock-root"))
+            switch policy.validateServerDirectory(serverDirectory) {
+            case .success(let canonical):
+                gatedRequest = .provision(serverDir: canonical, version: version)
+            case .failure(let error):
+                writer.write(.provisioned(ok: false, reason: error.reason))
                 return
             }
-            gatedRequest = .provision(serverDir: canonical, version: version)
         } else {
             gatedRequest = request
         }
@@ -330,7 +366,10 @@ private final class PrivilegedService: @unchecked Sendable {
 
     init(configuration: PrivilegedServiceConfiguration) throws {
         self.configuration = configuration
-        self.listener = try UnixSocketListener(path: configuration.socketPath, owner: configuration.allowedUID)
+        self.listener = try UnixSocketListener(
+            path: configuration.socketPath,
+            owner: configuration.allowedUID,
+            group: configuration.allowedGID)
     }
 
     func start() {
@@ -353,26 +392,50 @@ private final class PrivilegedService: @unchecked Sendable {
             stateLock.lock()
             let shouldStop = stopping
             stateLock.unlock()
-            guard !shouldStop, let descriptor = listener.accept() else { break }
+            if shouldStop { break }
+            if activeSessionExists {
+                if let descriptor = listener.accept() {
+                    close(descriptor)
+                } else {
+                    Thread.sleep(forTimeInterval: 0.05)
+                }
+                continue
+            }
+            guard let descriptor = listener.accept() else {
+                Thread.sleep(forTimeInterval: 0.05)
+                continue
+            }
             let session = ServiceSession(descriptor: descriptor, policy: configuration)
             guard session.isAuthorized() else {
                 close(descriptor)
                 continue
             }
+            session.onClosed = { [weak self] in
+                self?.clearActiveSession()
+            }
             stateLock.lock()
             activeSession = session
             stateLock.unlock()
             session.start()
-            session.waitUntilClosed()
-            stateLock.lock()
-            activeSession = nil
-            let done = stopping
-            stateLock.unlock()
-            if done { break }
+        }
+        while activeSessionExists {
+            Thread.sleep(forTimeInterval: 0.05)
         }
         DispatchQueue.main.async {
             CFRunLoopStop(CFRunLoopGetMain())
         }
+    }
+
+    private var activeSessionExists: Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return activeSession != nil
+    }
+
+    private func clearActiveSession() {
+        stateLock.lock()
+        activeSession = nil
+        stateLock.unlock()
     }
 }
 

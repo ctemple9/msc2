@@ -109,11 +109,20 @@ enum SidecarResponse: Encodable, Equatable {
     case commandResult(ok: Bool, reason: String?)
     case consoleLine(String)
     case metrics(cpuPercent: Double?, ramUsedMB: Double?, ramMaxMB: Double?)
+    case diagnostics(
+        identity: String,
+        protocolVersion: String,
+        ownerUID: UInt32,
+        ownerGID: UInt32,
+        pathOwnership: String,
+        lastTeardownReason: String?)
     case terminated(String)
 
     private enum CodingKeys: String, CodingKey {
         case type, ok, reason, accepted, guestIP = "guest_ip", port, relayUp = "relay_up", command, line
         case cpuPercent = "cpu_percent", ramUsedMB = "ram_used_mb", ramMaxMB = "ram_max_mb"
+        case identity, protocolVersion = "protocol", ownerUID = "owner_uid", ownerGID = "owner_gid"
+        case pathOwnership = "path_ownership", lastTeardownReason = "last_teardown_reason"
     }
 
     func encode(to encoder: Encoder) throws {
@@ -144,6 +153,20 @@ enum SidecarResponse: Encodable, Equatable {
             try container.encodeIfPresent(cpuPercent, forKey: .cpuPercent)
             try container.encodeIfPresent(ramUsedMB, forKey: .ramUsedMB)
             try container.encodeIfPresent(ramMaxMB, forKey: .ramMaxMB)
+        case .diagnostics(
+            let identity,
+            let protocolVersion,
+            let ownerUID,
+            let ownerGID,
+            let pathOwnership,
+            let lastTeardownReason):
+            try container.encode("diagnostics", forKey: .type)
+            try container.encode(identity, forKey: .identity)
+            try container.encode(protocolVersion, forKey: .protocolVersion)
+            try container.encode(ownerUID, forKey: .ownerUID)
+            try container.encode(ownerGID, forKey: .ownerGID)
+            try container.encode(pathOwnership, forKey: .pathOwnership)
+            try container.encodeIfPresent(lastTeardownReason, forKey: .lastTeardownReason)
         case .terminated(let reason):
             try container.encode("terminated", forKey: .type)
             try container.encode(reason, forKey: .reason)
@@ -182,6 +205,16 @@ private enum ControllerState {
     case terminated
 }
 
+struct BedrockGuestFileOwner: Equatable, Sendable {
+    let uid: uid_t
+    let gid: gid_t
+    let identity: String
+
+    static func currentProcess(identity: String = "development-process") -> Self {
+        Self(uid: getuid(), gid: getgid(), identity: identity)
+    }
+}
+
 /// The only component in MSC 2 that knows about Virtualization.framework.
 /// It intentionally exposes no management API: the foreground diagnostic
 /// process and privileged service mode both carry this narrow protocol, while
@@ -207,13 +240,18 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
     private var gracefulStopWorkItem: DispatchWorkItem?
     private var didTerminate = false
     private var shutdownCompletions: [() -> Void] = []
+    private let guestFileOwner: BedrockGuestFileOwner
+    private var diagnosedServerDirectory: URL?
+    private var lastTeardownReason: String?
 
     init(
         resources: ApplianceResourceProvider = BundleApplianceResources(),
+        guestFileOwner: BedrockGuestFileOwner = .currentProcess(),
         responseHandler: @escaping (SidecarResponse) -> Void = { response in
             writeSidecarResponse(response)
         }) {
         self.resources = resources
+        self.guestFileOwner = guestFileOwner
         self.responseHandler = responseHandler
     }
 
@@ -271,7 +309,8 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         bedrockReady = false
         didTerminate = false
         state = .provisioned(serverDirectory: URL(fileURLWithPath: serverDir, isDirectory: true), version: version)
-        return [.provisioned(ok: true, reason: nil)]
+        diagnosedServerDirectory = URL(fileURLWithPath: serverDir, isDirectory: true)
+        return [.provisioned(ok: true, reason: nil), diagnosticsResponse()]
     }
 
     private func start(memoryGB: UInt32, bedrockPort: UInt16) -> [SidecarResponse] {
@@ -309,7 +348,7 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         let configuration = VZVirtualMachineConfiguration()
         let bootLoader = VZLinuxBootLoader(kernelURL: kernel)
         bootLoader.initialRamdiskURL = initramfs
-        bootLoader.commandLine = "console=hvc0"
+        bootLoader.commandLine = "console=hvc0 msc_uid=\(guestFileOwner.uid) msc_gid=\(guestFileOwner.gid)"
         configuration.bootLoader = bootLoader
         configuration.platform = VZGenericPlatformConfiguration()
         configuration.cpuCount = max(
@@ -519,6 +558,7 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         }
         didTerminate = true
         state = .terminated
+        lastTeardownReason = reason
         stateLock.unlock()
         gracefulStopWorkItem?.cancel()
         gracefulStopWorkItem = nil
@@ -530,6 +570,7 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         guestOutput = nil
         guestInput = nil
         vm = nil
+        send(diagnosticsResponse())
         send(.terminated(reason))
         let completions = shutdownCompletions
         shutdownCompletions.removeAll()
@@ -538,6 +579,35 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
 
     private func send(_ response: SidecarResponse) {
         responseHandler(response)
+    }
+
+    private func diagnosticsResponse() -> SidecarResponse {
+        .diagnostics(
+            identity: guestFileOwner.identity,
+            protocolVersion: "sidecar-v1",
+            ownerUID: UInt32(guestFileOwner.uid),
+            ownerGID: UInt32(guestFileOwner.gid),
+            pathOwnership: pathOwnershipSummary(),
+            lastTeardownReason: lastTeardownReason)
+    }
+
+    private func pathOwnershipSummary() -> String {
+        guard let directory = diagnosedServerDirectory else { return "server-root=unavailable" }
+        let paths: [(String, URL)] = [
+            ("server-root", directory),
+            ("server.properties", directory.appendingPathComponent("server.properties")),
+            ("worlds", directory.appendingPathComponent("worlds", isDirectory: true)),
+            ("logs", directory.appendingPathComponent("logs", isDirectory: true)),
+            ("backups", directory.appendingPathComponent("backups", isDirectory: true)),
+        ]
+        return paths.map { label, path in
+            var info = stat()
+            guard lstat(path.path, &info) == 0 else { return "\(label)=missing" }
+            guard info.st_uid == guestFileOwner.uid, info.st_gid == guestFileOwner.gid else {
+                return "\(label)=mismatch:\(info.st_uid):\(info.st_gid)"
+            }
+            return "\(label)=verified:\(info.st_uid):\(info.st_gid)"
+        }.joined(separator: ";")
     }
 
     static func parseGuestIP(_ line: String) -> String? {

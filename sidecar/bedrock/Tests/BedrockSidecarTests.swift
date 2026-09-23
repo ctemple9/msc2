@@ -43,7 +43,8 @@ final class BedrockSidecarTests: XCTestCase {
         let controller = BedrockSidecarController(resources: TestResources(kernelURL: kernel, initramfsURL: initramfs))
         let responses = controller.handle(.provision(serverDir: directory.path, version: "1.26.32.2"))
         if BedrockSidecarController.hostArchitectureIsIntel && VZVirtualMachine.isSupported {
-            XCTAssertEqual(responses, [.provisioned(ok: true, reason: nil)])
+            XCTAssertEqual(responses.first, .provisioned(ok: true, reason: nil))
+            XCTAssertEqual(responses.count, 2)
         } else {
             XCTAssertEqual(responses.count, 1)
             if case .provisioned(false, _) = responses[0] {} else { XCTFail("expected unavailable result") }
@@ -75,16 +76,16 @@ final class BedrockSidecarTests: XCTestCase {
         FileManager.default.createFile(atPath: initramfs.path, contents: Data([0]))
 
         let controller = BedrockSidecarController(resources: TestResources(kernelURL: kernel, initramfsURL: initramfs))
-        XCTAssertEqual(
-            controller.handle(.provision(serverDir: directory.path, version: "1.26.32.2")),
-            [.provisioned(ok: true, reason: nil)])
+        let firstProvision = controller.handle(.provision(serverDir: directory.path, version: "1.26.32.2"))
+        XCTAssertEqual(firstProvision.first, .provisioned(ok: true, reason: nil))
+        XCTAssertEqual(firstProvision.count, 2)
 
         // With no VM running, force-stop transitions the controller through
         // the same terminated state produced by a completed first-start run.
         XCTAssertEqual(controller.handle(.forceStop), [])
-        XCTAssertEqual(
-            controller.handle(.provision(serverDir: directory.path, version: "1.26.32.2")),
-            [.provisioned(ok: true, reason: nil)])
+        let secondProvision = controller.handle(.provision(serverDir: directory.path, version: "1.26.32.2"))
+        XCTAssertEqual(secondProvision.first, .provisioned(ok: true, reason: nil))
+        XCTAssertEqual(secondProvision.count, 2)
     }
 
     func testGuestIPParserMatchesOracleShape() {

@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import Network
 import Virtualization
@@ -401,7 +402,12 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
                 let tcpRelay = try TCPRelay(
                     listenPort: bedrockPort,
                     guestHost: ip,
-                    guestPort: bedrockPort)
+                    guestPort: bedrockPort,
+                    diagnostic: { [weak self] message in
+                        DispatchQueue.main.async {
+                            self?.send(.consoleLine("[TCP relay] \(message)"))
+                        }
+                    })
                 let udpRelays = try Self.netherNetUDPPorts(serverPort: bedrockPort).map { port in
                     try UDPRelay(listenPort: port, guestHost: ip, guestPort: port)
                 }
@@ -574,28 +580,31 @@ private final class TCPRelay: @unchecked Sendable {
 
     private final class Session {
         let client: NWConnection
-        let guest: NWConnection
+        let guest: FileHandle
         var lastActivity = Date()
-        var clientReady = false
-        var guestReady = false
-        var pumpsStarted = false
 
-        init(client: NWConnection, guest: NWConnection) {
+        init(client: NWConnection, guest: FileHandle) {
             self.client = client
             self.guest = guest
         }
     }
 
     private let listener: NWListener
-    private let guestHost: NWEndpoint.Host
-    private let guestPort: NWEndpoint.Port
+    private let guestHost: String
+    private let guestPort: UInt16
+    private let diagnostic: @Sendable (String) -> Void
     private let queue = DispatchQueue(label: "msc.bedrock.tcp-relay")
     private var clients: [ObjectIdentifier: Session] = [:]
     private var startCompletion: (@Sendable (Bool) -> Void)?
 
-    init(listenPort: UInt16, guestHost: String, guestPort: UInt16) throws {
+    init(
+        listenPort: UInt16,
+        guestHost: String,
+        guestPort: UInt16,
+        diagnostic: @escaping @Sendable (String) -> Void
+    ) throws {
         guard let listen = NWEndpoint.Port(rawValue: listenPort),
-              let guest = NWEndpoint.Port(rawValue: guestPort) else {
+              NWEndpoint.Port(rawValue: guestPort) != nil else {
             throw NSError(domain: "BedrockSidecar", code: 2,
                           userInfo: [NSLocalizedDescriptionKey: "invalid TCP port"])
         }
@@ -604,8 +613,9 @@ private final class TCPRelay: @unchecked Sendable {
         parameters.requiredLocalEndpoint = .hostPort(
             host: NWEndpoint.Host("0.0.0.0"), port: listen)
         listener = try NWListener(using: parameters)
-        self.guestHost = NWEndpoint.Host(guestHost)
-        self.guestPort = guest
+        self.guestHost = guestHost
+        self.guestPort = guestPort
+        self.diagnostic = diagnostic
     }
 
     func start(completion: @escaping @Sendable (Bool) -> Void) {
@@ -627,55 +637,56 @@ private final class TCPRelay: @unchecked Sendable {
     }
 
     private func accept(_ client: NWConnection) {
-        let guest = NWConnection(host: guestHost, port: guestPort, using: .tcp)
         let key = ObjectIdentifier(client)
+        let guest: FileHandle
+        do {
+            guest = try connectedIPv4Socket(
+                host: guestHost,
+                port: guestPort,
+                type: SOCK_STREAM)
+        } catch {
+            log("guest connection failed: \(error.localizedDescription)")
+            client.cancel()
+            return
+        }
         clients[key] = Session(client: client, guest: guest)
         client.stateUpdateHandler = { [weak self] state in
-            self?.handleState(state, side: .client, key: key)
+            self?.handleState(state, key: key)
         }
-        guest.stateUpdateHandler = { [weak self] state in
-            self?.handleState(state, side: .guest, key: key)
+        guest.readabilityHandler = { [weak self] handle in
+            let data = handle.availableData
+            guard let relay = self else { return }
+            relay.queue.async { [weak relay] in
+                guard let relay, relay.clients[key] != nil else { return }
+                guard !data.isEmpty else {
+                    relay.closeClient(key)
+                    return
+                }
+                client.send(content: data, completion: .contentProcessed { [weak relay] error in
+                    if error != nil { relay?.closeClient(key) }
+                })
+            }
         }
         client.start(queue: queue)
-        guest.start(queue: queue)
+        pumpClientToGuest(key: key)
     }
 
-    private enum SessionSide: String {
-        case client
-        case guest
-    }
-
-    private func startPumpsIfReady(key: ObjectIdentifier) {
-        guard let session = clients[key],
-              session.clientReady,
-              session.guestReady,
-              !session.pumpsStarted else { return }
-        session.pumpsStarted = true
-        pump(from: session.client, to: session.guest, key: key)
-        pump(from: session.guest, to: session.client, key: key)
-    }
-
-    private func pump(
-        from source: NWConnection,
-        to destination: NWConnection,
-        key: ObjectIdentifier
-    ) {
-        source.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) {
+    private func pumpClientToGuest(key: ObjectIdentifier) {
+        guard let session = clients[key] else { return }
+        session.client.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) {
             [weak self] data, _, complete, error in
             guard let self, self.clients[key] != nil else { return }
             if let data, !data.isEmpty {
                 self.clients[key]?.lastActivity = Date()
-                destination.send(content: data, completion: .contentProcessed { [weak self] error in
-                    guard let self else { return }
-                    if let error {
-                        self.log("stream send failed: \(error.localizedDescription)")
-                        self.closeClient(key)
-                    } else if !complete {
-                        self.pump(from: source, to: destination, key: key)
-                    }
-                })
+                do {
+                    try self.clients[key]?.guest.write(contentsOf: data)
+                    if !complete { self.pumpClientToGuest(key: key) }
+                } catch {
+                    self.log("guest stream send failed: \(error.localizedDescription)")
+                    self.closeClient(key)
+                }
             } else if !complete, error == nil {
-                self.pump(from: source, to: destination, key: key)
+                self.pumpClientToGuest(key: key)
             }
             if let error {
                 self.log("stream receive failed: \(error.localizedDescription)")
@@ -686,23 +697,12 @@ private final class TCPRelay: @unchecked Sendable {
         }
     }
 
-    private func handleState(
-        _ state: NWConnection.State,
-        side: SessionSide,
-        key: ObjectIdentifier
-    ) {
+    private func handleState(_ state: NWConnection.State, key: ObjectIdentifier) {
         switch state {
-        case .ready:
-            guard let session = clients[key] else { return }
-            switch side {
-            case .client: session.clientReady = true
-            case .guest: session.guestReady = true
-            }
-            startPumpsIfReady(key: key)
         case .waiting(let error):
-            log("\(side.rawValue) connection waiting: \(error.localizedDescription)")
+            log("client connection waiting: \(error.localizedDescription)")
         case .failed(let error):
-            log("\(side.rawValue) connection failed: \(error.localizedDescription)")
+            log("client connection failed: \(error.localizedDescription)")
             closeClient(key)
         case .cancelled:
             closeClient(key)
@@ -714,28 +714,30 @@ private final class TCPRelay: @unchecked Sendable {
     private func closeClient(_ key: ObjectIdentifier) {
         guard let session = clients.removeValue(forKey: key) else { return }
         session.client.stateUpdateHandler = nil
-        session.guest.stateUpdateHandler = nil
         session.client.cancel()
-        session.guest.cancel()
+        session.guest.readabilityHandler = nil
+        try? session.guest.close()
     }
 
     func verifyBedrockPath(completion: @escaping @Sendable (Bool) -> Void) {
         queue.async { [weak self] in
-            self?.verifyBedrockPath(attemptsRemaining: 5, completion: completion)
+            self?.verifyBedrockPath(
+                deadline: Date().addingTimeInterval(30),
+                completion: completion)
         }
     }
 
     private func verifyBedrockPath(
-        attemptsRemaining: Int,
+        deadline: Date,
         completion: @escaping @Sendable (Bool) -> Void
     ) {
-        guard attemptsRemaining > 0 else {
+        guard Date() < deadline else {
             completion(false)
             return
         }
         let probe = NWConnection(
             host: NWEndpoint.Host("127.0.0.1"),
-            port: listener.port ?? guestPort,
+            port: listener.port ?? NWEndpoint.Port(rawValue: guestPort)!,
             using: .tcp)
         let attempt = VerificationAttempt()
         let finish: @Sendable (Bool) -> Void = { [self] success in
@@ -747,7 +749,7 @@ private final class TCPRelay: @unchecked Sendable {
             } else {
                 queue.asyncAfter(deadline: .now() + 0.5) { [self] in
                     verifyBedrockPath(
-                        attemptsRemaining: attemptsRemaining - 1,
+                        deadline: deadline,
                         completion: completion)
                 }
             }
@@ -778,6 +780,7 @@ private final class TCPRelay: @unchecked Sendable {
 
     private func log(_ message: String) {
         FileHandle.standardError.write(Data("bedrock TCP relay: \(message)\n".utf8))
+        diagnostic(message)
     }
 
     func cancel() {
@@ -791,18 +794,18 @@ private final class TCPRelay: @unchecked Sendable {
 private final class UDPRelay: @unchecked Sendable {
     private final class Session {
         let client: NWConnection
-        let guest: NWConnection
+        let guest: FileHandle
         var lastActivity = Date()
 
-        init(client: NWConnection, guest: NWConnection) {
+        init(client: NWConnection, guest: FileHandle) {
             self.client = client
             self.guest = guest
         }
     }
 
     private let listener: NWListener
-    private let guestHost: NWEndpoint.Host
-    private let guestPort: NWEndpoint.Port
+    private let guestHost: String
+    private let guestPort: UInt16
     private let queue: DispatchQueue
     private var clients: [ObjectIdentifier: Session] = [:]
     private var cleanupTimer: DispatchSourceTimer?
@@ -810,7 +813,7 @@ private final class UDPRelay: @unchecked Sendable {
 
     init(listenPort: UInt16, guestHost: String, guestPort: UInt16) throws {
         guard let listen = NWEndpoint.Port(rawValue: listenPort),
-              let guest = NWEndpoint.Port(rawValue: guestPort) else {
+              NWEndpoint.Port(rawValue: guestPort) != nil else {
             throw NSError(domain: "BedrockSidecar", code: 3,
                           userInfo: [NSLocalizedDescriptionKey: "invalid UDP port"])
         }
@@ -819,8 +822,8 @@ private final class UDPRelay: @unchecked Sendable {
         parameters.requiredLocalEndpoint = .hostPort(
             host: NWEndpoint.Host("0.0.0.0"), port: listen)
         listener = try NWListener(using: parameters)
-        self.guestHost = NWEndpoint.Host(guestHost)
-        self.guestPort = guest
+        self.guestHost = guestHost
+        self.guestPort = guestPort
         queue = DispatchQueue(label: "msc.bedrock.udp-relay.\(listenPort)")
     }
 
@@ -848,24 +851,46 @@ private final class UDPRelay: @unchecked Sendable {
     }
 
     private func accept(_ client: NWConnection) {
-        let guest = NWConnection(host: guestHost, port: guestPort, using: .udp)
         let key = ObjectIdentifier(client)
+        let guest: FileHandle
+        do {
+            guest = try connectedIPv4Socket(
+                host: guestHost,
+                port: guestPort,
+                type: SOCK_DGRAM)
+        } catch {
+            client.cancel()
+            return
+        }
         clients[key] = Session(client: client, guest: guest)
+        guest.readabilityHandler = { [weak self] handle in
+            let data = handle.availableData
+            guard let relay = self else { return }
+            relay.queue.async { [weak relay] in
+                guard let relay, relay.clients[key] != nil, !data.isEmpty else { return }
+                relay.clients[key]?.lastActivity = Date()
+                client.send(content: data, completion: .idempotent)
+            }
+        }
         client.start(queue: queue)
-        guest.start(queue: queue)
-        pump(from: client, to: guest, key: key)
-        pump(from: guest, to: client, key: key)
+        pumpClientToGuest(key: key)
     }
 
-    private func pump(from source: NWConnection, to destination: NWConnection, key: ObjectIdentifier) {
-        source.receiveMessage { [weak self] data, _, _, error in
+    private func pumpClientToGuest(key: ObjectIdentifier) {
+        guard let session = clients[key] else { return }
+        session.client.receiveMessage { [weak self] data, _, _, error in
             guard let self, self.clients[key] != nil else { return }
             if let data, !data.isEmpty {
                 self.clients[key]?.lastActivity = Date()
-                destination.send(content: data, completion: .idempotent)
+                do {
+                    try self.clients[key]?.guest.write(contentsOf: data)
+                } catch {
+                    self.closeClient(key)
+                    return
+                }
             }
             if error == nil {
-                self.pump(from: source, to: destination, key: key)
+                self.pumpClientToGuest(key: key)
             } else {
                 self.closeClient(key)
             }
@@ -882,7 +907,8 @@ private final class UDPRelay: @unchecked Sendable {
     private func closeClient(_ key: ObjectIdentifier) {
         guard let session = clients.removeValue(forKey: key) else { return }
         session.client.cancel()
-        session.guest.cancel()
+        session.guest.readabilityHandler = nil
+        try? session.guest.close()
     }
 
     func cancel() {
@@ -893,6 +919,84 @@ private final class UDPRelay: @unchecked Sendable {
             for key in Array(clients.keys) { closeClient(key) }
         }
     }
+}
+
+private func connectedIPv4Socket(host: String, port: UInt16, type: Int32) throws -> FileHandle {
+    let descriptor = Darwin.socket(AF_INET, type, 0)
+    guard descriptor >= 0 else {
+        throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+    }
+
+    var address = sockaddr_in()
+    address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+    address.sin_family = sa_family_t(AF_INET)
+    address.sin_port = port.bigEndian
+    let converted = host.withCString { pointer in
+        inet_pton(AF_INET, pointer, &address.sin_addr)
+    }
+    guard converted == 1 else {
+        Darwin.close(descriptor)
+        throw NSError(domain: NSPOSIXErrorDomain, code: Int(EINVAL))
+    }
+
+    if var interface = interfaceIndex(for: address.sin_addr) {
+        let bound = withUnsafePointer(to: &interface) { pointer in
+            setsockopt(
+                descriptor,
+                IPPROTO_IP,
+                IP_BOUND_IF,
+                pointer,
+                socklen_t(MemoryLayout<UInt32>.size))
+        }
+        guard bound == 0 else {
+            let code = errno
+            Darwin.close(descriptor)
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(code))
+        }
+    }
+
+    let result = withUnsafePointer(to: &address) { pointer in
+        pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { socketAddress in
+            Darwin.connect(
+                descriptor,
+                socketAddress,
+                socklen_t(MemoryLayout<sockaddr_in>.size))
+        }
+    }
+    guard result == 0 else {
+        let code = errno
+        Darwin.close(descriptor)
+        throw NSError(domain: NSPOSIXErrorDomain, code: Int(code))
+    }
+    return FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+}
+
+private func interfaceIndex(for target: in_addr) -> UInt32? {
+    var interfaces: UnsafeMutablePointer<ifaddrs>?
+    guard getifaddrs(&interfaces) == 0, let first = interfaces else { return nil }
+    defer { freeifaddrs(first) }
+
+    var current: UnsafeMutablePointer<ifaddrs>? = first
+    while let item = current {
+        let interface = item.pointee
+        if let rawAddress = interface.ifa_addr,
+           let rawMask = interface.ifa_netmask,
+           rawAddress.pointee.sa_family == UInt8(AF_INET),
+           rawMask.pointee.sa_family == UInt8(AF_INET) {
+            let local = UnsafeRawPointer(rawAddress)
+                .assumingMemoryBound(to: sockaddr_in.self)
+                .pointee.sin_addr.s_addr
+            let mask = UnsafeRawPointer(rawMask)
+                .assumingMemoryBound(to: sockaddr_in.self)
+                .pointee.sin_addr.s_addr
+            if local & mask == target.s_addr & mask {
+                let index = if_nametoindex(interface.ifa_name)
+                if index != 0 { return index }
+            }
+        }
+        current = interface.ifa_next
+    }
+    return nil
 }
 
 func runSidecar() {

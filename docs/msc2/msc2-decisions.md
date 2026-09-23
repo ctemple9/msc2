@@ -1,6 +1,6 @@
 # MSC 2 — Decision Register
 
-**Revision:** 1.20 · **Date:** 2026-09-21
+**Revision:** 1.21 · **Date:** 2026-09-23
 **Owner:** Cameron Temple
 
 **Purpose:** the authoritative record of *what was decided, by whom, and why*. The product and engineering documents describe the destination; this document explains how it was chosen, what was rejected, and when a decision should be reopened.
@@ -35,7 +35,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 | D-004 | The iOS app is evolved, not rewritten | **Superseded by D-033** | 2026-07-29 |
 | D-005 | Behavior is ported, not reimagined | Proposed | — |
 | D-006 | MSC 1's API is the compatibility baseline (not the whole API) | Proposed | — |
-| D-007 | macOS Bedrock stays Swift behind a sidecar | Proposed | — |
+| D-007 | macOS Bedrock stays Swift behind a sidecar | **Approved** | 2026-08-22; service-boundary amendment 2026-09-23 |
 | D-008 | The Docker Bedrock backend is not ported | Proposed | — |
 | D-009 | MSC 1 and MSC 2 share nothing; import only | **Approved** | 2026-07-29 |
 | D-010 | Version skew: floor with capability degradation | **Approved** (mechanism) / Proposed (N-3) | 2026-07-29 |
@@ -53,7 +53,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 | D-022 | MSC platform support and Bedrock platform support are separate matrices | Proposed | — |
 | D-023 | Supported-client capability, tracked by an explicit matrix | **Approved** (supported-client capability) / Proposed (mechanism) | 2026-07-29 |
 | D-024 | Power management has two policies, by host role | Proposed | — |
-| D-025 | Service identity and privilege boundaries | Open | — |
+| D-025 | Service identity and privilege boundaries | **Approved** core identity + macOS Bedrock helper / Open Keychain + TCC questions | 2026-08-01; helper amendment 2026-09-23 |
 | D-026 | Educational content is served data, not client code | **Approved** (requirement) / Proposed (mechanism) | 2026-07-30 |
 | D-027 | The CurseForge manual-download workflow has no home once agent and client are different machines | Open | — |
 | D-028 | Bedrock macOS support is Intel-only for Phase 10; Apple Silicon is deferred | **Approved** | 2026-08-22 |
@@ -184,6 +184,19 @@ Three things follow, and conflating them is a mistake:
 **Rationale.** `Virtualization.framework` is bridgeable from Rust via `objc2`, so this is engineering judgement rather than impossibility. It is a delegate-heavy framework with an async VM lifecycle; hand-rolled bridging of working, proven code is high risk for no early product value.
 
 **Approval note (2026-08-22).** Confirmed with the owner directly, weighing the Rust-bridge alternative concretely: hand-declaring the `VZVirtualMachineDelegate` protocol from Rust via `objc2`, replicating the framework's one-queue-only access rule without Swift's `DispatchQueue` ergonomics, re-discovering undocumented quirks MSC 1 already paid for once (the `Pipe`-not-a-plain-file requirement noted in `VMBedrockServerBackend.swift`'s own comments), and bridging async completion blocks by hand — all with no compiler-enforced safety net at the `objc2` FFI boundary, unlike Swift calling this framework directly. Given the owner is still learning Rust, that failure mode (a runtime crash inside a closed-source framework, no Swift source to step through) is a worse trade than the sidecar's IPC surface. Confirmed sound; approved as originally proposed.
+
+**Service-boundary amendment (approved by Cameron Temple, 2026-09-23).**
+P15.69 proved that the identical signed sidecar can reach its VZ NAT guest from
+a foreground user session but receives `EHOSTUNREACH` when descended from MSC's
+installing-user `LaunchDaemon`. The Rust agent remains an installing-user
+service. On Intel macOS only, a separate root-owned `LaunchDaemon`, with no
+`UserName` key, owns the Swift VZ sidecar service, VM, and host relays. The
+agent reaches it only through a local Unix-domain socket carrying the existing
+narrow sidecar protocol. This is a scoped exception to D-025, not permission to
+move the agent or ordinary server management to root. The complete boundary,
+including peer authentication, path constraints, ownership, install/update,
+and failure behavior, is frozen in
+`docs/msc2/bedrock/macos-privileged-helper.md`.
 
 **Sequencing constraint.** The shared runtime contract is proven on native Linux first, then Windows, then the sidecar — so macOS-specific assumptions cannot leak into the contract.
 
@@ -660,6 +673,38 @@ Manager under the service account, and Linux helper-backed service storage.
 P4.41-P4.43 must prove those pieces before the credential portion of Phase 4 is
 closed.
 
+**macOS Bedrock helper amendment (approved by Cameron Temple, 2026-09-23):**
+P15.69 supplied the live evidence D-025 requires before expanding a privilege
+boundary. A sidecar descended from the installing-user macOS `LaunchDaemon`
+cannot route to the VZ NAT guest, while the identical signed sidecar succeeds
+from a foreground session. MSC therefore adds one narrow exception: a separate
+root-owned macOS Bedrock helper, installed without a plist `UserName`, owns only
+the Virtualization.framework VM and Bedrock host relays. The main agent still
+runs as the installing user and remains authoritative for server state.
+
+The helper accepts only the existing bounded sidecar operations over a local
+Unix-domain socket. It verifies the peer UID, accepts only the configured
+installing user, canonicalizes and allowlists shared server paths, and never
+exposes a TCP control listener, shell, arbitrary executable path, or arbitrary
+host-filesystem operation. Its binary, plist, appliance, allowlist
+configuration, and runtime-resource roots are root-owned and not writable by
+the installing user. The socket is reachable only by that user inside a
+root-owned directory. Installation, update, allowlist changes, and removal use
+the existing administrator-authorized service transaction; routine start,
+stop, command, and status operations do not elevate or prompt.
+
+The privilege exception does not change file ownership: server directories,
+worlds, logs, and backups remain owned by the installing user. The helper must
+run or map guest writes using the configured UID/GID and must reject symlink or
+canonical-path escapes rather than repairing them with a broad recursive
+`chown`. One client session owns at most one VM, and disconnect or process
+termination tears down its VM and relays. An installed agent reports a missing,
+misowned, rejected, or incompatible helper specifically and never silently
+falls back to launching the sidecar in the known-broken user-daemon context.
+Direct child-process mode is retained only as an explicit development path.
+Full contract and threat model:
+`docs/msc2/bedrock/macos-privileged-helper.md`.
+
 ---
 
 ## D-026 — Educational content is served data, not client code
@@ -1131,6 +1176,7 @@ Recorded because each produced a confident wrong answer, and each is the kind of
 
 | Rev | Date | Change |
 |---|---|---|
+| 1.21 | 2026-09-23 | Amended D-007 and D-025 with Cameron's approved macOS Bedrock boundary: the installing-user agent controls a narrowly scoped root VZ/relay helper over authenticated local IPC. |
 | 1.20 | 2026-09-21 | Recorded Cameron's approval of D-030's world-profile ownership boundary. |
 | 1.19 | 2026-09-21 | Recorded the proposed Phase 15 world-pack and modpack-identity contract and its D-030 approval gate. |
 | 1.18 | 2026-09-11 | Simplified the guided SSH trust flow: first connection remembers the remote identity without displaying its fingerprint; changed identities remain blocked until explicitly trusted, without showing key values. |

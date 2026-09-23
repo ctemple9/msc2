@@ -98,7 +98,7 @@ Clients display and request. They never become co-owners. This is what keeps rec
 | Secret storage | `keyring` crate **+ headless fallback** | Keychain / DPAPI behind one trait. **The crate is not sufficient on headless Linux** — see §8. |
 | Hashing | Rust-native | Replaces CryptoKit usage. |
 | Images | `image` crate | Replaces AppKit `NSImage` skin handling. |
-| macOS Bedrock VM | **Swift sidecar** | `Virtualization.framework`. See D-007. |
+| macOS Bedrock VM | **Swift sidecar service** | `Virtualization.framework`; installed operation is isolated in the privileged helper frozen by D-007/D-025. |
 
 ---
 
@@ -302,7 +302,7 @@ msc-agent
 msc-cli
     local and remote commands (ships in the same binary)
 
-msc-platform-macos      launchd LaunchDaemon · Keychain · VZ sidecar client
+msc-platform-macos      launchd LaunchDaemons · Keychain · privileged VZ helper client
 msc-platform-windows    Windows Service · DPAPI · Job Objects · firewall
 msc-platform-linux      systemd · secret store · cgroups
 msc-desktop             Tauri shell + shared Svelte frontend
@@ -364,22 +364,46 @@ The role is an explicit per-host setting, not inferred.
 
 Implemented via `IOPMAssertion` (macOS), `SetThreadExecutionState` (Windows), and `systemd-inhibit` (Linux).
 
-### Service identity and privilege boundaries — open (D-025)
+### Service identity and privilege boundaries (D-025)
 
-A macOS LaunchDaemon, a Windows Service, and a `systemd` service all run **outside the logged-in user's session**. MSC 1 has never faced this: it is a user-session GUI application, so its files, Keychain items, and processes all belong to the user running it. Nothing in the audit corpus answers what changes when the agent becomes a system service.
+The cross-platform default is settled: the MSC agent runs as the account that
+installed it, owns ordinary server state as that user, and performs routine
+management without escalation. Administrator authorization is reserved for
+installing, changing, updating, or removing protected service definitions and
+their privileged artifacts. The remaining login-Keychain and TCC questions do
+not change that default; their evidence and status remain in
+`docs/msc2/substrate/service-identity.md`.
 
-Unresolved, and blocking the substrate:
+Intel macOS Bedrock has one evidence-backed exception approved on 2026-09-23.
+P15.69 proved that a sidecar descended from the installing-user system
+LaunchDaemon receives `EHOSTUNREACH` when connecting to the VZ NAT guest, while
+the identical signed sidecar succeeds in a foreground session. Installed
+Bedrock therefore uses two daemons with deliberately unequal privileges:
 
-| Question | Why it matters |
-|---|---|
-| **Which OS account runs the agent?** Dedicated service account, `root`/`SYSTEM`, or the installing user | Determines file ownership and attack surface |
-| **Who owns server directories?** | A desktop user may need to open, edit, or back up files the service created |
-| **When is escalation permitted?** | Plausibly service installation and privileged ports; routine operation should need none |
-| **Machine-scoped secret storage** | A LaunchDaemon cannot reach a user login Keychain; DPAPI has user vs machine scope. The `SecretStore` trait must state which scope it uses per platform, and the consequence if the machine is compromised |
-| **How does a desktop user grant file access?** | On macOS, TCC consent flows have no obvious UI when there is no GUI |
-| **How do updates cross the boundary?** | A user-space app updating a system service is the classic privilege-escalation pattern |
+| Process | Identity | Authority |
+|---|---|---|
+| `com.ctemple.msc2.agent` | Installing user (`UserName` is set) | Owns server state, API, operations, policy, and supervision |
+| macOS Bedrock helper | `root` (no plist `UserName`) | Owns only the Swift VZ VM session and its host TCP/UDP relays |
 
-This is recorded as **Open** rather than guessed. It also blocks the D-012 local-authorization design, which assumes an answer to the first question.
+The agent connects to the helper over a local Unix-domain socket carrying the
+narrow Bedrock sidecar protocol. The helper authenticates the peer UID, admits
+only the configured installing user, canonicalizes shared paths into
+root-configured approved Bedrock roots, and exposes no TCP control listener,
+shell, arbitrary command execution, or general filesystem API. The helper
+binary, plist, appliance, configuration, and resource roots are root-owned and
+not user-writable. Its socket lives in a root-owned directory and is accessible
+only to the configured user.
+
+One authenticated session may own one VM. Disconnect and process termination
+tear down that VM and every relay. Guest/shared-folder writes retain the
+installing user's UID/GID ownership. An installed agent fails explicitly when
+the helper is absent, misowned, incompatible, or rejects it; it does not fall
+back to the broken child-process path. Foreground child-process mode remains an
+explicit development facility only. Installation, upgrade, allowlist changes,
+and removal occur inside the existing administrator-authorized transaction;
+ordinary Bedrock start/stop/status does not prompt. The normative protocol,
+path, ownership, lifecycle, and threat-model rules are in
+`docs/msc2/bedrock/macos-privileged-helper.md`.
 
 ### Linux secret storage — resolved (P3.2)
 

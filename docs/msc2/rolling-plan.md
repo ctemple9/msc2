@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 15 is the priority next phase; Phase 14 is paused with P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, P14.17, P14.18, P14.19, P14.26, P14.27, P14.28, P14.29, P14.30, P14.31, P14.32, P14.33, P14.34, P14.35, P14.36, and P14.37 awaiting verification. P14.38 records twelve unverified static-review findings and is awaiting owner triage.
-> **Next move:** Cameron chooses the macOS Bedrock service boundary after P15.69 proved that macOS 15.7.8 denies VZ NAT guest access only to the sidecar descended from MSC's user-owned system LaunchDaemon. The identical signed sidecar succeeds from a foreground user session. The two viable implementation directions are a root-owned privileged VZ sidecar service that preserves headless Bedrock, or a logged-in-user sidecar that restores connectivity with a smaller change but makes Bedrock unavailable before login. Cameron also verifies P15.3, P15.4, P15.5, and P15.45–P15.68. Phase 14 verification and P14.38 triage remain recorded and paused until Phase 15 is complete or Cameron explicitly resumes Phase 14. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> **Next move:** Cameron verifies P15.70. On 2026-09-23 Cameron approved the root-owned privileged Bedrock helper recommended after P15.69. The normal MSC agent remains owned by and runs as the installing user; the helper receives only a local, authenticated Bedrock sidecar protocol and owns only the macOS Virtualization.framework VM and its host relays. P15.70 records that boundary before implementation. After Cameron closes P15.70, P15.71 is the next execution step. P15.71–P15.77 implement, install, harden, and live-verify the helper before changing NetherNet advertisement or judging Xbox Broadcast. Cameron also verifies P15.3, P15.4, P15.5, and P15.45–P15.68. Phase 14 verification and P14.38 triage remain recorded and paused until Phase 15 is complete or Cameron explicitly resumes Phase 14. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -1087,6 +1087,107 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-infrastructure -p msc-application -p msc-agent --lib --bins --no-deps -- -D warnings && xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-69-build build CODE_SIGNING_ALLOWED=NO` — then rebuild/restart the installed agent, start Bedrock, and confirm the start operation succeeds and remains running; `curl -i --max-time 3 http://127.0.0.1:19001/` must return BDS's HTTP response through the daemon-owned relay.
 - **Batch:** N — Bedrock transport and relay repair
 - **Commit:** `P15.69: diagnose macOS daemon relay routing`
+
+### Owner-approved macOS Bedrock recovery boundary — 2026-09-23
+
+P15.69 isolated the remaining startup failure to the installed process context:
+the same signed sidecar and relay code reaches the VZ NAT guest from Cameron's
+foreground login session, while a sidecar descended from MSC's user-owned
+system LaunchDaemon receives `EHOSTUNREACH`. Cameron approved the recommended
+service split:
+
+- keep `com.ctemple.msc2.agent` running as the installing user;
+- install a separate root-owned macOS LaunchDaemon, without a `UserName` key,
+  that owns only the Virtualization.framework VM and Bedrock host relays;
+- preserve the narrow sidecar command/event protocol over a local Unix-domain
+  socket rather than exposing another management API or network listener;
+- authenticate the connecting peer as the configured installing UID, constrain
+  shared directories to approved MSC-managed Bedrock roots after resolving
+  symlinks, and keep the root executable, plist, and runtime resources
+  non-writable by that user;
+- perform helper installation, upgrade, configuration, and removal only inside
+  MSC's existing administrator-authorized service workflow; routine Bedrock
+  start, stop, and status operations must not prompt;
+- retain headless-before-login operation, deterministic teardown, and the
+  installing user's ownership of server/world files.
+
+The helper is not a second server manager. The Rust agent remains authoritative
+for server state and supervision. An inconsistent or unavailable installed
+helper must produce a specific diagnostic; an installed production agent must
+not silently fall back to launching the VZ sidecar in its known-broken service
+context. Direct child-process launch remains only an explicit development path.
+
+### P15.70 — Record the privileged Bedrock helper contract
+
+- **Status:** awaiting verification
+- **Files:** `docs/msc2/msc2-decisions.md`, `docs/msc2/msc2-engineering.md`, `docs/msc2/substrate/service-identity.md`, `docs/msc2/bedrock/macos-privileged-helper.md`, `docs/msc2/rolling-plan.md`
+- **What:** Amend D-007 and D-025 with Cameron's approved exception to the normal user-owned service boundary. Specify the two-process ownership model, administrator-authorized install/update/uninstall, Unix-socket peer authentication, approved-root and symlink rules, immutable privileged artifacts, one-session/one-VM supervision, file-ownership guarantees, production failure behavior, and the direct-launch development exception. Record the threat model in plain language so later implementation cannot turn the helper into an unrestricted root command runner or a second public management API.
+- **Verify:** `rg -n "privileged Bedrock helper|Unix-domain socket|peer UID|approved.*root|symlink|headless|direct.*development" docs/msc2/msc2-decisions.md docs/msc2/msc2-engineering.md docs/msc2/substrate/service-identity.md docs/msc2/bedrock/macos-privileged-helper.md`
+- **Batch:** N1 — privileged helper contract
+- **Commit:** `P15.70: record privileged Bedrock helper contract`
+
+### P15.71 — Add the constrained Bedrock helper service mode
+
+- **Status:** planned
+- **Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `sidecar/bedrock/BedrockSidecarMain.swift`, sidecar project and entitlement files, `docs/msc2/rolling-plan.md`
+- **What:** Give the signed Swift sidecar an explicit privileged service mode that listens only on a local Unix-domain socket and reuses the existing newline-delimited command/event protocol. Resolve and verify the peer UID with the macOS socket credential API, reject every UID except the configured installing user, bound request size, reject unknown commands, canonicalize shared paths before enforcing the approved Bedrock roots, and allow only one supervised VM session at a time. A client disconnect, helper termination, or failed provision must tear down the VM and relays deterministically. Preserve the existing foreground command mode for development diagnostics only.
+- **Verify:** `xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-71-build build CODE_SIGNING_ALLOWED=NO`
+- **Batch:** N2 — privileged helper IPC
+- **Commit:** `P15.71: add constrained Bedrock helper service mode`
+
+### P15.72 — Connect the agent to the privileged helper
+
+- **Status:** planned
+- **Files:** `crates/msc-infrastructure/src/bedrock_sidecar.rs`, `crates/msc-application/src/bedrock_macos.rs`, `crates/msc-agent/src/main.rs`, Bedrock runtime/status routes and DTOs as required, `docs/msc2/rolling-plan.md`
+- **What:** Separate the sidecar protocol from its transport so an installed macOS agent connects to the privileged helper socket while development builds may explicitly use the existing child process. Preserve command ordering, readiness, console events, stop semantics, and operation reporting. Detect a missing socket, wrong owner/mode, rejected peer, disconnected helper, or incompatible protocol as a specific Bedrock runtime failure. Never silently fall back to direct launch from an installed service, and never let an agent restart leave an orphan VM or sidecar session.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-infrastructure -p msc-application -p msc-agent --lib --bins --no-deps -- -D warnings`
+- **Batch:** N2 — privileged helper IPC
+- **Commit:** `P15.72: connect agent to privileged Bedrock helper`
+
+### P15.73 — Install and maintain the privileged helper safely
+
+- **Status:** planned
+- **Files:** `crates/msc-platform-macos/src/service.rs`, desktop service-install bridge and DTOs, macOS packaging/release files, helper LaunchDaemon plist/template, `docs/msc2/rolling-plan.md`
+- **What:** Extend the existing administrator-authorized macOS service transaction to install, upgrade, bootstrap, inspect, and uninstall the Bedrock helper beside the normal agent. The helper plist runs as root without `UserName`; its executable, plist, appliance, and support resources are root-owned and not writable by the installing user. Create a root-owned runtime directory and a socket owned only by the configured user, roll back both services coherently on a partial install, and preserve headless operation before login. Do not use a mutable developer build or staging path as the production helper executable.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-platform-macos --lib --no-deps -- -D warnings && npm --prefix clients/desktop-web run check`
+- **Batch:** N3 — privileged helper installation
+- **Commit:** `P15.73: install privileged Bedrock helper safely`
+
+### P15.74 — Preserve Bedrock ownership and lifecycle guarantees
+
+- **Status:** planned
+- **Files:** macOS Bedrock helper and appliance configuration, `crates/msc-infrastructure/src/bedrock_sidecar.rs`, `crates/msc-application/src/bedrock_macos.rs`, Bedrock diagnostics, `docs/msc2/rolling-plan.md`
+- **What:** Pass the configured installing UID and GID through the privileged boundary wherever the VM/shared-folder path needs them, and prove that server configuration, worlds, logs, and backups remain owned by the installing user after root-helper operation. Reject path escapes and unregistered external roots before VM creation. Reconcile stale sockets and helper sessions after agent/helper crashes, terminate orphaned VMs and relays, and surface helper identity, protocol, ownership, and last teardown reason in local diagnostics without exposing privileged mutation controls.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-infrastructure -p msc-application -p msc-agent --lib --bins --no-deps -- -D warnings && xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-74-build build CODE_SIGNING_ALLOWED=NO`
+- **Batch:** N4 — privileged helper hardening
+- **Commit:** `P15.74: preserve privileged Bedrock lifecycle guarantees`
+
+### P15.75 — Prove the installed helper fixes relay startup
+
+- **Status:** planned
+- **Files:** `tools/phase15/` macOS helper inspector, Bedrock diagnostics/status surfaces if live evidence exposes a reporting gap, macOS Bedrock helper acceptance notes, `docs/msc2/rolling-plan.md`
+- **What:** Add a non-destructive live inspector for the installed pair and use it on the owner Intel Mac. It must prove that the main agent runs as Cameron, the helper runs as root with no plist `UserName`, privileged artifacts and the control socket have the promised ownership/modes, the helper accepts only the configured peer, BDS reaches `Server started`, the start operation completes without rollback, CPU/RAM do not fall to zero, TCP `19001` returns BDS's HTTP response through the host relay, UDP `19002-19033` is bound, and agent/helper restarts leave no orphan VM or sidecar. Fix only evidence-backed lifecycle or diagnostic gaps found by this check; do not change router or Xbox settings in this step.
+- **Verify:** `python3 tools/phase15/inspect_macos_bedrock_helper.py --live --server-port 19001`
+- **Batch:** N5 — installed helper acceptance
+- **Commit:** `P15.75: prove privileged Bedrock relay startup`
+
+### P15.76 — Advertise explicit NetherNet UDP mappings
+
+- **Status:** planned
+- **Files:** `crates/msc-application/src/bedrock_settings.rs`, Bedrock runtime/network diagnostics, macOS Bedrock acceptance notes, `docs/msc2/rolling-plan.md`
+- **What:** After P15.75 proves the server stays running, replace range shorthand in `server-udp-ports` with individually enumerated public-to-private mappings for BDS's bounded 32-port gameplay range. Preserve TCP `19001`, BDS UDP `19002-19033`, and Xbox Broadcast UDP `19034-19049`; validate that configured mappings exactly match the relay/listener contract and give a clear error when public-address discovery or the property shape is invalid. This is a current BDS 1.26.51 compatibility correction supported by the owner-supplied live report, not a claim that port forwarding caused the P15.69 startup teardown.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-application -p msc-agent --lib --bins --no-deps -- -D warnings`
+- **Batch:** N6 — NetherNet mapping compatibility
+- **Commit:** `P15.76: enumerate NetherNet UDP mappings`
+
+### P15.77 — Complete Bedrock and Xbox Broadcast acceptance
+
+- **Status:** planned
+- **Files:** Bedrock/Xbox Broadcast acceptance notes, diagnostics or user-facing error copy only if the acceptance evidence identifies a specific gap, `docs/msc2/rolling-plan.md`
+- **What:** Run the final connection chain only after the installed helper and explicit mappings hold. Record separate results for iPad direct LAN connection to `10.0.0.142:19001`, iPad direct remote connection to the public address over cellular or a true off-LAN network, Xbox Broadcast discovery and transfer on the home LAN, reconnects without restarting BDS, and two simultaneous clients when available. Correlate each attempt with the BDS, helper, relay, and Broadcast logs so an intermittent NetherNet establishment failure is distinguished from discovery, forwarding, or server death. Any remaining failure must name the first boundary that lacks traffic instead of returning the old generic startup diagnosis.
+- **Verify:** `python3 tools/phase15/inspect_macos_bedrock_helper.py --live --server-port 19001 --connection-report`
+- **Batch:** N7 — Bedrock product acceptance
+- **Commit:** `P15.77: complete Bedrock connection acceptance`
 
 ## Proposed Phase 14 — operational refinements
 

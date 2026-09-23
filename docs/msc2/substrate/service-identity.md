@@ -1,6 +1,6 @@
 # Service identity and privilege boundaries for v1 (D-025)
 
-**Status: Confirmed** by Cameron Temple, 2026-08-01 — questions 1, 2, 3, and 6 (the installing-user identity model and the install-time-only escalation boundary), and the recommended macOS default of §3 (design P3.9 against the System keychain now, rather than block on a live LaunchDaemon test). Question 4's macOS sub-case and question 5 (TCC) stay genuinely **Open** — Cameron's confirmation picks the default to build against, it does not resolve the underlying, untestable-until-Phase-4 platform question of whether a `UserName`-scoped LaunchDaemon can actually reach the login Keychain. `msc2-decisions.md` is amended accordingly.
+**Status: Confirmed** by Cameron Temple, 2026-08-01 — questions 1, 2, 3, and 6 (the installing-user identity model and the install-time-only escalation boundary), and the recommended macOS default of §3 (design P3.9 against the System keychain now, rather than block on a live LaunchDaemon test). **Amended by Cameron Temple, 2026-09-23** with the narrow root-owned macOS Bedrock helper in §8 after P15.69 supplied live service-context evidence. Question 4's macOS sub-case and question 5 (TCC) stay genuinely **Open**; neither changes the installing-user identity of the main agent. `msc2-decisions.md` is amended accordingly.
 
 ---
 
@@ -112,3 +112,46 @@ identity or the confirmed System-keychain target.
 | 4 | Machine-scoped secret storage | **Confirmed** for Windows/Linux (DPAPI user-scope, `systemd-creds` — see P3.2) · macOS default **confirmed as System keychain** to unblock P3.9 — underlying login-vs-System-keychain reachability from a `UserName`-scoped LaunchDaemon now has a P4.4 executable check, live result pending |
 | 5 | How does a desktop user grant file access (TCC)? | **Open** — P4.4 executable check added, live result pending |
 | 6 | How do updates cross the privilege boundary? | **Confirmed** — binary updates follow install location; daemon/service/unit-definition updates need the same elevation installation did |
+
+## 8. 2026-09-23 amendment — privileged macOS Bedrock helper
+
+P15.69 resolved a different macOS service-context question with live evidence.
+The signed Swift Bedrock sidecar reaches the Virtualization.framework NAT guest
+when launched in Cameron's foreground session. The same binary, when descended
+from MSC's `UserName`-scoped system LaunchDaemon, fails with `EHOSTUNREACH`.
+BDS itself reaches `Server started`, and direct host-to-guest TCP returns BDS's
+HTTP response, so this is not evidence for running the whole agent as root.
+
+Cameron approved the smallest headless boundary that addresses that evidence:
+
+- `com.ctemple.msc2.agent` remains the installing-user service and retains all
+  server-management authority;
+- a separate root-owned LaunchDaemon, with no `UserName`, owns only the Intel
+  macOS VZ VM and Bedrock host relays;
+- the agent reaches it through an authenticated local Unix-domain socket using
+  the existing bounded sidecar command/event protocol;
+- the helper verifies the connecting peer UID and accepts only the installing
+  UID recorded in its root-owned configuration;
+- every shared path is canonicalized before it is checked against approved,
+  root-configured MSC Bedrock roots; `..`, symlink escapes, arbitrary host
+  paths, executable paths, shell commands, and network control listeners are
+  rejected by construction;
+- the helper executable, plist, appliance, configuration, and resources are
+  root-owned and not writable by the installing user; its socket is created in
+  a root-owned directory and made accessible only to that user;
+- server and world files remain owned by the installing UID/GID. The helper may
+  not paper over an ownership error with a broad recursive `chown`;
+- one authenticated session owns at most one VM, and disconnect or helper/agent
+  termination deterministically tears down the VM and relays;
+- installation, upgrade, approved-root changes, and removal use the existing
+  administrator-authorized service transaction. Routine Bedrock operations do
+  not elevate or prompt;
+- an installed agent reports helper absence, ownership mismatch, rejection, or
+  protocol incompatibility. It never silently retries the known-broken daemon
+  child-process path. Direct child-process launch remains available only as an
+  explicit development mode.
+
+This exception does not alter Windows, Linux, the macOS agent identity, secret
+storage, or the still-open TCC question. Its normative implementation and
+threat-model contract is
+`docs/msc2/bedrock/macos-privileged-helper.md`.

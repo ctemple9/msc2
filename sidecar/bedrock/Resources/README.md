@@ -24,7 +24,7 @@ this port:
 | File | SHA-256 |
 |---|---|
 | `vmlinuz-kata` | `85ac495fce6bb6ee01206c8e022b65acad45ca3fcc2729ba377af33943c8b05e` |
-| `appliance-initramfs.gz` | `35c1803369ff66242ce5443d43a1044d14e2bc0e1415245750be99d6f5186e0f` |
+| `appliance-initramfs.gz` | `d8e0ce4b9a2b9f752e2a482cf52feebaccaac4d892c619f41fa4011d68ac1291` |
 
 The Xcode validation phase fails before compilation when either file is missing
 or a checksum differs. The pair is a verified distribution input rather than

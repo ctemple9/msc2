@@ -508,6 +508,10 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         }
         send(.consoleLine(line))
         if Self.isBedrockServerReadyLine(line) {
+            // launchd captures this one lifecycle milestone for the
+            // unprivileged live inspector; the full console remains on the
+            // authenticated agent stream.
+            FileHandle.standardOutput.write(Data("bedrock guest: \(line)\n".utf8))
             bedrockReady = true
             emitReadyIfPossible()
         }
@@ -679,10 +683,13 @@ private final class TCPRelay: @unchecked Sendable {
 
     private final class Session {
         let client: NWConnection
-        let guest: FileHandle
+        let guest: NWConnection
         var lastActivity = Date()
+        var clientReady = false
+        var guestReady = false
+        var pumpsStarted = false
 
-        init(client: NWConnection, guest: FileHandle) {
+        init(client: NWConnection, guest: NWConnection) {
             self.client = client
             self.guest = guest
         }
@@ -737,58 +744,57 @@ private final class TCPRelay: @unchecked Sendable {
 
     private func accept(_ client: NWConnection) {
         let key = ObjectIdentifier(client)
-        let guest: FileHandle
-        do {
-            guest = try connectedIPv4Socket(
-                host: guestHost,
-                port: guestPort,
-                type: SOCK_STREAM)
-        } catch {
-            log("guest connection failed: \(error.localizedDescription)")
-            client.cancel()
-            return
-        }
+        let guest = NWConnection(
+            host: NWEndpoint.Host(guestHost),
+            port: NWEndpoint.Port(rawValue: guestPort)!,
+            using: .tcp)
         clients[key] = Session(client: client, guest: guest)
         client.stateUpdateHandler = { [weak self] state in
-            self?.handleState(state, key: key)
+            self?.handleState(state, key: key, guest: false)
         }
-        guest.readabilityHandler = { [weak self] handle in
-            let data = handle.availableData
-            guard let relay = self else { return }
-            relay.queue.async { [weak relay] in
-                guard let relay, relay.clients[key] != nil else { return }
-                guard !data.isEmpty else {
-                    relay.closeClient(key)
-                    return
-                }
-                client.send(content: data, completion: .contentProcessed { [weak relay] error in
-                    if error != nil { relay?.closeClient(key) }
-                })
-            }
+        guest.stateUpdateHandler = { [weak self] state in
+            self?.handleState(state, key: key, guest: true)
         }
         client.start(queue: queue)
-        pumpClientToGuest(key: key)
+        guest.start(queue: queue)
     }
 
-    private func pumpClientToGuest(key: ObjectIdentifier) {
+    private func startPumpsIfReady(key: ObjectIdentifier) {
+        guard let session = clients[key], session.clientReady, session.guestReady,
+              !session.pumpsStarted else { return }
+        session.pumpsStarted = true
+        pump(key: key, from: session.client, to: session.guest, direction: "client-to-guest")
+        pump(key: key, from: session.guest, to: session.client, direction: "guest-to-client")
+    }
+
+    private func pump(
+        key: ObjectIdentifier,
+        from source: NWConnection,
+        to destination: NWConnection,
+        direction: String
+    ) {
         guard let session = clients[key] else { return }
-        session.client.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) {
+        source.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) {
             [weak self] data, _, complete, error in
             guard let self, self.clients[key] != nil else { return }
             if let data, !data.isEmpty {
-                self.clients[key]?.lastActivity = Date()
-                do {
-                    try self.clients[key]?.guest.write(contentsOf: data)
-                    if !complete { self.pumpClientToGuest(key: key) }
-                } catch {
-                    self.log("guest stream send failed: \(error.localizedDescription)")
-                    self.closeClient(key)
-                }
+                session.lastActivity = Date()
+                destination.send(content: data, completion: .contentProcessed { [weak self] sendError in
+                    guard let self else { return }
+                    if let sendError {
+                        self.log("\(direction) send failed: \(sendError.localizedDescription)")
+                        self.closeClient(key)
+                    } else if !complete {
+                        self.pump(key: key, from: source, to: destination, direction: direction)
+                    } else {
+                        self.closeClient(key)
+                    }
+                })
             } else if !complete, error == nil {
-                self.pumpClientToGuest(key: key)
+                self.pump(key: key, from: source, to: destination, direction: direction)
             }
             if let error {
-                self.log("stream receive failed: \(error.localizedDescription)")
+                self.log("\(direction) receive failed: \(error.localizedDescription)")
                 self.closeClient(key)
             } else if complete {
                 self.closeClient(key)
@@ -796,12 +802,19 @@ private final class TCPRelay: @unchecked Sendable {
         }
     }
 
-    private func handleState(_ state: NWConnection.State, key: ObjectIdentifier) {
+    private func handleState(_ state: NWConnection.State, key: ObjectIdentifier, guest: Bool) {
         switch state {
+        case .ready:
+            if guest {
+                clients[key]?.guestReady = true
+            } else {
+                clients[key]?.clientReady = true
+            }
+            startPumpsIfReady(key: key)
         case .waiting(let error):
-            log("client connection waiting: \(error.localizedDescription)")
+            log("\(guest ? "guest" : "client") connection waiting: \(error.localizedDescription)")
         case .failed(let error):
-            log("client connection failed: \(error.localizedDescription)")
+            log("\(guest ? "guest" : "client") connection failed: \(error.localizedDescription)")
             closeClient(key)
         case .cancelled:
             closeClient(key)
@@ -814,8 +827,8 @@ private final class TCPRelay: @unchecked Sendable {
         guard let session = clients.removeValue(forKey: key) else { return }
         session.client.stateUpdateHandler = nil
         session.client.cancel()
-        session.guest.readabilityHandler = nil
-        try? session.guest.close()
+        session.guest.stateUpdateHandler = nil
+        session.guest.cancel()
     }
 
     func verifyBedrockPath(completion: @escaping @Sendable (Bool) -> Void) {

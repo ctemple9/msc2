@@ -54,9 +54,17 @@ impl MacosSecretStore {
     /// this moved off the System keychain). Self-provisions its root key on
     /// first use; no install-time keychain provisioning step is needed.
     pub fn system() -> Result<Self> {
+        Self::at_directory(macos_secret_store_dir())
+    }
+
+    /// Opens the file-rooted production store at an explicitly selected
+    /// secrets directory. Desktop callers use this to share the exact agent
+    /// data root chosen by the service transaction instead of independently
+    /// deriving a legacy default path.
+    pub fn at_directory(secrets_dir: impl Into<PathBuf>) -> Result<Self> {
         Ok(Self {
             backend: MacosSecretStoreBackend::EncryptedFileRoot {
-                secrets_dir: macos_secret_store_dir(),
+                secrets_dir: secrets_dir.into(),
             },
         })
     }

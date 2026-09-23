@@ -963,7 +963,11 @@ fn bedrock_helper_install_request(
     #[cfg(target_arch = "x86_64")]
     {
         let sidecar_directory = packaged_bedrock_sidecar_directory()?;
-        let approved_root = msc_infrastructure::config_repository::default_servers_root();
+        // The desktop service transaction supplies MSC2_DATA_DIR explicitly
+        // to the agent, so derive the helper root from that same path. Using
+        // the process-default root here would choose macOS's legacy `MSC2`
+        // directory while the installed agent uses `MSC 2`.
+        let approved_root = agent_data_directory()?.join("servers");
         std::fs::create_dir_all(&approved_root).map_err(|error| {
             format!(
                 "Could not create the Bedrock helper approved server root {}: {error}",
@@ -1380,7 +1384,9 @@ fn desktop_secret_store() -> Result<Box<dyn SecretStore>, String> {
         // session prompt. `system()` self-provisions its root key and shares
         // `agent_data_directory()`'s secrets/ directory with the plain
         // `local-bootstrap.key` file this same process already writes.
-        return msc_platform_macos::secret_store::MacosSecretStore::system()
+        return msc_platform_macos::secret_store::MacosSecretStore::at_directory(
+            agent_data_directory()?.join("secrets"),
+        )
             .map(|store| Box::new(store) as Box<dyn SecretStore>)
             .map_err(|error| error.to_string());
     }

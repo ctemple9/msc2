@@ -1164,8 +1164,8 @@ context. Direct child-process launch remains only an explicit development path.
 
 ### P15.75 — Prove the installed helper fixes relay startup
 
-- **Status:** planned
-- **Files:** `tools/phase15/` macOS helper inspector, Bedrock diagnostics/status surfaces if live evidence exposes a reporting gap, macOS Bedrock helper acceptance notes, `docs/msc2/rolling-plan.md`
+- **Status:** awaiting verification; the installed-helper acceptance run passed 17/17 after the P15.75 repair
+- **Files:** `tools/phase15/` macOS helper inspector, `sidecar/bedrock/BedrockSidecarMain.swift`, `clients/desktop-web/src-tauri/src/lib.rs`, Bedrock diagnostics/status surfaces if live evidence exposes a reporting gap, macOS Bedrock helper acceptance notes, `docs/msc2/rolling-plan.md`
 - **What:** Add a non-destructive live inspector for the installed pair and use it on the owner Intel Mac. It must prove that the main agent runs as Cameron, the helper runs as root with no plist `UserName`, privileged artifacts and the control socket have the promised ownership/modes, the helper accepts only the configured peer, BDS reaches `Server started`, the start operation completes without rollback, CPU/RAM do not fall to zero, TCP `19001` returns BDS's HTTP response through the host relay, UDP `19002-19033` is bound, and agent/helper restarts leave no orphan VM or sidecar. Fix only evidence-backed lifecycle or diagnostic gaps found by this check; do not change router or Xbox settings in this step.
 - **Verify:** `python3 tools/phase15/inspect_macos_bedrock_helper.py --live --server-port 19001`
 - **Batch:** N5 — installed helper acceptance

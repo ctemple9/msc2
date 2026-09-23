@@ -70,7 +70,10 @@ if [ -n "$BDS_DIR" ]; then
   export CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
   echo "[appliance] launching BDS from $BDS_DIR (stdin/stdout = console)..."
   if [ "$MSC_UID" -gt 0 ]; then
-    busybox setpriv --reuid "$MSC_UID" --regid "$MSC_GID" --clear-groups "$BDS_DIR/bedrock_server"
+    # This appliance's BusyBox setpriv only manages capabilities. chpst is
+    # the compiled-in applet that can set the numeric identity without
+    # requiring a guest user database entry.
+    busybox chpst -u "$MSC_UID:$MSC_GID" "$BDS_DIR/bedrock_server"
   else
     "$BDS_DIR/bedrock_server"
   fi

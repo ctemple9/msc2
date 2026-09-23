@@ -19,7 +19,9 @@ private struct PrivilegedServiceConfiguration {
         while index < arguments.count {
             switch arguments[index] {
             case "--service":
-                index += 1
+                // This is a mode flag, so the loop must inspect the next
+                // option instead of skipping it as though it had a value.
+                break
             case "--socket-path":
                 index += 1
                 guard index < arguments.count else { throw ServiceConfigurationError.missingValue("--socket-path") }
@@ -175,7 +177,18 @@ private final class UnixSocketListener: @unchecked Sendable {
 
     func accept() -> Int32? {
         let client = Darwin.accept(descriptor, nil, nil)
-        return client >= 0 ? client : nil
+        guard client >= 0 else { return nil }
+        // The listener must be nonblocking so the service can notice shutdown,
+        // but a session's FileHandle read is intentionally blocking. Darwin
+        // can carry O_NONBLOCK onto the accepted descriptor; leaving it set
+        // makes an idle, newly connected agent look like a closed protocol
+        // session before it has sent its first request.
+        let flags = fcntl(client, F_GETFL, 0)
+        guard flags >= 0, fcntl(client, F_SETFL, flags & ~O_NONBLOCK) == 0 else {
+            Darwin.close(client)
+            return nil
+        }
+        return client
     }
 
     func close() {
@@ -290,8 +303,15 @@ private final class ServiceSession: @unchecked Sendable {
     private func readRequests() {
         var pending = Data()
         do {
-            while let chunk = try handle.read(upToCount: 4096), !chunk.isEmpty {
-                pending.append(chunk)
+            var bytes = [UInt8](repeating: 0, count: 4096)
+            while true {
+                let count = Darwin.read(handle.fileDescriptor, &bytes, bytes.count)
+                if count == 0 { break }
+                if count < 0 {
+                    if errno == EINTR { continue }
+                    throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+                }
+                pending.append(bytes, count: count)
                 while let newline = pending.firstIndex(of: 0x0A) {
                     var line = Data(pending[..<newline])
                     pending.removeSubrange(...newline)
@@ -447,6 +467,11 @@ private struct BedrockSidecarMain {
             do {
                 let service = try PrivilegedService(configuration: PrivilegedServiceConfiguration(arguments: arguments))
                 let signalSource = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+                // A client can disconnect while a response is being written.
+                // Ignore SIGPIPE so FileHandle.write reports that broken
+                // connection as an error instead of launchd killing the
+                // privileged helper and leaving the agent without a runtime.
+                signal(SIGPIPE, SIG_IGN)
                 signal(SIGTERM, SIG_IGN)
                 signalSource.setEventHandler { service.stop() }
                 signalSource.resume()

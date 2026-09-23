@@ -376,9 +376,32 @@ impl BedrockRuntimeSelection {
     /// leaving the startup server's filesystem result in place would let one
     /// server borrow another server's readiness claim.
     pub fn refresh_for_server(&self, server_dir: impl AsRef<Path>) {
-        let refreshed = runtime_eligibility(&runtime_paths(server_dir.as_ref().to_path_buf()));
+        let mut refreshed = runtime_eligibility(&runtime_paths(server_dir.as_ref().to_path_buf()));
         {
             let mut runtime = self.runtime.lock().unwrap();
+            #[cfg(target_os = "macos")]
+            if refreshed.host == BedrockHost::MacosIntel
+                && matches!(macos_sidecar_mode(), MacosSidecarMode::Helper)
+                && runtime.state() == BedrockRuntimeState::Unavailable
+            {
+                match SidecarSocketTransport::connect(macos_helper_socket_path()) {
+                    Ok(transport) => {
+                        let replacement = MacosBedrockRuntime::with_eligibility(
+                            MacosBedrockTransport::Helper(transport),
+                            refreshed.clone(),
+                        );
+                        *runtime = BedrockRuntimeHandle::Macos(Box::new(replacement));
+                    }
+                    Err(error) => {
+                        refreshed = unavailable_eligibility(
+                            BedrockHost::MacosIntel,
+                            BedrockRuntimeBackend::Sidecar,
+                            error.reason_code(),
+                            format!("Bedrock helper unavailable: {error}"),
+                        );
+                    }
+                }
+            }
             runtime.refresh_eligibility(refreshed.clone());
         }
         *self.eligibility.lock().unwrap() = refreshed;

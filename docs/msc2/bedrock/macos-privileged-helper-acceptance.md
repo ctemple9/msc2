@@ -86,3 +86,44 @@ with the existing LAN fallback) and validates the final `server-udp-ports`
 value against the 32 relay listeners before BDS starts. This static correction
 does not claim the remote-player or Xbox Broadcast acceptance that belongs to
 P15.77.
+
+## P15.77 — Bedrock and Xbox Broadcast connection acceptance
+
+The prescribed installed-pair report was run on 2026-09-23:
+
+```text
+python3 tools/phase15/inspect_macos_bedrock_helper.py --live --server-port 19001 --connection-report
+```
+
+The report passed `18 passed, 0 failed`. It confirmed the user-owned agent,
+root-owned helper, authenticated socket, BDS `Server started` evidence, no
+start rollback, the TCP `19001` relay returning `HTTP/1.1 404 Not Found`, all
+32 UDP gameplay listeners, no orphan sidecar, and the host listener report.
+A same-host request to `http://10.0.0.142:19001/` also returned BDS's HTTP 404;
+that proves the host's LAN-facing relay boundary, not an iPad session.
+
+The report-only diagnostic was corrected during this step: `lsof` cannot see
+the root helper's sockets from the installing-user context, so the connection
+report now uses macOS `netstat` for listener evidence while retaining the
+separate process-identity checks.
+
+The product-level paths remain owner verification rather than completed
+acceptance:
+
+| Path | Result | Evidence or first boundary |
+|---|---|---|
+| iPad direct LAN → `10.0.0.142:19001` | Not yet exercised | Host-side LAN probe passed; no iPad session was available to this run. |
+| iPad direct remote → public address | Not yet exercised | No cellular/off-LAN client session was available to this run. |
+| Xbox Broadcast discovery and transfer on home LAN | Not yet exercised | The managed Broadcast JVM is running, but no discovery or transfer session was observed. |
+| Reconnect without restarting BDS | Not yet exercised | No client session was available to disconnect and reconnect. |
+| Two simultaneous clients | Not yet exercised | No two-client session was available. |
+
+One installed-runtime prerequisite is also still open. The live Bedrock
+`server.properties` observed during this run contains the pre-P15.76 value
+`server-udp-ports=73.135.129.135:19002-19033:19002-19033`. The P15.76 source
+now writes individual mappings, but this running installation has not yet been
+restarted or refreshed from that build, so this step does not claim remote
+NetherNet or Xbox acceptance. The next owner run must refresh the installed
+agent/server from P15.76, confirm `19002` through `19033` appear as individual
+public-to-private entries, then perform each client path above and correlate
+the client attempt with BDS, helper, relay, and Broadcast logs.

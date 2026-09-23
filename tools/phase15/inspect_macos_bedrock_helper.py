@@ -346,10 +346,14 @@ class Inspector:
     def connection_report(self) -> None:
         if not self.want_connection_report:
             return
-        result = self.command("/usr/sbin/lsof", "-nP", "-a", "-iTCP", "-iUDP")
+        # The helper is root-owned, so lsof run by the installing user cannot
+        # see its sockets. netstat still exposes the listener boundary and is
+        # sufficient for this report; process ownership is checked separately.
+        tcp_result = self.command("/usr/sbin/netstat", "-anv", "-p", "tcp")
+        udp_result = self.command("/usr/sbin/netstat", "-anv", "-p", "udp")
         relevant = [
             line.strip()
-            for line in result.stdout.splitlines()
+            for line in (tcp_result.stdout + udp_result.stdout).splitlines()
             if any(token in line for token in ("BedrockSidecar", "bedrock_server", "19001", "19002", "19034"))
         ]
         self.add(

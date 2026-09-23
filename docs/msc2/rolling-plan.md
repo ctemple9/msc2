@@ -1137,8 +1137,8 @@ context. Direct child-process launch remains only an explicit development path.
 
 ### P15.72 — Connect the agent to the privileged helper
 
-- **Status:** planned
-- **Files:** `crates/msc-infrastructure/src/bedrock_sidecar.rs`, `crates/msc-application/src/bedrock_macos.rs`, `crates/msc-agent/src/main.rs`, Bedrock runtime/status routes and DTOs as required, `docs/msc2/rolling-plan.md`
+- **Status:** awaiting verification
+- **Files:** `Cargo.lock`, `crates/msc-infrastructure/Cargo.toml`, `crates/msc-infrastructure/src/bedrock_sidecar.rs`, `crates/msc-application/src/bedrock_macos.rs`, `crates/msc-application/src/bedrock_runtime.rs`, `crates/msc-agent/src/routes/bedrock_runtime.rs`, `docs/msc2/rolling-plan.md`
 - **What:** Separate the sidecar protocol from its transport so an installed macOS agent connects to the privileged helper socket while development builds may explicitly use the existing child process. Preserve command ordering, readiness, console events, stop semantics, and operation reporting. Detect a missing socket, wrong owner/mode, rejected peer, disconnected helper, or incompatible protocol as a specific Bedrock runtime failure. Never silently fall back to direct launch from an installed service, and never let an agent restart leave an orphan VM or sidecar session.
 - **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-infrastructure -p msc-application -p msc-agent --lib --bins --no-deps -- -D warnings`
 - **Batch:** N2 — privileged helper IPC

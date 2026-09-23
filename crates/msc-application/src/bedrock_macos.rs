@@ -13,6 +13,10 @@ use crate::bedrock_runtime::{
 use msc_infrastructure::bedrock_sidecar::{
     BedrockSidecarProcess, SidecarReceive as ProcessSidecarReceive,
 };
+#[cfg(target_os = "macos")]
+use msc_infrastructure::bedrock_sidecar::{
+    BedrockSidecarSocket, BedrockSidecarSocketError, SidecarReceive as SocketSidecarReceive,
+};
 use msc_infrastructure::process::{ProcessError, ProcessId, ProcessSupervisor};
 use std::path::{Path, PathBuf};
 
@@ -98,6 +102,78 @@ impl SidecarTransport for SidecarProcessTransport<'_> {
                 ProcessSidecarReceive::Eof => SidecarReceive::Eof,
             })
             .map_err(|error| error.to_string())
+    }
+}
+
+/// The installed macOS agent uses this transport to reach the root-owned
+/// helper. It deliberately exposes the same line-based surface as the
+/// development child-process transport above, so lifecycle ordering remains
+/// owned by [`SidecarRuntime`] rather than duplicated per transport.
+#[cfg(target_os = "macos")]
+pub struct SidecarSocketTransport {
+    socket: BedrockSidecarSocket,
+}
+
+#[cfg(target_os = "macos")]
+impl SidecarSocketTransport {
+    pub fn connect(socket_path: impl Into<PathBuf>) -> Result<Self, BedrockSidecarSocketError> {
+        BedrockSidecarSocket::connect(socket_path).map(|socket| Self { socket })
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl SidecarTransport for SidecarSocketTransport {
+    fn send_line(&mut self, line: &str) -> Result<(), String> {
+        self.socket.send_line(line)
+    }
+
+    fn receive_line(&mut self) -> Result<Option<String>, String> {
+        match self.receive_status()? {
+            SidecarReceive::Line(line) => Ok(Some(line)),
+            SidecarReceive::Pending | SidecarReceive::Eof => Ok(None),
+        }
+    }
+
+    fn receive_status(&mut self) -> Result<SidecarReceive, String> {
+        self.socket.receive().map(|status| match status {
+            SocketSidecarReceive::Line(line) => SidecarReceive::Line(line),
+            SocketSidecarReceive::Pending => SidecarReceive::Pending,
+            SocketSidecarReceive::Eof => SidecarReceive::Eof,
+        })
+    }
+}
+
+/// A single macOS runtime can be backed by either the installed helper or an
+/// explicitly selected development child process. Keeping this enum at the
+/// adapter boundary avoids making the protocol runtime aware of OS transport
+/// details.
+#[cfg(target_os = "macos")]
+pub enum MacosBedrockTransport<'supervisor> {
+    Helper(SidecarSocketTransport),
+    Development(SidecarProcessTransport<'supervisor>),
+}
+
+#[cfg(target_os = "macos")]
+impl SidecarTransport for MacosBedrockTransport<'_> {
+    fn send_line(&mut self, line: &str) -> Result<(), String> {
+        match self {
+            Self::Helper(transport) => transport.send_line(line),
+            Self::Development(transport) => transport.send_line(line),
+        }
+    }
+
+    fn receive_line(&mut self) -> Result<Option<String>, String> {
+        match self {
+            Self::Helper(transport) => transport.receive_line(),
+            Self::Development(transport) => transport.receive_line(),
+        }
+    }
+
+    fn receive_status(&mut self) -> Result<SidecarReceive, String> {
+        match self {
+            Self::Helper(transport) => transport.receive_status(),
+            Self::Development(transport) => transport.receive_status(),
+        }
     }
 }
 

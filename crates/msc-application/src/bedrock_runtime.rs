@@ -221,6 +221,40 @@ impl BedrockRuntimeEligibility {
         Self::from_distribution(host, BedrockRuntimeBackend::Sidecar, distribution)
     }
 
+    /// Eligibility for the installed macOS helper path. The helper owns the
+    /// VM appliance and Swift executable, so the installing-user agent must
+    /// inspect only the server's verified guest distribution here. Socket
+    /// ownership and mode are checked by the transport before connection.
+    pub fn for_mac_helper(
+        fs: &dyn FileSystem,
+        host: BedrockHost,
+        paths: &BedrockRuntimePaths,
+    ) -> Self {
+        let distribution = bedrock_distribution::inspect_installed_distribution(
+            fs,
+            &paths.server_dir,
+            BedrockPlatform::Linux,
+        );
+        let distribution = if matches!(&distribution, InstalledBedrockDistribution::Verified(_)) {
+            distribution
+        } else {
+            let legacy_distribution = bedrock_distribution::inspect_installed_distribution(
+                fs,
+                &paths.server_dir,
+                BedrockPlatform::Macos,
+            );
+            if matches!(
+                &legacy_distribution,
+                InstalledBedrockDistribution::Verified(_)
+            ) {
+                legacy_distribution
+            } else {
+                distribution
+            }
+        };
+        Self::from_distribution(host, BedrockRuntimeBackend::Sidecar, distribution)
+    }
+
     fn native_or_sidecar_message(reason_code: &str) -> String {
         match reason_code {
             "bds_distribution_unverified" => {
@@ -580,7 +614,9 @@ pub fn decode_frame(line: &str) -> Result<SidecarFrame, BedrockRuntimeError> {
             "a frame must contain exactly one JSON object".to_owned(),
         ));
     }
-    serde_json::from_str(line).map_err(|error| BedrockRuntimeError::Protocol(error.to_string()))
+    serde_json::from_str(line).map_err(|error| {
+        BedrockRuntimeError::Protocol(format!("incompatible sidecar protocol: {error}"))
+    })
 }
 
 pub struct SidecarRuntime<T> {
@@ -642,11 +678,14 @@ impl<T> SidecarRuntime<T> {
         T: SidecarTransport,
     {
         loop {
-            match self
-                .transport
-                .receive_status()
-                .map_err(BedrockRuntimeError::Transport)?
-            {
+            let status = match self.transport.receive_status() {
+                Ok(status) => status,
+                Err(message) => {
+                    self.state = BedrockRuntimeState::Unavailable;
+                    return Err(BedrockRuntimeError::Transport(message));
+                }
+            };
+            match status {
                 SidecarReceive::Line(line) => return decode_frame(&line),
                 SidecarReceive::Pending => std::thread::yield_now(),
                 SidecarReceive::Eof => {
@@ -756,10 +795,13 @@ impl<T: SidecarTransport> BedrockRuntime for SidecarRuntime<T> {
     }
 
     fn poll_event(&mut self) -> Result<Option<BedrockRuntimeEvent>, BedrockRuntimeError> {
-        let status = self
-            .transport
-            .receive_status()
-            .map_err(BedrockRuntimeError::Transport)?;
+        let status = match self.transport.receive_status() {
+            Ok(status) => status,
+            Err(message) => {
+                self.state = BedrockRuntimeState::Unavailable;
+                return Err(BedrockRuntimeError::Transport(message));
+            }
+        };
         let line = match status {
             SidecarReceive::Line(line) => line,
             SidecarReceive::Pending => return Ok(None),

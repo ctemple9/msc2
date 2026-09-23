@@ -14,3 +14,6 @@ ureq = "3"
 zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 flate2 = "1"
 tar = "0.4"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

@@ -931,6 +931,7 @@ dependencies = [
  "base64 0.22.1",
  "ed25519-dalek",
  "flate2",
+ "libc",
  "msc-domain",
  "serde",
  "serde_json",

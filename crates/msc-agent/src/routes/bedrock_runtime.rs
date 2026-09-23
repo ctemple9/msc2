@@ -22,7 +22,9 @@ use super::lifecycle::AgentAppConfigStore;
 #[cfg(target_os = "linux")]
 use msc_application::bedrock_linux::{LinuxBedrockRuntime, SystemBedrockRuntimeClock};
 #[cfg(target_os = "macos")]
-use msc_application::bedrock_macos::{MacosBedrockRuntime, SidecarProcessTransport};
+use msc_application::bedrock_macos::{
+    MacosBedrockRuntime, MacosBedrockTransport, SidecarProcessTransport, SidecarSocketTransport,
+};
 #[cfg(target_os = "windows")]
 use msc_application::bedrock_windows::{SystemBedrockRuntimeClock, WindowsBedrockRuntime};
 #[cfg(target_os = "linux")]
@@ -39,7 +41,7 @@ enum BedrockRuntimeHandle {
     #[cfg(target_os = "windows")]
     Windows(Box<WindowsBedrockRuntime<'static>>),
     #[cfg(target_os = "macos")]
-    Macos(Box<MacosBedrockRuntime<SidecarProcessTransport<'static>>>),
+    Macos(Box<MacosBedrockRuntime<MacosBedrockTransport<'static>>>),
     Unavailable,
 }
 
@@ -185,8 +187,7 @@ impl BedrockRuntimeSelection {
             })
             .unwrap_or_else(|| app_config.servers_root());
         let paths = runtime_paths(server_dir);
-        let eligibility =
-            BedrockRuntimeEligibility::detect(&msc_infrastructure::fs::StdFileSystem, &paths);
+        let eligibility = runtime_eligibility(&paths);
 
         match BedrockHost::current() {
             #[cfg(target_os = "linux")]
@@ -215,54 +216,78 @@ impl BedrockRuntimeSelection {
                 )
             }
             #[cfg(target_os = "macos")]
-            BedrockHost::MacosIntel => {
-                if eligibility.state == BedrockRuntimeEligibilityState::Unavailable
-                    || eligibility
-                        .reason_code
-                        .as_deref()
-                        .is_some_and(|reason| reason.starts_with("sidecar_"))
-                {
-                    return Self::new(eligibility, BedrockRuntimeHandle::Unavailable);
-                }
-
-                let Some(resources) = paths.sidecar.as_ref() else {
-                    return Self::new(
-                        unavailable_eligibility(
-                            BedrockHost::MacosIntel,
-                            BedrockRuntimeBackend::Sidecar,
-                            "sidecar_resources_required",
-                            "Bedrock sidecar resources are not installed.",
+            BedrockHost::MacosIntel => match macos_sidecar_mode() {
+                MacosSidecarMode::Helper => {
+                    match SidecarSocketTransport::connect(macos_helper_socket_path()) {
+                        Ok(transport) => {
+                            let runtime = MacosBedrockRuntime::with_eligibility(
+                                MacosBedrockTransport::Helper(transport),
+                                eligibility.clone(),
+                            );
+                            Self::new(eligibility, BedrockRuntimeHandle::Macos(Box::new(runtime)))
+                        }
+                        Err(error) => Self::new(
+                            unavailable_eligibility(
+                                BedrockHost::MacosIntel,
+                                BedrockRuntimeBackend::Sidecar,
+                                error.reason_code(),
+                                format!("Bedrock helper unavailable: {error}"),
+                            ),
+                            BedrockRuntimeHandle::Unavailable,
                         ),
-                        BedrockRuntimeHandle::Unavailable,
-                    );
-                };
-                let supervisor: &'static dyn ProcessSupervisor =
-                    Box::leak(Box::new(MacosJavaProcessSupervisor::new()));
-                let working_directory = resources
-                    .executable
-                    .parent()
-                    .unwrap_or_else(|| Path::new("."));
-                match SidecarProcessTransport::spawn(
-                    supervisor,
-                    resources.executable.clone(),
-                    working_directory,
-                ) {
-                    Ok(transport) => {
-                        let runtime =
-                            MacosBedrockRuntime::with_eligibility(transport, eligibility.clone());
-                        Self::new(eligibility, BedrockRuntimeHandle::Macos(Box::new(runtime)))
                     }
-                    Err(error) => Self::new(
-                        unavailable_eligibility(
-                            BedrockHost::MacosIntel,
-                            BedrockRuntimeBackend::Sidecar,
-                            "sidecar_start_failed",
-                            format!("Bedrock sidecar could not start: {error}"),
-                        ),
-                        BedrockRuntimeHandle::Unavailable,
-                    ),
                 }
-            }
+                MacosSidecarMode::DevelopmentProcess => {
+                    let Some(resources) = paths.sidecar.as_ref() else {
+                        return Self::new(
+                            unavailable_eligibility(
+                                BedrockHost::MacosIntel,
+                                BedrockRuntimeBackend::Sidecar,
+                                "sidecar_resources_required",
+                                "Development sidecar resources are not installed.",
+                            ),
+                            BedrockRuntimeHandle::Unavailable,
+                        );
+                    };
+                    let supervisor: &'static dyn ProcessSupervisor =
+                        Box::leak(Box::new(MacosJavaProcessSupervisor::new()));
+                    let working_directory = resources
+                        .executable
+                        .parent()
+                        .unwrap_or_else(|| Path::new("."));
+                    match SidecarProcessTransport::spawn(
+                        supervisor,
+                        resources.executable.clone(),
+                        working_directory,
+                    ) {
+                        Ok(transport) => {
+                            let runtime = MacosBedrockRuntime::with_eligibility(
+                                MacosBedrockTransport::Development(transport),
+                                eligibility.clone(),
+                            );
+                            Self::new(eligibility, BedrockRuntimeHandle::Macos(Box::new(runtime)))
+                        }
+                        Err(error) => Self::new(
+                            unavailable_eligibility(
+                                BedrockHost::MacosIntel,
+                                BedrockRuntimeBackend::Sidecar,
+                                "sidecar_start_failed",
+                                format!("Development Bedrock sidecar could not start: {error}"),
+                            ),
+                            BedrockRuntimeHandle::Unavailable,
+                        ),
+                    }
+                }
+                MacosSidecarMode::Invalid(message) => Self::new(
+                    unavailable_eligibility(
+                        BedrockHost::MacosIntel,
+                        BedrockRuntimeBackend::Sidecar,
+                        "sidecar_mode_invalid",
+                        message,
+                    ),
+                    BedrockRuntimeHandle::Unavailable,
+                ),
+            },
             #[cfg(target_os = "macos")]
             BedrockHost::MacosAppleSilicon => {
                 Self::new(eligibility, BedrockRuntimeHandle::Unavailable)
@@ -328,12 +353,7 @@ impl BedrockRuntimeSelection {
     /// leaving the startup server's filesystem result in place would let one
     /// server borrow another server's readiness claim.
     pub fn refresh_for_server(&self, server_dir: impl AsRef<Path>) {
-        let host = self.eligibility.lock().unwrap().host;
-        let refreshed = BedrockRuntimeEligibility::for_host(
-            &msc_infrastructure::fs::StdFileSystem,
-            host,
-            &runtime_paths(server_dir.as_ref().to_path_buf()),
-        );
+        let refreshed = runtime_eligibility(&runtime_paths(server_dir.as_ref().to_path_buf()));
         {
             let mut runtime = self.runtime.lock().unwrap();
             runtime.refresh_eligibility(refreshed.clone());
@@ -481,6 +501,56 @@ impl BedrockRuntimeSelection {
             latest_metrics: Arc::new(Mutex::new(None)),
         }
     }
+}
+
+fn runtime_eligibility(paths: &BedrockRuntimePaths) -> BedrockRuntimeEligibility {
+    let host = BedrockHost::current();
+    #[cfg(target_os = "macos")]
+    if matches!(host, BedrockHost::MacosIntel)
+        && matches!(macos_sidecar_mode(), MacosSidecarMode::Helper)
+    {
+        return BedrockRuntimeEligibility::for_mac_helper(
+            &msc_infrastructure::fs::StdFileSystem,
+            host,
+            paths,
+        );
+    }
+    BedrockRuntimeEligibility::for_host(&msc_infrastructure::fs::StdFileSystem, host, paths)
+}
+
+#[cfg(target_os = "macos")]
+#[derive(Debug)]
+enum MacosSidecarMode {
+    Helper,
+    DevelopmentProcess,
+    Invalid(String),
+}
+
+#[cfg(target_os = "macos")]
+fn macos_sidecar_mode() -> MacosSidecarMode {
+    match std::env::var("MSC2_BEDROCK_SIDECAR_MODE")
+        .unwrap_or_else(|_| "helper".to_owned())
+        .as_str()
+    {
+        "helper" => MacosSidecarMode::Helper,
+        "process" if cfg!(debug_assertions) => MacosSidecarMode::DevelopmentProcess,
+        "process" => MacosSidecarMode::Invalid(
+            "direct Bedrock sidecar mode is available only in debug builds".to_owned(),
+        ),
+        value => MacosSidecarMode::Invalid(format!(
+            "unknown MSC2_BEDROCK_SIDECAR_MODE value {value:?}; use helper or process"
+        )),
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn macos_helper_socket_path() -> PathBuf {
+    if cfg!(debug_assertions)
+        && let Some(path) = std::env::var_os("MSC2_BEDROCK_HELPER_SOCKET_PATH")
+    {
+        return PathBuf::from(path);
+    }
+    PathBuf::from(msc_infrastructure::bedrock_sidecar::BEDROCK_HELPER_SOCKET_PATH)
 }
 
 fn distribution_platform(eligibility: &BedrockRuntimeEligibility) -> Option<BedrockPlatform> {

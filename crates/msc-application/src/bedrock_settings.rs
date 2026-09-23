@@ -39,6 +39,7 @@ pub struct SettingsUpdate {
 pub enum BedrockSettingsError {
     Io(io::Error),
     AtomicWrite(String),
+    InvalidPort(String),
 }
 
 impl fmt::Display for BedrockSettingsError {
@@ -46,6 +47,7 @@ impl fmt::Display for BedrockSettingsError {
         match self {
             Self::Io(error) => write!(f, "{error}"),
             Self::AtomicWrite(error) => write!(f, "{error}"),
+            Self::InvalidPort(error) => write!(f, "{error}"),
         }
     }
 }
@@ -70,41 +72,83 @@ pub fn load(fs: &dyn FileSystem, server_dir: &Path) -> BedrockSettings {
     }
 }
 
-/// Keep the macOS VM's player path on the single-port RakNet transport that
-/// its host-to-guest UDP relay can preserve. The update is idempotent and
-/// keeps every unrelated property, including keys MSC does not understand.
-pub fn ensure_raknet_transport(
+pub const NETHERNET_UDP_PORT_COUNT: u16 = 32;
+
+/// Configure the macOS VM for NetherNet's TCP signaling socket and bounded
+/// UDP gameplay range. Advertised addresses name the host-side relays rather
+/// than the guest's private VZ address.
+pub fn ensure_sidecar_nethernet_transport(
     fs: &dyn FileSystem,
     server_dir: &Path,
+    server_port: u16,
+    advertised_addresses: &[String],
 ) -> Result<bool, BedrockSettingsError> {
-    ensure_transport(fs, server_dir, "raknet")
+    let (udp_start, udp_end) = nethernet_udp_port_range(server_port).ok_or_else(|| {
+        BedrockSettingsError::InvalidPort(format!(
+            "port {server_port} leaves no room for the NetherNet UDP relay range"
+        ))
+    })?;
+    let range = format!("{udp_start}-{udp_end}");
+    let mappings = advertised_addresses
+        .iter()
+        .filter_map(|address| address.parse::<std::net::IpAddr>().ok())
+        .map(|address| match address {
+            std::net::IpAddr::V4(address) => format!("{address}:{range}:{range}"),
+            std::net::IpAddr::V6(address) => format!("[{address}]:{range}:{range}"),
+        })
+        .collect::<Vec<_>>();
+    let udp_ports = if mappings.is_empty() {
+        range
+    } else {
+        mappings.join(",")
+    };
+
+    ensure_properties(
+        fs,
+        server_dir,
+        &[("transport", "nethernet"), ("server-udp-ports", &udp_ports)],
+    )
 }
 
 /// Keep native Linux and Windows BDS installations on their supported
-/// default transport while the macOS VM relay uses RakNet explicitly.
+/// default transport without imposing the macOS sidecar's UDP range.
 pub fn ensure_nethernet_transport(
     fs: &dyn FileSystem,
     server_dir: &Path,
 ) -> Result<bool, BedrockSettingsError> {
-    ensure_transport(fs, server_dir, "nethernet")
+    ensure_properties(fs, server_dir, &[("transport", "nethernet")])
 }
 
-fn ensure_transport(
+pub fn nethernet_udp_port_range(server_port: u16) -> Option<(u16, u16)> {
+    if server_port <= u16::MAX - NETHERNET_UDP_PORT_COUNT {
+        Some((server_port + 1, server_port + NETHERNET_UDP_PORT_COUNT))
+    } else if server_port > NETHERNET_UDP_PORT_COUNT {
+        Some((server_port - NETHERNET_UDP_PORT_COUNT, server_port - 1))
+    } else {
+        None
+    }
+}
+
+fn ensure_properties(
     fs: &dyn FileSystem,
     server_dir: &Path,
-    transport: &str,
+    expected: &[(&str, &str)],
 ) -> Result<bool, BedrockSettingsError> {
     let current = load(fs, server_dir);
-    let already_configured = current
-        .raw
-        .get("transport")
-        .is_some_and(|value| value.trim().eq_ignore_ascii_case(transport));
+    let already_configured = expected.iter().all(|(key, expected_value)| {
+        current
+            .raw
+            .get(*key)
+            .is_some_and(|value| value.trim().eq_ignore_ascii_case(expected_value))
+    });
     if already_configured {
         return Ok(false);
     }
 
     let mut raw = current.raw;
-    raw.insert("transport".to_string(), transport.to_string());
+    for (key, value) in expected {
+        raw.insert((*key).to_string(), (*value).to_string());
+    }
     atomic_write(
         fs,
         &server_dir.join(PROPERTIES_FILE),

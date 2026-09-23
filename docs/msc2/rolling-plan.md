@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 15 is the priority next phase; Phase 14 is paused with P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, P14.17, P14.18, P14.19, P14.26, P14.27, P14.28, P14.29, P14.30, P14.31, P14.32, P14.33, P14.34, P14.35, P14.36, and P14.37 awaiting verification. P14.38 records twelve unverified static-review findings and is awaiting owner triage.
-> **Next move:** Cameron verifies P15.3, P15.4, P15.5, P15.45, P15.46, P15.47, P15.48, P15.49, P15.50, P15.51, P15.52, P15.53, P15.54, P15.55, P15.56, P15.57, P15.58, P15.59, P15.60, P15.61, P15.62, P15.63, P15.64, and P15.65. Phase 14 verification and P14.38 triage remain recorded and paused until Phase 15 is complete or Cameron explicitly resumes Phase 14. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> **Next move:** Cameron verifies P15.3, P15.4, P15.5, P15.45, P15.46, P15.47, P15.48, P15.49, P15.50, P15.51, P15.52, P15.53, P15.54, P15.55, P15.56, P15.57, P15.58, P15.59, P15.60, P15.61, P15.62, P15.63, P15.64, P15.65, and P15.66. Phase 14 verification and P14.38 triage remain recorded and paused until Phase 15 is complete or Cameron explicitly resumes Phase 14. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -1049,6 +1049,16 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-infrastructure -p msc-application -p msc-agent --lib --bins --no-deps -- -D warnings && xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-65-build build CODE_SIGNING_ALLOWED=NO`
 - **Batch:** N — Bedrock transport and relay repair
 - **Commit:** `P15.65: repair macOS Bedrock player connectivity`
+
+### P15.66 — Support the required NetherNet relay shape
+
+- **Status:** awaiting verification
+- **Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `crates/msc-infrastructure/src/port_diagnostics.rs`, `crates/msc-application/src/bedrock_settings.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/network_diagnostics.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Correct P15.65 against the Bedrock 1.26.51 runtime evidence and its bundled transport documentation. Current BDS requires NetherNet: TCP on the configured server port carries its HTTP signaling handshake, while a separately advertised UDP range carries WebRTC gameplay. Replace the obsolete single-port RakNet assumption with a host-to-guest TCP relay on the configured port and 32 bounded UDP relays on adjacent ports. Write the matching `server-udp-ports` mapping with the detected public IP (or LAN fallback), validate readiness by receiving BDS's HTTP response through the host TCP relay, and make Bedrock connectivity diagnostics test the TCP signaling socket. The public router contract is now TCP `server-port` plus UDP `server-port+1` through `server-port+32`; the old UDP-only rule cannot carry NetherNet.
+- **Implementation note (2026-09-22):** A controlled live boot reproduced BDS 1.26.51's explicit error that NetherNet is the only supported transport and players cannot connect with RakNet. The replacement relay then completed a clean NetherNet boot, returned HTTP 404 from BDS through both `127.0.0.1:19000` and `10.0.0.142:19000`, and exposed the bounded host UDP range `19001-19032`. BDS rejects multiple IP prefixes in one `server-udp-ports` value, so MSC advertises the public address for forwarded and NAT-hairpin clients, falling back to the LAN address when public discovery is unavailable.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-infrastructure -p msc-application -p msc-agent --lib --bins --no-deps -- -D warnings && xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-66-build build CODE_SIGNING_ALLOWED=NO`
+- **Batch:** N — NetherNet sidecar transport correction
+- **Commit:** `P15.66: support NetherNet through the macOS sidecar`
 
 ## Proposed Phase 14 — operational refinements
 

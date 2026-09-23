@@ -178,12 +178,14 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
     private var guestOutput: Pipe?
     private var guestInput: Pipe?
     private var pendingOutput = Data()
-    private var relay: UDPRelay?
     private var bedrockPort: UInt16 = 19132
     private var guestIP: String?
     private var relayReady = false
     private var relayPathReady = false
     private var relayPathCheckInFlight = false
+    private var relayStartsRemaining = 0
+    private var tcpRelay: TCPRelay?
+    private var udpRelays: [UDPRelay] = []
     private var bedrockReady = false
     private var gracefulStopWorkItem: DispatchWorkItem?
     private var didTerminate = false
@@ -240,6 +242,9 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         relayReady = false
         relayPathReady = false
         relayPathCheckInFlight = false
+        relayStartsRemaining = 0
+        tcpRelay = nil
+        udpRelays.removeAll()
         bedrockReady = false
         didTerminate = false
         state = .provisioned(serverDirectory: URL(fileURLWithPath: serverDir, isDirectory: true), version: version)
@@ -393,16 +398,26 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         if guestIP == nil, line.contains("[appliance] dhcp:"), let ip = Self.parseGuestIP(line) {
             guestIP = ip
             do {
-                let relay = try UDPRelay(listenPort: bedrockPort, guestHost: ip, guestPort: bedrockPort)
-                self.relay = relay
-                relay.start { [weak self] started in
+                let tcpRelay = try TCPRelay(
+                    listenPort: bedrockPort,
+                    guestHost: ip,
+                    guestPort: bedrockPort)
+                let udpRelays = try Self.netherNetUDPPorts(serverPort: bedrockPort).map { port in
+                    try UDPRelay(listenPort: port, guestHost: ip, guestPort: port)
+                }
+                self.tcpRelay = tcpRelay
+                self.udpRelays = udpRelays
+                relayStartsRemaining = udpRelays.count + 1
+                tcpRelay.start { [weak self] started in
                     DispatchQueue.main.async {
-                        guard started else {
-                            self?.finish(reason: "start-failed:UDP relay could not bind")
-                            return
+                        self?.relayDidStart(started, kind: "TCP signaling")
+                    }
+                }
+                for relay in udpRelays {
+                    relay.start { [weak self] started in
+                        DispatchQueue.main.async {
+                            self?.relayDidStart(started, kind: "UDP gameplay")
                         }
-                        self?.relayReady = true
-                        self?.emitReadyIfPossible()
                     }
                 }
             } catch {
@@ -417,18 +432,31 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         }
     }
 
+    private func relayDidStart(_ started: Bool, kind: String) {
+        guard case .starting = state else { return }
+        guard started else {
+            finish(reason: "start-failed:\(kind) relay could not bind")
+            return
+        }
+        relayStartsRemaining -= 1
+        if relayStartsRemaining == 0 {
+            relayReady = true
+            emitReadyIfPossible()
+        }
+    }
+
     private func emitReadyIfPossible() {
         guard relayReady, bedrockReady, let guestIP else { return }
         guard case .starting = state else { return }
         guard relayPathReady else {
-            guard !relayPathCheckInFlight, let relay else { return }
+            guard !relayPathCheckInFlight, let tcpRelay else { return }
             relayPathCheckInFlight = true
-            relay.verifyBedrockPath { [weak self] verified in
+            tcpRelay.verifyBedrockPath { [weak self] verified in
                 DispatchQueue.main.async {
                     guard let self else { return }
                     self.relayPathCheckInFlight = false
                     guard verified else {
-                        self.finish(reason: "start-failed:UDP relay did not pass a Bedrock ping")
+                        self.finish(reason: "start-failed:TCP signaling relay did not reach Bedrock")
                         return
                     }
                     self.relayPathReady = true
@@ -452,8 +480,10 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         stateLock.unlock()
         gracefulStopWorkItem?.cancel()
         gracefulStopWorkItem = nil
-        relay?.cancel()
-        relay = nil
+        tcpRelay?.cancel()
+        tcpRelay = nil
+        udpRelays.forEach { $0.cancel() }
+        udpRelays.removeAll()
         guestOutput?.fileHandleForReading.readabilityHandler = nil
         guestOutput = nil
         guestInput = nil
@@ -478,6 +508,15 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
     static func parseGuestIP(_ line: String) -> String? {
         guard let range = line.range(of: #"\d{1,3}(\.\d{1,3}){3}"#, options: .regularExpression) else { return nil }
         return String(line[range])
+    }
+
+    static func netherNetUDPPorts(serverPort: UInt16) -> [UInt16] {
+        let count: UInt16 = 32
+        if serverPort <= UInt16.max - count {
+            return Array((serverPort + 1) ... (serverPort + count))
+        }
+        guard serverPort > count else { return [] }
+        return Array((serverPort - count) ... (serverPort - 1))
     }
 
     static func isBedrockServerReadyLine(_ line: String) -> Bool {
@@ -528,7 +567,7 @@ extension BedrockSidecarController: VZVirtualMachineDelegate {
     }
 }
 
-private final class UDPRelay: @unchecked Sendable {
+private final class TCPRelay: @unchecked Sendable {
     private final class VerificationAttempt: @unchecked Sendable {
         var completed = false
     }
@@ -544,15 +583,200 @@ private final class UDPRelay: @unchecked Sendable {
         }
     }
 
-    fileprivate static let rakNetMagic: [UInt8] = [
-        0x00, 0xff, 0xff, 0x00, 0xfe, 0xfe, 0xfe, 0xfe,
-        0xfd, 0xfd, 0xfd, 0xfd, 0x12, 0x34, 0x56, 0x78,
-    ]
+    private let listener: NWListener
+    private let guestHost: NWEndpoint.Host
+    private let guestPort: NWEndpoint.Port
+    private let queue = DispatchQueue(label: "msc.bedrock.tcp-relay")
+    private var clients: [ObjectIdentifier: Session] = [:]
+    private var startCompletion: (@Sendable (Bool) -> Void)?
+
+    init(listenPort: UInt16, guestHost: String, guestPort: UInt16) throws {
+        guard let listen = NWEndpoint.Port(rawValue: listenPort),
+              let guest = NWEndpoint.Port(rawValue: guestPort) else {
+            throw NSError(domain: "BedrockSidecar", code: 2,
+                          userInfo: [NSLocalizedDescriptionKey: "invalid TCP port"])
+        }
+        let parameters = NWParameters.tcp
+        parameters.allowLocalEndpointReuse = true
+        parameters.requiredLocalEndpoint = .hostPort(
+            host: NWEndpoint.Host("0.0.0.0"), port: listen)
+        listener = try NWListener(using: parameters)
+        self.guestHost = NWEndpoint.Host(guestHost)
+        self.guestPort = guest
+    }
+
+    func start(completion: @escaping @Sendable (Bool) -> Void) {
+        startCompletion = completion
+        listener.stateUpdateHandler = { [weak self] state in
+            switch state {
+            case .ready:
+                self?.startCompletion?(true)
+                self?.startCompletion = nil
+            case .failed:
+                self?.startCompletion?(false)
+                self?.startCompletion = nil
+            default:
+                break
+            }
+        }
+        listener.newConnectionHandler = { [weak self] client in self?.accept(client) }
+        listener.start(queue: queue)
+    }
+
+    private func accept(_ client: NWConnection) {
+        let guest = NWConnection(host: guestHost, port: guestPort, using: .tcp)
+        let key = ObjectIdentifier(client)
+        clients[key] = Session(client: client, guest: guest)
+        client.stateUpdateHandler = { [weak self] state in
+            self?.handleState(state, side: "client", key: key)
+        }
+        guest.stateUpdateHandler = { [weak self] state in
+            self?.handleState(state, side: "guest", key: key)
+        }
+        client.start(queue: queue)
+        guest.start(queue: queue)
+        pump(from: client, to: guest, key: key)
+        pump(from: guest, to: client, key: key)
+    }
+
+    private func pump(
+        from source: NWConnection,
+        to destination: NWConnection,
+        key: ObjectIdentifier
+    ) {
+        source.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) {
+            [weak self] data, _, complete, error in
+            guard let self, self.clients[key] != nil else { return }
+            if let data, !data.isEmpty {
+                self.clients[key]?.lastActivity = Date()
+                destination.send(content: data, completion: .contentProcessed { [weak self] error in
+                    guard let self else { return }
+                    if let error {
+                        self.log("stream send failed: \(error.localizedDescription)")
+                        self.closeClient(key)
+                    } else if !complete {
+                        self.pump(from: source, to: destination, key: key)
+                    }
+                })
+            } else if !complete, error == nil {
+                self.pump(from: source, to: destination, key: key)
+            }
+            if let error {
+                self.log("stream receive failed: \(error.localizedDescription)")
+                self.closeClient(key)
+            } else if complete {
+                self.closeClient(key)
+            }
+        }
+    }
+
+    private func handleState(_ state: NWConnection.State, side: String, key: ObjectIdentifier) {
+        switch state {
+        case .waiting(let error):
+            log("\(side) connection waiting: \(error.localizedDescription)")
+        case .failed(let error):
+            log("\(side) connection failed: \(error.localizedDescription)")
+            closeClient(key)
+        case .cancelled:
+            closeClient(key)
+        default:
+            break
+        }
+    }
+
+    private func closeClient(_ key: ObjectIdentifier) {
+        guard let session = clients.removeValue(forKey: key) else { return }
+        session.client.stateUpdateHandler = nil
+        session.guest.stateUpdateHandler = nil
+        session.client.cancel()
+        session.guest.cancel()
+    }
+
+    func verifyBedrockPath(completion: @escaping @Sendable (Bool) -> Void) {
+        queue.async { [weak self] in
+            self?.verifyBedrockPath(attemptsRemaining: 5, completion: completion)
+        }
+    }
+
+    private func verifyBedrockPath(
+        attemptsRemaining: Int,
+        completion: @escaping @Sendable (Bool) -> Void
+    ) {
+        guard attemptsRemaining > 0 else {
+            completion(false)
+            return
+        }
+        let probe = NWConnection(
+            host: NWEndpoint.Host("127.0.0.1"),
+            port: listener.port ?? guestPort,
+            using: .tcp)
+        let attempt = VerificationAttempt()
+        let finish: @Sendable (Bool) -> Void = { [self] success in
+            guard !attempt.completed else { return }
+            attempt.completed = true
+            probe.cancel()
+            if success {
+                completion(true)
+            } else {
+                queue.asyncAfter(deadline: .now() + 0.5) { [self] in
+                    verifyBedrockPath(
+                        attemptsRemaining: attemptsRemaining - 1,
+                        completion: completion)
+                }
+            }
+        }
+        probe.stateUpdateHandler = { [self] state in
+            guard case .ready = state else {
+                if case .failed(let error) = state {
+                    log("relay verification connection failed: \(error.localizedDescription)")
+                    finish(false)
+                }
+                return
+            }
+            let request = Data("GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n".utf8)
+            probe.send(content: request, completion: .contentProcessed { [self] error in
+                if let error {
+                    self.log("relay verification send failed: \(error.localizedDescription)")
+                    finish(false)
+                    return
+                }
+                probe.receive(minimumIncompleteLength: 1, maximumLength: 4096) { data, _, _, _ in
+                    finish(data?.isEmpty == false)
+                }
+            })
+        }
+        probe.start(queue: queue)
+        queue.asyncAfter(deadline: .now() + 2) { finish(false) }
+    }
+
+    private func log(_ message: String) {
+        FileHandle.standardError.write(Data("bedrock TCP relay: \(message)\n".utf8))
+    }
+
+    func cancel() {
+        queue.sync {
+            listener.cancel()
+            for key in Array(clients.keys) { closeClient(key) }
+        }
+    }
+}
+
+private final class UDPRelay: @unchecked Sendable {
+    private final class Session {
+        let client: NWConnection
+        let guest: NWConnection
+        var lastActivity = Date()
+
+        init(client: NWConnection, guest: NWConnection) {
+            self.client = client
+            self.guest = guest
+        }
+    }
 
     private let listener: NWListener
     private let guestHost: NWEndpoint.Host
     private let guestPort: NWEndpoint.Port
-    private let queue = DispatchQueue(label: "msc.bedrock.udp-relay")
+    private let queue: DispatchQueue
     private var clients: [ObjectIdentifier: Session] = [:]
     private var cleanupTimer: DispatchSourceTimer?
     private var startCompletion: (@Sendable (Bool) -> Void)?
@@ -560,7 +784,7 @@ private final class UDPRelay: @unchecked Sendable {
     init(listenPort: UInt16, guestHost: String, guestPort: UInt16) throws {
         guard let listen = NWEndpoint.Port(rawValue: listenPort),
               let guest = NWEndpoint.Port(rawValue: guestPort) else {
-            throw NSError(domain: "BedrockSidecar", code: 2,
+            throw NSError(domain: "BedrockSidecar", code: 3,
                           userInfo: [NSLocalizedDescriptionKey: "invalid UDP port"])
         }
         let parameters = NWParameters.udp
@@ -570,6 +794,7 @@ private final class UDPRelay: @unchecked Sendable {
         listener = try NWListener(using: parameters)
         self.guestHost = NWEndpoint.Host(guestHost)
         self.guestPort = guest
+        queue = DispatchQueue(label: "msc.bedrock.udp-relay.\(listenPort)")
     }
 
     func start(completion: @escaping @Sendable (Bool) -> Void) {
@@ -599,53 +824,24 @@ private final class UDPRelay: @unchecked Sendable {
         let guest = NWConnection(host: guestHost, port: guestPort, using: .udp)
         let key = ObjectIdentifier(client)
         clients[key] = Session(client: client, guest: guest)
-        client.stateUpdateHandler = { [weak self] state in
-            self?.handleState(state, side: "client", key: key)
-        }
-        guest.stateUpdateHandler = { [weak self] state in
-            self?.handleState(state, side: "guest", key: key)
-        }
         client.start(queue: queue)
         guest.start(queue: queue)
-        receive(from: client, to: guest, key: key)
-        receive(from: guest, to: client, key: key)
+        pump(from: client, to: guest, key: key)
+        pump(from: guest, to: client, key: key)
     }
 
-    private func receive(
-        from source: NWConnection,
-        to destination: NWConnection,
-        key: ObjectIdentifier
-    ) {
+    private func pump(from source: NWConnection, to destination: NWConnection, key: ObjectIdentifier) {
         source.receiveMessage { [weak self] data, _, _, error in
             guard let self, self.clients[key] != nil else { return }
             if let data, !data.isEmpty {
                 self.clients[key]?.lastActivity = Date()
-                destination.send(content: data, completion: .contentProcessed { [weak self] error in
-                    guard let self, let error else { return }
-                    self.log("packet send failed: \(error.localizedDescription)")
-                    self.closeClient(key)
-                })
+                destination.send(content: data, completion: .idempotent)
             }
-            if let error {
-                self.log("packet receive failed: \(error.localizedDescription)")
-                self.closeClient(key)
+            if error == nil {
+                self.pump(from: source, to: destination, key: key)
             } else {
-                self.receive(from: source, to: destination, key: key)
+                self.closeClient(key)
             }
-        }
-    }
-
-    private func handleState(_ state: NWConnection.State, side: String, key: ObjectIdentifier) {
-        switch state {
-        case .waiting(let error):
-            log("\(side) connection waiting: \(error.localizedDescription)")
-        case .failed(let error):
-            log("\(side) connection failed: \(error.localizedDescription)")
-            closeClient(key)
-        case .cancelled:
-            closeClient(key)
-        default:
-            break
         }
     }
 
@@ -658,80 +854,8 @@ private final class UDPRelay: @unchecked Sendable {
 
     private func closeClient(_ key: ObjectIdentifier) {
         guard let session = clients.removeValue(forKey: key) else { return }
-        session.client.stateUpdateHandler = nil
-        session.guest.stateUpdateHandler = nil
         session.client.cancel()
         session.guest.cancel()
-    }
-
-    func verifyBedrockPath(completion: @escaping @Sendable (Bool) -> Void) {
-        queue.async { [weak self] in
-            self?.verifyBedrockPath(attemptsRemaining: 5, completion: completion)
-        }
-    }
-
-    private func verifyBedrockPath(
-        attemptsRemaining: Int,
-        completion: @escaping @Sendable (Bool) -> Void
-    ) {
-        guard attemptsRemaining > 0 else {
-            completion(false)
-            return
-        }
-        let probe = NWConnection(
-            host: NWEndpoint.Host("127.0.0.1"),
-            port: listener.port ?? guestPort,
-            using: .udp)
-        let attempt = VerificationAttempt()
-        let finish: @Sendable (Bool) -> Void = { [self] success in
-            guard !attempt.completed else { return }
-            attempt.completed = true
-            probe.cancel()
-            if success {
-                completion(true)
-            } else {
-                queue.asyncAfter(deadline: .now() + 0.5) { [self] in
-                    verifyBedrockPath(
-                        attemptsRemaining: attemptsRemaining - 1,
-                        completion: completion)
-                }
-            }
-        }
-        probe.stateUpdateHandler = { [self] state in
-            guard case .ready = state else {
-                if case .failed(let error) = state {
-                    log("relay verification connection failed: \(error.localizedDescription)")
-                    finish(false)
-                }
-                return
-            }
-            probe.send(content: Self.rakNetPing(), completion: .contentProcessed { [self] error in
-                if let error {
-                    self.log("relay verification send failed: \(error.localizedDescription)")
-                    finish(false)
-                    return
-                }
-                probe.receiveMessage { data, _, _, _ in
-                    finish(data.isSomeValidRakNetPong)
-                }
-            })
-        }
-        probe.start(queue: queue)
-        queue.asyncAfter(deadline: .now() + 1) { finish(false) }
-    }
-
-    private static func rakNetPing() -> Data {
-        var data = Data([0x01])
-        var timestamp = UInt64(Date().timeIntervalSince1970 * 1_000).bigEndian
-        withUnsafeBytes(of: &timestamp) { data.append(contentsOf: $0) }
-        data.append(contentsOf: rakNetMagic)
-        var guid = UInt64.random(in: 1 ... UInt64.max).bigEndian
-        withUnsafeBytes(of: &guid) { data.append(contentsOf: $0) }
-        return data
-    }
-
-    private func log(_ message: String) {
-        FileHandle.standardError.write(Data("bedrock UDP relay: \(message)\n".utf8))
     }
 
     func cancel() {
@@ -741,13 +865,6 @@ private final class UDPRelay: @unchecked Sendable {
             listener.cancel()
             for key in Array(clients.keys) { closeClient(key) }
         }
-    }
-}
-
-private extension Optional where Wrapped == Data {
-    var isSomeValidRakNetPong: Bool {
-        guard let data = self, data.count >= 35, data[0] == 0x1c else { return false }
-        return Array(data[17 ..< 33]) == UDPRelay.rakNetMagic
     }
 }
 

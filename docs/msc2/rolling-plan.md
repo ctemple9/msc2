@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 15 is the priority next phase; Phase 14 is paused with P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, P14.17, P14.18, P14.19, P14.26, P14.27, P14.28, P14.29, P14.30, P14.31, P14.32, P14.33, P14.34, P14.35, P14.36, and P14.37 awaiting verification. P14.38 records twelve unverified static-review findings and is awaiting owner triage.
-> **Next move:** Cameron verifies P15.3, P15.4, P15.5, P15.45, P15.46, P15.47, P15.48, P15.49, P15.50, P15.51, P15.52, P15.53, P15.54, P15.55, P15.56, P15.57, P15.58, P15.59, P15.60, P15.61, P15.62, P15.63, P15.64, P15.65, P15.66, and P15.67. Phase 14 verification and P14.38 triage remain recorded and paused until Phase 15 is complete or Cameron explicitly resumes Phase 14. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> **Next move:** Cameron verifies P15.3, P15.4, P15.5, P15.45, P15.46, P15.47, P15.48, P15.49, P15.50, P15.51, P15.52, P15.53, P15.54, P15.55, P15.56, P15.57, P15.58, P15.59, P15.60, P15.61, P15.62, P15.63, P15.64, P15.65, P15.66, P15.67, and P15.68. Phase 14 verification and P14.38 triage remain recorded and paused until Phase 15 is complete or Cameron explicitly resumes Phase 14. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -1069,6 +1069,15 @@ This gives Java and Bedrock parallel concepts without pretending their underlyin
 - **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-infrastructure -p msc-agent --lib --bins --no-deps -- -D warnings`
 - **Batch:** N — Xbox Broadcast NetherNet correction
 - **Commit:** `P15.67: keep Xbox Broadcast visible with NetherNet`
+
+### P15.68 — Wait for the NetherNet relay before forwarding
+
+- **Status:** awaiting verification
+- **Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `docs/msc2/rolling-plan.md`
+- **What:** Correct the live macOS startup rollback reproduced on the owner machine. BDS reaches `Server started` and answers the HTTP signaling request directly at its VM address, but the host TCP relay accepts the connection and strands its first bytes because forwarding begins before the outbound guest connection is ready. Retain each accepted session and begin both TCP copy loops only after both endpoints report ready. This lets the existing end-to-end readiness probe pass instead of misclassifying a healthy BDS process as failed and tearing down its VM.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-infrastructure -p msc-application -p msc-agent --lib --bins --no-deps -- -D warnings && xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-68-build build CODE_SIGNING_ALLOWED=NO` — then rebuild/relaunch MSC, start Bedrock, and confirm it remains running after the startup operation completes; `curl -i --max-time 3 http://127.0.0.1:19001/` should return an HTTP response through the relay rather than time out.
+- **Batch:** N — Bedrock transport and relay repair
+- **Commit:** `P15.68: wait for the NetherNet relay before forwarding`
 
 ## Proposed Phase 14 — operational refinements
 

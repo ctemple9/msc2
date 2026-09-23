@@ -576,6 +576,9 @@ private final class TCPRelay: @unchecked Sendable {
         let client: NWConnection
         let guest: NWConnection
         var lastActivity = Date()
+        var clientReady = false
+        var guestReady = false
+        var pumpsStarted = false
 
         init(client: NWConnection, guest: NWConnection) {
             self.client = client
@@ -628,15 +631,28 @@ private final class TCPRelay: @unchecked Sendable {
         let key = ObjectIdentifier(client)
         clients[key] = Session(client: client, guest: guest)
         client.stateUpdateHandler = { [weak self] state in
-            self?.handleState(state, side: "client", key: key)
+            self?.handleState(state, side: .client, key: key)
         }
         guest.stateUpdateHandler = { [weak self] state in
-            self?.handleState(state, side: "guest", key: key)
+            self?.handleState(state, side: .guest, key: key)
         }
         client.start(queue: queue)
         guest.start(queue: queue)
-        pump(from: client, to: guest, key: key)
-        pump(from: guest, to: client, key: key)
+    }
+
+    private enum SessionSide: String {
+        case client
+        case guest
+    }
+
+    private func startPumpsIfReady(key: ObjectIdentifier) {
+        guard let session = clients[key],
+              session.clientReady,
+              session.guestReady,
+              !session.pumpsStarted else { return }
+        session.pumpsStarted = true
+        pump(from: session.client, to: session.guest, key: key)
+        pump(from: session.guest, to: session.client, key: key)
     }
 
     private func pump(
@@ -670,12 +686,23 @@ private final class TCPRelay: @unchecked Sendable {
         }
     }
 
-    private func handleState(_ state: NWConnection.State, side: String, key: ObjectIdentifier) {
+    private func handleState(
+        _ state: NWConnection.State,
+        side: SessionSide,
+        key: ObjectIdentifier
+    ) {
         switch state {
+        case .ready:
+            guard let session = clients[key] else { return }
+            switch side {
+            case .client: session.clientReady = true
+            case .guest: session.guestReady = true
+            }
+            startPumpsIfReady(key: key)
         case .waiting(let error):
-            log("\(side) connection waiting: \(error.localizedDescription)")
+            log("\(side.rawValue) connection waiting: \(error.localizedDescription)")
         case .failed(let error):
-            log("\(side) connection failed: \(error.localizedDescription)")
+            log("\(side.rawValue) connection failed: \(error.localizedDescription)")
             closeClient(key)
         case .cancelled:
             closeClient(key)

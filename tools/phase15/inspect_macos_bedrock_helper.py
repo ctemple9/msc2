@@ -15,7 +15,6 @@ import json
 import os
 import plistlib
 import re
-import socket
 import stat
 import subprocess
 import sys
@@ -286,38 +285,17 @@ class Inspector:
             else ("cannot evaluate before BDS readiness is recorded" if not started else "no readable log contains 'rollback'"),
         )
 
-    def check_tcp_relay(self) -> None:
-        try:
-            with socket.create_connection(("127.0.0.1", self.server_port), timeout=3) as connection:
-                connection.sendall(b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
-                response = connection.recv(512)
-        except OSError as error:
-            self.add("TCP Bedrock host relay", False, str(error))
-            return
-        first_line = response.splitlines()[0].decode("ascii", errors="replace") if response else ""
-        self.add(
-            "TCP Bedrock host relay",
-            first_line.startswith("HTTP/1."),
-            first_line or "relay returned no response",
-        )
-
     def check_udp_ports(self) -> None:
         result = self.command("/usr/sbin/netstat", "-anv", "-p", "udp")
         listening_ports = {
             int(match.group(1))
             for match in re.finditer(r"^udp\S*\s+.*?\*\.(\d+)\s+\*\.\*", result.stdout, re.MULTILINE)
         }
-        missing: list[str] = []
-        bound: list[str] = []
-        for port in range(19002, 19018):
-            if port in listening_ports:
-                bound.append(str(port))
-            else:
-                missing.append(str(port))
+        bound = self.server_port in listening_ports
         self.add(
-            "UDP gameplay relay 19002-19017",
-            not missing,
-            f"bound={','.join(bound) or 'none'}; missing={','.join(missing) or 'none'}",
+            f"UDP RakNet relay {self.server_port}",
+            bound,
+            "bound" if bound else "missing",
         )
 
     def check_process_cleanup(self, helper_pid: int | None) -> None:
@@ -371,7 +349,6 @@ class Inspector:
         self.check_helper_resources(helper_pid)
         self.check_artifacts()
         self.check_start_evidence()
-        self.check_tcp_relay()
         self.check_udp_ports()
         self.check_process_cleanup(helper_pid)
         self.connection_report()

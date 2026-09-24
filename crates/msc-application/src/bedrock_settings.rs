@@ -77,6 +77,38 @@ pub fn load(fs: &dyn FileSystem, server_dir: &Path) -> BedrockSettings {
 /// BDS 1.26.51 accepts at most sixteen individual NetherNet mappings.
 pub const NETHERNET_UDP_PORT_COUNT: u16 = 16;
 
+/// Run the macOS VM through the legacy single-port transport as a bounded
+/// compatibility fallback for BDS 1.26.51's broken remote TLS handshake.
+/// The NetherNet-only keys must go away as a pair: leaving either one behind
+/// changes how BDS advertises and selects its player path.
+pub fn ensure_sidecar_raknet_transport(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+) -> Result<bool, BedrockSettingsError> {
+    let current = load(fs, server_dir);
+    let already_configured = current
+        .raw
+        .get("transport")
+        .is_some_and(|value| value.trim().eq_ignore_ascii_case("raknet"))
+        && !current.raw.contains_key("server-udp-ports")
+        && !current.raw.contains_key("server-ip");
+    if already_configured {
+        return Ok(false);
+    }
+
+    let mut raw = current.raw;
+    raw.insert("transport".to_owned(), "raknet".to_owned());
+    raw.remove("server-udp-ports");
+    raw.remove("server-ip");
+    atomic_write(
+        fs,
+        &server_dir.join(PROPERTIES_FILE),
+        render_raw_properties(&raw).as_bytes(),
+    )
+    .map_err(|error| BedrockSettingsError::AtomicWrite(error.to_string()))?;
+    Ok(true)
+}
+
 /// Configure the macOS VM for NetherNet's TCP signaling socket and bounded
 /// UDP gameplay range. Advertised addresses name the host-side relays rather
 /// than the guest's private VZ address. BDS 1.26.51 is more reliable when the

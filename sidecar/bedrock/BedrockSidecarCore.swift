@@ -233,9 +233,7 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
     private var relayReady = false
     private var relayPathReady = false
     private var relayPathCheckInFlight = false
-    private var relayStartsRemaining = 0
-    private var tcpRelay: TCPRelay?
-    private var udpRelays: [UDPRelay] = []
+    private var udpRelay: UDPRelay?
     private var bedrockReady = false
     private var gracefulStopWorkItem: DispatchWorkItem?
     private var didTerminate = false
@@ -303,9 +301,7 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         relayReady = false
         relayPathReady = false
         relayPathCheckInFlight = false
-        relayStartsRemaining = 0
-        tcpRelay = nil
-        udpRelays.removeAll()
+        udpRelay = nil
         bedrockReady = false
         didTerminate = false
         state = .provisioned(serverDirectory: URL(fileURLWithPath: serverDir, isDirectory: true), version: version)
@@ -474,31 +470,20 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         if guestIP == nil, line.contains("[appliance] dhcp:"), let ip = Self.parseGuestIP(line) {
             guestIP = ip
             do {
-                let tcpRelay = try TCPRelay(
+                let udpRelay = try UDPRelay(
                     listenPort: bedrockPort,
                     guestHost: ip,
-                    guestPort: bedrockPort,
-                    diagnostic: { [weak self] message in
-                        DispatchQueue.main.async {
-                            self?.send(.consoleLine("[TCP relay] \(message)"))
-                        }
-                    })
-                let udpRelays = try Self.netherNetUDPPorts(serverPort: bedrockPort).map { port in
-                    try UDPRelay(listenPort: port, guestHost: ip, guestPort: port)
-                }
-                self.tcpRelay = tcpRelay
-                self.udpRelays = udpRelays
-                relayStartsRemaining = udpRelays.count + 1
-                tcpRelay.start { [weak self] started in
+                    guestPort: bedrockPort)
+                self.udpRelay = udpRelay
+                udpRelay.start { [weak self] started in
                     DispatchQueue.main.async {
-                        self?.relayDidStart(started, kind: "TCP signaling")
-                    }
-                }
-                for relay in udpRelays {
-                    relay.start { [weak self] started in
-                        DispatchQueue.main.async {
-                            self?.relayDidStart(started, kind: "UDP gameplay")
+                        guard let self else { return }
+                        guard started else {
+                            self.finish(reason: "start-failed:UDP RakNet relay could not bind")
+                            return
                         }
+                        self.relayReady = true
+                        self.emitReadyIfPossible()
                     }
                 }
             } catch {
@@ -517,31 +502,18 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         }
     }
 
-    private func relayDidStart(_ started: Bool, kind: String) {
-        guard case .starting = state else { return }
-        guard started else {
-            finish(reason: "start-failed:\(kind) relay could not bind")
-            return
-        }
-        relayStartsRemaining -= 1
-        if relayStartsRemaining == 0 {
-            relayReady = true
-            emitReadyIfPossible()
-        }
-    }
-
     private func emitReadyIfPossible() {
         guard relayReady, bedrockReady, let guestIP else { return }
         guard case .starting = state else { return }
         guard relayPathReady else {
-            guard !relayPathCheckInFlight, let tcpRelay else { return }
+            guard !relayPathCheckInFlight, let udpRelay else { return }
             relayPathCheckInFlight = true
-            tcpRelay.verifyBedrockPath { [weak self] verified in
+            udpRelay.verifyBedrockPath { [weak self] verified in
                 DispatchQueue.main.async {
                     guard let self else { return }
                     self.relayPathCheckInFlight = false
                     guard verified else {
-                        self.finish(reason: "start-failed:TCP signaling relay did not reach Bedrock")
+                        self.finish(reason: "start-failed:UDP RakNet relay did not pass a Bedrock ping")
                         return
                     }
                     self.relayPathReady = true
@@ -566,10 +538,8 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         stateLock.unlock()
         gracefulStopWorkItem?.cancel()
         gracefulStopWorkItem = nil
-        tcpRelay?.cancel()
-        tcpRelay = nil
-        udpRelays.forEach { $0.cancel() }
-        udpRelays.removeAll()
+        udpRelay?.cancel()
+        udpRelay = nil
         guestOutput?.fileHandleForReading.readabilityHandler = nil
         guestOutput = nil
         guestInput = nil
@@ -617,15 +587,6 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
     static func parseGuestIP(_ line: String) -> String? {
         guard let range = line.range(of: #"\d{1,3}(\.\d{1,3}){3}"#, options: .regularExpression) else { return nil }
         return String(line[range])
-    }
-
-    static func netherNetUDPPorts(serverPort: UInt16) -> [UInt16] {
-        let count: UInt16 = 16
-        if serverPort <= UInt16.max - count {
-            return Array((serverPort + 1) ... (serverPort + count))
-        }
-        guard serverPort > count else { return [] }
-        return Array((serverPort - count) ... (serverPort - 1))
     }
 
     static func isBedrockServerReadyLine(_ line: String) -> Bool {
@@ -904,6 +865,10 @@ private final class TCPRelay: @unchecked Sendable {
 }
 
 private final class UDPRelay: @unchecked Sendable {
+    private final class VerificationAttempt: @unchecked Sendable {
+        var completed = false
+    }
+
     private final class Session {
         let client: NWConnection
         let guest: FileHandle
@@ -922,6 +887,11 @@ private final class UDPRelay: @unchecked Sendable {
     private var clients: [ObjectIdentifier: Session] = [:]
     private var cleanupTimer: DispatchSourceTimer?
     private var startCompletion: (@Sendable (Bool) -> Void)?
+
+    fileprivate static let rakNetMagic: [UInt8] = [
+        0x00, 0xff, 0xff, 0x00, 0xfe, 0xfe, 0xfe, 0xfe,
+        0xfd, 0xfd, 0xfd, 0xfd, 0x12, 0x34, 0x56, 0x78,
+    ]
 
     init(listenPort: UInt16, guestHost: String, guestPort: UInt16) throws {
         guard let listen = NWEndpoint.Port(rawValue: listenPort),
@@ -1023,6 +993,68 @@ private final class UDPRelay: @unchecked Sendable {
         try? session.guest.close()
     }
 
+    func verifyBedrockPath(completion: @escaping @Sendable (Bool) -> Void) {
+        queue.async { [weak self] in
+            self?.verifyBedrockPath(
+                deadline: Date().addingTimeInterval(30),
+                completion: completion)
+        }
+    }
+
+    private func verifyBedrockPath(
+        deadline: Date,
+        completion: @escaping @Sendable (Bool) -> Void
+    ) {
+        guard Date() < deadline else {
+            completion(false)
+            return
+        }
+        let probe = NWConnection(
+            host: NWEndpoint.Host("127.0.0.1"),
+            port: listener.port ?? NWEndpoint.Port(rawValue: guestPort)!,
+            using: .udp)
+        let attempt = VerificationAttempt()
+        let finish: @Sendable (Bool) -> Void = { [self] success in
+            guard !attempt.completed else { return }
+            attempt.completed = true
+            probe.cancel()
+            if success {
+                completion(true)
+            } else {
+                queue.asyncAfter(deadline: .now() + 0.5) { [self] in
+                    verifyBedrockPath(deadline: deadline, completion: completion)
+                }
+            }
+        }
+        probe.stateUpdateHandler = { state in
+            guard case .ready = state else {
+                if case .failed = state { finish(false) }
+                return
+            }
+            probe.send(content: Self.rakNetPing(), completion: .contentProcessed { error in
+                guard error == nil else {
+                    finish(false)
+                    return
+                }
+                probe.receiveMessage { data, _, _, _ in
+                    finish(data.isSomeValidRakNetPong)
+                }
+            })
+        }
+        probe.start(queue: queue)
+        queue.asyncAfter(deadline: .now() + 2) { finish(false) }
+    }
+
+    private static func rakNetPing() -> Data {
+        var data = Data([0x01])
+        var timestamp = UInt64(Date().timeIntervalSince1970 * 1_000).bigEndian
+        withUnsafeBytes(of: &timestamp) { data.append(contentsOf: $0) }
+        data.append(contentsOf: rakNetMagic)
+        var guid = UInt64.random(in: 1 ... UInt64.max).bigEndian
+        withUnsafeBytes(of: &guid) { data.append(contentsOf: $0) }
+        return data
+    }
+
     func cancel() {
         queue.sync {
             cleanupTimer?.cancel()
@@ -1030,6 +1062,13 @@ private final class UDPRelay: @unchecked Sendable {
             listener.cancel()
             for key in Array(clients.keys) { closeClient(key) }
         }
+    }
+}
+
+private extension Optional where Wrapped == Data {
+    var isSomeValidRakNetPong: Bool {
+        guard let data = self, data.count >= 35, data[0] == 0x1c else { return false }
+        return Array(data[17 ..< 33]) == UDPRelay.rakNetMagic
     }
 }
 

@@ -43,6 +43,15 @@ The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` und
 - **Batch:** N13 — release preparation
 - **Commit:** `P15.87: prepare v0.1.9 release`
 
+### P15.88 — Repair Bedrock startup and cross-runtime time queries
+
+- **Status:** IN PROGRESS
+- **Files:** `crates/msc-application/src/bedrock_runtime.rs`, `crates/msc-application/src/provisioning.rs`, `crates/msc-agent/src/routes/bedrock_runtime.rs`, `crates/msc-agent/src/routes/commands.rs`, `crates/msc-agent/src/routes/health.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Use Minecraft 26.1+'s `time query time` for modern Java servers while preserving the legacy Java and Bedrock commands, report Bedrock sidecar polling failures instead of silently leaving lifecycle operations hanging, and give new or legacy zero-RAM Bedrock records the same safe 2/4 GB allocation baseline used by Java creation.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && cargo check -p msc-application -p msc-agent && git diff --check`
+- **Batch:** N14 — runtime regression repair
+- **Commit:** `P15.88: repair bedrock startup and time queries`
+
 ---
 
 ## How this document works

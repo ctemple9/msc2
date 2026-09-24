@@ -386,7 +386,12 @@ async fn health_response_for(state: &LifecycleRoutesState) -> HealthResponseDto 
         probe_directory(Path::new(&server.server_dir)),
     );
     let java = java_health_card(&cfg.java_path);
-    let ram = diagnostics::check_ram_allocation(server.max_ram_gb, detect_physical_ram_gb());
+    let configured_ram_gb = if server.server_type == ServerType::Bedrock {
+        server.max_ram_gb.max(2.0)
+    } else {
+        server.max_ram_gb
+    };
+    let ram = diagnostics::check_ram_allocation(configured_ram_gb, detect_physical_ram_gb());
     let last_startup_record =
         diagnostics::read_last_startup_result(&StdFileSystem, Path::new(&server.server_dir));
     let started_at = last_startup_record

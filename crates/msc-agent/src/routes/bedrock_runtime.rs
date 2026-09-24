@@ -337,6 +337,12 @@ impl BedrockRuntimeSelection {
             }
         };
         let unavailable = state == "unavailable";
+        let message =
+            if unavailable && eligibility.state == BedrockRuntimeEligibilityState::Available {
+                Some("Bedrock runtime is unavailable.".to_owned())
+            } else {
+                Some(eligibility.message)
+            };
         let diagnostics = self.runtime.lock().unwrap().diagnostics().map(|value| {
             msc_api::dto::BedrockRuntimeDiagnosticsDto {
                 identity: value.identity,
@@ -357,7 +363,7 @@ impl BedrockRuntimeSelection {
                 _ => None,
             },
             reason_code: eligibility.reason_code,
-            message: Some(eligibility.message),
+            message,
             help_id: unavailable.then(|| "bedrock.runtime-unavailable".to_owned()),
             diagnostics,
         }

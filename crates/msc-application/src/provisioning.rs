@@ -2269,8 +2269,8 @@ pub fn create_bedrock_server(
             safe_name,
             new_dir.to_string_lossy(),
             "",
-            0.0,
-            0.0,
+            2.0,
+            4.0,
         );
         config.server_type = ServerType::Bedrock;
         config.bedrock_port = Some(i64::from(request.port));

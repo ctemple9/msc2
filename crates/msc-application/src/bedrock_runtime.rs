@@ -872,7 +872,13 @@ impl<T: SidecarTransport> BedrockRuntime for SidecarRuntime<T> {
                 return Err(BedrockRuntimeError::SidecarEof);
             }
         };
-        let frame = decode_frame(&line)?;
+        let frame = match decode_frame(&line) {
+            Ok(frame) => frame,
+            Err(error) => {
+                self.state = BedrockRuntimeState::Unavailable;
+                return Err(error);
+            }
+        };
         match frame {
             SidecarFrame::Ready {
                 guest_ip,

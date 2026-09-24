@@ -267,10 +267,29 @@ impl TimeQueryKind {
     pub(crate) fn from_command(command: &str) -> Option<Self> {
         match command {
             "time query day" => Some(Self::Day),
-            "time query daytime" => Some(Self::Daytime),
+            "time query daytime" | "time query time" => Some(Self::Daytime),
             "time query gametime" => Some(Self::Gametime),
             _ => None,
         }
+    }
+}
+
+/// Minecraft 26.1 replaced the Java `daytime` timeline with the world-clock
+/// `time` query. Bedrock keeps its own `daytime` command, and older Java
+/// versions still need the legacy form.
+pub(crate) fn daytime_query_command(
+    server_type: ServerType,
+    minecraft_version: Option<&str>,
+) -> &'static str {
+    if server_type == ServerType::Java
+        && minecraft_version.is_some_and(|version| {
+            msc_domain::server_versions::compare_mc_versions(version, "26.1")
+                != std::cmp::Ordering::Less
+        })
+    {
+        "time query time"
+    } else {
+        "time query daytime"
     }
 }
 
@@ -373,7 +392,7 @@ impl ConsoleCorrelation {
             "spark tps" => ControllerReplyKind::SparkTps,
             "tick query" => ControllerReplyKind::TickQuery,
             "time query day" => ControllerReplyKind::TimeQueryDay,
-            "time query daytime" => ControllerReplyKind::TimeQueryDaytime,
+            "time query daytime" | "time query time" => ControllerReplyKind::TimeQueryDaytime,
             "time query gametime" => ControllerReplyKind::TimeQueryGametime,
             "save-all flush" => ControllerReplyKind::SaveAllFlush,
             "save-off" => ControllerReplyKind::SaveOff,
@@ -2170,7 +2189,7 @@ impl LifecycleRoutesState {
             Some(active.id.clone()),
             "Starting Bedrock server.",
         )?;
-        let memory_gb = active.max_ram_gb.max(1.0).ceil() as u32;
+        let memory_gb = active.max_ram_gb.max(2.0).ceil() as u32;
         let sidecar = self.inner.bedrock_runtime.backend() == Some(BedrockRuntimeBackend::Sidecar);
         let transport = match active.bedrock_transport {
             BedrockTransportMode::Automatic if sidecar => BedrockConnectionTransport::Raknet,
@@ -2308,7 +2327,22 @@ impl LifecycleRoutesState {
     }
 
     fn drain_bedrock_events(&self) {
-        while let Ok(Some(event)) = self.inner.bedrock_runtime.poll_event() {
+        loop {
+            let event = match self.inner.bedrock_runtime.poll_event() {
+                Ok(Some(event)) => event,
+                Ok(None) => break,
+                Err(error) => {
+                    let message = error.to_string();
+                    self.clear_console_correlation();
+                    self.clear_time_observation();
+                    if let Some(server_id) = self.active_server_id() {
+                        self.stop_helpers_for_server(&server_id);
+                    }
+                    self.abort_first_start();
+                    self.finish_active_lifecycle_operation_failure(&message);
+                    break;
+                }
+            };
             match event {
                 BedrockRuntimeEvent::ConsoleLine(line) => {
                     let origin = self.console_line_origin(&line);
@@ -2416,11 +2450,18 @@ impl LifecycleRoutesState {
                 self.register_controller_command(command);
             }
         }
-        self.poll_world_time_with_java(&mut lifecycle);
+        self.poll_world_time_with_java(&mut lifecycle, server.minecraft_version.as_deref());
     }
 
-    fn poll_world_time_with_java(&self, lifecycle: &mut LifecycleService<'static>) {
-        for command in ["time query day", "time query daytime"] {
+    fn poll_world_time_with_java(
+        &self,
+        lifecycle: &mut LifecycleService<'static>,
+        minecraft_version: Option<&str>,
+    ) {
+        for command in [
+            "time query day",
+            daytime_query_command(ServerType::Java, minecraft_version),
+        ] {
             if lifecycle.send_command(command).is_ok() {
                 self.register_controller_command(command);
             }
@@ -2528,14 +2569,20 @@ impl LifecycleRoutesState {
             .strip_prefix("> ")
             .unwrap_or(&clean)
             .trim_start_matches('/');
-        if matches!(command, "time query day" | "time query daytime") {
+        if matches!(
+            command,
+            "time query day" | "time query daytime" | "time query time"
+        ) {
             return true;
         }
         let message = command
             .rsplit_once(']')
             .map(|(_, message)| message.trim())
             .unwrap_or(command);
-        message.starts_with("day is ") || message.starts_with("daytime is ")
+        message.starts_with("day is ")
+            || message.starts_with("daytime is ")
+            || message.starts_with("the time is ")
+            || message.starts_with("time is ")
     }
 
     fn console_line_origin(&self, line: &str) -> ConsoleLineOrigin {

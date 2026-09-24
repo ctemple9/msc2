@@ -97,6 +97,15 @@ The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` und
 - **Batch:** N14 — runtime regression repair
 - **Commit:** `P15.93: restore cross-runtime world time`
 
+### P15.94 — Prepare the v0.1.10 release
+
+- **Status:** IN PROGRESS
+- **Files:** `crates/msc-agent/Cargo.toml`, `Cargo.lock`, `clients/desktop-web/package.json`, `clients/desktop-web/package-lock.json`, `clients/desktop-web/src-tauri/Cargo.toml`, `clients/desktop-web/src-tauri/Cargo.lock`, `clients/desktop-web/src-tauri/tauri.conf.json`, `clients/desktop-web/src/lib/bundle-identity.ts`, `clients/desktop-web/src/lib/bundle-identity.test.ts`, `README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Synchronize the coordinated agent, desktop shell, Tauri, lockfile, bundle identity, and download instructions to v0.1.10, then publish the matching tag so the release workflow builds the runtime repairs. This remains an unsigned beta prerelease with no signing-key rotation.
+- **Verify:** `python3 tools/release/check-release-workflow.py .github/workflows/release.yml --expect-publish-guard && rg -n '0\.1\.10|v0\.1\.10' crates/msc-agent/Cargo.toml Cargo.lock clients/desktop-web/package.json clients/desktop-web/package-lock.json clients/desktop-web/src-tauri/Cargo.toml clients/desktop-web/src-tauri/Cargo.lock clients/desktop-web/src-tauri/tauri.conf.json clients/desktop-web/src/lib/bundle-identity.ts clients/desktop-web/src/lib/bundle-identity.test.ts README.md && git ls-remote --tags origin refs/tags/v0.1.10`
+- **Batch:** N15 — release preparation
+- **Commit:** `P15.94: prepare v0.1.10 release`
+
 ---
 
 ## How this document works

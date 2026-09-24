@@ -125,6 +125,15 @@ pub fn parse_time_query_response(line: &str) -> Option<i64> {
         let sign = if tail.starts_with('-') { -1 } else { 1 };
         digits.parse::<i64>().ok().map(|value| sign * value)
     })
+    .or_else(|| parse_modern_java_clock_response(line))
+}
+
+/// Java 26.1+ identifies the queried world clock in its response, for example
+/// `Clock minecraft:overworld is at 25567 tick(s)`.
+fn parse_modern_java_clock_response(line: &str) -> Option<i64> {
+    let clock_start = line.find("Clock minecraft:")?;
+    let tail = line[clock_start..].split_once(" is at ")?.1;
+    parse_integer_prefix(tail)
 }
 
 fn split_bedrock_time_response<'a>(line: &'a str, prefix: &str) -> Option<&'a str> {

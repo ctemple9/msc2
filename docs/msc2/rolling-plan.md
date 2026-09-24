@@ -106,6 +106,15 @@ The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` und
 - **Batch:** N15 — release preparation
 - **Commit:** `P15.94: prepare v0.1.10 release`
 
+### P15.95 — Parse and suppress modern Java clock responses
+
+- **Status:** IN PROGRESS
+- **Files:** `crates/msc-domain/src/time.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Accept Minecraft 26.1+'s actual `Clock minecraft:<dimension> is at <ticks> tick(s)` response, derive the Active World day and daytime from its absolute tick value, and recognize that response both through controller correlation and through a defensive console-boundary filter. Automatic modern Java clock polling therefore updates the card without placing command responses in the visible console, including Paper, Purpur, Fabric, Forge, NeoForge, vanilla, and other Java flavors.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && cargo check -p msc-domain -p msc-agent && git diff --check`
+- **Batch:** N14 — runtime regression repair
+- **Commit:** `P15.95: parse modern java clock responses`
+
 ---
 
 ## How this document works

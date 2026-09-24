@@ -606,7 +606,10 @@ fn reply_matches(kind: ControllerReplyKind, clean: &str, lower: &str) -> bool {
                 || lower.contains("the time is ")
                 || lower.contains("daytime is ")
         }
-        ControllerReplyKind::TimeQueryAbsoluteClock => lower.contains("the time is "),
+        ControllerReplyKind::TimeQueryAbsoluteClock => {
+            lower.contains("the time is ")
+                || lower.contains("clock minecraft:") && lower.contains(" is at ")
+        }
         ControllerReplyKind::TimeQueryGametime => {
             lower.contains("the game time is ")
                 || lower.contains("timeline minecraft:gametime is at")
@@ -2599,6 +2602,7 @@ impl LifecycleRoutesState {
             || message.starts_with("daytime is ")
             || message.starts_with("the time is ")
             || message.starts_with("time is ")
+            || message.contains("clock minecraft:") && message.contains(" is at ")
     }
 
     fn console_line_origin(&self, line: &str) -> ConsoleLineOrigin {

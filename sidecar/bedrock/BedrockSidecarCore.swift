@@ -381,11 +381,18 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
             fileHandleForWriting: output.fileHandleForWriting)
         configuration.serialPorts = [serial]
         output.fileHandleForReading.readabilityHandler = { [weak self] handle in
-            let data = handle.availableData
-            if data.isEmpty {
+            do {
+                let data = try handle.read(upToCount: 64 * 1024) ?? Data()
+                if data.isEmpty {
+                    self?.flushOutput()
+                } else {
+                    self?.receiveGuestBytes(data)
+                }
+            } catch {
+                // FileHandle can report a closed VM serial pipe here. Treat it
+                // as guest EOF instead of allowing availableData to raise an
+                // Objective-C exception through the helper process.
                 self?.flushOutput()
-            } else {
-                self?.receiveGuestBytes(data)
             }
         }
 
@@ -1023,10 +1030,22 @@ private final class UDPRelay: @unchecked Sendable {
         }
         clients[key] = Session(client: client, guest: guest)
         guest.readabilityHandler = { [weak self] handle in
-            let data = handle.availableData
             guard let relay = self else { return }
+            let data: Data
+            do {
+                data = try handle.read(upToCount: 64 * 1024) ?? Data()
+            } catch {
+                relay.queue.async { [weak relay] in
+                    relay?.closeClient(key)
+                }
+                return
+            }
             relay.queue.async { [weak relay] in
-                guard let relay, relay.clients[key] != nil, !data.isEmpty else { return }
+                guard let relay, relay.clients[key] != nil else { return }
+                guard !data.isEmpty else {
+                    relay.closeClient(key)
+                    return
+                }
                 relay.clients[key]?.lastActivity = Date()
                 client.send(content: data, completion: .idempotent)
             }

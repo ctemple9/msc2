@@ -52,6 +52,15 @@ The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` und
 - **Batch:** N14 — runtime regression repair
 - **Commit:** `P15.88: repair bedrock startup and time queries`
 
+### P15.89 — Prevent Bedrock helper crashes on closed relay sockets
+
+- **Status:** IN PROGRESS
+- **Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `docs/msc2/rolling-plan.md`
+- **What:** Replace unsafe `FileHandle.availableData` reads in the Bedrock VM serial and UDP relay paths with throwing reads that treat EOF or a closed socket as normal teardown. This keeps a disconnected client or guest socket from crashing the privileged helper and disconnecting the agent's Bedrock session.
+- **Verify:** `xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-89-build build CODE_SIGNING_ALLOWED=NO && git diff --check`
+- **Batch:** N14 — runtime regression repair
+- **Commit:** `P15.89: prevent bedrock helper crashes on closed relay sockets`
+
 ---
 
 ## How this document works

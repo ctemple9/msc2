@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 15 is the priority next phase; Phase 14 is paused with P14.4, P14.5, P14.6, P14.9, P14.10, P14.11, P14.12, P14.15, P14.16, P14.17, P14.18, P14.19, P14.26, P14.27, P14.28, P14.29, P14.30, P14.31, P14.32, P14.33, P14.34, P14.35, P14.36, and P14.37 awaiting verification. P14.38 records twelve unverified static-review findings and is awaiting owner triage.
-> **Next move:** Cameron verifies P15.79's installed RakNet compatibility build and direct iPad paths. Live packet capture proved remote NetherNet signaling reaches TCP `19001`, but BDS 1.26.51.1 immediately returns TLS fatal alert 40 before UDP/ICE begins. P15.79 therefore runs the bounded compatibility experiment reported working by other 1.26.51 clients: the macOS sidecar removes NetherNet-only properties, selects RakNet, and relays UDP `19001` to the VM. Cameron also verifies P15.3, P15.4, P15.5, and P15.45–P15.78. Phase 14 verification and P14.38 triage remain recorded and paused until Phase 15 is complete or Cameron explicitly resumes Phase 14. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> **Next move:** Cameron verifies P15.80's durable Bedrock troubleshooting record. P15.79's installed RakNet compatibility build passed direct iPad joins on the LAN and over a cellular hotspot, plus MCXboxBroadcast transfer over the hotspot. Live packet capture had proved the replaced NetherNet path reached TCP `19001`, but BDS 1.26.51.1 returned TLS fatal alert 40 before UDP/ICE began. `docs/msc2/bedrock/troubleshooting-bedrock.md` now preserves the complete evidence, discarded diagnoses, working UDP `19001` contract, and safe NetherNet retest/rollback procedure. Cameron also verifies P15.3, P15.4, P15.5, and P15.45–P15.79. Phase 14 verification and P14.38 triage remain recorded and paused until Phase 15 is complete or Cameron explicitly resumes Phase 14. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -1207,6 +1207,15 @@ context. Direct child-process launch remains only an explicit development path.
 - **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-application -p msc-agent --lib --bins --no-deps -- -D warnings && xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-79-build build CODE_SIGNING_ALLOWED=NO && python3 -m py_compile tools/phase15/inspect_macos_bedrock_helper.py`
 - **Batch:** N9 — RakNet compatibility experiment
 - **Commit:** `P15.79: try RakNet compatibility on macOS`
+
+### P15.80 — Record the Bedrock transport incident
+
+- **Status:** awaiting verification
+- **Files:** `docs/msc2/bedrock/troubleshooting-bedrock.md`, `docs/msc2/rolling-plan.md`
+- **What:** Preserve the complete BDS 1.26.51.1 investigation as a durable operator reference: the relay and privileged-helper failures that preceded the transport diagnosis, the exact NetherNet HTTP/TLS and packet-capture evidence, the rejected mapping shapes, the working RakNet and router contract, successful LAN/cellular/Xbox Broadcast acceptance, ruled-out causes, and a reversible checklist for retesting NetherNet after a Mojang update.
+- **Verify:** `rg -n "Final result|Current working network contract|1503 0100 0202 28|P15.62-P15.65|P15.66-P15.68|P15.69-P15.75|P15.76-P15.78|P15.79|Retesting NetherNet|UDP 19001" docs/msc2/bedrock/troubleshooting-bedrock.md`
+- **Batch:** N10 — Bedrock incident record
+- **Commit:** `P15.80: document Bedrock transport troubleshooting`
 
 ## Proposed Phase 14 — operational refinements
 

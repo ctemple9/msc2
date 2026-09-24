@@ -16,8 +16,8 @@ use msc_application::world_safety::{self, SafetyConfirmation};
 
 use crate::auth::AuthenticatedCredential;
 use crate::routes::lifecycle::{
-    LifecycleRoutesState, TimeQueryKind, daytime_query_command, error_response, invalid_body,
-    lifecycle_error_response, lifecycle_route_error_response, require_permission,
+    LifecycleRoutesState, TimeQueryKind, error_response, invalid_body, lifecycle_error_response,
+    lifecycle_route_error_response, require_permission, uses_absolute_clock_query,
 };
 
 const RELATIVE_TIME_DAY_QUERY: &str = "time query day";
@@ -106,11 +106,10 @@ fn confirmation_required_response(required: SafetyConfirmation) -> Response {
 
 /// `POST /v1/time/relative` — resolve a named time of day against the active
 /// Minecraft day, then send the runtime's absolute command. The agent queries
-/// daylight-cycle day and daytime separately: `gametime` is server uptime and
-/// can be several days ahead of the world's actual day. Java 26.1+ calls the
-/// second query `time`, while older Java versions and Bedrock use `daytime`.
-/// Keeping both queries and the set together also prevents a client from
-/// using cached time.
+/// daylight-cycle day and daytime immediately before changing it. Modern Java
+/// exposes both through one absolute world-clock value; legacy Java and
+/// Bedrock expose separate day and daytime queries. `gametime` is deliberately
+/// excluded because it is server uptime and can diverge from world time.
 pub async fn relative_time(
     State(state): State<LifecycleRoutesState>,
     Extension(credential): Extension<AuthenticatedCredential>,
@@ -166,14 +165,34 @@ pub async fn relative_time(
     }
 
     let _query_guard = state.time_query_lock().lock().await;
-    let daytime_query = daytime_query_command(server_type, server.minecraft_version.as_deref());
-    let current_day = match query_runtime_time(&state, server_type, RELATIVE_TIME_DAY_QUERY).await {
-        Ok(value) => value,
-        Err(response) => return response,
-    };
-    let current_daytime_ticks = match query_runtime_time(&state, server_type, daytime_query).await {
-        Ok(value) => value,
-        Err(response) => return response,
+    let absolute_clock =
+        uses_absolute_clock_query(server_type, server.minecraft_version.as_deref());
+    let (current_day, current_daytime_ticks, query_command) = if absolute_clock {
+        let absolute = match query_runtime_time(&state, server_type, "time query time").await {
+            Ok(value) => value,
+            Err(response) => return response,
+        };
+        (
+            absolute.div_euclid(msc_domain::time::MINECRAFT_DAY_TICKS),
+            absolute.rem_euclid(msc_domain::time::MINECRAFT_DAY_TICKS),
+            "time query time".to_string(),
+        )
+    } else {
+        let current_day =
+            match query_runtime_time(&state, server_type, RELATIVE_TIME_DAY_QUERY).await {
+                Ok(value) => value,
+                Err(response) => return response,
+            };
+        let current_daytime_ticks =
+            match query_runtime_time(&state, server_type, "time query daytime").await {
+                Ok(value) => value,
+                Err(response) => return response,
+            };
+        (
+            current_day,
+            current_daytime_ticks,
+            format!("{RELATIVE_TIME_DAY_QUERY}; time query daytime"),
+        )
     };
 
     let target = msc_domain::time::RelativeTimeTarget::for_current_day(
@@ -205,7 +224,7 @@ pub async fn relative_time(
         current_daytime_ticks: target.current_daytime_ticks,
         target_day: target.target_day,
         target_daytime_ticks: target.target_daytime_ticks,
-        query_command: format!("{RELATIVE_TIME_DAY_QUERY}; {daytime_query}"),
+        query_command,
         command,
         runtime: (server_type == msc_domain::identity::ServerType::Bedrock)
             .then(|| state.bedrock_runtime_state()),

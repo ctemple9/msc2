@@ -260,6 +260,7 @@ pub(crate) struct TimeObservation {
 pub(crate) enum TimeQueryKind {
     Day,
     Daytime,
+    AbsoluteClock,
     Gametime,
 }
 
@@ -267,30 +268,26 @@ impl TimeQueryKind {
     pub(crate) fn from_command(command: &str) -> Option<Self> {
         match command {
             "time query day" => Some(Self::Day),
-            "time query daytime" | "time query time" => Some(Self::Daytime),
+            "time query daytime" => Some(Self::Daytime),
+            "time query time" => Some(Self::AbsoluteClock),
             "time query gametime" => Some(Self::Gametime),
             _ => None,
         }
     }
 }
 
-/// Minecraft 26.1 replaced the Java `daytime` timeline with the world-clock
-/// `time` query. Bedrock keeps its own `daytime` command, and older Java
-/// versions still need the legacy form.
-pub(crate) fn daytime_query_command(
+/// Minecraft 26.1 replaced Java's separate day/daytime queries with one
+/// absolute world-clock query. Every Java flavor follows the command syntax
+/// of its Minecraft version; Bedrock retains the legacy pair.
+pub(crate) fn uses_absolute_clock_query(
     server_type: ServerType,
     minecraft_version: Option<&str>,
-) -> &'static str {
-    if server_type == ServerType::Java
+) -> bool {
+    server_type == ServerType::Java
         && minecraft_version.is_some_and(|version| {
             msc_domain::server_versions::compare_mc_versions(version, "26.1")
                 != std::cmp::Ordering::Less
         })
-    {
-        "time query time"
-    } else {
-        "time query daytime"
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -335,6 +332,7 @@ enum ControllerReplyKind {
     TickQuery,
     TimeQueryDay,
     TimeQueryDaytime,
+    TimeQueryAbsoluteClock,
     TimeQueryGametime,
     SaveAllFlush,
     SaveOff,
@@ -392,7 +390,8 @@ impl ConsoleCorrelation {
             "spark tps" => ControllerReplyKind::SparkTps,
             "tick query" => ControllerReplyKind::TickQuery,
             "time query day" => ControllerReplyKind::TimeQueryDay,
-            "time query daytime" | "time query time" => ControllerReplyKind::TimeQueryDaytime,
+            "time query daytime" => ControllerReplyKind::TimeQueryDaytime,
+            "time query time" => ControllerReplyKind::TimeQueryAbsoluteClock,
             "time query gametime" => ControllerReplyKind::TimeQueryGametime,
             "save-all flush" => ControllerReplyKind::SaveAllFlush,
             "save-off" => ControllerReplyKind::SaveOff,
@@ -408,7 +407,9 @@ impl ConsoleCorrelation {
         });
         if matches!(
             kind,
-            ControllerReplyKind::TimeQueryDay | ControllerReplyKind::TimeQueryDaytime
+            ControllerReplyKind::TimeQueryDay
+                | ControllerReplyKind::TimeQueryDaytime
+                | ControllerReplyKind::TimeQueryAbsoluteClock
         ) {
             self.pending_command_echoes
                 .push_back(PendingControllerCommandEcho {
@@ -605,6 +606,7 @@ fn reply_matches(kind: ControllerReplyKind, clean: &str, lower: &str) -> bool {
                 || lower.contains("the time is ")
                 || lower.contains("daytime is ")
         }
+        ControllerReplyKind::TimeQueryAbsoluteClock => lower.contains("the time is "),
         ControllerReplyKind::TimeQueryGametime => {
             lower.contains("the game time is ")
                 || lower.contains("timeline minecraft:gametime is at")
@@ -1240,6 +1242,9 @@ impl LifecycleRoutesState {
                 .and_then(|reply| match reply {
                     ControllerReplyKind::TimeQueryDay => Some(TimeQueryKind::Day),
                     ControllerReplyKind::TimeQueryDaytime => Some(TimeQueryKind::Daytime),
+                    ControllerReplyKind::TimeQueryAbsoluteClock => {
+                        Some(TimeQueryKind::AbsoluteClock)
+                    }
                     ControllerReplyKind::TimeQueryGametime => Some(TimeQueryKind::Gametime),
                     _ => None,
                 });
@@ -1251,11 +1256,14 @@ impl LifecycleRoutesState {
         let Some(query_kind) = query_kind else {
             return false;
         };
-        let hide_from_console = matches!(query_kind, TimeQueryKind::Day | TimeQueryKind::Daytime);
+        let hide_from_console = matches!(
+            query_kind,
+            TimeQueryKind::Day | TimeQueryKind::Daytime | TimeQueryKind::AbsoluteClock
+        );
         let clean = strip_ansi(line);
         let query_value = match query_kind {
             TimeQueryKind::Day => msc_domain::time::parse_day_query_response(&clean),
-            TimeQueryKind::Daytime | TimeQueryKind::Gametime => {
+            TimeQueryKind::Daytime | TimeQueryKind::AbsoluteClock | TimeQueryKind::Gametime => {
                 msc_domain::time::parse_time_query_response(&clean)
             }
         };
@@ -1269,6 +1277,12 @@ impl LifecycleRoutesState {
         match query_kind {
             TimeQueryKind::Day => observation.world_day = Some(query_value),
             TimeQueryKind::Daytime => {
+                observation.daytime_ticks =
+                    Some(query_value.rem_euclid(msc_domain::time::MINECRAFT_DAY_TICKS));
+            }
+            TimeQueryKind::AbsoluteClock => {
+                observation.world_day =
+                    Some(query_value.div_euclid(msc_domain::time::MINECRAFT_DAY_TICKS));
                 observation.daytime_ticks =
                     Some(query_value.rem_euclid(msc_domain::time::MINECRAFT_DAY_TICKS));
             }
@@ -2458,10 +2472,12 @@ impl LifecycleRoutesState {
         lifecycle: &mut LifecycleService<'static>,
         minecraft_version: Option<&str>,
     ) {
-        for command in [
-            "time query day",
-            daytime_query_command(ServerType::Java, minecraft_version),
-        ] {
+        let commands: &[&str] = if uses_absolute_clock_query(ServerType::Java, minecraft_version) {
+            &["time query time"]
+        } else {
+            &["time query day", "time query daytime"]
+        };
+        for command in commands {
             if lifecycle.send_command(command).is_ok() {
                 self.register_controller_command(command);
             }

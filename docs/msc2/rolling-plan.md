@@ -88,6 +88,15 @@ The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` und
 - **Batch:** N14 — runtime regression repair
 - **Commit:** `P15.92: restore nonblocking bedrock helper event delivery`
 
+### P15.93 — Restore world time across Java and Bedrock runtimes
+
+- **Status:** IN PROGRESS
+- **Files:** `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/commands.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Poll Minecraft 26.1+ Java servers with their single absolute world-clock query and derive both the day and daytime from that response, while preserving the separate legacy queries used by older Java versions and Bedrock. Correlate the modern response as an internal controller observation so automatic query traffic never reaches the visible console. Because Java command syntax belongs to the Minecraft version, this applies uniformly to vanilla, Paper, Purpur, Fabric, Forge, NeoForge, and other Java flavors.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && cargo check -p msc-agent && git diff --check`
+- **Batch:** N14 — runtime regression repair
+- **Commit:** `P15.93: restore cross-runtime world time`
+
 ---
 
 ## How this document works

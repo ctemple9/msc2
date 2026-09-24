@@ -65,9 +65,7 @@ export const ONBOARDING_ANCHOR_ACTION_EVENT = 'msc:onboarding-anchor-action';
 
 /** Reports a completed anchored action after its UI transition has finished. */
 export function dispatchOnboardingAnchorAction(anchorId: string): void {
-  window.dispatchEvent(
-    new CustomEvent(ONBOARDING_ANCHOR_ACTION_EVENT, { detail: { anchorId } }),
-  );
+  window.dispatchEvent(new CustomEvent(ONBOARDING_ANCHOR_ACTION_EVENT, { detail: { anchorId } }));
 }
 
 /** Live viewport rects of every mounted `use:onboardingAnchor` element, keyed by anchor id. */

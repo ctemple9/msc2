@@ -57,6 +57,7 @@ fn start_request() -> BedrockStartRequest {
     BedrockStartRequest {
         memory_gb: 2,
         bedrock_port: 19132,
+        transport: BedrockConnectionTransport::Nethernet,
     }
 }
 
@@ -150,6 +151,7 @@ fn sidecar_runtime_uses_shared_lifecycle_and_event_vocabulary() {
         .start(BedrockStartRequest {
             memory_gb: 2,
             bedrock_port: 19132,
+            transport: BedrockConnectionTransport::Nethernet,
         })
         .unwrap();
     assert_eq!(runtime.state(), BedrockRuntimeState::Starting);
@@ -207,6 +209,7 @@ fn sidecar_commands_are_json_lines_and_stop_is_terminally_observed() {
         .start(BedrockStartRequest {
             memory_gb: 2,
             bedrock_port: 19132,
+            transport: BedrockConnectionTransport::Nethernet,
         })
         .unwrap();
     runtime.poll_event().unwrap();
@@ -233,6 +236,7 @@ fn lifecycle_order_is_rejected_without_sending_a_frame() {
         .start(BedrockStartRequest {
             memory_gb: 2,
             bedrock_port: 19132,
+            transport: BedrockConnectionTransport::Nethernet,
         })
         .expect_err("start requires provisioning");
     assert!(matches!(error, BedrockRuntimeError::InvalidState { .. }));

@@ -1215,11 +1215,7 @@
 </ApplicationShell>
 
 {#if broadcastAuth?.isPresent}
-  <BroadcastAuthSheet
-    api={screenApi}
-    prompt={broadcastAuth}
-    onClose={closeBroadcastAuthPrompt}
-  />
+  <BroadcastAuthSheet api={screenApi} prompt={broadcastAuth} onClose={closeBroadcastAuthPrompt} />
 {/if}
 
 {#if initiationServer}

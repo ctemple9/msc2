@@ -5,6 +5,17 @@
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
+## Current maintenance step
+
+### P15.84 — Repair CI after Phase 15 transport merge
+
+- **Status:** IN PROGRESS
+- **Files:** `crates/msc-agent/src/routes/bedrock_runtime.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/routes/worlds.rs`, existing Bedrock request fixtures, five formatted desktop-web files, `docs/msc2/client-capability-matrix.csv`, `docs/msc2/rolling-plan.md`
+- **What:** Restore the CI contract after the Bedrock transport-choice merge. Keep production eligibility detection visible to the Phase 10 wiring guard, update existing request fixtures and route fixtures for the transport and pending-modpack arguments, accept the already-defined unresolved-modpack upload purpose in the world route, format the five client files reported by validation, and register the seven Phase 15 operations that were added to the OpenAPI contract but omitted from the client capability matrix. No new tests are added and no runtime behavior is changed beyond wiring the already-required inputs.
+- **Verify:** `gh run list --workflow ci.yml --limit 5` — confirm the pushed P15.84 commit's CI run is green
+- **Batch:** N12 — CI regression repair
+- **Commit:** `P15.84: repair CI after Phase 15 transport merge`
+
 ---
 
 ## How this document works

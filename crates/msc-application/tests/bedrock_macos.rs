@@ -4,9 +4,10 @@ use msc_application::bedrock_macos::{
     MacosBedrockHost, MacosBedrockRuntime, SidecarProcessTransport,
 };
 use msc_application::bedrock_runtime::{
-    BedrockProvisionRequest, BedrockRuntime, BedrockRuntimeBackend, BedrockRuntimeError,
-    BedrockRuntimeEvent, BedrockRuntimeState, BedrockStartRequest, BedrockTerminationReason,
-    SidecarFrame, SidecarRuntime, SidecarTransport, decode_frame, encode_frame,
+    BedrockConnectionTransport, BedrockProvisionRequest, BedrockRuntime, BedrockRuntimeBackend,
+    BedrockRuntimeError, BedrockRuntimeEvent, BedrockRuntimeState, BedrockStartRequest,
+    BedrockTerminationReason, SidecarFrame, SidecarRuntime, SidecarTransport, decode_frame,
+    encode_frame,
 };
 use msc_infrastructure::bedrock_sidecar::BedrockSidecarProcess;
 use msc_infrastructure::process::FakeProcessSupervisor;
@@ -46,6 +47,7 @@ fn start_request() -> BedrockStartRequest {
     BedrockStartRequest {
         memory_gb: 2,
         bedrock_port: 19132,
+        transport: BedrockConnectionTransport::Nethernet,
     }
 }
 

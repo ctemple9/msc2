@@ -1,8 +1,8 @@
 //! P10.14: native Windows Bedrock process and lifecycle behavior.
 
 use msc_application::bedrock_runtime::{
-    BedrockProvisionRequest, BedrockRuntime, BedrockRuntimeBackend, BedrockRuntimeEvent,
-    BedrockRuntimeState, BedrockStartRequest, BedrockTerminationReason,
+    BedrockConnectionTransport, BedrockProvisionRequest, BedrockRuntime, BedrockRuntimeBackend,
+    BedrockRuntimeEvent, BedrockRuntimeState, BedrockStartRequest, BedrockTerminationReason,
 };
 use msc_application::bedrock_windows::{
     BedrockRuntimeClock, GRACEFUL_STOP_TIMEOUT, WindowsBedrockRuntime,
@@ -63,6 +63,7 @@ fn provision_and_start(runtime: &mut WindowsBedrockRuntime<'_, FakeClock>, port:
         .start(BedrockStartRequest {
             memory_gb: 2,
             bedrock_port: port,
+            transport: BedrockConnectionTransport::Nethernet,
         })
         .map(|_| runtime.process_id().unwrap().raw())
         .unwrap()
@@ -189,6 +190,7 @@ fn native_windows_runtime_rejects_port_in_use_before_spawning() {
         .start(BedrockStartRequest {
             memory_gb: 2,
             bedrock_port: port,
+            transport: BedrockConnectionTransport::Nethernet,
         })
         .expect_err("a bound UDP port must prevent process start");
 
@@ -213,6 +215,7 @@ fn native_windows_runtime_discloses_unsupported_hosts_without_starting() {
             .start(BedrockStartRequest {
                 memory_gb: 2,
                 bedrock_port: free_udp_port(),
+                transport: BedrockConnectionTransport::Nethernet,
             })
             .is_err()
     );

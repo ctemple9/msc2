@@ -3666,6 +3666,7 @@ mod tests {
             State(state.clone()),
             Extension(transfer_credential()),
             Extension(staging),
+            Extension(PendingModpackImports::default()),
             Ok(Json(serde_json::to_value(body).unwrap())),
         )
         .await

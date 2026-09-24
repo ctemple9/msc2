@@ -4,8 +4,8 @@ use msc_application::bedrock_linux::{
     BedrockRuntimeClock, GRACEFUL_STOP_TIMEOUT, LinuxBedrockRuntime,
 };
 use msc_application::bedrock_runtime::{
-    BedrockProvisionRequest, BedrockRuntime, BedrockRuntimeBackend, BedrockRuntimeEvent,
-    BedrockRuntimeState, BedrockStartRequest, BedrockTerminationReason,
+    BedrockConnectionTransport, BedrockProvisionRequest, BedrockRuntime, BedrockRuntimeBackend,
+    BedrockRuntimeEvent, BedrockRuntimeState, BedrockStartRequest, BedrockTerminationReason,
 };
 use msc_infrastructure::bedrock_native::NativeBedrockHost;
 use msc_infrastructure::process::FakeProcessSupervisor;
@@ -64,6 +64,7 @@ fn provision_and_start(runtime: &mut LinuxBedrockRuntime<'_, FakeClock>, port: u
         .start(BedrockStartRequest {
             memory_gb: 2,
             bedrock_port: port,
+            transport: BedrockConnectionTransport::Nethernet,
         })
         .map(|_| runtime.process_id().unwrap().raw())
         .unwrap()
@@ -204,6 +205,7 @@ fn native_linux_runtime_rejects_port_in_use_before_spawning() {
         .start(BedrockStartRequest {
             memory_gb: 2,
             bedrock_port: port,
+            transport: BedrockConnectionTransport::Nethernet,
         })
         .expect_err("a bound UDP port must prevent process start");
 
@@ -228,6 +230,7 @@ fn native_linux_runtime_discloses_unsupported_hosts_without_starting() {
             .start(BedrockStartRequest {
                 memory_gb: 2,
                 bedrock_port: free_udp_port(),
+                transport: BedrockConnectionTransport::Nethernet,
             })
             .is_err()
     );

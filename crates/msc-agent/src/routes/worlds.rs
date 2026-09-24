@@ -2487,7 +2487,8 @@ pub async fn begin_staged_upload(
         | StagedUploadPurposeDto::WorldThumbnail => {}
         StagedUploadPurposeDto::ModpackArchive
         | StagedUploadPurposeDto::AddonLocalFile
-        | StagedUploadPurposeDto::CurseforgeManualFile => {
+        | StagedUploadPurposeDto::CurseforgeManualFile
+        | StagedUploadPurposeDto::ModpackUnresolvedFile => {
             return invalid_body(
                 "invalid_purpose",
                 "This staged upload route only accepts world import purposes.",

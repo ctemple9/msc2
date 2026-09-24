@@ -8,9 +8,9 @@
 
 use axum::{Json, Router, extract::State, routing::get, routing::post};
 use msc_application::bedrock_runtime::{
-    BedrockProvisionRequest, BedrockRuntime, BedrockRuntimeBackend, BedrockRuntimeCapabilities,
-    BedrockRuntimeError, BedrockRuntimeEvent, BedrockRuntimeState, BedrockStartRequest,
-    BedrockTerminationReason,
+    BedrockConnectionTransport, BedrockProvisionRequest, BedrockRuntime, BedrockRuntimeBackend,
+    BedrockRuntimeCapabilities, BedrockRuntimeError, BedrockRuntimeEvent, BedrockRuntimeState,
+    BedrockStartRequest, BedrockTerminationReason,
 };
 use msc_application::lifecycle::LifecycleState;
 use msc_infrastructure::process::ProcessId;
@@ -141,6 +141,7 @@ async fn start(State(state): State<AppState>) -> Json<Value> {
         .start(BedrockStartRequest {
             memory_gb: 2,
             bedrock_port: 19132,
+            transport: BedrockConnectionTransport::Nethernet,
         })
         .unwrap();
     state.runtime.emit(BedrockRuntimeEvent::Ready {

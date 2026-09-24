@@ -7,8 +7,9 @@
 
 use axum::{Json, Router, extract::State, http::StatusCode, routing::get, routing::post};
 use msc_application::bedrock_runtime::{
-    BedrockProvisionRequest, BedrockRuntime, BedrockRuntimeBackend, BedrockRuntimeCapabilities,
-    BedrockRuntimeError, BedrockRuntimeEvent, BedrockRuntimeState, BedrockStartRequest,
+    BedrockConnectionTransport, BedrockProvisionRequest, BedrockRuntime, BedrockRuntimeBackend,
+    BedrockRuntimeCapabilities, BedrockRuntimeError, BedrockRuntimeEvent, BedrockRuntimeState,
+    BedrockStartRequest,
 };
 use msc_infrastructure::process::ProcessId;
 use serde_json::{Value, json};
@@ -198,6 +199,7 @@ async fn start(State(state): State<AppState>) -> Result<Json<Value>, (StatusCode
         .start(BedrockStartRequest {
             memory_gb: 2,
             bedrock_port: 19132,
+            transport: BedrockConnectionTransport::Nethernet,
         })
         .map_err(start_error)?;
     Ok(Json(json!({

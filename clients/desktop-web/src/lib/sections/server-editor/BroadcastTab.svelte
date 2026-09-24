@@ -162,7 +162,6 @@
       playitBusy = false;
     }
   }
-
 </script>
 
 <div class="tab">
@@ -236,7 +235,9 @@
         <div class="row">
           <div class="toggle-info">
             <span class="name">Playit for this server</span>
-            <span class="setup-state">Adds Playit tunnels without changing manual port forwarding.</span>
+            <span class="setup-state"
+              >Adds Playit tunnels without changing manual port forwarding.</span
+            >
           </div>
           <Toggle
             checked={playit?.playitEnabled ?? false}
@@ -267,9 +268,10 @@
             <Button
               variant="secondary"
               size="sm"
-              disabled={
-                playitBusy || !playit?.playitEnabled || !playit?.hasSecretKey || !canControl
-              }
+              disabled={playitBusy ||
+                !playit?.playitEnabled ||
+                !playit?.hasSecretKey ||
+                !canControl}
               onclick={togglePlayit}>{playit?.isRunning ? 'Stop' : 'Start'}</Button
             >
           </div>

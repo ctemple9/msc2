@@ -8,9 +8,9 @@
 use axum::{Json, Router, extract::State, http::StatusCode, routing::get, routing::post};
 use msc_application::bedrock_macos::{MacosBedrockHost, MacosBedrockRuntime};
 use msc_application::bedrock_runtime::{
-    BedrockProvisionRequest, BedrockRuntime, BedrockRuntimeError, BedrockRuntimeEvent,
-    BedrockRuntimeState, BedrockStartRequest, BedrockTerminationReason, SidecarFrame,
-    SidecarReceive, SidecarTransport, decode_frame, encode_frame,
+    BedrockConnectionTransport, BedrockProvisionRequest, BedrockRuntime, BedrockRuntimeError,
+    BedrockRuntimeEvent, BedrockRuntimeState, BedrockStartRequest, BedrockTerminationReason,
+    SidecarFrame, SidecarReceive, SidecarTransport, decode_frame, encode_frame,
 };
 use serde_json::{Value, json};
 use std::collections::VecDeque;
@@ -147,6 +147,7 @@ async fn start(State(state): State<AppState>) -> Result<Json<Value>, (StatusCode
         .start(BedrockStartRequest {
             memory_gb: 2,
             bedrock_port: 19132,
+            transport: BedrockConnectionTransport::Nethernet,
         })
         .map_err(|error| error_response(StatusCode::BAD_GATEWAY, error))?;
     Ok(Json(json!({

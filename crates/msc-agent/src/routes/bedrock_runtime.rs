@@ -550,18 +550,18 @@ impl BedrockRuntimeSelection {
 }
 
 fn runtime_eligibility(paths: &BedrockRuntimePaths) -> BedrockRuntimeEligibility {
-    let host = BedrockHost::current();
+    let detected = BedrockRuntimeEligibility::detect(&msc_infrastructure::fs::StdFileSystem, paths);
     #[cfg(target_os = "macos")]
-    if matches!(host, BedrockHost::MacosIntel)
+    if matches!(BedrockHost::current(), BedrockHost::MacosIntel)
         && matches!(macos_sidecar_mode(), MacosSidecarMode::Helper)
     {
         return BedrockRuntimeEligibility::for_mac_helper(
             &msc_infrastructure::fs::StdFileSystem,
-            host,
+            BedrockHost::MacosIntel,
             paths,
         );
     }
-    BedrockRuntimeEligibility::for_host(&msc_infrastructure::fs::StdFileSystem, host, paths)
+    detected
 }
 
 #[cfg(target_os = "macos")]

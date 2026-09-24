@@ -32,9 +32,9 @@
   {title}
   aria-label={variant === 'ghost-icon' ? label : undefined}
   {onclick}
-  use:onboardingAnchor={
-    anchorId ? { id: anchorId, announceAction: announceOnboardingAction } : undefined
-  }
+  use:onboardingAnchor={anchorId
+    ? { id: anchorId, announceAction: announceOnboardingAction }
+    : undefined}
 >
   <slot />
 </button>

@@ -51,10 +51,7 @@
   import ModpackCreationSummarySheet from './ModpackCreationSummarySheet.svelte';
   import JavaInstallSheet from '../../server-editor/JavaInstallSheet.svelte';
   import { ApiError } from '../../../api/client';
-  import {
-    dispatchOnboardingAnchorAction,
-    onboardingAnchor,
-  } from '../../../help/tourAnchors';
+  import { dispatchOnboardingAnchorAction, onboardingAnchor } from '../../../help/tourAnchors';
   import type { Schema, ScreenApi } from '../../shared/types';
   import { errorMessage } from '../../shared/types';
   import { serverEditorPaths } from '../../server-editor/model';
@@ -512,20 +509,16 @@
         >
           Create Server
         </Button>
+      {:else if javaSelectionBelongsHere() && !hasCurrentJavaSelection()}
+        <Button variant="primary" onclick={continueStep} disabled={!canContinue}>Continue</Button>
       {:else}
-        {#if javaSelectionBelongsHere() && !hasCurrentJavaSelection()}
-          <Button variant="primary" onclick={continueStep} disabled={!canContinue}
-            >Continue</Button
-          >
-        {:else}
-          <Button
-            variant="primary"
-            anchorId="ob_wizard_continue"
-            announceOnboardingAction={false}
-            onclick={continueStep}
-            disabled={!canContinue}>Continue</Button
-          >
-        {/if}
+        <Button
+          variant="primary"
+          anchorId="ob_wizard_continue"
+          announceOnboardingAction={false}
+          onclick={continueStep}
+          disabled={!canContinue}>Continue</Button
+        >
       {/if}
     </div>
   </div>

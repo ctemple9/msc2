@@ -74,7 +74,8 @@ pub fn load(fs: &dyn FileSystem, server_dir: &Path) -> BedrockSettings {
     }
 }
 
-pub const NETHERNET_UDP_PORT_COUNT: u16 = 32;
+/// BDS 1.26.51 accepts at most sixteen individual NetherNet mappings.
+pub const NETHERNET_UDP_PORT_COUNT: u16 = 16;
 
 /// Configure the macOS VM for NetherNet's TCP signaling socket and bounded
 /// UDP gameplay range. Advertised addresses name the host-side relays rather

@@ -309,13 +309,13 @@ class Inspector:
         }
         missing: list[str] = []
         bound: list[str] = []
-        for port in range(19002, 19034):
+        for port in range(19002, 19018):
             if port in listening_ports:
                 bound.append(str(port))
             else:
                 missing.append(str(port))
         self.add(
-            "UDP gameplay relay 19002-19033",
+            "UDP gameplay relay 19002-19017",
             not missing,
             f"bound={','.join(bound) or 'none'}; missing={','.join(missing) or 'none'}",
         )

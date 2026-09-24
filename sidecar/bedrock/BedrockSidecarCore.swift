@@ -620,7 +620,7 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
     }
 
     static func netherNetUDPPorts(serverPort: UInt16) -> [UInt16] {
-        let count: UInt16 = 32
+        let count: UInt16 = 16
         if serverPort <= UInt16.max - count {
             return Array((serverPort + 1) ... (serverPort + count))
         }

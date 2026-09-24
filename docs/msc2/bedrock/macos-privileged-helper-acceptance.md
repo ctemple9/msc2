@@ -8,7 +8,7 @@ python3 tools/phase15/inspect_macos_bedrock_helper.py --live --server-port 19001
 
 The inspector does not install, start, stop, restart, or delete anything. It
 reads `launchd`, plist metadata, file ownership and modes, process state, the
-existing agent/helper logs, TCP `19001`, and UDP `19002-19033`. A failed result
+existing agent/helper logs, TCP `19001`, and UDP `19002-19017`. A failed result
 must be treated as evidence about the installed pair, not worked around by
 changing router or Xbox settings.
 
@@ -22,7 +22,7 @@ changing router or Xbox settings.
 - The control socket is a user-owned `0600` Unix socket.
 - Existing logs contain `Server started` without a start-operation rollback.
 - TCP `19001` returns an HTTP response from BDS through the host relay.
-- Every UDP port `19002-19033` has a live listener.
+- Every UDP port `19002-19017` has a live listener.
 - No Bedrock sidecar or VM process remains outside the loaded helper.
 
 ## Live result — 2026-09-23
@@ -68,28 +68,29 @@ After rebuilding and administrator-authorized reinstall, an authenticated
 `POST /v1/start` created operation `op-24878-1`. It completed with `Bedrock
 server is ready.` The exact inspector command above reported `17 passed, 0
 failed`: the helper log contains `Server started`, TCP `19001` returned BDS's
-`HTTP/1.1 404 Not Found`, UDP `19002-19033` were all bound, no rollback was
+`HTTP/1.1 404 Not Found`, UDP `19002-19017` were all bound, no rollback was
 present, and only the launchd-managed root helper process remained.
 
 ## P15.76 — explicit NetherNet mappings
 
-The sidecar's 32 BDS UDP relays remain the bounded range immediately after the
+The sidecar's 16 BDS UDP relays are the bounded range immediately after the
 TCP signaling port. MSC now writes that range as individual public-to-private
 mappings rather than BDS range shorthand. For the installed acceptance port
 `19001`, the property must therefore enumerate public and private ports
-`19002` through `19033` one at a time, for example
-`PUBLIC_IP:19002:19002,...,PUBLIC_IP:19033:19033`. Xbox Broadcast retains its
+`19002` through `19017` one at a time, for example
+`PUBLIC_IP:19002:19002,...,PUBLIC_IP:19017:19017`. Xbox Broadcast retains its
 separate UDP `19034-19049` ICE range.
 
 The agent requires exactly one valid advertised IP address (public discovery,
 with the existing LAN fallback) and validates the final `server-udp-ports`
-value against the 32 relay listeners before BDS starts. This static correction
-does not claim the remote-player or Xbox Broadcast acceptance that belongs to
-P15.77.
+value against the 16 relay listeners before BDS starts. The previous 32-entry
+implementation was rejected by BDS with `server-udp-ports: too many port
+mappings (max 16)` and cannot be used as acceptance evidence.
 
 ## P15.77 — Bedrock and Xbox Broadcast connection acceptance
 
-The prescribed installed-pair report was run on 2026-09-23:
+The prescribed installed-pair report was run on 2026-09-23 before the
+sixteen-mapping correction:
 
 ```text
 python3 tools/phase15/inspect_macos_bedrock_helper.py --live --server-port 19001 --connection-report
@@ -97,8 +98,10 @@ python3 tools/phase15/inspect_macos_bedrock_helper.py --live --server-port 19001
 
 The report passed `18 passed, 0 failed`. It confirmed the user-owned agent,
 root-owned helper, authenticated socket, BDS `Server started` evidence, no
-start rollback, the TCP `19001` relay returning `HTTP/1.1 404 Not Found`, all
-32 UDP gameplay listeners, no orphan sidecar, and the host listener report.
+start rollback, the TCP `19001` relay returning `HTTP/1.1 404 Not Found`, and
+the host listener report. Its 32-UDP-listener result is superseded because BDS
+rejected the 32-entry property with a maximum of 16 mappings; the report must
+be rerun after P15.78 is installed.
 A same-host request to `http://10.0.0.142:19001/` also returned BDS's HTTP 404;
 that proves the host's LAN-facing relay boundary, not an iPad session.
 
@@ -121,9 +124,10 @@ acceptance:
 One installed-runtime prerequisite is also still open. The live Bedrock
 `server.properties` observed during this run contains the pre-P15.76 value
 `server-udp-ports=73.135.129.135:19002-19033:19002-19033`. The P15.76 source
-now writes individual mappings, but this running installation has not yet been
-restarted or refreshed from that build, so this step does not claim remote
-NetherNet or Xbox acceptance. The next owner run must refresh the installed
-agent/server from P15.76, confirm `19002` through `19033` appear as individual
-public-to-private entries, then perform each client path above and correlate
-the client attempt with BDS, helper, relay, and Broadcast logs.
+was then corrected by P15.78 to write sixteen individual mappings, but this
+running installation has not yet been restarted or refreshed from that build,
+so this step does not claim remote NetherNet or Xbox acceptance. The next owner
+run must refresh the installed agent/server from P15.78, confirm `19002`
+through `19017` appear as individual public-to-private entries and BDS emits
+no `too many port mappings` error, then perform each client path above and
+correlate the client attempt with BDS, helper, relay, and Broadcast logs.

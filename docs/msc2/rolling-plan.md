@@ -34,6 +34,15 @@ The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` und
 - **Batch:** N12 — CI regression repair
 - **Commit:** `P15.86: refresh regression fixtures for current contracts`
 
+### P15.87 — Prepare the v0.1.9 release
+
+- **Status:** IN PROGRESS
+- **Files:** `crates/msc-agent/Cargo.toml`, `Cargo.lock`, `clients/desktop-web/package.json`, `clients/desktop-web/package-lock.json`, `clients/desktop-web/src-tauri/Cargo.toml`, `clients/desktop-web/src-tauri/Cargo.lock`, `clients/desktop-web/src-tauri/tauri.conf.json`, `clients/desktop-web/src/lib/bundle-identity.ts`, `clients/desktop-web/src/lib/bundle-identity.test.ts`, `README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Synchronize the coordinated agent, desktop shell, Tauri, lockfile, bundle identity, and download instructions to v0.1.9 so the release workflow accepts the matching v0.1.9 tag. This is a normal unsigned beta prerelease; no signing-key rotation is part of this release.
+- **Verify:** `python3 tools/release/check-release-workflow.py .github/workflows/release.yml --expect-publish-guard && rg -n '0\.1\.9|v0\.1\.9' crates/msc-agent/Cargo.toml Cargo.lock clients/desktop-web/package.json clients/desktop-web/package-lock.json clients/desktop-web/src-tauri/Cargo.toml clients/desktop-web/src-tauri/Cargo.lock clients/desktop-web/src-tauri/tauri.conf.json clients/desktop-web/src/lib/bundle-identity.ts README.md && gh run list --workflow release.yml --limit 3`
+- **Batch:** N13 — release preparation
+- **Commit:** `P15.87: prepare v0.1.9 release`
+
 ---
 
 ## How this document works

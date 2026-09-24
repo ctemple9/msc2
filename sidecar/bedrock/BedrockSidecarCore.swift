@@ -12,8 +12,16 @@ func writeSidecarResponse(_ response: SidecarResponse, to handle: FileHandle = .
         var data = try encoder.encode(response)
         data.append(0x0A)
         protocolOutputLock.lock()
-        handle.write(data)
-        protocolOutputLock.unlock()
+        defer { protocolOutputLock.unlock() }
+        do {
+            try handle.write(contentsOf: data)
+        } catch {
+            // The agent can close the authenticated socket while the VM's
+            // asynchronous stop callback is still finishing. FileHandle's
+            // throwing write keeps that expected teardown from terminating
+            // the privileged helper with an Objective-C exception.
+            FileHandle.standardError.write(Data("sidecar response write failed: \(error)\n".utf8))
+        }
     } catch {
         FileHandle.standardError.write(Data("sidecar response encoding failed: \(error)\n".utf8))
     }

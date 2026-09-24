@@ -61,6 +61,15 @@ The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` und
 - **Batch:** N14 — runtime regression repair
 - **Commit:** `P15.89: prevent bedrock helper crashes on closed relay sockets`
 
+### P15.90 — Prevent Bedrock helper crashes while writing teardown frames
+
+- **Status:** IN PROGRESS
+- **Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `docs/msc2/rolling-plan.md`
+- **What:** Make authenticated sidecar response writes throwing and recoverable when the agent closes its Unix socket during asynchronous VM shutdown. This prevents teardown/status delivery from crashing the privileged helper after the Bedrock process has started.
+- **Verify:** `xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-90-build build CODE_SIGNING_ALLOWED=NO && git diff --check`
+- **Batch:** N14 — runtime regression repair
+- **Commit:** `P15.90: prevent bedrock helper crashes while writing teardown frames`
+
 ---
 
 ## How this document works

@@ -212,6 +212,7 @@ pub async fn relative_time(
     .into_response()
 }
 
+#[allow(clippy::result_large_err)]
 async fn query_runtime_time(
     state: &LifecycleRoutesState,
     server_type: msc_domain::identity::ServerType,

@@ -16,6 +16,15 @@ The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` und
 - **Batch:** N12 — CI regression repair
 - **Commit:** `P15.84: repair CI after Phase 15 transport merge`
 
+### P15.85 — Accommodate the stable Clippy response-size lint
+
+- **Status:** IN PROGRESS
+- **Files:** `crates/msc-agent/src/routes/commands.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Keep the relative-time query helper’s existing Axum response contract while explicitly documenting the same `result_large_err` allowance already used by neighboring route helpers. GitHub’s current stable Rust toolchain promotes this advisory to `-D warnings`; the local toolchain does not yet emit it. No runtime behavior changes.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && gh run list --workflow ci.yml --limit 5`
+- **Batch:** N12 — CI regression repair
+- **Commit:** `P15.85: allow large relative-time error response`
+
 ---
 
 ## How this document works

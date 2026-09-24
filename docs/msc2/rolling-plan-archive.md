@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan Archive
 
-Completed phases moved out of `rolling-plan.md` to keep that file small — see `rolling-plan.md`'s own header for current status and where active work resumes. Everything here is historical: Setup and Phases 0 through 12 in full, plus amendments and gate-review records. The active working state and next phase stay in `rolling-plan.md`.
+Completed phases moved out of `rolling-plan.md` to keep that file small — see `rolling-plan.md`'s own header for current status and where active work resumes. Everything here is historical: Setup, Phases 0 through 12, and completed Phase 15 in full, plus amendments and gate-review records. The active working state and next phase stay in `rolling-plan.md`.
 
 ## Retired full-screen terminal client record
 
@@ -442,6 +442,8 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Verify:** `python3 -c "import csv;rows=list(csv.DictReader(open('docs/msc2/audit/msc2-symbol-ledger.csv')));print(len({r['file'] for r in rows if r['bucket']=='mixed'}))"` → `61`
 **Commit:** `P0.29: add MSCSettingsView.swift and ServerEditorView.swift to the symbol ledger`
 **Batch:** solo
+
+
 
 ### P12.LAST — Consistency sweep + parity gate
 **Status:** DONE
@@ -10280,3 +10282,1192 @@ The pre-reconciliation Phase 12 working plan is preserved in `rolling-plan-archi
 **Verify:** `git diff --check`
 **Commit:** `P12.193: allow the accepted release gate`
 **Batch:** solo
+
+## Completed Phase 15 — Java and modpack workflow fixes
+
+This phase is the priority next phase. The following scope summary is recorded
+verbatim from Cameron's approved recap:
+
+**Scope amendment (2026-09-20):** ATM10 Lite is the discovery case, not the
+product boundary. Java selection, CurseForge credential handling, unresolved
+file recovery, notes, Components search, and console behavior must work for
+every supported modpack and provider. ATM10 is the first end-to-end acceptance
+case because it exposed the problems.
+
+Yes. I’d treat this as six bounded improvements, not one large “modpack issue.”
+
+## Recommended order
+
+### 1. Fix Java selection during server creation
+
+This is the most fundamental problem because it blocks creating a server.
+
+The create-server flow should:
+
+- determine the required Java major from the Minecraft version and loader;
+- show detected compatible runtimes;
+- offer “Install Java” when needed;
+- require the user to explicitly select a runtime before continuing;
+- assign that runtime to the new server only.
+
+The same Java-selection component should be reused by onboarding.
+
+The detected-runtime sheet also needs a visual correction: dark MSC rows, restrained typography, secondary paths, and normal MSC buttons matching the existing “Install Java” sheet.
+
+### 2. Add CurseForge key setup inside import
+
+When a CurseForge manifest needs an API key:
+
+- explain why the key is needed;
+- provide a direct “Open CurseForge API Console” link;
+- allow the key to be entered and saved in the sheet;
+- resume the import after saving;
+- offer the same setup again during unresolved-file recovery;
+- allow the user to skip.
+
+The important principle is: missing credentials should be recoverable inside the flow, not discovered only after a failed import.
+
+### 3. Build the missing-mod recovery flow
+
+After importing a modpack, MSC should show an actual inventory of unresolved files:
+
+- mod name;
+- filename;
+- provider;
+- reason it was not downloaded;
+- download/project link.
+
+Then MSC should:
+
+1. Look for confident matches on Modrinth.
+2. Download exact compatible matches automatically.
+3. List everything still unresolved.
+4. Let the user open selected or all download links.
+5. Provide a drag-and-drop area for downloaded JARs.
+6. Check each dropped JAR and confirm whether it is the expected file.
+7. Let the user skip unresolved files.
+8. Write the remaining missing mods into the server’s Overview notes.
+9. Preserve the unresolved state so the user can return later.
+
+The app should never silently substitute an approximate mod. Automatic Modrinth downloads should require a trustworthy identity and compatibility match.
+
+### 4. Improve the Components tab
+
+Add:
+
+- a visible installed-mod count;
+- search by mod name and filename;
+- clear states for installed, missing, unresolved, and disabled components.
+
+This should make it unnecessary to manually compare the manifest against the component list.
+
+### 5. Quiet the ATM10 console
+
+MSC’s own TPS and dimension-monitoring traffic should not appear as noisy human console output.
+
+Recommended behavior:
+
+- preserve the metrics in the metrics/statistics UI;
+- keep real server messages in the console;
+- hide or separately classify MSC-generated monitoring commands and responses;
+- ensure monitoring cannot push useful human console history out of the buffer.
+
+This should be handled as a general console/telemetry rule, not an ATM10-only exception.
+
+### 6. Review the complete flow
+
+The end-to-end acceptance scenario should be:
+
+- Existing Fabric 1.20.1 server continues using Java 17.
+- User creates ATM10 Lite / NeoForge 1.21.1.
+- MSC requires Java 21 and lets the user detect, install, and select it.
+- CurseForge import asks for the missing key inline.
+- Unavailable mods are listed clearly.
+- Modrinth matches download automatically.
+- Remaining mods can be opened, dragged in, verified, or skipped.
+- Missing files appear in server notes.
+- Components shows a count and supports search.
+- Console remains readable while metrics continue working.
+
+## How I’d sequence the actual work
+
+1. Java runtime selection and shared visual component.
+2. CurseForge credential prompt.
+3. Unresolved modpack recovery.
+4. Components count/search.
+5. Console telemetry separation.
+6. Final visual and end-to-end review.
+
+The current rolling plan says the outstanding Phase 14 verification and triage should happen before new implementation work is scheduled. Once that is cleared, these can be added as separate, narrowly scoped steps rather than mixed into one risky change.
+
+### P15.1 — Move Java selection into server creation
+
+- **Status:** DONE
+- **Files:** `crates/msc-domain/src/java_runtime.rs`, `crates/msc-application/src/provisioning.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/routes/versions.rs`, `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`, `clients/desktop-web/src/lib/sections/fleet/wizard/model.ts`, `clients/desktop-web/src/lib/sections/server-editor/JavaInstallSheet.svelte`, `clients/desktop-web/src/lib/sections/server-editor/JavaTab.svelte`, `clients/desktop-web/src/lib/help/SetupIntro.svelte`
+- **What:** Make Java selection a required step after the Minecraft version and loader are known. Reuse detection and installation, assign the chosen runtime to the new server, block continuation without an explicit selection, and reuse the same flow during onboarding. Restyle the detected-runtime sheet to match the dark MSC Install Java sheet.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-domain -p msc-application -p msc-agent && npm --prefix clients/desktop-web run check`
+- **Batch:** A — Java selection and presentation
+- **Commit:** `P15.1: require Java selection during server creation`
+
+### P15.2 — Add inline CurseForge API-key setup
+
+- **Status:** DONE
+- **Files:** `crates/msc-domain/src/app_config_schema.rs`, `crates/msc-application/src/curseforge_manual.rs`, `crates/msc-application/src/modpacks.rs`, `crates/msc-agent/src/routes/components.rs`, `clients/desktop-web/src/lib/sections/components/ImportModpackSheet.svelte`, `clients/desktop-web/src/lib/sections/components/CurseForgeManualDownloadSheet.svelte`, `clients/desktop-web/src/lib/sections/app-settings/AppSettingsSheet.svelte`
+- **What:** Detect a missing CurseForge key before manifest import fails. Show the reason, provide the approved CurseForge API Console link, save the key from the sheet, resume the import, and allow the prompt to be skipped or reopened during manual-file recovery.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-agent && npm --prefix clients/desktop-web run check`
+- **Batch:** B — provider credentials
+- **Commit:** `P15.2: add inline CurseForge key setup`
+
+### P15.3 — Complete unresolved modpack files
+
+- **Status:** DONE
+- **Files:** `crates/msc-domain/src/modpack_manifest.rs`, `crates/msc-domain/src/modpack.rs`, `crates/msc-application/src/modpacks.rs`, `crates/msc-application/src/curseforge_manual.rs`, `crates/msc-application/src/addon_updates.rs`, `crates/msc-agent/src/routes/components.rs`, `clients/desktop-web/src/lib/sections/components/ImportModpackSheet.svelte`, `clients/desktop-web/src/lib/sections/components/CurseForgeManualDownloadSheet.svelte`, `clients/desktop-web/src/lib/sections/components/ProjectDetailSheet.svelte`, `clients/desktop-web/src/lib/sections/home/notes.ts`
+- **What:** Return named unresolved files with reasons and links. Resolve confident Modrinth matches automatically, expose remaining provider links, validate dragged-in JARs against the expected file, support skip and retry, and persist the remaining list in the server Overview notes without using notes as the structured source of truth.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-domain -p msc-application -p msc-agent && npm --prefix clients/desktop-web run check`
+- **Batch:** C — unresolved modpack recovery
+- **Commit:** `P15.3: finish unresolved modpack files`
+
+### P15.4 — Add Components count and search
+
+- **Status:** DONE
+- **Files:** `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`, `clients/desktop-web/src/lib/sections/components/model.ts`, `clients/desktop-web/src/lib/sections/shared/types.ts`, `crates/msc-agent/src/routes/components.rs`
+- **What:** Show the installed mod count, search by name and filename, and distinguish installed, missing, unresolved, and disabled components in the Components tab.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** D — component discoverability
+- **Commit:** `P15.4: add component count and search`
+
+### P15.5 — Keep monitoring traffic out of human console history
+
+- **Status:** DONE
+- **Files:** `crates/msc-infrastructure/src/console_buffer.rs`, `crates/msc-application/src/output_reducer.rs`, `crates/msc-agent/src/ws/console.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `clients/desktop-web/src/lib/sections/console/ConsoleSection.svelte`, `clients/desktop-web/src/lib/sections/console/model.ts`, `clients/desktop-web/src/lib/components/shell/ConsoleDock.svelte`
+- **What:** Build on P14.35–P14.37 so TPS, dimension, and other MSC-generated monitoring output is classified separately from genuine server output. Keep metrics working, preserve useful console history, and make automatic diagnostics available without flooding the human console. Do not add an ATM10-only exception.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-infrastructure -p msc-application -p msc-agent && npm --prefix clients/desktop-web run check`
+- **Batch:** E — console clarity
+- **Commit:** `P15.5: separate monitoring traffic from console history`
+
+### P15.6 — Review the ATM10 end-to-end flow
+
+- **Status:** DONE
+- **Files:** `docs/msc2/capabilities/phase15-acceptance.md`, `docs/msc2/rolling-plan.md`, `crates/msc-domain/src/java_runtime.rs`, `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`, `clients/desktop-web/src/lib/sections/components/ImportModpackSheet.svelte`, `clients/desktop-web/src/lib/sections/components/CurseForgeManualDownloadSheet.svelte`, `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`, `clients/desktop-web/src/lib/sections/console/ConsoleSection.svelte`, `clients/desktop-web/src/lib/sections/server-editor/JavaInstallSheet.svelte`
+- **What:** Use the Fabric 1.20.1/Java 17 and ATM10 Lite/NeoForge 1.21.1/Java 21 scenario as the first acceptance case, then review the same Java and modpack-import behavior for every supported modpack and provider. Correct the shared 1.20.5+ Java requirement and keep unresolved-file recovery provider-neutral. Record the inline key setup, unresolved-file recovery, drag-and-drop validation, skip-and-notes behavior, Components search, readable console, Java-sheet visual parity, and the remaining owner-verification boundary before closing the phase.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-domain -p msc-application -p msc-agent && npm --prefix clients/desktop-web run check`
+- **Batch:** F — end-to-end review
+- **Commit:** `P15.6: record ATM10 workflow acceptance`
+
+### Additional Phase 15 scope — server state and interaction fixes
+
+The following discussion summary is recorded verbatim:
+
+### 1. Server notes are currently client-local
+
+The notes are stored in browser/Tauri `localStorage` under a host-and-server key. The UI even says “Visible only in this app.”
+
+They should become server-owned metadata:
+
+- stored by the MSC agent with the server;
+- available to every connected client;
+- read and written through the API;
+- still scoped to the selected server;
+- existing local notes should receive a one-time migration or merge path.
+
+I recommend the server becoming authoritative for all future edits.
+
+### 2. Current app size
+
+I measured the open MSC window:
+
+**1240 × 760 pixels**
+
+The configured default is currently **1100 × 760** in [`tauri.conf.json`](/Users/camerontemple/msc2/clients/desktop-web/src-tauri/tauri.conf.json:17).
+
+So the likely change is:
+
+- default width: `1240`;
+- default height: `760`;
+- only affect the initial/default window size, not force-resize users who already customized their window.
+
+### 3. Modrinth browser scrollbar
+
+The Modrinth browser has its own scroll container inside `PluginBrowserSheet.svelte`. We can hide the visible scrollbar while preserving mouse-wheel, trackpad, keyboard, and touch scrolling.
+
+This is a small visual fix.
+
+### 4. Minecraft day/time regression
+
+The day changing from 34 to 49 means the existing relative-time fix is still incorrect in practice.
+
+This should be treated as a correction to the existing Phase 14 time work, not a new feature:
+
+- Dawn, dusk, and night must target the current Minecraft day;
+- the day number must not change;
+- the calculation must use the server’s current absolute time;
+- the behavior must work consistently across supported runtimes.
+
+This needs to be revisited before Phase 14 can be considered correct.
+
+### 5. Live world time in the Active World card
+
+Add a compact world-time line inside the existing Active World card without increasing its size.
+
+For example:
+
+`Day 34 · 18:42`
+
+It should:
+
+- update while the server is connected;
+- use Minecraft world time, not the computer’s clock;
+- remain compact enough to preserve the current card dimensions;
+- show an unavailable/disconnected state when the server cannot provide it.
+
+### 6. Sheets should not close when clicking outside
+
+I found the shared cause: [`Sheet.svelte`](/Users/camerontemple/msc2/clients/desktop-web/src/lib/components/base/Sheet.svelte:19) currently closes whenever the click lands on the backdrop.
+
+The better global behavior is:
+
+- clicking outside a sheet does nothing;
+- the close button still closes it;
+- Escape still closes it;
+- Cancel buttons still work;
+- text selection or accidental mouse release cannot destroy the current sheet.
+
+You do not need to enumerate every sheet. We can audit the shared `Sheet` component plus custom overlays such as confirmation dialogs and menus. Examples are only useful if a particular sheet behaves differently from the shared pattern.
+
+I’d group these into three future work areas:
+
+1. Server-owned notes and live world-time data.
+2. Correct Minecraft day-preserving time actions.
+3. Window, scrollbar, and sheet interaction polish.
+
+The ATM10 discovery work and this additional usability work share Phase 15, but the time correction remains explicitly tied back to the paused Phase 14 implementation so it cannot be treated as finished merely because the new client controls exist.
+
+### P15.7 — Make server notes host-owned
+
+- **Status:** DONE
+- **Files:** `crates/msc-api/src/dto/lifecycle.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `docs/msc2/api-contract/openapi.json`, `clients/desktop-web/src/lib/api/generated.ts`, `clients/desktop-web/src/lib/sections/home/HomeSection.svelte`, `clients/desktop-web/src/lib/sections/home/notes.ts`, `clients/desktop-web/src/lib/sections/components/CurseForgeManualDownloadSheet.svelte`
+- **What:** Add server-scoped notes to the agent-owned server contract, provide read/write API behavior, replace client-local storage, and migrate or merge existing local notes once. Keep the unresolved-modpack note block compatible with the same server-owned field.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-api -p msc-application -p msc-agent && npm --prefix clients/desktop-web run check`
+- **Batch:** G — server-owned notes
+- **Commit:** `P15.7: move server notes to the agent`
+
+### P15.8 — Reconcile same-day time behavior
+
+- **Status:** DONE
+- **Files:** `crates/msc-domain/src/time.rs`, `crates/msc-agent/src/routes/commands.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `docs/msc2/api-contract/openapi.json`, `clients/desktop-web/src/lib/components/shell/sidebar/QuickCommandsSection.svelte`, `clients/desktop-web/src/lib/components/shell/ConsoleDock.svelte`, `clients/desktop-web/src/lib/sections/console/CommandPaletteSheet.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Correct the P14 relative-time implementation after the observed day 34 → 49 regression. The previous route used total `gametime`, which can be ahead of the daylight-cycle day; it now queries live `day` and `daytime`, derives the absolute target from the daylight-cycle day, rejects stale/unmatched query lines, and preserves that day across Java and Bedrock where supported. The acceptance rule is: Dawn, Dusk, and Night may change only the time-of-day; after each action, the world remains on the same Minecraft day, while raw numeric `time set` remains an explicit absolute day-changing command.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-domain -p msc-agent && npm --prefix clients/desktop-web run check`
+- **Batch:** H — same-day time correction
+- **Commit:** `P15.8: preserve the current Minecraft day`
+
+### P15.9 — Show live world time in Active World
+
+- **Status:** DONE
+- **Files:** `crates/msc-api/src/dto/status.rs`, `crates/msc-api/tests/dto_conformance.rs`, `crates/msc-agent/src/routes/commands.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/performance.rs`, `crates/msc-agent/src/routes/status.rs`, `crates/msc-domain/src/time.rs`, `docs/msc2/api-contract/openapi.json`, `clients/desktop-web/src/lib/api/generated.ts`, `clients/desktop-web/src/lib/sections/home/HomeSection.svelte`, `clients/desktop-web/src/lib/sections/home/ActiveWorldCard.svelte`
+- **What:** Expose the active world’s current Minecraft day and time through the existing live status/performance path. Render one compact line inside the existing Active World card without increasing its dimensions, and show a clear unavailable state when the server is disconnected or cannot answer.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-api -p msc-agent -p msc-application && npm --prefix clients/desktop-web run check`
+- **Batch:** G — server-owned notes
+- **Commit:** `P15.9: show live active-world time`
+
+### P15.10 — Set the default desktop window size
+
+- **Status:** DONE
+- **Files:** `clients/desktop-web/src-tauri/tauri.conf.json`
+- **What:** Change the Tauri default window size from 1100×760 to the captured current size, 1240×760. This changes the initial default only and must not force-resize a user’s existing customized window.
+- **Verify:** `python3 -m json.tool clients/desktop-web/src-tauri/tauri.conf.json >/dev/null`
+- **Batch:** I — desktop presentation polish
+- **Commit:** `P15.10: set the current desktop window default`
+
+### P15.11 — Hide the Modrinth browse scrollbar
+
+- **Status:** DONE
+- **Files:** `clients/desktop-web/src/lib/sections/components/PluginBrowserSheet.svelte`
+- **What:** Hide the visible scrollbar in the Modrinth browse results while preserving scrolling with the wheel, trackpad, keyboard, and touch input. Keep the results container bounded and usable at the current sheet size.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** I — desktop presentation polish
+- **Commit:** `P15.11: hide the Modrinth browse scrollbar`
+
+### P15.12 — Stop sheets closing on backdrop clicks
+
+- **Status:** DONE
+- **Files:** `clients/desktop-web/src/lib/components/base/Sheet.svelte`, `clients/desktop-web/src/lib/components/ConfirmDialog.svelte`, `clients/desktop-web/src/lib/components/base/Menu.svelte`, `clients/desktop-web/src/lib/components/shell/ConsoleDock.svelte`, `clients/desktop-web/src/lib/sections/components/ImportModpackSheet.svelte`, `clients/desktop-web/src/lib/sections/server-editor/ServerEditorSheet.svelte`
+- **What:** Make outside-click dismissal opt-in rather than the default for sheets. Clicking the scrim must leave an open sheet and its in-progress text untouched; explicit close buttons, Cancel actions, and Escape remain available. Audit custom overlays separately so transient menus and intentional confirmation behavior are not changed accidentally.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check && rg -n "dismissOnBackdrop|event\.target === event\.currentTarget|onclick=.*onClose" clients/desktop-web/src/lib/components clients/desktop-web/src/lib/sections`
+- **Batch:** I — desktop interaction polish
+- **Commit:** `P15.12: make sheet dismissal explicit`
+
+### P15.13 — Review the additional Phase 15 acceptance flow
+
+- **Status:** DONE
+- **Files:** `docs/msc2/capabilities/phase15-acceptance.md`, `docs/msc2/rolling-plan.md`, `clients/desktop-web/src/lib/sections/home/HomeSection.svelte`, `clients/desktop-web/src/lib/sections/home/ActiveWorldCard.svelte`, `clients/desktop-web/src/lib/components/base/Sheet.svelte`, `clients/desktop-web/src-tauri/tauri.conf.json`
+- **What:** Record acceptance evidence for server notes visible from a second client, the 1240×760 initial window, same-day Dawn/Dusk/Night behavior, live Active World time without card growth, hidden Modrinth scrollbar, and sheets surviving outside clicks. Confirm the new behavior does not regress explicit close, Cancel, Escape, or existing modpack note updates.
+- **Verify:** `cargo check -p msc-agent -p msc-application && npm --prefix clients/desktop-web run check`
+- **Batch:** J — additional Phase 15 review
+- **Commit:** `P15.13: record additional Phase 15 acceptance`
+
+### P15.14 — Show the modpack creation summary
+
+- **Status:** DONE
+- **Files:** `crates/msc-agent/src/main.rs`, `crates/msc-agent/src/routes/components.rs`, `crates/msc-agent/src/routes/servers.rs`, `clients/desktop-web/src/lib/sections/fleet/wizard/model.ts`, `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`, `clients/desktop-web/src/lib/sections/fleet/wizard/ModpackCreationSummarySheet.svelte`, `clients/desktop-web/src/lib/sections/components/CurseForgeManualDownloadSheet.svelte`
+- **What:** Preserve the unresolved-file report when a new server is created from a modpack, share that recovery state with the Components routes, return a pack summary in the completed create operation, and show a post-creation sheet with unresolved files first, downloaded filenames below, and a direct handoff to the existing manual recovery flow. Keep unresolved files available after the summary closes and write them to server notes.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-agent -p msc-application && cargo clippy -p msc-agent -p msc-application -- -D warnings && npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** K — modpack creation handoff
+- **Commit:** `P15.14: show modpack creation summary`
+
+### P15.15 — Reconcile client-only recovery and provider links
+
+- **Status:** DONE
+- **Files:** `crates/msc-application/src/modpacks.rs`, `crates/msc-agent/src/routes/servers.rs`, `clients/desktop-web/src/lib/sections/components/CurseForgeManualDownloadSheet.svelte`, `clients/desktop-web/src/lib/sections/fleet/wizard/model.ts`, `clients/desktop-web/src/lib/sections/fleet/wizard/ModpackCreationSummarySheet.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Check exact compatible Modrinth matches before manual recovery, classify client-only matches as intentionally absent from the server instead of unresolved, show the connected agent’s CurseForge-key status, route provider links through the external-browser bridge, and keep Choose/Skip actions adjacent.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-agent && cargo clippy -p msc-application -p msc-agent -- -D warnings && npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** K — modpack recovery corrections
+- **Commit:** `P15.15: reconcile client-only recovery and provider links`
+
+### P15.16 — Clarify server files recovered during modpack import
+
+- **Status:** DONE
+- **Files:** `crates/msc-application/src/modpacks.rs`, `crates/msc-agent/src/routes/servers.rs`, `clients/desktop-web/src/lib/sections/fleet/wizard/model.ts`, `clients/desktop-web/src/lib/sections/fleet/wizard/ModpackCreationSummarySheet.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Classify confident client-only CurseForge entries before downloading and silently skip them. Keep direct downloads separate from files recovered automatically from Modrinth, show the latter in a dedicated completion section, and remove the incomplete client-only list from the user-facing summary. Describe the remaining completion state as server files ready.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-agent && cargo clippy -p msc-application -p msc-agent -- -D warnings && npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** K — modpack summary corrections
+- **Commit:** `P15.16: clarify server files recovered during modpack import`
+
+### P15.17 — Polish modpack completion summary wording
+
+- **Status:** DONE
+- **Files:** `crates/msc-agent/src/routes/components.rs`, `clients/desktop-web/src/lib/sections/fleet/wizard/ModpackCreationSummarySheet.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Clarify that manual-download counts may change before import finishes, style the Modrinth recovery supporting sentence like the other summary subtitles, correct singular grammar, and remove the duplicate divider after the recovered-file list.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-agent && npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** K — modpack summary corrections
+- **Commit:** `P15.17: polish modpack completion summary wording`
+
+### P15.18 — Simplify server-created confirmation status
+
+- **Status:** DONE
+- **Files:** `clients/desktop-web/src/lib/sections/fleet/wizard/ConfirmStep.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Keep the green created-state label but hide the decorative status dot, leaving a text-only confirmation in the final Add Server step.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** K — add-server confirmation polish
+- **Commit:** `P15.18: simplify server-created confirmation status`
+
+### P15.19 — Increase server-created confirmation emphasis
+
+- **Status:** DONE
+- **Files:** `clients/desktop-web/src/lib/sections/fleet/wizard/ConfirmStep.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Increase the text-only created-state label to 18px with a stronger weight so the final confirmation uses the available space more deliberately without restoring the decorative dot.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** K — add-server confirmation polish
+- **Commit:** `P15.19: increase server-created confirmation emphasis`
+
+### P15.20 — Keep client-only overrides out of the server and count local mods
+
+- **Status:** DONE
+- **Files:** `crates/msc-application/src/modpacks.rs`, `clients/desktop-web/src/lib/sections/components/model.ts`, `docs/msc2/rolling-plan.md`
+- **What:** Identify client-only override jars before merging pack overrides into the server, preserve the existing post-merge safeguard for already-present files, and treat active local jars without a provider link as installed in Components. Pending import files remain unresolved, and disabled jars remain disabled.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-agent && cargo clippy -p msc-application -p msc-agent -- -D warnings && npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** K — modpack and Components inventory corrections
+- **Commit:** `P15.20: count local mods and skip client-only overrides`
+
+### P15.21 — Skip client-only CurseForge files before download
+
+- **Status:** DONE
+- **Files:** `crates/msc-application/src/modpacks.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Apply a confident Modrinth project's `server_side: unsupported` classification before requiring an exact compatible filename match. This lets the CurseForge manifest import skip client-only projects before downloading them or counting them as installed; the post-download classifier remains a safeguard for content it could not confidently classify earlier.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-agent && cargo clippy -p msc-application -p msc-agent -- -D warnings`
+- **Batch:** K — modpack and Components inventory corrections
+- **Commit:** `P15.21: skip client-only CurseForge files before download`
+
+### P15.22 — Keep client-only files and shader packs out of imported servers
+
+- **Status:** DONE
+- **Files:** `crates/msc-domain/src/addon_provider.rs`, `crates/msc-infrastructure/src/addon_provider.rs`, `crates/msc-application/src/modpacks.rs`, `crates/msc-application/tests/modrinth_pack_import.rs`, `crates/msc-application/tests/curseforge_pack_import.rs`, `crates/msc-application/tests/modpack_server_creation.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Use CurseForge's exact SHA-1 file hashes for pre-download Modrinth identification; apply the same exact-hash client-only check to Modrinth manifests; exclude shader/resource-pack paths and non-JAR files in `mods/` before merge/download; inspect newly written JARs afterward and delete identified client-only files instead of leaving disabled files; remove deleted files from import counts, and fail the import if cleanup itself fails.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-infrastructure -p msc-domain -p msc-agent && cargo clippy -p msc-application -p msc-infrastructure -p msc-domain -p msc-agent -- -D warnings`
+- **Batch:** K — modpack and Components inventory corrections
+- **Commit:** `P15.22: exclude client-only files and shader packs`
+
+### Additional Phase 15 scope — world packs and modpack identity
+
+This scope and its planned implementation steps are recorded here for Phase 15.
+
+## Overall scope
+
+We are adding three focused concepts:
+
+1. Java datapacks.
+2. Modpack identity for servers created from modpacks.
+3. Bedrock behavior packs.
+
+Client-only content is deliberately out of scope:
+
+- Java shader packs;
+- Java client resource packs;
+- Bedrock resource-pack browsing;
+- skin packs;
+- client-only mods.
+
+Resource-pack dependencies still need to be detected where required for a behavior pack to function correctly. If the linked resource pack is included with the downloaded add-on, MSC installs the complete add-on together. If it is not included, MSC stops and explains the missing dependency; it does not install an incomplete behavior pack or provide a separate resource-pack browser.
+
+## Java Worlds tab
+
+The Java Worlds tab should be organized as:
+
+1. World Slots
+2. Datapacks
+3. Backups
+
+### Datapacks section
+
+The Datapacks section belongs to the selected world slot because Java datapacks are world-owned. Vanilla Java stores them inside the world’s `datapacks/` directory. [Mojang’s datapack documentation](https://www.minecraft.net/de-de/article/minecraft-snapshot-17w43a)
+
+The section should show:
+
+- datapacks installed in the selected slot;
+- datapack name and version;
+- Minecraft-version compatibility;
+- enabled or disabled state;
+- provider and source information;
+- update availability when known.
+
+It should include a:
+
+```text
+Browse Datapacks
+```
+
+button, similar to the existing Browse Mods button.
+
+The first provider is Modrinth, which already has a Data Packs catalog. [Modrinth Data Packs](https://modrinth.com/discover/datapacks)
+
+### Datapack installation behavior
+
+Installing a datapack should:
+
+- target the currently selected world slot;
+- download and validate the datapack archive;
+- verify its Java pack metadata;
+- check Minecraft-version compatibility;
+- prevent archive path traversal or malformed contents;
+- preserve provider, version, and hash information;
+- create a backup before changing the world;
+- require the server to be stopped when necessary;
+- make the datapack travel with the world slot.
+
+A datapack installed into World Slot A should not appear in World Slot B. It should follow the slot through:
+
+- activation;
+- duplication;
+- backup;
+- restore;
+- export;
+- import.
+
+Later controls should support:
+
+- enable;
+- disable;
+- update;
+- remove;
+- reload or restart when required.
+
+World-generation datapacks deserve a warning because removing one does not undo terrain already generated using it.
+
+If no world slot is selected, the section should explain that the user must select one first.
+
+## Modpack identity in Components
+
+Modpack installation already happens during server creation or import. The new behavior is simply to make the imported pack visible afterward.
+
+At the top of the Components tab, servers created from modpacks should show a compact read-only summary such as:
+
+```text
+Modpack
+All the Mods 10 Lite
+Version 1.0.x · CurseForge
+```
+
+The summary should:
+
+- appear above the component list;
+- show the pack name;
+- show the imported pack version;
+- show the provider, such as CurseForge or Modrinth;
+- remain compact;
+- be persisted as server metadata;
+- be absent for ordinary non-modpack servers;
+- not duplicate the full list of installed mods.
+
+The Components tab remains responsible for the individual mods. The modpack summary only answers:
+
+> What pack is this server based on?
+
+If a server was imported from a modpack but the metadata is missing, MSC should not guess from the installed mods. It should either omit the summary or show that the source metadata is unavailable.
+
+## Bedrock Worlds tab
+
+For Bedrock Dedicated Server, the Worlds tab should use the same structure with an edition-specific second section:
+
+1. World Slots
+2. Behavior Packs
+3. Backups
+
+### Behavior Packs section
+
+Behavior packs are the closest Bedrock equivalent to Java datapacks. They can change gameplay behavior, entities, items, recipes, loot, spawning, trades, functions, and scripts. [Microsoft’s behavior-pack documentation](https://learn.microsoft.com/en-us/minecraft/creator/documents/behaviorpackfromscratch?view=minecraft-bedrock-stable)
+
+The section should include:
+
+```text
+Browse Behavior Packs
+```
+
+It should show behavior packs for the selected Bedrock world slot, including:
+
+- name;
+- version;
+- minimum Bedrock version;
+- enabled or disabled state;
+- provider and source;
+- UUID;
+- dependencies;
+- update availability when known.
+
+### Bedrock world-scoped decision
+
+Bedrock Dedicated Server can technically keep packs in shared server-level folders or inside an individual world folder. We are intentionally choosing world-scoped behavior packs for MSC because it is simpler and matches the World Slots model.
+
+That means:
+
+- Behavior Pack A installed for World Slot A does not automatically affect World Slot B.
+- Activating another slot changes the visible behavior-pack list.
+- Duplicating or backing up a slot includes its behavior-pack state.
+- Restoring a slot restores the pack configuration with it.
+
+The shared BDS folders can remain an implementation detail or future feature. They are not part of this first design. [Bedrock Dedicated Server pack layout](https://learn.microsoft.com/en-us/minecraft/creator/documents/bedrockserver/getting-started?view=minecraft-bedrock-stable)
+
+### Behavior-pack dependencies
+
+Some behavior packs require a linked resource pack. We are not building a resource-pack browser, but MSC must still inspect and explain that dependency.
+
+If the linked resource pack is included with the downloaded add-on, install it together with the behavior pack. Otherwise stop and explain that the behavior pack cannot be installed alone. Do not silently install an incomplete behavior pack.
+
+MSC must not silently install an incomplete behavior pack. Bedrock manifests explicitly support pack dependencies. [Bedrock manifest reference](https://learn.microsoft.com/en-us/minecraft/creator/reference/content/addonsreference/packmanifest?view=minecraft-bedrock-stable)
+
+## Shared implementation shape
+
+The backend can share a general world-pack model, but the user-facing names and validation rules should remain edition-specific:
+
+```text
+Java world pack       → datapack
+Bedrock world pack    → behavior pack
+```
+
+Each installed pack should retain:
+
+- pack kind;
+- world-slot ID;
+- provider;
+- project ID or URL;
+- version;
+- file name;
+- checksum;
+- compatibility information;
+- enabled state;
+- dependency information.
+
+The installation system should remain separate from the Java mod/plugin system because the destinations and lifecycles differ:
+
+- Java mods/plugins are server-owned runtime components.
+- Java datapacks are world-owned.
+- Bedrock behavior packs are world-owned in MSC, even though BDS supports shared storage.
+- Modpacks are distribution metadata plus collections of other components.
+
+## Resulting MSC experience
+
+A Java server would expose:
+
+```text
+Worlds
+├── World Slots
+├── Datapacks
+└── Backups
+
+Components
+└── Imported Modpack summary
+    └── Mods and other installed components
+```
+
+A Bedrock server would expose:
+
+```text
+Worlds
+├── World Slots
+├── Behavior Packs
+└── Backups
+```
+
+This gives Java and Bedrock parallel concepts without pretending their underlying pack systems are identical.
+
+### P15.23 — Freeze the world-pack and modpack-identity contract
+
+- **Status:** DONE
+- **Files:** `docs/msc2/msc2-decisions.md`, `docs/msc2/msc2-engineering.md`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
+- **What:** Map each requirement to its owner, API boundary, source files, and acceptance evidence in `docs/msc2/capabilities/phase15-world-packs.md`. Record that datapacks and behavior packs belong to a world slot, identify how slot activation, duplication, backup, restore, export, and import preserve pack state, define server-owned modpack identity and the no-guessing behavior, set Modrinth as the first Java datapack provider, and record the Bedrock rule for bundled linked resource packs. D-030 is now owner-confirmed; the remaining Phase 15 pack contract stays proposed. Explicitly keep client-only packs and separate Bedrock resource-pack browsing out of scope, and identify enable/disable/update/remove as later controls unless the acceptance map shows they are required for the first usable release.
+- **Verify:** `rg -n "world slot|Modrinth|linked resource pack|modpack identity|D-030|enable|disable|update|remove" docs/msc2/capabilities/phase15-world-packs.md docs/msc2/msc2-decisions.md docs/msc2/msc2-engineering.md`
+- **Batch:** L — world-pack contract and acceptance map
+- **Commit:** `P15.23: define world-pack contracts`
+
+### P15.24 — Persist modpack identity with the server
+
+- **Status:** DONE
+- **Files:** `crates/msc-domain/src/modpack.rs`, `crates/msc-domain/src/app_config_schema.rs`, `crates/msc-infrastructure/src/config_repository.rs`, `crates/msc-application/src/modpacks.rs`, `crates/msc-application/src/provisioning.rs`, `crates/msc-api/src/dto/lifecycle.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/components.rs`, `docs/msc2/api-contract/openapi.json`, `clients/desktop-web/src/lib/api/generated.ts`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/msc2-decisions.md`, `docs/msc2/msc2-engineering.md`
+- **What:** Preserve the source pack name, provider, and imported version as server-owned metadata for servers created or imported from a modpack. Expose that metadata through the API, keep it with the server through ordinary server operations, and represent unavailable source metadata honestly. Do not infer pack identity from the installed component list; ordinary servers remain without a modpack identity.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-domain -p msc-application -p msc-agent && cargo clippy -p msc-domain -p msc-application -p msc-agent -- -D warnings`
+- **Batch:** M — modpack identity
+- **Commit:** `P15.24: persist modpack source identity`
+
+### P15.25 — Add world-slot pack metadata and lifecycle support
+
+- **Status:** DONE
+- **Files:** `crates/msc-domain/src/world_profile.rs`, `crates/msc-domain/src/backup.rs`, `crates/msc-application/src/worlds.rs`, `crates/msc-application/src/backups.rs`, `crates/msc-infrastructure/src/archive.rs`, `crates/msc-infrastructure/src/world_store.rs`, `crates/msc-api/src/dto/worlds.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/backups.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-application/tests/backup_inventory.rs`, `docs/msc2/api-contract/openapi.json`, `clients/desktop-web/src/lib/api/generated.ts`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
+- **What:** Add edition-aware, world-slot-scoped pack records to the existing slot-profile API without routing world packs through the Java mod/plugin system. Keep pack files under the owning world root and carry provider, version, checksum, compatibility, enabled state, and dependency metadata through activation, duplication, backup, restore, export, and import. Backups retain the profile in their sidecar; exported archives carry it in a reserved entry that is not extracted into a Minecraft world. Preserve Java datapack and Bedrock behavior-pack validation as edition-specific rules, and ensure one slot's packs cannot appear in another slot.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-domain -p msc-api -p msc-infrastructure -p msc-application -p msc-agent && cargo clippy -p msc-domain -p msc-api -p msc-infrastructure -p msc-application -p msc-agent -- -D warnings`
+- **Batch:** N — world-slot pack model and persistence
+- **Commit:** `P15.25: persist packs with world slots`
+
+### P15.26 — Browse and install Java datapacks
+
+- **Status:** DONE
+- **Files:** `crates/msc-domain/src/addon_provider.rs`, `crates/msc-infrastructure/src/addon_provider.rs`, `crates/msc-application/src/addons.rs`, `crates/msc-agent/src/routes/components.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-api/src/dto/addons.rs`, `crates/msc-api/src/dto/worlds.rs`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
+- **What:** Add the Modrinth Data Packs catalog and installation path for the selected Java world slot. Validate downloaded archives and Java pack metadata, check Minecraft-version compatibility, reject malformed or path-traversing archives, retain provider/version/hash details, back up the world before mutation, and require a stopped server when live changes are unsafe. Report enabled state and update availability when known; follow the P15.23 contract for controls deferred from the first release.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-domain -p msc-api -p msc-infrastructure -p msc-application -p msc-agent && cargo clippy -p msc-domain -p msc-api -p msc-infrastructure -p msc-application -p msc-agent -- -D warnings`
+- **Batch:** O — Java datapacks
+- **Commit:** `P15.26: add Java datapack installation`
+
+### P15.27 — Browse and install Bedrock behavior packs
+
+- **Status:** DONE
+- **Files:** `crates/msc-domain/src/bedrock.rs`, `crates/msc-infrastructure/src/addon_provider.rs`, `crates/msc-application/src/addons.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-api/src/dto/worlds.rs`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
+- **What:** Browse CurseForge's Bedrock Addons catalog using the existing host-side key, then install a selected file into the chosen world slot. Validate archive paths and manifests, pack/module/dependency UUIDs and versions, and minimum Bedrock version. Install linked resource packs only when bundled; otherwise explain the missing pack and leave the world unchanged. Keep files and pack lists inside the owning world despite BDS's shared pack folders. The provider choice is Proposed until separately reviewed.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-domain -p msc-api -p msc-infrastructure -p msc-application -p msc-agent && cargo clippy -p msc-domain -p msc-api -p msc-infrastructure -p msc-application -p msc-agent -- -D warnings && python3 -m json.tool docs/msc2/api-contract/openapi.json >/dev/null`
+- **Batch:** P — Bedrock behavior packs
+- **Commit:** `P15.27: add Bedrock behavior-pack installation`
+
+### P15.28 — Add world-pack and modpack views
+
+- **Status:** DONE
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte`, `clients/desktop-web/src/lib/sections/worlds/WorldPackBrowserSheet.svelte`, `clients/desktop-web/src/lib/sections/worlds/model.ts`, `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`, `clients/desktop-web/src/lib/sections/components/model.ts`, `clients/desktop-web/src/lib/sections/addons/AddonsSection.svelte`, `clients/desktop-web/src/lib/sections/addons/model.ts`, `clients/desktop-web/src/lib/api/generated.ts`, `docs/msc2/capabilities/phase15-world-packs.md`
+- **What:** Organize Java Worlds as World Slots, Datapacks, and Backups, and Bedrock Worlds as World Slots, Behavior Packs, and Backups. Show packs for the selected slot with the agreed identity, compatibility, enabled state, source, dependency, and update information; provide the Java Browse Datapacks and Bedrock Browse Behavior Packs flows; explain when a slot must be selected or the server stopped. Show the compact read-only imported-modpack summary above Components without duplicating the component inventory.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** Q — world-pack and modpack client surfaces
+- **Commit:** `P15.28: show world packs and modpack identity`
+
+### P15.29 — Review world-pack portability and modpack identity
+
+- **Status:** DONE
+- **Files:** `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`, `crates/msc-domain/src/world_profile.rs`, `crates/msc-application/src/worlds.rs`, `crates/msc-application/src/backups.rs`, `crates/msc-application/src/modpacks.rs`, `clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte`, `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`
+- **What:** Review the Java and Bedrock pack flows against the phase acceptance map: slot isolation and portability across activation, duplication, backup, restore, export, and import; archive and manifest validation; incomplete Bedrock dependency handling; correct imported-modpack identity; and readable edition-specific Worlds views. Record static findings and the remaining owner-run live Minecraft checks. Do not close the phase until the documented acceptance evidence is complete.
+- **Verify:** `rg -n "activation|duplication|backup|restore|export|import|path traversal|linked resource pack|modpack identity|owner verification" docs/msc2/capabilities/phase15-world-packs.md`
+- **Batch:** R — world-pack acceptance review
+- **Commit:** `P15.29: record world-pack acceptance`
+
+### P15.30 — Preserve slot metadata when copying into an existing slot
+
+- **Status:** DONE
+- **Files:** `crates/msc-application/src/worlds.rs`, `crates/msc-infrastructure/src/world_store.rs`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
+- **What:** Make `copy_slot_into_existing` preserve a consistent destination archive and profile when metadata persistence fails. Stage the replacement archive and profile, stop ignoring `save_metadata` and `copy_profile` errors, and retain enough rollback state that a returned failure does not leave source world files paired with the destination's old pack profile. Record the failure boundary in the acceptance map. Do not add tests; use the declared static checks and Cameron's manual verification.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-agent && cargo clippy -p msc-application -p msc-agent -- -D warnings`
+- **Batch:** S — slot-copy portability correction
+- **Commit:** `P15.30: preserve slot profile on copy failure`
+
+### P15.31 — Match the world-pack browser to the Components browser
+
+- **Status:** DONE
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldPackBrowserSheet.svelte`, `clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte`, `clients/desktop-web/tests/screens/worlds-backups.test.ts`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
+- **What:** Bring datapack and behavior-pack result browsing into line with the Components Modrinth browser: search field and quiet provider/version line at the top, icon-led flat result rows with author/download metadata and restrained descriptions, and a compact Add action. Keep the provider-specific install behavior and do not introduce nested result cards. Resolve the missing UI imports and update the existing world-profile fixture for the current schema so the static frontend check can run.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** T — world-pack browser presentation
+- **Commit:** `P15.31: align world-pack browser presentation`
+
+### P15.32 — Correct the CurseForge Bedrock category request
+
+- **Status:** DONE
+- **Files:** `crates/msc-infrastructure/src/addon_provider.rs`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
+- **What:** Use CurseForge's documented `/v1/categories` endpoint with the Bedrock game ID and `classesOnly=true` to resolve its Addons class. Keep the existing CurseForge provider choice; the 404 came from requesting a non-existent API path.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-infrastructure -p msc-agent && cargo clippy -p msc-infrastructure -p msc-agent -- -D warnings`
+- **Batch:** U — Bedrock catalog endpoint correction
+- **Commit:** `P15.32: correct Bedrock catalog category lookup`
+
+### P15.33 — Identify the failing Bedrock catalog request
+
+- **Status:** DONE
+- **Files:** `crates/msc-infrastructure/src/addon_provider.rs`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
+- **What:** Preserve CurseForge's status and authorization errors while identifying whether the Bedrock class lookup or the subsequent add-on search failed. This makes another provider 404 actionable without exposing the API key.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-infrastructure -p msc-agent && cargo clippy -p msc-infrastructure -p msc-agent -- -D warnings`
+- **Batch:** V — Bedrock catalog error diagnosis
+- **Commit:** `P15.33: identify Bedrock catalog request failures`
+
+### P15.34 — Use Minecraft's CurseForge game ID for Bedrock packs
+
+- **Status:** DONE
+- **Files:** `crates/msc-infrastructure/src/addon_provider.rs`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
+- **What:** Use Minecraft's CurseForge game ID (`432`) for both Bedrock Addons category lookup and search. Keep resolving the Addons class from provider metadata instead of hardcoding its class ID.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-infrastructure -p msc-agent && cargo clippy -p msc-infrastructure -p msc-agent -- -D warnings`
+- **Batch:** W — Bedrock game identifier correction
+- **Commit:** `P15.34: use Minecraft CurseForge game ID`
+
+### P15.35 — Open Bedrock behavior-pack details
+
+- **Status:** DONE
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldPackBrowserSheet.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Make each Bedrock behavior-pack result selectable, matching the Components browser's row-to-detail flow. Show the full available description, download count, Minecraft version, and pack filename in a detail sheet, with the existing Add operation available there.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** X — Bedrock behavior-pack details
+- **Commit:** `P15.35: open Bedrock behavior-pack details`
+
+### P15.36 — Match Bedrock pack details to the Mods browser
+
+- **Status:** DONE
+- **Files:** `crates/msc-infrastructure/src/addon_provider.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-api/src/dto/worlds.rs`, `docs/msc2/api-contract/openapi.json`, `clients/desktop-web/src/lib/api/generated.ts`, `clients/desktop-web/src/lib/sections/components/model.ts`, `clients/desktop-web/src/lib/sections/worlds/WorldPackBrowserSheet.svelte`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
+- **What:** Add an authenticated agent route that loads a Bedrock add-on's full CurseForge description, screenshots, and published files. Expand the detail sheet to show the gallery, safe formatted description, release types, and a selectable version list that highlights files tagged for the selected Minecraft version and installs the chosen file.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-infrastructure -p msc-agent && cargo clippy -p msc-infrastructure -p msc-agent -- -D warnings && npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run api:check`
+- **Batch:** Y — Bedrock detail parity
+- **Commit:** `P15.36: match Bedrock details to Mods browser`
+
+### P15.37 — Mark incompatible packs in Bedrock search results
+
+- **Status:** DONE
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldPackBrowserSheet.svelte`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
+- **What:** Read the active Bedrock server version when the browser opens, keep other-version search results available for inspection, and offer direct Add only when the selected server version is known to match. Show an “Other version” or “Version unknown” status otherwise. Keep “Install anyway” available in the detail version list.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** Z — Bedrock result compatibility guard
+- **Commit:** `P15.37: mark incompatible Bedrock results`
+
+### P15.38 — Search compatible Bedrock packs first
+
+- **Status:** DONE
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldPackBrowserSheet.svelte`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
+- **What:** Pass the selected server's Bedrock version to CurseForge search by default so the result list contains compatible files. Add a “Show other versions” control and an empty-state action when no compatible results match; preserve the detail sheet's explicit “Install anyway” path.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** AA — compatible Bedrock catalog search
+- **Commit:** `P15.38: search compatible Bedrock packs first`
+
+### P15.39 — Show all Bedrock behavior packs across versions
+
+- **Status:** DONE
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldPackBrowserSheet.svelte`, `docs/msc2/capabilities/phase15-world-packs.md`, `docs/msc2/rolling-plan.md`
+- **What:** Search the full CurseForge Bedrock add-on catalog without filtering by the selected server version. Keep all results selectable for details, show version compatibility in each result, withhold direct Add for a version mismatch, and preserve the detail view's explicit “Install anyway” action. Remove the redundant “Show other versions” toggle and its version-filtered empty state.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** AB — unfiltered Bedrock pack discovery
+- **Commit:** `P15.39: show all Bedrock behavior packs`
+
+### P15.40 — Wait for Java selection before advancing onboarding
+
+- **Status:** DONE
+- **Files:** `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** When Configure's Continue action opens required Java selection, defer both wizard progression and the onboarding tour's Continue action until a runtime is confirmed. Confirmation advances to Network and then reveals “How will friends connect?”; cancelling keeps the tour on Configure.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** AC — Java selection and onboarding sequencing
+- **Commit:** `P15.40: defer onboarding until Java is selected`
+
+### P15.41 — Include the onboarding fix in the agent web bundle
+
+- **Status:** DONE
+- **Files:** `crates/msc-agent/web-ui/**`, `docs/msc2/rolling-plan.md`
+- **What:** Regenerate the agent's embedded production web UI from the current Svelte source so rebuilding or repairing the service serves P15.40's Java-selection/onboarding sequencing fix.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run bundle:identity`
+- **Batch:** AD — package the onboarding correction
+- **Commit:** `P15.41: package onboarding fix in agent UI`
+
+### P15.42 — Advance the tour only after Java selection closes
+
+- **Status:** DONE
+- **Files:** `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`, `clients/desktop-web/src/lib/help/tourAnchors.ts`, `crates/msc-agent/web-ui/**`, `docs/msc2/rolling-plan.md`
+- **What:** Remove the tour action anchor from Configure's Continue button while Java selection is pending. After a runtime is confirmed, advance to Network, wait for Svelte to remove the Java sheet, then dispatch the deferred tour action so “How will friends connect?” appears against the visible Network step. Keep Cancel on Configure without advancing the tour.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run bundle:identity`
+- **Batch:** AE — sequence onboarding after Java selection
+- **Commit:** `P15.42: advance onboarding after Java selection`
+
+### P15.43 — Block the Configure tour action during Java selection
+
+- **Status:** DONE
+- **Files:** `clients/desktop-web/src/lib/help/onboarding.ts`, `clients/desktop-web/src/lib/help/TourOverlay.svelte`, `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`, `crates/msc-agent/web-ui/**`, `docs/msc2/rolling-plan.md`
+- **What:** Make Java selection an explicit synchronous gate in the tour listener. Configure's Continue sets the gate before the browser reports its anchored click, so the tour cannot advance while the Java sheet is open. Confirming a Java runtime clears the gate only after that sheet closes, then advances the tour to Network. Bedrock retains its ordinary Continue behavior because it never sets the Java gate.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run bundle:identity`
+- **Batch:** AF — Java selection blocks the onboarding action
+- **Commit:** `P15.43: block onboarding during Java selection`
+
+### P15.44 — Make wizard completion the only tour advance signal
+
+- **Status:** DONE
+- **Files:** `clients/desktop-web/src/lib/components/base/Button.svelte`, `clients/desktop-web/src/lib/help/tourAnchors.ts`, `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`, `crates/msc-agent/web-ui/**`, `docs/msc2/rolling-plan.md`
+- **What:** Keep the wizard Continue button visible to the tour without allowing its browser click to advance the tour automatically. The wizard now sends the tour action only after it has completed its own transition. Required Java selection therefore leaves the tour on Configure; confirmation closes the Java sheet, advances to Network, then advances the tour. Bedrock continues directly because its transition completes immediately.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run bundle:identity`
+- **Batch:** AG — make wizard transitions control onboarding
+- **Commit:** `P15.44: sequence onboarding from wizard completion`
+
+### P15.45 — Remove host dots from Manage Servers
+
+- **Status:** DONE
+- **Files:** `clients/desktop-web/src/lib/sections/fleet/ManageSheet.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Hide the status circles beside host names in Manage Servers while keeping the host names, their status colors, server counts, and host actions unchanged.
+- **Verify:** `npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check`
+- **Batch:** AH — Manage Servers presentation
+- **Commit:** `P15.45: remove host dots from Manage Servers`
+
+### P15.46 — Expand Bedrock server settings with balanced parity
+
+- **Status:** DONE
+- **Files:** `crates/msc-domain/src/settings_schema.rs`, `crates/msc-application/src/bedrock_settings.rs`, `crates/msc-agent/src/routes/settings.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Match Java's useful server controls where Bedrock has corresponding properties: server-list name, allowlist, default permission for new players, idle timeout, view distance, simulation distance via tick-distance, LAN discovery, and thread limit. Add custom-skin and chat controls plus an Advanced section for compression threshold/algorithm, player-interaction behavior, and content logging. Keep the common Server/Access/Performance/Network organization recognizable while labeling Bedrock-specific behavior accurately; retain unknown properties, report a restart for new values that lack a verified live-apply command, and keep world-profile values out of this server settings surface per D-030.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-domain -p msc-application -p msc-agent -- -D warnings && npm --prefix clients/desktop-web run check`
+- **Batch:** AJ — Bedrock settings parity
+- **Commit:** `P15.46: expand Bedrock server settings`
+
+### P15.47 — Show Bedrock world time in Overview without console polling output
+
+- **Status:** DONE
+- **Files:** `crates/msc-domain/src/time.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Recognize Bedrock `Day is …` and `Daytime is …` replies, feed them into the shared live world-time observation, and omit the automatic polling replies from console history. The existing Overview poll then updates the Active World card with the current day and time.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-domain -p msc-application -p msc-agent -- -D warnings`
+- **Batch:** AK — live Bedrock world time
+- **Commit:** `P15.47: show Bedrock world time without console polling output`
+
+### P15.48 — Hide automatic time query command echoes
+
+- **Status:** DONE
+- **Files:** `crates/msc-agent/src/routes/lifecycle.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Treat the automatic `time query day` and `time query daytime` command echoes as internal polling events and remove them from console history, alongside their replies. Manually entered commands remain visible.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-agent -- -D warnings`
+- **Batch:** AL — hide time query echoes
+- **Commit:** `P15.48: hide automatic time query command echoes`
+
+### P15.49 — Suppress Bedrock time polling lines unconditionally
+
+- **Status:** DONE
+- **Files:** `crates/msc-agent/src/routes/lifecycle.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Add a final console ingestion guard for the exact automatic time query commands and Bedrock `Day is …`/`Daytime is …` response lines, so they cannot enter console history when the runtime labels them as ordinary server output.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-agent -- -D warnings`
+- **Batch:** AM — final time polling suppression
+- **Commit:** `P15.49: suppress Bedrock time polling lines unconditionally`
+
+### P15.50 — Enable Xbox Broadcast for existing servers
+
+- **Status:** DONE
+- **Files:** `crates/msc-api/src/dto/provisioning.rs`, `crates/msc-agent/src/main.rs`, `crates/msc-agent/src/routes/servers.rs`, `clients/desktop-web/src/lib/sections/server-editor/model.ts`, `clients/desktop-web/src/lib/sections/server-editor/BroadcastTab.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Add a per-server Xbox Broadcast enable control to the Services tab and persist it for existing servers through a new server-scoped route. The helper can then be started from the same tab without recreating the server.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-api -p msc-agent && npm --prefix clients/desktop-web run check`
+- **Batch:** AN — existing-server Xbox Broadcast control
+- **Commit:** `P15.50: enable Xbox Broadcast for existing servers`
+
+### P15.51 — Show Xbox Broadcast version and start after enabling
+
+- **Status:** DONE
+- **Files:** `crates/msc-api/src/dto/networking.rs`, `crates/msc-agent/src/routes/networking.rs`, `clients/desktop-web/src/lib/api/generated.ts`, `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`, `clients/desktop-web/src/lib/sections/server-editor/BroadcastTab.svelte`, `clients/desktop-web/src/lib/sections/server-editor/ServerEditorSheet.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Report the installed Xbox Broadcast release version from its managed cache, show it in Components, refresh the server list after changing the per-server enable selection, and start the helper immediately when enabling it for a running server. The global autostart preference continues to control future server starts.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-api -p msc-agent && npm --prefix clients/desktop-web run check`
+- **Batch:** AO — Xbox Broadcast version and lifecycle
+- **Commit:** `P15.51: show Xbox Broadcast version and start after enabling`
+
+### P15.52 — Autostart explicitly enabled Xbox Broadcast servers
+
+- **Status:** DONE
+- **Files:** `crates/msc-agent/src/routes/networking.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Make the saved per-server Xbox Broadcast enablement authoritative during server startup. An enabled server now starts its broadcast helper without being blocked by the separate host-wide autostart flag; disabled servers remain stopped.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-agent`
+- **Batch:** AP — Xbox Broadcast startup authority
+- **Commit:** `P15.52: autostart explicitly enabled Xbox Broadcast servers`
+
+### P15.53 — Refresh the live Xbox Broadcast enable state
+
+- **Status:** DONE
+- **Files:** `crates/msc-application/src/xbox_broadcast.rs`, `crates/msc-agent/src/routes/networking.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Synchronize the long-lived Xbox Broadcast service with the saved per-server enable flag before automatic or manual starts. This prevents a service object created while disabled from rejecting later starts after the setting is enabled.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-agent`
+- **Batch:** AQ — Xbox Broadcast live configuration
+- **Commit:** `P15.53: refresh the live Xbox Broadcast enable state`
+
+### P15.54 — Clear stale Xbox Broadcast start operations
+
+- **Status:** DONE
+- **Files:** `crates/msc-application/src/xbox_broadcast.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Close a previous start operation whenever the helper is stopped, and recover stale active operations before retrying from a stopped state. This keeps the visible Stopped state consistent with the operation journal and allows automatic retries.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-agent`
+- **Batch:** AR — Xbox Broadcast operation recovery
+- **Commit:** `P15.54: clear stale Xbox Broadcast start operations`
+
+### P15.55 — Report Xbox Broadcast process state accurately
+
+- **Status:** DONE
+- **Files:** `crates/msc-infrastructure/src/helper_process.rs`, `crates/msc-application/src/xbox_broadcast.rs`, `crates/msc-agent/src/routes/networking.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Reconcile the broadcast status endpoint before responding and report the managed process as running whenever its PID is alive, even if the provider readiness message has not arrived. This keeps the Components row and sidebar Start/Stop control aligned with the actual helper process.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-infrastructure -p msc-application -p msc-agent`
+- **Batch:** AS — Xbox Broadcast process status
+- **Commit:** `P15.55: report Xbox Broadcast process state accurately`
+
+### P15.56 — Show Xbox Broadcast sign-in after creation
+
+- **Status:** DONE
+- **Files:** `crates/msc-agent/src/routes/networking.rs`, `clients/desktop-web/src/lib/sections/server-editor/model.ts`, `clients/desktop-web/src/lib/sections/server-editor/BroadcastTab.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Reuse the first-start Microsoft device-code sheet from the Services editor for both Java and Bedrock servers when the helper reports an auth prompt. Add a Services action that clears global and per-server Xbox Broadcast credentials and tokens.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-agent && npm --prefix clients/desktop-web run check`
+- **Batch:** AT — post-creation Xbox sign-in
+- **Commit:** `P15.56: show Xbox Broadcast sign-in after creation`
+
+### P15.57 — Keep Xbox Broadcast sign-in outside server editing
+
+- **Status:** DONE
+- **Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/sections/server-editor/BroadcastTab.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Move post-creation Xbox Broadcast device-code polling and the sign-in sheet to the application shell. Suppress it while Manage or Edit Server is open, while retaining the Services action for clearing saved credentials.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-agent && npm --prefix clients/desktop-web run check`
+- **Batch:** AU — shell-level Xbox sign-in
+- **Commit:** `P15.57: keep Xbox sign-in outside server editing`
+
+### P15.58 — Report Bedrock Xbox Broadcast state accurately
+
+- **Status:** DONE
+- **Files:** `crates/msc-agent/src/routes/networking.rs`, `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Map the managed Xbox Broadcast process state into the correct Java or Bedrock status field instead of hard-coding Bedrock as stopped. Refresh Components at the same one-second cadence as the sidebar so both controls reflect the live helper state promptly.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-agent && npm --prefix clients/desktop-web run check`
+- **Batch:** AV — Bedrock broadcast status parity
+- **Commit:** `P15.58: report Bedrock broadcast state accurately`
+
+### P15.59 — Reuse Playit setup in server services
+
+- **Status:** DONE
+- **Files:** `clients/desktop-web/src/lib/sections/server-editor/BroadcastTab.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Reuse the existing Playit setup sheet from Edit Server → Services, reading and updating the same host account and tunnel state as MSC Settings. Show Set up or Manage setup there, refresh after setup/reset, and prevent Start until a Playit key exists.
+- **Verify:** `cargo fmt --all -- --check && npm --prefix clients/desktop-web run check`
+- **Batch:** AW — shared Playit setup surface
+- **Commit:** `P15.59: reuse Playit setup in server services`
+
+### P15.60 — Enable Playit for existing servers
+
+- **Status:** DONE
+- **Files:** `crates/msc-api/src/dto/provisioning.rs`, `crates/msc-application/src/playit.rs`, `crates/msc-agent/src/routes/networking.rs`, `clients/desktop-web/src/lib/sections/server-editor/model.ts`, `clients/desktop-web/src/lib/sections/server-editor/BroadcastTab.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Add a per-server Playit participation toggle for servers that were created with manual port forwarding. Persist the toggle without changing port settings, synchronize the live Playit service, stop it when disabled, and unlock the shared setup sheet when enabled.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-api -p msc-application -p msc-agent && npm --prefix clients/desktop-web run check`
+- **Batch:** AX — existing-server Playit participation
+- **Commit:** `P15.60: enable Playit for existing servers`
+
+### P15.61 — Target Xbox Broadcast at the selected Bedrock server
+
+- **Status:** DONE
+- **Files:** `crates/msc-infrastructure/src/xbox_broadcast.rs`, `crates/msc-agent/src/routes/networking.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Update the standalone MCXboxBroadcast `config.yml` in the server's `.msc2-broadcast` directory before every managed start or restart. Preserve authentication and friend-sync settings while replacing the session name, world name, target host, and target port. Resolve the target from an explicit Xbox Broadcast override, Playit, DuckDNS/public host configuration, or detected public/private host according to the saved IP mode; use the Bedrock port or explicit broadcast-port override instead of the helper's Geyser demo defaults. Refuse to start when no target host can be determined, and surface the reason in the agent console or HTTP error response.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-infrastructure -p msc-agent`
+- **Batch:** AY — Xbox Broadcast target correction
+- **Commit:** `P15.61: target Xbox Broadcast at the selected server`
+
+### P15.62 — Normalize the Bedrock transport before startup
+
+- **Status:** DONE
+- **Files:** `crates/msc-application/src/bedrock_settings.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Before every MSC-managed Bedrock start, preserve the existing `server.properties` keys and ensure `transport=nethernet`. The update is idempotent, applies to imported and provisioned servers, and fails the start with a clear provisioning error if the file cannot be written. This addresses current Bedrock releases that reject the legacy transport and prevents the setting from being lost on future restarts.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-agent`
+- **Batch:** N — Bedrock transport startup repair
+- **Commit:** `P15.62: normalize Bedrock transport before startup`
+
+### P15.63 — Use RakNet for MSC player connection paths
+
+- **Status:** DONE
+- **Files:** `crates/msc-application/src/bedrock_settings.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Correct P15.62's transport choice. MSC's direct server address, Playit UDP tunnel, and Xbox Broadcast redirect all target the Bedrock server's advertised UDP endpoint, so startup must use `transport=raknet`. Migrate an existing `transport=nethernet` file on the next start while preserving every unrelated property; this removes the RakNet handshake failure shown by the iOS client.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-agent`
+- **Batch:** N — Bedrock transport startup repair
+- **Commit:** `P15.63: use RakNet for MSC player connection paths`
+
+### P15.64 — Restore NetherNet for current Bedrock clients
+
+- **Status:** DONE
+- **Files:** `crates/msc-application/src/bedrock_settings.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Correct P15.63 after live Bedrock 1.26.51 rejected the automatic `transport=raknet` value. MSC-managed startup now restores `transport=nethernet`, which is the transport the current Bedrock client requires for player connections. The broadcast helper's host and UDP port remain separate connection metadata; they do not change the Bedrock server transport setting.
+- **Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-agent`
+- **Batch:** N — Bedrock transport startup repair
+- **Commit:** `P15.64: restore NetherNet for current Bedrock clients`
+
+### P15.65 — Repair macOS Bedrock player connectivity
+
+- **Status:** DONE
+- **Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `crates/msc-infrastructure/src/port_diagnostics.rs`, `crates/msc-infrastructure/src/bedrock_sidecar.rs`, `crates/msc-application/src/bedrock_settings.rs`, `crates/msc-agent/src/routes/bedrock_runtime.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/network_diagnostics.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Correct the live Intel-macOS failure in which BDS answered at the VM address but the host listener accepted and stranded every player datagram. Restore MSC 1's explicit reusable `0.0.0.0` UDP bind, forward and report client/guest connection failures, expire idle flow pairs, and require a real RakNet ping through the host listener before the sidecar emits ready. Keep only this single-port VM path on `transport=raknet`; native Linux and Windows retain `transport=nethernet`. The P15.64 NetherNet conclusion was drawn while the relay itself was broken and could not distinguish a transport failure from a forwarding failure. Replace the Bedrock TCP connectivity check with a protocol-valid RakNet ping, and force-terminate a supervised sidecar when its Rust owner is dropped so stopped/replaced agents do not accumulate orphan helpers. Live acceptance must prove loopback, LAN, hotspot/public forwarding, Xbox Broadcast transfer, bounded relay sockets after repeated probes, and sidecar cleanup after an agent restart.
+- **Implementation note (2026-09-22):** The live diagnosis proved `192.168.64.64:19000` returned a Bedrock 1.26.51/protocol-2193 RakNet pong while both `127.0.0.1:19000` and `10.0.0.142:19000` timed out through the old relay. Xbox Broadcast build 155 was current, the public IP matched its target, and the macOS application firewall was disabled. Twelve detached, listener-free sidecars from earlier agent runs were terminated without touching the current agent, VM, server, or Broadcast helper.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-infrastructure -p msc-application -p msc-agent --lib --bins --no-deps -- -D warnings && xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-65-build build CODE_SIGNING_ALLOWED=NO`
+- **Batch:** N — Bedrock transport and relay repair
+- **Commit:** `P15.65: repair macOS Bedrock player connectivity`
+
+### P15.66 — Support the required NetherNet relay shape
+
+- **Status:** DONE
+- **Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `crates/msc-infrastructure/src/port_diagnostics.rs`, `crates/msc-application/src/bedrock_settings.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/network_diagnostics.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Correct P15.65 against the Bedrock 1.26.51 runtime evidence and its bundled transport documentation. Current BDS requires NetherNet: TCP on the configured server port carries its HTTP signaling handshake, while a separately advertised UDP range carries WebRTC gameplay. Replace the obsolete single-port RakNet assumption with a host-to-guest TCP relay on the configured port and 32 bounded UDP relays on adjacent ports. Write the matching `server-udp-ports` mapping with the detected public IP (or LAN fallback), validate readiness by receiving BDS's HTTP response through the host TCP relay, and make Bedrock connectivity diagnostics test the TCP signaling socket. The public router contract is now TCP `server-port` plus UDP `server-port+1` through `server-port+32`; the old UDP-only rule cannot carry NetherNet.
+- **Implementation note (2026-09-22):** A controlled live boot reproduced BDS 1.26.51's explicit error that NetherNet is the only supported transport and players cannot connect with RakNet. The replacement relay then completed a clean NetherNet boot, returned HTTP 404 from BDS through both `127.0.0.1:19000` and `10.0.0.142:19000`, and exposed the bounded host UDP range `19001-19032`. BDS rejects multiple IP prefixes in one `server-udp-ports` value, so MSC advertises the public address for forwarded and NAT-hairpin clients, falling back to the LAN address when public discovery is unavailable.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-infrastructure -p msc-application -p msc-agent --lib --bins --no-deps -- -D warnings && xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-66-build build CODE_SIGNING_ALLOWED=NO`
+- **Batch:** N — NetherNet sidecar transport correction
+- **Commit:** `P15.66: support NetherNet through the macOS sidecar`
+
+### P15.67 — Keep Xbox Broadcast visible with NetherNet
+
+- **Status:** DONE
+- **Files:** `crates/msc-infrastructure/src/xbox_broadcast.rs`, `crates/msc-agent/src/routes/networking.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Configure MCXboxBroadcast build 155 for the current NetherNet transport. Its server status query still sends a legacy RakNet ping, so make the configured server name, public address, and signaling port authoritative instead of allowing that expected query failure to suppress the Xbox session. Give Broadcast a stable 16-port UDP ICE range immediately after BDS's 32-port gameplay range so the router contract remains one contiguous UDP range. For server port `19001`, TCP `19001` carries BDS signaling, UDP `19002-19033` carries BDS gameplay, and UDP `19034-19049` carries the temporary Xbox friend-session join before transfer.
+- **Implementation note (2026-09-22):** Live build-155 output showed `Failed to ping server`, followed by successful Microsoft authentication and `NetherNet Broadcaster started`. Its generated config still had `query-server: true`, `config-fallback: false`, and an unrestricted `ice-port-range` of `0-0`. The configured destination itself was correct at `73.135.129.135:19001`; this step removes the incompatible ping as a visibility dependency and bounds the helper's ports.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-infrastructure -p msc-agent --lib --bins --no-deps -- -D warnings`
+- **Batch:** N — Xbox Broadcast NetherNet correction
+- **Commit:** `P15.67: keep Xbox Broadcast visible with NetherNet`
+
+### P15.68 — Wait for the NetherNet relay before forwarding
+
+- **Status:** DONE
+- **Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `sidecar/bedrock/BedrockSidecar.entitlements`, `docs/msc2/rolling-plan.md`
+- **What:** Correct the live macOS startup rollback reproduced on the owner machine. BDS reaches `Server started` and answers the HTTP signaling request directly at its VM address, but the host TCP relay accepts the connection and strands its first bytes because forwarding begins before the outbound guest connection is ready. Retain each accepted session and begin both TCP copy loops only after both endpoints report ready. This lets the existing end-to-end readiness probe pass instead of misclassifying a healthy BDS process as failed and tearing down its VM.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-infrastructure -p msc-application -p msc-agent --lib --bins --no-deps -- -D warnings && xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-68-build build CODE_SIGNING_ALLOWED=NO` — then rebuild/relaunch MSC, start Bedrock, and confirm it remains running after the startup operation completes; `curl -i --max-time 3 http://127.0.0.1:19001/` should return an HTTP response through the relay rather than time out.
+- **Batch:** N — Bedrock transport and relay repair
+- **Commit:** `P15.68: wait for the NetherNet relay before forwarding`
+
+### P15.69 — Diagnose macOS daemon relay routing
+
+- **Status:** DONE (verification failed; accepted as the recorded result) — the signed sidecar still receives `EHOSTUNREACH` from the user-owned LaunchDaemon context; the approved service boundary remains unchanged
+- **Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `docs/msc2/rolling-plan.md`
+- **What:** Separate the BDS, VM, relay, and macOS service-context failure modes with live checks. The guest reaches `Server started`, direct host-to-guest TCP returns BDS's HTTP 404, and the identical signed sidecar passes its relay proof when launched in the foreground. From MSC's user-owned system LaunchDaemon, however, both Network.framework and connected POSIX sockets (including explicit `IP_BOUND_IF` selection and explicit client/server entitlements) fail to reach the VZ NAT guest; the latter reports `EHOSTUNREACH`. Retain the 30-second readiness deadline and surface TCP relay failures in the Bedrock console so the real socket error is visible instead of only the generic startup modal. The failed live verification proves the remaining issue is the macOS process/service boundary, not BDS, the VM, NetherNet configuration, Xfinity forwarding, or relay readiness timing.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-infrastructure -p msc-application -p msc-agent --lib --bins --no-deps -- -D warnings && xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-69-build build CODE_SIGNING_ALLOWED=NO` — then rebuild/restart the installed agent, start Bedrock, and confirm the start operation succeeds and remains running; `curl -i --max-time 3 http://127.0.0.1:19001/` must return BDS's HTTP response through the daemon-owned relay.
+- **Batch:** N — Bedrock transport and relay repair
+- **Commit:** `P15.69: diagnose macOS daemon relay routing`
+
+### Owner-approved macOS Bedrock recovery boundary — 2026-09-23
+
+P15.69 isolated the remaining startup failure to the installed process context:
+the same signed sidecar and relay code reaches the VZ NAT guest from Cameron's
+foreground login session, while a sidecar descended from MSC's user-owned
+system LaunchDaemon receives `EHOSTUNREACH`. Cameron approved the recommended
+service split:
+
+- keep `com.ctemple.msc2.agent` running as the installing user;
+- install a separate root-owned macOS LaunchDaemon, without a `UserName` key,
+  that owns only the Virtualization.framework VM and Bedrock host relays;
+- preserve the narrow sidecar command/event protocol over a local Unix-domain
+  socket rather than exposing another management API or network listener;
+- authenticate the connecting peer as the configured installing UID, constrain
+  shared directories to approved MSC-managed Bedrock roots after resolving
+  symlinks, and keep the root executable, plist, and runtime resources
+  non-writable by that user;
+- perform helper installation, upgrade, configuration, and removal only inside
+  MSC's existing administrator-authorized service workflow; routine Bedrock
+  start, stop, and status operations must not prompt;
+- retain headless-before-login operation, deterministic teardown, and the
+  installing user's ownership of server/world files.
+
+The helper is not a second server manager. The Rust agent remains authoritative
+for server state and supervision. An inconsistent or unavailable installed
+helper must produce a specific diagnostic; an installed production agent must
+not silently fall back to launching the VZ sidecar in its known-broken service
+context. Direct child-process launch remains only an explicit development path.
+
+### P15.70 — Record the privileged Bedrock helper contract
+
+- **Status:** DONE
+- **Files:** `docs/msc2/msc2-decisions.md`, `docs/msc2/msc2-engineering.md`, `docs/msc2/substrate/service-identity.md`, `docs/msc2/bedrock/macos-privileged-helper.md`, `docs/msc2/rolling-plan.md`
+- **What:** Amend D-007 and D-025 with Cameron's approved exception to the normal user-owned service boundary. Specify the two-process ownership model, administrator-authorized install/update/uninstall, Unix-socket peer authentication, approved-root and symlink rules, immutable privileged artifacts, one-session/one-VM supervision, file-ownership guarantees, production failure behavior, and the direct-launch development exception. Record the threat model in plain language so later implementation cannot turn the helper into an unrestricted root command runner or a second public management API.
+- **Verify:** `rg -n "privileged Bedrock helper|Unix-domain socket|peer UID|approved.*root|symlink|headless|direct.*development" docs/msc2/msc2-decisions.md docs/msc2/msc2-engineering.md docs/msc2/substrate/service-identity.md docs/msc2/bedrock/macos-privileged-helper.md`
+- **Batch:** N1 — privileged helper contract
+- **Commit:** `P15.70: record privileged Bedrock helper contract`
+
+### P15.71 — Add the constrained Bedrock helper service mode
+
+- **Status:** DONE
+- **Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `sidecar/bedrock/BedrockSidecarMain.swift`, sidecar project and entitlement files, `docs/msc2/rolling-plan.md`
+- **What:** Give the signed Swift sidecar an explicit privileged service mode that listens only on a local Unix-domain socket and reuses the existing newline-delimited command/event protocol. Resolve and verify the peer UID with the macOS socket credential API, reject every UID except the configured installing user, bound request size, reject unknown commands, canonicalize shared paths before enforcing the approved Bedrock roots, and allow only one supervised VM session at a time. A client disconnect, helper termination, or failed provision must tear down the VM and relays deterministically. Preserve the existing foreground command mode for development diagnostics only.
+- **Verify:** `xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-71-build build CODE_SIGNING_ALLOWED=NO`
+- **Batch:** N2 — privileged helper IPC
+- **Commit:** `P15.71: add constrained Bedrock helper service mode`
+
+### P15.72 — Connect the agent to the privileged helper
+
+- **Status:** DONE
+- **Files:** `Cargo.lock`, `crates/msc-infrastructure/Cargo.toml`, `crates/msc-infrastructure/src/bedrock_sidecar.rs`, `crates/msc-application/src/bedrock_macos.rs`, `crates/msc-application/src/bedrock_runtime.rs`, `crates/msc-agent/src/routes/bedrock_runtime.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Separate the sidecar protocol from its transport so an installed macOS agent connects to the privileged helper socket while development builds may explicitly use the existing child process. Preserve command ordering, readiness, console events, stop semantics, and operation reporting. Detect a missing socket, wrong owner/mode, rejected peer, disconnected helper, or incompatible protocol as a specific Bedrock runtime failure. Never silently fall back to direct launch from an installed service, and never let an agent restart leave an orphan VM or sidecar session.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-infrastructure -p msc-application -p msc-agent --lib --bins --no-deps -- -D warnings`
+- **Batch:** N2 — privileged helper IPC
+- **Commit:** `P15.72: connect agent to privileged Bedrock helper`
+
+### P15.73 — Install and maintain the privileged helper safely
+
+- **Status:** DONE
+- **Files:** `crates/msc-platform-macos/src/service.rs`, `clients/desktop-web/src-tauri/Cargo.lock`, desktop service-install bridge and DTOs, macOS packaging/release files, helper LaunchDaemon plist/template, `docs/msc2/rolling-plan.md`
+- **What:** Extend the existing administrator-authorized macOS service transaction to install, upgrade, bootstrap, inspect, and uninstall the Bedrock helper beside the normal agent. The helper plist runs as root without `UserName`; its executable, plist, appliance, and support resources are root-owned and not writable by the installing user. Create a root-owned runtime directory and a socket owned only by the configured user, roll back both services coherently on a partial install, and preserve headless operation before login. Do not use a mutable developer build or staging path as the production helper executable.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-platform-macos --lib --no-deps -- -D warnings && npm --prefix clients/desktop-web run check`
+- **Batch:** N3 — privileged helper installation
+- **Commit:** `P15.73: install privileged Bedrock helper safely`
+
+### P15.74 — Preserve Bedrock ownership and lifecycle guarantees
+
+- **Status:** DONE
+- **Files:** macOS Bedrock helper and appliance configuration, `packaging/macos/com.ctemple.msc2.bedrock-helper.plist.in`, `crates/msc-platform-macos/src/service.rs`, `clients/desktop-web/src-tauri/src/lib.rs`, `clients/desktop-web/tools/prepare-agent-dev.mjs`, `crates/msc-infrastructure/src/bedrock_sidecar.rs`, `crates/msc-application/src/bedrock_macos.rs`, `crates/msc-application/src/bedrock_runtime.rs`, `crates/msc-agent/src/routes/bedrock_runtime.rs`, `crates/msc-api/src/dto/capabilities.rs`, `docs/msc2/api-contract/openapi.json`, `clients/desktop-web/src/lib/api/generated.ts`, `sidecar/bedrock/BedrockSidecarCore.swift`, `sidecar/bedrock/BedrockSidecarMain.swift`, `sidecar/bedrock/Resources/init`, `sidecar/bedrock/Resources/appliance-initramfs.gz`, `sidecar/bedrock/Resources/README.md`, `tools/phase12/bedrock-package-check.py`, `tools/phase15/rebuild_bedrock_appliance.sh`, `docs/msc2/rolling-plan.md`
+- **What:** Pass the configured installing UID and GID through the privileged boundary wherever the VM/shared-folder path needs them, and prove that server configuration, worlds, logs, and backups remain owned by the installing user after root-helper operation. Reject path escapes and unregistered external roots before VM creation. Reconcile stale sockets and helper sessions after agent/helper crashes, terminate orphaned VMs and relays, and surface helper identity, protocol, ownership, and last teardown reason in local diagnostics without exposing privileged mutation controls.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-infrastructure -p msc-application -p msc-agent --lib --bins --no-deps -- -D warnings && xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-74-build build CODE_SIGNING_ALLOWED=NO`
+- **Batch:** N4 — privileged helper hardening
+- **Commit:** `P15.74: preserve privileged Bedrock lifecycle guarantees`
+
+### P15.75 — Prove the installed helper fixes relay startup
+
+- **Status:** DONE
+- **Files:** `tools/phase15/` macOS helper inspector, `sidecar/bedrock/BedrockSidecarMain.swift`, `clients/desktop-web/src-tauri/src/lib.rs`, Bedrock diagnostics/status surfaces if live evidence exposes a reporting gap, macOS Bedrock helper acceptance notes, `docs/msc2/rolling-plan.md`
+- **What:** Add a non-destructive live inspector for the installed pair and use it on the owner Intel Mac. It must prove that the main agent runs as Cameron, the helper runs as root with no plist `UserName`, privileged artifacts and the control socket have the promised ownership/modes, the helper accepts only the configured peer, BDS reaches `Server started`, the start operation completes without rollback, CPU/RAM do not fall to zero, TCP `19001` returns BDS's HTTP response through the host relay, UDP `19002-19033` is bound, and agent/helper restarts leave no orphan VM or sidecar. Fix only evidence-backed lifecycle or diagnostic gaps found by this check; do not change router or Xbox settings in this step.
+- **Verify:** `python3 tools/phase15/inspect_macos_bedrock_helper.py --live --server-port 19001`
+- **Batch:** N5 — installed helper acceptance
+- **Commit:** `P15.75: prove privileged Bedrock relay startup`
+
+### P15.76 — Advertise explicit NetherNet UDP mappings
+
+- **Status:** DONE
+- **Files:** `crates/msc-application/src/bedrock_settings.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, Bedrock runtime/network diagnostics, macOS Bedrock acceptance notes, `docs/msc2/rolling-plan.md`
+- **What:** After P15.75 proves the server stays running, replace range shorthand in `server-udp-ports` with individually enumerated public-to-private mappings for BDS's bounded 32-port gameplay range. Preserve TCP `19001`, BDS UDP `19002-19033`, and Xbox Broadcast UDP `19034-19049`; validate that configured mappings exactly match the relay/listener contract and give a clear error when public-address discovery or the property shape is invalid. This is a current BDS 1.26.51 compatibility correction supported by the owner-supplied live report, not a claim that port forwarding caused the P15.69 startup teardown.
+- **Implementation note (2026-09-23):** `ensure_sidecar_nethernet_transport` now requires one valid public-or-LAN advertised IP and writes 32 individual `address:external:internal` entries, then validates the persisted property against the sidecar's adjacent UDP relay range. Empty, multiple, unspecified, malformed, or shape-mismatched mappings fail with a specific provisioning error. The sidecar remains on the TCP signaling port plus BDS UDP `server-port+1..server-port+32`; Xbox Broadcast remains outside this property on its separate next-16-port ICE range.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-application -p msc-agent --lib --bins --no-deps -- -D warnings`
+- **Batch:** N6 — NetherNet mapping compatibility
+- **Commit:** `P15.76: enumerate NetherNet UDP mappings`
+
+### P15.77 — Complete Bedrock and Xbox Broadcast acceptance
+
+- **Status:** DONE
+- **Files:** `tools/phase15/inspect_macos_bedrock_helper.py`, `docs/msc2/bedrock/macos-privileged-helper-acceptance.md`, `docs/msc2/rolling-plan.md`
+- **What:** Run the final connection chain only after the installed helper and explicit mappings hold. Record separate results for iPad direct LAN connection to `10.0.0.142:19001`, iPad direct remote connection to the public address over cellular or a true off-LAN network, Xbox Broadcast discovery and transfer on the home LAN, reconnects without restarting BDS, and two simultaneous clients when available. Correlate each attempt with the BDS, helper, relay, and Broadcast logs so an intermittent NetherNet establishment failure is distinguished from discovery, forwarding, or server death. Any remaining failure must name the first boundary that lacks traffic instead of returning the old generic startup diagnosis.
+- **Verify:** `python3 tools/phase15/inspect_macos_bedrock_helper.py --live --server-port 19001 --connection-report`
+- **Batch:** N7 — Bedrock product acceptance
+- **Commit:** `P15.77: complete bedrock connection acceptance`
+
+### P15.78 — Fit NetherNet mappings within the BDS limit
+
+- **Status:** DONE
+- **Files:** `crates/msc-application/src/bedrock_settings.rs`, `sidecar/bedrock/BedrockSidecarCore.swift`, `tools/phase15/inspect_macos_bedrock_helper.py`, `docs/msc2/bedrock/macos-privileged-helper-acceptance.md`, `docs/msc2/rolling-plan.md`
+- **What:** Correct the live P15.77 blocker. BDS 1.26.51 reports `server-udp-ports: too many port mappings (max 16)` when MSC advertises 32 individual mappings. Generate and validate exactly 16 BDS gameplay mappings immediately after TCP `19001` (`19002–19017`), bind the same 16 Swift UDP relays, and inspect the same 16 listeners. Keep Xbox Broadcast's separate ICE range `19034–19049` unchanged. Rebuild the sidecar and agent, reinstall the administrator-authorized macOS services, restart Bedrock, confirm the BDS log has no mapping-limit error, and rerun the installed-pair report before resuming remote iPad and Xbox acceptance.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-application --lib --bins --no-deps -- -D warnings && xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-78-build build CODE_SIGNING_ALLOWED=NO && python3 -m py_compile tools/phase15/inspect_macos_bedrock_helper.py`
+- **Batch:** N8 — NetherNet mapping limit correction
+- **Commit:** `P15.78: fit NetherNet mappings within the BDS limit`
+
+### P15.79 — Try the RakNet compatibility path on macOS
+
+- **Status:** DONE
+- **Files:** `crates/msc-application/src/bedrock_settings.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `sidecar/bedrock/BedrockSidecarCore.swift`, `tools/phase15/inspect_macos_bedrock_helper.py`, `docs/msc2/rolling-plan.md`
+- **What:** Respond to the captured BDS 1.26.51.1 remote TLS failure with a reversible compatibility experiment. For the Intel-macOS VM backend only, select RakNet, remove `server-udp-ports` and `server-ip`, replace NetherNet's TCP-plus-range host relays with one UDP relay on the configured gameplay port, and require a valid RakNet pong before reporting ready. Native Linux and Windows keep NetherNet. Verify direct LAN and cellular iPad joins before deciding whether this fallback is a supported correction or must be reverted.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-application -p msc-agent --lib --bins --no-deps -- -D warnings && xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-79-build build CODE_SIGNING_ALLOWED=NO && python3 -m py_compile tools/phase15/inspect_macos_bedrock_helper.py`
+- **Batch:** N9 — RakNet compatibility experiment
+- **Commit:** `P15.79: try RakNet compatibility on macOS`
+
+### P15.80 — Record the Bedrock transport incident
+
+- **Status:** DONE
+- **Files:** `docs/msc2/bedrock/troubleshooting-bedrock.md`, `docs/msc2/rolling-plan.md`
+- **What:** Preserve the complete BDS 1.26.51.1 investigation as a durable operator reference: the relay and privileged-helper failures that preceded the transport diagnosis, the exact NetherNet HTTP/TLS and packet-capture evidence, the rejected mapping shapes, the working RakNet and router contract, successful LAN/cellular/Xbox Broadcast acceptance, ruled-out causes, and a reversible checklist for retesting NetherNet after a Mojang update.
+- **Verify:** `rg -n "Final result|Current working network contract|1503 0100 0202 28|P15.62-P15.65|P15.66-P15.68|P15.69-P15.75|P15.76-P15.78|P15.79|Retesting NetherNet|UDP 19001" docs/msc2/bedrock/troubleshooting-bedrock.md`
+- **Batch:** N10 — Bedrock incident record
+- **Commit:** `P15.80: document Bedrock transport troubleshooting`
+
+### P15.81 — Let each Bedrock server choose its transport
+
+- **Status:** DONE
+- **Files:** `crates/msc-domain/src/app_config_schema.rs`, `crates/msc-domain/src/time.rs`, `crates/msc-api/src/dto/lifecycle.rs`, `crates/msc-agent/src/main.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-application/src/bedrock_runtime.rs`, `crates/msc-application/src/bedrock_service.rs`, `sidecar/bedrock/BedrockSidecarCore.swift`, `docs/msc2/api-contract/openapi.json`, `clients/desktop-web/src/lib/api/generated.ts`, `clients/desktop-web/src/lib/sections/server-editor/GeneralTab.svelte`, `clients/desktop-web/src/lib/sections/server-editor/model.ts`, `docs/msc2/bedrock/troubleshooting-bedrock.md`, `docs/msc2/rolling-plan.md`
+- **What:** Add a per-server Automatic / NetherNet / RakNet selector to the existing Bedrock General settings using MSC's neutral segmented-control primitive. Persist the choice in agent-owned configuration and expose it through the server API. Automatic resolves to the verified RakNet compatibility path on the Intel-macOS VM and to NetherNet on native Linux and Windows. Explicit choices are respected on all three operating systems. On macOS the choice also selects either the same-port UDP RakNet relay or the TCP-signaling plus sixteen-port UDP NetherNet relay shape; native hosts continue to expose BDS directly. A saved manual RakNet choice must not be overwritten back to NetherNet on the next managed start. Collapse the behavior-equivalent Bedrock day-response parse guard that the current Rust toolchain flags during required Clippy verification, as explicitly authorized by Cameron.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-domain -p msc-api -p msc-application -p msc-agent --lib --bins --no-deps -- -D warnings && npm --prefix clients/desktop-web run api:check && npm --prefix clients/desktop-web run check && xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-81-build build CODE_SIGNING_ALLOWED=NO`
+- **Batch:** N11 — cross-platform Bedrock transport choice
+- **Commit:** `P15.81: add per-server Bedrock transport choice`

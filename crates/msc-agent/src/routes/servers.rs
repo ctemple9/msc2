@@ -13,7 +13,8 @@ use axum::extract::{Extension, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use msc_api::dto::{
-    ErrorDto, PermissionCategoryDto, ServerCreateRequestDto, ServerCreateResultDto,
+    ErrorDto, PermissionCategoryDto, ServerBedrockTransportRequestDto,
+    ServerBedrockTransportResultDto, ServerCreateRequestDto, ServerCreateResultDto,
     ServerCreateWorldSettingsDto, ServerDeleteRequestDto, ServerDeleteResultDto,
     ServerDirectoryRequestDto, ServerDirectoryResultDto, ServerDirectorySizeResponseDto, ServerDto,
     ServerEulaRequestDto, ServerEulaResultDto, ServerImportRequestDto, ServerImportResultDto,
@@ -38,7 +39,7 @@ use msc_application::transfer::{
     TransferInspection, apply_transfer_import, export_server_transfer, inspect_transfer_package,
 };
 use msc_application::world_safety::{self, SafetyConfirmation};
-use msc_domain::app_config_schema::{AppConfig, ConfigServer};
+use msc_domain::app_config_schema::{AppConfig, BedrockTransportMode, ConfigServer};
 use msc_domain::identity::{JavaServerFlavor, ServerProvisioningKind, ServerType};
 use msc_domain::operation::OperationId;
 use msc_domain::world_profile::{WorldGameplay, WorldGeneration, WorldIdentity, WorldProfile};
@@ -80,6 +81,7 @@ pub async fn list(State(state): State<LifecycleRoutesState>) -> Json<Vec<ServerD
                 java_flavor: server.java_flavor,
                 game_port: server.game_port,
                 bedrock_port: server.bedrock_port,
+                bedrock_transport: server.bedrock_transport,
                 first_start_required: Some(server.first_start_required),
                 playit_enabled: Some(server.playit_enabled),
                 xbox_broadcast_enabled: Some(server.xbox_broadcast_enabled),
@@ -122,6 +124,59 @@ pub async fn update_notes(
             StatusCode::NOT_FOUND,
             "server_not_found",
             "Server not found.",
+        ),
+        Err(TryMutateError::Save(error)) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal_error",
+            &error.to_string(),
+        ),
+    }
+}
+
+pub async fn update_bedrock_transport(
+    State(state): State<LifecycleRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    body: Result<Json<ServerBedrockTransportRequestDto>, JsonRejection>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Fleet) {
+        return response;
+    }
+    let Json(body) = match body {
+        Ok(body) => body,
+        Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
+    };
+    let server_id = body.server_id.trim();
+    if server_id.is_empty() {
+        return invalid_body("missing_server_id", "serverId is required.");
+    }
+    let Some(transport) = BedrockTransportMode::from_raw_value(&body.transport) else {
+        return invalid_body(
+            "invalid_bedrock_transport",
+            "transport must be automatic, nethernet, or raknet.",
+        );
+    };
+
+    match state.update_bedrock_transport(server_id, transport) {
+        Ok(()) => Json(ServerBedrockTransportResultDto {
+            success: true,
+            message: "Bedrock transport saved. Restart the server to apply.".to_owned(),
+            server_id: server_id.to_owned(),
+            transport: transport.raw_value().to_owned(),
+            restart_required: true,
+        })
+        .into_response(),
+        Err(TryMutateError::Domain(
+            crate::routes::lifecycle::UpdateBedrockTransportError::ServerNotFound,
+        )) => error_response(
+            StatusCode::NOT_FOUND,
+            "server_not_found",
+            "Server not found.",
+        ),
+        Err(TryMutateError::Domain(
+            crate::routes::lifecycle::UpdateBedrockTransportError::NotBedrock,
+        )) => invalid_body(
+            "not_bedrock_server",
+            "Transport can only be selected for Bedrock servers.",
         ),
         Err(TryMutateError::Save(error)) => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,

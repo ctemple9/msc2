@@ -143,10 +143,10 @@ fn split_bedrock_time_response<'a>(line: &'a str, prefix: &str) -> Option<&'a st
 /// modern Paper's timeline response reports the absolute day timeline in
 /// ticks.
 pub fn parse_day_query_response(line: &str) -> Option<i64> {
-    if let Some(tail) = split_bedrock_day_response(line) {
-        if let Some(value) = parse_integer_prefix(tail) {
-            return Some(value);
-        }
+    if let Some(tail) = split_bedrock_day_response(line)
+        && let Some(value) = parse_integer_prefix(tail)
+    {
+        return Some(value);
     }
     let value = parse_time_query_response(line)?;
     if line.contains("Timeline minecraft:day is at ") {

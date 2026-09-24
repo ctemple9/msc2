@@ -424,6 +424,7 @@ impl<'deps, 'fs, R: BedrockRuntime> BedrockService<'deps, 'fs, R> {
             self.runtime.start(BedrockStartRequest {
                 memory_gb: self.server.memory_gb,
                 bedrock_port: self.server.bedrock_port,
+                transport: crate::bedrock_runtime::BedrockConnectionTransport::Nethernet,
             })
         }) {
             self.fail_active_operation("bedrock_start_failed", error.to_string());

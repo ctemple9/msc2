@@ -27,11 +27,14 @@
   import Button from '../../components/base/Button.svelte';
   import Field from '../../components/base/Field.svelte';
   import NumberField from '../../components/base/NumberField.svelte';
+  import SegmentedControl from '../../components/base/SegmentedControl.svelte';
   import StatusDot from '../../components/base/StatusDot.svelte';
   import type { Schema, ScreenApi } from '../shared/types';
   import { bytesLabel, call, errorMessage, mutate } from '../shared/types';
   import { getPlatform } from '../../platform';
   import { serverEditorPaths } from './model';
+
+  type BedrockTransport = 'automatic' | 'nethernet' | 'raknet';
 
   export let api: ScreenApi | undefined = undefined;
   export let server: Schema['ServerDTO'];
@@ -61,6 +64,8 @@
   let bedrockPortDraft = server.bedrockPort === undefined ? '' : String(server.bedrockPort);
   let portSaving = false;
   let portSaveTimer: ReturnType<typeof setTimeout> | undefined;
+  let transportDraft: BedrockTransport = server.bedrockTransport ?? 'automatic';
+  let transportSaving = false;
 
   let eulaAccepted: boolean | undefined;
   let eulaBusy = false;
@@ -278,6 +283,29 @@
     }
   }
 
+  async function saveTransport(value: string): Promise<void> {
+    if (!canControl || transportSaving || server.serverType !== 'bedrock') return;
+    if (value !== 'automatic' && value !== 'nethernet' && value !== 'raknet') return;
+    const previous = transportDraft;
+    transportDraft = value;
+    transportSaving = true;
+    try {
+      const result = await mutate<Schema['ServerBedrockTransportResultDTO']>(
+        api,
+        serverEditorPaths.bedrockTransport,
+        { serverId: server.id, transport: value },
+      );
+      transportDraft = result.transport;
+      notice = result.message;
+      await onPortsChanged();
+    } catch (error) {
+      transportDraft = previous;
+      notice = errorMessage(error);
+    } finally {
+      transportSaving = false;
+    }
+  }
+
   onDestroy(() => {
     if (ramSaveTimer) clearTimeout(ramSaveTimer);
     if (portSaveTimer) clearTimeout(portSaveTimer);
@@ -459,6 +487,37 @@
     {/if}
   </section>
 
+  {#if !isJava}
+    <section class="zone">
+      <p class="msc2-type-overline">Connection Transport</p>
+      <Card padding="0">
+        <div class="transport-row">
+          <div class="transport-copy">
+            <span class="name">Bedrock Network Protocol</span>
+            <span class="hint">
+              Automatic uses MSC's verified default for this operating system. Choose a specific
+              transport only when diagnosing client connection failures.
+            </span>
+          </div>
+          <SegmentedControl
+            options={[
+              { value: 'automatic', label: 'Automatic' },
+              { value: 'nethernet', label: 'NetherNet' },
+              { value: 'raknet', label: 'RakNet' },
+            ]}
+            value={transportDraft}
+            onchange={saveTransport}
+          />
+        </div>
+      </Card>
+      <p class="hint">
+        Requires a restart. NetherNet uses TCP signaling plus a UDP range; RakNet uses one UDP port.
+        Update router forwarding when changing modes.
+      </p>
+      {#if transportSaving}<p class="hint memory-status">Saving…</p>{/if}
+    </section>
+  {/if}
+
   <section class="zone">
     <p class="msc2-type-overline">Storage</p>
     <Card padding="0">
@@ -602,6 +661,19 @@
     font-size: 12px;
     font-family: var(--msc2-font-mono, monospace);
     color: var(--msc2-text-secondary);
+  }
+  .transport-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 13px 14px;
+  }
+  .transport-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-width: 330px;
   }
   .hint {
     margin: 0;

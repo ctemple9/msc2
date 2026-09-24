@@ -453,6 +453,33 @@ impl PluginSourceConfig {
 
 // MARK: - ConfigServer
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum BedrockTransportMode {
+    #[default]
+    Automatic,
+    Nethernet,
+    Raknet,
+}
+
+impl BedrockTransportMode {
+    pub fn raw_value(self) -> &'static str {
+        match self {
+            Self::Automatic => "automatic",
+            Self::Nethernet => "nethernet",
+            Self::Raknet => "raknet",
+        }
+    }
+
+    pub fn from_raw_value(value: &str) -> Option<Self> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "automatic" => Some(Self::Automatic),
+            "nethernet" => Some(Self::Nethernet),
+            "raknet" => Some(Self::Raknet),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ConfigServer {
     pub id: String,
@@ -467,6 +494,7 @@ pub struct ConfigServer {
 
     pub bedrock_port: Option<i64>,
     pub bedrock_enabled: bool,
+    pub bedrock_transport: BedrockTransportMode,
     pub public_host_override: Option<String>,
     pub notes: String,
     pub banner_color_hex: Option<String>,
@@ -544,6 +572,7 @@ impl ConfigServer {
 
             bedrock_port: None,
             bedrock_enabled: false,
+            bedrock_transport: BedrockTransportMode::Automatic,
             public_host_override: None,
             notes: String::new(),
             banner_color_hex: None,
@@ -617,6 +646,12 @@ impl ConfigServer {
 
         let bedrock_port = opt_i64_no_default(v, "bedrock_port")?;
         let bedrock_enabled = opt_bool(v, "bedrock_enabled", false)?;
+        let bedrock_transport = match present(v, "bedrock_transport") {
+            None => BedrockTransportMode::Automatic,
+            Some(Value::String(value)) => BedrockTransportMode::from_raw_value(value)
+                .ok_or_else(|| err(format!("unknown bedrock_transport \"{value}\"")))?,
+            Some(_) => return Err(err("field \"bedrock_transport\" is not a string")),
+        };
         let public_host_override = opt_str(v, "public_host_override")?;
         let notes = opt_str(v, "notes")?.unwrap_or_default();
         let banner_color_hex = opt_str(v, "banner_color_hex")?;
@@ -724,6 +759,7 @@ impl ConfigServer {
             max_ram_gb,
             bedrock_port,
             bedrock_enabled,
+            bedrock_transport,
             public_host_override,
             notes,
             banner_color_hex,
@@ -778,6 +814,11 @@ impl ConfigServer {
         insert_opt_i64(&mut m, "bedrock_port", self.bedrock_port);
         insert_opt_str(&mut m, "bedrock_version", &self.bedrock_version);
         m.insert("bedrock_enabled".into(), Value::Bool(self.bedrock_enabled));
+        insert_str(
+            &mut m,
+            "bedrock_transport",
+            self.bedrock_transport.raw_value(),
+        );
         insert_opt_str(&mut m, "public_host_override", &self.public_host_override);
         insert_str(&mut m, "notes", &self.notes);
         insert_opt_str(&mut m, "banner_color_hex", &self.banner_color_hex);

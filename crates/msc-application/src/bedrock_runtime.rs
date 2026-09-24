@@ -375,9 +375,25 @@ pub struct BedrockProvisionRequest {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BedrockConnectionTransport {
+    Nethernet,
+    Raknet,
+}
+
+impl BedrockConnectionTransport {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Nethernet => "nethernet",
+            Self::Raknet => "raknet",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BedrockStartRequest {
     pub memory_gb: u32,
     pub bedrock_port: u16,
+    pub transport: BedrockConnectionTransport,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -551,6 +567,7 @@ pub enum SidecarFrame {
     Start {
         memory_gb: u32,
         bedrock_port: u16,
+        transport: String,
     },
     Started {
         accepted: bool,
@@ -788,6 +805,7 @@ impl<T: SidecarTransport> BedrockRuntime for SidecarRuntime<T> {
         self.send(SidecarFrame::Start {
             memory_gb: request.memory_gb,
             bedrock_port: request.bedrock_port,
+            transport: request.transport.as_str().to_owned(),
         })?;
         match self.receive_response()? {
             SidecarFrame::Started { accepted, reason } => {

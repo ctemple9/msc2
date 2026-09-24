@@ -271,6 +271,10 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
         .route("/servers", get(routes::servers::list))
         .route("/servers/notes", post(routes::servers::update_notes))
         .route(
+            "/servers/bedrock-transport",
+            post(routes::servers::update_bedrock_transport),
+        )
+        .route(
             "/servers/xbox-broadcast",
             post(routes::servers::update_xbox_broadcast),
         )

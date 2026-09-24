@@ -85,6 +85,29 @@ NetherNet experiment and can be removed once no rollback test is pending.
 The public address is historical evidence, not a permanent hostname. Confirm
 the current public IP before using it in a future test.
 
+## MSC transport setting
+
+Each Bedrock server now owns a transport choice in **Edit Server → General →
+Connection Transport**:
+
+- **Automatic** uses MSC's verified platform default. On the Intel-macOS VM it
+  currently resolves to RakNet; on native Linux and Windows it resolves to
+  NetherNet.
+- **NetherNet** explicitly writes `transport=nethernet`. The macOS helper builds
+  the TCP signaling relay and sixteen adjacent UDP gameplay relays; native
+  Linux and Windows expose BDS directly.
+- **RakNet** explicitly writes `transport=raknet`, removes `server-ip` and
+  `server-udp-ports`, and uses the configured server port over UDP. The macOS
+  helper builds one same-port UDP relay; native Linux and Windows expose that
+  UDP port directly.
+
+The selection is stored in MSC's per-server configuration rather than inferred
+from `server.properties`, so it survives managed restarts and MSC does not
+overwrite an explicit Linux or Windows RakNet workaround back to NetherNet.
+Changing the selection requires a server restart and may require changing the
+router rule: NetherNet uses TCP signaling plus a UDP range, while RakNet uses
+one UDP port.
+
 ## What the client errors meant
 
 The iPad reported `InitialConnection-13`, `Transport: NetherNet:2193`, and the
@@ -289,6 +312,10 @@ builds.
 8. Capture the first missing boundary. Do not describe a generic connection
    error as a port-forwarding failure without packet evidence.
 9. If any required path fails, restore RakNet and UDP `19001` from the backup.
+
+Use the server's Connection Transport setting for steps 5 and 9. Do not edit
+`server.properties` by hand unless diagnosing a build that cannot start far
+enough for MSC to apply the saved choice.
 
 ## Useful commands
 

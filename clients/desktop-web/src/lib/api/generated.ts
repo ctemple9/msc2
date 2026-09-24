@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: b30e840384e859a6ba00c6ef90983ac4550c3b29733af448b1b10e786ac28a62
+// Contract SHA-256: 0fa313114d48e4d7426a13ff9e0a913bfec3f083c4050e6b620da9905eea0a51
 
 export interface paths {
   '/v1/active-server': {
@@ -4304,6 +4304,73 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/servers/bedrock-transport': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Select the managed connection transport for one Bedrock server */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['ServerBedrockTransportRequestDTO'];
+        };
+      };
+      responses: {
+        /** @description Bedrock transport saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ServerBedrockTransportResultDTO'];
+          };
+        };
+        /** @description invalid_json / missing_server_id / invalid_bedrock_transport / not_bedrock_server */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description server_not_found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/servers/create': {
     parameters: {
       query?: never;
@@ -6523,18 +6590,22 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
-    /** @description Phase 10 runtime disclosure shared by existing v1 DTOs. It describes the current Bedrock backend state, not the separate published compatibility matrix. */
+    BedrockRuntimeDiagnosticsDTO: {
+      identity: string;
+      lastTeardownReason?: string | null;
+      ownerGid: number;
+      ownerUid: number;
+      pathOwnership: string;
+      protocol: string;
+    } & {
+      [key: string]: unknown;
+    };
+    /** @description Phase 10 runtime disclosure shared by existing v1 DTOs. It describes the current Bedrock backend state, not the separate published compatibility matrix. Phase 15.74 adds local helper diagnostics without exposing privileged mutation controls. */
     BedrockRuntimeStateDTO: {
       /** @enum {string|null} */
       backend?: 'native' | 'vz-sidecar' | null;
-      diagnostics?: {
-        identity: string;
-        protocol: string;
-        ownerUid: number;
-        ownerGid: number;
-        pathOwnership: string;
-        lastTeardownReason?: string | null;
-      };
+      /** @description Optional local helper identity, protocol, ownership, and teardown diagnostics. */
+      diagnostics?: components['schemas']['BedrockRuntimeDiagnosticsDTO'];
       /** @description Optional educational topic for the runtime reason. */
       helpId?: string | null;
       /** @enum {string|null} */
@@ -6604,7 +6675,6 @@ export interface components {
       downloading: boolean;
       filename?: string;
       installed: boolean;
-      version?: string;
     } & {
       [key: string]: unknown;
     };
@@ -7978,6 +8048,23 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    ServerBedrockTransportRequestDTO: {
+      serverId: string;
+      /** @enum {string} */
+      transport: 'automatic' | 'nethernet' | 'raknet';
+    } & {
+      [key: string]: unknown;
+    };
+    ServerBedrockTransportResultDTO: {
+      message: string;
+      restartRequired: boolean;
+      serverId: string;
+      success: boolean;
+      /** @enum {string} */
+      transport: 'automatic' | 'nethernet' | 'raknet';
+    } & {
+      [key: string]: unknown;
+    };
     ServerCreateRequestDTO: {
       acceptEula?: boolean;
       /** @description Requested BDS release for serverType=bedrock. The agent resolves and verifies the platform-appropriate distribution entry. */
@@ -8070,6 +8157,11 @@ export interface components {
     ServerDTO: {
       /** @description Configured Java cross-play Bedrock port, when present. */
       bedrockPort?: number;
+      /**
+       * @description Per-server transport selection for Bedrock servers. Automatic resolves by runtime platform.
+       * @enum {string}
+       */
+      bedrockTransport?: 'automatic' | 'nethernet' | 'raknet';
       directory: string;
       /** @description True when the next server start must run the two-pass first-start initiation flow. */
       firstStartRequired?: boolean;

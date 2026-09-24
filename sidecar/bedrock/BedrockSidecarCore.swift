@@ -48,7 +48,7 @@ private enum SidecarProtocolError: LocalizedError {
 
 enum SidecarRequest: Decodable, Equatable {
     case provision(serverDir: String, version: String)
-    case start(memoryGB: UInt32, bedrockPort: UInt16)
+    case start(memoryGB: UInt32, bedrockPort: UInt16, transport: String)
     case stop
     case forceStop
     case command(String)
@@ -83,10 +83,11 @@ enum SidecarRequest: Decodable, Equatable {
                 serverDir: try require("server_dir", as: String.self),
                 version: try require("version", as: String.self))
         case "start":
-            try rejectUnexpected(["type", "memory_gb", "bedrock_port"])
+            try rejectUnexpected(["type", "memory_gb", "bedrock_port", "transport"])
             self = .start(
                 memoryGB: try require("memory_gb", as: UInt32.self),
-                bedrockPort: try require("bedrock_port", as: UInt16.self))
+                bedrockPort: try require("bedrock_port", as: UInt16.self),
+                transport: try require("transport", as: String.self))
         case "stop":
             try rejectUnexpected(["type"])
             self = .stop
@@ -233,7 +234,11 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
     private var relayReady = false
     private var relayPathReady = false
     private var relayPathCheckInFlight = false
+    private var relayStartsRemaining = 0
+    private var connectionTransport = "raknet"
+    private var tcpRelay: TCPRelay?
     private var udpRelay: UDPRelay?
+    private var udpRelays: [UDPRelay] = []
     private var bedrockReady = false
     private var gracefulStopWorkItem: DispatchWorkItem?
     private var didTerminate = false
@@ -257,8 +262,8 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         switch request {
         case .provision(let serverDir, let version):
             return provision(serverDir: serverDir, version: version)
-        case .start(let memoryGB, let port):
-            return start(memoryGB: memoryGB, bedrockPort: port)
+        case .start(let memoryGB, let port, let transport):
+            return start(memoryGB: memoryGB, bedrockPort: port, transport: transport)
         case .stop:
             stop()
             return []
@@ -301,7 +306,10 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         relayReady = false
         relayPathReady = false
         relayPathCheckInFlight = false
+        relayStartsRemaining = 0
+        tcpRelay = nil
         udpRelay = nil
+        udpRelays.removeAll()
         bedrockReady = false
         didTerminate = false
         state = .provisioned(serverDirectory: URL(fileURLWithPath: serverDir, isDirectory: true), version: version)
@@ -309,12 +317,19 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         return [.provisioned(ok: true, reason: nil), diagnosticsResponse()]
     }
 
-    private func start(memoryGB: UInt32, bedrockPort: UInt16) -> [SidecarResponse] {
+    private func start(
+        memoryGB: UInt32,
+        bedrockPort: UInt16,
+        transport: String
+    ) -> [SidecarResponse] {
         guard case .provisioned(let serverDirectory, _) = state else {
             return [.started(accepted: false, reason: "provision-required-first")]
         }
         guard Self.hostArchitectureIsIntel else {
             return [.started(accepted: false, reason: "apple-silicon-unavailable-no-test-hardware")]
+        }
+        guard transport == "raknet" || transport == "nethernet" else {
+            return [.started(accepted: false, reason: "unsupported-transport:\(transport)")]
         }
         do {
             let configuration = try makeConfiguration(
@@ -324,6 +339,7 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
             machine.delegate = self
             vm = machine
             self.bedrockPort = bedrockPort
+            connectionTransport = transport
             state = .starting
             machine.start { [weak self] result in
                 if case .failure(let error) = result {
@@ -470,20 +486,45 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         if guestIP == nil, line.contains("[appliance] dhcp:"), let ip = Self.parseGuestIP(line) {
             guestIP = ip
             do {
-                let udpRelay = try UDPRelay(
-                    listenPort: bedrockPort,
-                    guestHost: ip,
-                    guestPort: bedrockPort)
-                self.udpRelay = udpRelay
-                udpRelay.start { [weak self] started in
-                    DispatchQueue.main.async {
-                        guard let self else { return }
-                        guard started else {
-                            self.finish(reason: "start-failed:UDP RakNet relay could not bind")
-                            return
+                if connectionTransport == "raknet" {
+                    let udpRelay = try UDPRelay(
+                        listenPort: bedrockPort,
+                        guestHost: ip,
+                        guestPort: bedrockPort)
+                    self.udpRelay = udpRelay
+                    relayStartsRemaining = 1
+                    udpRelay.start { [weak self] started in
+                        DispatchQueue.main.async {
+                            self?.relayDidStart(started, kind: "UDP RakNet")
                         }
-                        self.relayReady = true
-                        self.emitReadyIfPossible()
+                    }
+                } else {
+                    let tcpRelay = try TCPRelay(
+                        listenPort: bedrockPort,
+                        guestHost: ip,
+                        guestPort: bedrockPort,
+                        diagnostic: { [weak self] message in
+                            DispatchQueue.main.async {
+                                self?.send(.consoleLine("[TCP relay] \(message)"))
+                            }
+                        })
+                    let udpRelays = try Self.netherNetUDPPorts(serverPort: bedrockPort).map { port in
+                        try UDPRelay(listenPort: port, guestHost: ip, guestPort: port)
+                    }
+                    self.tcpRelay = tcpRelay
+                    self.udpRelays = udpRelays
+                    relayStartsRemaining = udpRelays.count + 1
+                    tcpRelay.start { [weak self] started in
+                        DispatchQueue.main.async {
+                            self?.relayDidStart(started, kind: "TCP signaling")
+                        }
+                    }
+                    for relay in udpRelays {
+                        relay.start { [weak self] started in
+                            DispatchQueue.main.async {
+                                self?.relayDidStart(started, kind: "UDP gameplay")
+                            }
+                        }
                     }
                 }
             } catch {
@@ -502,23 +543,46 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         }
     }
 
+    private func relayDidStart(_ started: Bool, kind: String) {
+        guard case .starting = state else { return }
+        guard started else {
+            finish(reason: "start-failed:\(kind) relay could not bind")
+            return
+        }
+        relayStartsRemaining -= 1
+        if relayStartsRemaining == 0 {
+            relayReady = true
+            emitReadyIfPossible()
+        }
+    }
+
     private func emitReadyIfPossible() {
         guard relayReady, bedrockReady, let guestIP else { return }
         guard case .starting = state else { return }
         guard relayPathReady else {
-            guard !relayPathCheckInFlight, let udpRelay else { return }
+            guard !relayPathCheckInFlight else { return }
             relayPathCheckInFlight = true
-            udpRelay.verifyBedrockPath { [weak self] verified in
+            let completion: @Sendable (Bool) -> Void = { [weak self] verified in
                 DispatchQueue.main.async {
                     guard let self else { return }
                     self.relayPathCheckInFlight = false
                     guard verified else {
-                        self.finish(reason: "start-failed:UDP RakNet relay did not pass a Bedrock ping")
+                        let boundary = self.connectionTransport == "raknet"
+                            ? "UDP RakNet relay did not pass a Bedrock ping"
+                            : "TCP signaling relay did not reach Bedrock"
+                        self.finish(reason: "start-failed:\(boundary)")
                         return
                     }
                     self.relayPathReady = true
                     self.emitReadyIfPossible()
                 }
+            }
+            if connectionTransport == "raknet" {
+                guard let udpRelay else { return }
+                udpRelay.verifyBedrockPath(completion: completion)
+            } else {
+                guard let tcpRelay else { return }
+                tcpRelay.verifyBedrockPath(completion: completion)
             }
             return
         }
@@ -538,8 +602,12 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         stateLock.unlock()
         gracefulStopWorkItem?.cancel()
         gracefulStopWorkItem = nil
+        tcpRelay?.cancel()
+        tcpRelay = nil
         udpRelay?.cancel()
         udpRelay = nil
+        udpRelays.forEach { $0.cancel() }
+        udpRelays.removeAll()
         guestOutput?.fileHandleForReading.readabilityHandler = nil
         guestOutput = nil
         guestInput = nil
@@ -587,6 +655,15 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
     static func parseGuestIP(_ line: String) -> String? {
         guard let range = line.range(of: #"\d{1,3}(\.\d{1,3}){3}"#, options: .regularExpression) else { return nil }
         return String(line[range])
+    }
+
+    static func netherNetUDPPorts(serverPort: UInt16) -> [UInt16] {
+        let count: UInt16 = 16
+        if serverPort <= UInt16.max - count {
+            return Array((serverPort + 1) ... (serverPort + count))
+        }
+        guard serverPort > count else { return [] }
+        return Array((serverPort - count) ... (serverPort - 1))
     }
 
     static func isBedrockServerReadyLine(_ line: String) -> Bool {

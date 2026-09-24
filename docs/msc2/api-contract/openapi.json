@@ -4149,6 +4149,64 @@
         "x-permission-category": "fleet"
       }
     },
+    "/v1/servers/bedrock-transport": {
+      "post": {
+        "summary": "Select the managed connection transport for one Bedrock server",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServerBedrockTransportRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bedrock transport saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerBedrockTransportResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_json / missing_server_id / invalid_bedrock_transport / not_bedrock_server",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "server_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          }
+        },
+        "x-permission-category": "fleet"
+      }
+    },
     "/v1/servers/size": {
       "get": {
         "summary": "Measure a registered server's directory",
@@ -10120,6 +10178,11 @@
             "type": "integer",
             "description": "Configured Java cross-play Bedrock port, when present."
           },
+          "bedrockTransport": {
+            "type": "string",
+            "enum": ["automatic", "nethernet", "raknet"],
+            "description": "Per-server transport selection for Bedrock servers. Automatic resolves by runtime platform."
+          },
           "firstStartRequired": {
             "type": "boolean",
             "description": "True when the next server start must run the two-pass first-start initiation flow."
@@ -10170,6 +10233,33 @@
           "serverId",
           "notes"
         ]
+      },
+      "ServerBedrockTransportRequestDTO": {
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string"
+          },
+          "transport": {
+            "type": "string",
+            "enum": ["automatic", "nethernet", "raknet"]
+          }
+        },
+        "required": ["serverId", "transport"]
+      },
+      "ServerBedrockTransportResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "message": { "type": "string" },
+          "serverId": { "type": "string" },
+          "transport": {
+            "type": "string",
+            "enum": ["automatic", "nethernet", "raknet"]
+          },
+          "restartRequired": { "type": "boolean" }
+        },
+        "required": ["success", "message", "serverId", "transport", "restartRequired"]
       },
       "ServerNotesResultDTO": {
         "type": "object",

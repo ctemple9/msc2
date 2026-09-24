@@ -152,6 +152,8 @@ pub struct ServerDto {
     pub game_port: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bedrock_port: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bedrock_transport: Option<String>,
     /// Whether the next start enters MSC 1's two-pass initiation flow.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub first_start_required: Option<bool>,
@@ -163,6 +165,23 @@ pub struct ServerDto {
     pub host_address: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runtime: Option<BedrockRuntimeStateDto>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerBedrockTransportRequestDto {
+    pub server_id: String,
+    pub transport: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerBedrockTransportResultDto {
+    pub success: bool,
+    pub message: String,
+    pub server_id: String,
+    pub transport: String,
+    pub restart_required: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

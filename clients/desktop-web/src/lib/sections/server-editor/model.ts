@@ -22,6 +22,7 @@ export const serverEditorPaths = {
   xboxBroadcast: '/v1/servers/xbox-broadcast',
   playitEnabled: '/v1/servers/playit',
   directory: '/v1/servers/directory',
+  bedrockTransport: '/v1/servers/bedrock-transport',
   directorySize: (serverId: string): string =>
     `/v1/servers/size?serverId=${encodeURIComponent(serverId)}`,
   delete: '/v1/servers/delete',

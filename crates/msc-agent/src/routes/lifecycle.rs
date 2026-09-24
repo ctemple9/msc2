@@ -12,8 +12,9 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use msc_api::dto::{ActiveServerRequestDto, ErrorDto, PermissionCategoryDto, SimpleResultDto};
 use msc_application::bedrock_runtime::{
-    BedrockProvisionRequest, BedrockRuntimeBackend, BedrockRuntimeError, BedrockRuntimeEvent,
-    BedrockRuntimeState, BedrockStartRequest, BedrockTerminationReason,
+    BedrockConnectionTransport, BedrockProvisionRequest, BedrockRuntimeBackend,
+    BedrockRuntimeError, BedrockRuntimeEvent, BedrockRuntimeState, BedrockStartRequest,
+    BedrockTerminationReason,
 };
 #[cfg(test)]
 use msc_application::import::ImportedPaperServer;
@@ -28,7 +29,7 @@ use msc_application::lifecycle::{
 use msc_application::output_reducer::is_neoforge_dimension_tps_line;
 use msc_application::status::{LifecycleStatusSnapshot, PerformanceSnapshot};
 use msc_application::transfer::TransferExportServerInput;
-use msc_domain::app_config_schema::{AppConfig, ConfigServer};
+use msc_domain::app_config_schema::{AppConfig, BedrockTransportMode, ConfigServer};
 use msc_domain::helper::{
     FirstRunTransport, FirstStartCoordinator, FirstStartPhase, FirstStartTransportState,
     first_run_safety_cap_reached,
@@ -1359,6 +1360,27 @@ impl LifecycleRoutesState {
         })
     }
 
+    pub fn update_bedrock_transport(
+        &self,
+        server_id: &str,
+        transport: msc_domain::app_config_schema::BedrockTransportMode,
+    ) -> Result<(), TryMutateError<UpdateBedrockTransportError>> {
+        self.inner.app_config.try_mutate(|config| {
+            let Some(server) = config
+                .servers
+                .iter_mut()
+                .find(|server| server.id == server_id)
+            else {
+                return Err(UpdateBedrockTransportError::ServerNotFound);
+            };
+            if server.server_type != ServerType::Bedrock {
+                return Err(UpdateBedrockTransportError::NotBedrock);
+            }
+            server.bedrock_transport = transport;
+            Ok(())
+        })
+    }
+
     pub fn update_server_directory(
         &self,
         server_id: &str,
@@ -2149,21 +2171,48 @@ impl LifecycleRoutesState {
             "Starting Bedrock server.",
         )?;
         let memory_gb = active.max_ram_gb.max(1.0).ceil() as u32;
+        let sidecar = self.inner.bedrock_runtime.backend() == Some(BedrockRuntimeBackend::Sidecar);
+        let transport = match active.bedrock_transport {
+            BedrockTransportMode::Automatic if sidecar => BedrockConnectionTransport::Raknet,
+            BedrockTransportMode::Automatic | BedrockTransportMode::Nethernet => {
+                BedrockConnectionTransport::Nethernet
+            }
+            BedrockTransportMode::Raknet => BedrockConnectionTransport::Raknet,
+        };
         let result = self
             .provision_bedrock_server(&active)
             .and_then(|()| {
                 let server_dir = Path::new(&active.server_dir);
-                let transport_result = match self.inner.bedrock_runtime.backend() {
-                    Some(BedrockRuntimeBackend::Sidecar) => {
+                let transport_result = match (sidecar, transport) {
+                    (_, BedrockConnectionTransport::Raknet) => {
                         msc_application::bedrock_settings::ensure_sidecar_raknet_transport(
                             &StdFileSystem,
                             server_dir,
                         )
                     }
-                    _ => msc_application::bedrock_settings::ensure_nethernet_transport(
-                        &StdFileSystem,
-                        server_dir,
-                    ),
+                    (true, BedrockConnectionTransport::Nethernet) => {
+                        let advertised_addresses =
+                            msc_infrastructure::public_ip::detect(Duration::from_secs(2))
+                                .or_else(crate::help::detect_local_ip)
+                                .into_iter()
+                                .collect::<Vec<_>>();
+                        msc_application::bedrock_settings::ensure_sidecar_nethernet_transport(
+                            &StdFileSystem,
+                            server_dir,
+                            active
+                                .bedrock_port
+                                .unwrap_or(19132)
+                                .try_into()
+                                .unwrap_or(19132),
+                            &advertised_addresses,
+                        )
+                    }
+                    (false, BedrockConnectionTransport::Nethernet) => {
+                        msc_application::bedrock_settings::ensure_nethernet_transport(
+                            &StdFileSystem,
+                            server_dir,
+                        )
+                    }
                 };
                 transport_result.map(|_| ()).map_err(|error| {
                     BedrockRuntimeError::Provisioning(format!(
@@ -2179,6 +2228,7 @@ impl LifecycleRoutesState {
                         .unwrap_or(19132)
                         .try_into()
                         .unwrap_or(19132),
+                    transport,
                 })
             });
         if let Err(error) = result {
@@ -2723,6 +2773,12 @@ pub enum UpdateServerNotesError {
     ServerNotFound,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UpdateBedrockTransportError {
+    ServerNotFound,
+    NotBedrock,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RegisteredServerDtoParts {
     pub id: String,
@@ -2734,6 +2790,7 @@ pub struct RegisteredServerDtoParts {
     pub java_flavor: Option<String>,
     pub game_port: Option<i64>,
     pub bedrock_port: Option<i64>,
+    pub bedrock_transport: Option<String>,
     pub first_start_required: bool,
     pub playit_enabled: bool,
     pub xbox_broadcast_enabled: bool,
@@ -3155,6 +3212,8 @@ impl AgentServerRegistry {
                 bedrock_port: (server.server_type == ServerType::Java)
                     .then_some(server.bedrock_port)
                     .flatten(),
+                bedrock_transport: (server.server_type == ServerType::Bedrock)
+                    .then(|| server.bedrock_transport.raw_value().to_owned()),
                 first_start_required: msc_application::provisioning::first_start_required(&server),
                 playit_enabled: server.playit_enabled,
                 xbox_broadcast_enabled: server.xbox_broadcast_enabled,

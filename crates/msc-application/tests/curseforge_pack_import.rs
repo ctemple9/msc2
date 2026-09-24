@@ -91,6 +91,12 @@ impl AddonTransport for FakeTransport {
                 body: serde_json::to_vec(&self.files_response).unwrap(),
             });
         }
+        if url.ends_with("/v1/mods") {
+            return Ok(RawResponse {
+                status: 200,
+                body: br#"{"data":[]}"#.to_vec(),
+            });
+        }
         panic!("{what}: unexpected POST {url}");
     }
 }
@@ -130,6 +136,12 @@ impl AddonTransport for DownloadTransport {
             return Ok(RawResponse {
                 status: 200,
                 body: serde_json::to_vec(&self.files_response).unwrap(),
+            });
+        }
+        if url.ends_with("/v1/mods") {
+            return Ok(RawResponse {
+                status: 200,
+                body: br#"{"data":[]}"#.to_vec(),
             });
         }
         if url.ends_with("/v2/version_files") {

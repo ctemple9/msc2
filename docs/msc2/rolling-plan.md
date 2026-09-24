@@ -25,6 +25,15 @@ The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` und
 - **Batch:** N12 — CI regression repair
 - **Commit:** `P15.85: allow large relative-time error response`
 
+### P15.86 — Refresh regression fixtures for current contracts
+
+- **Status:** IN PROGRESS
+- **Files:** `fixtures/bedrock-sidecar/start-round-trip.json`, `fixtures/bedrock-sidecar/start-out-of-order-rejected.json`, `crates/msc-application/tests/curseforge_pack_import.rs`, `crates/msc-application/tests/world_slot_crud.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Update existing regression fixtures and fake transports for the already-shipped transport-aware sidecar frames and CurseForge bulk project lookup, and change the existing world export assertion to verify the current profile-carrying archive contract instead of expecting an unchanged byte-for-byte copy. No new tests are added and no production behavior changes.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && gh run list --workflow ci.yml --limit 5`
+- **Batch:** N12 — CI regression repair
+- **Commit:** `P15.86: refresh regression fixtures for current contracts`
+
 ---
 
 ## How this document works

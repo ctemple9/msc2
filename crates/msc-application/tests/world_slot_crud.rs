@@ -12,10 +12,12 @@
 use msc_application::worlds::{self, WorldError};
 use msc_domain::identity::ServerType;
 use msc_domain::world::WorldSlot;
+use msc_infrastructure::archive::WORLD_PROFILE_ENTRY;
 use msc_infrastructure::fs::StdFileSystem;
 use std::fs;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use zip::ZipArchive;
 use zip::ZipWriter;
 use zip::write::SimpleFileOptions;
 
@@ -462,15 +464,24 @@ fn world_slot_crud_export_slot_zip_overwrites_destination() {
 
     worlds::export_slot_zip(&StdFileSystem, server_dir, &slot, &dest).unwrap();
 
-    let exported = fs::read(&dest).unwrap();
-    let source_zip = fs::read(
-        server_dir
-            .join("world_slots")
-            .join(&slot.id)
-            .join("world.zip"),
-    )
-    .unwrap();
-    assert_eq!(exported, source_zip);
+    let file = fs::File::open(&dest).unwrap();
+    let mut exported = ZipArchive::new(file).unwrap();
+    assert_eq!(exported.len(), 2);
+    let mut world_bytes = Vec::new();
+    exported
+        .by_name("world/level.dat")
+        .unwrap()
+        .read_to_end(&mut world_bytes)
+        .unwrap();
+    assert_eq!(world_bytes, b"export me bytes");
+    let mut profile_bytes = Vec::new();
+    exported
+        .by_name(WORLD_PROFILE_ENTRY)
+        .unwrap()
+        .read_to_end(&mut profile_bytes)
+        .unwrap();
+    let profile: serde_json::Value = serde_json::from_slice(&profile_bytes).unwrap();
+    assert_eq!(profile["identity"]["name"], "Export me");
     // Source slot untouched.
     assert!(
         server_dir

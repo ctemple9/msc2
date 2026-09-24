@@ -5,6 +5,37 @@ import Virtualization
 
 private let protocolOutputLock = NSLock()
 
+private enum NonblockingRead {
+    case data(Data)
+    case pending
+    case endOfFile
+    case failed
+}
+
+private func makeNonblocking(_ handle: FileHandle) throws {
+    let descriptor = handle.fileDescriptor
+    let flags = fcntl(descriptor, F_GETFL)
+    guard flags >= 0, fcntl(descriptor, F_SETFL, flags | O_NONBLOCK) == 0 else {
+        throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+    }
+}
+
+private func readNonblocking(_ handle: FileHandle) -> NonblockingRead {
+    var bytes = [UInt8](repeating: 0, count: 64 * 1024)
+    let count = Darwin.read(handle.fileDescriptor, &bytes, bytes.count)
+    if count > 0 { return .data(Data(bytes.prefix(count))) }
+    if count == 0 { return .endOfFile }
+    if errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR { return .pending }
+    return .failed
+}
+
+private func sendDatagram(_ data: Data, to handle: FileHandle) -> Bool {
+    data.withUnsafeBytes { buffer in
+        guard let baseAddress = buffer.baseAddress else { return true }
+        return Darwin.send(handle.fileDescriptor, baseAddress, data.count, 0) == data.count
+    }
+}
+
 func writeSidecarResponse(_ response: SidecarResponse, to handle: FileHandle = .standardOutput) {
     do {
         let encoder = JSONEncoder()
@@ -402,19 +433,16 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
             fileHandleForReading: input.fileHandleForReading,
             fileHandleForWriting: output.fileHandleForWriting)
         configuration.serialPorts = [serial]
+        try makeNonblocking(output.fileHandleForReading)
         output.fileHandleForReading.readabilityHandler = { [weak self] handle in
-            do {
-                let data = try handle.read(upToCount: 64 * 1024) ?? Data()
-                if data.isEmpty {
-                    self?.flushOutput()
-                } else {
-                    self?.receiveGuestBytes(data)
-                }
-            } catch {
-                // FileHandle can report a closed VM serial pipe here. Treat it
-                // as guest EOF instead of allowing availableData to raise an
-                // Objective-C exception through the helper process.
+            switch readNonblocking(handle) {
+            case .data(let data):
+                self?.receiveGuestBytes(data)
+            case .endOfFile, .failed:
+                handle.readabilityHandler = nil
                 self?.flushOutput()
+            case .pending:
+                break
             }
         }
 
@@ -1053,23 +1081,19 @@ private final class UDPRelay: @unchecked Sendable {
         clients[key] = Session(client: client, guest: guest)
         guest.readabilityHandler = { [weak self] handle in
             guard let relay = self else { return }
-            let data: Data
-            do {
-                data = try handle.read(upToCount: 64 * 1024) ?? Data()
-            } catch {
+            switch readNonblocking(handle) {
+            case .data(let data):
+                relay.queue.async { [weak relay] in
+                    guard let relay, relay.clients[key] != nil else { return }
+                    relay.clients[key]?.lastActivity = Date()
+                    client.send(content: data, completion: .idempotent)
+                }
+            case .endOfFile, .failed:
                 relay.queue.async { [weak relay] in
                     relay?.closeClient(key)
                 }
-                return
-            }
-            relay.queue.async { [weak relay] in
-                guard let relay, relay.clients[key] != nil else { return }
-                guard !data.isEmpty else {
-                    relay.closeClient(key)
-                    return
-                }
-                relay.clients[key]?.lastActivity = Date()
-                client.send(content: data, completion: .idempotent)
+            case .pending:
+                break
             }
         }
         client.start(queue: queue)
@@ -1082,9 +1106,8 @@ private final class UDPRelay: @unchecked Sendable {
             guard let self, self.clients[key] != nil else { return }
             if let data, !data.isEmpty {
                 self.clients[key]?.lastActivity = Date()
-                do {
-                    try self.clients[key]?.guest.write(contentsOf: data)
-                } catch {
+                guard let guest = self.clients[key]?.guest,
+                      sendDatagram(data, to: guest) else {
                     self.closeClient(key)
                     return
                 }
@@ -1237,7 +1260,14 @@ private func connectedIPv4Socket(host: String, port: UInt16, type: Int32) throws
         Darwin.close(descriptor)
         throw NSError(domain: NSPOSIXErrorDomain, code: Int(code))
     }
-    return FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+    let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+    do {
+        try makeNonblocking(handle)
+        return handle
+    } catch {
+        try? handle.close()
+        throw error
+    }
 }
 
 private func interfaceIndex(for target: in_addr) -> UInt32? {

@@ -79,6 +79,15 @@ The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` und
 - **Batch:** N14 — runtime regression repair
 - **Commit:** `P15.91: use posix writes for bedrock helper response frames`
 
+### P15.92 — Restore nonblocking Bedrock helper event delivery
+
+- **Status:** IN PROGRESS
+- **Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `docs/msc2/rolling-plan.md`
+- **What:** Replace blocking Foundation reads in the VM serial and UDP relay readability callbacks with nonblocking POSIX reads, and send guest UDP datagrams without Foundation FileHandle writes. This restores console, readiness, metrics, and stop events while retaining safe closed-descriptor handling.
+- **Verify:** `xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-92-build build CODE_SIGNING_ALLOWED=NO && git diff --check`
+- **Batch:** N14 — runtime regression repair
+- **Commit:** `P15.92: restore nonblocking bedrock helper event delivery`
+
 ---
 
 ## How this document works

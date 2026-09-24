@@ -70,6 +70,15 @@ The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` und
 - **Batch:** N14 — runtime regression repair
 - **Commit:** `P15.90: prevent bedrock helper crashes while writing teardown frames`
 
+### P15.91 — Use POSIX writes for Bedrock helper response frames
+
+- **Status:** IN PROGRESS
+- **Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `docs/msc2/rolling-plan.md`
+- **What:** Replace Foundation FileHandle response writes with a partial-write-safe POSIX loop. A client disconnect during asynchronous Bedrock teardown now produces an errno and stops that response instead of raising an uncaught Objective-C exception inside Foundation.
+- **Verify:** `xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-91-build build CODE_SIGNING_ALLOWED=NO && git diff --check`
+- **Batch:** N14 — runtime regression repair
+- **Commit:** `P15.91: use posix writes for bedrock helper response frames`
+
 ---
 
 ## How this document works

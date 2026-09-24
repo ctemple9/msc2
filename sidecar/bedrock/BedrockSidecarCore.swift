@@ -13,14 +13,28 @@ func writeSidecarResponse(_ response: SidecarResponse, to handle: FileHandle = .
         data.append(0x0A)
         protocolOutputLock.lock()
         defer { protocolOutputLock.unlock() }
-        do {
-            try handle.write(contentsOf: data)
-        } catch {
-            // The agent can close the authenticated socket while the VM's
-            // asynchronous stop callback is still finishing. FileHandle's
-            // throwing write keeps that expected teardown from terminating
-            // the privileged helper with an Objective-C exception.
-            FileHandle.standardError.write(Data("sidecar response write failed: \(error)\n".utf8))
+        var written = 0
+        while written < data.count {
+            let result = data.withUnsafeBytes { buffer -> Int in
+                guard let baseAddress = buffer.baseAddress else { return 0 }
+                return Darwin.write(
+                    handle.fileDescriptor,
+                    baseAddress.advanced(by: written),
+                    data.count - written)
+            }
+            if result > 0 {
+                written += result
+            } else if result < 0, errno == EINTR {
+                continue
+            } else {
+                // The agent can close the authenticated socket while the
+                // VM's asynchronous stop callback is still finishing. A raw
+                // POSIX write reports that teardown as an errno instead of
+                // allowing FileHandle to raise an Objective-C exception.
+                let message = result == 0 ? "write made no progress" : String(cString: strerror(errno))
+                FileHandle.standardError.write(Data("sidecar response write failed: \(message)\n".utf8))
+                break
+            }
         }
     } catch {
         FileHandle.standardError.write(Data("sidecar response encoding failed: \(error)\n".utf8))

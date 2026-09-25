@@ -11873,3 +11873,113 @@ The review followed the Rust domain/application crates, infrastructure and platf
 12. **Medium — Operation history grows without bounds and is rescanned for every admission.** `crates/msc-application/src/operations.rs:90` retains terminal records and cancellation flags without eviction, while `crates/msc-infrastructure/src/operation_journal.rs:193` rescans historical journal files. Repeated scheduled operations therefore grow memory and disk use and make admission progressively more expensive, contrary to Approved D-021. Bound terminal history, discard completed cancellation flags, maintain a bounded active-reservation index, and preserve only the durable recovery/history data required by the chosen limit.
 
 **Review limits:** the reviewer did not inspect every line or dependency, compare directly against MSC 1 Swift source, inspect shipped binaries, validate live releases, or exercise Minecraft, browsers, or OS service managers. Existing tests, fixtures, and smoke scripts were used as source material only. The review found no additional verified issue in browser origin/CSRF enforcement, credential-verifier storage, file-browser path confinement, provider checksum enforcement, signed-manifest validation, or Bedrock sidecar messaging; this is not an exhaustive safety claim. Phase 14 acceptance and platform behavior still require Cameron's verification.
+
+## Completed Phase 15 maintenance follow-ups
+
+### P15.84 — Repair CI after Phase 15 transport merge
+
+- **Status:** DONE
+- **Files:** `crates/msc-agent/src/routes/bedrock_runtime.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/routes/worlds.rs`, existing Bedrock request fixtures, five formatted desktop-web files, `docs/msc2/client-capability-matrix.csv`, `docs/msc2/rolling-plan.md`
+- **What:** Restore the CI contract after the Bedrock transport-choice merge. Keep production eligibility detection visible to the Phase 10 wiring guard, update existing request fixtures and route fixtures for the transport and pending-modpack arguments, accept the already-defined unresolved-modpack upload purpose in the world route, format the five client files reported by validation, and register the seven Phase 15 operations that were added to the OpenAPI contract but omitted from the client capability matrix. No new tests are added and no runtime behavior is changed beyond wiring the already-required inputs.
+- **Verify:** `gh run list --workflow ci.yml --limit 5` — confirm the pushed P15.84 commit's CI run is green
+- **Batch:** N12 — CI regression repair
+- **Commit:** `P15.84: repair CI after Phase 15 transport merge`
+
+### P15.85 — Accommodate the stable Clippy response-size lint
+
+- **Status:** DONE
+- **Files:** `crates/msc-agent/src/routes/commands.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Keep the relative-time query helper’s existing Axum response contract while explicitly documenting the same `result_large_err` allowance already used by neighboring route helpers. GitHub’s current stable Rust toolchain promotes this advisory to `-D warnings`; the local toolchain does not yet emit it. No runtime behavior changes.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && gh run list --workflow ci.yml --limit 5`
+- **Batch:** N12 — CI regression repair
+- **Commit:** `P15.85: allow large relative-time error response`
+
+### P15.86 — Refresh regression fixtures for current contracts
+
+- **Status:** DONE
+- **Files:** `fixtures/bedrock-sidecar/start-round-trip.json`, `fixtures/bedrock-sidecar/start-out-of-order-rejected.json`, `crates/msc-application/tests/curseforge_pack_import.rs`, `crates/msc-application/tests/world_slot_crud.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Update existing regression fixtures and fake transports for the already-shipped transport-aware sidecar frames and CurseForge bulk project lookup, and change the existing world export assertion to verify the current profile-carrying archive contract instead of expecting an unchanged byte-for-byte copy. No new tests are added and no production behavior changes.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && gh run list --workflow ci.yml --limit 5`
+- **Batch:** N12 — CI regression repair
+- **Commit:** `P15.86: refresh regression fixtures for current contracts`
+
+### P15.87 — Prepare the v0.1.9 release
+
+- **Status:** DONE
+- **Files:** `crates/msc-agent/Cargo.toml`, `Cargo.lock`, `clients/desktop-web/package.json`, `clients/desktop-web/package-lock.json`, `clients/desktop-web/src-tauri/Cargo.toml`, `clients/desktop-web/src-tauri/Cargo.lock`, `clients/desktop-web/src-tauri/tauri.conf.json`, `clients/desktop-web/src/lib/bundle-identity.ts`, `clients/desktop-web/src/lib/bundle-identity.test.ts`, `README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Synchronize the coordinated agent, desktop shell, Tauri, lockfile, bundle identity, and download instructions to v0.1.9 so the release workflow accepts the matching v0.1.9 tag. This is a normal unsigned beta prerelease; no signing-key rotation is part of this release.
+- **Verify:** `python3 tools/release/check-release-workflow.py .github/workflows/release.yml --expect-publish-guard && rg -n '0\.1\.9|v0\.1\.9' crates/msc-agent/Cargo.toml Cargo.lock clients/desktop-web/package.json clients/desktop-web/package-lock.json clients/desktop-web/src-tauri/Cargo.toml clients/desktop-web/src-tauri/Cargo.lock clients/desktop-web/src-tauri/tauri.conf.json clients/desktop-web/src/lib/bundle-identity.ts README.md && gh run list --workflow release.yml --limit 3`
+- **Batch:** N13 — release preparation
+- **Commit:** `P15.87: prepare v0.1.9 release`
+
+### P15.88 — Repair Bedrock startup and cross-runtime time queries
+
+- **Status:** DONE
+- **Files:** `crates/msc-application/src/bedrock_runtime.rs`, `crates/msc-application/src/provisioning.rs`, `crates/msc-agent/src/routes/bedrock_runtime.rs`, `crates/msc-agent/src/routes/commands.rs`, `crates/msc-agent/src/routes/health.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Use Minecraft 26.1+'s `time query time` for modern Java servers while preserving the legacy Java and Bedrock commands, report Bedrock sidecar polling failures instead of silently leaving lifecycle operations hanging, and give new or legacy zero-RAM Bedrock records the same safe 2/4 GB allocation baseline used by Java creation.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && cargo check -p msc-application -p msc-agent && git diff --check`
+- **Batch:** N14 — runtime regression repair
+- **Commit:** `P15.88: repair bedrock startup and time queries`
+
+### P15.89 — Prevent Bedrock helper crashes on closed relay sockets
+
+- **Status:** DONE
+- **Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `docs/msc2/rolling-plan.md`
+- **What:** Replace unsafe `FileHandle.availableData` reads in the Bedrock VM serial and UDP relay paths with throwing reads that treat EOF or a closed socket as normal teardown. This keeps a disconnected client or guest socket from crashing the privileged helper and disconnecting the agent's Bedrock session.
+- **Verify:** `xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-89-build build CODE_SIGNING_ALLOWED=NO && git diff --check`
+- **Batch:** N14 — runtime regression repair
+- **Commit:** `P15.89: prevent bedrock helper crashes on closed relay sockets`
+
+### P15.90 — Prevent Bedrock helper crashes while writing teardown frames
+
+- **Status:** DONE
+- **Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `docs/msc2/rolling-plan.md`
+- **What:** Make authenticated sidecar response writes throwing and recoverable when the agent closes its Unix socket during asynchronous VM shutdown. This prevents teardown/status delivery from crashing the privileged helper after the Bedrock process has started.
+- **Verify:** `xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-90-build build CODE_SIGNING_ALLOWED=NO && git diff --check`
+- **Batch:** N14 — runtime regression repair
+- **Commit:** `P15.90: prevent bedrock helper crashes while writing teardown frames`
+
+### P15.91 — Use POSIX writes for Bedrock helper response frames
+
+- **Status:** DONE
+- **Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `docs/msc2/rolling-plan.md`
+- **What:** Replace Foundation FileHandle response writes with a partial-write-safe POSIX loop. A client disconnect during asynchronous Bedrock teardown now produces an errno and stops that response instead of raising an uncaught Objective-C exception inside Foundation.
+- **Verify:** `xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-91-build build CODE_SIGNING_ALLOWED=NO && git diff --check`
+- **Batch:** N14 — runtime regression repair
+- **Commit:** `P15.91: use posix writes for bedrock helper response frames`
+
+### P15.92 — Restore nonblocking Bedrock helper event delivery
+
+- **Status:** DONE
+- **Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `docs/msc2/rolling-plan.md`
+- **What:** Replace blocking Foundation reads in the VM serial and UDP relay readability callbacks with nonblocking POSIX reads, and send guest UDP datagrams without Foundation FileHandle writes. This restores console, readiness, metrics, and stop events while retaining safe closed-descriptor handling.
+- **Verify:** `xcodebuild -quiet -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Debug -derivedDataPath /tmp/msc2-p15-92-build build CODE_SIGNING_ALLOWED=NO && git diff --check`
+- **Batch:** N14 — runtime regression repair
+- **Commit:** `P15.92: restore nonblocking bedrock helper event delivery`
+
+### P15.93 — Restore world time across Java and Bedrock runtimes
+
+- **Status:** DONE
+- **Files:** `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/commands.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Poll Minecraft 26.1+ Java servers with their single absolute world-clock query and derive both the day and daytime from that response, while preserving the separate legacy queries used by older Java versions and Bedrock. Correlate the modern response as an internal controller observation so automatic query traffic never reaches the visible console. Because Java command syntax belongs to the Minecraft version, this applies uniformly to vanilla, Paper, Purpur, Fabric, Forge, NeoForge, and other Java flavors.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && cargo check -p msc-agent && git diff --check`
+- **Batch:** N14 — runtime regression repair
+- **Commit:** `P15.93: restore cross-runtime world time`
+
+### P15.94 — Prepare the v0.1.10 release
+
+- **Status:** DONE
+- **Files:** `crates/msc-agent/Cargo.toml`, `Cargo.lock`, `clients/desktop-web/package.json`, `clients/desktop-web/package-lock.json`, `clients/desktop-web/src-tauri/Cargo.toml`, `clients/desktop-web/src-tauri/Cargo.lock`, `clients/desktop-web/src-tauri/tauri.conf.json`, `clients/desktop-web/src/lib/bundle-identity.ts`, `clients/desktop-web/src/lib/bundle-identity.test.ts`, `README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Synchronize the coordinated agent, desktop shell, Tauri, lockfile, bundle identity, and download instructions to v0.1.10, then publish the matching tag so the release workflow builds the runtime repairs. This remains an unsigned beta prerelease with no signing-key rotation.
+- **Verify:** `python3 tools/release/check-release-workflow.py .github/workflows/release.yml --expect-publish-guard && rg -n '0\.1\.10|v0\.1\.10' crates/msc-agent/Cargo.toml Cargo.lock clients/desktop-web/package.json clients/desktop-web/package-lock.json clients/desktop-web/src-tauri/Cargo.toml clients/desktop-web/src-tauri/Cargo.lock clients/desktop-web/src-tauri/tauri.conf.json clients/desktop-web/src/lib/bundle-identity.ts clients/desktop-web/src/lib/bundle-identity.test.ts README.md && git ls-remote --tags origin refs/tags/v0.1.10`
+- **Batch:** N15 — release preparation
+- **Commit:** `P15.94: prepare v0.1.10 release`
+
+### P15.95 — Parse and suppress modern Java clock responses
+
+- **Status:** DONE
+- **Files:** `crates/msc-domain/src/time.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Accept Minecraft 26.1+'s actual `Clock minecraft:<dimension> is at <ticks> tick(s)` response, derive the Active World day and daytime from its absolute tick value, and recognize that response both through controller correlation and through a defensive console-boundary filter. Automatic modern Java clock polling therefore updates the card without placing command responses in the visible console, including Paper, Purpur, Fabric, Forge, NeoForge, vanilla, and other Java flavors.
+- **Verify:** `cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && cargo check -p msc-domain -p msc-agent && git diff --check`
+- **Batch:** N14 — runtime regression repair
+- **Commit:** `P15.95: parse modern java clock responses`

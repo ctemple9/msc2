@@ -6,6 +6,8 @@
 
 This note fixes the Phase 7 family and runtime boundary before code starts, in the same role `phase3-scope.md` through `phase6-scope.md` played for their phases. It does not approve new product behavior on its own; where a choice is genuinely open, it records the recommended working answer and flags it as such.
 
+This is a historical Phase 7 scope and review record. Later implementation status and outstanding owner verification live in the current capability and acceptance documents; review-handoff wording below is preserved as provenance, not as a current assignment.
+
 ## Working exit gate
 
 Quoted from `rolling-plan.md`'s Phase 7 header, itself pinned to `msc2-port-plan.md` §3:

@@ -186,10 +186,12 @@ Windows. The archive's `HEADLESS-INSTALL.md` describes the platform-specific
 command location, PATH ownership, upgrade/uninstall boundary, and the separate
 operating-system service installation.
 
-The current beta Linux archive includes `install.sh` and `uninstall.sh` for
-the systemd service. The macOS and Windows archive command installers are the
-next Phase 14 packaging step; until they land, those archives can be unpacked
-and the binary run directly. The release artifact contract is recorded in
+Each standalone headless archive includes a platform command installer and
+uninstaller. macOS archives contain `install.sh` and `uninstall.sh`, Windows
+archives contain `install.ps1` and `uninstall.ps1`, and Linux archives contain
+`install.sh` and `uninstall.sh` plus the systemd definitions they need. These
+installers put the `msc` command on PATH; service registration remains a
+separate operating-system action. The release artifact contract is recorded in
 [`headless-installation.md`](docs/msc2/clients/headless-installation.md).
 
 ### Updating a headless installation

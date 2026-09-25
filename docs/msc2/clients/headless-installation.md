@@ -1,7 +1,7 @@
 # MSC 2 headless installation contract
 
-**Status:** P14.8 contract; Linux archive implementation is P14.9, and macOS
-and Windows archive installers are P14.10.
+**Status:** Current release contract. The Linux, macOS, and Windows archive
+installers are implemented and included in their respective headless archives.
 
 This document defines the command-install shape for the standalone MSC 2
 headless artifacts. It is deliberately separate from the operating-system
@@ -33,7 +33,8 @@ Bedrock sidecar; that is a platform capability boundary, not an installation fai
 The Linux archive additionally contains `install.sh`, `uninstall.sh`, and the
 systemd input definitions used by its service installer. macOS archives
 contain `install.sh` and `uninstall.sh`; Windows archives contain
-`install.ps1` and `uninstall.ps1`. These scripts install the command only.
+`install.ps1` and `uninstall.ps1`. These scripts install the command only;
+service registration remains a separate local operating-system action.
 
 ## Command-install shapes
 
@@ -164,6 +165,6 @@ install.
 ## Repository references
 
 The artifact and checksum contract is `docs/msc2/clients/phase12-release.md`.
-The Linux service implementation is `packaging/linux/install.sh`; the Phase 14
-source and acceptance map is
+The Linux service implementation is `packaging/linux/install.sh`; the
+cross-platform source and acceptance map is
 `docs/msc2/capabilities/phase14-operational-refinements.md`.

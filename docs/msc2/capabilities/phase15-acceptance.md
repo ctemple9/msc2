@@ -1,12 +1,11 @@
 # Phase 15 — Java, modpack, and usability acceptance
 
-**Step:** P15.13 · **Status:** awaiting owner verification · **Date:** 2026-09-21
+**Step:** P15.13 · **Status:** complete · **Owner confirmation:** 2026-09-24
 
-This is the static acceptance record for the first end-to-end scenario and the
-additional Phase 15 usability flow. It is not a claim that a real ATM10 Lite
-server, CurseForge account, second client, or downloaded JAR set has been
-exercised in this workspace. Cameron must perform the live walkthrough before
-the step or phase can be closed.
+This is the acceptance record for the first end-to-end scenario and the
+additional Phase 15 usability flow. The implementation and documentation work
+is complete by owner direction. Live runtime walkthroughs remain useful
+follow-up evidence, but are no longer a Phase 15 completion blocker.
 
 ## Acceptance scenario
 
@@ -91,12 +90,11 @@ The step's non-test checks were run on 2026-09-21:
 
 ## Gate assessment
 
-The implementation is ready for Cameron's static-check and live walkthrough,
-but the Phase 15 gate is not yet claimed. One product-level boundary remains
-open:
+The Phase 15 gate is complete by owner direction. One product-level boundary
+is recorded as follow-up work rather than a Phase 15 blocker:
 
-- Unresolved modpack imports need a durable, discoverable recovery record so a
-  later client session or agent restart can reopen the work.
+- Unresolved modpack imports still need a durable, discoverable recovery record
+  so a later client session or agent restart can reopen the work.
 
 The named scenarios still need live verification with Java 17, Java 21, a
 CurseForge key, at least one automatic Modrinth match, one rejected JAR, one

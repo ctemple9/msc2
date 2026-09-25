@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phases 14 and 15 are complete and archived; Linux desktop service elevation corrections P14.38–P14.39 await owner verification. P14.40 is blocked on a Linux-only compile error fixed in P14.41; the v0.1.11 release will be retried from that correction. The external static-review record is preserved in the archive. All prior verification entries are recorded DONE, with P15.69 retaining its accepted failed-verification result.
-> **Next move:** Verify and commit P14.41, then wait for the retriggered P14.40 release workflow and Linux RPM. Cameron verifies P14.38–P14.41 and closes the steps. The external review findings remain available in `rolling-plan-archive.md` for future triage. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phases 14 and 15 are complete and archived; Linux desktop service elevation corrections P14.38–P14.41 await owner verification. Corrected desktop release v0.1.11 has published successfully. The external static-review record is preserved in the archive. All prior verification entries are recorded DONE, with P15.69 retaining its accepted failed-verification result.
+> **Next move:** Cameron verifies P14.38–P14.42 and closes the steps. The external review findings remain available in `rolling-plan-archive.md` for future triage. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -37,20 +37,29 @@ Batch: solo
 
 #### P14.40 — Publish the corrected desktop release
 
-Status: awaiting retry after P14.41 compile correction
+Status: awaiting Cameron verification
 Files: coordinated version manifests and lockfiles, clients/desktop-web/src/lib/bundle-identity.ts, README.md, docs/msc2/rolling-plan.md
-What: Bump the coordinated version from 0.1.10 to 0.1.11, update the download instructions, push the release preparation to main, and push tag v0.1.11 to trigger the GitHub release workflow. The initial Linux workflow exposed a CLI error-conversion compile failure, corrected in P14.41; retry the tag after that correction and wait for the Linux RPM to appear. The first agent installation will be Cameron's install from that release. If release signing or the workflow blocks publication, stop and report the blocker.
+What: Bump the coordinated version from 0.1.10 to 0.1.11, update the download instructions, push the release preparation to main, and push tag v0.1.11 to trigger the GitHub release workflow. The initial Linux workflow exposed a CLI error-conversion compile failure, corrected in P14.41. The retried workflow succeeded and published the Linux RPM. The first agent installation will be Cameron's install from that release. If release signing or the workflow blocks publication, stop and report the blocker.
 Verify: gh release view v0.1.11 --json url,isPrerelease,assets
 Commit: P14.40: publish Linux desktop service elevation fix
 Batch: solo
 
 #### P14.41 — Fix Linux helper CLI error conversion
 
-Status: in progress
+Status: awaiting Cameron verification
 Files: crates/msc-agent/src/main.rs, docs/msc2/rolling-plan.md
 What: Convert Linux service helper errors to their display text before wrapping them in the CLI's internal error type, so the Linux-only desktop helper compiles for release builds.
 Verify: cargo fmt --all -- --check && cargo check -p msc-platform-linux -p msc-agent
 Commit: P14.41: fix Linux helper CLI error conversion
+Batch: solo
+
+#### P14.42 — Record corrected release publication
+
+Status: awaiting Cameron verification
+Files: docs/msc2/rolling-plan.md
+What: Record that the retried v0.1.11 workflow succeeded and published the Fedora RPM, DEB, and other release assets after the Linux helper compile correction.
+Verify: gh release view v0.1.11 --json url,isPrerelease,assets
+Commit: P14.42: record corrected desktop release publication
 Batch: solo
 
 ## Current phase

@@ -100,11 +100,11 @@ fn run_desktop_service_helper(
                 request = request.env(key, value);
             }
             msc_platform_linux::service::run_desktop_service_helper_install(request)
-                .map_err(cli::CliError::internal)
+                .map_err(|error| cli::CliError::internal(error.to_string()))
         }
         cli::DesktopServiceHelperCommand::Uninstall => {
             msc_platform_linux::service::run_desktop_service_helper_uninstall()
-                .map_err(cli::CliError::internal)
+                .map_err(|error| cli::CliError::internal(error.to_string()))
         }
     }
 }

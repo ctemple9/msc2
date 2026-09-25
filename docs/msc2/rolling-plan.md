@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phases 14 and 15 are complete and archived; Linux desktop service elevation corrections P14.38–P14.39 are implemented and awaiting owner verification. The external static-review record is preserved in the archive. All prior verification entries are recorded DONE, with P15.69 retaining its accepted failed-verification result.
-> **Next move:** Cameron runs the P14.38 and P14.39 verification commands, including the Fedora host prerequisite checks, then closes the steps. The external review findings remain available in `rolling-plan-archive.md` for future triage. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phases 14 and 15 are complete and archived; Linux desktop service elevation corrections P14.38–P14.39 await owner verification, and corrected desktop release P14.40 is being published. The external static-review record is preserved in the archive. All prior verification entries are recorded DONE, with P15.69 retaining its accepted failed-verification result.
+> **Next move:** Wait for the P14.40 release workflow and Linux RPM, then Cameron verifies P14.38–P14.40 and closes the steps. The external review findings remain available in `rolling-plan-archive.md` for future triage. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -13,7 +13,7 @@ This is the working state of the build. The vision documents say where MSC 2 is 
 
 Phases come from `msc2-port-plan.md`. Steps are written as work arrives rather than being invented in advance. Each step has a status, file scope, description, verification command, commit subject, and batch classification.
 
-Phase 12 is complete. Phases 14 and 15 are complete and archived, with the two Linux service corrections below reopened from Phase 14. The archive already assigns P14.21 and P14.22 to earlier work, so these corrective steps use the next unused identifiers.
+Phase 12 is complete. Phases 14 and 15 are complete and archived, with Linux service corrections and the release below reopened from Phase 14. The archive already assigns P14.21–P14.23 to earlier work, so these corrective steps use the next unused identifiers.
 
 ### Phase 14 corrective work — Linux desktop service elevation
 
@@ -33,6 +33,15 @@ Files: crates/msc-platform-linux/tests/desktop_service_elevation.rs, crates/msc-
 What: Add one focused test using a fake authorization runner, fake systemctl, and temporary directories. Check install, repair, and uninstall go through the privileged boundary; the unit still names your user and group; and the test never touches /etc/systemd/system or runs real pkexec or systemctl.
 Verify: cargo test -p msc-platform-linux --test desktop_service_elevation && command -v pkexec && rpm -q polkit && systemctl --version
 Commit: P14.39: test Linux desktop service elevation safely
+Batch: solo
+
+#### P14.40 — Publish the corrected desktop release
+
+Status: awaiting GitHub workflow and Linux RPM
+Files: coordinated version manifests and lockfiles, clients/desktop-web/src/lib/bundle-identity.ts, README.md, docs/msc2/rolling-plan.md
+What: Bump the coordinated version from 0.1.10 to 0.1.11, update the download instructions, push the release preparation to main, and push tag v0.1.11 to trigger the GitHub release workflow. Wait for the Linux RPM to appear. The first agent installation will be Cameron's install from that release. If release signing or the workflow blocks publication, stop and report the blocker.
+Verify: gh release view v0.1.11 --json url,isPrerelease,assets
+Commit: P14.40: publish Linux desktop service elevation fix
 Batch: solo
 
 ## Current phase

@@ -112,6 +112,13 @@ pub enum Command {
         #[command(subcommand)]
         command: CredentialHelperCommand,
     },
+    /// Fixed-purpose elevated helper for the desktop's Linux systemd unit.
+    #[cfg(target_os = "linux")]
+    #[command(name = "desktop-service-helper", hide = true)]
+    DesktopServiceHelper {
+        #[command(subcommand)]
+        command: DesktopServiceHelperCommand,
+    },
     /// Print a bearer token the CLI can already resolve.
     Token {
         #[command(subcommand)]
@@ -324,6 +331,30 @@ pub enum CredentialHelperCommand {
         #[arg(long)]
         socket_path: Option<PathBuf>,
     },
+}
+
+#[cfg(target_os = "linux")]
+#[derive(Debug, Clone, Subcommand)]
+pub enum DesktopServiceHelperCommand {
+    /// Install or repair the one MSC desktop service.
+    Install {
+        #[arg(long)]
+        binary_path: PathBuf,
+        #[arg(long)]
+        working_directory: PathBuf,
+        #[arg(long)]
+        log_path: PathBuf,
+        #[arg(long)]
+        run_user: String,
+        #[arg(long)]
+        expected_port: u16,
+        #[arg(long = "arg")]
+        arguments: Vec<String>,
+        #[arg(long = "env", value_name = "KEY=VALUE")]
+        environment: Vec<String>,
+    },
+    /// Remove the one MSC desktop service.
+    Uninstall,
 }
 
 // `Import` is far larger than `Start`/`Stop`/`Restart` because it alone
@@ -949,6 +980,10 @@ pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
         Command::CredentialHelper { .. } => {
             Err(CliError::internal("credential-helper is handled in main"))
         }
+        #[cfg(target_os = "linux")]
+        Command::DesktopServiceHelper { .. } => Err(CliError::internal(
+            "desktop-service-helper is handled in main",
+        )),
         Command::Token { command } => run_token(common, command),
         Command::Status => {
             let client = RemoteClient::from_common(&common)?;

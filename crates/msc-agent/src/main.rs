@@ -46,6 +46,8 @@ async fn main() -> ExitCode {
             cli::Command::Serve { bind } => run_service(bind).await,
             #[cfg(target_os = "linux")]
             cli::Command::CredentialHelper { command } => run_credential_helper(command),
+            #[cfg(target_os = "linux")]
+            cli::Command::DesktopServiceHelper { command } => run_desktop_service_helper(command),
             command => cli::run(common, command).await,
         },
     };
@@ -55,6 +57,54 @@ async fn main() -> ExitCode {
         Err(error) => {
             error.print();
             ExitCode::from(error.exit_code())
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn run_desktop_service_helper(
+    command: cli::DesktopServiceHelperCommand,
+) -> Result<(), cli::CliError> {
+    use msc_infrastructure::service::ServiceInstallRequest;
+
+    match command {
+        cli::DesktopServiceHelperCommand::Install {
+            binary_path,
+            working_directory,
+            log_path,
+            run_user,
+            expected_port,
+            arguments,
+            environment,
+        } => {
+            let mut request = ServiceInstallRequest::new(
+                msc_platform_linux::service::DESKTOP_AGENT_SERVICE_NAME,
+                binary_path,
+                working_directory,
+                log_path,
+                expected_port,
+            )
+            .args(arguments)
+            .run_user(run_user);
+            for entry in environment {
+                let (key, value) = entry.split_once('=').ok_or_else(|| {
+                    cli::CliError::usage(format!(
+                        "invalid helper --env {entry:?}; expected KEY=VALUE"
+                    ))
+                })?;
+                if key.trim().is_empty() {
+                    return Err(cli::CliError::usage(
+                        "helper environment key cannot be empty",
+                    ));
+                }
+                request = request.env(key, value);
+            }
+            msc_platform_linux::service::run_desktop_service_helper_install(request)
+                .map_err(cli::CliError::internal)
+        }
+        cli::DesktopServiceHelperCommand::Uninstall => {
+            msc_platform_linux::service::run_desktop_service_helper_uninstall()
+                .map_err(cli::CliError::internal)
         }
     }
 }

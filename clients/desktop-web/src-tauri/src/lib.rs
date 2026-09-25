@@ -825,7 +825,31 @@ fn manage_agent_service(action: AgentServiceAction) -> Result<AgentServiceStatus
                 .map_err(|error| error.to_string())?
         }
     };
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "linux")]
+    let report = match action {
+        AgentServiceAction::Install | AgentServiceAction::Repair => {
+            let request = agent_install_request()?;
+            let expected_binary = request.binary_path.clone();
+            let helper = packaged_agent_path()?;
+            let report = msc_platform_linux::service::install_desktop_service_elevated(
+                request, &helper,
+            )
+            .map_err(|error| error.to_string())?;
+            ensure_service_report_uses_binary(report, &expected_binary)?
+        }
+        AgentServiceAction::Uninstall => {
+            let helper = packaged_agent_path()?;
+            msc_platform_linux::service::uninstall_desktop_service_elevated(&helper)
+                .map_err(|error| error.to_string())?
+        }
+        AgentServiceAction::Start => service_manager()?
+            .execute(ServiceManagerCommand::Start { service_name })
+            .map_err(|error| error.to_string())?,
+        AgentServiceAction::Stop => service_manager()?
+            .execute(ServiceManagerCommand::Stop { service_name })
+            .map_err(|error| error.to_string())?,
+    };
+    #[cfg(target_os = "windows")]
     let report = {
         let manager = service_manager()?;
         match action {

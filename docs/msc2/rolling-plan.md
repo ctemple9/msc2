@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phases 14 and 15 are complete and archived. The external static-review record is preserved in the archive. All verification entries are recorded DONE, with P15.69 retaining its accepted failed-verification result.
-> **Next move:** No implementation phase remains open in the rolling plan. The external review findings remain available in `rolling-plan-archive.md` for future triage. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phases 14 and 15 are complete and archived; Linux desktop service elevation is reopened as corrective work P14.38–P14.39. The external static-review record is preserved in the archive. All prior verification entries are recorded DONE, with P15.69 retaining its accepted failed-verification result.
+> **Next move:** Execute corrective steps P14.38–P14.39, then return to the archived phase state. The external review findings remain available in `rolling-plan-archive.md` for future triage. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -13,7 +13,27 @@ This is the working state of the build. The vision documents say where MSC 2 is 
 
 Phases come from `msc2-port-plan.md`. Steps are written as work arrives rather than being invented in advance. Each step has a status, file scope, description, verification command, commit subject, and batch classification.
 
-Phase 12 is complete. Phases 14 and 15 are complete and archived.
+Phase 12 is complete. Phases 14 and 15 are complete and archived, with the two Linux service corrections below reopened from Phase 14. The archive already assigns P14.21 and P14.22 to earlier work, so these corrective steps use the next unused identifiers.
+
+### Phase 14 corrective work — Linux desktop service elevation
+
+#### P14.38 — Request elevation for Linux desktop service changes
+
+Status: awaiting Cameron verification
+Files: clients/desktop-web/src-tauri/src/lib.rs, crates/msc-platform-linux/src/service.rs, crates/msc-agent/src/main.rs, crates/msc-agent/src/cli/mod.rs, crates/msc-agent/src/cli/service.rs, packaging/agent-service-layout.json, docs/msc2/rolling-plan.md
+What: Route the desktop app’s local Linux install, repair, and uninstall actions through an elevation prompt and a fixed-name helper that can change only MSC’s own systemd service. Validate the helper’s executable and data paths; keep the service and its data owned by the installing user. Show a clear error if elevation is unavailable or cancelled.
+Verify: cargo fmt --all -- --check && cargo check -p msc-platform-linux -p msc-agent && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml
+Commit: P14.38: request elevation for Linux desktop service changes
+Batch: solo
+
+#### P14.39 — Prove the elevated service flow without installing it
+
+Status: not started
+Files: crates/msc-platform-linux/tests/desktop_service_elevation.rs, crates/msc-platform-linux/src/service.rs, crates/msc-agent/src/main.rs, docs/msc2/rolling-plan.md
+What: Add one focused test using a fake authorization runner, fake systemctl, and temporary directories. Check install, repair, and uninstall go through the privileged boundary; the unit still names your user and group; and the test never touches /etc/systemd/system or runs real pkexec or systemctl.
+Verify: cargo test -p msc-platform-linux --test desktop_service_elevation && command -v pkexec && rpm -q polkit && systemctl --version
+Commit: P14.39: test Linux desktop service elevation safely
+Batch: solo
 
 ## Current phase
 

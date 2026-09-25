@@ -53,6 +53,9 @@
     },
     "linux": {
       "manager": "systemd",
+      "desktopServiceHelper": "desktop-service-helper",
+      "serviceElevation": "pkexec (polkit)",
+      "serviceOwnership": "root-owned unit; installing-user process and data",
       "agentPath": "../lib/MSC 2/agent/msc",
       "sidecarPath": null,
       "bedrock": {

@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phases 14 and 15 are complete and archived; Linux desktop service elevation is reopened as corrective work P14.38–P14.39. The external static-review record is preserved in the archive. All prior verification entries are recorded DONE, with P15.69 retaining its accepted failed-verification result.
-> **Next move:** Execute corrective steps P14.38–P14.39, then return to the archived phase state. The external review findings remain available in `rolling-plan-archive.md` for future triage. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phases 14 and 15 are complete and archived; Linux desktop service elevation corrections P14.38–P14.39 are implemented and awaiting owner verification. The external static-review record is preserved in the archive. All prior verification entries are recorded DONE, with P15.69 retaining its accepted failed-verification result.
+> **Next move:** Cameron runs the P14.38 and P14.39 verification commands, including the Fedora host prerequisite checks, then closes the steps. The external review findings remain available in `rolling-plan-archive.md` for future triage. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -28,7 +28,7 @@ Batch: solo
 
 #### P14.39 — Prove the elevated service flow without installing it
 
-Status: not started
+Status: awaiting Cameron verification
 Files: crates/msc-platform-linux/tests/desktop_service_elevation.rs, crates/msc-platform-linux/src/service.rs, crates/msc-agent/src/main.rs, docs/msc2/rolling-plan.md
 What: Add one focused test using a fake authorization runner, fake systemctl, and temporary directories. Check install, repair, and uninstall go through the privileged boundary; the unit still names your user and group; and the test never touches /etc/systemd/system or runs real pkexec or systemctl.
 Verify: cargo test -p msc-platform-linux --test desktop_service_elevation && command -v pkexec && rpm -q polkit && systemctl --version

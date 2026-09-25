@@ -63,11 +63,47 @@ pub fn install_desktop_service_with_runner<R: AuthorizationRunner>(
     helper: &Path,
     runner: &R,
 ) -> Result<ServiceStatusReport, ServiceError> {
+    install_desktop_service_with_runner_and_manager(
+        request,
+        helper,
+        runner,
+        &LinuxSystemdServiceManager::new(),
+    )
+}
+
+pub fn install_desktop_service_with_runner_and_manager<R: AuthorizationRunner>(
+    request: ServiceInstallRequest,
+    helper: &Path,
+    runner: &R,
+    status_manager: &dyn ServiceManager,
+) -> Result<ServiceStatusReport, ServiceError> {
+    let uid = current_uid()?;
+    let (user, home) = user_identity(uid)?;
+    install_desktop_service_with_runner_for_identity(
+        request,
+        helper,
+        runner,
+        uid,
+        &user,
+        &home,
+        status_manager,
+    )
+}
+
+pub fn install_desktop_service_with_runner_for_identity<R: AuthorizationRunner>(
+    request: ServiceInstallRequest,
+    helper: &Path,
+    runner: &R,
+    uid: u32,
+    user: &str,
+    home: &Path,
+    status_manager: &dyn ServiceManager,
+) -> Result<ServiceStatusReport, ServiceError> {
     let helper = validate_helper_executable(helper, runner.requires_system_owned_helper())?;
-    validate_desktop_request(&request, current_uid()?)?;
+    validate_desktop_request(&request, uid, user, home)?;
     let output = runner.authorize(&helper, &helper_install_args(&request))?;
     ensure_authorized_command_succeeded(output)?;
-    LinuxSystemdServiceManager::new().execute(ServiceManagerCommand::Status {
+    status_manager.execute(ServiceManagerCommand::Status {
         service_name: ServiceName::new(DESKTOP_AGENT_SERVICE_NAME),
     })
 }
@@ -137,13 +173,9 @@ pub fn run_desktop_service_helper_install(
                 "pkexec did not provide the installing user's identity".to_string(),
             )
         })?;
-    validate_desktop_request(&request, uid)?;
     let manager = LinuxSystemdServiceManager::new();
-    manager.execute(ServiceManagerCommand::Install(request.clone()))?;
-    manager.execute(ServiceManagerCommand::Start {
-        service_name: ServiceName::new(DESKTOP_AGENT_SERVICE_NAME),
-    })?;
-    Ok(())
+    let (user, home) = user_identity(uid)?;
+    apply_desktop_service_helper_install(&request, uid, &user, &home, &manager)
 }
 
 pub fn run_desktop_service_helper_uninstall() -> Result<(), ServiceError> {
@@ -169,10 +201,32 @@ pub fn run_desktop_service_helper_uninstall_for_uid<S: Systemctl>(
     manager: &LinuxSystemdServiceManager<S>,
 ) -> Result<(), ServiceError> {
     let (user, _) = user_identity(uid)?;
+    apply_desktop_service_helper_uninstall(&user, manager)
+}
+
+pub fn apply_desktop_service_helper_install(
+    request: &ServiceInstallRequest,
+    uid: u32,
+    user: &str,
+    home: &Path,
+    manager: &dyn ServiceManager,
+) -> Result<(), ServiceError> {
+    validate_desktop_request(request, uid, user, home)?;
+    manager.execute(ServiceManagerCommand::Install(request.clone()))?;
+    manager.execute(ServiceManagerCommand::Start {
+        service_name: ServiceName::new(DESKTOP_AGENT_SERVICE_NAME),
+    })?;
+    Ok(())
+}
+
+pub fn apply_desktop_service_helper_uninstall(
+    user: &str,
+    manager: &dyn ServiceManager,
+) -> Result<(), ServiceError> {
     if let Ok(report) = manager.execute(ServiceManagerCommand::Status {
         service_name: ServiceName::new(DESKTOP_AGENT_SERVICE_NAME),
     }) && let Some(definition) = report.definition
-        && definition.run_user.as_deref() != Some(user.as_str())
+        && definition.run_user.as_deref() != Some(user)
     {
         return invalid_desktop_request(
             "the installed MSC service belongs to a different user account",
@@ -243,7 +297,12 @@ fn validate_helper_executable(
     Ok(helper)
 }
 
-fn validate_desktop_request(request: &ServiceInstallRequest, uid: u32) -> Result<(), ServiceError> {
+fn validate_desktop_request(
+    request: &ServiceInstallRequest,
+    uid: u32,
+    user: &str,
+    home: &Path,
+) -> Result<(), ServiceError> {
     if request.service_name.as_str() != DESKTOP_AGENT_SERVICE_NAME {
         return invalid_desktop_request("service name is not the fixed MSC desktop service name");
     }
@@ -251,17 +310,16 @@ fn validate_desktop_request(request: &ServiceInstallRequest, uid: u32) -> Result
     {
         return invalid_desktop_request("agent command does not match the local MSC service");
     }
-    let (user, home) = user_identity(uid)?;
-    if request.run_user.as_deref() != Some(user.as_str()) {
+    if request.run_user.as_deref() != Some(user) {
         return invalid_desktop_request("service account does not match the authorizing user");
     }
     let data_dir = home.join(".local/share/msc2");
     let logs_dir = data_dir.join("logs");
     let secrets_dir = data_dir.join("secrets");
     let expected_bootstrap_socket = data_dir.join("local-bootstrap.sock");
-    let canonical_data = canonical_owned_directory(&data_dir, uid, "MSC data directory", &home)?;
-    canonical_owned_directory(&logs_dir, uid, "MSC log directory", &home)?;
-    canonical_owned_directory(&secrets_dir, uid, "MSC secrets directory", &home)?;
+    let canonical_data = canonical_owned_directory(&data_dir, uid, "MSC data directory", home)?;
+    canonical_owned_directory(&logs_dir, uid, "MSC log directory", home)?;
+    canonical_owned_directory(&secrets_dir, uid, "MSC secrets directory", home)?;
     if request.working_directory != canonical_data || request.log_path != logs_dir.join("agent.log")
     {
         return invalid_desktop_request(
@@ -304,13 +362,13 @@ fn validate_desktop_request(request: &ServiceInstallRequest, uid: u32) -> Result
         &canonical_data.join("agent"),
         uid,
         "MSC agent directory",
-        &home,
+        home,
     )?;
-    canonical_owned_directory(&builds_dir, uid, "MSC agent builds directory", &home)?;
+    canonical_owned_directory(&builds_dir, uid, "MSC agent builds directory", home)?;
     let Some(build_directory) = binary.parent() else {
         return invalid_desktop_request("staged MSC executable has no build directory");
     };
-    canonical_owned_directory(build_directory, uid, "MSC staged build directory", &home)?;
+    canonical_owned_directory(build_directory, uid, "MSC staged build directory", home)?;
     if binary.file_name() != Some(std::ffi::OsStr::new("msc"))
         || build_directory.file_name().is_none_or(|name| {
             let digest = name.to_string_lossy();

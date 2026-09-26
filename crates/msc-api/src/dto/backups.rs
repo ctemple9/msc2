@@ -142,6 +142,10 @@ pub struct StagedUploadBeginResultDto {
     pub upload_path: String,
     pub expires_at: String,
     pub max_bytes: i64,
+    /// Maximum request body accepted by the chunk endpoint. Optional so a
+    /// newer client can still identify the 2 MiB ceiling on older agents.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_chunk_bytes: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

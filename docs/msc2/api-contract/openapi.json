@@ -6931,6 +6931,22 @@
       }
     },
     "/v1/staged-uploads/{id}": {
+      "delete": {
+        "summary": "Cancel and remove a staged upload",
+        "operationId": "cancelStagedUpload",
+        "x-permission-category": "none",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "204": { "description": "Staged upload removed; repeated cancellation is safe" },
+          "500": {
+            "description": "The partial staged file could not be removed",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorDTO" } } }
+          }
+        },
+        "x-notes": "Idempotently cancels an upload by its unguessable stagedUploadId and removes its partial file from the agent. Used when the client cancels between chunks or its active request is interrupted."
+      },
       "put": {
         "summary": "Upload bytes into a previously begun staging slot",
         "operationId": "uploadStagedBytes",
@@ -6985,7 +7001,7 @@
     },
     "/v1/staged-uploads/{id}/chunks": {
       "put": {
-        "summary": "Append one bounded chunk to a modpack upload",
+        "summary": "Append one bounded chunk to a modpack or world archive upload",
         "operationId": "uploadStagedChunk",
         "x-permission-category": "none",
         "parameters": [
@@ -7012,7 +7028,7 @@
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorDTO" } } }
           }
         },
-        "x-notes": "Chunk route accepts only modpack-archive staging slots with expectedBytes. Each request is limited to 2 MiB, offsets must be contiguous, and redemption is available only after the complete archive has been received and hashed from disk."
+        "x-notes": "Chunk route accepts modpack-archive, world-import, and active-world-replace staging slots with expectedBytes. Each request is limited to 8 MiB, offsets must be contiguous, and redemption is available only after the complete archive has been received and hashed from disk. The client can select 1–8 MiB chunks per upload."
       }
     },
     "/v1/staged-downloads/{id}": {
@@ -13068,6 +13084,10 @@
           },
           "maxBytes": {
             "type": "integer"
+          },
+          "maxChunkBytes": {
+            "type": "integer",
+            "description": "Maximum chunk request size supported by this agent; omitted by older agents."
           }
         },
         "required": [

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { ApiClient, ApiError, bearerCredentialAdapter } from '../../src/lib/api';
+import {
+  ApiClient,
+  ApiError,
+  UploadCancelledError,
+  bearerCredentialAdapter,
+} from '../../src/lib/api';
 import { ReconnectingStream } from '../../src/lib/streams';
 import { OperationTracker } from '../../src/lib/operations';
 
@@ -79,8 +84,8 @@ describe('shared host-aware transport', () => {
     expect(calls).toBe(0);
   });
 
-  it('streams a selected file in ordered 2 MiB chunks and verifies completion', async () => {
-    const chunkSize = 2 * 1024 * 1024;
+  it('streams a selected file using its chosen chunk size and verifies completion', async () => {
+    const chunkSize = 4 * 1024 * 1024;
     const totalBytes = chunkSize + 3;
     const requests: { url: string; init?: RequestInit }[] = [];
     const progress: { phase: string; bytesUploaded: number; totalBytes: number }[] = [];
@@ -101,6 +106,7 @@ describe('shared host-aware transport', () => {
             stagedUploadId: 'upload-1',
             uploadPath: '/v1/staged-uploads/upload-1',
             maxBytes: totalBytes,
+            maxChunkBytes: 8 * 1024 * 1024,
             expiresAt: '',
           });
         }
@@ -114,9 +120,10 @@ describe('shared host-aware transport', () => {
     });
 
     await expect(
-      client.stagedUploadFromFile({ purpose: 'modpack-archive' }, source, (update) =>
-        progress.push(update),
-      ),
+      client.stagedUploadFromFile({ purpose: 'modpack-archive' }, source, {
+        chunkSizeBytes: chunkSize,
+        onProgress: (update) => progress.push(update),
+      }),
     ).resolves.toMatchObject({ stagedUploadId: 'upload-1', receivedBytes: totalBytes });
 
     expect(requests.map(({ url }) => url)).toEqual([
@@ -129,11 +136,12 @@ describe('shared host-aware transport', () => {
     expect(uploadedBodies.every((body) => body.byteLength <= chunkSize)).toBe(true);
     expect(progress).toEqual([
       { phase: 'preparing', bytesUploaded: 0, totalBytes },
-      { phase: 'reading', bytesUploaded: 0, totalBytes },
-      { phase: 'uploading', bytesUploaded: 0, totalBytes },
-      { phase: 'reading', bytesUploaded: chunkSize, totalBytes },
-      { phase: 'uploading', bytesUploaded: chunkSize, totalBytes },
-      { phase: 'complete', bytesUploaded: totalBytes, totalBytes },
+      { phase: 'preparing', bytesUploaded: 0, totalBytes, chunkSizeBytes: chunkSize },
+      { phase: 'reading', bytesUploaded: 0, totalBytes, chunkSizeBytes: chunkSize },
+      { phase: 'uploading', bytesUploaded: 0, totalBytes, chunkSizeBytes: chunkSize },
+      { phase: 'reading', bytesUploaded: chunkSize, totalBytes, chunkSizeBytes: chunkSize },
+      { phase: 'uploading', bytesUploaded: chunkSize, totalBytes, chunkSizeBytes: chunkSize },
+      { phase: 'complete', bytesUploaded: totalBytes, totalBytes, chunkSizeBytes: chunkSize },
     ]);
     expect(JSON.parse(String(requests[0].init?.body))).toMatchObject({
       purpose: 'modpack-archive',
@@ -142,12 +150,13 @@ describe('shared host-aware transport', () => {
   });
 
   it('rejects a short file chunk before sending it to the agent', async () => {
-    const requests: string[] = [];
+    const requests: { url: string; method: string }[] = [];
     const client = new ApiClient({
       baseUrl: 'http://alpha.test',
       hostId: 'alpha',
-      fetchImpl: async (url) => {
-        requests.push(String(url));
+      fetchImpl: async (url, init) => {
+        requests.push({ url: String(url), method: String(init?.method) });
+        if (init?.method === 'DELETE') return new Response(null, { status: 204 });
         return response({
           stagedUploadId: 'upload-1',
           uploadPath: '/v1/staged-uploads/upload-1',
@@ -167,8 +176,57 @@ describe('shared host-aware transport', () => {
           close: async () => undefined,
         },
       ),
-    ).rejects.toThrow('Could not read the complete modpack file at byte 0.');
-    expect(requests).toEqual(['http://alpha.test/v1/staged-uploads']);
+    ).rejects.toThrow('Could not read the complete file at byte 0.');
+    expect(requests).toEqual([
+      { url: 'http://alpha.test/v1/staged-uploads', method: 'POST' },
+      { url: 'http://alpha.test/v1/staged-uploads/upload-1', method: 'DELETE' },
+    ]);
+  });
+
+  it('cancels an active chunk request and removes the staged upload', async () => {
+    const controller = new AbortController();
+    let chunkStarted = () => {};
+    const started = new Promise<void>((resolve) => (chunkStarted = resolve));
+    const requests: string[] = [];
+    const client = new ApiClient({
+      baseUrl: 'http://alpha.test',
+      hostId: 'alpha',
+      fetchImpl: async (url, init) => {
+        requests.push(`${String(init?.method)} ${String(url)}`);
+        if (init?.method === 'POST') {
+          return response({
+            stagedUploadId: 'upload-1',
+            uploadPath: '/v1/staged-uploads/upload-1',
+            maxBytes: 2 * 1024 * 1024,
+            maxChunkBytes: 8 * 1024 * 1024,
+            expiresAt: '',
+          });
+        }
+        if (init?.method === 'DELETE') return new Response(null, { status: 204 });
+        chunkStarted();
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new Error('aborted')), {
+            once: true,
+          });
+        });
+      },
+    });
+    const upload = client.stagedUploadFromFile(
+      { purpose: 'modpack-archive' },
+      {
+        name: 'large-pack.zip',
+        size: 2 * 1024 * 1024,
+        readChunk: async (_offset, bytes) => new Uint8Array(bytes),
+        close: async () => undefined,
+      },
+      { chunkSizeBytes: 1024 * 1024, signal: controller.signal },
+    );
+
+    await started;
+    controller.abort();
+    await expect(upload).rejects.toBeInstanceOf(UploadCancelledError);
+    expect(requests).toContain('DELETE http://alpha.test/v1/staged-uploads/upload-1');
+    expect(requests.filter((request) => request.includes('/chunks?'))).toHaveLength(1);
   });
 
   it('stops a staged download at the configured client memory ceiling', async () => {

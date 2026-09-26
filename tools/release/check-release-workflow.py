@@ -82,6 +82,7 @@ def check_candidate_workflow(workflow: str) -> None:
         "cargo fmt --all -- --check",
         "cargo nextest run -p msc-agent --test web_ui",
         "cargo test -p msc-agent --bin msc routes::components::staged_upload_tests::chunked_modpack_upload_requires_order_and_completes_with_verified_size -- --exact",
+        "cargo test -p msc-agent --bin msc routes::components::staged_upload_tests::world_import_chunks_can_be_cancelled_and_removed_idempotently -- --exact",
         "cargo test -p msc-agent --bin msc cli::update::tests::authorized_update_waits_for_authorizer_and_reports_cancellation -- --exact",
         "cargo build --release",
         "--bundles \"${{ matrix.tauri-bundles }}\" --no-sign",

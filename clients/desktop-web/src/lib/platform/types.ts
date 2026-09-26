@@ -14,9 +14,10 @@ export interface FileChunkSource {
 }
 
 export interface FileUploadProgress {
-  readonly phase: 'selecting' | 'preparing' | 'reading' | 'uploading' | 'complete';
+  readonly phase: 'selecting' | 'preparing' | 'reading' | 'uploading' | 'cancelling' | 'complete';
   readonly bytesUploaded: number;
   readonly totalBytes: number;
+  readonly chunkSizeBytes?: number;
 }
 
 export interface FilePickerRequest {

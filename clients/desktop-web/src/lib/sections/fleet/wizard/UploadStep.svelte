@@ -7,15 +7,14 @@
   import { onDestroy, onMount, tick } from 'svelte';
   import Button from '../../../components/base/Button.svelte';
   import Field from '../../../components/base/Field.svelte';
-  import Sheet from '../../../components/base/Sheet.svelte';
   import VisibilityIcon from '../../../components/base/VisibilityIcon.svelte';
   import { onboardingAnchor } from '../../../help/tourAnchors';
   import { getPlatform, openExternal } from '../../../platform';
-  import type { FileChunkSource, FileUploadProgress } from '../../../platform/types';
+  import type { FileChunkSource } from '../../../platform/types';
   import type { Schema, ScreenApi } from '../../shared/types';
   import { errorMessage, mutate } from '../../shared/types';
   import { addonPaths } from '../../addons/model';
-  import ModpackUploadProgress from '../../components/ModpackUploadProgress.svelte';
+  import StagedUploadSheet from '../../components/StagedUploadSheet.svelte';
   import { scanImportSource, type JavaCategory, type JavaFlavor, type WizardDraft } from './model';
 
   export let api: ScreenApi | undefined = undefined;
@@ -25,8 +24,7 @@
 
   let fileInput: HTMLInputElement;
   let isScanning = false;
-  let modpackProgress: FileUploadProgress | undefined;
-  let modpackFileName = '';
+  let pendingModpackSource: FileChunkSource | undefined;
   let scanError: string | undefined;
   let dropTargeted = false;
   let supportsDrop = false;
@@ -115,35 +113,20 @@
     }
   }
 
-  async function inspectModpack(fileName: string, source: FileChunkSource): Promise<void> {
+  function queueModpackUpload(source: FileChunkSource): void {
+    scanError = undefined;
+    pendingModpackSource = source;
+  }
+
+  async function inspectModpack(fileName: string, stagedUploadId: string): Promise<void> {
     isScanning = true;
     scanError = undefined;
     curseforgeKeyNotice = '';
-    modpackFileName = fileName;
-    modpackProgress = {
-      phase: 'preparing',
-      bytesUploaded: 0,
-      totalBytes: source.size,
-    };
     try {
-      if (!api?.uploadFile) throw new Error('Modpack staging needs a connected agent.');
       await tick();
-      const staged = await api.uploadFile('modpack-archive', source, {
-        onProgress: (progress) => (modpackProgress = progress),
-      });
-      modpackProgress = {
-        phase: 'complete',
-        bytesUploaded: source.size,
-        totalBytes: source.size,
-      };
-      await inspectStagedModpack(fileName, staged.stagedUploadId);
+      await inspectStagedModpack(fileName, stagedUploadId);
     } finally {
-      try {
-        await source.close();
-      } finally {
-        modpackProgress = undefined;
-        isScanning = false;
-      }
+      isScanning = false;
     }
   }
 
@@ -214,7 +197,7 @@
       const readFileStream = (await getPlatform()).readFileStream;
       if (!readFileStream)
         throw new Error('Reading a dropped file is unavailable in this desktop build.');
-      await inspectModpack(baseName(path), await readFileStream(path));
+      queueModpackUpload(await readFileStream(path));
     } catch (error) {
       scanError = errorMessage(error);
     }
@@ -257,10 +240,7 @@
   }
 
   async function browseModpack(): Promise<void> {
-    isScanning = true;
     scanError = undefined;
-    modpackFileName = 'Waiting for file selection…';
-    modpackProgress = { phase: 'selecting', bytesUploaded: 0, totalBytes: 0 };
     let picked: FileChunkSource | null = null;
     try {
       picked = await (
@@ -269,15 +249,14 @@
         { label: 'Choose a modpack archive', extensions: ['mrpack', 'zip'] },
         browseBrowserFile,
       );
-      if (picked) await inspectModpack(picked.name, picked);
+      if (picked) queueModpackUpload(picked);
     } catch (error) {
       scanError = errorMessage(error);
-    } finally {
-      if (!picked) {
-        modpackProgress = undefined;
-        isScanning = false;
-      }
     }
+  }
+
+  function closePendingModpack(): void {
+    pendingModpackSource = undefined;
   }
 
   function chooseDifferentFile(): void {
@@ -495,10 +474,14 @@
   {/if}
 </div>
 
-{#if modpackProgress}
-  <Sheet title="Staging modpack" size="sm">
-    <ModpackUploadProgress fileName={modpackFileName} progress={modpackProgress} />
-  </Sheet>
+{#if pendingModpackSource}
+  <StagedUploadSheet
+    {api}
+    purpose="modpack-archive"
+    source={pendingModpackSource}
+    onComplete={(upload) => inspectModpack(pendingModpackSource?.name ?? '', upload.stagedUploadId)}
+    onClose={closePendingModpack}
+  />
 {/if}
 
 <style>

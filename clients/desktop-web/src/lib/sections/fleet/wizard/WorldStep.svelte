@@ -10,8 +10,8 @@
   // pre-made world into creation at all (confirmed against the frozen
   // contract -- worldName/worldSeed are the only world-shape fields it
   // takes), so both non-fresh sources need the same staged-upload mechanism
-  // `worlds/ImportWorldZipSheet.svelte` already uses for a *single file's*
-  // bytes. A folder has no such primitive anywhere in this codebase or the
+  // `worlds/ImportWorldZipSheet.svelte` uses to stream a selected ZIP in
+  // bounded chunks. A folder has no such primitive anywhere in this codebase or the
   // contract -- `worlds/ReplaceWorldSheet.svelte` already hit this exact
   // gap for the identical oracle picker ("World Folder…") and dropped it
   // for the same reason: "a browser file picker has no folder-to-archive
@@ -21,17 +21,17 @@
   // value to select in the first place, so there is nothing to fake a
   // picker control for.
   //
-  // The backup ZIP is staged immediately on pick (same as
-  // ImportWorldZipSheet's chooseAndStage) rather than deferred, since
-  // staging bytes commits nothing -- only P12.18g's real create call
-  // redeems the resulting stagedUploadId.
+  // The backup ZIP is staged after the user confirms the transfer size;
+  // staging commits nothing -- only P12.18g's real create call redeems the
+  // resulting stagedUploadId.
   import Button from '../../../components/base/Button.svelte';
   import SegmentedControl from '../../../components/base/SegmentedControl.svelte';
   import { onboardingAnchor } from '../../../help/tourAnchors';
   import { getPlatform } from '../../../platform';
-  import type { PickedFile } from '../../../platform/types';
+  import type { FileChunkSource } from '../../../platform/types';
   import type { Schema, ScreenApi } from '../../shared/types';
   import { errorMessage } from '../../shared/types';
+  import StagedUploadSheet from '../../components/StagedUploadSheet.svelte';
   import WorldSettingsForm from '../../worlds/WorldSettingsForm.svelte';
   import {
     defaultWorldSettingsValues,
@@ -45,6 +45,7 @@
 
   let fileInput: HTMLInputElement;
   let staging = false;
+  let pendingWorldSource: FileChunkSource | undefined;
   let stageError: string | undefined;
   let capabilities: WorldSettingsCapabilities | undefined;
   let capabilitiesError: string | undefined;
@@ -109,15 +110,23 @@
     stageError = undefined;
   }
 
-  function browseBrowserFile(): Promise<PickedFile | null> {
+  function browseBrowserFile(): Promise<FileChunkSource | null> {
     return new Promise((resolve) => {
       fileInput.addEventListener(
         'change',
-        async () => {
+        () => {
           const browserFile = fileInput.files?.[0];
           resolve(
             browserFile
-              ? { name: browserFile.name, bytes: new Uint8Array(await browserFile.arrayBuffer()) }
+              ? {
+                  name: browserFile.name,
+                  size: browserFile.size,
+                  readChunk: async (offset, maxBytes) =>
+                    new Uint8Array(
+                      await browserFile.slice(offset, offset + maxBytes).arrayBuffer(),
+                    ),
+                  close: async () => undefined,
+                }
               : null,
           );
         },
@@ -128,23 +137,37 @@
   }
 
   async function chooseBackup(): Promise<void> {
-    if (!api?.upload || staging) return;
+    if (!api?.uploadFile || staging) return;
     staging = true;
     stageError = undefined;
     try {
       const picked = await (
         await getPlatform()
-      ).pickFile({ label: 'Choose a world backup ZIP', extensions: ['zip'] }, () =>
+      ).pickFileStream({ label: 'Choose a world backup ZIP', extensions: ['zip'] }, () =>
         browseBrowserFile(),
       );
-      if (!picked) return;
-      const staged = await api.upload('world-import', picked.bytes);
-      draft.stagedWorldBackup = { fileName: picked.name, stagedUploadId: staged.stagedUploadId };
+      if (!picked) {
+        staging = false;
+        return;
+      }
+      pendingWorldSource = picked;
     } catch (error) {
       stageError = errorMessage(error);
-    } finally {
       staging = false;
     }
+  }
+
+  function finishWorldUpload(upload: Schema['StagedUploadCompleteResultDTO']): void {
+    if (!pendingWorldSource) throw new Error('The selected world archive is no longer available.');
+    draft.stagedWorldBackup = {
+      fileName: pendingWorldSource.name,
+      stagedUploadId: upload.stagedUploadId,
+    };
+  }
+
+  function closePendingWorld(): void {
+    pendingWorldSource = undefined;
+    staging = false;
   }
 
   function updateWorldSettings(next: WorldSettingsValues): void {
@@ -196,7 +219,7 @@
   {:else}
     <section class="block">
       <Button variant="secondary" disabled={staging} onclick={() => void chooseBackup()}>
-        {staging ? 'Staging…' : 'Choose backup .zip…'}
+        {staging ? 'Preparing backup…' : 'Choose backup .zip…'}
       </Button>
       {#if draft.stagedWorldBackup}
         <p class="hint">Selected: {draft.stagedWorldBackup.fileName}</p>
@@ -208,6 +231,16 @@
     </section>
   {/if}
 </div>
+
+{#if pendingWorldSource}
+  <StagedUploadSheet
+    {api}
+    purpose="world-import"
+    source={pendingWorldSource}
+    onComplete={finishWorldUpload}
+    onClose={closePendingWorld}
+  />
+{/if}
 
 <style>
   .world {

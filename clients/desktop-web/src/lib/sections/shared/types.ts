@@ -1,5 +1,6 @@
 import type { components } from '../../api/generated';
-import type { FileChunkSource, FileUploadProgress } from '../../platform/types';
+import type { FileUploadOptions } from '../../api/client';
+import type { FileChunkSource } from '../../platform/types';
 
 export type Schema = components['schemas'];
 
@@ -28,8 +29,7 @@ export interface ScreenApi {
       operationId?: string;
       fileId?: string;
       fileName?: string;
-      onProgress?: (progress: FileUploadProgress) => void;
-    },
+    } & FileUploadOptions,
   ): Promise<Schema['StagedUploadCompleteResultDTO']>;
   download?(id: string, maxBytes?: number): Promise<Uint8Array>;
 }

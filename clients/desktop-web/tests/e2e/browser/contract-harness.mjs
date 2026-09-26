@@ -401,10 +401,7 @@ function reconnectClientId(request, response) {
   const existing = cookieValue(request, 'msc_test_reconnect_client');
   if (existing) return existing;
   const id = `reconnect-${++reconnectClientSequence}`;
-  response.setHeader(
-    'set-cookie',
-    `msc_test_reconnect_client=${id}; Path=/; SameSite=Lax`,
-  );
+  response.setHeader('set-cookie', `msc_test_reconnect_client=${id}; Path=/; SameSite=Lax`);
   return id;
 }
 
@@ -668,7 +665,12 @@ createServer(async (request, response) => {
       stagedUploadId: 'upload-1',
       uploadPath: '/v1/staged-uploads/upload-1',
       maxBytes: 512 * 1024 * 1024,
+      maxChunkBytes: 8 * 1024 * 1024,
     });
+  }
+  if (url.pathname === '/v1/staged-uploads/upload-1' && request.method === 'DELETE') {
+    response.writeHead(204);
+    return response.end();
   }
   if (url.pathname === '/v1/staged-uploads/upload-1/chunks' && request.method === 'PUT') {
     const chunkBytes = await readRequestByteLength(request);

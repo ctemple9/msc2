@@ -90,7 +90,7 @@ describe('desktop credentials', () => {
   });
 
   it('streams a remote modpack through bodyless intermediate chunk responses', async () => {
-    const chunkSize = 2 * 1024 * 1024;
+    const chunkSize = 4 * 1024 * 1024;
     const totalBytes = chunkSize + 3;
     const native = bridge();
     vi.mocked(native.authorizedRequest).mockImplementation(async (request: AuthorizedRequest) => {
@@ -98,14 +98,17 @@ describe('desktop credentials', () => {
         return {
           status: 200,
           headers: [['X-MSC-Api-Version', '1.0']],
-          body: [...new TextEncoder().encode(
-            JSON.stringify({
-              stagedUploadId: 'upload-1',
-              uploadPath: '/v1/staged-uploads/upload-1',
-              maxBytes: totalBytes,
-              expiresAt: '',
-            }),
-          )],
+          body: [
+            ...new TextEncoder().encode(
+              JSON.stringify({
+                stagedUploadId: 'upload-1',
+                uploadPath: '/v1/staged-uploads/upload-1',
+                maxBytes: totalBytes,
+                maxChunkBytes: 8 * 1024 * 1024,
+                expiresAt: '',
+              }),
+            ),
+          ],
         };
       }
       if (request.path.endsWith('complete=false')) {
@@ -114,13 +117,15 @@ describe('desktop credentials', () => {
       return {
         status: 200,
         headers: [['X-MSC-Api-Version', '1.0']],
-        body: [...new TextEncoder().encode(
-          JSON.stringify({
-            stagedUploadId: 'upload-1',
-            receivedBytes: totalBytes,
-            sha256: 'digest',
-          }),
-        )],
+        body: [
+          ...new TextEncoder().encode(
+            JSON.stringify({
+              stagedUploadId: 'upload-1',
+              receivedBytes: totalBytes,
+              sha256: 'digest',
+            }),
+          ),
+        ],
       };
     });
     const session = new DesktopSessionAuth(native);
@@ -138,21 +143,21 @@ describe('desktop credentials', () => {
     const progress: { phase: string; bytesUploaded: number; totalBytes: number }[] = [];
 
     await expect(
-      client.stagedUploadFromFile({ purpose: 'modpack-archive' }, source, (update) =>
-        progress.push(update),
-      ),
+      client.stagedUploadFromFile({ purpose: 'modpack-archive' }, source, {
+        chunkSizeBytes: chunkSize,
+        onProgress: (update) => progress.push(update),
+      }),
     ).resolves.toMatchObject({ stagedUploadId: 'upload-1', receivedBytes: totalBytes });
     expect(native.authorizedRequest).toHaveBeenCalledTimes(3);
-    expect(vi.mocked(native.authorizedRequest).mock.calls[1]?.[0].path).toContain(
-      'complete=false',
-    );
+    expect(vi.mocked(native.authorizedRequest).mock.calls[1]?.[0].path).toContain('complete=false');
     expect(progress).toEqual([
       { phase: 'preparing', bytesUploaded: 0, totalBytes },
-      { phase: 'reading', bytesUploaded: 0, totalBytes },
-      { phase: 'uploading', bytesUploaded: 0, totalBytes },
-      { phase: 'reading', bytesUploaded: chunkSize, totalBytes },
-      { phase: 'uploading', bytesUploaded: chunkSize, totalBytes },
-      { phase: 'complete', bytesUploaded: totalBytes, totalBytes },
+      { phase: 'preparing', bytesUploaded: 0, totalBytes, chunkSizeBytes: chunkSize },
+      { phase: 'reading', bytesUploaded: 0, totalBytes, chunkSizeBytes: chunkSize },
+      { phase: 'uploading', bytesUploaded: 0, totalBytes, chunkSizeBytes: chunkSize },
+      { phase: 'reading', bytesUploaded: chunkSize, totalBytes, chunkSizeBytes: chunkSize },
+      { phase: 'uploading', bytesUploaded: chunkSize, totalBytes, chunkSizeBytes: chunkSize },
+      { phase: 'complete', bytesUploaded: totalBytes, totalBytes, chunkSizeBytes: chunkSize },
     ]);
   });
 

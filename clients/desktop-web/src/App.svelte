@@ -495,12 +495,12 @@
       upload: (purpose, bytes, options) =>
         requireClient().stagedUpload({ purpose, ...options }, bytes),
       uploadFile: (purpose, source, options) => {
-        const { onProgress, ...uploadOptions } = options ?? {};
-        return requireClient().stagedUploadFromFile(
-          { purpose, ...uploadOptions },
-          source,
+        const { onProgress, chunkSizeBytes, signal, ...uploadOptions } = options ?? {};
+        return requireClient().stagedUploadFromFile({ purpose, ...uploadOptions }, source, {
           onProgress,
-        );
+          chunkSizeBytes,
+          signal,
+        });
       },
       download: (id, maxBytes) => requireClient().downloadBytes(id, maxBytes),
     };

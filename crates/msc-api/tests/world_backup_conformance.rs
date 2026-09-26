@@ -503,6 +503,7 @@ fn world_backup_conformance_staged_upload_begin_result_matches_schema() {
             upload_path: "/v1/staged-uploads/upload-1".to_string(),
             expires_at: "2026-08-15T12:30:00Z".to_string(),
             max_bytes: 10_737_418_240,
+            max_chunk_bytes: Some(8_388_608),
         },
     );
 }

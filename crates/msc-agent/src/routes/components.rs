@@ -55,7 +55,7 @@ use crate::routes::worlds::{
 const MAX_STAGED_UPLOAD_BYTES: u64 = 10 * 1024 * 1024 * 1024;
 const MAX_LOCAL_ADDON_UPLOAD_BYTES: u64 = 512 * 1024 * 1024;
 const STAGING_TTL_SECONDS: u64 = 30 * 60;
-const STAGED_UPLOAD_CHUNK_BYTES: usize = 2 * 1024 * 1024;
+const STAGED_UPLOAD_CHUNK_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Clone)]
 pub struct ComponentsRoutesState {
@@ -243,6 +243,7 @@ pub fn router(state: ComponentsRoutesState) -> Router {
         .route(
             "/staged-uploads/:id",
             put(upload_staged_bytes)
+                .delete(cancel_staged_upload)
                 .route_layer(DefaultBodyLimit::max(MAX_STAGED_UPLOAD_BYTES as usize)),
         )
         .route(
@@ -731,6 +732,7 @@ pub async fn begin_staged_upload(
         upload_path: format!("/v1/staged-uploads/{id}"),
         expires_at: unix_to_iso8601(expires_at_unix),
         max_bytes: i64::try_from(max_bytes).unwrap_or(i64::MAX),
+        max_chunk_bytes: Some(STAGED_UPLOAD_CHUNK_BYTES as i64),
     })
     .into_response();
     audit(
@@ -830,7 +832,7 @@ pub async fn upload_staged_chunk(
     if body.is_empty() || body.len() > STAGED_UPLOAD_CHUNK_BYTES {
         return invalid_body(
             "invalid_chunk_size",
-            "Each upload chunk must contain between 1 byte and 2 MiB.",
+            "Each upload chunk must contain between 1 byte and 8 MiB.",
         );
     }
     let mut uploads = state.staging.uploads.lock().unwrap();
@@ -849,11 +851,16 @@ pub async fn upload_staged_chunk(
             "This staged upload has expired.",
         );
     }
-    if entry.purpose != StagedUploadPurposeDto::ModpackArchive {
+    if !matches!(
+        entry.purpose,
+        StagedUploadPurposeDto::ModpackArchive
+            | StagedUploadPurposeDto::WorldImport
+            | StagedUploadPurposeDto::ActiveWorldReplace
+    ) {
         return error_response(
             StatusCode::CONFLICT,
             "invalid_upload_purpose",
-            "Chunk uploads are reserved for modpack archives.",
+            "Chunk uploads are reserved for modpack archives and world archives.",
         );
     }
     let Some(expected) = entry.expected_bytes else {
@@ -977,6 +984,38 @@ pub async fn upload_staged_chunk(
         &credential,
         "PUT",
         "/v1/staged-uploads/:id/chunks",
+        response.status(),
+    );
+    response
+}
+
+pub async fn cancel_staged_upload(
+    State(state): State<ComponentsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    AxumPath(id): AxumPath<String>,
+) -> Response {
+    let mut uploads = state.staging.uploads.lock().unwrap();
+    if let Some(entry) = uploads.get(&id) {
+        match std::fs::remove_file(&entry.path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_) => {
+                return error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "internal_error",
+                    "Could not remove the staged upload.",
+                );
+            }
+        }
+        uploads.remove(&id);
+    }
+    drop(uploads);
+    let response = StatusCode::NO_CONTENT.into_response();
+    audit(
+        &state.lifecycle,
+        &credential,
+        "DELETE",
+        "/v1/staged-uploads/:id",
         response.status(),
     );
     response
@@ -2708,7 +2747,7 @@ mod staged_upload_tests {
 
     #[tokio::test]
     async fn chunked_modpack_upload_requires_order_and_completes_with_verified_size() {
-        let chunk_bytes = 2 * 1024 * 1024;
+        let chunk_bytes = 8 * 1024 * 1024;
         let total_bytes = chunk_bytes * 2 + 3;
         let lifecycle = LifecycleRoutesState::with_fake_process(
             crate::ws::console::ConsoleState::default(),
@@ -2832,5 +2871,100 @@ mod staged_upload_tests {
                 .all(|byte| *byte == b'b')
         );
         assert_eq!(&uploaded[chunk_bytes * 2..], b"end");
+    }
+
+    #[tokio::test]
+    async fn world_import_chunks_can_be_cancelled_and_removed_idempotently() {
+        let lifecycle = LifecycleRoutesState::with_fake_process(
+            crate::ws::console::ConsoleState::default(),
+            OperationsState::fake_journaled(),
+        );
+        let state = ComponentsRoutesState::new(
+            lifecycle,
+            StagingStore::default(),
+            PendingModpackImports::default(),
+        );
+        let app = router(state.clone()).layer(axum::Extension(test_credential()));
+        let begin = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/staged-uploads")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({
+                            "purpose": "world-import",
+                            "fileName": "world.zip",
+                            "expectedBytes": 8
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let begin: StagedUploadBeginResultDto =
+            serde_json::from_slice(&to_bytes(begin.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+
+        let chunk = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!(
+                        "/staged-uploads/{}/chunks?offset=0&complete=false",
+                        begin.staged_upload_id
+                    ))
+                    .body(Body::from("part"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(chunk.status(), StatusCode::NO_CONTENT);
+        let upload = state
+            .staging
+            .uploads
+            .lock()
+            .unwrap()
+            .get(&begin.staged_upload_id)
+            .cloned()
+            .unwrap();
+        assert!(upload.path.exists());
+
+        let cancelled = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(format!("/staged-uploads/{}", begin.staged_upload_id))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(cancelled.status(), StatusCode::NO_CONTENT);
+        assert!(!upload.path.exists());
+        assert!(
+            !state
+                .staging
+                .uploads
+                .lock()
+                .unwrap()
+                .contains_key(&begin.staged_upload_id)
+        );
+
+        let repeated = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(format!("/staged-uploads/{}", begin.staged_upload_id))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(repeated.status(), StatusCode::NO_CONTENT);
     }
 }

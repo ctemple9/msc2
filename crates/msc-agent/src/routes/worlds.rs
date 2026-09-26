@@ -2536,6 +2536,7 @@ pub async fn begin_staged_upload(
         upload_path: format!("/v1/staged-uploads/{id}"),
         expires_at: unix_to_iso8601(expires_at_unix),
         max_bytes: MAX_STAGED_UPLOAD_BYTES as i64,
+        max_chunk_bytes: None,
     })
     .into_response();
     audit(

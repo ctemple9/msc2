@@ -11,8 +11,10 @@
   import Button from '../../components/base/Button.svelte';
   import { getPlatform } from '../../platform';
   import { onMount } from 'svelte';
+  import type { FileChunkSource } from '../../platform/types';
   import type { Schema, ScreenApi } from '../shared/types';
   import { call, mutate } from '../shared/types';
+  import StagedUploadSheet from '../components/StagedUploadSheet.svelte';
   import { currentLevelName, pollOperation, settingsPath, worldPaths } from './model';
 
   export let api: ScreenApi | undefined = undefined;
@@ -29,6 +31,8 @@
   let step: Step = { kind: 'pick' };
   let levelName = 'world';
   let fileInput: HTMLInputElement;
+  let pendingWorldSource: FileChunkSource | undefined;
+  let picking = false;
 
   onMount(() => {
     void (async () => {
@@ -41,15 +45,23 @@
     })();
   });
 
-  function browseBrowserFile(): Promise<{ name: string; bytes: Uint8Array } | null> {
+  function browseBrowserFile(): Promise<FileChunkSource | null> {
     return new Promise((resolve) => {
       fileInput.addEventListener(
         'change',
-        async () => {
+        () => {
           const browserFile = fileInput.files?.[0];
           resolve(
             browserFile
-              ? { name: browserFile.name, bytes: new Uint8Array(await browserFile.arrayBuffer()) }
+              ? {
+                  name: browserFile.name,
+                  size: browserFile.size,
+                  readChunk: async (offset, maxBytes) =>
+                    new Uint8Array(
+                      await browserFile.slice(offset, offset + maxBytes).arrayBuffer(),
+                    ),
+                  close: async () => undefined,
+                }
               : null,
           );
         },
@@ -60,20 +72,36 @@
   }
 
   async function chooseAndStage(): Promise<void> {
-    if (!api?.upload || serverRunning) return;
-    const picked = await (
-      await getPlatform()
-    ).pickFile({ label: 'Choose a backup ZIP', extensions: ['zip'] }, () => browseBrowserFile());
-    if (!picked) return;
+    if (!api?.uploadFile || serverRunning || picking) return;
+    picking = true;
     try {
-      const staged = await api.upload('active-world-replace', picked.bytes);
-      step = { kind: 'staged', fileName: picked.name, stagedUploadId: staged.stagedUploadId };
+      const picked = await (
+        await getPlatform()
+      ).pickFileStream({ label: 'Choose a backup ZIP', extensions: ['zip'] }, () =>
+        browseBrowserFile(),
+      );
+      if (picked) pendingWorldSource = picked;
     } catch (error) {
       step = {
         kind: 'failed',
-        message: error instanceof Error ? error.message : 'Failed to stage this archive.',
+        message: error instanceof Error ? error.message : 'Could not select this archive.',
       };
+    } finally {
+      picking = false;
     }
+  }
+
+  function finishWorldUpload(upload: Schema['StagedUploadCompleteResultDTO']): void {
+    if (!pendingWorldSource) throw new Error('The selected world archive is no longer available.');
+    step = {
+      kind: 'staged',
+      fileName: pendingWorldSource.name,
+      stagedUploadId: upload.stagedUploadId,
+    };
+  }
+
+  function closePendingWorld(): void {
+    pendingWorldSource = undefined;
   }
 
   async function submit(): Promise<void> {
@@ -109,7 +137,12 @@
   }
 </script>
 
-<Sheet title="Replace World" size="sm" onClose={step.kind === 'replacing' ? undefined : onClose}>
+<Sheet
+  title="Replace World"
+  size="sm"
+  visible={!pendingWorldSource}
+  onClose={step.kind === 'replacing' ? undefined : onClose}
+>
   <div class="body">
     <input bind:this={fileInput} type="file" accept=".zip" class="hidden-input" />
     {#if step.kind === 'pick' || step.kind === 'staged'}
@@ -129,8 +162,12 @@
         {#if step.kind === 'staged'}
           <Button variant="primary" onclick={() => void submit()}>Apply Replace</Button>
         {:else}
-          <Button variant="primary" disabled={serverRunning} onclick={() => void chooseAndStage()}>
-            Choose ZIP…
+          <Button
+            variant="primary"
+            disabled={serverRunning || picking}
+            onclick={() => void chooseAndStage()}
+          >
+            {picking ? 'Opening…' : 'Choose ZIP…'}
           </Button>
         {/if}
       </div>
@@ -145,6 +182,16 @@
     {/if}
   </div>
 </Sheet>
+
+{#if pendingWorldSource}
+  <StagedUploadSheet
+    {api}
+    purpose="active-world-replace"
+    source={pendingWorldSource}
+    onComplete={finishWorldUpload}
+    onClose={closePendingWorld}
+  />
+{/if}
 
 <style>
   .body {

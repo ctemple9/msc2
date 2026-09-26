@@ -22,6 +22,23 @@ export interface JsonRequestOptions {
   signal?: AbortSignal;
 }
 
+export interface FileUploadOptions {
+  chunkSizeBytes?: number;
+  onProgress?: (progress: FileUploadProgress) => void;
+  signal?: AbortSignal;
+}
+
+export class UploadCancelledError extends Error {
+  constructor() {
+    super('The upload was cancelled.');
+    this.name = 'UploadCancelledError';
+  }
+}
+
+const MIN_UPLOAD_CHUNK_BYTES = 1024 * 1024;
+const DEFAULT_UPLOAD_CHUNK_BYTES = 2 * 1024 * 1024;
+const MAX_UPLOAD_CHUNK_BYTES = 8 * 1024 * 1024;
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -152,47 +169,145 @@ export class ApiClient {
   async stagedUploadFromFile(
     request: components['schemas']['StagedUploadBeginRequestDTO'],
     source: FileChunkSource,
-    onProgress?: (progress: FileUploadProgress) => void,
+    options: FileUploadOptions = {},
   ): Promise<components['schemas']['StagedUploadCompleteResultDTO']> {
     if (!Number.isSafeInteger(source.size) || source.size <= 0) {
-      throw new Error('The selected modpack file has an invalid size.');
+      throw new Error('The selected file has an invalid size.');
     }
-    onProgress?.({ phase: 'preparing', bytesUploaded: 0, totalBytes: source.size });
-    const slot = await this.beginUpload({ ...request, expectedBytes: source.size });
-    if (source.size > slot.maxBytes) {
-      throw new Error(`staged upload exceeds ${slot.maxBytes} bytes`);
+    const requestedChunkSize = options.chunkSizeBytes ?? DEFAULT_UPLOAD_CHUNK_BYTES;
+    if (
+      !Number.isSafeInteger(requestedChunkSize) ||
+      requestedChunkSize < MIN_UPLOAD_CHUNK_BYTES ||
+      requestedChunkSize > MAX_UPLOAD_CHUNK_BYTES
+    ) {
+      throw new Error('Upload chunk size must be between 1 and 8 MiB.');
     }
-    const chunkSize = 2 * 1024 * 1024;
-    let offset = 0;
-    while (offset < source.size) {
-      onProgress?.({ phase: 'reading', bytesUploaded: offset, totalBytes: source.size });
-      const expectedChunkBytes = Math.min(chunkSize, source.size - offset);
-      const bytes = await source.readChunk(offset, expectedChunkBytes);
-      if (bytes.byteLength !== expectedChunkBytes) {
-        throw new Error(`Could not read the complete modpack file at byte ${offset}.`);
+
+    const onProgress = options.onProgress;
+    const signal = options.signal;
+    let slot: components['schemas']['StagedUploadBeginResultDTO'] | undefined;
+    let cleanupPromise: Promise<void> | undefined;
+    let complete = false;
+    const cleanup = (): Promise<void> => {
+      if (!slot) return Promise.resolve();
+      cleanupPromise ??= this.cancelStagedUpload(slot.stagedUploadId);
+      return cleanupPromise;
+    };
+    const cleanupOnAbort = () => {
+      void cleanup().catch(() => undefined);
+    };
+
+    signal?.addEventListener('abort', cleanupOnAbort, { once: true });
+    try {
+      onProgress?.({ phase: 'preparing', bytesUploaded: 0, totalBytes: source.size });
+      const activeSlot = await this.beginUpload({ ...request, expectedBytes: source.size });
+      slot = activeSlot;
+      if (signal?.aborted) throw new UploadCancelledError();
+      if (
+        (request.purpose === 'world-import' || request.purpose === 'active-world-replace') &&
+        activeSlot.maxChunkBytes === undefined
+      ) {
+        throw new Error(
+          'This host agent does not support streamed world archives. Update the MSC 2 agent and try again.',
+        );
       }
-      onProgress?.({ phase: 'uploading', bytesUploaded: offset, totalBytes: source.size });
-      const finalChunk = offset + bytes.byteLength === source.size;
-      const path = `${slot.uploadPath}/chunks?offset=${offset}&complete=${finalChunk}`;
-      const response = await this.request('PUT', path, {
-        body: bytes,
-        headers: { 'Content-Type': 'application/octet-stream' },
+      const hostChunkLimit = activeSlot.maxChunkBytes ?? DEFAULT_UPLOAD_CHUNK_BYTES;
+      if (!Number.isSafeInteger(hostChunkLimit) || hostChunkLimit <= 0) {
+        throw new Error('The host returned an invalid maximum upload chunk size.');
+      }
+      const chunkSize = Math.min(requestedChunkSize, hostChunkLimit, MAX_UPLOAD_CHUNK_BYTES);
+      if (source.size > activeSlot.maxBytes) {
+        throw new Error(`staged upload exceeds ${activeSlot.maxBytes} bytes`);
+      }
+      onProgress?.({
+        phase: 'preparing',
+        bytesUploaded: 0,
+        totalBytes: source.size,
+        chunkSizeBytes: chunkSize,
       });
-      if (finalChunk) {
-        const result =
-          (await response.json()) as components['schemas']['StagedUploadCompleteResultDTO'];
-        if (result.receivedBytes !== source.size || result.stagedUploadId !== slot.stagedUploadId) {
-          throw new Error('The agent returned an incomplete modpack upload result.');
+      let offset = 0;
+      while (offset < source.size) {
+        if (signal?.aborted) throw new UploadCancelledError();
+        onProgress?.({
+          phase: 'reading',
+          bytesUploaded: offset,
+          totalBytes: source.size,
+          chunkSizeBytes: chunkSize,
+        });
+        const expectedChunkBytes = Math.min(chunkSize, source.size - offset);
+        const bytes = await source.readChunk(offset, expectedChunkBytes);
+        if (signal?.aborted) throw new UploadCancelledError();
+        if (bytes.byteLength !== expectedChunkBytes) {
+          throw new Error(`Could not read the complete file at byte ${offset}.`);
         }
+        onProgress?.({
+          phase: 'uploading',
+          bytesUploaded: offset,
+          totalBytes: source.size,
+          chunkSizeBytes: chunkSize,
+        });
+        const finalChunk = offset + bytes.byteLength === source.size;
+        const path = `${activeSlot.uploadPath}/chunks?offset=${offset}&complete=${finalChunk}`;
+        // The desktop transport proxies this request through a native command
+        // that cannot be interrupted once Rust starts sending it. Wait for the
+        // active chunk to settle before deleting its staging slot.
+        const response = await this.request('PUT', path, {
+          body: bytes,
+          headers: { 'Content-Type': 'application/octet-stream' },
+          signal,
+        });
+        if (signal?.aborted) throw new UploadCancelledError();
+        if (finalChunk) {
+          const result =
+            (await response.json()) as components['schemas']['StagedUploadCompleteResultDTO'];
+          if (
+            result.receivedBytes !== source.size ||
+            result.stagedUploadId !== activeSlot.stagedUploadId
+          ) {
+            throw new Error('The agent returned an incomplete file upload result.');
+          }
+          if (signal?.aborted) throw new UploadCancelledError();
+          offset += bytes.byteLength;
+          complete = true;
+          onProgress?.({
+            phase: 'complete',
+            bytesUploaded: offset,
+            totalBytes: source.size,
+            chunkSizeBytes: chunkSize,
+          });
+          return result;
+        }
+        if (response.status !== 204) throw new Error('The agent did not accept the file chunk.');
         offset += bytes.byteLength;
-        onProgress?.({ phase: 'complete', bytesUploaded: offset, totalBytes: source.size });
-        return result;
       }
-      if (response.status !== 204)
-        throw new Error('The agent did not accept the modpack upload chunk.');
-      offset += bytes.byteLength;
+      throw new Error('The selected file is empty.');
+    } catch (error) {
+      let cleanupError: unknown;
+      if (slot && !complete) {
+        try {
+          await cleanup();
+        } catch (failure) {
+          cleanupError = failure;
+        }
+      }
+      if (cleanupError !== undefined) {
+        const reason = error instanceof Error ? error.message : String(error);
+        throw new Error(
+          `${reason} The host could not confirm removal of the partial file: ${String(cleanupError)}`,
+        );
+      }
+      if (signal?.aborted) throw new UploadCancelledError();
+      throw error;
+    } finally {
+      signal?.removeEventListener('abort', cleanupOnAbort);
     }
-    throw new Error('The selected modpack file is empty.');
+  }
+
+  async cancelStagedUpload(stagedUploadId: string): Promise<void> {
+    await this.requestJson<void>(
+      'DELETE',
+      `/v1/staged-uploads/${encodeURIComponent(stagedUploadId)}`,
+    );
   }
 
   async downloadBytes(

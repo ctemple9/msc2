@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 40b4e63b6c2dd25300fdcc159248997e133c414915270539abc98655cedc75d4
+// Contract SHA-256: b47f71eac86a7ba88d9c74aa28b624a9ba3d25d1cf11f782dd590e46464c6cc0
 
 export interface paths {
   '/v1/active-server': {
@@ -5164,7 +5164,8 @@ export interface paths {
     /** Upload bytes into a previously begun staging slot */
     put: operations['uploadStagedBytes'];
     post?: never;
-    delete?: never;
+    /** Cancel and remove a staged upload */
+    delete: operations['cancelStagedUpload'];
     options?: never;
     head?: never;
     patch?: never;
@@ -5178,7 +5179,7 @@ export interface paths {
       cookie?: never;
     };
     get?: never;
-    /** Append one bounded chunk to a modpack upload */
+    /** Append one bounded chunk to a modpack or world archive upload */
     put: operations['uploadStagedChunk'];
     post?: never;
     delete?: never;
@@ -8478,6 +8479,8 @@ export interface components {
     StagedUploadBeginResultDTO: {
       expiresAt: string;
       maxBytes: number;
+      /** @description Maximum chunk request size supported by this agent; omitted by older agents. */
+      maxChunkBytes?: number;
       stagedUploadId: string;
       /** @description PUT /v1/staged-uploads/{id} -- bounded to this token, not an arbitrary remote path. */
       uploadPath: string;
@@ -10124,6 +10127,35 @@ export interface operations {
       };
       /** @description staged_upload_expired / max_bytes_exceeded */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
+  cancelStagedUpload: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Staged upload removed; repeated cancellation is safe */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description The partial staged file could not be removed */
+      500: {
         headers: {
           [name: string]: unknown;
         };

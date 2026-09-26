@@ -262,8 +262,8 @@ export interface WizardDraft {
    *  existing create request and confirmation copy. */
   worldSettings?: WorldSettingsValues;
   /** Set once "From backup (.zip)" has staged a file via
-   *  `api.upload('world-import', ...)` -- the same staged-upload primitive
-   *  `worlds/ImportWorldZipSheet.svelte` already uses. Held client-side
+   *  `api.uploadFile('world-import', ...)` -- the same staged-upload
+   *  primitive `worlds/ImportWorldZipSheet.svelte` uses. Held client-side
    *  only; nothing is redeemed until P12.18g's real create call exists to
    *  redeem it against. */
   stagedWorldBackup: { fileName: string; stagedUploadId: string } | undefined;

@@ -46,9 +46,7 @@ test('walks a fresh profile through setup, tour pauses, handoff, and reopen', as
   await expect(page.getByRole('button', { name: 'Add Server…', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Add Server…', exact: true }).click();
   await expect(page.locator('button.path-card.selected')).toContainText('Start Fresh');
-  await expect(
-    page.getByRole('button', { name: /Import or Create from Modpack/ }),
-  ).toBeDisabled();
+  await expect(page.getByRole('button', { name: /Import or Create from Modpack/ })).toBeDisabled();
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await expect(page.getByRole('heading', { name: "You're All Set", level: 2 })).toBeVisible();
   await page.getByRole('dialog').getByRole('button', { name: 'Finish', exact: true }).click();
@@ -60,9 +58,7 @@ test('walks a fresh profile through setup, tour pauses, handoff, and reopen', as
     .getByRole('dialog', { name: 'Manage Servers' })
     .getByRole('button', { name: 'Close' })
     .click();
-  await expect(
-    page.locator('.reader').getByRole('heading', { name: 'Overview' }),
-  ).toBeVisible();
+  await expect(page.locator('.reader').getByRole('heading', { name: 'Overview' })).toBeVisible();
   await page.getByRole('tab', { name: 'Onboard', exact: true }).click();
   await page.getByRole('button', { name: 'Restart the guide' }).click();
   await expect(page.getByText('Begin the guided tour.')).toBeVisible();
@@ -80,8 +76,8 @@ test('shows chunk progress while a large modpack is sent to the selected host', 
   const wizard = page.getByRole('dialog', { name: 'Add Server' });
   await wizard.getByRole('button', { name: 'Continue', exact: true }).click();
 
-  const chunkBytes = 2 * 1024 * 1024;
-  const totalBytes = chunkBytes * 2 + 123;
+  const chunkBytes = 4 * 1024 * 1024;
+  const totalBytes = chunkBytes + 123;
   const acceptedChunkSizes: number[] = [];
   page.on('request', (request) => {
     if (
@@ -99,31 +95,44 @@ test('shows chunk progress while a large modpack is sent to the selected host', 
   const fileChooserPromise = page.waitForEvent('filechooser');
   await wizard.getByRole('button', { name: 'Choose Modpack…', exact: true }).click();
   const fileChooser = await fileChooserPromise;
-  const progressSheet = page.getByRole('dialog', { name: 'Staging modpack' });
-  await expect(progressSheet).toBeVisible();
-  await expect(progressSheet.getByText(/Choose the archive in the file picker/)).toBeVisible();
   await fileChooser.setFiles({
     name: 'AllTheMods10.zip',
     mimeType: 'application/zip',
     buffer: Buffer.alloc(totalBytes, 7),
   });
 
+  const optionsSheet = page.getByRole('dialog', { name: 'Prepare upload' });
+  await expect(optionsSheet).toBeVisible();
+  await expect(optionsSheet.getByText('AllTheMods10.zip')).toBeVisible();
+  const chunkSizeControl = optionsSheet.locator('#upload-chunk-size');
+  await chunkSizeControl.evaluate((element) => {
+    const range = element as HTMLInputElement;
+    range.value = '4';
+    range.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await expect(optionsSheet.getByText('Chunk size: 4 MiB')).toBeVisible();
+  await optionsSheet.getByRole('button', { name: 'Start upload' }).click();
+
+  const progressSheet = page.getByRole('dialog', { name: 'Uploading file' });
   await expect(progressSheet).toBeVisible();
   await expect(progressSheet.getByText('AllTheMods10.zip')).toBeVisible();
   await expect(progressSheet.getByText(/Sending archive data to the host/)).toBeVisible();
-  const progress = progressSheet.getByRole('progressbar', { name: 'Modpack upload progress' });
+  await expect(progressSheet.getByRole('button', { name: 'Cancel upload' })).toBeVisible();
+  const progress = progressSheet.getByRole('progressbar', { name: 'File upload progress' });
   await expect(progress).toHaveAttribute('value', '0');
   await expect.poll(async () => Number(await progress.getAttribute('value'))).toBeGreaterThan(0);
 
   await expect(wizard.getByRole('heading', { name: 'Modpack detected' })).toBeVisible();
   await expect(wizard.getByText('Test Pack', { exact: true })).toBeVisible();
   await expect(progressSheet).toHaveCount(0);
-  expect(acceptedChunkSizes).toEqual([chunkBytes, chunkBytes, 123]);
+  expect(acceptedChunkSizes).toEqual([chunkBytes, 123]);
   expect(acceptedChunkSizes.every((size) => size <= chunkBytes)).toBe(true);
 
   await page.route('**/v1/java-runtimes', (route) =>
     route.fulfill({
-      json: { runtimes: [{ executablePath: '/usr/lib/jvm/java-17', majorVersion: 17, name: 'Java 17' }] },
+      json: {
+        runtimes: [{ executablePath: '/usr/lib/jvm/java-17', majorVersion: 17, name: 'Java 17' }],
+      },
     }),
   );
   await wizard.getByRole('button', { name: 'Continue', exact: true }).click();
@@ -133,7 +142,9 @@ test('shows chunk progress while a large modpack is sent to the selected host', 
   await javaSelection.getByRole('button', { name: 'Use selected Java' }).click();
   await expect(wizard.getByRole('heading', { name: 'How will friends connect?' })).toBeVisible();
   await wizard.getByRole('button', { name: 'Continue', exact: true }).click();
-  await expect(wizard.getByRole('heading', { name: 'What should the first world be?' })).toBeVisible();
+  await expect(
+    wizard.getByRole('heading', { name: 'What should the first world be?' }),
+  ).toBeVisible();
   await wizard.getByRole('button', { name: 'Continue', exact: true }).click();
   await expect(wizard.getByRole('heading', { name: 'Name and confirm' })).toBeVisible();
 });

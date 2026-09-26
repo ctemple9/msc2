@@ -60,7 +60,18 @@ export function dateLabel(value: string | undefined): string {
 }
 
 export function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'The agent did not complete that request.';
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string' && error.trim()) return error;
+  if (
+    error !== null &&
+    typeof error === 'object' &&
+    'message' in error &&
+    typeof error.message === 'string' &&
+    error.message.trim()
+  ) {
+    return error.message;
+  }
+  return 'The request failed for an unknown reason.';
 }
 
 /** Creates a browser image URL from bytes returned by the authenticated API. */

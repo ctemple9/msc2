@@ -9,6 +9,8 @@ import routerSource from '../../src/routes/router.ts?raw';
 import transferPanelSource from '../../src/lib/sections/transfers/TransferPanel.svelte?raw';
 import workspaceSource from '../../../../Cargo.toml?raw';
 import tauriConfigSource from '../../src-tauri/tauri.conf.json?raw';
+import capabilitySource from '../../src-tauri/capabilities/default.json?raw';
+import { errorMessage } from '../../src/lib/sections/shared/types';
 
 const picked = { name: 'world.zip', bytes: new Uint8Array([1, 2, 3]) };
 const screenSources = import.meta.glob('../../src/lib/sections/**/*.svelte', {
@@ -153,6 +155,19 @@ describe('Tauri boundary', () => {
     );
     expect(dependencies.pickFileStream).toHaveBeenCalledWith(request);
     expect(fallback).not.toHaveBeenCalled();
+  });
+
+  it('allows streamed access to files explicitly selected in the native picker', () => {
+    const capability = JSON.parse(capabilitySource);
+
+    expect(capability.permissions).toContain('dialog:default');
+    expect(capability.permissions).toContain('fs:read-files');
+  });
+
+  it('preserves native string errors instead of blaming the remote agent', () => {
+    expect(errorMessage('command plugin:fs|open not allowed by ACL')).toBe(
+      'command plugin:fs|open not allowed by ACL',
+    );
   });
 
   it('keeps platform detection out of routes and screens and the Tauri crate out of the workspace', () => {

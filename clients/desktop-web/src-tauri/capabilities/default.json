@@ -3,5 +3,11 @@
   "identifier": "default",
   "description": "Minimal capability set for the MSC 2 client shell",
   "windows": ["main"],
-  "permissions": ["core:default", "dialog:default", "fs:default", "notification:default"]
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "fs:default",
+    "fs:read-files",
+    "notification:default"
+  ]
 }

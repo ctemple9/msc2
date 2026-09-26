@@ -124,6 +124,7 @@ jobs:
           npm run check
           npm run test:contract
           npm run test:auth-desktop
+          npm run test:tauri-boundary
           npm run test:fedora-regressions
 
       - name: Run targeted agent checks

@@ -77,6 +77,7 @@ def check_candidate_workflow(workflow: str) -> None:
         "npm run check",
         "npm run test:contract",
         "npm run test:auth-desktop",
+        "npm run test:tauri-boundary",
         "npm run test:fedora-regressions",
         "cargo fmt --all -- --check",
         "cargo nextest run -p msc-agent --test web_ui",

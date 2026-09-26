@@ -10,9 +10,9 @@ use msc_infrastructure::config_repository::default_app_data_dir;
 use msc_infrastructure::release_update::{
     self, StagedUpdate, UpdateChannel, UpdateClientConfig, UpdateResult,
 };
-use msc_infrastructure::service::{
-    ServiceManager, ServiceManagerCommand, ServiceName, ServiceState,
-};
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+use msc_infrastructure::service::{ServiceManager, ServiceManagerCommand};
+use msc_infrastructure::service::{ServiceName, ServiceState};
 use serde::Serialize;
 use std::fs;
 use std::io::{self, IsTerminal, Read, Write};
@@ -791,11 +791,17 @@ fn local_service_state() -> Result<ServiceState, CliError> {
     let result = msc_platform_macos::service::MacosLaunchdServiceManager::new()
         .execute(ServiceManagerCommand::Status { service_name });
     #[cfg(target_os = "linux")]
-    let result = msc_platform_linux::service::LinuxSystemdServiceManager::new()
-        .execute(ServiceManagerCommand::Status { service_name });
+    return msc_platform_linux::service::LinuxSystemdServiceManager::new()
+        .update_service_state(&service_name)
+        .map_err(|error| {
+            CliError::internal(format!(
+                "could not inspect the local agent service: {error}"
+            ))
+        });
     #[cfg(target_os = "windows")]
     let result = msc_platform_windows::service::WindowsServiceManager::new()
         .execute(ServiceManagerCommand::Status { service_name });
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     result.map(|report| report.state).map_err(|error| {
         CliError::internal(format!(
             "could not inspect the local agent service: {error}"
@@ -814,7 +820,7 @@ fn stop_local_service() -> Result<(), CliError> {
     #[cfg(target_os = "linux")]
     {
         msc_platform_linux::service::LinuxSystemdServiceManager::new()
-            .execute(ServiceManagerCommand::Stop { service_name })
+            .stop_for_update(&service_name)
             .map_err(|error| {
                 CliError::internal(format!("could not stop the local agent service: {error}"))
             })?;
@@ -841,7 +847,7 @@ fn start_local_service() -> Result<(), CliError> {
     #[cfg(target_os = "linux")]
     {
         msc_platform_linux::service::LinuxSystemdServiceManager::new()
-            .execute(ServiceManagerCommand::Start { service_name })
+            .start_after_update(&service_name)
             .map_err(|error| {
                 CliError::internal(format!("could not start the local agent service: {error}"))
             })?;

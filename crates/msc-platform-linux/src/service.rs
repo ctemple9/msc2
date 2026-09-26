@@ -580,6 +580,45 @@ impl<S> LinuxSystemdServiceManager<S> {
     }
 }
 
+impl<S: Systemctl> LinuxSystemdServiceManager<S> {
+    pub fn update_service_state(
+        &self,
+        service_name: &ServiceName,
+    ) -> Result<ServiceState, ServiceError> {
+        if !self.unit_path(service_name.as_str()).exists() {
+            return Ok(ServiceState::NotInstalled);
+        }
+
+        let output = self.systemctl.show(&unit_name(service_name.as_str()))?;
+        output
+            .lines()
+            .find_map(|line| {
+                let value = line.strip_prefix("ActiveState=")?;
+                Some(match value.trim() {
+                    "active" | "activating" | "reloading" | "deactivating" => ServiceState::Running,
+                    "inactive" | "failed" => ServiceState::Stopped,
+                    _ => return None,
+                })
+            })
+            .ok_or_else(|| {
+                ServiceError::InvalidDefinition(format!(
+                    "systemd did not report a recognized ActiveState for {}",
+                    service_name.as_str()
+                ))
+            })
+    }
+
+    pub fn stop_for_update(&self, service_name: &ServiceName) -> Result<(), ServiceError> {
+        self.require_installed(service_name)?;
+        self.systemctl.stop(&unit_name(service_name.as_str()))
+    }
+
+    pub fn start_after_update(&self, service_name: &ServiceName) -> Result<(), ServiceError> {
+        self.require_installed(service_name)?;
+        self.systemctl.start(&unit_name(service_name.as_str()))
+    }
+}
+
 impl<S: Systemctl> ServiceManager for LinuxSystemdServiceManager<S> {
     fn execute(&self, command: ServiceManagerCommand) -> Result<ServiceStatusReport, ServiceError> {
         match command {

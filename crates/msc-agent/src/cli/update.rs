@@ -20,6 +20,8 @@ use std::net::TcpStream;
 use std::path::{Path, PathBuf};
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 use std::process::Command;
+#[cfg(target_os = "linux")]
+use std::process::{Child, Stdio};
 use std::time::Duration;
 
 const DEFAULT_RELEASE_REPOSITORY: &str = "ctemple9/msc2";
@@ -170,8 +172,7 @@ fn install(common: &CommonArgs, release_id: &str, yes: bool) -> Result<(), CliEr
                 "could not resolve the current msc executable: {error}"
             ))
         })?;
-        run_authorized_update(
-            Path::new("pkexec"),
+        run_authorized_update_with_text_agent(
             &current_executable,
             release_id,
             &data_directory,
@@ -193,14 +194,36 @@ fn install(common: &CommonArgs, release_id: &str, yes: bool) -> Result<(), CliEr
 }
 
 #[cfg(target_os = "linux")]
-fn run_authorized_update(
-    authorization_command: &Path,
+fn run_authorized_update_with_text_agent(
     executable: &Path,
     release_id: &str,
     data_directory: &Path,
     json: bool,
 ) -> Result<(), CliError> {
+    let _agent = TextAuthenticationAgent::start()?;
+    run_authorized_update_command(
+        Path::new("pkexec"),
+        executable,
+        release_id,
+        data_directory,
+        json,
+        true,
+    )
+}
+
+#[cfg(target_os = "linux")]
+fn run_authorized_update_command(
+    authorization_command: &Path,
+    executable: &Path,
+    release_id: &str,
+    data_directory: &Path,
+    json: bool,
+    disable_internal_agent: bool,
+) -> Result<(), CliError> {
     let mut command = Command::new(authorization_command);
+    if disable_internal_agent {
+        command.arg("--disable-internal-agent");
+    }
     command.arg(executable);
     if json {
         command.arg("--json");
@@ -234,6 +257,92 @@ fn run_authorized_update(
             "The authorized update process failed with status {}; release {release_id} was not confirmed installed.",
             code.map_or_else(|| "unknown".to_string(), |value| value.to_string())
         ))),
+    }
+}
+
+#[cfg(all(target_os = "linux", test))]
+fn run_authorized_update(
+    authorization_command: &Path,
+    executable: &Path,
+    release_id: &str,
+    data_directory: &Path,
+    json: bool,
+) -> Result<(), CliError> {
+    run_authorized_update_command(
+        authorization_command,
+        executable,
+        release_id,
+        data_directory,
+        json,
+        false,
+    )
+}
+
+#[cfg(target_os = "linux")]
+struct TextAuthenticationAgent(Child);
+
+#[cfg(target_os = "linux")]
+impl TextAuthenticationAgent {
+    fn start() -> Result<Self, CliError> {
+        let process_id = std::process::id().to_string();
+        let mut agent = Self(
+            Command::new("pkttyagent")
+                .args([
+                    "--process",
+                    process_id.as_str(),
+                    "--fallback",
+                    "--notify-fd",
+                    "1",
+                ])
+                .stdout(Stdio::piped())
+                .spawn()
+                .map_err(|error| {
+                    CliError::internal(format!(
+                        "could not start the PolicyKit terminal agent; install pkttyagent and run the update from a terminal: {error}"
+                    ))
+                })?,
+        );
+
+        // pkttyagent closes this descriptor after it registers. Its prompts
+        // use the controlling terminal, so this pipe signals readiness without
+        // hiding authentication text from an SSH terminal.
+        let mut notification = Vec::new();
+        agent
+            .0
+            .stdout
+            .take()
+            .ok_or_else(|| CliError::internal("PolicyKit agent readiness pipe was unavailable"))?
+            .read_to_end(&mut notification)
+            .map_err(|error| {
+                CliError::internal(format!(
+                    "could not confirm PolicyKit agent registration: {error}"
+                ))
+            })?;
+        if !notification.is_empty() {
+            return Err(CliError::internal(
+                "PolicyKit agent sent an invalid registration notification.",
+            ));
+        }
+        if let Some(status) = agent.0.try_wait().map_err(|error| {
+            CliError::internal(format!("could not check PolicyKit agent startup: {error}"))
+        })? {
+            return Err(CliError::internal(format!(
+                "PolicyKit terminal agent exited before it could handle authorization (status {}). Run the update from a terminal with a working PolicyKit service.",
+                status
+            )));
+        }
+
+        Ok(agent)
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl Drop for TextAuthenticationAgent {
+    fn drop(&mut self) {
+        if self.0.try_wait().ok().flatten().is_none() {
+            let _ = self.0.kill();
+        }
+        let _ = self.0.wait();
     }
 }
 

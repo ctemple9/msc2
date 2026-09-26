@@ -142,7 +142,7 @@ Batch: solo
 
 #### P14.51 — Use a separate PolicyKit agent for headless updates
 
-Status: planned
+Status: awaiting Cameron verification
 Files: crates/msc-agent/src/cli/update.rs, docs/msc2/clients/headless-installation.md, docs/msc2/rolling-plan.md
 What: Before running pkexec for a protected Linux archive update, register an unprivileged pkttyagent for the live CLI process and wait for its documented registration notification. Preserve any already-registered agent, disable pkexec's buggy built-in fallback, keep authorization foreground and report cancellation/failure accurately, and stop the temporary agent on every exit path. Document the controlling-terminal requirement for headless SSH updates.
 Verify: cargo fmt --all -- --check && cargo clippy -p msc-agent --bin msc -- -D warnings -A unused-mut && cargo check -p msc-agent --bin msc

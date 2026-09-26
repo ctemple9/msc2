@@ -157,6 +157,25 @@ use machine-readable output, but it must retain the same state distinction:
 installed, PATH refresh required, or failed. It must never print pairing codes,
 bearer credentials, private keys, or other secrets as installation metadata.
 
+## Updating from a headless Linux terminal
+
+For a standalone archive installation, check and stage a signed release, then
+install the exact release after reviewing its notes:
+
+```sh
+msc update check
+msc update install --release-id <release-id>
+```
+
+When the installed binary is protected, MSC registers a temporary,
+unprivileged PolicyKit text agent for the running CLI process before requesting
+local administrator authorization. This supports an interactive SSH terminal
+and keeps authentication attached to the process that requested the update.
+Run the command from a session with a controlling terminal; without one, MSC
+reports the authorization setup failure and leaves the staged release
+untouched. Distribution-managed `.deb` and `.rpm` installations remain owned
+by their package manager and use package-manager guidance instead.
+
 For service installation, the final message separately identifies the service
 manager, service name, endpoint, and whether the service is enabled and
 running. A successful PATH install is not reported as a successful service

@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phases 14 and 15 are complete and archived; P14.38–P14.49 await owner verification or release workflow completion. Corrected desktop release v0.1.11 and prerelease v0.1.12 have published; P14.49 prepares v0.1.13 and starts its guarded release workflow. The external static-review record is preserved in the archive. All prior verification entries are recorded DONE, with P15.69 retaining its accepted failed-verification result.
-> **Next move:** Cameron verifies P14.38–P14.49 and closes the steps. The external review findings remain available in `rolling-plan-archive.md` for future triage. The current workspace has unrelated pre-existing diagnostics: a `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152` and an `unused_mut` warning in `crates/msc-agent/src/routes/bedrock_runtime.rs:385`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phases 14 and 15 are complete and archived. Release v0.1.13 published, but its main CI workflow failed on Windows/Linux/macOS clippy compilation and the Phase 9 capability-matrix check. P14.50 and P14.51 repair those failures and the Ubuntu 26.04 headless PolicyKit update path; both await Cameron verification. The external static-review record is preserved in the archive. All prior verification entries are recorded DONE, with P15.69 retaining its accepted failed-verification result.
+> **Next move:** Cameron verifies P14.50 and P14.51 and closes the steps. The external review findings remain available in `rolling-plan-archive.md` for future triage. The current workspace has unrelated pre-existing diagnostics: a `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152` and an `unused_mut` warning in `crates/msc-agent/src/routes/bedrock_runtime.rs:385`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -124,11 +124,29 @@ Batch: solo
 
 #### P14.49 — Publish the corrected v0.1.13 prerelease
 
-Status: awaiting release workflow
+Status: awaiting Cameron verification (release published; main CI failed)
 Files: coordinated version manifests and lockfiles, clients/desktop-web/src/lib/bundle-identity.ts, README.md, docs/msc2/rolling-plan.md
-What: Bump the coordinated release identity to 0.1.13, update download instructions, commit and push the release preparation, then push exact tag v0.1.13 to trigger the guarded prerelease workflow. Start this step only after P14.48's focused tests and checks pass.
+What: Bump the coordinated release identity to 0.1.13, update download instructions, commit and push the release preparation, then push exact tag v0.1.13 to trigger the guarded prerelease workflow. The release workflow published successfully. Main CI failed because an optional DTO field was missing from a fixture, a Linux-only integration target compiled on Windows, and the client capability matrix lacked the staged-upload chunk route; P14.50 repairs those CI failures.
 Verify: python3 tools/release/check-release-workflow.py .github/workflows/release.yml --expect-publish-guard && python3 tools/release/check-update-gate.py && npm --prefix clients/desktop-web run bundle:identity && gh run list --workflow release.yml --commit "$(git rev-parse v0.1.13)" --json databaseId,status,conclusion,url && gh release view v0.1.13 --json url,isPrerelease,assets
 Commit: P14.49: prepare 0.1.13 prerelease
+Batch: solo
+
+#### P14.50 — Fix release CI compile and capability-matrix failures
+
+Status: awaiting Cameron verification
+Files: crates/msc-api/tests/world_backup_conformance.rs, crates/msc-platform-linux/tests/desktop_service_elevation.rs, docs/msc2/client-capability-matrix.csv, docs/msc2/rolling-plan.md
+What: Complete the newly required optional byte-count field in the world-backup staged-upload fixture; compile the Linux desktop-elevation integration target only on Linux so Windows does not try to build Unix APIs; and record the staged-upload chunk route in the API/client capability matrix required by the Phase 9 smoke check.
+Verify: cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv
+Commit: P14.50: fix cross-platform CI regressions
+Batch: solo
+
+#### P14.51 — Use a separate PolicyKit agent for headless updates
+
+Status: planned
+Files: crates/msc-agent/src/cli/update.rs, docs/msc2/clients/headless-installation.md, docs/msc2/rolling-plan.md
+What: Before running pkexec for a protected Linux archive update, register an unprivileged pkttyagent for the live CLI process and wait for its documented registration notification. Preserve any already-registered agent, disable pkexec's buggy built-in fallback, keep authorization foreground and report cancellation/failure accurately, and stop the temporary agent on every exit path. Document the controlling-terminal requirement for headless SSH updates.
+Verify: cargo fmt --all -- --check && cargo clippy -p msc-agent --bin msc -- -D warnings -A unused-mut && cargo check -p msc-agent --bin msc
+Commit: P14.51: use separate polkit agent for headless updates
 Batch: solo
 
 ## Current phase

@@ -1,3 +1,5 @@
+#![cfg(target_os = "linux")]
+
 use msc_infrastructure::service::{
     ServiceError, ServiceInstallRequest, ServiceManager, ServiceState,
 };

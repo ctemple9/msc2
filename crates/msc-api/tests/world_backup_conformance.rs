@@ -489,6 +489,7 @@ fn world_backup_conformance_staged_upload_begin_request_matches_schema() {
             file_name: None,
             operation_id: None,
             file_id: None,
+            expected_bytes: None,
         },
     );
 }

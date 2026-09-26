@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phases 14 and 15 are complete and archived; P14.38–P14.47 await owner verification. Corrected desktop release v0.1.11 has published successfully; P14.47 prepares v0.1.12 and starts its guarded release workflow. The external static-review record is preserved in the archive. All prior verification entries are recorded DONE, with P15.69 retaining its accepted failed-verification result.
-> **Next move:** Cameron verifies P14.38–P14.47 and closes the steps. The external review findings remain available in `rolling-plan-archive.md` for future triage. The current workspace has unrelated pre-existing diagnostics: a `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152` and an `unused_mut` warning in `crates/msc-agent/src/routes/bedrock_runtime.rs:385`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phases 14 and 15 are complete and archived; P14.38–P14.49 await owner verification or release workflow completion. Corrected desktop release v0.1.11 and prerelease v0.1.12 have published; P14.49 prepares v0.1.13 and starts its guarded release workflow. The external static-review record is preserved in the archive. All prior verification entries are recorded DONE, with P15.69 retaining its accepted failed-verification result.
+> **Next move:** Cameron verifies P14.38–P14.49 and closes the steps. The external review findings remain available in `rolling-plan-archive.md` for future triage. The current workspace has unrelated pre-existing diagnostics: a `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152` and an `unused_mut` warning in `crates/msc-agent/src/routes/bedrock_runtime.rs:385`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -38,7 +38,7 @@ Batch: solo
 #### P14.40 — Publish the corrected desktop release
 
 Status: awaiting Cameron verification
-Files: coordinated version manifests and lockfiles, clients/desktop-web/src/lib/bundle-identity.ts, README.md, docs/msc2/rolling-plan.md
+Files: coordinated version manifests and lockfiles, clients/desktop-web/src/lib/bundle-identity.ts, clients/desktop-web/src/lib/bundle-identity.test.ts, README.md, docs/msc2/rolling-plan.md
 What: Bump the coordinated version from 0.1.10 to 0.1.11, update the download instructions, push the release preparation to main, and push tag v0.1.11 to trigger the GitHub release workflow. The initial Linux workflow exposed a CLI error-conversion compile failure, corrected in P14.41. The retried workflow succeeded and published the Linux RPM. The first agent installation will be Cameron's install from that release. If release signing or the workflow blocks publication, stop and report the blocker.
 Verify: gh release view v0.1.11 --json url,isPrerelease,assets
 Commit: P14.40: publish Linux desktop service elevation fix
@@ -124,10 +124,10 @@ Batch: solo
 
 #### P14.49 — Publish the corrected v0.1.13 prerelease
 
-Status: planned
+Status: awaiting release workflow
 Files: coordinated version manifests and lockfiles, clients/desktop-web/src/lib/bundle-identity.ts, README.md, docs/msc2/rolling-plan.md
 What: Bump the coordinated release identity to 0.1.13, update download instructions, commit and push the release preparation, then push exact tag v0.1.13 to trigger the guarded prerelease workflow. Start this step only after P14.48's focused tests and checks pass.
-Verify: gh run list --workflow release.yml --commit "$(git rev-parse v0.1.13)" --json databaseId,status,conclusion,url && gh release view v0.1.13 --json url,isPrerelease,assets
+Verify: python3 tools/release/check-release-workflow.py .github/workflows/release.yml --expect-publish-guard && python3 tools/release/check-update-gate.py && npm --prefix clients/desktop-web run bundle:identity && gh run list --workflow release.yml --commit "$(git rev-parse v0.1.13)" --json databaseId,status,conclusion,url && gh release view v0.1.13 --json url,isPrerelease,assets
 Commit: P14.49: prepare 0.1.13 prerelease
 Batch: solo
 

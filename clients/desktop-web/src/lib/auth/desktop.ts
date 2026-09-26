@@ -168,7 +168,8 @@ export class DesktopSessionAuth {
         headers: [...headers.entries()],
         body,
       });
-      return new Response(new Uint8Array(response.body), {
+      const bodylessStatus = [204, 205, 304].includes(response.status);
+      return new Response(bodylessStatus ? null : new Uint8Array(response.body), {
         status: response.status,
         headers: response.headers.map(([name, value]) => [name, value] as [string, string]),
       });

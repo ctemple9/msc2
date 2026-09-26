@@ -111,6 +111,26 @@ Verify: python3 tools/release/check-release-workflow.py .github/workflows/releas
 Commit: P14.47: prepare 0.1.12 prerelease
 Batch: solo
 
+### Follow-up — Fedora remote modpack upload
+
+#### P14.48 — Preserve bodyless responses in the desktop transport
+
+Status: awaiting Cameron verification
+Files: clients/desktop-web/src/lib/auth/desktop.ts, clients/desktop-web/tests/auth/desktop/desktop.test.ts, docs/msc2/rolling-plan.md
+What: Make the native desktop transport construct bodyless HTTP responses without a response body, so each accepted 2 MiB chunk can return 204 and the Fedora client can continue uploading a remote modpack. Add a remote-host transport regression using an All the Mods 10 archive name, multiple chunks, and the agent's 204 intermediate response.
+Verify: npm --prefix clients/desktop-web run test:auth-desktop && npm --prefix clients/desktop-web run test:fedora-regressions && npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check
+Commit: P14.48: handle bodyless desktop upload responses
+Batch: solo
+
+#### P14.49 — Publish the corrected v0.1.13 prerelease
+
+Status: planned
+Files: coordinated version manifests and lockfiles, clients/desktop-web/src/lib/bundle-identity.ts, README.md, docs/msc2/rolling-plan.md
+What: Bump the coordinated release identity to 0.1.13, update download instructions, commit and push the release preparation, then push exact tag v0.1.13 to trigger the guarded prerelease workflow. Start this step only after P14.48's focused tests and checks pass.
+Verify: gh run list --workflow release.yml --commit "$(git rev-parse v0.1.13)" --json databaseId,status,conclusion,url && gh release view v0.1.13 --json url,isPrerelease,assets
+Commit: P14.49: prepare 0.1.13 prerelease
+Batch: solo
+
 ## Current phase
 
 | Phase | Name | State |

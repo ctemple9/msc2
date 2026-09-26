@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ApiClient } from '../../../src/lib/api';
-import { DesktopSessionAuth, type DesktopCredentialBridge } from '../../../src/lib/auth/desktop';
+import {
+  DesktopSessionAuth,
+  type DesktopCredentialBridge,
+  type DesktopResponse,
+} from '../../../src/lib/auth/desktop';
 
 type AuthorizedRequest = Parameters<DesktopCredentialBridge['authorizedRequest']>[0];
 
@@ -9,7 +13,7 @@ function bridge() {
     bootstrapLocal: vi.fn(async () => ({ agentHostId: 'agent-local' })),
     exchangePairing: vi.fn(async () => ({ agentHostId: 'agent-beta' })),
     forgetCredentials: vi.fn(async () => undefined),
-    authorizedRequest: vi.fn(async () => ({
+    authorizedRequest: vi.fn(async (_request: AuthorizedRequest): Promise<DesktopResponse> => ({
       status: 200,
       headers: [['X-MSC-Api-Version', '1.0'] as [string, string]],
       body: [...new TextEncoder().encode('{"value":"beta"}')],
@@ -83,6 +87,62 @@ describe('desktop credentials', () => {
       minRamGB: 2,
       maxRamGB: 4.5,
     });
+  });
+
+  it('streams a remote modpack through bodyless intermediate chunk responses', async () => {
+    const chunkSize = 2 * 1024 * 1024;
+    const totalBytes = chunkSize + 3;
+    const native = bridge();
+    vi.mocked(native.authorizedRequest).mockImplementation(async (request: AuthorizedRequest) => {
+      if (request.path === '/v1/staged-uploads') {
+        return {
+          status: 200,
+          headers: [['X-MSC-Api-Version', '1.0']],
+          body: [...new TextEncoder().encode(
+            JSON.stringify({
+              stagedUploadId: 'upload-1',
+              uploadPath: '/v1/staged-uploads/upload-1',
+              maxBytes: totalBytes,
+              expiresAt: '',
+            }),
+          )],
+        };
+      }
+      if (request.path.endsWith('complete=false')) {
+        return { status: 204, headers: [], body: [] };
+      }
+      return {
+        status: 200,
+        headers: [['X-MSC-Api-Version', '1.0']],
+        body: [...new TextEncoder().encode(
+          JSON.stringify({
+            stagedUploadId: 'upload-1',
+            receivedBytes: totalBytes,
+            sha256: 'digest',
+          }),
+        )],
+      };
+    });
+    const session = new DesktopSessionAuth(native);
+    const client = new ApiClient({
+      baseUrl: 'https://xubuntu.example',
+      hostId: 'agent-xubuntu',
+      fetchImpl: session.fetchForHost('agent-xubuntu'),
+    });
+    const source = {
+      name: 'All the Mods 10.zip',
+      size: totalBytes,
+      readChunk: async (_offset: number, length: number) => new Uint8Array(length),
+      close: async () => undefined,
+    };
+
+    await expect(
+      client.stagedUploadFromFile({ purpose: 'modpack-archive' }, source),
+    ).resolves.toMatchObject({ stagedUploadId: 'upload-1', receivedBytes: totalBytes });
+    expect(native.authorizedRequest).toHaveBeenCalledTimes(3);
+    expect(vi.mocked(native.authorizedRequest).mock.calls[1]?.[0].path).toContain(
+      'complete=false',
+    );
   });
 
   it('forgets only the requested host credentials and can include the local bootstrap record', async () => {

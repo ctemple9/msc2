@@ -20,7 +20,7 @@
   // the revealInFileManager seam P12.9 built for the Files tab), plus
   // host-wide service configuration below. This remains one flat sheet because
   // the app-level settings are intentionally small and concrete.
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import Sheet from '../../components/base/Sheet.svelte';
   import Card from '../../components/base/Card.svelte';
   import Button from '../../components/base/Button.svelte';
@@ -28,6 +28,7 @@
   import Field from '../../components/base/Field.svelte';
   import VisibilityIcon from '../../components/base/VisibilityIcon.svelte';
   import PlayitSetupSheet from '../server-editor/PlayitSetupSheet.svelte';
+  import BroadcastAuthSheet from '../server-editor/BroadcastAuthSheet.svelte';
   import { getPlatform } from '../../platform';
   import type { UpdateCheckResult } from '../../platform';
   import { updateErrorMessage, type UpdateWorkflowState } from '../../updates/coordinated';
@@ -38,6 +39,7 @@
 
   export let api: ScreenApi | undefined = undefined;
   export let hostId: string;
+  export let activeServerXboxBroadcastEnabled = false;
   export let serverUsesPlayit: boolean | undefined = undefined;
   export let onClose: () => void;
   export let preloadTabs = true;
@@ -58,6 +60,18 @@
   let broadcastAutostart: Schema['BroadcastAutoStartDTO'] | undefined;
   let broadcastJar: Schema['BroadcastJarStatusDTO'] | undefined;
   let broadcastJarBusy = false;
+  let broadcastStatus: Schema['BroadcastStatusDTO'] = {
+    xboxBroadcastRunning: false,
+    bedrockBroadcastRunning: false,
+    authenticated: false,
+  };
+  let broadcastAuth: Schema['BroadcastAuthPromptDTO'] = { isPresent: false };
+  let broadcastAuthKey = '';
+  let broadcastAuthHidden = false;
+  let showBroadcastAuth = false;
+  let broadcastSetupBusy = false;
+  let broadcastPromptLoadBusy = false;
+  let broadcastPromptTimer: ReturnType<typeof setInterval> | undefined;
 
   let curseforge: Schema['CurseForgeApiKeyStatusDTO'] = { configured: false };
   let curseforgeApiKey = '';
@@ -85,26 +99,41 @@
   let confirmUpdateInstall = false;
 
   $: showDuckDns = serverUsesPlayit === false;
+  $: broadcastAccountLabel = broadcastStatus.authenticated
+    ? broadcastStatus.gamertag
+      ? `Signed in as ${broadcastStatus.gamertag}`
+      : 'Signed in'
+    : 'Start the sign-in helper without starting Minecraft.';
 
   onMount(async () => {
-    const [root, credentials, autostart, jar, playitStatus, duckdnsStatus, curseforgeStatus] =
-      await Promise.all([
-        call<Schema['ServersRootResponseDTO']>(api, { path: '' }, '/v1/config/servers-root'),
-        call<Schema['BroadcastCredentialsStatusDTO']>(
-          api,
-          { hasPassword: false },
-          '/v1/broadcast/credentials',
-        ),
-        call<Schema['BroadcastAutoStartDTO']>(api, { enabled: true }, '/v1/broadcast/autostart'),
-        call<Schema['BroadcastJarStatusDTO']>(
-          api,
-          { installed: false, downloading: false },
-          '/v1/broadcast/jar-status',
-        ),
-        call<Schema['PlayitStatusResponseDTO']>(api, playit, '/v1/playit'),
-        call<Schema['DuckDNSStatusResponseDTO']>(api, duckdns, '/v1/duckdns'),
-        call<Schema['CurseForgeApiKeyStatusDTO']>(api, curseforge, '/v1/config/curseforge'),
-      ]);
+    broadcastPromptTimer = setInterval(() => void refreshBroadcastAuthPrompt(), 1000);
+    const [
+      root,
+      credentials,
+      autostart,
+      jar,
+      playitStatus,
+      duckdnsStatus,
+      curseforgeStatus,
+      broadcastStatusResult,
+    ] = await Promise.all([
+      call<Schema['ServersRootResponseDTO']>(api, { path: '' }, '/v1/config/servers-root'),
+      call<Schema['BroadcastCredentialsStatusDTO']>(
+        api,
+        { hasPassword: false },
+        '/v1/broadcast/credentials',
+      ),
+      call<Schema['BroadcastAutoStartDTO']>(api, { enabled: true }, '/v1/broadcast/autostart'),
+      call<Schema['BroadcastJarStatusDTO']>(
+        api,
+        { installed: false, downloading: false },
+        '/v1/broadcast/jar-status',
+      ),
+      call<Schema['PlayitStatusResponseDTO']>(api, playit, '/v1/playit'),
+      call<Schema['DuckDNSStatusResponseDTO']>(api, duckdns, '/v1/duckdns'),
+      call<Schema['CurseForgeApiKeyStatusDTO']>(api, curseforge, '/v1/config/curseforge'),
+      call<Schema['BroadcastStatusDTO']>(api, broadcastStatus, '/v1/broadcast/status'),
+    ]);
     serversRootPath = root.path;
     broadcastCredentials = credentials;
     broadcastEmail = credentials.email ?? '';
@@ -115,7 +144,52 @@
     duckdns = duckdnsStatus;
     duckHost = duckdnsStatus.hostname ?? '';
     curseforge = curseforgeStatus;
+    broadcastStatus = broadcastStatusResult;
+    await refreshBroadcastAuthPrompt();
   });
+
+  onDestroy(() => {
+    if (broadcastPromptTimer) clearInterval(broadcastPromptTimer);
+  });
+
+  async function refreshBroadcastAuthPrompt(): Promise<void> {
+    if (broadcastPromptLoadBusy || !api) return;
+    broadcastPromptLoadBusy = true;
+    try {
+      let prompt: Schema['BroadcastAuthPromptDTO'];
+      try {
+        prompt = await api.get<Schema['BroadcastAuthPromptDTO']>('/v1/broadcast/auth-prompt');
+      } catch {
+        return;
+      }
+      broadcastAuth = prompt;
+      if (!prompt.isPresent) {
+        broadcastAuthKey = '';
+        broadcastAuthHidden = false;
+        showBroadcastAuth = false;
+        try {
+          broadcastStatus = await api.get<Schema['BroadcastStatusDTO']>('/v1/broadcast/status');
+        } catch {
+          // Keep the last known sign-in state during a temporary host disconnect.
+        }
+        return;
+      }
+
+      const promptKey = `${prompt.code ?? ''}|${prompt.linkURL ?? ''}`;
+      if (promptKey !== broadcastAuthKey) {
+        broadcastAuthKey = promptKey;
+        broadcastAuthHidden = false;
+      }
+      if (!broadcastAuthHidden) showBroadcastAuth = true;
+    } finally {
+      broadcastPromptLoadBusy = false;
+    }
+  }
+
+  function closeBroadcastAuth(): void {
+    showBroadcastAuth = false;
+    broadcastAuthHidden = true;
+  }
 
   function updatePreloadTabs(enabled: boolean): void {
     preloadTabs = enabled;
@@ -217,6 +291,40 @@
       broadcastNotice = errorMessage(error);
     } finally {
       broadcastJarBusy = false;
+    }
+  }
+
+  async function startBroadcastSignIn(): Promise<void> {
+    if (broadcastSetupBusy) return;
+    broadcastSetupBusy = true;
+    broadcastNotice = '';
+    try {
+      await refreshBroadcastAuthPrompt();
+      if (broadcastAuth.isPresent) return;
+
+      broadcastStatus = await call<Schema['BroadcastStatusDTO']>(
+        api,
+        broadcastStatus,
+        '/v1/broadcast/status',
+      );
+      if (broadcastStatus.authenticated) {
+        broadcastNotice = broadcastStatus.gamertag
+          ? `Xbox Broadcast is signed in as ${broadcastStatus.gamertag}.`
+          : 'Xbox Broadcast is signed in.';
+        return;
+      }
+      if (broadcastStatus.xboxBroadcastRunning || broadcastStatus.bedrockBroadcastRunning) {
+        broadcastNotice = 'Xbox Broadcast is already running. Waiting for its sign-in code.';
+        return;
+      }
+
+      await mutate<Schema['BroadcastSimpleResultDTO']>(api, '/v1/broadcast/start');
+      broadcastNotice = 'Xbox Broadcast is starting. Its sign-in code will appear here.';
+      await refreshBroadcastAuthPrompt();
+    } catch (error) {
+      broadcastNotice = errorMessage(error);
+    } finally {
+      broadcastSetupBusy = false;
     }
   }
 
@@ -486,7 +594,28 @@
             {broadcastJarBusy ? 'Downloading…' : broadcastJar?.installed ? 'Update…' : 'Download…'}
           </Button>
         </div>
+        <div class="row bordered">
+          <div class="row-text">
+            <span class="name">Xbox account sign-in</span>
+            <span class="hint">{broadcastAccountLabel}</span>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={broadcastSetupBusy || !activeServerXboxBroadcastEnabled}
+            onclick={() => void startBroadcastSignIn()}
+          >
+            {broadcastSetupBusy
+              ? 'Starting…'
+              : broadcastStatus.authenticated
+                ? 'Check sign-in'
+                : 'Set up…'}
+          </Button>
+        </div>
       </Card>
+      {#if !activeServerXboxBroadcastEnabled}
+        <p class="hint">Select a server with Xbox Broadcast enabled to set up its account.</p>
+      {/if}
       {#if broadcastNotice}<p class="hint" role="status">{broadcastNotice}</p>{/if}
     </section>
 
@@ -649,6 +778,10 @@
     onComplete={refreshPlayit}
     onReset={refreshPlayit}
   />
+{/if}
+
+{#if showBroadcastAuth && broadcastAuth.isPresent}
+  <BroadcastAuthSheet {api} prompt={broadcastAuth} onClose={closeBroadcastAuth} />
 {/if}
 
 <style>

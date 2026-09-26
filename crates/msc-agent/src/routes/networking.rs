@@ -1474,6 +1474,7 @@ pub async fn broadcast_status(State(state): State<NetworkingState>) -> Response 
         return Json(BroadcastStatusDto {
             xbox_broadcast_running: false,
             bedrock_broadcast_running: false,
+            authenticated: false,
             gamertag: None,
         })
         .into_response();
@@ -1490,11 +1491,20 @@ pub async fn broadcast_status(State(state): State<NetworkingState>) -> Response 
                 status.snapshot.status,
                 HelperStatus::Running | HelperStatus::Starting
             ) || service.process_is_running();
+            let authenticated =
+                status.gamertag.is_some() || status.snapshot.status == HelperStatus::Running;
             let is_bedrock = server.server_type == ServerType::Bedrock;
+            let configured_gamertag = state
+                .lifecycle
+                .app_config_snapshot()
+                .xbox_broadcast_alt_gamertag;
             Json(BroadcastStatusDto {
                 xbox_broadcast_running: running && !is_bedrock,
                 bedrock_broadcast_running: running && is_bedrock,
-                gamertag: status.gamertag,
+                authenticated,
+                gamertag: status
+                    .gamertag
+                    .or(configured_gamertag.filter(|_| authenticated)),
             })
             .into_response()
         }

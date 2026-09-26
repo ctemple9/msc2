@@ -1331,6 +1331,7 @@
   <AppSettingsSheet
     api={screenApi}
     {hostId}
+    activeServerXboxBroadcastEnabled={activeServer?.xboxBroadcastEnabled === true}
     serverUsesPlayit={servers.find((server) => server.id === selectedServerId)?.playitEnabled}
     onClose={() => (settingsOpen = false)}
     {preloadTabs}

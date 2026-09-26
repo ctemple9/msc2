@@ -31,6 +31,7 @@
   let broadcast: Schema['BroadcastStatusDTO'] = {
     xboxBroadcastRunning: false,
     bedrockBroadcastRunning: false,
+    authenticated: false,
   };
   let copiedRow = '';
   let loadedForServerId: string | undefined;
@@ -165,7 +166,7 @@
         key: 'xbox-friend',
         label: 'Console · add friend',
         value: broadcast.gamertag,
-        fallback: 'Not signed in yet',
+        fallback: broadcast.authenticated ? 'Signed in' : 'Not signed in yet',
       });
     }
     return out;

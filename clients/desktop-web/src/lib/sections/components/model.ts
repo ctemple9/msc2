@@ -395,6 +395,7 @@ export const demoVersions: Schema['VersionsResponseDTO'] = {
 export const demoBroadcastStatus: Schema['BroadcastStatusDTO'] = {
   xboxBroadcastRunning: false,
   bedrockBroadcastRunning: false,
+  authenticated: false,
 };
 
 export const demoBroadcastAutostart: Schema['BroadcastAutoStartDTO'] = { enabled: false };

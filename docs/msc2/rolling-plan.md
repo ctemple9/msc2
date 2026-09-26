@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phases 14 and 15 are complete and archived; Linux desktop service elevation corrections P14.38–P14.41 await owner verification. Corrected desktop release v0.1.11 has published successfully. The external static-review record is preserved in the archive. All prior verification entries are recorded DONE, with P15.69 retaining its accepted failed-verification result.
-> **Next move:** Cameron verifies P14.38–P14.42 and closes the steps. The external review findings remain available in `rolling-plan-archive.md` for future triage. The current workspace has an unrelated pre-existing `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phases 14 and 15 are complete and archived; Linux desktop service elevation corrections P14.38–P14.42 and Xbox Broadcast Settings sign-in P14.43 await owner verification. Corrected desktop release v0.1.11 has published successfully. The external static-review record is preserved in the archive. All prior verification entries are recorded DONE, with P15.69 retaining its accepted failed-verification result.
+> **Next move:** Cameron verifies P14.38–P14.43 and closes the steps. The external review findings remain available in `rolling-plan-archive.md` for future triage. The current workspace has unrelated pre-existing diagnostics: a `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152` and an `unused_mut` warning in `crates/msc-agent/src/routes/bedrock_runtime.rs:385`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -60,6 +60,28 @@ Files: docs/msc2/rolling-plan.md
 What: Record that the retried v0.1.11 workflow succeeded and published the Fedora RPM, DEB, and other release assets after the Linux helper compile correction.
 Verify: gh release view v0.1.11 --json url,isPrerelease,assets
 Commit: P14.42: record corrected desktop release publication
+Batch: solo
+
+### Follow-up — Fedora client issues
+
+P14.43 addresses the Xbox Broadcast issue reported from the Fedora desktop connected to a remote Linux agent. P14.44 covers the separate modpack memory issue and follows verification of the current pending steps.
+
+#### P14.43 — Make Xbox Broadcast sign-in available from Settings
+
+Status: awaiting Cameron verification
+Files: clients/desktop-web/src/App.svelte, clients/desktop-web/src/lib/sections/app-settings/AppSettingsSheet.svelte, clients/desktop-web/src/lib/sections/server-editor/BroadcastAuthSheet.svelte, clients/desktop-web/src/lib/components/shell/sidebar/HowToConnectSection.svelte, clients/desktop-web/src/lib/sections/connectivity/ConnectivitySection.svelte, clients/desktop-web/src/lib/sections/components/model.ts, clients/desktop-web/src/lib/api/generated.ts, crates/msc-agent/src/routes/networking.rs, crates/msc-agent/tests/xbox_broadcast_routes.rs, crates/msc-api/src/dto/networking.rs, docs/msc2/api-contract/openapi.json, docs/msc2/rolling-plan.md
+What: Let Settings start Xbox Broadcast sign-in for the selected eligible server while its Minecraft process is stopped, and surface the device code/link in a sheet that works for remote clients. Keep the first-start flow using the same prompt behavior. Make the sidebar's connection row reflect the agent's authenticated Xbox identity after sign-in instead of remaining at “Not signed in yet”; read status from agent-owned auth state and runtime output consistently.
+Verify: cargo fmt --all -- --check && cargo clippy -p msc-agent -p msc-api --lib --bins -- -D warnings -A unused-mut && cargo check -p msc-agent -p msc-api && npm --prefix clients/desktop-web run api:check && npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run build
+Commit: P14.43: make xbox broadcast sign-in available from settings
+Batch: solo
+
+#### P14.44 — Stream modpack imports with bounded memory
+
+Status: planned
+Files: clients/desktop-web/src/lib/platform/types.ts, clients/desktop-web/src/lib/platform/tauri.ts, clients/desktop-web/src/lib/sections/fleet/wizard/UploadStep.svelte, clients/desktop-web/src/lib/sections/fleet/wizard/AddOnsStep.svelte, clients/desktop-web/src/lib/sections/components/ImportModpackSheet.svelte, clients/desktop-web/src/lib/api/client.ts, clients/desktop-web/src/lib/auth/desktop.ts, clients/desktop-web/src-tauri/src/lib.rs, crates/msc-agent/src/routes/components.rs, crates/msc-api/src/dto/backups.rs, docs/msc2/rolling-plan.md
+What: Replace whole-file modpack reads and single-body uploads with a bounded-memory staged upload path. The desktop should read and send limited chunks from the selected local file, including through the Tauri authorized-request bridge; the agent should append each chunk to the staged file, enforce the existing upload purpose and byte ceiling, and expose completion only after the full archive is received. Keep browser imports working through the same bounded path.
+Verify: cargo fmt --all -- --check && cargo check -p msc-agent -p msc-api && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml && npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run build
+Commit: P14.44: stream modpack imports with bounded memory
 Batch: solo
 
 ## Current phase

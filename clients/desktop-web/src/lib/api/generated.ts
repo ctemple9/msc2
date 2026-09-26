@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 0fa313114d48e4d7426a13ff9e0a913bfec3f083c4050e6b620da9905eea0a51
+// Contract SHA-256: b3a820f7b4ff28ae7c9ea0d2f36ea771b0df351f1295a4a1bc493fc19fc734e1
 
 export interface paths {
   '/v1/active-server': {
@@ -6686,6 +6686,8 @@ export interface components {
       [key: string]: unknown;
     };
     BroadcastStatusDTO: {
+      /** @description Whether MCXboxBroadcast has established its Xbox LIVE session. */
+      authenticated?: boolean;
       bedrockBroadcastRunning: boolean;
       /** @description The Xbox gamertag reported by MCXboxBroadcast after authentication, when available. */
       gamertag?: string;

@@ -9147,6 +9147,10 @@
           "bedrockBroadcastRunning": {
             "type": "boolean"
           },
+          "authenticated": {
+            "type": "boolean",
+            "description": "Whether MCXboxBroadcast has established its Xbox LIVE session."
+          },
           "gamertag": {
             "type": "string",
             "description": "The Xbox gamertag reported by MCXboxBroadcast after authentication, when available."

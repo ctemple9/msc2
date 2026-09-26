@@ -37,6 +37,7 @@
   let broadcast: Schema['BroadcastStatusDTO'] = {
     bedrockBroadcastRunning: false,
     xboxBroadcastRunning: false,
+    authenticated: false,
   };
   let duckHost = '';
   let notice = '';

@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phases 14 and 15 are complete and archived; P14.38–P14.46 await owner verification. Corrected desktop release v0.1.11 has published successfully. The external static-review record is preserved in the archive. All prior verification entries are recorded DONE, with P15.69 retaining its accepted failed-verification result.
-> **Next move:** Cameron verifies P14.38–P14.46 and closes the steps. The external review findings remain available in `rolling-plan-archive.md` for future triage. The current workspace has unrelated pre-existing diagnostics: a `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152` and an `unused_mut` warning in `crates/msc-agent/src/routes/bedrock_runtime.rs:385`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phases 14 and 15 are complete and archived; P14.38–P14.47 await owner verification. Corrected desktop release v0.1.11 has published successfully; P14.47 prepares v0.1.12 and starts its guarded release workflow. The external static-review record is preserved in the archive. All prior verification entries are recorded DONE, with P15.69 retaining its accepted failed-verification result.
+> **Next move:** Cameron verifies P14.38–P14.47 and closes the steps. The external review findings remain available in `rolling-plan-archive.md` for future triage. The current workspace has unrelated pre-existing diagnostics: a `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152` and an `unused_mut` warning in `crates/msc-agent/src/routes/bedrock_runtime.rs:385`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -100,6 +100,15 @@ Files: clients/desktop-web/tests/screens/fedora-regressions.test.ts, clients/des
 What: Prove the Xbox Broadcast Settings action can start sign-in while Minecraft is stopped, the shell polls the selected agent and shows its device-code sheet, and the sidebar renders the agent's authenticated identity. Exercise the desktop modpack upload client across multiple bounded chunks and a short-read failure; exercise the agent route's offset rejection, ordered append, and completion response. Extend the Linux fake-authorizer test to check release arguments, data directory, JSON forwarding, foreground wait, and cancellation without building a release or invoking real polkit.
 Verify: cargo fmt --all -- --check && cargo test -p msc-agent --bin msc routes::components::staged_upload_tests::chunked_modpack_upload_requires_order_and_completes_with_verified_size -- --exact && cargo test -p msc-agent --bin msc cli::update::tests::authorized_update_waits_for_authorizer_and_reports_cancellation -- --exact && cargo clippy -p msc-agent --bin msc -- -D warnings -A unused-mut && npx --prefix clients/desktop-web vitest run tests/transport/transport.test.ts tests/screens/fedora-regressions.test.ts && npm --prefix clients/desktop-web run check
 Commit: P14.46: add Fedora regression coverage for sign-in, uploads, and updates
+Batch: solo
+
+#### P14.47 — Prepare the v0.1.12 prerelease
+
+Status: awaiting Cameron verification
+Files: crates/msc-agent/Cargo.toml, Cargo.lock, clients/desktop-web/package.json, clients/desktop-web/package-lock.json, clients/desktop-web/src-tauri/Cargo.toml, clients/desktop-web/src-tauri/Cargo.lock, clients/desktop-web/src-tauri/tauri.conf.json, clients/desktop-web/src/lib/bundle-identity.ts, clients/desktop-web/src/lib/bundle-identity.test.ts, .github/workflows/release.yml, tools/release/check-release-workflow.py, README.md, docs/msc2/rolling-plan.md
+What: Synchronize the app, agent, Tauri shell, bundle identity, lockfiles, and download instructions to 0.1.12. Add the new Fedora regression tests to the release matrix so desktop transport and remote sign-in checks run on each platform and the Linux agent chunking and updater authorization checks run before packaging. Push the release-preparation commit and exact v0.1.12 tag to start the guarded cross-platform prerelease workflow.
+Verify: python3 tools/release/check-release-workflow.py .github/workflows/release.yml --expect-publish-guard && python3 tools/release/check-update-gate.py && npm --prefix clients/desktop-web run bundle:identity && gh run list --workflow release.yml --commit "$(git rev-parse v0.1.12)" --json databaseId,status,conclusion,url && gh release view v0.1.12 --json url,isPrerelease,assets
+Commit: P14.47: prepare 0.1.12 prerelease
 Batch: solo
 
 ## Current phase

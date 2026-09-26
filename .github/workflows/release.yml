@@ -124,12 +124,19 @@ jobs:
           npm run check
           npm run test:contract
           npm run test:auth-desktop
+          npm run test:fedora-regressions
 
       - name: Run targeted agent checks
         run: |
           cargo fmt --all -- --check
           cargo clippy -p msc-agent --bin msc --target "${{ matrix.rust-target }}" -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format
           cargo nextest run -p msc-agent --test web_ui
+
+      - name: Run Linux Fedora regression tests
+        if: matrix.platform == 'linux-x86_64'
+        run: |
+          cargo test -p msc-agent --bin msc routes::components::staged_upload_tests::chunked_modpack_upload_requires_order_and_completes_with_verified_size -- --exact
+          cargo test -p msc-agent --bin msc cli::update::tests::authorized_update_waits_for_authorizer_and_reports_cancellation -- --exact
 
       - name: Build release agent and CLI
         run: cargo build --release --target "${{ matrix.rust-target }}" -p msc-agent

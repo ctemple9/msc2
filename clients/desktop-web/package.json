@@ -1,7 +1,7 @@
 {
   "name": "msc2-desktop-web",
   "private": true,
-  "version": "0.1.11",
+  "version": "0.1.12",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -17,6 +17,7 @@
     "test:bedrock-extension": "vitest run tests/navigation/bedrock-extension.test.ts",
     "test:hosts": "vitest run tests/hosts",
     "test:transport": "vitest run tests/transport",
+    "test:fedora-regressions": "vitest run tests/transport/transport.test.ts tests/screens/fedora-regressions.test.ts",
     "test:auth-browser": "vitest run tests/auth/browser.test.ts",
     "test:auth-desktop": "vitest run tests/auth/desktop",
     "test:visual-shell": "vitest run tests/visual",

@@ -79,6 +79,87 @@ describe('shared host-aware transport', () => {
     expect(calls).toBe(0);
   });
 
+  it('streams a selected file in ordered 2 MiB chunks and verifies completion', async () => {
+    const chunkSize = 2 * 1024 * 1024;
+    const totalBytes = chunkSize + 3;
+    const requests: { url: string; init?: RequestInit }[] = [];
+    const source = {
+      name: 'mods.zip',
+      size: totalBytes,
+      readChunk: async (offset: number, maxBytes: number) =>
+        new Uint8Array(Math.min(maxBytes, totalBytes - offset)).fill(offset === 0 ? 1 : 2),
+      close: async () => undefined,
+    };
+    const client = new ApiClient({
+      baseUrl: 'http://alpha.test',
+      hostId: 'alpha',
+      fetchImpl: async (url, init) => {
+        requests.push({ url: String(url), init });
+        if (requests.length === 1) {
+          return response({
+            stagedUploadId: 'upload-1',
+            uploadPath: '/v1/staged-uploads/upload-1',
+            maxBytes: totalBytes,
+            expiresAt: '',
+          });
+        }
+        if (requests.length < 3) return new Response(null, { status: 204 });
+        return response({
+          stagedUploadId: 'upload-1',
+          receivedBytes: totalBytes,
+          sha256: 'digest',
+        });
+      },
+    });
+
+    await expect(
+      client.stagedUploadFromFile({ purpose: 'modpack-archive' }, source),
+    ).resolves.toMatchObject({ stagedUploadId: 'upload-1', receivedBytes: totalBytes });
+
+    expect(requests.map(({ url }) => url)).toEqual([
+      'http://alpha.test/v1/staged-uploads',
+      'http://alpha.test/v1/staged-uploads/upload-1/chunks?offset=0&complete=false',
+      `http://alpha.test/v1/staged-uploads/upload-1/chunks?offset=${chunkSize}&complete=true`,
+    ]);
+    const uploadedBodies = requests.slice(1).map(({ init }) => init?.body as Uint8Array);
+    expect(uploadedBodies.map((body) => body.byteLength)).toEqual([chunkSize, 3]);
+    expect(uploadedBodies.every((body) => body.byteLength <= chunkSize)).toBe(true);
+    expect(JSON.parse(String(requests[0].init?.body))).toMatchObject({
+      purpose: 'modpack-archive',
+      expectedBytes: totalBytes,
+    });
+  });
+
+  it('rejects a short file chunk before sending it to the agent', async () => {
+    const requests: string[] = [];
+    const client = new ApiClient({
+      baseUrl: 'http://alpha.test',
+      hostId: 'alpha',
+      fetchImpl: async (url) => {
+        requests.push(String(url));
+        return response({
+          stagedUploadId: 'upload-1',
+          uploadPath: '/v1/staged-uploads/upload-1',
+          maxBytes: 100,
+          expiresAt: '',
+        });
+      },
+    });
+
+    await expect(
+      client.stagedUploadFromFile(
+        { purpose: 'modpack-archive' },
+        {
+          name: 'mods.zip',
+          size: 4,
+          readChunk: async () => new Uint8Array([1, 2]),
+          close: async () => undefined,
+        },
+      ),
+    ).rejects.toThrow('Could not read the complete modpack file at byte 0.');
+    expect(requests).toEqual(['http://alpha.test/v1/staged-uploads']);
+  });
+
   it('stops a staged download at the configured client memory ceiling', async () => {
     const client = new ApiClient({
       baseUrl: 'http://alpha.test',

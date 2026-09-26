@@ -2686,3 +2686,124 @@ pub async fn complete_modpack_manual_file(
     );
     response
 }
+
+#[cfg(test)]
+mod staged_upload_tests {
+    use super::*;
+    use crate::auth::{AuthenticatedCredential, CredentialRole};
+    use crate::routes::operations::OperationsState;
+    use axum::body::{Body, to_bytes};
+    use axum::http::Request;
+    use msc_api::dto::PermissionCategoryDto;
+    use tower::ServiceExt;
+
+    fn test_credential() -> AuthenticatedCredential {
+        AuthenticatedCredential {
+            credential_id: "test".to_string(),
+            label: "test".to_string(),
+            role: CredentialRole::Named,
+            permissions: vec![PermissionCategoryDto::Addons],
+        }
+    }
+
+    #[tokio::test]
+    async fn chunked_modpack_upload_requires_order_and_completes_with_verified_size() {
+        let lifecycle = LifecycleRoutesState::with_fake_process(
+            crate::ws::console::ConsoleState::default(),
+            OperationsState::fake_journaled(),
+        );
+        let state = ComponentsRoutesState::new(
+            lifecycle,
+            StagingStore::default(),
+            PendingModpackImports::default(),
+        );
+        let app = router(state.clone()).layer(axum::Extension(test_credential()));
+
+        let begin = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/staged-uploads")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({
+                            "purpose": "modpack-archive",
+                            "fileName": "mods.zip",
+                            "expectedBytes": 6
+                        })
+                        .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(begin.status(), StatusCode::OK);
+        let begin: StagedUploadBeginResultDto =
+            serde_json::from_slice(&to_bytes(begin.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+
+        let wrong_offset = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!(
+                        "/staged-uploads/{}/chunks?offset=1&complete=false",
+                        begin.staged_upload_id
+                    ))
+                    .body(Body::from("abc"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(wrong_offset.status(), StatusCode::CONFLICT);
+
+        let first_chunk = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!(
+                        "/staged-uploads/{}/chunks?offset=0&complete=false",
+                        begin.staged_upload_id
+                    ))
+                    .body(Body::from("abc"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(first_chunk.status(), StatusCode::NO_CONTENT);
+
+        let final_chunk = app
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!(
+                        "/staged-uploads/{}/chunks?offset=3&complete=true",
+                        begin.staged_upload_id
+                    ))
+                    .body(Body::from("def"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(final_chunk.status(), StatusCode::OK);
+        let completed: StagedUploadCompleteResultDto =
+            serde_json::from_slice(&to_bytes(final_chunk.into_body(), usize::MAX).await.unwrap())
+                .unwrap();
+        assert_eq!(completed.staged_upload_id, begin.staged_upload_id);
+        assert_eq!(completed.received_bytes, 6);
+
+        let upload = state
+            .staging
+            .uploads
+            .lock()
+            .unwrap()
+            .get(&begin.staged_upload_id)
+            .cloned()
+            .unwrap();
+        assert!(upload.complete);
+        assert_eq!(std::fs::read(upload.path).unwrap(), b"abcdef");
+    }
+}

@@ -799,12 +799,14 @@ mod tests {
         std::fs::create_dir_all(&directory).expect("create isolated fixture directory");
 
         let marker = directory.join("authorization-finished");
+        let arguments = directory.join("authorization-arguments");
         let authorizer = directory.join("pkexec-fake");
         std::fs::write(
             &authorizer,
             format!(
-                "#!/bin/sh\nsleep 1\nprintf finished > '{}'\nexit 0\n",
-                marker.display()
+                "#!/bin/sh\nprintf '%s\\n' \"$@\" > '{}'\nsleep 1\nprintf finished > '{}'\nexit 0\n",
+                arguments.display(),
+                marker.display(),
             ),
         )
         .expect("write fake authorization command");
@@ -825,6 +827,21 @@ mod tests {
             std::fs::read_to_string(&marker).expect("authorizer finished before return"),
             "finished"
         );
+        let args = std::fs::read_to_string(&arguments).expect("capture authorizer arguments");
+        assert!(args.starts_with("/usr/lib/msc2/msc\nupdate\napply\n--release-id\ntest-release\n"));
+        assert!(args.contains("--parent-pid\n"));
+        assert!(args.contains(&format!("--data-dir\n{}\n", directory.display())));
+
+        run_authorized_update(
+            &authorizer,
+            Path::new("/usr/lib/msc2/msc"),
+            "test-release",
+            &directory,
+            true,
+        )
+        .expect("successful JSON authorized update");
+        let args = std::fs::read_to_string(&arguments).expect("capture JSON authorizer arguments");
+        assert!(args.starts_with("/usr/lib/msc2/msc\n--json\nupdate\napply\n"));
 
         let canceled_authorizer = directory.join("pkexec-canceled");
         std::fs::write(&canceled_authorizer, "#!/bin/sh\nexit 126\n")

@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phases 14 and 15 are complete and archived; P14.38–P14.45 await owner verification. Corrected desktop release v0.1.11 has published successfully. The external static-review record is preserved in the archive. All prior verification entries are recorded DONE, with P15.69 retaining its accepted failed-verification result.
-> **Next move:** Cameron verifies P14.38–P14.45 and closes the steps. The external review findings remain available in `rolling-plan-archive.md` for future triage. The current workspace has unrelated pre-existing diagnostics: a `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152` and an `unused_mut` warning in `crates/msc-agent/src/routes/bedrock_runtime.rs:385`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phases 14 and 15 are complete and archived; P14.38–P14.46 await owner verification. Corrected desktop release v0.1.11 has published successfully. The external static-review record is preserved in the archive. All prior verification entries are recorded DONE, with P15.69 retaining its accepted failed-verification result.
+> **Next move:** Cameron verifies P14.38–P14.46 and closes the steps. The external review findings remain available in `rolling-plan-archive.md` for future triage. The current workspace has unrelated pre-existing diagnostics: a `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152` and an `unused_mut` warning in `crates/msc-agent/src/routes/bedrock_runtime.rs:385`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -91,6 +91,15 @@ Files: crates/msc-agent/src/cli/update.rs, docs/msc2/rolling-plan.md
 What: Run the privileged Linux updater in the foreground and wait for polkit to finish, so its caller remains alive for authorization. Report cancellation and authorization failures as failed installs instead of saying the update was scheduled. Add a Linux-only fake-authorizer test that proves the CLI waits and handles cancellation without a release build, real polkit, or a service restart.
 Verify: cargo fmt --all -- --check && cargo test -p msc-agent --bin msc cli::update::tests::authorized_update_waits_for_authorizer_and_reports_cancellation -- --exact && cargo clippy -p msc-agent --bin msc -- -D warnings -A unused-mut && cargo check -p msc-agent --bin msc
 Commit: P14.45: wait for Linux update authorization
+Batch: solo
+
+#### P14.46 — Add Fedora regression coverage for sign-in, modpack streaming, and updates
+
+Status: awaiting Cameron verification
+Files: clients/desktop-web/tests/screens/fedora-regressions.test.ts, clients/desktop-web/tests/transport/transport.test.ts, crates/msc-agent/src/routes/components.rs, crates/msc-agent/src/cli/update.rs, docs/msc2/rolling-plan.md
+What: Prove the Xbox Broadcast Settings action can start sign-in while Minecraft is stopped, the shell polls the selected agent and shows its device-code sheet, and the sidebar renders the agent's authenticated identity. Exercise the desktop modpack upload client across multiple bounded chunks and a short-read failure; exercise the agent route's offset rejection, ordered append, and completion response. Extend the Linux fake-authorizer test to check release arguments, data directory, JSON forwarding, foreground wait, and cancellation without building a release or invoking real polkit.
+Verify: cargo fmt --all -- --check && cargo test -p msc-agent --bin msc routes::components::staged_upload_tests::chunked_modpack_upload_requires_order_and_completes_with_verified_size -- --exact && cargo test -p msc-agent --bin msc cli::update::tests::authorized_update_waits_for_authorizer_and_reports_cancellation -- --exact && cargo clippy -p msc-agent --bin msc -- -D warnings -A unused-mut && npx --prefix clients/desktop-web vitest run tests/transport/transport.test.ts tests/screens/fedora-regressions.test.ts && npm --prefix clients/desktop-web run check
+Commit: P14.46: add Fedora regression coverage for sign-in, uploads, and updates
 Batch: solo
 
 ## Current phase

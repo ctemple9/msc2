@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phases 14 and 15 are complete and archived; P14.38–P14.44 await owner verification. Corrected desktop release v0.1.11 has published successfully. The external static-review record is preserved in the archive. All prior verification entries are recorded DONE, with P15.69 retaining its accepted failed-verification result.
-> **Next move:** Cameron verifies P14.38–P14.44 and closes the steps. The external review findings remain available in `rolling-plan-archive.md` for future triage. The current workspace has unrelated pre-existing diagnostics: a `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152` and an `unused_mut` warning in `crates/msc-agent/src/routes/bedrock_runtime.rs:385`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phases 14 and 15 are complete and archived; P14.38–P14.45 await owner verification. Corrected desktop release v0.1.11 has published successfully. The external static-review record is preserved in the archive. All prior verification entries are recorded DONE, with P15.69 retaining its accepted failed-verification result.
+> **Next move:** Cameron verifies P14.38–P14.45 and closes the steps. The external review findings remain available in `rolling-plan-archive.md` for future triage. The current workspace has unrelated pre-existing diagnostics: a `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152` and an `unused_mut` warning in `crates/msc-agent/src/routes/bedrock_runtime.rs:385`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -82,6 +82,15 @@ Files: clients/desktop-web/src/App.svelte, clients/desktop-web/src/lib/api/clien
 What: Replace whole-file modpack reads and single-body uploads with a bounded-memory staged upload path. The desktop reads and sends 2 MiB chunks from the selected local file, including through the existing Tauri authorized-request bridge; the agent appends chunks to disk, enforces contiguous offsets, purpose, exact size and byte ceilings, and enables redemption only after the whole archive is received and hashed. Browser imports use bounded slices through the same path.
 Verify: cargo fmt --all -- --check && cargo check -p msc-agent -p msc-api && cargo clippy -p msc-agent -p msc-api -- -D warnings -A unused-mut && npm --prefix clients/desktop-web run api:check && npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run build
 Commit: P14.44: stream modpack imports with bounded memory
+Batch: solo
+
+#### P14.45 — Keep Linux update authorization attached to its caller
+
+Status: awaiting Cameron verification
+Files: crates/msc-agent/src/cli/update.rs, docs/msc2/rolling-plan.md
+What: Run the privileged Linux updater in the foreground and wait for polkit to finish, so its caller remains alive for authorization. Report cancellation and authorization failures as failed installs instead of saying the update was scheduled. Add a Linux-only fake-authorizer test that proves the CLI waits and handles cancellation without a release build, real polkit, or a service restart.
+Verify: cargo fmt --all -- --check && cargo test -p msc-agent --bin msc cli::update::tests::authorized_update_waits_for_authorizer_and_reports_cancellation -- --exact && cargo clippy -p msc-agent --bin msc -- -D warnings -A unused-mut && cargo check -p msc-agent --bin msc
+Commit: P14.45: wait for Linux update authorization
 Batch: solo
 
 ## Current phase

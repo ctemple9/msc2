@@ -170,35 +170,14 @@ fn install(common: &CommonArgs, release_id: &str, yes: bool) -> Result<(), CliEr
                 "could not resolve the current msc executable: {error}"
             ))
         })?;
-        let child = Command::new("pkexec")
-            .arg(current_executable)
-            .args(["update", "apply", "--release-id", release_id])
-            .arg("--parent-pid")
-            .arg(std::process::id().to_string())
-            .arg("--data-dir")
-            .arg(&data_directory)
-            .spawn()
-            .map_err(|error| {
-                CliError::internal(format!(
-                    "could not request local update authorization: {error}"
-                ))
-            })?;
-        let output = InstallOutput {
-            state: "scheduled",
-            release_id: release_id.to_string(),
-            install_mode: staged.install_mode.clone(),
-            release_notes: read_release_notes(&staged),
-            detail: format!(
-                "The verified update was scheduled through local authorization process {} and will restart the agent after this command exits.",
-                child.id()
-            ),
-        };
-        return if common.json {
-            print_json(&output)
-        } else {
-            print_install_output(&output);
-            Ok(())
-        };
+        run_authorized_update(
+            Path::new("pkexec"),
+            &current_executable,
+            release_id,
+            &data_directory,
+            common.json,
+        )?;
+        return Ok(());
     }
 
     #[cfg(not(target_os = "windows"))]
@@ -210,6 +189,51 @@ fn install(common: &CommonArgs, release_id: &str, yes: bool) -> Result<(), CliEr
             print_install_output(&output);
             Ok(())
         }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn run_authorized_update(
+    authorization_command: &Path,
+    executable: &Path,
+    release_id: &str,
+    data_directory: &Path,
+    json: bool,
+) -> Result<(), CliError> {
+    let mut command = Command::new(authorization_command);
+    command.arg(executable);
+    if json {
+        command.arg("--json");
+    }
+    let status = command
+        .args(["update", "apply", "--release-id", release_id])
+        .arg("--parent-pid")
+        .arg(std::process::id().to_string())
+        .arg("--data-dir")
+        .arg(data_directory)
+        // polkit binds authorization to this caller, so this process must
+        // stay alive until pkexec has completed the update.
+        .status()
+        .map_err(|error| {
+            CliError::internal(format!(
+                "could not request local update authorization: {error}"
+            ))
+        })?;
+
+    if status.success() {
+        return Ok(());
+    }
+    match status.code() {
+        Some(126) => Err(CliError::internal(format!(
+            "Authorization was canceled; release {release_id} was not installed."
+        ))),
+        Some(127) => Err(CliError::internal(format!(
+            "Could not obtain authorization to install release {release_id}; it was not installed."
+        ))),
+        code => Err(CliError::internal(format!(
+            "The authorized update process failed with status {}; release {release_id} was not confirmed installed.",
+            code.map_or_else(|| "unknown".to_string(), |value| value.to_string())
+        ))),
     }
 }
 
@@ -755,4 +779,68 @@ fn wait_for_agent_health() -> Result<(), CliError> {
     Err(CliError::internal(
         "the local agent did not recover its /v1/healthz endpoint",
     ))
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::run_authorized_update;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::Path;
+    use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn authorized_update_waits_for_authorizer_and_reports_cancellation() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock follows the epoch")
+            .as_nanos();
+        let directory =
+            std::env::temp_dir().join(format!("msc-update-auth-{}-{unique}", std::process::id()));
+        std::fs::create_dir_all(&directory).expect("create isolated fixture directory");
+
+        let marker = directory.join("authorization-finished");
+        let authorizer = directory.join("pkexec-fake");
+        std::fs::write(
+            &authorizer,
+            format!(
+                "#!/bin/sh\nsleep 1\nprintf finished > '{}'\nexit 0\n",
+                marker.display()
+            ),
+        )
+        .expect("write fake authorization command");
+        std::fs::set_permissions(&authorizer, std::fs::Permissions::from_mode(0o755))
+            .expect("make fake authorization command executable");
+
+        let started = Instant::now();
+        run_authorized_update(
+            &authorizer,
+            Path::new("/usr/lib/msc2/msc"),
+            "test-release",
+            &directory,
+            false,
+        )
+        .expect("successful authorized update");
+        assert!(started.elapsed() >= Duration::from_millis(900));
+        assert_eq!(
+            std::fs::read_to_string(&marker).expect("authorizer finished before return"),
+            "finished"
+        );
+
+        let canceled_authorizer = directory.join("pkexec-canceled");
+        std::fs::write(&canceled_authorizer, "#!/bin/sh\nexit 126\n")
+            .expect("write cancellation command");
+        std::fs::set_permissions(&canceled_authorizer, std::fs::Permissions::from_mode(0o755))
+            .expect("make cancellation command executable");
+        let error = run_authorized_update(
+            &canceled_authorizer,
+            Path::new("/usr/lib/msc2/msc"),
+            "test-release",
+            &directory,
+            false,
+        )
+        .expect_err("a dismissed polkit prompt must be reported as failure");
+        assert!(error.message.contains("Authorization was canceled"));
+
+        std::fs::remove_dir_all(directory).expect("remove isolated fixture directory");
+    }
 }

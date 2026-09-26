@@ -2333,7 +2333,7 @@ dependencies = [
 
 [[package]]
 name = "msc2-desktop-web"
-version = "0.1.14"
+version = "0.1.15"
 dependencies = [
  "ed25519-dalek",
  "msc-infrastructure",

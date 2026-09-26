@@ -136,6 +136,25 @@ describe('Tauri boundary', () => {
     expect(fallback).not.toHaveBeenCalled();
   });
 
+  it('passes a streamed native modpack file into the shared upload workflow', async () => {
+    const source = {
+      name: 'AllTheMods10.zip',
+      size: 8 * 1024 * 1024,
+      readChunk: vi.fn(async () => new Uint8Array()),
+      close: vi.fn(async () => undefined),
+    };
+    const dependencies = nativeDependencies();
+    dependencies.pickFileStream = vi.fn(async () => source);
+    const fallback = vi.fn(async () => null);
+    const request = { label: 'Choose a modpack archive', extensions: ['mrpack', 'zip'] };
+
+    await expect(createTauriPlatform(dependencies).pickFileStream(request, fallback)).resolves.toBe(
+      source,
+    );
+    expect(dependencies.pickFileStream).toHaveBeenCalledWith(request);
+    expect(fallback).not.toHaveBeenCalled();
+  });
+
   it('keeps platform detection out of routes and screens and the Tauri crate out of the workspace', () => {
     const routeAndScreenSources = [
       appSource,

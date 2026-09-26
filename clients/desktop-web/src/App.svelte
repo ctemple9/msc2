@@ -494,8 +494,14 @@
       resourceUrl: (path: string) => requireClient().resourceUrl(path),
       upload: (purpose, bytes, options) =>
         requireClient().stagedUpload({ purpose, ...options }, bytes),
-      uploadFile: (purpose, source, options) =>
-        requireClient().stagedUploadFromFile({ purpose, ...options }, source),
+      uploadFile: (purpose, source, options) => {
+        const { onProgress, ...uploadOptions } = options ?? {};
+        return requireClient().stagedUploadFromFile(
+          { purpose, ...uploadOptions },
+          source,
+          onProgress,
+        );
+      },
       download: (id, maxBytes) => requireClient().downloadBytes(id, maxBytes),
     };
   }

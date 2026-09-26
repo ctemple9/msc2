@@ -4,16 +4,18 @@
   // archive chosen through the modpack action is staged and inspected before
   // the wizard continues. The staged pack is redeemed by the existing create
   // operation after this step.
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import Button from '../../../components/base/Button.svelte';
   import Field from '../../../components/base/Field.svelte';
+  import Sheet from '../../../components/base/Sheet.svelte';
   import VisibilityIcon from '../../../components/base/VisibilityIcon.svelte';
   import { onboardingAnchor } from '../../../help/tourAnchors';
   import { getPlatform, openExternal } from '../../../platform';
-  import type { FileChunkSource } from '../../../platform/types';
+  import type { FileChunkSource, FileUploadProgress } from '../../../platform/types';
   import type { Schema, ScreenApi } from '../../shared/types';
   import { errorMessage, mutate } from '../../shared/types';
   import { addonPaths } from '../../addons/model';
+  import ModpackUploadProgress from '../../components/ModpackUploadProgress.svelte';
   import { scanImportSource, type JavaCategory, type JavaFlavor, type WizardDraft } from './model';
 
   export let api: ScreenApi | undefined = undefined;
@@ -23,6 +25,8 @@
 
   let fileInput: HTMLInputElement;
   let isScanning = false;
+  let modpackProgress: FileUploadProgress | undefined;
+  let modpackFileName = '';
   let scanError: string | undefined;
   let dropTargeted = false;
   let supportsDrop = false;
@@ -115,14 +119,29 @@
     isScanning = true;
     scanError = undefined;
     curseforgeKeyNotice = '';
+    modpackFileName = fileName;
+    modpackProgress = {
+      phase: 'preparing',
+      bytesUploaded: 0,
+      totalBytes: source.size,
+    };
     try {
       if (!api?.uploadFile) throw new Error('Modpack staging needs a connected agent.');
-      const staged = await api.uploadFile('modpack-archive', source);
+      await tick();
+      const staged = await api.uploadFile('modpack-archive', source, {
+        onProgress: (progress) => (modpackProgress = progress),
+      });
+      modpackProgress = {
+        phase: 'complete',
+        bytesUploaded: source.size,
+        totalBytes: source.size,
+      };
       await inspectStagedModpack(fileName, staged.stagedUploadId);
     } finally {
       try {
         await source.close();
       } finally {
+        modpackProgress = undefined;
         isScanning = false;
       }
     }
@@ -238,17 +257,25 @@
   }
 
   async function browseModpack(): Promise<void> {
-    const picked = await (
-      await getPlatform()
-    ).pickFileStream(
-      { label: 'Choose a modpack archive', extensions: ['mrpack', 'zip'] },
-      browseBrowserFile,
-    );
-    if (picked) {
-      try {
-        await inspectModpack(picked.name, picked);
-      } catch (error) {
-        scanError = errorMessage(error);
+    isScanning = true;
+    scanError = undefined;
+    modpackFileName = 'Waiting for file selection…';
+    modpackProgress = { phase: 'selecting', bytesUploaded: 0, totalBytes: 0 };
+    let picked: FileChunkSource | null = null;
+    try {
+      picked = await (
+        await getPlatform()
+      ).pickFileStream(
+        { label: 'Choose a modpack archive', extensions: ['mrpack', 'zip'] },
+        browseBrowserFile,
+      );
+      if (picked) await inspectModpack(picked.name, picked);
+    } catch (error) {
+      scanError = errorMessage(error);
+    } finally {
+      if (!picked) {
+        modpackProgress = undefined;
+        isScanning = false;
       }
     }
   }
@@ -467,6 +494,12 @@
     </div>
   {/if}
 </div>
+
+{#if modpackProgress}
+  <Sheet title="Staging modpack" size="sm">
+    <ModpackUploadProgress fileName={modpackFileName} progress={modpackProgress} />
+  </Sheet>
+{/if}
 
 <style>
   .upload {

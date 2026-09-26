@@ -345,6 +345,7 @@ let nativeHostSetupOverride;
 let broadcastClientSequence = 0;
 let reconnectClientSequence = 0;
 let serverCreateRequests = 0;
+let stagedUploadExpectedBytes = 0;
 
 function json(response, body, status = 200) {
   response.writeHead(status, { 'content-type': 'application/json' });
@@ -363,6 +364,12 @@ async function readJsonBody(request) {
   } catch {
     return undefined;
   }
+}
+
+async function readRequestByteLength(request) {
+  let byteLength = 0;
+  for await (const chunk of request) byteLength += chunk.byteLength;
+  return byteLength;
 }
 
 function hostSetupComplete(request) {
@@ -654,12 +661,28 @@ createServer(async (request, response) => {
     return json(response, { success: true, message: 'Active server changed.' });
   if (url.pathname === '/v1/worlds')
     return json(response, { slots: worlds, activeSlotId: 'world-1', serverRunning: false });
-  if (url.pathname === '/v1/staged-uploads' && request.method === 'POST')
+  if (url.pathname === '/v1/staged-uploads' && request.method === 'POST') {
+    const body = await readJsonBody(request);
+    stagedUploadExpectedBytes = Number(body?.expectedBytes) || 0;
     return json(response, {
       stagedUploadId: 'upload-1',
       uploadPath: '/v1/staged-uploads/upload-1',
-      maxBytes: 1048576,
+      maxBytes: 512 * 1024 * 1024,
     });
+  }
+  if (url.pathname === '/v1/staged-uploads/upload-1/chunks' && request.method === 'PUT') {
+    const chunkBytes = await readRequestByteLength(request);
+    const receivedBytes = Number(url.searchParams.get('offset') ?? 0) + chunkBytes;
+    if (url.searchParams.get('complete') !== 'true') {
+      response.writeHead(204);
+      return response.end();
+    }
+    return json(response, {
+      stagedUploadId: 'upload-1',
+      receivedBytes,
+      sha256: `fixture-${stagedUploadExpectedBytes}`,
+    });
+  }
   if (url.pathname === '/v1/staged-uploads/upload-1' && request.method === 'PUT')
     return json(response, { stagedUploadId: 'upload-1', receivedBytes: 4 });
   if (url.pathname === '/v1/modpacks/inspect' && request.method === 'POST')

@@ -2708,6 +2708,8 @@ mod staged_upload_tests {
 
     #[tokio::test]
     async fn chunked_modpack_upload_requires_order_and_completes_with_verified_size() {
+        let chunk_bytes = 2 * 1024 * 1024;
+        let total_bytes = chunk_bytes * 2 + 3;
         let lifecycle = LifecycleRoutesState::with_fake_process(
             crate::ws::console::ConsoleState::default(),
             OperationsState::fake_journaled(),
@@ -2730,7 +2732,7 @@ mod staged_upload_tests {
                         serde_json::json!({
                             "purpose": "modpack-archive",
                             "fileName": "mods.zip",
-                            "expectedBytes": 6
+                            "expectedBytes": total_bytes
                         })
                         .to_string(),
                     ))
@@ -2752,7 +2754,7 @@ mod staged_upload_tests {
                         "/staged-uploads/{}/chunks?offset=1&complete=false",
                         begin.staged_upload_id
                     ))
-                    .body(Body::from("abc"))
+                    .body(Body::from("bad"))
                     .unwrap(),
             )
             .await
@@ -2768,22 +2770,39 @@ mod staged_upload_tests {
                         "/staged-uploads/{}/chunks?offset=0&complete=false",
                         begin.staged_upload_id
                     ))
-                    .body(Body::from("abc"))
+                    .body(Body::from(vec![b'a'; chunk_bytes]))
                     .unwrap(),
             )
             .await
             .unwrap();
         assert_eq!(first_chunk.status(), StatusCode::NO_CONTENT);
 
+        let second_chunk = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!(
+                        "/staged-uploads/{}/chunks?offset={chunk_bytes}&complete=false",
+                        begin.staged_upload_id
+                    ))
+                    .body(Body::from(vec![b'b'; chunk_bytes]))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(second_chunk.status(), StatusCode::NO_CONTENT);
+
         let final_chunk = app
             .oneshot(
                 Request::builder()
                     .method("PUT")
                     .uri(format!(
-                        "/staged-uploads/{}/chunks?offset=3&complete=true",
-                        begin.staged_upload_id
+                        "/staged-uploads/{}/chunks?offset={}&complete=true",
+                        begin.staged_upload_id,
+                        chunk_bytes * 2
                     ))
-                    .body(Body::from("def"))
+                    .body(Body::from("end"))
                     .unwrap(),
             )
             .await
@@ -2793,7 +2812,7 @@ mod staged_upload_tests {
             serde_json::from_slice(&to_bytes(final_chunk.into_body(), usize::MAX).await.unwrap())
                 .unwrap();
         assert_eq!(completed.staged_upload_id, begin.staged_upload_id);
-        assert_eq!(completed.received_bytes, 6);
+        assert_eq!(completed.received_bytes, total_bytes as i64);
 
         let upload = state
             .staging
@@ -2804,6 +2823,14 @@ mod staged_upload_tests {
             .cloned()
             .unwrap();
         assert!(upload.complete);
-        assert_eq!(std::fs::read(upload.path).unwrap(), b"abcdef");
+        let uploaded = std::fs::read(upload.path).unwrap();
+        assert_eq!(uploaded.len(), total_bytes);
+        assert!(uploaded[..chunk_bytes].iter().all(|byte| *byte == b'a'));
+        assert!(
+            uploaded[chunk_bytes..chunk_bytes * 2]
+                .iter()
+                .all(|byte| *byte == b'b')
+        );
+        assert_eq!(&uploaded[chunk_bytes * 2..], b"end");
     }
 }

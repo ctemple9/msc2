@@ -13,6 +13,12 @@ export interface FileChunkSource {
   close(): Promise<void>;
 }
 
+export interface FileUploadProgress {
+  readonly phase: 'selecting' | 'preparing' | 'reading' | 'uploading' | 'complete';
+  readonly bytesUploaded: number;
+  readonly totalBytes: number;
+}
+
 export interface FilePickerRequest {
   readonly label: string;
   readonly extensions?: readonly string[];

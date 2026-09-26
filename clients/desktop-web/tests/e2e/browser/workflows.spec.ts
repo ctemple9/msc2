@@ -68,6 +68,76 @@ test('walks a fresh profile through setup, tour pauses, handoff, and reopen', as
   await expect(page.getByText('Begin the guided tour.')).toBeVisible();
 });
 
+test('shows chunk progress while a large modpack is sent to the selected host', async ({
+  page,
+}) => {
+  await skipFirstLaunch(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: /Local agent/ }).click();
+  await page.getByRole('menuitem', { name: 'Manage…', exact: true }).click();
+  const manage = page.getByRole('dialog', { name: 'Manage Servers' });
+  await manage.getByRole('button', { name: 'Add Server…', exact: true }).click();
+  const wizard = page.getByRole('dialog', { name: 'Add Server' });
+  await wizard.getByRole('button', { name: 'Continue', exact: true }).click();
+
+  const chunkBytes = 2 * 1024 * 1024;
+  const totalBytes = chunkBytes * 2 + 123;
+  const acceptedChunkSizes: number[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'PUT' &&
+      request.url().includes('/v1/staged-uploads/upload-1/chunks')
+    ) {
+      acceptedChunkSizes.push(request.postDataBuffer()?.byteLength ?? 0);
+    }
+  });
+  await page.route('**/v1/staged-uploads/upload-1/chunks**', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    await route.continue();
+  });
+
+  const fileChooserPromise = page.waitForEvent('filechooser');
+  await wizard.getByRole('button', { name: 'Choose Modpack…', exact: true }).click();
+  const fileChooser = await fileChooserPromise;
+  const progressSheet = page.getByRole('dialog', { name: 'Staging modpack' });
+  await expect(progressSheet).toBeVisible();
+  await expect(progressSheet.getByText(/Choose the archive in the file picker/)).toBeVisible();
+  await fileChooser.setFiles({
+    name: 'AllTheMods10.zip',
+    mimeType: 'application/zip',
+    buffer: Buffer.alloc(totalBytes, 7),
+  });
+
+  await expect(progressSheet).toBeVisible();
+  await expect(progressSheet.getByText('AllTheMods10.zip')).toBeVisible();
+  await expect(progressSheet.getByText(/Sending archive data to the host/)).toBeVisible();
+  const progress = progressSheet.getByRole('progressbar', { name: 'Modpack upload progress' });
+  await expect(progress).toHaveAttribute('value', '0');
+  await expect.poll(async () => Number(await progress.getAttribute('value'))).toBeGreaterThan(0);
+
+  await expect(wizard.getByRole('heading', { name: 'Modpack detected' })).toBeVisible();
+  await expect(wizard.getByText('Test Pack', { exact: true })).toBeVisible();
+  await expect(progressSheet).toHaveCount(0);
+  expect(acceptedChunkSizes).toEqual([chunkBytes, chunkBytes, 123]);
+  expect(acceptedChunkSizes.every((size) => size <= chunkBytes)).toBe(true);
+
+  await page.route('**/v1/java-runtimes', (route) =>
+    route.fulfill({
+      json: { runtimes: [{ executablePath: '/usr/lib/jvm/java-17', majorVersion: 17, name: 'Java 17' }] },
+    }),
+  );
+  await wizard.getByRole('button', { name: 'Continue', exact: true }).click();
+  const javaSelection = page.getByRole('dialog', { name: 'Choose Java for this server' });
+  await expect(javaSelection).toBeVisible();
+  await javaSelection.getByRole('button', { name: /Java 17/ }).click();
+  await javaSelection.getByRole('button', { name: 'Use selected Java' }).click();
+  await expect(wizard.getByRole('heading', { name: 'How will friends connect?' })).toBeVisible();
+  await wizard.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(wizard.getByRole('heading', { name: 'What should the first world be?' })).toBeVisible();
+  await wizard.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(wizard.getByRole('heading', { name: 'Name and confirm' })).toBeVisible();
+});
+
 test('uses the bounded splash fallback and removes it for reduced motion', async ({ page }) => {
   await skipFirstLaunch(page);
   await page.emulateMedia({ reducedMotion: 'reduce' });

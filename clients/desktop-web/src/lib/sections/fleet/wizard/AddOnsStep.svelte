@@ -46,15 +46,17 @@
   // a batch folder/zip-of-loose-jars import, since MSC 2's contract has no
   // route to unpack an arbitrary zip of jars server-side (only a structured
   // mrpack/CurseForge manifest, via the modpack path below).
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { onboardingAnchor } from '../../../help/tourAnchors';
   import Button from '../../../components/base/Button.svelte';
+  import Sheet from '../../../components/base/Sheet.svelte';
   import { getPlatform } from '../../../platform';
-  import type { FileChunkSource, PickedFile } from '../../../platform/types';
+  import type { FileChunkSource, FileUploadProgress, PickedFile } from '../../../platform/types';
   import type { Schema, ScreenApi } from '../../shared/types';
   import { errorMessage, mutate } from '../../shared/types';
   import { addonPaths } from '../../addons/model';
   import PluginBrowserSheet from '../../components/PluginBrowserSheet.svelte';
+  import ModpackUploadProgress from '../../components/ModpackUploadProgress.svelte';
   import {
     hasStagedSimpleVoiceChat,
     javaAddOnKind,
@@ -68,6 +70,8 @@
   let modpackFileInput: HTMLInputElement;
   let jarFileInput: HTMLInputElement;
   let stagingModpack = false;
+  let modpackProgress: FileUploadProgress | undefined;
+  let modpackFileName = '';
   let stagingJar = false;
   let stageError: string | undefined;
   let showBrowser = false;
@@ -155,6 +159,8 @@
     if (!api?.uploadFile || stagingModpack) return;
     stagingModpack = true;
     stageError = undefined;
+    modpackFileName = 'Waiting for file selection…';
+    modpackProgress = { phase: 'selecting', bytesUploaded: 0, totalBytes: 0 };
     let picked: FileChunkSource | null = null;
     try {
       picked = await (
@@ -163,7 +169,21 @@
         browseBrowserModpack(),
       );
       if (!picked) return;
-      const staged = await api.uploadFile('modpack-archive', picked);
+      modpackFileName = picked.name;
+      modpackProgress = {
+        phase: 'preparing',
+        bytesUploaded: 0,
+        totalBytes: picked.size,
+      };
+      await tick();
+      const staged = await api.uploadFile('modpack-archive', picked, {
+        onProgress: (progress) => (modpackProgress = progress),
+      });
+      modpackProgress = {
+        phase: 'complete',
+        bytesUploaded: picked.size,
+        totalBytes: picked.size,
+      };
       const inspection = await mutate<Schema['ModpackInspectionResultDTO']>(
         api,
         addonPaths.inspectPack,
@@ -177,6 +197,7 @@
     } catch (error) {
       stageError = errorMessage(error);
     } finally {
+      modpackProgress = undefined;
       stagingModpack = false;
       await picked?.close();
     }
@@ -394,6 +415,12 @@
     {/if}
   {/if}
 </div>
+
+{#if modpackProgress}
+  <Sheet title="Staging modpack" size="sm">
+    <ModpackUploadProgress fileName={modpackFileName} progress={modpackProgress} />
+  </Sheet>
+{/if}
 
 {#if showBrowser && addOnKind}
   <PluginBrowserSheet

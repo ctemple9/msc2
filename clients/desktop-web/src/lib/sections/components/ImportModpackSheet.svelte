@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   // Ports DetailsComponentsTabView.swift's isShowingModpackImporter flow
   // (stage the archive, sniff mrpack vs CurseForge zip, import) as its own
   // step sequence: stage -> inspect -> review -> importing -> done/failed.
@@ -12,10 +13,11 @@
   import VisibilityIcon from '../../components/base/VisibilityIcon.svelte';
   import { ApiError } from '../../api/client';
   import { getPlatform } from '../../platform';
-  import type { FileChunkSource } from '../../platform/types';
+  import type { FileChunkSource, FileUploadProgress } from '../../platform/types';
   import type { Schema, ScreenApi } from '../shared/types';
   import { errorMessage, mutate } from '../shared/types';
   import { addonPaths } from './model';
+  import ModpackUploadProgress from './ModpackUploadProgress.svelte';
 
   export let api: ScreenApi | undefined = undefined;
   export let onClose: () => void;
@@ -52,6 +54,8 @@
   let curseforgeApiKeyVisible = false;
   let curseforgeKeySaving = false;
   let curseforgeKeyNotice = '';
+  let modpackProgress: FileUploadProgress | undefined;
+  let modpackFileName = '';
 
   function pickBrowserFile(): Promise<FileChunkSource | null> {
     return new Promise((resolve) => {
@@ -82,15 +86,34 @@
   async function chooseAndStage(): Promise<void> {
     if (!api?.uploadFile) return;
     let picked: FileChunkSource | null = null;
-    picked = await (
-      await getPlatform()
-    ).pickFileStream({ label: 'Choose a modpack archive', extensions: ['mrpack', 'zip'] }, () =>
-      pickBrowserFile(),
-    );
-    if (!picked) return;
+    modpackFileName = 'Waiting for file selection…';
+    modpackProgress = { phase: 'selecting', bytesUploaded: 0, totalBytes: 0 };
     step = { kind: 'inspecting' };
     try {
-      const staged = await api.uploadFile('modpack-archive', picked);
+      picked = await (
+        await getPlatform()
+      ).pickFileStream({ label: 'Choose a modpack archive', extensions: ['mrpack', 'zip'] }, () =>
+        pickBrowserFile(),
+      );
+      if (!picked) {
+        step = { kind: 'stage' };
+        return;
+      }
+      modpackFileName = picked.name;
+      modpackProgress = {
+        phase: 'preparing',
+        bytesUploaded: 0,
+        totalBytes: picked.size,
+      };
+      await tick();
+      const staged = await api.uploadFile('modpack-archive', picked, {
+        onProgress: (progress) => (modpackProgress = progress),
+      });
+      modpackProgress = {
+        phase: 'complete',
+        bytesUploaded: picked.size,
+        totalBytes: picked.size,
+      };
       const inspection = await mutate<Schema['ModpackInspectionResultDTO']>(
         api,
         addonPaths.inspectPack,
@@ -122,10 +145,11 @@
     } catch (error) {
       step = {
         kind: 'failed',
-        message: errorMessage(error) || 'Failed to inspect this archive.',
+        message: errorMessage(error) || 'Failed to stage or inspect this archive.',
       };
     } finally {
-      await picked.close();
+      modpackProgress = undefined;
+      await picked?.close();
     }
   }
 
@@ -209,20 +233,24 @@
   size="md"
   onClose={step.kind === 'inspecting' || step.kind === 'importing' ? undefined : onClose}
 >
+  <input bind:this={fileInput} type="file" accept=".mrpack,.zip" class="hidden-input" />
   {#if step.kind === 'stage'}
     <div class="body">
       <p class="explain">
         Choose a Modrinth (.mrpack) or CurseForge (.zip) modpack archive. It's inspected before
         anything changes on the server.
       </p>
-      <input bind:this={fileInput} type="file" accept=".mrpack,.zip" class="hidden-input" />
       <div class="footer">
         <Button variant="secondary" onclick={onClose}>Cancel</Button>
         <Button variant="primary" onclick={() => void chooseAndStage()}>Choose Archive…</Button>
       </div>
     </div>
   {:else if step.kind === 'inspecting'}
-    <p class="explain">Inspecting archive…</p>
+    {#if modpackProgress}
+      <ModpackUploadProgress fileName={modpackFileName} progress={modpackProgress} />
+    {:else}
+      <p class="explain">Inspecting archive…</p>
+    {/if}
   {:else if step.kind === 'curseforge-key'}
     <div class="body">
       <p class="lede">CurseForge key required</p>

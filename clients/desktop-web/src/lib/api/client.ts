@@ -1,7 +1,7 @@
 import type { components } from './generated';
 import type { TransportCredentialAdapter } from './auth';
 import { cookieCredentialAdapter } from './auth';
-import type { FileChunkSource } from '../platform/types';
+import type { FileChunkSource, FileUploadProgress } from '../platform/types';
 
 export type HttpMethod = 'DELETE' | 'GET' | 'POST' | 'PUT';
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -152,10 +152,12 @@ export class ApiClient {
   async stagedUploadFromFile(
     request: components['schemas']['StagedUploadBeginRequestDTO'],
     source: FileChunkSource,
+    onProgress?: (progress: FileUploadProgress) => void,
   ): Promise<components['schemas']['StagedUploadCompleteResultDTO']> {
     if (!Number.isSafeInteger(source.size) || source.size <= 0) {
       throw new Error('The selected modpack file has an invalid size.');
     }
+    onProgress?.({ phase: 'preparing', bytesUploaded: 0, totalBytes: source.size });
     const slot = await this.beginUpload({ ...request, expectedBytes: source.size });
     if (source.size > slot.maxBytes) {
       throw new Error(`staged upload exceeds ${slot.maxBytes} bytes`);
@@ -163,28 +165,32 @@ export class ApiClient {
     const chunkSize = 2 * 1024 * 1024;
     let offset = 0;
     while (offset < source.size) {
+      onProgress?.({ phase: 'reading', bytesUploaded: offset, totalBytes: source.size });
       const expectedChunkBytes = Math.min(chunkSize, source.size - offset);
       const bytes = await source.readChunk(offset, expectedChunkBytes);
       if (bytes.byteLength !== expectedChunkBytes) {
         throw new Error(`Could not read the complete modpack file at byte ${offset}.`);
       }
+      onProgress?.({ phase: 'uploading', bytesUploaded: offset, totalBytes: source.size });
       const finalChunk = offset + bytes.byteLength === source.size;
       const path = `${slot.uploadPath}/chunks?offset=${offset}&complete=${finalChunk}`;
       const response = await this.request('PUT', path, {
         body: bytes,
         headers: { 'Content-Type': 'application/octet-stream' },
       });
-      offset += bytes.byteLength;
       if (finalChunk) {
         const result =
           (await response.json()) as components['schemas']['StagedUploadCompleteResultDTO'];
         if (result.receivedBytes !== source.size || result.stagedUploadId !== slot.stagedUploadId) {
           throw new Error('The agent returned an incomplete modpack upload result.');
         }
+        offset += bytes.byteLength;
+        onProgress?.({ phase: 'complete', bytesUploaded: offset, totalBytes: source.size });
         return result;
       }
       if (response.status !== 204)
         throw new Error('The agent did not accept the modpack upload chunk.');
+      offset += bytes.byteLength;
     }
     throw new Error('The selected modpack file is empty.');
   }

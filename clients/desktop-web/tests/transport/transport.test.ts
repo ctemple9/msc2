@@ -83,6 +83,7 @@ describe('shared host-aware transport', () => {
     const chunkSize = 2 * 1024 * 1024;
     const totalBytes = chunkSize + 3;
     const requests: { url: string; init?: RequestInit }[] = [];
+    const progress: { phase: string; bytesUploaded: number; totalBytes: number }[] = [];
     const source = {
       name: 'mods.zip',
       size: totalBytes,
@@ -113,7 +114,9 @@ describe('shared host-aware transport', () => {
     });
 
     await expect(
-      client.stagedUploadFromFile({ purpose: 'modpack-archive' }, source),
+      client.stagedUploadFromFile({ purpose: 'modpack-archive' }, source, (update) =>
+        progress.push(update),
+      ),
     ).resolves.toMatchObject({ stagedUploadId: 'upload-1', receivedBytes: totalBytes });
 
     expect(requests.map(({ url }) => url)).toEqual([
@@ -124,6 +127,14 @@ describe('shared host-aware transport', () => {
     const uploadedBodies = requests.slice(1).map(({ init }) => init?.body as Uint8Array);
     expect(uploadedBodies.map((body) => body.byteLength)).toEqual([chunkSize, 3]);
     expect(uploadedBodies.every((body) => body.byteLength <= chunkSize)).toBe(true);
+    expect(progress).toEqual([
+      { phase: 'preparing', bytesUploaded: 0, totalBytes },
+      { phase: 'reading', bytesUploaded: 0, totalBytes },
+      { phase: 'uploading', bytesUploaded: 0, totalBytes },
+      { phase: 'reading', bytesUploaded: chunkSize, totalBytes },
+      { phase: 'uploading', bytesUploaded: chunkSize, totalBytes },
+      { phase: 'complete', bytesUploaded: totalBytes, totalBytes },
+    ]);
     expect(JSON.parse(String(requests[0].init?.body))).toMatchObject({
       purpose: 'modpack-archive',
       expectedBytes: totalBytes,

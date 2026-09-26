@@ -135,14 +135,25 @@ describe('desktop credentials', () => {
       readChunk: async (_offset: number, length: number) => new Uint8Array(length),
       close: async () => undefined,
     };
+    const progress: { phase: string; bytesUploaded: number; totalBytes: number }[] = [];
 
     await expect(
-      client.stagedUploadFromFile({ purpose: 'modpack-archive' }, source),
+      client.stagedUploadFromFile({ purpose: 'modpack-archive' }, source, (update) =>
+        progress.push(update),
+      ),
     ).resolves.toMatchObject({ stagedUploadId: 'upload-1', receivedBytes: totalBytes });
     expect(native.authorizedRequest).toHaveBeenCalledTimes(3);
     expect(vi.mocked(native.authorizedRequest).mock.calls[1]?.[0].path).toContain(
       'complete=false',
     );
+    expect(progress).toEqual([
+      { phase: 'preparing', bytesUploaded: 0, totalBytes },
+      { phase: 'reading', bytesUploaded: 0, totalBytes },
+      { phase: 'uploading', bytesUploaded: 0, totalBytes },
+      { phase: 'reading', bytesUploaded: chunkSize, totalBytes },
+      { phase: 'uploading', bytesUploaded: chunkSize, totalBytes },
+      { phase: 'complete', bytesUploaded: totalBytes, totalBytes },
+    ]);
   });
 
   it('forgets only the requested host credentials and can include the local bootstrap record', async () => {

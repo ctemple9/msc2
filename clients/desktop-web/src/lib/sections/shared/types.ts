@@ -1,4 +1,5 @@
 import type { components } from '../../api/generated';
+import type { FileChunkSource } from '../../platform/types';
 
 export type Schema = components['schemas'];
 
@@ -18,6 +19,11 @@ export interface ScreenApi {
     bytes: Uint8Array,
     /** Modpack recovery uploads are bound to one operation/file and retain the
      * browser's original name for exact filename validation. */
+    options?: { operationId?: string; fileId?: string; fileName?: string },
+  ): Promise<Schema['StagedUploadCompleteResultDTO']>;
+  uploadFile?(
+    purpose: Schema['StagedUploadBeginRequestDTO']['purpose'],
+    source: FileChunkSource,
     options?: { operationId?: string; fileId?: string; fileName?: string },
   ): Promise<Schema['StagedUploadCompleteResultDTO']>;
   download?(id: string, maxBytes?: number): Promise<Uint8Array>;

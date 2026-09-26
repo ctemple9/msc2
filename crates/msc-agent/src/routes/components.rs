@@ -2,6 +2,8 @@
 //! routes wired to the real Phase 8 application services.
 
 use std::collections::{BTreeMap, HashMap};
+use std::fs::OpenOptions;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
@@ -53,6 +55,7 @@ use crate::routes::worlds::{
 const MAX_STAGED_UPLOAD_BYTES: u64 = 10 * 1024 * 1024 * 1024;
 const MAX_LOCAL_ADDON_UPLOAD_BYTES: u64 = 512 * 1024 * 1024;
 const STAGING_TTL_SECONDS: u64 = 30 * 60;
+const STAGED_UPLOAD_CHUNK_BYTES: usize = 2 * 1024 * 1024;
 
 #[derive(Clone)]
 pub struct ComponentsRoutesState {
@@ -241,6 +244,10 @@ pub fn router(state: ComponentsRoutesState) -> Router {
             "/staged-uploads/:id",
             put(upload_staged_bytes)
                 .route_layer(DefaultBodyLimit::max(MAX_STAGED_UPLOAD_BYTES as usize)),
+        )
+        .route(
+            "/staged-uploads/:id/chunks",
+            put(upload_staged_chunk).route_layer(DefaultBodyLimit::max(STAGED_UPLOAD_CHUNK_BYTES)),
         )
         .route("/staged-downloads/:id", get(download_staged_bytes))
         .route("/addons", get(get_addons))
@@ -691,6 +698,16 @@ pub async fn begin_staged_upload(
     };
 
     let id = Uuid::new_v4().to_string();
+    let expected_bytes = match body.expected_bytes {
+        Some(size) if size <= 0 || size as u64 > max_bytes => {
+            return invalid_body(
+                "invalid_expected_bytes",
+                "expectedBytes must be within the upload byte ceiling.",
+            );
+        }
+        Some(size) => Some(size as u64),
+        None => None,
+    };
     let expires_at_unix = now_unix() + STAGING_TTL_SECONDS;
     let uploads_dir = staging_root(&state.lifecycle.servers_root()).join("uploads");
     let path = uploads_dir.join(format!("{id}.bin"));
@@ -703,6 +720,9 @@ pub async fn begin_staged_upload(
             file_id: body.file_id.clone(),
             expires_at_unix,
             max_bytes,
+            expected_bytes,
+            received_bytes: 0,
+            complete: false,
             path,
         },
     );
@@ -752,6 +772,15 @@ pub async fn upload_staged_bytes(
             "Upload exceeds the staged upload's byte ceiling.",
         );
     }
+    if let Some(expected) = entry.expected_bytes
+        && body.len() as u64 != expected
+    {
+        return error_response(
+            StatusCode::CONFLICT,
+            "upload_size_mismatch",
+            "Upload size did not match expectedBytes.",
+        );
+    }
     if let Some(parent) = entry.path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
@@ -761,6 +790,10 @@ pub async fn upload_staged_bytes(
             "internal_error",
             "Could not write staged upload.",
         );
+    }
+    if let Some(upload) = state.staging.uploads.lock().unwrap().get_mut(&id) {
+        upload.received_bytes = body.len() as u64;
+        upload.complete = true;
     }
     let mut hasher = Sha256::new();
     hasher.update(&body);
@@ -775,6 +808,175 @@ pub async fn upload_staged_bytes(
         &credential,
         "PUT",
         "/v1/staged-uploads/:id",
+        response.status(),
+    );
+    response
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StagedUploadChunkQuery {
+    offset: u64,
+    complete: bool,
+}
+
+pub async fn upload_staged_chunk(
+    State(state): State<ComponentsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    AxumPath(id): AxumPath<String>,
+    Query(query): Query<StagedUploadChunkQuery>,
+    body: Bytes,
+) -> Response {
+    if body.is_empty() || body.len() > STAGED_UPLOAD_CHUNK_BYTES {
+        return invalid_body(
+            "invalid_chunk_size",
+            "Each upload chunk must contain between 1 byte and 2 MiB.",
+        );
+    }
+    let mut uploads = state.staging.uploads.lock().unwrap();
+    let Some(entry) = uploads.get_mut(&id) else {
+        return error_response(
+            StatusCode::NOT_FOUND,
+            "not_found",
+            "Unknown or already-redeemed staged upload.",
+        );
+    };
+    if now_unix() > entry.expires_at_unix {
+        uploads.remove(&id);
+        return error_response(
+            StatusCode::CONFLICT,
+            "staged_upload_expired",
+            "This staged upload has expired.",
+        );
+    }
+    if entry.purpose != StagedUploadPurposeDto::ModpackArchive {
+        return error_response(
+            StatusCode::CONFLICT,
+            "invalid_upload_purpose",
+            "Chunk uploads are reserved for modpack archives.",
+        );
+    }
+    let Some(expected) = entry.expected_bytes else {
+        return error_response(
+            StatusCode::CONFLICT,
+            "missing_expected_bytes",
+            "Chunk uploads require expectedBytes when the slot is created.",
+        );
+    };
+    if entry.complete || query.offset != entry.received_bytes {
+        return error_response(
+            StatusCode::CONFLICT,
+            "invalid_upload_offset",
+            "Chunk offset does not match the next expected byte.",
+        );
+    }
+    let next = match entry.received_bytes.checked_add(body.len() as u64) {
+        Some(next) if next <= entry.max_bytes && next <= expected => next,
+        _ => {
+            return error_response(
+                StatusCode::CONFLICT,
+                "max_bytes_exceeded",
+                "Upload exceeds the staged upload byte ceiling.",
+            );
+        }
+    };
+    if query.complete != (next == expected) {
+        return error_response(
+            StatusCode::CONFLICT,
+            "upload_completion_mismatch",
+            "The completion flag must be set on exactly the final chunk.",
+        );
+    }
+    if let Some(parent) = entry.path.parent()
+        && std::fs::create_dir_all(parent).is_err()
+    {
+        return error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal_error",
+            "Could not create staged upload directory.",
+        );
+    }
+    let mut file = match OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&entry.path)
+    {
+        Ok(file) => file,
+        Err(_) => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_error",
+                "Could not open staged upload.",
+            );
+        }
+    };
+    if std::io::Write::write_all(&mut file, &body).is_err() {
+        return error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal_error",
+            "Could not append staged upload chunk.",
+        );
+    }
+    entry.received_bytes = next;
+    if !query.complete {
+        let response = StatusCode::NO_CONTENT.into_response();
+        audit(
+            &state.lifecycle,
+            &credential,
+            "PUT",
+            "/v1/staged-uploads/:id/chunks",
+            response.status(),
+        );
+        return response;
+    }
+    if file.sync_all().is_err() {
+        return error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal_error",
+            "Could not flush staged upload.",
+        );
+    }
+    drop(file);
+    let mut staged_file = match std::fs::File::open(&entry.path) {
+        Ok(file) => file,
+        Err(_) => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_error",
+                "Could not verify staged upload.",
+            );
+        }
+    };
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let read = match staged_file.read(&mut buffer) {
+            Ok(read) => read,
+            Err(_) => {
+                return error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "internal_error",
+                    "Could not verify staged upload.",
+                );
+            }
+        };
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    entry.complete = true;
+    let response = Json(StagedUploadCompleteResultDto {
+        staged_upload_id: id,
+        received_bytes: i64::try_from(next).unwrap_or(i64::MAX),
+        sha256: format!("{:x}", hasher.finalize()),
+    })
+    .into_response();
+    audit(
+        &state.lifecycle,
+        &credential,
+        "PUT",
+        "/v1/staged-uploads/:id/chunks",
         response.status(),
     );
     response
@@ -1320,6 +1522,7 @@ pub async fn install_component(
             );
         };
         if now_unix() > entry.expires_at_unix
+            || !entry.complete
             || !matches!(entry.purpose, StagedUploadPurposeDto::AddonLocalFile)
         {
             return error_response(
@@ -1938,6 +2141,7 @@ pub async fn inspect_modpack(
     };
     if now_unix() > entry.expires_at_unix
         || !matches!(entry.purpose, StagedUploadPurposeDto::ModpackArchive)
+        || !entry.complete
     {
         return error_response(StatusCode::NOT_FOUND, "not_found", "Unknown staged upload.");
     }
@@ -2106,6 +2310,7 @@ pub async fn import_modpack(
     };
     if now_unix() > entry.expires_at_unix
         || !matches!(entry.purpose, StagedUploadPurposeDto::ModpackArchive)
+        || !entry.complete
     {
         return error_response(
             StatusCode::NOT_FOUND,
@@ -2392,6 +2597,7 @@ pub async fn complete_modpack_manual_file(
             );
         };
         if now_unix() > entry.expires_at_unix
+            || !entry.complete
             || !matches!(
                 entry.purpose,
                 StagedUploadPurposeDto::CurseforgeManualFile

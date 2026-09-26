@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phases 14 and 15 are complete and archived; Linux desktop service elevation corrections P14.38–P14.42 and Xbox Broadcast Settings sign-in P14.43 await owner verification. Corrected desktop release v0.1.11 has published successfully. The external static-review record is preserved in the archive. All prior verification entries are recorded DONE, with P15.69 retaining its accepted failed-verification result.
-> **Next move:** Cameron verifies P14.38–P14.43 and closes the steps. The external review findings remain available in `rolling-plan-archive.md` for future triage. The current workspace has unrelated pre-existing diagnostics: a `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152` and an `unused_mut` warning in `crates/msc-agent/src/routes/bedrock_runtime.rs:385`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phases 14 and 15 are complete and archived; P14.38–P14.44 await owner verification. Corrected desktop release v0.1.11 has published successfully. The external static-review record is preserved in the archive. All prior verification entries are recorded DONE, with P15.69 retaining its accepted failed-verification result.
+> **Next move:** Cameron verifies P14.38–P14.44 and closes the steps. The external review findings remain available in `rolling-plan-archive.md` for future triage. The current workspace has unrelated pre-existing diagnostics: a `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152` and an `unused_mut` warning in `crates/msc-agent/src/routes/bedrock_runtime.rs:385`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -64,7 +64,7 @@ Batch: solo
 
 ### Follow-up — Fedora client issues
 
-P14.43 addresses the Xbox Broadcast issue reported from the Fedora desktop connected to a remote Linux agent. P14.44 covers the separate modpack memory issue and follows verification of the current pending steps.
+P14.43 addresses the Xbox Broadcast issue reported from the Fedora desktop connected to a remote Linux agent. P14.44 addresses the separate modpack memory issue.
 
 #### P14.43 — Make Xbox Broadcast sign-in available from Settings
 
@@ -77,10 +77,10 @@ Batch: solo
 
 #### P14.44 — Stream modpack imports with bounded memory
 
-Status: planned
-Files: clients/desktop-web/src/lib/platform/types.ts, clients/desktop-web/src/lib/platform/tauri.ts, clients/desktop-web/src/lib/sections/fleet/wizard/UploadStep.svelte, clients/desktop-web/src/lib/sections/fleet/wizard/AddOnsStep.svelte, clients/desktop-web/src/lib/sections/components/ImportModpackSheet.svelte, clients/desktop-web/src/lib/api/client.ts, clients/desktop-web/src/lib/auth/desktop.ts, clients/desktop-web/src-tauri/src/lib.rs, crates/msc-agent/src/routes/components.rs, crates/msc-api/src/dto/backups.rs, docs/msc2/rolling-plan.md
-What: Replace whole-file modpack reads and single-body uploads with a bounded-memory staged upload path. The desktop should read and send limited chunks from the selected local file, including through the Tauri authorized-request bridge; the agent should append each chunk to the staged file, enforce the existing upload purpose and byte ceiling, and expose completion only after the full archive is received. Keep browser imports working through the same bounded path.
-Verify: cargo fmt --all -- --check && cargo check -p msc-agent -p msc-api && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml && npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run build
+Status: awaiting Cameron verification
+Files: clients/desktop-web/src/App.svelte, clients/desktop-web/src/lib/api/client.ts, clients/desktop-web/src/lib/api/generated.ts, clients/desktop-web/src/lib/platform/types.ts, clients/desktop-web/src/lib/platform/browser.ts, clients/desktop-web/src/lib/platform/tauri.ts, clients/desktop-web/src/lib/sections/shared/types.ts, clients/desktop-web/src/lib/sections/fleet/wizard/UploadStep.svelte, clients/desktop-web/src/lib/sections/fleet/wizard/AddOnsStep.svelte, clients/desktop-web/src/lib/sections/components/ImportModpackSheet.svelte, crates/msc-agent/src/cli/mod.rs, crates/msc-agent/src/routes/components.rs, crates/msc-agent/src/routes/servers.rs, crates/msc-agent/src/routes/worlds.rs, crates/msc-api/src/dto/backups.rs, docs/msc2/api-contract/openapi.json, docs/msc2/rolling-plan.md
+What: Replace whole-file modpack reads and single-body uploads with a bounded-memory staged upload path. The desktop reads and sends 2 MiB chunks from the selected local file, including through the existing Tauri authorized-request bridge; the agent appends chunks to disk, enforces contiguous offsets, purpose, exact size and byte ceilings, and enables redemption only after the whole archive is received and hashed. Browser imports use bounded slices through the same path.
+Verify: cargo fmt --all -- --check && cargo check -p msc-agent -p msc-api && cargo clippy -p msc-agent -p msc-api -- -D warnings -A unused-mut && npm --prefix clients/desktop-web run api:check && npm --prefix clients/desktop-web run format:check && npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run build
 Commit: P14.44: stream modpack imports with bounded memory
 Batch: solo
 

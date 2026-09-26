@@ -4,6 +4,7 @@ import type {
   AgentServiceStatus,
   DesktopNotification,
   FilePickerRequest,
+  FileChunkSource,
   MenuEntry,
   PickedFile,
   PlatformAdapter,
@@ -27,9 +28,19 @@ export function createTauriPlatform(dependencies: TauriPlatformDependencies): Pl
       }
       return dependencies.readFile(path);
     },
+    readFileStream: async (path) => {
+      if (!dependencies.readFileStream)
+        throw new Error('Streaming file reads are unavailable in this desktop build.');
+      return dependencies.readFileStream(path);
+    },
     // Cancelling a native picker is a completed user choice, not a reason to
     // open a second browser picker. Browser fallback happens at platform load.
     pickFile: (request, _browserFallback) => dependencies.pickFile(request),
+    pickFileStream: (request, _browserFallback) => {
+      if (!dependencies.pickFileStream)
+        throw new Error('Streaming file reads are unavailable in this desktop build.');
+      return dependencies.pickFileStream(request);
+    },
     notify: async (notification, browserFallback) => {
       try {
         await dependencies.notify(notification);
@@ -88,7 +99,7 @@ export function createTauriPlatform(dependencies: TauriPlatformDependencies): Pl
 export async function loadTauriPlatform(): Promise<PlatformAdapter> {
   const [
     { open },
-    { readFile },
+    { open: openFile, readFile, SeekMode },
     notification,
     { Menu },
     { getCurrentWindow },
@@ -125,6 +136,26 @@ export async function loadTauriPlatform(): Promise<PlatformAdapter> {
       return typeof picked === 'string' ? picked : null;
     },
     readFile: (path: string) => readFile(path),
+    async readFileStream(path: string): Promise<FileChunkSource> {
+      const file = await openFile(path, { read: true });
+      const size = (await file.stat()).size;
+      return {
+        name: fileName(path),
+        size,
+        async readChunk(offset, maxBytes) {
+          await file.seek(offset, SeekMode.Start);
+          const bytes = new Uint8Array(Math.min(maxBytes, size - offset));
+          let read = 0;
+          while (read < bytes.byteLength) {
+            const count = await file.read(bytes.subarray(read));
+            if (count === null) break;
+            read += count;
+          }
+          return bytes.subarray(0, read);
+        },
+        close: () => file.close(),
+      };
+    },
     async pickFile(request: FilePickerRequest): Promise<PickedFile | null> {
       const picked = await open({
         title: request.label,
@@ -137,6 +168,34 @@ export async function loadTauriPlatform(): Promise<PlatformAdapter> {
       return {
         name: fileName(picked),
         bytes: await readFile(picked),
+      };
+    },
+    async pickFileStream(request: FilePickerRequest): Promise<FileChunkSource | null> {
+      const picked = await open({
+        title: request.label,
+        filters: request.extensions?.length
+          ? [{ name: request.label, extensions: [...request.extensions] }]
+          : undefined,
+        multiple: false,
+      });
+      if (!picked || Array.isArray(picked)) return null;
+      const file = await openFile(picked, { read: true });
+      const size = (await file.stat()).size;
+      return {
+        name: fileName(picked),
+        size,
+        async readChunk(offset, maxBytes) {
+          await file.seek(offset, SeekMode.Start);
+          const bytes = new Uint8Array(Math.min(maxBytes, size - offset));
+          let read = 0;
+          while (read < bytes.byteLength) {
+            const count = await file.read(bytes.subarray(read));
+            if (count === null) break;
+            read += count;
+          }
+          return bytes.subarray(0, read);
+        },
+        close: () => file.close(),
       };
     },
     async notify(notificationRequest: DesktopNotification): Promise<void> {

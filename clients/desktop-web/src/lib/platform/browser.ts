@@ -4,6 +4,7 @@ import type {
   AgentServiceStatus,
   DesktopNotification,
   FilePickerRequest,
+  FileChunkSource,
   MenuEntry,
   PickedFile,
   PlatformAdapter,
@@ -26,8 +27,15 @@ export function createBrowserPlatform(): PlatformAdapter {
     readFile: async (_path: string) => {
       throw new Error('Reading a local path needs the desktop app. Use the file picker instead.');
     },
+    readFileStream: async (_path: string) => {
+      throw new Error('Reading a local path needs the desktop app. Use the file picker instead.');
+    },
     pickFile: (_request: FilePickerRequest, browserFallback: () => Promise<PickedFile | null>) =>
       browserFallback(),
+    pickFileStream: (
+      _request: FilePickerRequest,
+      browserFallback: () => Promise<FileChunkSource | null>,
+    ) => browserFallback(),
     notify: async (notification: DesktopNotification, browserFallback: () => Promise<void>) => {
       if (typeof Notification === 'undefined') {
         await browserFallback();

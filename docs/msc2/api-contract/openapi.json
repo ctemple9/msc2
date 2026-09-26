@@ -6983,6 +6983,38 @@
         "x-notes": "P8.9 correction: x-permission-category was worlds (Phase 6, the only domain that existed yet); moved to none. Staging bytes alone commits nothing -- each purpose's redemption route already enforces its own correct category (worlds for world-import/active-world-replace, addons for modpack-archive/addon-local-file/curseforge-manual-file) -- so a single fixed category on the shared begin/upload routes was already wrong the moment a second domain needed the same primitive; an addons-only token could stage nothing at all under the old category. Redemption-side enforcement is unchanged."
       }
     },
+    "/v1/staged-uploads/{id}/chunks": {
+      "put": {
+        "summary": "Append one bounded chunk to a modpack upload",
+        "operationId": "uploadStagedChunk",
+        "x-permission-category": "none",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "offset", "in": "query", "required": true, "schema": { "type": "integer", "minimum": 0 } },
+          { "name": "complete", "in": "query", "required": true, "schema": { "type": "boolean" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/octet-stream": { "schema": { "type": "string", "format": "binary" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Final chunk verified and upload complete",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/StagedUploadCompleteResultDTO" } } }
+          },
+          "204": { "description": "Chunk appended; more bytes are expected" },
+          "404": {
+            "description": "Staged upload not found",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorDTO" } } }
+          },
+          "409": {
+            "description": "Expired, incomplete, wrong-purpose, or invalid offset upload",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorDTO" } } }
+          }
+        },
+        "x-notes": "Chunk route accepts only modpack-archive staging slots with expectedBytes. Each request is limited to 2 MiB, offsets must be contiguous, and redemption is available only after the complete archive has been received and hashed from disk."
+      }
+    },
     "/v1/staged-downloads/{id}": {
       "get": {
         "summary": "Download bytes from a previously prepared staged export",
@@ -13010,6 +13042,11 @@
           "fileId": {
             "type": "string",
             "description": "Required, curseforge-manual-file only: which of the operation's pending blocked files this upload is for."
+          },
+          "expectedBytes": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Optional exact byte count for a file streamed through the chunk upload route."
           }
         },
         "required": [

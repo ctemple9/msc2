@@ -5,6 +5,14 @@ export interface PickedFile {
   readonly bytes: Uint8Array;
 }
 
+/** A local file that can be read a piece at a time without holding it all in memory. */
+export interface FileChunkSource {
+  readonly name: string;
+  readonly size: number;
+  readChunk(offset: number, maxBytes: number): Promise<Uint8Array>;
+  close(): Promise<void>;
+}
+
 export interface FilePickerRequest {
   readonly label: string;
   readonly extensions?: readonly string[];
@@ -72,10 +80,15 @@ export interface PlatformAdapter {
   pickFilePath(request: FilePickerRequest): Promise<string | null>;
   /** Reads a path delivered by the desktop drag-and-drop bridge. */
   readFile?(path: string): Promise<Uint8Array>;
+  readFileStream?(path: string): Promise<FileChunkSource>;
   pickFile(
     request: FilePickerRequest,
     browserFallback: () => Promise<PickedFile | null>,
   ): Promise<PickedFile | null>;
+  pickFileStream(
+    request: FilePickerRequest,
+    browserFallback: () => Promise<FileChunkSource | null>,
+  ): Promise<FileChunkSource | null>;
   notify(notification: DesktopNotification, browserFallback: () => Promise<void>): Promise<void>;
   showMenu(entries: readonly MenuEntry[], browserFallback: () => Promise<void>): Promise<void>;
   closeWindow(browserFallback: () => Promise<void>): Promise<void>;
@@ -111,6 +124,8 @@ export interface TauriPlatformDependencies {
   pickFilePath(request: FilePickerRequest): Promise<string | null>;
   readFile?(path: string): Promise<Uint8Array>;
   pickFile(request: FilePickerRequest): Promise<PickedFile | null>;
+  pickFileStream?(request: FilePickerRequest): Promise<FileChunkSource | null>;
+  readFileStream?(path: string): Promise<FileChunkSource>;
   notify(notification: DesktopNotification): Promise<void>;
   showMenu(entries: readonly MenuEntry[]): Promise<void>;
   closeWindow(): Promise<void>;

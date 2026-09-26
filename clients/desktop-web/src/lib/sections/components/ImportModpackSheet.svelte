@@ -12,6 +12,7 @@
   import VisibilityIcon from '../../components/base/VisibilityIcon.svelte';
   import { ApiError } from '../../api/client';
   import { getPlatform } from '../../platform';
+  import type { FileChunkSource } from '../../platform/types';
   import type { Schema, ScreenApi } from '../shared/types';
   import { errorMessage, mutate } from '../shared/types';
   import { addonPaths } from './model';
@@ -52,15 +53,23 @@
   let curseforgeKeySaving = false;
   let curseforgeKeyNotice = '';
 
-  function pickBrowserFile(): Promise<{ name: string; bytes: Uint8Array } | null> {
+  function pickBrowserFile(): Promise<FileChunkSource | null> {
     return new Promise((resolve) => {
       fileInput.addEventListener(
         'change',
-        async () => {
+        () => {
           const browserFile = fileInput.files?.[0];
           resolve(
             browserFile
-              ? { name: browserFile.name, bytes: new Uint8Array(await browserFile.arrayBuffer()) }
+              ? {
+                  name: browserFile.name,
+                  size: browserFile.size,
+                  readChunk: async (offset, maxBytes) =>
+                    new Uint8Array(
+                      await browserFile.slice(offset, offset + maxBytes).arrayBuffer(),
+                    ),
+                  close: async () => undefined,
+                }
               : null,
           );
         },
@@ -71,16 +80,17 @@
   }
 
   async function chooseAndStage(): Promise<void> {
-    if (!api?.upload) return;
-    const picked = await (
+    if (!api?.uploadFile) return;
+    let picked: FileChunkSource | null = null;
+    picked = await (
       await getPlatform()
-    ).pickFile({ label: 'Choose a modpack archive', extensions: ['mrpack', 'zip'] }, () =>
+    ).pickFileStream({ label: 'Choose a modpack archive', extensions: ['mrpack', 'zip'] }, () =>
       pickBrowserFile(),
     );
     if (!picked) return;
     step = { kind: 'inspecting' };
     try {
-      const staged = await api.upload('modpack-archive', picked.bytes);
+      const staged = await api.uploadFile('modpack-archive', picked);
       const inspection = await mutate<Schema['ModpackInspectionResultDTO']>(
         api,
         addonPaths.inspectPack,
@@ -114,6 +124,8 @@
         kind: 'failed',
         message: errorMessage(error) || 'Failed to inspect this archive.',
       };
+    } finally {
+      await picked.close();
     }
   }
 

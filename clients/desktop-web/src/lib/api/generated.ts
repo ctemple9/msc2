@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: b3a820f7b4ff28ae7c9ea0d2f36ea771b0df351f1295a4a1bc493fc19fc734e1
+// Contract SHA-256: 40b4e63b6c2dd25300fdcc159248997e133c414915270539abc98655cedc75d4
 
 export interface paths {
   '/v1/active-server': {
@@ -5170,6 +5170,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/staged-uploads/{id}/chunks': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Append one bounded chunk to a modpack upload */
+    put: operations['uploadStagedChunk'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/start': {
     parameters: {
       query?: never;
@@ -8438,6 +8455,8 @@ export interface components {
     };
     StagedUploadBeginRequestDTO: {
       contentType?: string;
+      /** @description Optional exact byte count for a file streamed through the chunk upload route. */
+      expectedBytes?: number;
       /** @description Required, curseforge-manual-file only: which of the operation's pending blocked files this upload is for. */
       fileId?: string;
       /** @description The client-provided name of the file in this staged upload, used to preserve the provider's expected filename during manual modpack recovery. */
@@ -10104,6 +10123,60 @@ export interface operations {
         };
       };
       /** @description staged_upload_expired / max_bytes_exceeded */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
+  uploadStagedChunk: {
+    parameters: {
+      query: {
+        complete: boolean;
+        offset: number;
+      };
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/octet-stream': string;
+      };
+    };
+    responses: {
+      /** @description Final chunk verified and upload complete */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StagedUploadCompleteResultDTO'];
+        };
+      };
+      /** @description Chunk appended; more bytes are expected */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Staged upload not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Expired, incomplete, wrong-purpose, or invalid offset upload */
       409: {
         headers: {
           [name: string]: unknown;

@@ -325,6 +325,9 @@ pub(crate) struct StagedUpload {
     pub(crate) file_id: Option<String>,
     pub(crate) expires_at_unix: u64,
     pub(crate) max_bytes: u64,
+    pub(crate) expected_bytes: Option<u64>,
+    pub(crate) received_bytes: u64,
+    pub(crate) complete: bool,
     pub(crate) path: PathBuf,
 }
 
@@ -2383,6 +2386,7 @@ pub async fn set_thumbnail(
         );
     };
     if now_unix() > entry.expires_at_unix
+        || !entry.complete
         || !matches!(entry.purpose, StagedUploadPurposeDto::WorldThumbnail)
     {
         return error_response(
@@ -2517,6 +2521,12 @@ pub async fn begin_staged_upload(
             file_id: body.file_id.clone(),
             expires_at_unix,
             max_bytes: MAX_STAGED_UPLOAD_BYTES,
+            expected_bytes: body
+                .expected_bytes
+                .filter(|size| *size > 0)
+                .map(|size| size as u64),
+            received_bytes: 0,
+            complete: false,
             path,
         },
     );
@@ -2580,6 +2590,10 @@ pub async fn upload_staged_bytes(
             "internal_error",
             "Could not write staged upload.",
         );
+    }
+    if let Some(upload) = state.staging.uploads.lock().unwrap().get_mut(&id) {
+        upload.received_bytes = body.len() as u64;
+        upload.complete = true;
     }
 
     let mut hasher = Sha256::new();
@@ -2648,6 +2662,7 @@ pub async fn import(
             );
         };
         if now_unix() > entry.expires_at_unix
+            || !entry.complete
             || !matches!(entry.purpose, StagedUploadPurposeDto::WorldImport)
         {
             return error_response(
@@ -3054,6 +3069,7 @@ pub async fn replace_active(
             );
         };
         if now_unix() > entry.expires_at_unix
+            || !entry.complete
             || !matches!(entry.purpose, StagedUploadPurposeDto::ActiveWorldReplace)
         {
             return error_response(
@@ -4144,6 +4160,7 @@ mod tests {
                 file_name: None,
                 operation_id: None,
                 file_id: None,
+                expected_bytes: None,
             })),
         )
         .await;
@@ -4231,6 +4248,7 @@ mod tests {
                 file_name: None,
                 operation_id: None,
                 file_id: None,
+                expected_bytes: None,
             })),
         )
         .await;
@@ -4316,6 +4334,7 @@ mod tests {
                 file_name: None,
                 operation_id: None,
                 file_id: None,
+                expected_bytes: None,
             })),
         )
         .await;
@@ -4365,6 +4384,7 @@ mod tests {
                 file_name: None,
                 operation_id: None,
                 file_id: None,
+                expected_bytes: None,
             })),
         )
         .await;
@@ -4481,6 +4501,7 @@ mod tests {
                 file_name: None,
                 operation_id: None,
                 file_id: None,
+                expected_bytes: None,
             })),
         )
         .await;
@@ -4571,6 +4592,7 @@ mod tests {
                 file_name: None,
                 operation_id: None,
                 file_id: None,
+                expected_bytes: None,
             })),
         )
         .await;

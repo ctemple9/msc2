@@ -10,7 +10,7 @@
   import VisibilityIcon from '../../../components/base/VisibilityIcon.svelte';
   import { onboardingAnchor } from '../../../help/tourAnchors';
   import { getPlatform, openExternal } from '../../../platform';
-  import type { PickedFile } from '../../../platform/types';
+  import type { FileChunkSource } from '../../../platform/types';
   import type { Schema, ScreenApi } from '../../shared/types';
   import { errorMessage, mutate } from '../../shared/types';
   import { addonPaths } from '../../addons/model';
@@ -111,18 +111,20 @@
     }
   }
 
-  async function inspectModpack(fileName: string, bytes: Uint8Array): Promise<void> {
-    if (!api?.upload) throw new Error('Modpack staging needs a connected agent.');
+  async function inspectModpack(fileName: string, source: FileChunkSource): Promise<void> {
     isScanning = true;
     scanError = undefined;
     curseforgeKeyNotice = '';
     try {
-      const staged = await api.upload('modpack-archive', bytes);
+      if (!api?.uploadFile) throw new Error('Modpack staging needs a connected agent.');
+      const staged = await api.uploadFile('modpack-archive', source);
       await inspectStagedModpack(fileName, staged.stagedUploadId);
-    } catch (error) {
-      throw error;
     } finally {
-      isScanning = false;
+      try {
+        await source.close();
+      } finally {
+        isScanning = false;
+      }
     }
   }
 
@@ -190,32 +192,31 @@
     }
 
     try {
-      const readFile = (await getPlatform()).readFile;
-      if (!readFile)
+      const readFileStream = (await getPlatform()).readFileStream;
+      if (!readFileStream)
         throw new Error('Reading a dropped file is unavailable in this desktop build.');
-      const bytes = await readFile(path);
-      await inspectModpack(baseName(path), bytes);
+      await inspectModpack(baseName(path), await readFileStream(path));
     } catch (error) {
       scanError = errorMessage(error);
     }
   }
 
-  async function handlePickedFile(file: PickedFile): Promise<void> {
-    try {
-      await inspectModpack(file.name, file.bytes);
-    } catch (error) {
-      scanError = errorMessage(error);
-    }
-  }
-
-  function browseBrowserFile(): Promise<PickedFile | null> {
+  function browseBrowserFile(): Promise<FileChunkSource | null> {
     return new Promise((resolve) => {
       fileInput.addEventListener(
         'change',
         async () => {
           const file = fileInput.files?.[0];
           resolve(
-            file ? { name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) } : null,
+            file
+              ? {
+                  name: file.name,
+                  size: file.size,
+                  readChunk: async (offset, maxBytes) =>
+                    new Uint8Array(await file.slice(offset, offset + maxBytes).arrayBuffer()),
+                  close: async () => undefined,
+                }
+              : null,
           );
         },
         { once: true },
@@ -239,11 +240,17 @@
   async function browseModpack(): Promise<void> {
     const picked = await (
       await getPlatform()
-    ).pickFile(
+    ).pickFileStream(
       { label: 'Choose a modpack archive', extensions: ['mrpack', 'zip'] },
       browseBrowserFile,
     );
-    if (picked) await handlePickedFile(picked);
+    if (picked) {
+      try {
+        await inspectModpack(picked.name, picked);
+      } catch (error) {
+        scanError = errorMessage(error);
+      }
+    }
   }
 
   function chooseDifferentFile(): void {

@@ -1476,6 +1476,7 @@ async fn stage_file_upload(
                 ),
                 operation_id,
                 file_id,
+                expected_bytes: None,
             },
         )
         .await?;
@@ -1999,6 +2000,7 @@ async fn run_world(common: CommonArgs, command: WorldCommand) -> Result<(), CliE
                         file_name: None,
                         operation_id: None,
                         file_id: None,
+                        expected_bytes: None,
                     },
                 )
                 .await?;
@@ -2037,6 +2039,7 @@ async fn run_world(common: CommonArgs, command: WorldCommand) -> Result<(), CliE
                                 file_name: None,
                                 operation_id: None,
                                 file_id: None,
+                                expected_bytes: None,
                             },
                         )
                         .await?;

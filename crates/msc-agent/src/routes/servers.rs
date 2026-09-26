@@ -2160,6 +2160,7 @@ fn redeem_modpack_upload(
         )));
     };
     if now_unix() > entry.expires_at_unix
+        || !entry.complete
         || !matches!(
             entry.purpose,
             msc_api::dto::StagedUploadPurposeDto::ModpackArchive
@@ -3751,6 +3752,9 @@ mod tests {
                 file_id: None,
                 expires_at_unix: now_unix() + 60,
                 max_bytes: 1024,
+                expected_bytes: None,
+                received_bytes: 0,
+                complete: true,
                 path: staged_path.clone(),
             },
         );

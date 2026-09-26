@@ -7,7 +7,9 @@ use msc_platform_linux::credential_helper::{
     CredentialHelperInstall, HelperOperation, HelperRequest, HelperResponse, parse_request_line,
     serialize_response,
 };
-use msc_platform_linux::service::{LinuxSystemdServiceManager, Systemctl};
+use msc_platform_linux::service::{
+    DESKTOP_AGENT_SERVICE_NAME, LinuxSystemdServiceManager, Systemctl,
+};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -184,6 +186,44 @@ fn status_reconstructs_definition_and_running_pid_from_installed_unit() {
     assert_eq!(definition.run_user, request.run_user);
     assert_eq!(definition.expected_port, request.expected_port);
     assert_eq!(definition.environment, request.environment);
+}
+
+#[test]
+fn archive_unit_update_lifecycle_works_without_private_metadata() {
+    let temp = TempDir::new("archive-update");
+    let systemctl = FakeSystemctl::default();
+    let manager = LinuxSystemdServiceManager::with_systemctl(&temp.path, systemctl.clone());
+    let service_name = msc_infrastructure::service::ServiceName::new(DESKTOP_AGENT_SERVICE_NAME);
+    let unit_name = format!("{DESKTOP_AGENT_SERVICE_NAME}.service");
+    let unit_path = temp.path.join(&unit_name);
+    let archive_unit =
+        include_str!("../../../packaging/linux/systemd/com.ctemple.msc2.agent.service.in");
+
+    assert!(!archive_unit.contains("# MSC2-ServiceName="));
+    std::fs::write(&unit_path, archive_unit).expect("archive unit exists");
+    systemctl.set_show_output(&unit_name, "ActiveState=active\nMainPID=4242\n");
+
+    assert_eq!(
+        manager
+            .update_service_state(&service_name)
+            .expect("unit state is readable without private metadata"),
+        ServiceState::Running
+    );
+    manager
+        .stop_for_update(&service_name)
+        .expect("update can stop the archive-installed unit");
+    manager
+        .start_after_update(&service_name)
+        .expect("update can start the archive-installed unit");
+
+    assert_eq!(
+        systemctl.calls(),
+        vec![
+            format!("show {unit_name}"),
+            format!("stop {unit_name}"),
+            format!("start {unit_name}"),
+        ]
+    );
 }
 
 #[test]

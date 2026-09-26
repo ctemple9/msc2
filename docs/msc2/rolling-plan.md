@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phases 14 and 15 are complete and archived. Releases v0.1.13 through v0.1.15 are published. P14.50 and P14.51 repair the v0.1.13 CI failures and the Ubuntu 26.04 headless PolicyKit update path; both await Cameron verification. P14.52 adds visible, chunk-level progress to large modpack uploads and regression coverage for the remote create-server flow; it awaits Cameron verification. P14.54 fixes the missing Tauri file-stream permission exposed by the Fedora test; it awaits Cameron verification. P14.55 adds selectable chunk sizing, streamed world archives, and cancellation of partial uploads; it awaits Cameron verification. P14.56 updates the browser regressions for the upload sheet and rebuilds the production artifact before testing; it awaits Cameron verification. P14.57 prepares v0.1.15 and awaits Cameron verification. P14.58 adapts Linux updates to the headless service unit installed by the signed archive; it awaits Cameron verification. The external static-review record is preserved in the archive. All prior verification entries are recorded DONE, with P15.69 retaining its accepted failed-verification result.
-> **Next move:** Verify P14.58's Linux update lifecycle against the archive-installed systemd unit before preparing another release. Cameron verifies P14.55, then P14.54, P14.52, P14.50, and P14.51. The external review findings remain available in `rolling-plan-archive.md` for future triage. The current workspace has unrelated pre-existing diagnostics: a `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152` and an `unused_mut` warning in `crates/msc-agent/src/routes/bedrock_runtime.rs:385`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
+> ## STATUS: Phases 14 and 15 are complete and archived. Releases v0.1.13 through v0.1.15 are published. P14.50 and P14.51 repair the v0.1.13 CI failures and the Ubuntu 26.04 headless PolicyKit update path; both await Cameron verification. P14.52 adds visible, chunk-level progress to large modpack uploads and regression coverage for the remote create-server flow; it awaits Cameron verification. P14.54 fixes the missing Tauri file-stream permission exposed by the Fedora test; it awaits Cameron verification. P14.55 adds selectable chunk sizing, streamed world archives, and cancellation of partial uploads; it awaits Cameron verification. P14.56 updates the browser regressions for the upload sheet and rebuilds the production artifact before testing; it awaits Cameron verification. P14.57 prepares v0.1.15 and awaits Cameron verification. P14.58 adapts Linux updates to the headless service unit installed by the signed archive; it awaits Cameron verification. P14.59 adds a regression using the exact archive-installed unit template; it awaits Cameron verification. P14.60 prepares v0.1.16 with the Linux update repair and awaits the guarded release workflow. The external static-review record is preserved in the archive. All prior verification entries are recorded DONE, with P15.69 retaining its accepted failed-verification result.
+> **Next move:** Prepare the coordinated v0.1.16 release identity and start the guarded workflow after the focused Linux update regression passes. Cameron verifies P14.55, then P14.54, P14.52, P14.50, and P14.51. The external review findings remain available in `rolling-plan-archive.md` for future triage. The current workspace has unrelated pre-existing diagnostics: a `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152` and an `unused_mut` warning in `crates/msc-agent/src/routes/bedrock_runtime.rs:385`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
@@ -210,6 +210,24 @@ Files: crates/msc-agent/src/cli/update.rs, crates/msc-platform-linux/src/service
 What: Make the privileged Linux update path read the fixed MSC systemd unit's runtime state and control that same unit directly. The standalone headless installer renders a valid unit without the private metadata comments required by the desktop service-definition parser; update and health-check rollback must continue to work for those existing installs without rewriting the unit.
 Verify: cargo fmt --all -- --check && cargo check -p msc-agent --bin msc && cargo clippy -p msc-agent --bin msc -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format
 Commit: P14.58: support headless units in Linux updates
+Batch: solo
+
+#### P14.59 — Regress the archive-installed Linux update unit
+
+Status: awaiting Cameron verification
+Files: crates/msc-platform-linux/tests/systemd_unit.rs, docs/msc2/rolling-plan.md
+What: Load the actual Linux archive service-unit template, which has no private service metadata, then verify the updater can read its state and stop/start the fixed MSC unit name.
+Verify: cargo fmt --all -- --check && cargo test -p msc-platform-linux --test systemd_unit archive_unit_update_lifecycle_works_without_private_metadata -- --exact
+Commit: P14.59: cover metadata-free Linux update units
+Batch: solo
+
+#### P14.60 — Prepare and trigger the v0.1.16 prerelease
+
+Status: awaiting release workflow
+Files: crates/msc-agent/Cargo.toml, Cargo.lock, clients/desktop-web/package.json, clients/desktop-web/package-lock.json, clients/desktop-web/src-tauri/Cargo.toml, clients/desktop-web/src-tauri/Cargo.lock, clients/desktop-web/src-tauri/tauri.conf.json, clients/desktop-web/src/lib/bundle-identity.ts, clients/desktop-web/src/lib/bundle-identity.test.ts, README.md, docs/msc2/rolling-plan.md
+What: Bump the coordinated release identity from 0.1.15 to 0.1.16 and update download/install instructions. Include the Linux headless update fix and its archive-unit regression. Push the preparation commit and exact v0.1.16 tag to start the guarded cross-platform release workflow; publication remains gated on the matrix checks and release regressions.
+Verify: gh release view v0.1.16 --json url,isPrerelease,assets
+Commit: P14.60: prepare 0.1.16 prerelease
 Batch: solo
 
 ## Current phase

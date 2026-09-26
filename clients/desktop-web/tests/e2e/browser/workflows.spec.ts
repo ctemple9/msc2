@@ -88,7 +88,7 @@ test('shows chunk progress while a large modpack is sent to the selected host', 
     }
   });
   await page.route('**/v1/staged-uploads/upload-1/chunks**', async (route) => {
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     await route.continue();
   });
 
@@ -191,6 +191,9 @@ test('names destructive targets and completes bounded upload and download workfl
   const fileChooser = page.waitForEvent('filechooser');
   await importWorld.getByRole('button', { name: 'Choose ZIP…', exact: true }).click();
   await (await fileChooser).setFiles('tests/e2e/browser/fixtures/world.zip');
+  const uploadOptions = page.getByRole('dialog', { name: 'Prepare upload' });
+  await expect(uploadOptions).toBeVisible();
+  await uploadOptions.getByRole('button', { name: 'Start upload' }).click();
   await expect(importWorld.getByText('Selected: world.zip')).toBeVisible();
   await importWorld.getByRole('button', { name: 'Import', exact: true }).click();
   await expect(page.getByText('Imported ZIP as a new world slot.')).toBeVisible();

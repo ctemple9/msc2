@@ -830,7 +830,7 @@ fn manage_agent_service(action: AgentServiceAction) -> Result<AgentServiceStatus
         AgentServiceAction::Install | AgentServiceAction::Repair => {
             let request = agent_install_request()?;
             let expected_binary = request.binary_path.clone();
-            let helper = packaged_agent_path()?;
+            let helper = linux_service_helper_path()?;
             let report = msc_platform_linux::service::install_desktop_service_elevated(
                 request, &helper,
             )
@@ -838,7 +838,7 @@ fn manage_agent_service(action: AgentServiceAction) -> Result<AgentServiceStatus
             ensure_service_report_uses_binary(report, &expected_binary)?
         }
         AgentServiceAction::Uninstall => {
-            let helper = packaged_agent_path()?;
+            let helper = linux_service_helper_path()?;
             msc_platform_linux::service::uninstall_desktop_service_elevated(&helper)
                 .map_err(|error| error.to_string())?
         }
@@ -1134,6 +1134,32 @@ fn packaged_agent_path() -> Result<PathBuf, String> {
     }
     #[allow(unreachable_code)]
     Err("This desktop platform has no agent-package layout.".to_string())
+}
+
+#[cfg(target_os = "linux")]
+fn linux_service_helper_path() -> Result<PathBuf, String> {
+    let desktop_binary = std::env::current_exe()
+        .map_err(|error| format!("Could not locate the desktop application: {error}"))?;
+    let directory = desktop_binary
+        .parent()
+        .ok_or_else(|| "The desktop application has no containing directory.".to_string())?;
+    // The agent being installed may come from a development build, but the
+    // executable crossing pkexec must come from a root-owned system package.
+    // LinuxSystemdServiceManager checks ownership and every parent directory
+    // again immediately before asking for elevation.
+    let candidates = [
+        PathBuf::from("/usr/lib/MSC 2/agent/msc"),
+        PathBuf::from("/usr/lib/msc2-desktop-web/agent/msc"),
+        directory.join("../lib/MSC 2/agent/msc"),
+        directory.join("../lib/msc2-desktop-web/agent/msc"),
+    ];
+    candidates
+        .iter()
+        .find(|path| path.is_file())
+        .cloned()
+        .ok_or_else(|| {
+            "Could not find the system-installed MSC service helper. Install the MSC 2 desktop package before changing the local agent service.".to_string()
+        })
 }
 
 #[cfg(all(target_os = "macos", target_arch = "x86_64"))]

@@ -239,6 +239,15 @@ Verify: cargo fmt --all -- --check && cargo check --manifest-path clients/deskto
 Commit: P14.61: align linux desktop bootstrap socket path
 Batch: solo
 
+#### P14.62 — Use the installed helper from Linux development builds
+
+Status: awaiting Cameron verification
+Files: clients/desktop-web/src-tauri/src/lib.rs, docs/msc2/rolling-plan.md
+What: Keep staging the agent payload from the running desktop build, while selecting the root-owned helper from the installed Linux package for the privileged service change. This lets `npx tauri dev` exercise current agent code without passing a helper from the user-writable Cargo target directory to `pkexec`; the helper still validates its ownership and all parent directories.
+Verify: cargo fmt --all -- --check && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml
+Commit: P14.62: use installed helper for linux development builds
+Batch: solo
+
 ## Current phase
 
 | Phase | Name | State |

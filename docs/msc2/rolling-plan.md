@@ -490,3 +490,13 @@ Evidence: Prettier check passes; Svelte check reports 0 errors and 7 existing wa
 Verify: Run npx tauri dev from clients/desktop-web. Select and deselect a world slot and confirm the selection color wraps all four sides and corners without resizing the card.
 Commit: P14.83: draw full world slot selection border
 Batch: solo
+
+#### P14.84 — Hide the simulation distance unit
+
+Status: awaiting Cameron verification
+Files: clients/desktop-web/src/lib/sections/settings/model.ts, docs/msc2/rolling-plan.md
+What: Remove the “chunks” suffix from Simulation Distance in Settings while keeping its numeric value and bounds unchanged.
+Evidence: Prettier check passes; Svelte check reports 0 errors and 7 existing warnings. No tests created or run.
+Verify: Run npx tauri dev from clients/desktop-web. Confirm Simulation Distance has no unit suffix and View Distance still shows “chunks.”
+Commit: P14.84: hide simulation distance unit
+Batch: solo

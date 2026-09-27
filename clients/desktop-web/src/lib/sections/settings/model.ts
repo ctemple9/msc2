@@ -115,7 +115,6 @@ export const demoSettings: Schema['SettingsResponseDTO'] = {
           value: '10',
           minInt: 3,
           maxInt: 32,
-          unit: 'chunks',
         },
         { key: 'white-list', label: 'Whitelist', type: 'bool', value: 'false' },
         { key: 'enforce-whitelist', label: 'Enforce Whitelist', type: 'bool', value: 'false' },

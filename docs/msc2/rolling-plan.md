@@ -374,3 +374,14 @@ Evidence: Frontend type check, generated API check, and production build passed 
 Verify: Stop the Bedrock server, restart npx tauri dev, Repair Service, and reconnect. In Worlds select the intended world, open Browse Packs, choose Resource Packs, and install a compatible pack (or Import Pack using the creator's mcpack). Start the server and join from Minecraft; accept its resource-pack download and confirm the pack appears. Toggle Require resource packs to join while stopped, verify declining prevents joining, and switch to a different world to confirm packs and preference stay with their world.
 Commit: P14.72: install bedrock resource packs per world
 Batch: solo
+
+
+#### P14.73 — Search the Bedrock texture pack category
+
+Status: awaiting Cameron verification
+Files: crates/msc-infrastructure/src/addon_provider.rs, docs/msc2/rolling-plan.md
+What: Fix resource-pack catalog search treating CurseForge's Texture Packs category as a top-level class. Resolve the Addons class, fetch its current categories, and pass the resolved Texture Packs category ID to mod search. This allows the existing Browse Packs search to find projects such as Prizma Visuals Legacy.
+Evidence: Compared MSC's category lookup with CurseForge's current Prizma project page, which identifies it as Minecraft Bedrock → Texture Packs under the Addons class. Scoped clippy/build verification passes. No tests created or run.
+Verify: Restart npx tauri dev, reconnect, open Worlds → Browse Packs → Resource Packs, search “Prizma Visuals”, and confirm “Prizma Visuals Legacy (Vibrant Visuals Pack Deferred)” appears.
+Commit: P14.73: search bedrock texture pack category
+Batch: solo

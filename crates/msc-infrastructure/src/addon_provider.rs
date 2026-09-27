@@ -823,72 +823,114 @@ pub fn curseforge_search_bedrock_packs(
     let classes_response = transport
         .get(
             &classes_url,
-            "CurseForge Bedrock add-on categories",
+            "CurseForge Bedrock add-on classes",
             &[("x-api-key", api_key.as_str())],
             RESPONSE_MAX_BYTES,
         )
         .map_err(map_transport_err)?;
-    ensure_curseforge_ok_for("Bedrock categories lookup", classes_response.status)?;
-    let classes_body = bytes_to_utf8(classes_response.body, "CurseForge Bedrock categories")?;
+    ensure_curseforge_ok_for("Bedrock classes lookup", classes_response.status)?;
+    let classes_body = bytes_to_utf8(classes_response.body, "CurseForge Bedrock classes")?;
     let classes: serde_json::Value = serde_json::from_str(&classes_body)
-        .map_err(|error| malformed("CurseForge Bedrock categories", error))?;
-    let wanted = match kind {
-        "resource" => vec!["texture-packs"],
-        "all" => vec!["addons", "texture-packs"],
-        _ => vec!["addons"],
-    };
-    let mut results = Vec::new();
-    let mut seen = std::collections::BTreeSet::new();
-    for category in wanted {
-        let addon_class_id = classes
-            .get("data")
-            .and_then(serde_json::Value::as_array)
-            .into_iter()
-            .flatten()
-            .find(|class| {
-                class
-                    .get("slug")
+        .map_err(|error| malformed("CurseForge Bedrock classes", error))?;
+    let addon_class_id = classes
+        .get("data")
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+        .find(|class| {
+            class
+                .get("slug")
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|slug| slug.eq_ignore_ascii_case("addons"))
+                || class
+                    .get("name")
                     .and_then(serde_json::Value::as_str)
-                    .is_some_and(|slug| slug.eq_ignore_ascii_case(category))
-                    || class
-                        .get("name")
-                        .and_then(serde_json::Value::as_str)
-                        .is_some_and(|name| name.to_ascii_lowercase().replace(' ', "-") == category)
-            })
-            .and_then(|class| class.get("id"))
-            .and_then(serde_json::Value::as_i64)
-            .ok_or_else(|| {
-                AddonProviderError::Network(format!(
-                    "CurseForge did not return its Bedrock {category} category."
-                ))
-            })?;
-        let mut url = format!(
-            "{}/v1/mods/search?gameId={CURSEFORGE_MINECRAFT_GAME_ID}&classId={addon_class_id}&searchFilter={}&pageSize={}&index={}",
-            curseforge_base(),
-            urlencode(query),
-            limit.clamp(1, 50),
-            offset.min(10_000),
+                    .is_some_and(|name| name.eq_ignore_ascii_case("Addons"))
+        })
+        .and_then(|class| class.get("id"))
+        .and_then(serde_json::Value::as_i64)
+        .ok_or_else(|| {
+            AddonProviderError::Network(
+                "CurseForge did not return its Bedrock Addons class.".into(),
+            )
+        })?;
+    // CurseForge exposes Texture Packs as a category inside the Addons class,
+    // rather than as a separate class. Resolve its current category ID at runtime.
+    let resource_category_id = if kind == "resource" {
+        let categories_url = format!(
+            "{}/v1/categories?gameId={CURSEFORGE_MINECRAFT_GAME_ID}&classId={addon_class_id}",
+            curseforge_base()
         );
-        if let Some(version) = game_version.filter(|version| !version.is_empty()) {
-            url.push_str("&gameVersion=");
-            url.push_str(&urlencode(version));
-        }
         let response = transport
             .get(
-                &url,
-                "CurseForge Bedrock add-on search",
+                &categories_url,
+                "CurseForge Bedrock add-on categories",
                 &[("x-api-key", api_key.as_str())],
                 RESPONSE_MAX_BYTES,
             )
             .map_err(map_transport_err)?;
-        ensure_curseforge_ok_for("Bedrock add-on search", response.status)?;
-        let body = bytes_to_utf8(response.body, "CurseForge Bedrock add-on search")?;
-        let result: CurseForgeSearchEnvelope = serde_json::from_str(&body)
-            .map_err(|error| malformed("CurseForge Bedrock add-on search", error))?;
-        for hit in result.data {
-            if seen.insert(hit.id) {
-                results.push(hit);
-            }
+        ensure_curseforge_ok_for("Bedrock add-on category lookup", response.status)?;
+        let body = bytes_to_utf8(response.body, "CurseForge Bedrock add-on categories")?;
+        let categories: serde_json::Value = serde_json::from_str(&body)
+            .map_err(|error| malformed("CurseForge Bedrock add-on categories", error))?;
+        Some(
+            categories
+                .get("data")
+                .and_then(serde_json::Value::as_array)
+                .into_iter()
+                .flatten()
+                .find(|category| {
+                    category
+                        .get("slug")
+                        .and_then(serde_json::Value::as_str)
+                        .is_some_and(|slug| slug.eq_ignore_ascii_case("texture-packs"))
+                        || category
+                            .get("name")
+                            .and_then(serde_json::Value::as_str)
+                            .is_some_and(|name| name.eq_ignore_ascii_case("Texture Packs"))
+                })
+                .and_then(|category| category.get("id"))
+                .and_then(serde_json::Value::as_i64)
+                .ok_or_else(|| {
+                    AddonProviderError::Network(
+                        "CurseForge did not return its Bedrock Texture Packs category.".into(),
+                    )
+                })?,
+        )
+    } else {
+        None
+    };
+    let mut results = Vec::new();
+    let mut seen = std::collections::BTreeSet::new();
+    let mut url = format!(
+        "{}/v1/mods/search?gameId={CURSEFORGE_MINECRAFT_GAME_ID}&classId={addon_class_id}&searchFilter={}&pageSize={}&index={}",
+        curseforge_base(),
+        urlencode(query),
+        limit.clamp(1, 50),
+        offset.min(10_000),
+    );
+    if let Some(category_id) = resource_category_id {
+        url.push_str(&format!("&categoryId={category_id}"));
+    }
+    if let Some(version) = game_version.filter(|version| !version.is_empty()) {
+        url.push_str("&gameVersion=");
+        url.push_str(&urlencode(version));
+    }
+    let response = transport
+        .get(
+            &url,
+            "CurseForge Bedrock add-on search",
+            &[("x-api-key", api_key.as_str())],
+            RESPONSE_MAX_BYTES,
+        )
+        .map_err(map_transport_err)?;
+    ensure_curseforge_ok_for("Bedrock add-on search", response.status)?;
+    let body = bytes_to_utf8(response.body, "CurseForge Bedrock add-on search")?;
+    let result: CurseForgeSearchEnvelope = serde_json::from_str(&body)
+        .map_err(|error| malformed("CurseForge Bedrock add-on search", error))?;
+    for hit in result.data {
+        if seen.insert(hit.id) {
+            results.push(hit);
         }
     }
     if kind == "all" {

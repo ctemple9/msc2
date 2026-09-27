@@ -248,6 +248,15 @@ Verify: cargo fmt --all -- --check && cargo check --manifest-path clients/deskto
 Commit: P14.62: use installed helper for linux development builds
 Batch: solo
 
+#### P14.63 — Preserve option-like agent arguments across elevation
+
+Status: awaiting Cameron verification
+Files: crates/msc-platform-linux/src/service.rs, docs/msc2/rolling-plan.md
+What: Pass each service argument to the elevated helper as one `--arg=value` option token. This keeps agent flags such as `--bind` attached to the helper's `--arg` field instead of letting the helper CLI parse them as its own options.
+Verify: cargo fmt --all -- --check && cargo check -p msc-platform-linux -p msc-agent
+Commit: P14.63: pass agent arguments safely through helper
+Batch: solo
+
 ## Current phase
 
 | Phase | Name | State |

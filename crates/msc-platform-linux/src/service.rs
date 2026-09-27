@@ -146,7 +146,7 @@ pub fn helper_install_args(request: &ServiceInstallRequest) -> Vec<OsString> {
         OsString::from(request.expected_port.to_string()),
     ];
     for argument in &request.arguments {
-        args.extend([OsString::from("--arg"), OsString::from(argument)]);
+        args.push(OsString::from(format!("--arg={argument}")));
     }
     for (key, value) in &request.environment {
         args.extend([

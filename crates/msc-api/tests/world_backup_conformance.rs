@@ -176,6 +176,7 @@ fn world_backup_conformance_world_create_request_matches_schema() {
         &WorldCreateRequestDto {
             name: "New World".to_string(),
             seed: Some("1234".to_string()),
+            ..Default::default()
         },
     );
 }

@@ -285,6 +285,7 @@
   }
 
   function profileStatusLabel(value: string): string {
+    if (value === 'pending_activation') return 'Saved. Applies when this world becomes active.';
     if (value === 'pending_restart') return 'Saved. Restart the server to apply these settings.';
     if (value === 'blocked') return 'Saved, but the active runtime could not apply these settings.';
     return 'World settings saved and applied.';
@@ -826,7 +827,12 @@
     {api}
     serverType={worldServerType()}
     onClose={() => (showCreate = false)}
-    onCreated={onWorldsCreatedOrRenamed}
+    onCreated={(updated) => {
+      selectedSlotId = updated.activeSlotId ?? undefined;
+      onWorldsCreatedOrRenamed(updated);
+      flash('World created and activated.');
+      void loadBackups();
+    }}
   />
 {/if}
 

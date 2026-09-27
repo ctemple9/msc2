@@ -667,6 +667,7 @@ mod tests {
             Some(Json(WorldCreateRequestDto {
                 name: "Survival".to_string(),
                 seed: None,
+                ..Default::default()
             })),
         )
         .await;

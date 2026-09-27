@@ -191,6 +191,7 @@ export const WORLD_TYPE_OPTIONS: readonly { value: string; label: string }[] = [
 ];
 
 const JAVA_ONLY_PROFILE_FIELDS = new Set([
+  'generation.structures',
   'generation.flat-preset',
   'generation.biome-source',
   'generation.generator-options',

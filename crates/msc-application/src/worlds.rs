@@ -822,22 +822,36 @@ pub fn update_active_slot_from_current_world(
     updated.world_level_name = Some(level_name);
     updated.zip_size_bytes = zip_size_bytes(fs, &zip_path);
 
-    let saved_profile = world_store::load_profile(fs, server_dir, slot);
-    let mut profile = detected_profile(&updated, server_type, &imported_metadata);
-    // Snapshotting live files must retain MSC's source records and per-world join preference.
-    for pack in saved_profile.packs {
-        profile.packs.retain(|detected| detected.id != pack.id);
-        profile.packs.push(pack);
+    let mut profile = world_store::load_profile(fs, server_dir, slot);
+    let detected = detected_profile(&updated, server_type, &imported_metadata);
+    // Saved choices remain authoritative, including changes awaiting a restart.
+    macro_rules! fill_missing {
+        ($($section:ident.$field:ident),+ $(,)?) => { $(
+            if profile.$section.$field.is_none() { profile.$section.$field = detected.$section.$field.clone(); }
+        )+ };
     }
-    if let Some(required) = saved_profile
-        .gameplay
-        .supported_toggles
-        .get("require-resource-packs")
-    {
-        profile
-            .gameplay
-            .supported_toggles
-            .insert("require-resource-packs".into(), *required);
+    fill_missing!(
+        identity.seed,
+        identity.level_name,
+        generation.world_type,
+        generation.flat_preset,
+        generation.structures,
+        generation.biome_source,
+        generation.generator_options,
+        generation.bonus_chest,
+        gameplay.difficulty,
+        gameplay.default_game_mode,
+        gameplay.hardcore,
+        gameplay.commands,
+        gameplay.cheats,
+        gameplay.coordinates,
+        gameplay.starting_map
+    );
+    profile.safety = detected.safety;
+    for pack in detected.packs {
+        if !profile.packs.iter().any(|saved| saved.id == pack.id) {
+            profile.packs.push(pack);
+        }
     }
     world_store::save_profile(fs, server_dir, &updated, &profile)?;
     Ok(updated)
@@ -1592,8 +1606,8 @@ fn profile_change_status(
 
 /// Applies the shared world-profile projection used by initial creation,
 /// activation, and profile updates. Only keys represented by a world profile
-/// are changed; Bedrock coordinates are written into that world's `level.dat`
-/// while other applicable settings remain in `server.properties`.
+/// are changed. Bedrock gameplay and generation settings are written into
+/// that world's `level.dat`; BDS server properties are projected separately.
 pub fn apply_world_profile(
     fs: &dyn FileSystem,
     server_dir: &Path,
@@ -1624,25 +1638,36 @@ pub fn apply_world_profile(
             continue;
         }
         let (mut status, mut reason) = profile_change_status(field, context, is_server_running);
-        if field == WorldProfileField::GameplayCoordinates && server_type == ServerType::Bedrock {
+        if field == WorldProfileField::IdentityName {
+            changes.push(WorldProfileChange {
+                key: field.key().into(),
+                status: WorldProfileApplyStatus::Live,
+                reason: None,
+            });
+            continue;
+        }
+        if server_type == ServerType::Bedrock && bedrock_level_data_field(field) {
+            if is_server_running && status == WorldProfileApplyStatus::Live {
+                status = WorldProfileApplyStatus::PendingRestart;
+                reason = Some("restart_required".into());
+            }
+            // Difficulty and game mode also seed new players through BDS properties.
             if !is_server_running
                 && status != WorldProfileApplyStatus::Blocked
-                && let Some(enabled) = profile.gameplay.coordinates
+                && let Some((key, value)) =
+                    profile_property_value(profile, server_type, context, field)
+                && matches!(
+                    field,
+                    WorldProfileField::GameplayDifficulty
+                        | WorldProfileField::GameplayDefaultGameMode
+                        | WorldProfileField::GameplayCheats
+                )
             {
-                match apply_bedrock_coordinates(fs, server_dir, &properties, enabled) {
-                    Ok(true) => {}
-                    Ok(false) => {
-                        status = WorldProfileApplyStatus::Blocked;
-                        reason = Some("world_level_data_unavailable".to_string());
-                    }
-                    Err(error) => {
-                        status = WorldProfileApplyStatus::Blocked;
-                        reason = Some(format!("level_dat_update_failed: {error}"));
-                    }
-                }
+                properties.insert(key.into(), value.clone());
+                expected.insert(key.into(), value);
             }
             changes.push(WorldProfileChange {
-                key: field.key().to_string(),
+                key: field.key().into(),
                 status,
                 reason,
             });
@@ -1656,11 +1681,13 @@ pub fn apply_world_profile(
                 .supported_toggles
                 .contains_key("require-resource-packs")
         {
-            status = WorldProfileApplyStatus::Blocked;
-            reason = Some("server_restart_required".into());
+            status = WorldProfileApplyStatus::PendingRestart;
+            reason = Some("restart_required".into());
         }
         if let Some((key, value)) = profile_property_value(profile, server_type, context, field) {
-            if status != WorldProfileApplyStatus::Blocked {
+            if status != WorldProfileApplyStatus::Blocked
+                && !(server_type == ServerType::Bedrock && is_server_running)
+            {
                 properties.insert(key.to_string(), value.clone());
                 expected.insert(key.to_string(), value);
             }
@@ -1673,6 +1700,10 @@ pub fn apply_world_profile(
             status,
             reason,
         });
+    }
+
+    if server_type == ServerType::Bedrock && !is_server_running {
+        apply_bedrock_world_data(fs, server_dir, &properties, profile, context)?;
     }
 
     if !expected.is_empty() {
@@ -1688,6 +1719,7 @@ pub fn apply_world_profile(
                 .expect("every profile change key comes from WorldProfileField::ALL");
             if let Some((property, value)) =
                 profile_property_value(profile, server_type, context, field)
+                && expected.contains_key(property)
                 && accepted.get(property).map(String::as_str) != Some(value.as_str())
             {
                 change.status = WorldProfileApplyStatus::Blocked;
@@ -1699,34 +1731,232 @@ pub fn apply_world_profile(
     Ok(WorldProfileApplicationReport { changes })
 }
 
-fn apply_bedrock_coordinates(
+fn bedrock_level_data_field(field: WorldProfileField) -> bool {
+    matches!(
+        field,
+        WorldProfileField::IdentitySeed
+            | WorldProfileField::GenerationWorldType
+            | WorldProfileField::GenerationBonusChest
+            | WorldProfileField::GameplayDifficulty
+            | WorldProfileField::GameplayDefaultGameMode
+            | WorldProfileField::GameplayGamerules
+            | WorldProfileField::GameplayCheats
+            | WorldProfileField::GameplayExperiments
+            | WorldProfileField::GameplayCoordinates
+            | WorldProfileField::GameplayStartingMap
+    )
+}
+
+fn apply_bedrock_world_data(
     fs: &dyn FileSystem,
     server_dir: &Path,
     properties: &BTreeMap<String, String>,
-    enabled: bool,
-) -> io::Result<bool> {
-    let Some(level_name) = properties
+    profile: &WorldProfile,
+    context: WorldProfileApplyContext,
+) -> io::Result<()> {
+    use msc_domain::nbt::NbtValue;
+    let level_name = properties
         .get("level-name")
-        .map(String::as_str)
-        .filter(|value| !value.trim().is_empty())
-    else {
-        return Ok(false);
-    };
-    let level_dat = server_dir.join("worlds").join(level_name).join("level.dat");
+        .filter(|name| !name.is_empty())
+        .ok_or_else(|| io::Error::other("Bedrock world folder name is missing"))?;
+    let world_dir = server_dir.join("worlds").join(level_name);
+    let level_dat = world_dir.join("level.dat");
     let raw = match fs.read(&level_dat) {
-        Ok(bytes) => bytes,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Ok(raw) => Some(raw),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
         Err(error) => return Err(error),
     };
-    let updated = msc_infrastructure::bedrock_nbt::set_level_dat_coordinates(&raw, enabled)
-        .map_err(|error| io::Error::other(error.to_string()))?;
-    let metadata = nbt::imported_world_metadata_from_level_dat(&updated, ServerType::Bedrock);
-    if metadata.coordinates != Some(enabled) {
-        return Ok(false);
+    let creating = context == WorldProfileApplyContext::Creation;
+    if raw.is_none() && !creating {
+        return Err(io::Error::other(
+            "The active Bedrock world's level.dat is missing",
+        ));
     }
-    msc_infrastructure::atomic_write::atomic_write(fs, &level_dat, &updated)
+    let mut tags = BTreeMap::new();
+    if raw.is_none() {
+        // A metadata-only fresh world has no chunks, player records, or elapsed time.
+        tags.extend([
+            ("StorageVersion".into(), NbtValue::Int(10)),
+            ("Generator".into(), NbtValue::Int(1)),
+            ("GameType".into(), NbtValue::Int(0)),
+            ("Difficulty".into(), NbtValue::Int(2)),
+            ("SpawnX".into(), NbtValue::Int(0)),
+            ("SpawnY".into(), NbtValue::Int(32767)),
+            ("SpawnZ".into(), NbtValue::Int(0)),
+            ("Time".into(), NbtValue::Long(0)),
+            ("currentTick".into(), NbtValue::Long(0)),
+            ("worldStartCount".into(), NbtValue::Long(0xFFFF_FFFE)),
+            (
+                "RandomSeed".into(),
+                NbtValue::Long(Uuid::new_v4().as_u128() as i64),
+            ),
+        ]);
+        for name in [
+            "dodaylightcycle",
+            "doweathercycle",
+            "domobspawning",
+            "domobloot",
+            "doentitydrops",
+            "dotiledrops",
+            "dofiretick",
+            "naturalregeneration",
+            "pvp",
+            "falldamage",
+            "firedamage",
+            "drowningdamage",
+            "sendcommandfeedback",
+            "commandblockoutput",
+            "commandblocksenabled",
+            "showdeathmessages",
+            "tntexplodes",
+            "respawnblocksexplode",
+        ] {
+            tags.insert(name.into(), NbtValue::Byte(1));
+        }
+        for name in [
+            "commandsEnabled",
+            "showcoordinates",
+            "startWithMapEnabled",
+            "bonusChestEnabled",
+            "bonusChestSpawned",
+            "keepinventory",
+        ] {
+            tags.insert(name.into(), NbtValue::Byte(0));
+        }
+        tags.insert("randomtickspeed".into(), NbtValue::Int(1));
+        tags.insert("spawnradius".into(), NbtValue::Int(5));
+    }
+    tags.insert(
+        "LevelName".into(),
+        NbtValue::String(
+            profile
+                .identity
+                .name
+                .clone()
+                .unwrap_or_else(|| level_name.clone()),
+        ),
+    );
+    if creating {
+        if let Some(seed) = profile
+            .identity
+            .seed
+            .as_deref()
+            .filter(|seed| !seed.is_empty())
+        {
+            let value = seed.parse::<i64>().unwrap_or_else(|_| {
+                seed.encode_utf16().fold(0i32, |hash, ch| {
+                    hash.wrapping_mul(31).wrapping_add(i32::from(ch))
+                }) as i64
+            });
+            tags.insert("RandomSeed".into(), NbtValue::Long(value));
+        }
+        if let Some(kind) = profile.generation.world_type.as_deref() {
+            let generator = match kind {
+                "default" | "normal" | "minecraft:normal" => 1,
+                "flat" | "minecraft:flat" => 2,
+                _ => {
+                    return Err(io::Error::other(
+                        "BDS supports Default and Flat world generation",
+                    ));
+                }
+            };
+            tags.insert("Generator".into(), NbtValue::Int(generator));
+            if generator == 2 {
+                tags.insert("FlatWorldLayers".into(), NbtValue::String(r#"{"biome_id":1,"block_layers":[{"block_name":"minecraft:bedrock","count":1},{"block_name":"minecraft:dirt","count":2},{"block_name":"minecraft:grass_block","count":1}],"encoding_version":6,"structure_options":null,"world_version":"version.post_1_18"}"#.into()));
+            }
+        }
+        if let Some(enabled) = profile.generation.bonus_chest {
+            tags.insert(
+                "bonusChestEnabled".into(),
+                NbtValue::Byte(i8::from(enabled)),
+            );
+        }
+        if let Some(enabled) = profile.gameplay.starting_map {
+            tags.insert(
+                "startWithMapEnabled".into(),
+                NbtValue::Byte(i8::from(enabled)),
+            );
+        }
+    }
+    if let Some(difficulty) = profile.gameplay.difficulty.as_deref() {
+        let value = match difficulty {
+            "peaceful" => 0,
+            "easy" => 1,
+            "normal" => 2,
+            "hard" => 3,
+            _ => return Err(io::Error::other("Invalid Bedrock difficulty")),
+        };
+        tags.insert("Difficulty".into(), NbtValue::Int(value));
+    }
+    if let Some(mode) = profile.gameplay.default_game_mode.as_deref() {
+        let value = match mode {
+            "survival" => 0,
+            "creative" => 1,
+            "adventure" => 2,
+            _ => return Err(io::Error::other("Invalid Bedrock game mode")),
+        };
+        tags.insert("GameType".into(), NbtValue::Int(value));
+    }
+    if let Some(enabled) = profile.gameplay.cheats {
+        tags.insert("commandsEnabled".into(), NbtValue::Byte(i8::from(enabled)));
+    }
+    if profile.gameplay.cheats == Some(true)
+        || profile.gameplay.default_game_mode.as_deref() == Some("creative")
+    {
+        tags.insert("hasBeenLoadedInCreative".into(), NbtValue::Byte(1));
+    }
+    for (name, value) in &profile.gameplay.gamerules {
+        if name.is_empty() || !name.chars().all(|ch| ch.is_ascii_alphanumeric()) {
+            return Err(io::Error::other(
+                "Gamerule names must contain only letters and digits",
+            ));
+        }
+        let tag = match value.as_str() {
+            "true" => NbtValue::Byte(1),
+            "false" => NbtValue::Byte(0),
+            _ => NbtValue::Int(value.parse().map_err(|_| {
+                io::Error::other(format!(
+                    "Gamerule {name} must be true, false, or an integer"
+                ))
+            })?),
+        };
+        tags.insert(name.to_ascii_lowercase(), tag);
+    }
+    // The dedicated control takes precedence over a duplicate gamerule entry.
+    if let Some(enabled) = profile.gameplay.coordinates {
+        tags.insert("showcoordinates".into(), NbtValue::Byte(i8::from(enabled)));
+    }
+    if !profile.gameplay.experiments.is_empty() {
+        let mut flags: BTreeMap<String, NbtValue> = profile
+            .gameplay
+            .experiments
+            .iter()
+            .map(|(name, value)| (name.clone(), NbtValue::Byte(i8::from(*value))))
+            .collect();
+        if profile.gameplay.experiments.iter().any(|(name, value)| {
+            *value && name != "experiments_ever_used" && name != "saved_with_toggled_experiments"
+        }) {
+            flags.insert("experiments_ever_used".into(), NbtValue::Byte(1));
+            flags.insert("saved_with_toggled_experiments".into(), NbtValue::Byte(1));
+        } else {
+            // Historical flags must never be reset by a later settings save.
+            flags.remove("experiments_ever_used");
+            flags.remove("saved_with_toggled_experiments");
+        }
+        tags.insert("experiments".into(), NbtValue::Compound(flags));
+    }
+    let bytes = match raw.as_deref() {
+        Some(raw) => msc_infrastructure::bedrock_nbt::update_level_dat(raw, &tags),
+        None => msc_infrastructure::bedrock_nbt::new_level_dat(&tags),
+    }
+    .map_err(|error| io::Error::other(error.to_string()))?;
+    fs.create_dir_all(&world_dir)?;
+    msc_infrastructure::atomic_write::atomic_write(fs, &level_dat, &bytes)
         .map_err(|error| io::Error::other(error.to_string()))?;
-    Ok(true)
+    if fs.read(&level_dat)? != bytes {
+        return Err(io::Error::other("Bedrock world settings readback mismatch"));
+    }
+    Ok(())
 }
 
 fn activation_dir(server_dir: &Path) -> PathBuf {
@@ -2013,6 +2243,24 @@ pub fn activate_slot(
         } else {
             Err(ActivationError::BackupFailed)
         };
+    }
+
+    if !current_folders.is_empty() {
+        let slots = world_store::load_slots(fs, server_dir);
+        let marker = world_store::load_explicit_active_slot_id(fs, server_dir);
+        if let Some(active_id) = world::resolve_active_slot_id(&slots, marker.as_deref())
+            && active_id != slot.id
+            && let Some(old_slot) = slots.iter().find(|old| old.id == active_id)
+        {
+            update_active_slot_from_current_world(
+                fs,
+                server_dir,
+                server_type,
+                Some(&current_level_name),
+                old_slot,
+            )
+            .map_err(|error| io::Error::other(error.to_string()))?;
+        }
     }
 
     let manifest_path = activation_manifest_path(server_dir);

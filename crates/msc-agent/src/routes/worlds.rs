@@ -517,7 +517,18 @@ fn profile_to_dto(
                 field.key().to_string(),
                 WorldProfileFieldMetadataDto {
                     capability: field.capability().to_string(),
-                    lifecycle: field.apply_policy().raw_value().to_string(),
+                    lifecycle: if server_type == ServerType::Bedrock
+                        && matches!(
+                            field,
+                            WorldProfileField::GameplayDifficulty
+                                | WorldProfileField::GameplayDefaultGameMode
+                                | WorldProfileField::GameplayGamerules
+                                | WorldProfileField::GameplayCoordinates
+                        ) {
+                        "restart_required".to_string()
+                    } else {
+                        field.apply_policy().raw_value().to_string()
+                    },
                     value_state,
                     help_id: field.help_id().map(str::to_string),
                 },
@@ -760,11 +771,32 @@ fn apply_profile_change(
     match field {
         WorldProfileField::IdentityName => profile.identity.name = optional_profile_string(value)?,
         WorldProfileField::IdentityLevelName => {
-            profile.identity.level_name = optional_profile_string(value)?
+            let name = optional_profile_string(value)?;
+            if let Some(name) = &name
+                && (name == "." || name == ".." || name.contains(['/', '\\', ':', '\n', '\r']))
+            {
+                return Err("Minecraft folder name must be a single folder name".into());
+            }
+            profile.identity.level_name = name;
         }
         WorldProfileField::IdentitySeed => profile.identity.seed = optional_profile_string(value)?,
         WorldProfileField::GenerationWorldType => {
-            profile.generation.world_type = optional_profile_string(value)?
+            let kind = optional_profile_string(value)?;
+            if server_type == ServerType::Bedrock
+                && kind.as_deref().is_some_and(|value| {
+                    ![
+                        "default",
+                        "normal",
+                        "minecraft:normal",
+                        "flat",
+                        "minecraft:flat",
+                    ]
+                    .contains(&value)
+                })
+            {
+                return Err("BDS supports Default and Flat world generation".into());
+            }
+            profile.generation.world_type = kind;
         }
         WorldProfileField::GenerationFlatPreset => {
             profile.generation.flat_preset = optional_profile_string(value)?
@@ -815,6 +847,9 @@ fn apply_profile_change(
             }) {
                 return Err("default game mode is not a recognized value".to_string());
             }
+            if server_type == ServerType::Bedrock && value.as_deref() == Some("spectator") {
+                return Err("BDS does not support Spectator as the default game mode".into());
+            }
             profile.gameplay.default_game_mode = value;
         }
         WorldProfileField::GameplayHardcore => {
@@ -824,7 +859,21 @@ fn apply_profile_change(
             profile.gameplay.commands = optional_profile_bool(value)?
         }
         WorldProfileField::GameplayGamerules => {
-            profile.gameplay.gamerules = profile_map_strings(value)?
+            let rules = profile_map_strings(value)?;
+            if server_type == ServerType::Bedrock {
+                for (name, value) in &rules {
+                    if name.is_empty()
+                        || !name.chars().all(|ch| ch.is_ascii_alphanumeric())
+                        || !["true", "false"].contains(&value.as_str())
+                            && value.parse::<i32>().is_err()
+                    {
+                        return Err(format!(
+                            "Gamerule {name} must have a name made of letters/digits and a true, false, or integer value"
+                        ));
+                    }
+                }
+            }
+            profile.gameplay.gamerules = rules;
         }
         WorldProfileField::GameplayCheats => {
             profile.gameplay.cheats = optional_profile_bool(value)?
@@ -2002,7 +2051,7 @@ pub async fn update_profile(
         if !active && key != "packs" {
             response_changes.push(WorldProfileChangeDto {
                 key,
-                status: "blocked".to_string(),
+                status: "pending_activation".to_string(),
                 reason: Some("slot_not_active".to_string()),
             });
             continue;
@@ -2022,8 +2071,8 @@ pub async fn update_profile(
         } else {
             response_changes.push(WorldProfileChangeDto {
                 key,
-                status: "blocked".to_string(),
-                reason: Some("runtime_projection_unavailable".to_string()),
+                status: "live".into(),
+                reason: None,
             });
         }
     }
@@ -2037,6 +2086,11 @@ pub async fn update_profile(
         .any(|change| change.status == "pending_restart")
     {
         "pending_restart"
+    } else if response_changes
+        .iter()
+        .any(|change| change.status == "pending_activation")
+    {
+        "pending_activation"
     } else {
         "live"
     };
@@ -2199,18 +2253,86 @@ pub async fn create(
             if name.is_empty() {
                 return invalid_body("name_required", "name must not be blank.");
             }
+            if lifecycle.status_snapshot().running {
+                return error_response(
+                    StatusCode::CONFLICT,
+                    "server_running",
+                    "Stop the server before creating and activating a new world.",
+                );
+            }
+            let server_dir = Path::new(&server.server_dir);
             let now = iso8601_now();
-            match worlds::create_slot_from_current_world(
-                &StdFileSystem,
-                Path::new(&server.server_dir),
-                server.server_type,
-                None,
+            let mut slot = msc_domain::world::build_fresh_slot(
+                Uuid::new_v4().to_string().to_uppercase(),
                 name,
                 body.seed.as_deref(),
+                server.server_type,
+                now.clone(),
+            );
+            let mut profile = worlds::fresh_world_profile(&slot, Some("normal"), Some("survival"));
+            for (key, value) in &body.changes {
+                if key == "packs" {
+                    return invalid_body("invalid_body", "Install packs after creating the world.");
+                }
+                if let Err(message) =
+                    apply_profile_change(&mut profile, server.server_type, key, value)
+                {
+                    return invalid_body("invalid_body", &message);
+                }
+            }
+            if let Some(required) =
+                world_safety::confirmation_for_world_profile(server.server_type, &profile)
+                && !world_safety::is_confirmed(required, body.confirmation.as_deref())
+            {
+                return confirmation_required_response(required);
+            }
+            profile.identity.name = Some(name.to_string());
+            let level_name = profile.identity.level_name.clone().unwrap_or_else(|| {
+                slot.world_level_name
+                    .clone()
+                    .expect("fresh slots have a folder name")
+            });
+            profile.identity.level_name = Some(level_name.clone());
+            slot.world_level_name = Some(level_name);
+            if server.server_type == ServerType::Bedrock && profile.identity.seed.is_none() {
+                profile.identity.seed = Some((Uuid::new_v4().as_u128() as i64).to_string());
+            }
+            slot.world_seed = profile.identity.seed.clone();
+            if let Err(error) =
+                world_store::save_profile(&StdFileSystem, server_dir, &slot, &profile)
+            {
+                return error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "world_create_failed",
+                    &error.to_string(),
+                );
+            }
+            let configured_level_name =
+                worlds::read_configured_level_name(&StdFileSystem, server_dir);
+            match worlds::activate_slot(
+                &StdFileSystem,
+                server_dir,
+                server.server_type,
+                &slot,
+                false,
                 &now,
+                || {
+                    run_pre_mutation_safety_backup(
+                        lifecycle,
+                        server_dir,
+                        server.server_type,
+                        configured_level_name.as_deref(),
+                        || false,
+                    )
+                },
+                || false,
             ) {
-                Ok(_) => mutation_ok(lifecycle, server, "created"),
-                Err(error) => world_error_response(error),
+                Ok(_) => mutation_ok(lifecycle, server, "created_and_activated"),
+                Err(error) => error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "world_activation_failed",
+                    &format!("The new world could not be activated: {error}"),
+                ),
             }
         },
     )
@@ -4137,6 +4259,7 @@ mod tests {
             Some(Json(WorldCreateRequestDto {
                 name: "Survival".to_string(),
                 seed: Some("42".to_string()),
+                ..Default::default()
             })),
         )
         .await;
@@ -4237,6 +4360,7 @@ mod tests {
                     Some(Json(WorldCreateRequestDto {
                         name: name.to_string(),
                         seed: None,
+                        ..Default::default()
                     })),
                 )
                 .await;
@@ -4359,6 +4483,7 @@ mod tests {
             Some(Json(WorldCreateRequestDto {
                 name: "Source".to_string(),
                 seed: None,
+                ..Default::default()
             })),
         )
         .await;
@@ -4491,6 +4616,7 @@ mod tests {
             Some(Json(WorldCreateRequestDto {
                 name: "Survival".to_string(),
                 seed: None,
+                ..Default::default()
             })),
         )
         .await;
@@ -4613,6 +4739,7 @@ mod tests {
             Some(Json(WorldCreateRequestDto {
                 name: "Thumbnail World".to_string(),
                 seed: None,
+                ..Default::default()
             })),
         )
         .await;
@@ -4699,6 +4826,7 @@ mod tests {
             Some(Json(WorldCreateRequestDto {
                 name: "Thumbnail World".to_string(),
                 seed: None,
+                ..Default::default()
             })),
         )
         .await;
@@ -4793,6 +4921,7 @@ mod tests {
             Some(Json(WorldCreateRequestDto {
                 name: "Survival".to_string(),
                 seed: None,
+                ..Default::default()
             })),
         )
         .await;
@@ -5048,6 +5177,7 @@ mod tests {
             Some(Json(WorldCreateRequestDto {
                 name: "Survival".to_string(),
                 seed: None,
+                ..Default::default()
             })),
         )
         .await;
@@ -5085,6 +5215,7 @@ mod tests {
             Some(Json(WorldCreateRequestDto {
                 name: "Survival".to_string(),
                 seed: None,
+                ..Default::default()
             })),
         )
         .await;

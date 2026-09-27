@@ -1,4 +1,4 @@
-//! Bounded, read-only Bedrock player NBT decoding.
+//! Bounded Bedrock player NBT decoding and world-settings updates.
 //!
 //! BDS stores player records as little-endian NBT values inside LevelDB.  The
 //! parser is intentionally independent of the LevelDB reader so callers can
@@ -14,65 +14,129 @@ pub const MAX_NBT_DEPTH: usize = 64;
 pub const MAX_NBT_ITEMS: usize = 100_000;
 pub const MAX_NBT_STRING_BYTES: usize = 1024 * 1024;
 
-/// Changes Bedrock's world-level coordinate visibility flag without
-/// reserializing the other NBT tags in `level.dat`.
-pub fn set_level_dat_coordinates(raw: &[u8], enabled: bool) -> Result<Vec<u8>, NbtError> {
-    const HEADER_BYTES: usize = 8;
-    const TAG_NAME: &[u8] = b"showCoordinates";
-    if raw.len() < HEADER_BYTES + 4 || raw[HEADER_BYTES] != 10 {
+/// Updates only the named world settings, preserving all unrelated NBT bytes.
+/// Compounds are merged so changing experiments retains unknown flags.
+pub fn update_level_dat(
+    raw: &[u8],
+    updates: &BTreeMap<String, msc_domain::nbt::NbtValue>,
+) -> Result<Vec<u8>, NbtError> {
+    if raw.len() > MAX_NBT_BYTES || raw.len() < 12 || raw[8] != 10 {
         return Err(NbtError::Corrupt("Bedrock level.dat root"));
     }
-    let mut bytes = raw.to_vec();
-    let mut cursor = HEADER_BYTES + 1;
-    let root_name_len = take_u16_le(&bytes, &mut cursor)? as usize;
-    skip_bytes(&bytes, &mut cursor, root_name_len)?;
+    let mut cursor = 9;
+    let name_len = take_u16_le(raw, &mut cursor)? as usize;
+    skip_bytes(raw, &mut cursor, name_len)?;
+    let mut output = raw[..cursor].to_vec();
+    output.extend(patch_compound(&raw[cursor..], updates)?);
+    let size =
+        u32::try_from(output.len() - 8).map_err(|_| NbtError::LimitExceeded("level.dat bytes"))?;
+    if output.len() > MAX_NBT_BYTES {
+        return Err(NbtError::LimitExceeded("level.dat bytes"));
+    }
+    output[4..8].copy_from_slice(&size.to_le_bytes());
+    Ok(output)
+}
+
+pub fn set_level_dat_coordinates(raw: &[u8], enabled: bool) -> Result<Vec<u8>, NbtError> {
+    update_level_dat(
+        raw,
+        &BTreeMap::from([(
+            "showcoordinates".into(),
+            msc_domain::nbt::NbtValue::Byte(i8::from(enabled)),
+        )]),
+    )
+}
+
+/// A new BDS world starts with world metadata and no generated chunks or players.
+pub fn new_level_dat(
+    settings: &BTreeMap<String, msc_domain::nbt::NbtValue>,
+) -> Result<Vec<u8>, NbtError> {
+    update_level_dat(&[10, 0, 0, 0, 4, 0, 0, 0, 10, 0, 0, 0], settings)
+}
+
+fn patch_compound(
+    raw: &[u8],
+    updates: &BTreeMap<String, msc_domain::nbt::NbtValue>,
+) -> Result<Vec<u8>, NbtError> {
+    use msc_domain::nbt::NbtValue;
+    let mut output = Vec::new();
+    let mut cursor = 0;
+    let mut pending = updates.clone();
     let mut entries = 0;
-    let end_tag_offset = loop {
-        let tag_offset = cursor;
-        let tag_type = take_u8(&bytes, &mut cursor)?;
-        if tag_type == 0 {
-            break tag_offset;
+    loop {
+        let start = cursor;
+        let tag = take_u8(raw, &mut cursor)?;
+        if tag == 0 {
+            break;
         }
         entries += 1;
-        if entries > 100_000 {
+        if entries > MAX_NBT_ITEMS {
             return Err(NbtError::LimitExceeded("level.dat tags"));
         }
-        let name_len = take_u16_le(&bytes, &mut cursor)? as usize;
-        let name_end = cursor
-            .checked_add(name_len)
-            .ok_or(NbtError::Corrupt("level.dat tag name"))?;
-        if name_end > bytes.len() {
-            return Err(NbtError::Corrupt("level.dat tag name"));
-        }
-        let name = &bytes[cursor..name_end];
-        cursor = name_end;
-        if name == TAG_NAME {
-            if tag_type != 1 {
-                return Err(NbtError::Unsupported("showCoordinates tag type"));
+        let length = take_u16_le(raw, &mut cursor)? as usize;
+        let name_start = cursor;
+        skip_bytes(raw, &mut cursor, length)?;
+        let name = std::str::from_utf8(&raw[name_start..cursor])
+            .map_err(|_| NbtError::Corrupt("level.dat tag name"))?;
+        let payload_start = cursor;
+        skip_nbt_payload(raw, &mut cursor, tag, 0)?;
+        if let Some(value) = pending.remove(name) {
+            if let NbtValue::Compound(children) = &value
+                && tag == 10
+            {
+                output.extend_from_slice(&raw[start..payload_start]);
+                output.extend(patch_compound(&raw[payload_start..cursor], children)?);
+                continue;
             }
-            let value_offset = cursor;
-            let _ = take_u8(&bytes, &mut cursor)?;
-            bytes[value_offset] = u8::from(enabled);
-            return Ok(bytes);
+            encode_setting(&mut output, name, &value)?;
+        } else {
+            output.extend_from_slice(&raw[start..cursor]);
         }
-        skip_nbt_payload(&bytes, &mut cursor, tag_type, 0)?;
+    }
+    for (name, value) in pending {
+        encode_setting(&mut output, &name, &value)?;
+    }
+    output.push(0);
+    Ok(output)
+}
+
+fn encode_setting(
+    output: &mut Vec<u8>,
+    name: &str,
+    value: &msc_domain::nbt::NbtValue,
+) -> Result<(), NbtError> {
+    use msc_domain::nbt::NbtValue;
+    let tag = match value {
+        NbtValue::Byte(_) => 1,
+        NbtValue::Int(_) => 3,
+        NbtValue::Long(_) => 4,
+        NbtValue::String(_) => 8,
+        NbtValue::Compound(_) => 10,
+        _ => return Err(NbtError::Unsupported("world setting type")),
     };
-    let name_len =
-        u16::try_from(TAG_NAME.len()).map_err(|_| NbtError::LimitExceeded("level.dat tag name"))?;
-    let mut tag = Vec::with_capacity(TAG_NAME.len() + 4);
-    tag.push(1);
-    tag.extend_from_slice(&name_len.to_le_bytes());
-    tag.extend_from_slice(TAG_NAME);
-    tag.push(u8::from(enabled));
-    bytes.splice(end_tag_offset..end_tag_offset, tag);
-    let payload_size = bytes
-        .len()
-        .checked_sub(HEADER_BYTES)
-        .ok_or(NbtError::Corrupt("level.dat size"))?;
-    let payload_size =
-        u32::try_from(payload_size).map_err(|_| NbtError::LimitExceeded("level.dat bytes"))?;
-    bytes[4..8].copy_from_slice(&payload_size.to_le_bytes());
-    Ok(bytes)
+    output.push(tag);
+    let length = u16::try_from(name.len()).map_err(|_| NbtError::LimitExceeded("tag name"))?;
+    output.extend_from_slice(&length.to_le_bytes());
+    output.extend_from_slice(name.as_bytes());
+    match value {
+        NbtValue::Byte(value) => output.push(*value as u8),
+        NbtValue::Int(value) => output.extend_from_slice(&value.to_le_bytes()),
+        NbtValue::Long(value) => output.extend_from_slice(&value.to_le_bytes()),
+        NbtValue::String(value) => {
+            let length =
+                u16::try_from(value.len()).map_err(|_| NbtError::LimitExceeded("string"))?;
+            output.extend_from_slice(&length.to_le_bytes());
+            output.extend_from_slice(value.as_bytes());
+        }
+        NbtValue::Compound(children) => {
+            for (name, value) in children {
+                encode_setting(output, name, value)?;
+            }
+            output.push(0);
+        }
+        _ => unreachable!(),
+    }
+    Ok(())
 }
 
 fn skip_nbt_payload(raw: &[u8], cursor: &mut usize, tag: u8, depth: usize) -> Result<(), NbtError> {

@@ -259,7 +259,8 @@ impl WorldProfileField {
 
     pub fn applies_to(self, server_type: ServerType) -> bool {
         match self {
-            Self::GenerationFlatPreset
+            Self::GenerationStructures
+            | Self::GenerationFlatPreset
             | Self::GenerationBiomeSource
             | Self::GenerationGeneratorOptions
             | Self::GenerationDataPacks

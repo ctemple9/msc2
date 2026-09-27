@@ -7983,6 +7983,7 @@
             "enum": [
               "live",
               "pending_restart",
+              "pending_activation",
               "blocked"
             ]
           },
@@ -8011,6 +8012,7 @@
             "enum": [
               "live",
               "pending_restart",
+              "pending_activation",
               "blocked"
             ]
           },
@@ -8082,6 +8084,11 @@
           },
           "seed": {
             "type": "string"
+          },
+          "changes": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "World profile fields keyed by dotted names. Validated and saved before a fresh world is activated; no existing chunks or players are copied."
           },
           "confirmation": {
             "type": "string",

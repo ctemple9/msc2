@@ -2880,7 +2880,22 @@ fn apply_active_bedrock_world_profile(server: &ConfigServer) -> Result<(), Strin
         server_dir,
         ServerType::Bedrock,
         &profile,
-        msc_application::worlds::WorldProfileApplyContext::Activation,
+        if server_dir
+            .join("worlds")
+            .join(
+                profile
+                    .identity
+                    .level_name
+                    .as_deref()
+                    .unwrap_or("Bedrock level"),
+            )
+            .join("db")
+            .is_dir()
+        {
+            msc_application::worlds::WorldProfileApplyContext::Activation
+        } else {
+            msc_application::worlds::WorldProfileApplyContext::Creation
+        },
         false,
     )
     .map(|_| ())

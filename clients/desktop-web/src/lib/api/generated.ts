@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 7bb426706d459ef667d32963a616fd2cbce0bee14715800b16276fa61c1e0d2e
+// Contract SHA-256: 76ba5ee273f184df9ab3bec6d1b2ed11903efac2c7dc11ab08250620f200d646
 
 export interface paths {
   '/v1/active-server': {
@@ -8689,6 +8689,10 @@ export interface components {
       [key: string]: unknown;
     };
     WorldCreateRequestDTO: {
+      /** @description World profile fields keyed by dotted names. Validated and saved before a fresh world is activated; no existing chunks or players are copied. */
+      changes?: {
+        [key: string]: unknown;
+      };
       /** @description Acknowledgement token returned in a confirmation_required error before applying a safety-sensitive world choice. */
       confirmation?: string;
       name: string;
@@ -8824,7 +8828,7 @@ export interface components {
       key: string;
       reason?: string | null;
       /** @enum {string} */
-      status: 'live' | 'pending_restart' | 'blocked';
+      status: 'live' | 'pending_restart' | 'pending_activation' | 'blocked';
     } & {
       [key: string]: unknown;
     };
@@ -8877,7 +8881,7 @@ export interface components {
       message: string;
       slot: components['schemas']['WorldSlotWithProfileDTO'];
       /** @enum {string} */
-      status: 'live' | 'pending_restart' | 'blocked';
+      status: 'live' | 'pending_restart' | 'pending_activation' | 'blocked';
       success: boolean;
     } & {
       [key: string]: unknown;

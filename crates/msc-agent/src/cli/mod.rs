@@ -1915,7 +1915,11 @@ async fn run_world(common: CommonArgs, command: WorldCommand) -> Result<(), CliE
             Ok(())
         }
         WorldCommand::Create { name, seed } => {
-            let body = WorldCreateRequestDto { name, seed };
+            let body = WorldCreateRequestDto {
+                name,
+                seed,
+                ..Default::default()
+            };
             let result: WorldMutationResultDto =
                 client.post_json("/v1/worlds/create", &body).await?;
             print_world_mutation_result(common.json, &result)

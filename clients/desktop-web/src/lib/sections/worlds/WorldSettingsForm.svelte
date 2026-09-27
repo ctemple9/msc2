@@ -35,6 +35,7 @@
   let lastPublishedValues = '';
 
   const javaFields = new Set([
+    'generation.structures',
     'generation.flat-preset',
     'generation.biome-source',
     'generation.generator-options',
@@ -226,7 +227,12 @@
       <label class="field-group">
         <span class="label">Default Game Mode</span>
         <Select
-          options={optionList(WORLD_GAMEMODE_OPTIONS, values.defaultGameMode)}
+          options={optionList(
+            serverType === 'bedrock'
+              ? WORLD_GAMEMODE_OPTIONS.filter((option) => option.value !== 'spectator')
+              : WORLD_GAMEMODE_OPTIONS,
+            values.defaultGameMode,
+          )}
           value={values.defaultGameMode}
           disabled={unavailable('gameplay.default-game-mode') ||
             readOnly('gameplay.default-game-mode')}
@@ -281,7 +287,14 @@
             <span class="unavailable">Unavailable: {reason('generation.world-type')}</span>
           {:else}
             <Select
-              options={optionList(WORLD_TYPE_OPTIONS, values.worldType)}
+              options={optionList(
+                serverType === 'bedrock'
+                  ? WORLD_TYPE_OPTIONS.filter((option) =>
+                      ['default', 'flat'].includes(option.value),
+                    )
+                  : WORLD_TYPE_OPTIONS,
+                values.worldType,
+              )}
               value={values.worldType}
               disabled={readOnly('generation.world-type')}
               onchange={(value) => update({ worldType: value })}
@@ -331,22 +344,24 @@
           </label>
         {/if}
 
-        <label class="field-group">
-          <span class="label">Structures</span>
-          {#if unavailable('generation.structures')}
-            <span class="unavailable">Unavailable: {reason('generation.structures')}</span>
-          {:else}
-            <Toggle
-              checked={values.structures === true}
-              label="Generate structures"
-              disabled={readOnly('generation.structures')}
-              onchange={(checked) => update({ structures: checked })}
-            />
-            {#if fieldNote('generation.structures')}<span class="hint"
-                >{fieldNote('generation.structures')}</span
-              >{/if}
-          {/if}
-        </label>
+        {#if serverType === 'java'}
+          <label class="field-group">
+            <span class="label">Structures</span>
+            {#if unavailable('generation.structures')}
+              <span class="unavailable">Unavailable: {reason('generation.structures')}</span>
+            {:else}
+              <Toggle
+                checked={values.structures === true}
+                label="Generate structures"
+                disabled={readOnly('generation.structures')}
+                onchange={(checked) => update({ structures: checked })}
+              />
+              {#if fieldNote('generation.structures')}<span class="hint"
+                  >{fieldNote('generation.structures')}</span
+                >{/if}
+            {/if}
+          </label>
+        {/if}
 
         <label class="field-group">
           <span class="label">Bonus Chest</span>

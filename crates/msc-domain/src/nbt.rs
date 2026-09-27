@@ -300,7 +300,12 @@ pub fn imported_world_metadata_from_level_dat(
             } else {
                 &[&["WorldType"], &["Data", "WorldType"]]
             },
-        ),
+        )
+        .or_else(|| match value_at_path(&root, &["Generator"]) {
+            Some(NbtValue::Int(1)) if !prefer_java_paths => Some("default".into()),
+            Some(NbtValue::Int(2)) if !prefer_java_paths => Some("flat".into()),
+            _ => None,
+        }),
         flat_preset: extract_string(
             &root,
             &[
@@ -317,18 +322,91 @@ pub fn imported_world_metadata_from_level_dat(
         ),
         biome_source: extract_string(&root, &[&["Data", "WorldGenSettings", "biome_source"]]),
         generator_options: extract_string(&root, &[&["Data", "WorldGenSettings", "generator"]]),
-        bonus_chest: extract_bool(&root, &[&["Data", "bonusChest"], &["BonusChestEnabled"]]),
+        bonus_chest: extract_bool(
+            &root,
+            &[
+                &["Data", "bonusChest"],
+                &["bonusChestEnabled"],
+                &["BonusChestEnabled"],
+            ],
+        ),
         data_packs: extract_string_list(&root, &[&["Data", "DataPacks"]]),
         hardcore: extract_bool(&root, &[&["Data", "hardcore"]]),
         commands: extract_bool(&root, &[&["Data", "allowCommands"], &["commandsEnabled"]]),
-        gamerules: extract_string_map(&root, &[&["Data", "GameRules"], &["GameRules"]]),
-        cheats: extract_bool(&root, &[&["CheatsEnabled"], &["Data", "CheatsEnabled"]]),
+        gamerules: if prefer_java_paths {
+            extract_string_map(&root, &[&["Data", "GameRules"], &["GameRules"]])
+        } else {
+            bedrock_gamerules(&root)
+        },
+        cheats: extract_bool(
+            &root,
+            &[
+                &["commandsEnabled"],
+                &["CheatsEnabled"],
+                &["Data", "CheatsEnabled"],
+            ],
+        ),
         experiments: extract_bool_map(&root, &[&["experiments"], &["Data", "experiments"]]),
-        coordinates: extract_bool(&root, &[&["showCoordinates"], &["Data", "showCoordinates"]]),
-        starting_map: extract_bool(&root, &[&["startingMap"], &["Data", "startingMap"]]),
+        coordinates: extract_bool(
+            &root,
+            &[
+                &["showcoordinates"],
+                &["showCoordinates"],
+                &["Data", "showCoordinates"],
+            ],
+        ),
+        starting_map: extract_bool(
+            &root,
+            &[
+                &["startWithMapEnabled"],
+                &["startingMap"],
+                &["Data", "startingMap"],
+            ],
+        ),
         supported_toggles: extract_bool_map(&root, &[&["GameRules"], &["Data", "GameRules"]]),
         day_time: extract_day_time(&root, prefer_java_paths),
     }
+}
+
+fn bedrock_gamerules(root: &NbtValue) -> BTreeMap<String, String> {
+    let mut rules = extract_string_map(root, &[&["GameRules"]]);
+    for name in [
+        "keepinventory",
+        "dodaylightcycle",
+        "doweathercycle",
+        "domobspawning",
+        "domobloot",
+        "doentitydrops",
+        "dotiledrops",
+        "dofiretick",
+        "naturalregeneration",
+        "pvp",
+        "falldamage",
+        "firedamage",
+        "drowningdamage",
+        "sendcommandfeedback",
+        "commandblockoutput",
+        "commandblocksenabled",
+        "showdeathmessages",
+        "tntexplodes",
+        "respawnblocksexplode",
+        "randomtickspeed",
+        "spawnradius",
+        "maxcommandchainlength",
+        "doinsomnia",
+        "doimmediaterespawn",
+    ] {
+        if let Some(value) = value_at_path(root, &[name]) {
+            let text = match value {
+                NbtValue::Byte(value) => Some((*value != 0).to_string()),
+                _ => value_string(value),
+            };
+            if let Some(text) = text {
+                rules.insert(name.into(), text);
+            }
+        }
+    }
+    rules
 }
 
 fn value_at_path<'a>(value: &'a NbtValue, path: &[&str]) -> Option<&'a NbtValue> {

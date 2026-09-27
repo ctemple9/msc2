@@ -11,6 +11,7 @@ use reqwest::{header, Method, Url};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
+#[cfg(any(not(target_os = "linux"), test))]
 use std::sync::Mutex;
 
 mod ssh;
@@ -28,10 +29,13 @@ const BEDROCK_SIDECAR_DIRECTORY_ENV: &str = "MSC2_BEDROCK_SIDECAR_DIR";
 const PROTOCOL_VERSION: u32 = 1;
 #[cfg(target_os = "macos")]
 const PROOF_DOMAIN: &[u8] = b"msc2-local-bootstrap-v1\0";
+#[cfg(not(target_os = "linux"))]
 static STAGED_PACKAGED_AGENT_PATH: PackagedAgentPathCache = PackagedAgentPathCache::new();
 
+#[cfg(any(not(target_os = "linux"), test))]
 struct PackagedAgentPathCache(Mutex<Option<Result<PathBuf, String>>>);
 
+#[cfg(any(not(target_os = "linux"), test))]
 impl PackagedAgentPathCache {
     const fn new() -> Self {
         Self(Mutex::new(None))
@@ -47,6 +51,7 @@ impl PackagedAgentPathCache {
         path
     }
 
+    #[cfg(not(target_os = "linux"))]
     fn refresh(&self, stage: impl FnOnce() -> Result<PathBuf, String>) -> Result<PathBuf, String> {
         let path = stage();
         *self.0.lock().expect("packaged agent path cache poisoned") = Some(path.clone());
@@ -759,7 +764,7 @@ fn local_browser_handoff_url(pairing_code: &str) -> Result<String, String> {
 /// lifecycle action.
 #[tauri::command]
 fn agent_service_status() -> Result<AgentServiceStatus, String> {
-    let expected_binary = staged_packaged_agent_path()?;
+    let expected_binary = expected_local_agent_binary()?;
     service_manager()?
         .execute(ServiceManagerCommand::Status {
             service_name: ServiceName::new(AGENT_SERVICE_NAME),
@@ -830,7 +835,7 @@ fn manage_agent_service(action: AgentServiceAction) -> Result<AgentServiceStatus
         AgentServiceAction::Install | AgentServiceAction::Repair => {
             let request = agent_install_request()?;
             let expected_binary = request.binary_path.clone();
-            let helper = linux_service_helper_path()?;
+            let helper = linux_system_agent_path()?;
             let report = msc_platform_linux::service::install_desktop_service_elevated(
                 request, &helper,
             )
@@ -838,7 +843,7 @@ fn manage_agent_service(action: AgentServiceAction) -> Result<AgentServiceStatus
             ensure_service_report_uses_binary(report, &expected_binary)?
         }
         AgentServiceAction::Uninstall => {
-            let helper = linux_service_helper_path()?;
+            let helper = linux_system_agent_path()?;
             msc_platform_linux::service::uninstall_desktop_service_elevated(&helper)
                 .map_err(|error| error.to_string())?
         }
@@ -927,9 +932,12 @@ fn service_manager() -> Result<Box<dyn ServiceManager>, String> {
 }
 
 fn agent_install_request() -> Result<ServiceInstallRequest, String> {
-    // Repair is the explicit boundary where a running dev shell may have
-    // received a newly staged resource. Refresh the content-addressed copy
-    // instead of trusting the status path cache from before that rebuild.
+    // Linux system services execute from the installed package location so
+    // SELinux can apply the package's system-file label. Other platforms keep
+    // the content-addressed user-owned copy and refresh it on repair.
+    #[cfg(target_os = "linux")]
+    let binary_path = linux_system_agent_path()?;
+    #[cfg(not(target_os = "linux"))]
     let binary_path = refresh_staged_packaged_agent_path()?;
     let working_directory = agent_data_directory()?;
     let secret_store_directory = working_directory.join("secrets");
@@ -1093,6 +1101,7 @@ fn parse_designated_requirement<'a>(stdout: &'a str, stderr: &'a str) -> Option<
         .filter(|value| !value.is_empty())
 }
 
+#[cfg(not(target_os = "linux"))]
 fn packaged_agent_path() -> Result<PathBuf, String> {
     let desktop_binary = std::env::current_exe()
         .map_err(|error| format!("Could not locate the desktop application: {error}"))?;
@@ -1103,63 +1112,50 @@ fn packaged_agent_path() -> Result<PathBuf, String> {
     return Ok(directory.join("../Resources/agent/msc"));
     #[cfg(target_os = "windows")]
     return Ok(directory.join("agent/msc.exe"));
-    #[cfg(target_os = "linux")]
-    {
-        let development_path = directory.join("agent/msc");
-        if development_path.is_file() {
-            return Ok(development_path);
-        }
-        // Tauri v2 installs Debian/RPM resources under /usr/lib/<productName>,
-        // which is `MSC 2` here rather than the Rust executable name. Keep
-        // the executable-name path as a fallback for development/AppImage
-        // layouts, whose resource directory follows a different convention.
-        let packaged_paths = [
-            directory.join("../lib/MSC 2/agent/msc"),
-            directory.join("../lib/msc2-desktop-web/agent/msc"),
-        ];
-        return packaged_paths
-            .iter()
-            .find(|path| path.is_file())
-            .cloned()
-            .ok_or_else(|| {
-                format!(
-                    "The compatible agent package is missing; searched {}",
-                    packaged_paths
-                        .iter()
-                        .map(|path| path.display().to_string())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
-            });
-    }
     #[allow(unreachable_code)]
     Err("This desktop platform has no agent-package layout.".to_string())
 }
 
 #[cfg(target_os = "linux")]
-fn linux_service_helper_path() -> Result<PathBuf, String> {
+fn linux_system_agent_path() -> Result<PathBuf, String> {
     let desktop_binary = std::env::current_exe()
         .map_err(|error| format!("Could not locate the desktop application: {error}"))?;
     let directory = desktop_binary
         .parent()
         .ok_or_else(|| "The desktop application has no containing directory.".to_string())?;
-    // The agent being installed may come from a development build, but the
-    // executable crossing pkexec must come from a root-owned system package.
-    // LinuxSystemdServiceManager checks ownership and every parent directory
-    // again immediately before asking for elevation.
+    // Both the Linux systemd service and the executable crossing pkexec use
+    // a root-owned package file. The service still runs as the installing
+    // user, while SELinux sees an executable from the system package tree.
+    // LinuxSystemdServiceManager rechecks ownership before elevation.
     let candidates = [
         PathBuf::from("/usr/lib/MSC 2/agent/msc"),
         PathBuf::from("/usr/lib/msc2-desktop-web/agent/msc"),
         directory.join("../lib/MSC 2/agent/msc"),
         directory.join("../lib/msc2-desktop-web/agent/msc"),
     ];
-    candidates
+    let path = candidates
         .iter()
         .find(|path| path.is_file())
         .cloned()
         .ok_or_else(|| {
-            "Could not find the system-installed MSC service helper. Install the MSC 2 desktop package before changing the local agent service.".to_string()
-        })
+            "Could not find the system-installed MSC agent. Install the MSC 2 desktop package before changing the local agent service.".to_string()
+        })?;
+    std::fs::canonicalize(&path).map_err(|error| {
+        format!(
+            "Could not resolve the system-installed MSC agent {}: {error}",
+            path.display()
+        )
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn expected_local_agent_binary() -> Result<PathBuf, String> {
+    linux_system_agent_path()
+}
+
+#[cfg(not(target_os = "linux"))]
+fn expected_local_agent_binary() -> Result<PathBuf, String> {
+    staged_packaged_agent_path()
 }
 
 #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
@@ -1182,10 +1178,12 @@ fn packaged_bedrock_sidecar_directory() -> Result<PathBuf, String> {
     Ok(sidecar)
 }
 
+#[cfg(not(target_os = "linux"))]
 fn staged_packaged_agent_path() -> Result<PathBuf, String> {
     STAGED_PACKAGED_AGENT_PATH.resolve(stage_packaged_agent_once)
 }
 
+#[cfg(not(target_os = "linux"))]
 fn stage_packaged_agent_once() -> Result<PathBuf, String> {
     let source = packaged_agent_path()?;
     if !source.is_file() {
@@ -1197,10 +1195,12 @@ fn stage_packaged_agent_once() -> Result<PathBuf, String> {
     stage_packaged_agent(&source, &agent_data_directory()?)
 }
 
+#[cfg(not(target_os = "linux"))]
 fn refresh_staged_packaged_agent_path() -> Result<PathBuf, String> {
     STAGED_PACKAGED_AGENT_PATH.refresh(stage_packaged_agent_once)
 }
 
+#[cfg(not(target_os = "linux"))]
 fn stage_packaged_agent(source: &Path, data_directory: &Path) -> Result<PathBuf, String> {
     let source_bytes = std::fs::read(source)
         .map_err(|error| format!("Could not read the packaged agent: {error}"))?;
@@ -1239,6 +1239,7 @@ fn stage_packaged_agent(source: &Path, data_directory: &Path) -> Result<PathBuf,
     Ok(destination)
 }
 
+#[cfg(not(target_os = "linux"))]
 fn verify_staged_agent(destination: &Path, source_bytes: &[u8]) -> Result<(), String> {
     let staged_bytes = std::fs::read(destination)
         .map_err(|error| format!("Could not verify the staged agent: {error}"))?;
@@ -1362,7 +1363,7 @@ fn ensure_service_report_uses_binary(
 }
 
 fn current_local_agent_report() -> Result<(ServiceStatusReport, PathBuf), String> {
-    let expected_binary = staged_packaged_agent_path()?;
+    let expected_binary = expected_local_agent_binary()?;
     let report = service_manager()?
         .execute(ServiceManagerCommand::Status {
             service_name: ServiceName::new(AGENT_SERVICE_NAME),

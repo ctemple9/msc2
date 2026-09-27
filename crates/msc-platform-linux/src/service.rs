@@ -20,6 +20,10 @@ use std::process::{Command, Output};
 
 const EXPECTED_PORT_ENV: &str = "MSC2_EXPECTED_PORT";
 const META_PREFIX: &str = "# MSC2-";
+const SYSTEM_AGENT_PATHS: [&str; 2] = [
+    "/usr/lib/MSC 2/agent/msc",
+    "/usr/lib/msc2-desktop-web/agent/msc",
+];
 pub const DESKTOP_AGENT_SERVICE_NAME: &str = "com.ctemple.msc2.agent";
 
 pub trait AuthorizationRunner: Send + Sync {
@@ -348,40 +352,55 @@ fn validate_desktop_request(
     }
     let binary = fs::canonicalize(&request.binary_path).map_err(|error| {
         ServiceError::InvalidDefinition(format!(
-            "could not resolve the staged MSC agent executable {}: {error}",
+            "could not resolve the MSC service executable {}: {error}",
             request.binary_path.display()
         ))
     })?;
-    let builds_dir = canonical_data.join("agent/builds");
-    if !binary.starts_with(&builds_dir) {
-        return invalid_desktop_request(
-            "agent executable must be inside the installing user's staged MSC builds",
-        );
+    if is_system_agent_path(&binary) {
+        if request.binary_path != binary {
+            return invalid_desktop_request(
+                "system-installed MSC agent path must not resolve through a symbolic link",
+            );
+        }
+        validate_helper_executable(&binary, true)?;
+    } else {
+        let builds_dir = canonical_data.join("agent/builds");
+        if !binary.starts_with(&builds_dir) {
+            return invalid_desktop_request(
+                "agent executable must be inside the installing user's staged MSC builds",
+            );
+        }
+        canonical_owned_directory(
+            &canonical_data.join("agent"),
+            uid,
+            "MSC agent directory",
+            home,
+        )?;
+        canonical_owned_directory(&builds_dir, uid, "MSC agent builds directory", home)?;
+        let Some(build_directory) = binary.parent() else {
+            return invalid_desktop_request("staged MSC executable has no build directory");
+        };
+        canonical_owned_directory(build_directory, uid, "MSC staged build directory", home)?;
+        if binary.file_name() != Some(std::ffi::OsStr::new("msc"))
+            || build_directory.file_name().is_none_or(|name| {
+                let digest = name.to_string_lossy();
+                digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit())
+            })
+            || request.binary_path != binary
+        {
+            return invalid_desktop_request(
+                "staged MSC executable path is not a content-addressed MSC build",
+            );
+        }
+        validate_user_owned_executable(&binary, uid)?;
     }
-    canonical_owned_directory(
-        &canonical_data.join("agent"),
-        uid,
-        "MSC agent directory",
-        home,
-    )?;
-    canonical_owned_directory(&builds_dir, uid, "MSC agent builds directory", home)?;
-    let Some(build_directory) = binary.parent() else {
-        return invalid_desktop_request("staged MSC executable has no build directory");
-    };
-    canonical_owned_directory(build_directory, uid, "MSC staged build directory", home)?;
-    if binary.file_name() != Some(std::ffi::OsStr::new("msc"))
-        || build_directory.file_name().is_none_or(|name| {
-            let digest = name.to_string_lossy();
-            digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit())
-        })
-        || request.binary_path != binary
-    {
-        return invalid_desktop_request(
-            "staged MSC executable path is not a content-addressed MSC build",
-        );
-    }
-    validate_user_owned_executable(&binary, uid)?;
     Ok(())
+}
+
+fn is_system_agent_path(path: &Path) -> bool {
+    SYSTEM_AGENT_PATHS
+        .iter()
+        .any(|candidate| path == Path::new(candidate))
 }
 
 fn canonical_owned_directory(

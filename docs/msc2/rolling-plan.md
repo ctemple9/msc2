@@ -257,6 +257,15 @@ Verify: cargo fmt --all -- --check && cargo check -p msc-platform-linux -p msc-a
 Commit: P14.63: pass agent arguments safely through helper
 Batch: solo
 
+#### P14.64 — Run the Linux desktop agent from its package path
+
+Status: awaiting Cameron verification
+Files: clients/desktop-web/src-tauri/src/lib.rs, crates/msc-platform-linux/src/service.rs, docs/msc2/rolling-plan.md
+What: Point the Linux desktop service at the root-owned agent executable installed under `/usr/lib`, while continuing to run the service as the installing user and keeping its data in that user's home. Accept only the two fixed MSC package paths and validate their ownership and parent directories. This avoids Fedora SELinux denying systemd execution of the staged binary labeled `data_home_t`.
+Verify: cargo fmt --all -- --check && cargo check -p msc-platform-linux -p msc-agent && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml
+Commit: P14.64: use packaged agent for linux desktop service
+Batch: solo
+
 ## Current phase
 
 | Phase | Name | State |

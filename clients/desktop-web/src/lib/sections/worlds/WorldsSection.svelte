@@ -972,9 +972,10 @@
   .aligned-toggle {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    width: 82px;
-    flex: 0 0 82px;
+    justify-content: flex-start;
+    gap: 10px;
+    width: 100px;
+    flex: 0 0 100px;
     color: var(--msc2-text-tertiary);
     font-size: 11px;
   }

@@ -460,3 +460,13 @@ Evidence: Rust formatting/clippy pass; API contract generation check passes; Pre
 Verify: Run npx tauri dev from clients/desktop-web. Confirm Enable/Disable sits beside Delete, Required and Auto toggles align with both interval states, and each panel's count and total size match its listed content. Confirm pack totals use unpacked pack files and backup totals include all listed backups, including legacy/unmatched entries.
 Commit: P14.80: align world section controls and summaries
 Batch: solo
+
+#### P14.81 — Align Required and Auto toggle labels
+
+Status: awaiting Cameron verification
+Files: clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte, clients/desktop-web/src/lib/sections/worlds/BackupsPanel.svelte, docs/msc2/rolling-plan.md
+What: Widen both fixed toggle columns equally, move their switches left together, and give Required and Auto labels the same gap and left alignment.
+Evidence: Prettier check passes; Svelte check reports 0 errors and the same 7 existing warnings. No tests created or run.
+Verify: Run npx tauri dev from clients/desktop-web. Confirm Required and Auto switches align, both labels start at the same offset from their switches, and the longer Required label no longer crowds its switch.
+Commit: P14.81: align Required and Auto toggle labels
+Batch: solo

@@ -316,7 +316,7 @@
             {:else}
               <Field
                 bind:value={values.flatPreset}
-                placeholder="Optional"
+                placeholder={'{"layers":[{"block":"minecraft:bedrock","height":1}],"biome":"minecraft:plains"}'}
                 disabled={readOnly('generation.flat-preset')}
               />
               {#if fieldNote('generation.flat-preset')}<span class="hint"
@@ -334,7 +334,7 @@
             {:else}
               <Field
                 bind:value={values.biomeSource}
-                placeholder="Default"
+                placeholder="minecraft:plains (or biome source JSON)"
                 disabled={readOnly('generation.biome-source')}
               />
               {#if fieldNote('generation.biome-source')}<span class="hint"
@@ -388,7 +388,7 @@
             {:else}
               <Field
                 bind:value={values.generatorOptions}
-                placeholder="Optional generator payload"
+                placeholder="Flat settings JSON, or a complete noise generator JSON object"
                 multiline
                 disabled={readOnly('generation.generator-options')}
               />
@@ -407,7 +407,7 @@
             {:else}
               <Field
                 bind:value={values.dataPacks}
-                placeholder="One pack name per line"
+                placeholder="One pack ID per line, for example trade_rebalance or file/example.zip"
                 multiline
                 disabled={readOnly('generation.data-packs')}
               />

@@ -1620,6 +1620,91 @@ pub fn apply_world_profile(
     let mut properties = read_properties_map(fs, &path);
     let mut expected = BTreeMap::new();
     let mut changes = Vec::new();
+    if server_type == ServerType::Java {
+        crate::java_world_settings::validate(profile)?;
+        if !is_server_running {
+            if let (Some(old), Some(new)) = (
+                properties.get("level-name"),
+                profile.identity.level_name.as_deref(),
+            ) && old != new
+                && fs.stat(&server_dir.join(old).join("level.dat")).is_ok()
+                && context != WorldProfileApplyContext::Creation
+            {
+                rename_world(
+                    fs,
+                    server_dir,
+                    server_type,
+                    Some(old),
+                    new,
+                    false,
+                    false,
+                    || true,
+                )
+                .map_err(|error| io::Error::other(error.to_string()))?;
+                properties.insert("level-name".into(), new.into());
+            }
+            let level_name = profile
+                .identity
+                .level_name
+                .as_deref()
+                .or_else(|| properties.get("level-name").map(String::as_str))
+                .ok_or_else(|| io::Error::other("Java world folder name is missing"))?;
+            if context == WorldProfileApplyContext::Creation
+                && fs
+                    .stat(&server_dir.join(level_name).join("level.dat"))
+                    .is_err()
+            {
+                let generation = crate::java_world_settings::generation_properties(
+                    fs, server_dir, level_name, profile,
+                )?;
+                expected.extend(generation.clone());
+                properties.extend(generation);
+                // Absent seed and defaults must not leak from the previous world.
+                properties.insert(
+                    "level-seed".into(),
+                    profile.identity.seed.clone().unwrap_or_default(),
+                );
+                properties.insert(
+                    "generate-structures".into(),
+                    profile.generation.structures.unwrap_or(true).to_string(),
+                );
+                properties.insert(
+                    "hardcore".into(),
+                    profile.gameplay.hardcore.unwrap_or(false).to_string(),
+                );
+                properties.insert(
+                    "enable-command-block".into(),
+                    profile.gameplay.commands.unwrap_or(false).to_string(),
+                );
+                expected.extend(
+                    properties
+                        .iter()
+                        .filter(|(key, _)| {
+                            [
+                                "level-seed",
+                                "generate-structures",
+                                "hardcore",
+                                "enable-command-block",
+                            ]
+                            .contains(&key.as_str())
+                        })
+                        .map(|(key, value)| (key.clone(), value.clone())),
+                );
+            } else {
+                crate::java_world_settings::apply_existing_world(
+                    fs, server_dir, level_name, profile,
+                )?;
+                if let Some(enabled) = profile.gameplay.commands {
+                    properties.insert("enable-command-block".into(), enabled.to_string());
+                    expected.insert("enable-command-block".into(), enabled.to_string());
+                }
+                if let Some(enabled) = profile.gameplay.hardcore {
+                    properties.insert("hardcore".into(), enabled.to_string());
+                    expected.insert("hardcore".into(), enabled.to_string());
+                }
+            }
+        }
+    }
     // This BDS property is server-level, but MSC owns its preference per world.
     // A world without an explicit preference must not inherit the previous one.
     if server_type == ServerType::Bedrock && !is_server_running {
@@ -1643,6 +1728,39 @@ pub fn apply_world_profile(
                 key: field.key().into(),
                 status: WorldProfileApplyStatus::Live,
                 reason: None,
+            });
+            continue;
+        }
+        if server_type == ServerType::Java
+            && matches!(
+                field,
+                WorldProfileField::GenerationWorldType
+                    | WorldProfileField::GenerationFlatPreset
+                    | WorldProfileField::GenerationBiomeSource
+                    | WorldProfileField::GenerationGeneratorOptions
+                    | WorldProfileField::GenerationBonusChest
+                    | WorldProfileField::GenerationDataPacks
+                    | WorldProfileField::GameplayGamerules
+            )
+        {
+            if matches!(
+                field,
+                WorldProfileField::GameplayGamerules | WorldProfileField::GenerationDataPacks
+            ) {
+                status = WorldProfileApplyStatus::PendingRestart;
+                reason = Some(
+                    if is_server_running {
+                        "restart_required"
+                    } else {
+                        "applies_on_start"
+                    }
+                    .into(),
+                );
+            }
+            changes.push(WorldProfileChange {
+                key: field.key().into(),
+                status,
+                reason,
             });
             continue;
         }
@@ -1717,6 +1835,16 @@ pub fn apply_world_profile(
                 .into_iter()
                 .find(|field| field.key() == change.key)
                 .expect("every profile change key comes from WorldProfileField::ALL");
+            if server_type == ServerType::Java
+                && matches!(
+                    field,
+                    WorldProfileField::GenerationWorldType
+                        | WorldProfileField::GenerationGeneratorOptions
+                        | WorldProfileField::GenerationBonusChest
+                )
+            {
+                continue;
+            }
             if let Some((property, value)) =
                 profile_property_value(profile, server_type, context, field)
                 && expected.contains_key(property)
@@ -2280,7 +2408,48 @@ pub fn activate_slot(
             return Err(e.into());
         }
         if let Some(identity) = &identity {
-            relocate_legacy_bedrock_layout(&staged_dir, &identity.level_name);
+            if server_type == ServerType::Java {
+                // A slot can choose a new folder name while its archive retains the old layout.
+                let entries = std::fs::read_dir(&staged_dir)?;
+                let roots: Vec<_> = entries
+                    .filter_map(Result::ok)
+                    .filter(|entry| {
+                        entry.path().join("level.dat").is_file()
+                            && !entry.file_name().to_string_lossy().ends_with("_nether")
+                            && !entry.file_name().to_string_lossy().ends_with("_the_end")
+                    })
+                    .collect();
+                if roots.len() != 1 {
+                    return Err(io::Error::other(
+                        "Java world archive must contain one main world folder",
+                    )
+                    .into());
+                }
+                let old = roots[0].file_name().to_string_lossy().into_owned();
+                if old != identity.level_name {
+                    for (old, new) in world::live_world_folder_candidates(ServerType::Java, &old)
+                        .iter()
+                        .zip(world::live_world_folder_candidates(
+                            ServerType::Java,
+                            &identity.level_name,
+                        ))
+                    {
+                        let source = staged_dir.join(old);
+                        let target = staged_dir.join(new);
+                        if fs.stat(&source).is_ok() {
+                            if fs.stat(&target).is_ok() {
+                                return Err(io::Error::other(
+                                    "Java world archive has conflicting folder names",
+                                )
+                                .into());
+                            }
+                            fs.rename(&source, &target)?;
+                        }
+                    }
+                }
+            } else {
+                relocate_legacy_bedrock_layout(&staged_dir, &identity.level_name);
+            }
         }
     }
 

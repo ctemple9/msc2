@@ -223,6 +223,19 @@ pub(crate) fn gunzip(bytes: &[u8]) -> Option<Vec<u8>> {
     Some(out)
 }
 
+/// Java runtime metadata used to retain datapack exclusions and select command syntax.
+pub fn java_runtime_metadata(raw: &[u8]) -> (Option<String>, Vec<String>) {
+    let Some(root) = gunzip(raw).and_then(|bytes| parse_nbt_root(&bytes, Endianness::Big)) else {
+        return (None, Vec::new());
+    };
+    let version = value_at_path(&root, &["Data", "Version", "Name"]).and_then(value_string);
+    let disabled = match value_at_path(&root, &["Data", "DataPacks", "Disabled"]) {
+        Some(NbtValue::List(values)) => values.iter().filter_map(value_string).collect(),
+        _ => Vec::new(),
+    };
+    (version, disabled)
+}
+
 /// `ImportedWorldMetadata` (source line 1120-1127).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ImportedWorldMetadata {
@@ -330,7 +343,10 @@ pub fn imported_world_metadata_from_level_dat(
                 &["BonusChestEnabled"],
             ],
         ),
-        data_packs: extract_string_list(&root, &[&["Data", "DataPacks"]]),
+        data_packs: extract_string_list(
+            &root,
+            &[&["Data", "DataPacks", "Enabled"], &["Data", "DataPacks"]],
+        ),
         hardcore: extract_bool(&root, &[&["Data", "hardcore"]]),
         commands: extract_bool(&root, &[&["Data", "allowCommands"], &["commandsEnabled"]]),
         gamerules: if prefer_java_paths {

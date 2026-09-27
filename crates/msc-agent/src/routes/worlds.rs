@@ -1804,6 +1804,11 @@ pub async fn update_profile(
             return invalid_body("invalid_body", &message);
         }
     }
+    if server.server_type == ServerType::Java
+        && let Err(error) = msc_application::java_world_settings::validate(&profile)
+    {
+        return invalid_body("invalid_body", &error.to_string());
+    }
     let confirmation = body
         .get("confirmation")
         .and_then(serde_json::Value::as_str)
@@ -1817,6 +1822,31 @@ pub async fn update_profile(
 
     let active = resolved_active_slot_id(server_dir).as_deref() == Some(slot.id.as_str());
     let running = state.lifecycle.status_snapshot().running;
+    if active
+        && server.server_type == ServerType::Java
+        && profile.identity.level_name != original_profile.identity.level_name
+    {
+        if running {
+            return error_response(
+                StatusCode::CONFLICT,
+                "server_running",
+                "Stop the server before changing the active world's folder name.",
+            );
+        }
+        if !run_pre_mutation_safety_backup(
+            &state.lifecycle,
+            server_dir,
+            ServerType::Java,
+            original_profile.identity.level_name.as_deref(),
+            || false,
+        ) {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "backup_failed",
+                "The safety backup failed; the world folder was not changed.",
+            );
+        }
+    }
     let changes_packs =
         changes.iter().any(|(key, _)| key == "packs") && profile.packs != original_profile.packs;
     let mut pack_backup = None;
@@ -2046,6 +2076,32 @@ pub async fn update_profile(
     } else {
         worlds::WorldProfileApplicationReport::default()
     };
+    if active && running && server.server_type == ServerType::Java {
+        match state.lifecycle.apply_active_java_world_gameplay() {
+            Ok(()) => {
+                for change in &mut report.changes {
+                    if matches!(
+                        change.key.as_str(),
+                        "gameplay.gamerules" | "gameplay.difficulty" | "gameplay.default-game-mode"
+                    ) {
+                        change.status = worlds::WorldProfileApplyStatus::Live;
+                        change.reason = None;
+                    }
+                }
+            }
+            Err(error) => {
+                for change in &mut report.changes {
+                    if matches!(
+                        change.key.as_str(),
+                        "gameplay.gamerules" | "gameplay.difficulty" | "gameplay.default-game-mode"
+                    ) {
+                        change.status = worlds::WorldProfileApplyStatus::PendingRestart;
+                        change.reason = Some(format!("runtime_command_failed: {error}"));
+                    }
+                }
+            }
+        }
+    }
     let mut response_changes = Vec::new();
     for (key, _) in changes {
         if !active && key != "packs" {
@@ -2279,6 +2335,11 @@ pub async fn create(
                 {
                     return invalid_body("invalid_body", &message);
                 }
+            }
+            if server.server_type == ServerType::Java
+                && let Err(error) = msc_application::java_world_settings::validate(&profile)
+            {
+                return invalid_body("invalid_body", &error.to_string());
             }
             if let Some(required) =
                 world_safety::confirmation_for_world_profile(server.server_type, &profile)

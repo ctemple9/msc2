@@ -1564,6 +1564,12 @@ pub async fn create(
         return confirmation_required_response(required);
     }
     let initial_world_profile = body.world_settings.as_ref().map(world_profile_from_create);
+    if server_type == ServerType::Java
+        && let Some(profile) = &initial_world_profile
+        && let Err(error) = msc_application::java_world_settings::validate(profile)
+    {
+        return invalid_body("invalid_body", &error.to_string());
+    }
     if server_type == ServerType::Bedrock {
         let port = match body.port.unwrap_or(19132).try_into() {
             Ok(port) if port > 0 => port,

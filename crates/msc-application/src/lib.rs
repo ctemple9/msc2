@@ -20,6 +20,7 @@ pub mod geyser;
 pub mod host_reset;
 pub mod import;
 pub mod java_launch;
+pub mod java_world_settings;
 pub mod lifecycle;
 pub mod modpacks;
 pub mod network_diagnostics;

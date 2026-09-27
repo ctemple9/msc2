@@ -104,6 +104,12 @@
       </div>
     {/if}
     {#if error}<p class="error" role="alert">{error}</p>{/if}
+    {#if busy}
+      <div class="creation-progress" role="status" aria-live="polite">
+        <span>Creating and activating world…</span>
+        <progress aria-label="Creating and activating world"></progress>
+      </div>
+    {/if}
 
     <div class="footer">
       <Button variant="secondary" disabled={busy} onclick={onClose}>Cancel</Button>
@@ -115,6 +121,18 @@
 </Sheet>
 
 <style>
+  .creation-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    color: var(--msc2-text-secondary);
+    font-size: 12px;
+  }
+  .creation-progress progress {
+    width: 100%;
+    height: 6px;
+    accent-color: var(--msc2-text-secondary);
+  }
   .body {
     display: flex;
     flex-direction: column;

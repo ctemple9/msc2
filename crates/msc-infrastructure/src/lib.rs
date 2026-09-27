@@ -20,6 +20,7 @@ pub mod geyser;
 pub mod helper_acquisition;
 pub mod helper_process;
 pub mod jar_provider;
+pub mod java_nbt;
 pub mod java_runtime_detection;
 pub mod java_runtime_install;
 pub mod loader_installer;

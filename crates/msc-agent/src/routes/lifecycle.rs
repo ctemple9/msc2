@@ -1699,6 +1699,13 @@ impl LifecycleRoutesState {
             return Err(LifecycleRouteError::UnusableJavaRuntime(unusable));
         }
 
+        apply_active_java_world_profile(&registered).map_err(|message| {
+            let _ =
+                self.inner
+                    .operations
+                    .fail(&operation_id, "world_settings_failed", message.clone());
+            LifecycleError::Process(message)
+        })?;
         let launch = build_launch_request(&registered, &java_path).inspect_err(|error| {
             let message = error.to_string();
             msc_application::diagnostics::record_startup_failure(
@@ -2605,6 +2612,14 @@ impl LifecycleRoutesState {
                 if output_events.iter().any(|event| {
                     matches!(event, msc_application::output_reducer::OutputEvent::Ready)
                 }) {
+                    if let Err(error) = self.apply_active_java_world_gameplay() {
+                        self.inner.console.push(ConsoleLine::with_origin(
+                            "msc",
+                            None,
+                            ConsoleLineOrigin::Controller,
+                            format!("Could not apply Java world gameplay settings: {error}"),
+                        ));
+                    }
                     self.handle_server_ready("Java server is ready.");
                 }
             }
@@ -2618,6 +2633,43 @@ impl LifecycleRoutesState {
                 self.handle_process_termination(false);
             }
         }
+    }
+
+    pub fn apply_active_java_world_gameplay(&self) -> Result<(), String> {
+        let Some(server_id) = self.active_server_id() else {
+            return Ok(());
+        };
+        let Some(server) = self.inner.registry.get(&ServerId::new(server_id)) else {
+            return Ok(());
+        };
+        if server.server_type != ServerType::Java {
+            return Ok(());
+        }
+        let Some(profile) = active_world_profile(&server) else {
+            return Ok(());
+        };
+        let detected_version = profile.identity.level_name.as_ref().and_then(|name| {
+            std::fs::read(Path::new(&server.server_dir).join(name).join("level.dat"))
+                .ok()
+                .and_then(|raw| msc_domain::nbt::java_runtime_metadata(&raw).0)
+        });
+        let commands = msc_application::java_world_settings::runtime_commands(
+            &profile,
+            detected_version
+                .as_deref()
+                .or(server.minecraft_version.as_deref()),
+        )
+        .map_err(|error| error.to_string())?;
+        for command in commands {
+            self.inner
+                .lifecycle
+                .lock()
+                .unwrap()
+                .send_command(&command)
+                .map_err(|error| error.to_string())?;
+            self.register_controller_command(&command);
+        }
+        Ok(())
     }
 
     fn push_process_line(&self, event: &ProcessEvent, text: &str) {
@@ -2860,6 +2912,61 @@ fn bedrock_safety_backup(server_dir: &Path) -> bool {
         || false,
     )
     .is_ok()
+}
+
+fn active_world_profile(server: &ConfigServer) -> Option<msc_domain::world_profile::WorldProfile> {
+    let dir = Path::new(&server.server_dir);
+    let slots = msc_infrastructure::world_store::load_slots(&StdFileSystem, dir);
+    let marker = msc_infrastructure::world_store::load_explicit_active_slot_id(&StdFileSystem, dir);
+    let id = msc_domain::world::resolve_active_slot_id(&slots, marker.as_deref())?;
+    let slot = slots.iter().find(|slot| slot.id == id)?;
+    Some(msc_infrastructure::world_store::load_profile(
+        &StdFileSystem,
+        dir,
+        slot,
+    ))
+}
+
+fn apply_active_java_world_profile(server: &ConfigServer) -> Result<(), String> {
+    let Some(profile) = active_world_profile(server) else {
+        return Ok(());
+    };
+    let dir = Path::new(&server.server_dir);
+    let level_name = profile
+        .identity
+        .level_name
+        .as_deref()
+        .ok_or_else(|| "Java world folder name is missing".to_string())?;
+    msc_application::worlds::apply_world_profile(
+        &StdFileSystem,
+        dir,
+        ServerType::Java,
+        &profile,
+        if dir.join(level_name).join("level.dat").is_file() {
+            msc_application::worlds::WorldProfileApplyContext::Activation
+        } else {
+            msc_application::worlds::WorldProfileApplyContext::Creation
+        },
+        false,
+    )
+    .map(|_| ())
+    .map_err(|error| error.to_string())
+}
+
+fn java_bonus_chest(server: &ConfigServer) -> bool {
+    active_world_profile(server).is_some_and(|profile| {
+        profile.generation.bonus_chest == Some(true)
+            && profile
+                .identity
+                .level_name
+                .as_deref()
+                .is_some_and(|level_name| {
+                    !Path::new(&server.server_dir)
+                        .join(level_name)
+                        .join("level.dat")
+                        .exists()
+                })
+    })
 }
 
 fn apply_active_bedrock_world_profile(server: &ConfigServer) -> Result<(), String> {
@@ -3566,6 +3673,9 @@ fn build_launch_request(
         let mut arguments = jvm_flags(registered.min_ram_gb, registered.max_ram_gb, "");
         arguments.push(format!("@{args_file}"));
         arguments.push("nogui".to_string());
+        if java_bonus_chest(registered) {
+            arguments.push("--bonusChest".into());
+        }
         return Ok(ProcessSpawnRequest {
             executable_path: PathBuf::from(java_path),
             arguments,
@@ -3589,8 +3699,11 @@ fn build_launch_request(
         registered.max_ram_gb,
         "",
     );
-    let command = build_paper_launch_command(&StdJavaLaunchFileSystem, &request)
+    let mut command = build_paper_launch_command(&StdJavaLaunchFileSystem, &request)
         .map_err(|error| LifecycleError::Process(error.to_string()))?;
+    if java_bonus_chest(registered) {
+        command.arguments.push("--bonusChest".into());
+    }
     Ok(ProcessSpawnRequest {
         executable_path: command.executable_path,
         arguments: command.arguments,

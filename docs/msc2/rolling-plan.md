@@ -385,3 +385,14 @@ Evidence: Compared MSC's category lookup with CurseForge's current Prizma projec
 Verify: Restart npx tauri dev, reconnect, open Worlds → Browse Packs → Resource Packs, search “Prizma Visuals”, and confirm “Prizma Visuals Legacy (Vibrant Visuals Pack Deferred)” appears.
 Commit: P14.73: search bedrock texture pack category
 Batch: solo
+
+
+#### P14.74 — Search available Bedrock pack classes
+
+Status: awaiting Cameron verification
+Files: crates/msc-infrastructure/src/addon_provider.rs, docs/msc2/rolling-plan.md
+What: Fix CurseForge Texture Packs category lookup failing because the API does not return that category under the Bedrock Addons class. Resolve available Addons and Resource Packs classes from the API's class list, search the matching class for the selected filter, and fall back to Addons when the Resource Packs class is absent. The UI's Resource Packs filter uses Minecraft's broad term for what CurseForge labels Texture Packs; a second texture-pack filter would duplicate it.
+Evidence: The host returned “CurseForge did not return its Bedrock Texture Packs category” for that category lookup. Removed dependence on that missing category and use the available class IDs. Scoped clippy passes. No tests created or run.
+Verify: Restart npx tauri dev, Repair Service, reconnect, then search “Prizma Visuals” in Browse Packs → Resource Packs. Confirm its Legacy project appears.
+Commit: P14.74: search available bedrock pack classes
+Batch: solo

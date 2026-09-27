@@ -440,3 +440,13 @@ Evidence: Downloaded the real PrizmaVisuals 1.3.10.mcpack through the official C
 Verify: Run npx tauri dev in clients/desktop-web, Repair Service and reconnect to load the new agent, stop the Bedrock server, then install PrizmaVisuals 1.3.10 through Browse Packs → Versions. Confirm only that release shows Installing and the minimum-version error is gone. Start and join the world to check the native resource-pack download and appearance.
 Commit: P14.78: read pack requirements from manifest header
 Batch: solo
+
+#### P14.79 — Match world packs and backups panel layout
+
+Status: awaiting Cameron verification
+Files: clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte, clients/desktop-web/src/lib/sections/worlds/BackupsPanel.svelte, crates/msc-agent/src/routes/worlds.rs, crates/msc-application/src/addons.rs, docs/msc2/rolling-plan.md
+What: Put the World Packs title above its panel and move the Backups title above its panel. Give the Bedrock pack panel a top-right Required toggle and Browse Packs action, with a centered empty state when the selected slot has no packs. List installed Bedrock pack names and versions only, with Enable/Disable and confirmed Delete actions; disabled packs show struck-through name and version. Route pack changes through the existing world-profile endpoint and update the saved Bedrock world archive’s activation list and files, with rollback on profile or activation failure and guards for required dependencies. Preserve Java datapack presentation.
+Evidence: Scoped Rust clippy, rustfmt, Svelte check (0 errors, 7 existing warnings), frontend production build, and prepare:agent build pass. The changed Rust agent is staged at the Tauri debug agent path. No tests created or run.
+Verify: Run npx tauri dev from clients/desktop-web. On the Bedrock Worlds tab, check the headings sit above their panels, the empty pack state fills the panel, and Required/Browse Packs align at its top right. With the server stopped, disable the installed pack and confirm its name/version are struck through; enable it again, then delete it and confirm it disappears. Reinstall it, start the server, and check required-pack joining. Confirm Java datapacks and backups still appear normally.
+Commit: P14.79: match world packs and backups panel layout
+Batch: solo

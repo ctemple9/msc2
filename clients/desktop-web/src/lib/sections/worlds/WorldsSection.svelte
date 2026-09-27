@@ -81,6 +81,7 @@
   let selectedSlotId: string | undefined;
   let confirming: { slotId: string; kind: 'activate' | 'delete' | 'duplicate' } | undefined;
   let confirmingBackupDeleteId: string | undefined;
+  let confirmingPackDeleteId: string | undefined;
   let busy = false;
   let notice: string | undefined;
 
@@ -160,6 +161,33 @@
       notice = required
         ? 'Players must accept this world’s resource packs to join.'
         : 'Players may choose whether to download this world’s resource packs.';
+    } catch (error) {
+      notice = error instanceof Error ? error.message : String(error);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function changeBedrockPack(
+    pack: Schema['WorldPackRecordDTO'],
+    action: 'toggle' | 'delete',
+  ) {
+    if (!selectedSlot || !api || busy || worlds.serverRunning) return;
+    const slot = selectedSlot;
+    const current = profiles[slot.id]?.profile.packs ?? [];
+    const next =
+      action === 'delete'
+        ? current.filter((entry) => entry.id !== pack.id)
+        : current.map((entry) =>
+            entry.id === pack.id ? { ...entry, enabled: !entry.enabled } : entry,
+          );
+    busy = true;
+    try {
+      const result = await mutate<WorldProfileUpdateResult>(api, worldPaths.profile(slot.id), {
+        changes: { packs: next },
+      });
+      profiles = { ...profiles, [slot.id]: result.slot };
+      confirmingPackDeleteId = undefined;
     } catch (error) {
       notice = error instanceof Error ? error.message : String(error);
     } finally {
@@ -592,87 +620,120 @@
       <div class="overline">
         <span class="msc2-type-overline">{isBedrock ? 'World Packs' : 'Datapacks'}</span>
       </div>
-      <Button
-        size="sm"
-        variant="secondary"
-        disabled={!selectedSlot || busy || worlds.serverRunning}
-        title={!selectedSlot
-          ? 'Select a world slot first'
-          : worlds.serverRunning
-            ? 'Stop the server before installing a world pack'
-            : undefined}
-        onclick={() => (showPackBrowser = true)}
-      >
-        {isBedrock ? 'Browse Packs' : 'Browse Datapacks'}
-      </Button>
     </div>
-    {#if !selectedSlot}
-      <p class="ownership">
-        Select a world slot to see its {isBedrock ? 'packs' : 'datapacks'}.
-      </p>
-    {:else if worlds.serverRunning}
-      <p class="ownership">Stop the server before installing packs into a world slot.</p>
-    {/if}
-    {#if isBedrock && selectedSlot}
-      <div class="pack-preference">
-        <Toggle
-          label="Require resource packs to join"
-          checked={profiles[selectedSlot.id]?.profile.gameplay.supportedToggles?.[
-            'require-resource-packs'
-          ] ?? false}
-          disabled={busy || worlds.serverRunning || !profiles[selectedSlot.id]}
-          onchange={(value) => void setRequireResourcePacks(value)}
-        />
-        <span>Require resource packs to join</span>
-      </div>
-      <p class="ownership">
-        Minecraft offers this world’s resource packs when players join. When required, players must
-        accept to join. Vibrant Visuals effects depend on the player’s device and graphics setting.
-      </p>
-    {/if}
-    {#if selectedSlot}
-      {@const packs = profiles[selectedSlot.id]?.profile.packs ?? []}
-      {#if packs.length === 0}
-        <p class="ownership">
-          No {isBedrock ? 'packs' : 'datapacks'} recorded for {selectedSlot.name}.
-        </p>
-      {:else}
-        <Card padding="0">
-          {#each packs.filter((pack) => pack.edition === (isBedrock ? 'bedrock' : 'java')) as pack, index (pack.id)}
-            <div class="pack-row" class:bordered={index > 0}>
-              <div class="pack-info">
-                <span class="pack-name">{pack.name}</span>
-                {#if isBedrock}<span class="ownership"
-                    >{pack.kind === 'bedrock_resource_pack'
-                      ? 'Resource pack'
-                      : 'Behavior pack'}</span
-                  >{/if}
-                <span class="ownership">
-                  {pack.source.provider ?? 'Source unavailable'}
-                  {#if pack.source.version}
-                    · {pack.source.version}{/if}
-                  {#if pack.source.versionId && !pack.source.version}
-                    · {pack.source.versionId}{/if}
-                </span>
-                {#if pack.dependencies.length}
-                  <span class="ownership"
-                    >Dependencies: {pack.dependencies
-                      .map((dependency) => dependency.id)
-                      .join(', ')}</span
-                  >
-                {/if}
-                {#if pack.compatibility}<span class="ownership">{pack.compatibility}</span>{/if}
-                <span class="ownership">
-                  {pack.checksum ? `Checksum ${pack.checksum}` : 'Checksum unavailable'}
-                  · Update availability not reported
-                </span>
-              </div>
-              <Badge variant="status" tone={pack.enabled ? 'ok' : 'warn'}
-                >{pack.enabled ? 'Enabled' : 'Disabled'}</Badge
-              >
+    {#if isBedrock}
+      <Card>
+        <div class="pack-panel-header">
+          <div class="pack-panel-actions">
+            {#if selectedSlot}
+              <Toggle
+                label="Required"
+                checked={profiles[selectedSlot.id]?.profile.gameplay.supportedToggles?.[
+                  'require-resource-packs'
+                ] ?? false}
+                disabled={busy || worlds.serverRunning || !profiles[selectedSlot.id]}
+                onchange={(value) => void setRequireResourcePacks(value)}
+              />
+              <span class="required-label">Required</span>
+            {/if}
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={!selectedSlot || busy || worlds.serverRunning}
+              title={!selectedSlot
+                ? 'Select a world slot first'
+                : worlds.serverRunning
+                  ? 'Stop the server before installing a world pack'
+                  : undefined}
+              onclick={() => (showPackBrowser = true)}>Browse Packs</Button
+            >
+          </div>
+        </div>
+        {#if !selectedSlot}
+          <EmptyState title="Select a world slot" message="Select a slot to manage its packs.">
+            <Icon name="folder" size={26} slot="icon" />
+          </EmptyState>
+        {:else}
+          {@const packs = (profiles[selectedSlot.id]?.profile.packs ?? []).filter(
+            (pack) => pack.edition === 'bedrock',
+          )}
+          {#if packs.length === 0}
+            <EmptyState title="No packs installed" message="Use Browse Packs to download a pack.">
+              <Icon name="box" size={26} slot="icon" />
+            </EmptyState>
+          {:else}
+            <div class="pack-list">
+              {#each packs as pack, index (pack.id)}
+                <div class="pack-row" class:bordered={index > 0}>
+                  <div class="pack-info" class:disabled={!pack.enabled}>
+                    <span class="pack-name">{pack.name}</span>
+                    <span class="pack-version"
+                      >{pack.source.version ?? pack.source.versionId ?? ''}</span
+                    >
+                  </div>
+                  {#if confirmingPackDeleteId === pack.id}
+                    <span class="confirm">Delete this pack?</span>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={busy}
+                      onclick={() => void changeBedrockPack(pack, 'delete')}>Delete</Button
+                    >
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onclick={() => (confirmingPackDeleteId = undefined)}>Cancel</Button
+                    >
+                  {:else}
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={busy || worlds.serverRunning}
+                      onclick={() => void changeBedrockPack(pack, 'toggle')}
+                      >{pack.enabled ? 'Disable' : 'Enable'}</Button
+                    >
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={busy || worlds.serverRunning}
+                      onclick={() => (confirmingPackDeleteId = pack.id)}>Delete</Button
+                    >
+                  {/if}
+                </div>
+              {/each}
             </div>
-          {/each}
-        </Card>
+          {/if}
+        {/if}
+      </Card>
+    {:else}
+      {#if !selectedSlot}
+        <p class="ownership">Select a world slot to see its datapacks.</p>
+      {:else if worlds.serverRunning}
+        <p class="ownership">Stop the server before installing packs into a world slot.</p>
+      {/if}
+      {#if selectedSlot}
+        {@const packs = profiles[selectedSlot.id]?.profile.packs ?? []}
+        {#if packs.length === 0}
+          <p class="ownership">No datapacks recorded for {selectedSlot.name}.</p>
+        {:else}
+          <Card padding="0">
+            {#each packs.filter((pack) => pack.edition === 'java') as pack, index (pack.id)}
+              <div class="pack-row" class:bordered={index > 0}>
+                <div class="pack-info">
+                  <span class="pack-name">{pack.name}</span>
+                  <span class="ownership"
+                    >{pack.source.provider ?? 'Source unavailable'} · {pack.source.version ??
+                      pack.source.versionId ??
+                      ''}</span
+                  >
+                </div>
+                <Badge variant="status" tone={pack.enabled ? 'ok' : 'warn'}
+                  >{pack.enabled ? 'Enabled' : 'Disabled'}</Badge
+                >
+              </div>
+            {/each}
+          </Card>
+        {/if}
       {/if}
     {/if}
   </section>
@@ -871,11 +932,25 @@
 {/if}
 
 <style>
-  .pack-preference {
+  .pack-panel-header {
+    display: flex;
+    justify-content: flex-end;
+    margin: 0 0 12px;
+  }
+  .pack-panel-actions {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin: 12px 0;
+    flex-wrap: wrap;
+  }
+  .required-label {
+    margin-left: -6px;
+    color: var(--msc2-text-tertiary);
+    font-size: 11px;
+  }
+  .pack-list {
+    display: flex;
+    flex-direction: column;
   }
   .worlds {
     display: flex;
@@ -984,6 +1059,15 @@
     flex-direction: column;
     gap: 4px;
     min-width: 0;
+  }
+  .pack-info.disabled .pack-name,
+  .pack-info.disabled .pack-version {
+    color: var(--msc2-text-tertiary);
+    text-decoration: line-through;
+  }
+  .pack-version {
+    color: var(--msc2-text-tertiary);
+    font-size: 11px;
   }
   .pack-name {
     color: var(--msc2-text-primary);

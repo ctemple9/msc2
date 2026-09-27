@@ -282,6 +282,153 @@ pub enum BedrockBehaviorPackError {
     Io(String),
 }
 
+/// Change a Bedrock pack's activation entry in a saved world. Removing a pack
+/// also removes its files; disabling it keeps the files so it can be enabled
+/// again later.
+pub fn mutate_bedrock_world_pack(
+    world_zip_path: &Path,
+    pack: &msc_domain::world_profile::WorldPackRecord,
+    enabled: Option<bool>,
+) -> Result<PathBuf, BedrockBehaviorPackError> {
+    use std::collections::BTreeSet;
+
+    let activation_file = if pack.kind == "bedrock_resource_pack" {
+        "world_resource_packs.json"
+    } else if pack.kind == "bedrock_behavior_pack" {
+        "world_behavior_packs.json"
+    } else {
+        return Err(BedrockBehaviorPackError::Invalid(
+            "Only Bedrock behavior and resource packs can be changed here.".into(),
+        ));
+    };
+    let mut world = zip::ZipArchive::new(
+        std::fs::File::open(world_zip_path)
+            .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?,
+    )
+    .map_err(|error| BedrockBehaviorPackError::Invalid(error.to_string()))?;
+    let world_root = world
+        .file_names()
+        .find_map(|name| name.strip_suffix("level.dat"))
+        .unwrap_or("worlds/")
+        .to_owned();
+    let activation_path = format!("{world_root}{activation_file}");
+    let files: BTreeSet<String> = pack
+        .files
+        .iter()
+        .map(|file| format!("{world_root}{file}"))
+        .collect();
+    let files_found = world
+        .file_names()
+        .filter(|name| files.contains(*name))
+        .count();
+    if !pack.files.is_empty() && files_found == 0 {
+        return Err(BedrockBehaviorPackError::Invalid(
+            "The pack files are missing from this world; no changes were made.".into(),
+        ));
+    }
+    let mut activation = if let Some(index) = world.index_for_name(&activation_path) {
+        let mut entry = world
+            .by_index(index)
+            .map_err(|error| BedrockBehaviorPackError::Invalid(error.to_string()))?;
+        let mut bytes = Vec::new();
+        entry
+            .read_to_end(&mut bytes)
+            .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?;
+        serde_json::from_slice::<serde_json::Value>(&bytes).map_err(|_| {
+            BedrockBehaviorPackError::Invalid(format!(
+                "The world's {activation_file} file is malformed; no changes were made."
+            ))
+        })?
+    } else {
+        serde_json::Value::Array(Vec::new())
+    };
+    let Some(entries) = activation.as_array_mut() else {
+        return Err(BedrockBehaviorPackError::Invalid(format!(
+            "The world's {activation_file} file is not a pack list; no changes were made."
+        )));
+    };
+    entries.retain(|entry| {
+        !entry
+            .get("pack_id")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|id| id.eq_ignore_ascii_case(&pack.id))
+    });
+    if enabled == Some(true) {
+        let version = pack
+            .source
+            .version
+            .as_deref()
+            .unwrap_or("1.0.0")
+            .split('.')
+            .map(|part| part.parse::<u64>())
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| {
+                BedrockBehaviorPackError::Invalid(
+                    "The pack version cannot be read; no changes were made.".into(),
+                )
+            })?;
+        entries.push(serde_json::json!({"pack_id": pack.id, "version": version}));
+    }
+    let activation_bytes = serde_json::to_vec_pretty(&activation)
+        .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?;
+
+    let temp_path = world_zip_path.with_extension(format!("{}.pack.tmp", uuid::Uuid::new_v4()));
+    let temp_file = std::fs::File::create(&temp_path)
+        .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?;
+    let mut output = zip::ZipWriter::new(temp_file);
+    let options = zip::write::SimpleFileOptions::default();
+    for index in 0..world.len() {
+        let mut entry = world
+            .by_index(index)
+            .map_err(|error| BedrockBehaviorPackError::Invalid(error.to_string()))?;
+        let name = entry.name().to_owned();
+        if name == activation_path || enabled.is_none() && files.contains(&name) {
+            continue;
+        }
+        if entry.is_dir() {
+            output
+                .add_directory(name, options)
+                .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?;
+            continue;
+        }
+        output
+            .start_file(name, options)
+            .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?;
+        std::io::copy(&mut entry, &mut output)
+            .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?;
+    }
+    output
+        .start_file(&activation_path, options)
+        .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?;
+    output
+        .write_all(&activation_bytes)
+        .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?;
+    // Windows will not let us replace the archive while its reader is still open.
+    drop(world);
+    output
+        .finish()
+        .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?
+        .sync_all()
+        .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?;
+    let backup_path =
+        world_zip_path.with_extension(format!("{}.pre-pack-change.bak", uuid::Uuid::new_v4()));
+    std::fs::copy(world_zip_path, &backup_path).map_err(|error| {
+        let _ = std::fs::remove_file(&temp_path);
+        BedrockBehaviorPackError::Io(error.to_string())
+    })?;
+    if let Err(error) = std::fs::remove_file(world_zip_path) {
+        let _ = std::fs::remove_file(&temp_path);
+        let _ = std::fs::remove_file(&backup_path);
+        return Err(BedrockBehaviorPackError::Io(error.to_string()));
+    }
+    if let Err(error) = std::fs::rename(&temp_path, world_zip_path) {
+        let _ = std::fs::remove_file(&temp_path);
+        let _ = std::fs::copy(&backup_path, world_zip_path);
+        return Err(BedrockBehaviorPackError::Io(error.to_string()));
+    }
+    Ok(backup_path)
+}
+
 impl fmt::Display for BedrockBehaviorPackError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

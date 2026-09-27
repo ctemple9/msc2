@@ -57,12 +57,14 @@
   }));
 </script>
 
+<div class="section-heading">
+  <div class="overline">
+    <span class="msc2-type-overline">Backups</span>
+    {#if selectedSlot}<span class="slot-name">· {selectedSlot.name}</span>{/if}
+  </div>
+</div>
 <Card>
   <div class="header">
-    <div class="overline">
-      <span class="msc2-type-overline">Backups</span>
-      {#if selectedSlot}<span class="slot-name">· {selectedSlot.name}</span>{/if}
-    </div>
     <div class="header-actions">
       {#if config}
         <Toggle
@@ -205,7 +207,7 @@
   .header {
     display: flex;
     align-items: flex-start;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: 10px;
     margin-bottom: 12px;
     flex-wrap: wrap;
@@ -215,6 +217,11 @@
     align-items: center;
     gap: 6px;
     color: var(--msc2-text-tertiary);
+  }
+  .section-heading {
+    display: flex;
+    align-items: center;
+    min-height: 22px;
   }
   .slot-name {
     font-size: 11px;

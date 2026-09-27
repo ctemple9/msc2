@@ -1597,7 +1597,8 @@ pub async fn install_bedrock_behavior_pack(
             return error_response(status, code, &error.to_string());
         }
     };
-    let mut profile = world_store::load_profile(&StdFileSystem, server_dir, &slot);
+    let original_profile = world_store::load_profile(&StdFileSystem, server_dir, &slot);
+    let mut profile = original_profile.clone();
     for pack in &packs {
         profile.packs.retain(|existing| existing.id != pack.id);
         profile.packs.push(pack.clone());
@@ -1727,7 +1728,8 @@ pub async fn update_profile(
     let Some(slot) = find_slot(server_dir, &slot_id) else {
         return error_response(StatusCode::NOT_FOUND, "not_found", "World slot not found.");
     };
-    let mut profile = world_store::load_profile(&StdFileSystem, server_dir, &slot);
+    let original_profile = world_store::load_profile(&StdFileSystem, server_dir, &slot);
+    let mut profile = original_profile.clone();
     for (key, value) in &changes {
         if let Err(message) = apply_profile_change(&mut profile, server.server_type, key, value) {
             return invalid_body("invalid_body", &message);
@@ -1746,6 +1748,116 @@ pub async fn update_profile(
 
     let active = resolved_active_slot_id(server_dir).as_deref() == Some(slot.id.as_str());
     let running = state.lifecycle.status_snapshot().running;
+    let changes_packs =
+        changes.iter().any(|(key, _)| key == "packs") && profile.packs != original_profile.packs;
+    let mut pack_backup = None;
+    let mut pack_mutation: Option<(WorldPackRecord, Option<bool>)> = None;
+    if changes_packs {
+        if changes.len() != 1 {
+            return invalid_body(
+                "one_profile_change_required",
+                "Change Bedrock packs separately from other world settings.",
+            );
+        }
+        if server.server_type != ServerType::Bedrock {
+            return error_response(
+                StatusCode::CONFLICT,
+                "unsupported_pack_change",
+                "Only Bedrock world packs can be managed here.",
+            );
+        }
+        if active && running {
+            return error_response(
+                StatusCode::CONFLICT,
+                "server_running",
+                "Stop the server before changing packs in its active world.",
+            );
+        }
+        let added: Vec<_> = profile
+            .packs
+            .iter()
+            .filter(|pack| !original_profile.packs.iter().any(|old| old.id == pack.id))
+            .collect();
+        if !added.is_empty() {
+            return invalid_body(
+                "pack_install_required",
+                "Install new packs through Browse Packs.",
+            );
+        }
+        for old in &original_profile.packs {
+            if let Some(candidate) = profile.packs.iter().find(|pack| pack.id == old.id) {
+                let mut metadata_only_enabled = candidate.clone();
+                metadata_only_enabled.enabled = old.enabled;
+                if metadata_only_enabled != *old {
+                    return invalid_body(
+                        "pack_metadata_read_only",
+                        "Pack details can only be changed through pack install and management actions.",
+                    );
+                }
+            }
+        }
+        let removed: Vec<_> = original_profile
+            .packs
+            .iter()
+            .filter(|old| !profile.packs.iter().any(|pack| pack.id == old.id))
+            .collect();
+        let toggled: Vec<_> = original_profile
+            .packs
+            .iter()
+            .filter(|old| {
+                profile
+                    .packs
+                    .iter()
+                    .find(|pack| pack.id == old.id)
+                    .is_some_and(|pack| pack.enabled != old.enabled)
+            })
+            .collect();
+        if removed.len() + toggled.len() != 1 {
+            return invalid_body(
+                "one_pack_change_required",
+                "Change one installed pack at a time.",
+            );
+        }
+        let pack = removed
+            .first()
+            .copied()
+            .or_else(|| toggled.first().copied())
+            .unwrap();
+        let next_enabled = profile
+            .packs
+            .iter()
+            .find(|candidate| candidate.id == pack.id)
+            .map(|candidate| candidate.enabled);
+        let dependent = original_profile.packs.iter().any(|candidate| {
+            candidate.enabled
+                && candidate.id != pack.id
+                && candidate.dependencies.iter().any(|dependency| {
+                    dependency.id.eq_ignore_ascii_case(&pack.id) && dependency.required
+                })
+        });
+        if dependent && next_enabled != Some(true) {
+            return error_response(
+                StatusCode::CONFLICT,
+                "required_pack_dependency",
+                "Another enabled pack requires this pack. Remove or disable that pack first.",
+            );
+        }
+        if next_enabled == Some(true)
+            && pack.dependencies.iter().any(|dependency| {
+                dependency.required
+                    && !profile.packs.iter().any(|candidate| {
+                        candidate.id.eq_ignore_ascii_case(&dependency.id) && candidate.enabled
+                    })
+            })
+        {
+            return error_response(
+                StatusCode::CONFLICT,
+                "required_pack_dependency",
+                "Enable this pack's required packs first.",
+            );
+        }
+        pack_mutation = Some((pack.clone(), next_enabled));
+    }
     let mut updated_slot = slot.clone();
     if let Some(name) = profile.identity.name.as_deref() {
         updated_slot.name = name.to_string();
@@ -1753,9 +1865,53 @@ pub async fn update_profile(
     if let Some(level_name) = profile.identity.level_name.as_deref() {
         updated_slot.world_level_name = Some(level_name.to_string());
     }
+    let updated_slot = if changes_packs && active {
+        match worlds::update_active_slot_from_current_world(
+            &StdFileSystem,
+            server_dir,
+            ServerType::Bedrock,
+            None,
+            &updated_slot,
+        )
+        .and_then(|updated| {
+            world_store::save_profile(&StdFileSystem, server_dir, &updated, &original_profile)?;
+            Ok(updated)
+        }) {
+            Ok(updated) => updated,
+            Err(error) => {
+                return error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "world_snapshot_failed",
+                    &error.to_string(),
+                );
+            }
+        }
+    } else {
+        updated_slot
+    };
+    if changes_packs {
+        let (pack, next_enabled) = pack_mutation.as_ref().expect("validated above");
+        match msc_application::addons::mutate_bedrock_world_pack(
+            &world_store::zip_path(server_dir, &updated_slot.id),
+            pack,
+            *next_enabled,
+        ) {
+            Ok(backup) => pack_backup = Some(backup),
+            Err(error) => {
+                return error_response(
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    "pack_change_failed",
+                    &error.to_string(),
+                );
+            }
+        }
+    }
     if let Err(error) =
         world_store::save_profile(&StdFileSystem, server_dir, &updated_slot, &profile)
     {
+        if let Some(backup) = &pack_backup {
+            let _ = std::fs::copy(backup, world_store::zip_path(server_dir, &updated_slot.id));
+        }
         return error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
             "internal_error",
@@ -1763,7 +1919,44 @@ pub async fn update_profile(
         );
     }
 
-    let mut report = if active {
+    if changes_packs && active {
+        let raw_level_name = worlds::read_configured_level_name(&StdFileSystem, server_dir);
+        if let Err(error) = worlds::activate_slot(
+            &StdFileSystem,
+            server_dir,
+            ServerType::Bedrock,
+            &updated_slot,
+            false,
+            &iso8601_now(),
+            || {
+                run_pre_mutation_safety_backup(
+                    &state.lifecycle,
+                    server_dir,
+                    ServerType::Bedrock,
+                    raw_level_name.as_deref(),
+                    || false,
+                )
+            },
+            || false,
+        ) {
+            if let Some(backup) = &pack_backup {
+                let _ = std::fs::copy(backup, world_store::zip_path(server_dir, &updated_slot.id));
+            }
+            let _ = world_store::save_profile(
+                &StdFileSystem,
+                server_dir,
+                &updated_slot,
+                &original_profile,
+            );
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "pack_activation_failed",
+                &error.to_string(),
+            );
+        }
+    }
+
+    let mut report = if active && !changes_packs {
         match worlds::apply_world_profile(
             &StdFileSystem,
             server_dir,
@@ -1786,7 +1979,7 @@ pub async fn update_profile(
     };
     let mut response_changes = Vec::new();
     for (key, _) in changes {
-        if !active {
+        if !active && key != "packs" {
             response_changes.push(WorldProfileChangeDto {
                 key,
                 status: "blocked".to_string(),
@@ -1794,7 +1987,13 @@ pub async fn update_profile(
             });
             continue;
         }
-        if let Some(change) = report.changes.iter_mut().find(|change| change.key == key) {
+        if key == "packs" && changes_packs {
+            response_changes.push(WorldProfileChangeDto {
+                key,
+                status: "applied".to_string(),
+                reason: None,
+            });
+        } else if let Some(change) = report.changes.iter_mut().find(|change| change.key == key) {
             response_changes.push(WorldProfileChangeDto {
                 key,
                 status: change.status.raw_value().to_string(),
@@ -1821,6 +2020,9 @@ pub async fn update_profile(
     } else {
         "live"
     };
+    if let Some(backup) = pack_backup.take() {
+        let _ = std::fs::remove_file(backup);
+    }
     let saved_profile = world_store::load_profile(&StdFileSystem, server_dir, &updated_slot);
     Json(WorldProfileUpdateResultDto {
         success: true,

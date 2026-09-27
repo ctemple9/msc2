@@ -41,6 +41,7 @@
   let detailRequestId = 0;
   let loading = false;
   let installing = '';
+  let installingFileId: number | undefined;
   let installed = new Set<string>();
   let notice = '';
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -157,6 +158,10 @@
     timer = setTimeout(() => void search(), 350);
   }
 
+  function bedrockFileKey(projectId: string, fileId: number): string {
+    return `${projectId}:${fileId}`;
+  }
+
   async function installJava(item: Schema['CatalogItemDTO']): Promise<void> {
     if (!api) return;
     installing = item.projectId;
@@ -189,8 +194,9 @@
     item: Schema['BedrockBehaviorPackCatalogItemDTO'],
     fileId = item.fileId,
   ): Promise<void> {
-    if (!api) return;
+    if (!api || installing) return;
     installing = item.projectId;
+    installingFileId = fileId;
     notice = '';
     try {
       const result = await mutate<Schema['BedrockBehaviorPackInstallResultDTO']>(
@@ -203,12 +209,13 @@
         throw new Error(operation?.error?.message ?? 'The pack installation did not complete.');
       }
       notice = `${item.title} installed.`;
-      installed = new Set(installed).add(item.projectId);
+      installed = new Set(installed).add(bedrockFileKey(item.projectId, fileId));
       onInstalled();
     } catch (error) {
       notice = errorMessage(error);
     } finally {
       installing = '';
+      installingFileId = undefined;
     }
   }
 
@@ -327,8 +334,6 @@
   {:else if bedrock}
     <div class="results">
       {#each bedrockResults as item (item.projectId)}
-        {@const compatible =
-          !!selectedMinecraftVersion && item.minecraftVersion === selectedMinecraftVersion}
         <div class="result">
           <button type="button" class="result-link" onclick={() => void showBedrockDetail(item)}>
             <div class="icon">
@@ -347,19 +352,18 @@
               <p class="description">{item.description}</p>
             </div>
           </button>
-          {#if installed.has(item.projectId)}
+          {#if installed.has(bedrockFileKey(item.projectId, item.fileId))}
             <span class="added">Added</span>
           {:else if installing === item.projectId}
             <span class="added">Installing…</span>
           {:else if versionLoading}
             <span class="added">Checking version…</span>
-          {:else if !selectedMinecraftVersion}
-            <Badge variant="status" tone="warn">Version unknown</Badge>
-          {:else if !compatible}
-            <Badge variant="category">Version not listed</Badge>
           {:else}
-            <Button size="sm" variant="secondary" onclick={() => void installBedrock(item)}
-              >Add</Button
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={!!installing}
+              onclick={() => void showBedrockDetail(item)}>Versions</Button
             >
           {/if}
         </div>
@@ -486,13 +490,6 @@
         {:else}
           <div class="versions">
             {#each visibleFiles.slice(0, 40) as file (file.id)}
-              {@const compatible =
-                !!selectedMinecraftVersion && file.gameVersions.includes(selectedMinecraftVersion)}
-              {@const compatibilityLabel = !selectedMinecraftVersion
-                ? 'Version unknown'
-                : compatible
-                  ? 'Version listed'
-                  : 'Version not listed'}
               {@const expanded = expandedFileIds.has(file.id)}
               <div class="version-row">
                 <button
@@ -510,21 +507,19 @@
                       <Badge variant="status" tone={fileReleaseTone(file.releaseType)}>
                         {fileReleaseLabel(file.releaseType)}
                       </Badge>
-                      <Badge variant={compatible ? 'status' : 'category'} tone="ok">
-                        {compatibilityLabel}
-                      </Badge>
                     </span>
                     <span class="version-mc">{file.gameVersions.slice(0, 4).join(', ')}</span>
                   </span>
                 </button>
-                {#if installed.has(detail.projectId)}
+                {#if installed.has(bedrockFileKey(detail.projectId, file.id))}
                   <span class="added">Added</span>
-                {:else if installing === detail.projectId}
+                {:else if installing === detail.projectId && installingFileId === file.id}
                   <span class="added">Installing…</span>
                 {:else}
                   <Button
                     size="sm"
                     variant="secondary"
+                    disabled={!!installing}
                     onclick={() => void installBedrock(detailItem!, file.id)}>Install</Button
                   >
                 {/if}

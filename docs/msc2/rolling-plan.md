@@ -429,3 +429,14 @@ Evidence: A read-only command using the production installed-distribution reader
 Verify: Restart npx tauri dev, Repair Service, reconnect, stop the Bedrock server, and install Prizma's Legacy release from Browse Packs. Confirm the unknown Bedrock version error is gone, then start and join the world to accept the resource-pack download. Version not listed labels describe only missing exact CurseForge tags.
 Commit: P14.77: check packs against installed bedrock version
 Batch: solo
+
+
+#### P14.78 — Read pack requirements from the manifest header
+
+Status: awaiting Cameron verification
+Files: crates/msc-domain/src/bedrock.rs, clients/desktop-web/src/lib/sections/worlds/WorldPackBrowserSheet.svelte, docs/msc2/rolling-plan.md
+What: Fix the shared resource/behavior manifest parser reading min_engine_version from the JSON root instead of header. Track the selected CurseForge file ID so only its release shows Installing; disable other release installs during the operation and guard concurrent requests. Remove repeated exact-tag mismatch badges from search results and releases. Search results offer Versions, while creator version tags and the existing single compatibility explanation remain available in details.
+Evidence: Downloaded the real PrizmaVisuals 1.3.10.mcpack through the official CurseForge API/CDN. The corrected production parser reads its header minimum as 1.16.200, pack version as 1.3.0, and resource UUID as 3bcccbf1-ff4d-43a5-8452-12b9534dd70d. This minimum is below the previously verified installed Bedrock version 1.26.52.3. Scoped clippy, formatting, Svelte check (0 errors, 7 existing warnings), frontend production build, and prepare:agent build pass. No tests created or run. Native Minecraft download and rendering await Cameron verification.
+Verify: Run npx tauri dev in clients/desktop-web, Repair Service and reconnect to load the new agent, stop the Bedrock server, then install PrizmaVisuals 1.3.10 through Browse Packs → Versions. Confirm only that release shows Installing and the minimum-version error is gone. Start and join the world to check the native resource-pack download and appearance.
+Commit: P14.78: read pack requirements from manifest header
+Batch: solo

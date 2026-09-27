@@ -69,7 +69,7 @@ fn parse_bedrock_pack_manifest(
     }
     let version = manifest_version(header.get("version"))
         .ok_or_else(|| format!("The {label} manifest has no valid version."))?;
-    let minimum_bedrock_version = manifest_version(root.get("min_engine_version"))
+    let minimum_bedrock_version = manifest_version(header.get("min_engine_version"))
         .ok_or_else(|| format!("The {label} manifest has no valid minimum Bedrock version."))?;
 
     let modules = root

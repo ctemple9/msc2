@@ -470,3 +470,13 @@ Evidence: Prettier check passes; Svelte check reports 0 errors and the same 7 ex
 Verify: Run npx tauri dev from clients/desktop-web. Confirm Required and Auto switches align, both labels start at the same offset from their switches, and the longer Required label no longer crowds its switch.
 Commit: P14.81: align Required and Auto toggle labels
 Batch: solo
+
+#### P14.82 — Rename the recurring backup toggle
+
+Status: awaiting Cameron verification
+Files: clients/desktop-web/src/lib/sections/worlds/BackupsPanel.svelte, docs/msc2/rolling-plan.md
+What: Change the visible and accessible backup schedule toggle label from “Auto” to “Recurring.”
+Evidence: Prettier check passes; Svelte check reports 0 errors and 7 existing warnings. No tests created or run.
+Verify: Run npx tauri dev from clients/desktop-web and confirm the backup toggle reads “Recurring.”
+Commit: P14.82: rename recurring backup toggle
+Batch: solo

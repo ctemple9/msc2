@@ -82,10 +82,10 @@
         <div class="aligned-toggle">
           <Toggle
             checked={config.autoBackupEnabled}
-            label="Automatic backups"
+            label="Recurring backups"
             onchange={onToggleAuto}
           />
-          <span>Auto</span>
+          <span>Recurring</span>
         </div>
       {/if}
       <div class="section-action">

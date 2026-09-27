@@ -147,6 +147,7 @@
       displayName = importDisplayNameFromPath(draft.importSourcePath);
     }
   }
+  let resolvingWorldVersion = false;
   $: canContinue =
     currentStep === 1 ||
     (currentStep === 2 && path === 'fresh' && canAdvanceConfigure(draft)) ||
@@ -158,8 +159,8 @@
     // Review's own `canAdvance` case is unconditional in the oracle --
     // nothing on this step blocks Continue once it's reachable at all.
     (currentStep === 3 && path === 'importExisting' && !showModpack) ||
-    (currentStep === 4 && path === 'fresh' && canAdvanceWorld(draft)) ||
-    (currentStep === 4 && showModpack && canAdvanceWorld(draft)) ||
+    (currentStep === 4 && path === 'fresh' && !resolvingWorldVersion && canAdvanceWorld(draft)) ||
+    (currentStep === 4 && showModpack && !resolvingWorldVersion && canAdvanceWorld(draft)) ||
     (currentStep === 4 && path === 'importExisting' && !showModpack && canAdvanceNetwork(draft)) ||
     (currentStep === 5 && path === 'fresh' && showAddOns);
 
@@ -470,9 +471,9 @@
       {:else if currentStep === 3 && path === 'importExisting'}
         <ReviewStep bind:draft />
       {:else if currentStep === 4 && path === 'fresh'}
-        <WorldStep {api} bind:draft />
+        <WorldStep {api} bind:draft bind:resolvingVersion={resolvingWorldVersion} />
       {:else if currentStep === 4 && showModpack}
-        <WorldStep {api} bind:draft />
+        <WorldStep {api} bind:draft bind:resolvingVersion={resolvingWorldVersion} />
       {:else if currentStep === 4 && path === 'importExisting'}
         <NetworkStep bind:draft />
       {:else if currentStep === 5 && path === 'fresh' && showAddOns}

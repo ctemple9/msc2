@@ -17,8 +17,9 @@
   import Sheet from '../../components/base/Sheet.svelte';
   import Button from '../../components/base/Button.svelte';
   import Field from '../../components/base/Field.svelte';
+  import Select from '../../components/base/Select.svelte';
   import Icon from '../../components/base/Icon.svelte';
-  import type { Schema } from '../shared/types';
+  import type { Schema, ScreenApi } from '../shared/types';
   import {
     COMMAND_CATEGORIES,
     buildCommand,
@@ -30,6 +31,7 @@
     type MinecraftCommandDef,
   } from './model';
 
+  export let api: ScreenApi | undefined = undefined;
   export let serverType: string | undefined = undefined;
   export let onlinePlayers: readonly CommandPlayerName[] = [];
   export let capabilities: Schema['CapabilitiesDTO'] | null = null;
@@ -48,6 +50,43 @@
   let category: CommandCategory | undefined;
   let selected: MinecraftCommandDef | undefined;
   let argValues: string[] = [];
+  let ruleCatalog: Schema['GameruleCatalogDTO'] | undefined;
+  let ruleSearch = '';
+  let ruleError = '';
+  let manualRule = false;
+  let ruleRequest = '';
+  let ruleClient: ScreenApi | undefined;
+  $: ruleVersion = (capabilities?.context as { minecraftVersion?: string } | undefined)
+    ?.minecraftVersion;
+  $: nextRuleRequest = JSON.stringify([serverType, ruleVersion]);
+  $: if (nextRuleRequest !== ruleRequest || api !== ruleClient) {
+    ruleRequest = nextRuleRequest;
+    ruleClient = api;
+    ruleCatalog = undefined;
+    if (api && (serverType === 'java' || serverType === 'bedrock'))
+      void loadRules(api, nextRuleRequest);
+  }
+  async function loadRules(client: ScreenApi, key: string): Promise<void> {
+    ruleError = '';
+    const params = new URLSearchParams({ serverType: serverType!, activeServer: 'true' });
+    if (ruleVersion) params.set('minecraftVersion', ruleVersion);
+    try {
+      const result = await client.get<Schema['GameruleCatalogDTO']>(
+        `/v1/catalog/gamerules?${params}`,
+      );
+      if (ruleRequest === key && ruleClient === client) ruleCatalog = result;
+    } catch {
+      if (ruleRequest === key && ruleClient === client)
+        ruleError = 'Rule catalog unavailable. Enter the rule manually.';
+    }
+  }
+  $: matchingRules = (ruleCatalog?.rules ?? []).filter((rule) =>
+    `${rule.label} ${rule.id} ${rule.description}`.toLowerCase().includes(ruleSearch.toLowerCase()),
+  );
+  $: selectedRule = ruleCatalog?.rules.find((rule) => rule.id === argValues[0]);
+  function chooseRule(id: string): void {
+    argValues = [id, ''];
+  }
 
   $: available = commandsFor(serverType);
   $: filtered = available.filter((def) => {
@@ -116,44 +155,105 @@
         {/if}
       </div>
 
-      {#each definition.argumentSlots as slot, index (index)}
+      {#if definition.name === 'gamerule'}
         <div class="arg-field">
           <p class="arg-label">
-            <span class="arg-index">Argument {index + 1} of {definition.argumentSlots.length}</span>
-            <span>{slot.label}</span>
+            Gameplay rule · Minecraft {ruleCatalog?.minecraftVersion ?? 'version unknown'}
           </p>
-          {#if slot.kind === 'player' && onlinePlayers.length}
-            <div class="chip-row">
-              {#each onlinePlayers as onlinePlayer (onlinePlayer.name)}
-                <button
-                  type="button"
-                  class="pick-chip"
-                  class:selected={argValues[index] === onlinePlayer.name}
-                  onclick={() => (argValues[index] = onlinePlayer.name)}
-                >
-                  {onlinePlayer.name}
-                </button>
-              {/each}
-            </div>
-            <Field bind:value={argValues[index]} placeholder={slot.label} />
-          {:else if slot.kind === 'keyword' && slot.options}
-            <div class="chip-row">
-              {#each slot.options as option (option)}
-                <button
-                  type="button"
-                  class="pick-chip"
-                  class:selected={argValues[index] === option}
-                  onclick={() => (argValues[index] = option)}
-                >
-                  {option}
-                </button>
-              {/each}
-            </div>
+          <Button size="sm" variant="secondary" onclick={() => (manualRule = !manualRule)}
+            >{manualRule ? 'Browse Rules' : 'Enter Manually'}</Button
+          >
+          {#if ruleCatalog?.available && !manualRule}
+            <Field bind:value={ruleSearch} placeholder="Search gameplay rules…" />
+            <Select
+              value={argValues[0] ?? ''}
+              options={[
+                { value: '', label: 'Select a rule' },
+                ...matchingRules.map((rule) => ({
+                  value: rule.id,
+                  label: `${rule.label} (${rule.id})`,
+                })),
+              ]}
+              ariaLabel="Gameplay rule"
+              onchange={chooseRule}
+            />
           {:else}
-            <Field bind:value={argValues[index]} placeholder={slot.label} />
+            <p class="semantic-note">
+              {ruleError || ruleCatalog?.note || 'Enter the rule manually while the catalog loads.'}
+            </p>
+            <Field bind:value={argValues[0]} placeholder="Rule name" />
+          {/if}
+          {#if selectedRule}<p class="semantic-note">{selectedRule.description}</p>{/if}
+          {#if selectedRule?.type === 'boolean' || selectedRule?.type === 'choice'}
+            <Select
+              value={argValues[1] ?? ''}
+              options={[
+                { value: '', label: 'Query current value' },
+                ...(selectedRule.type === 'boolean' ? ['true', 'false'] : selectedRule.choices).map(
+                  (value) => ({ value, label: value }),
+                ),
+              ]}
+              ariaLabel="Gameplay rule value"
+              onchange={(value) => (argValues[1] = value)}
+            />
+          {:else if selectedRule?.type === 'integer'}
+            <input
+              class="rule-number"
+              type="number"
+              value={argValues[1] ?? ''}
+              min={selectedRule.minimum ?? -2147483648}
+              max={selectedRule.maximum ?? 2147483647}
+              step="1"
+              aria-label="Gameplay rule value (leave blank to query)"
+              placeholder="Value (leave blank to query)"
+              oninput={(event) => (argValues[1] = event.currentTarget.value)}
+            />
+          {:else}
+            <Field bind:value={argValues[1]} placeholder="Value (leave blank to query)" />
           {/if}
         </div>
-      {/each}
+      {:else}
+        {#each definition.argumentSlots as slot, index (index)}
+          <div class="arg-field">
+            <p class="arg-label">
+              <span class="arg-index"
+                >Argument {index + 1} of {definition.argumentSlots.length}</span
+              >
+              <span>{slot.label}</span>
+            </p>
+            {#if slot.kind === 'player' && onlinePlayers.length}
+              <div class="chip-row">
+                {#each onlinePlayers as onlinePlayer (onlinePlayer.name)}
+                  <button
+                    type="button"
+                    class="pick-chip"
+                    class:selected={argValues[index] === onlinePlayer.name}
+                    onclick={() => (argValues[index] = onlinePlayer.name)}
+                  >
+                    {onlinePlayer.name}
+                  </button>
+                {/each}
+              </div>
+              <Field bind:value={argValues[index]} placeholder={slot.label} />
+            {:else if slot.kind === 'keyword' && slot.options}
+              <div class="chip-row">
+                {#each slot.options as option (option)}
+                  <button
+                    type="button"
+                    class="pick-chip"
+                    class:selected={argValues[index] === option}
+                    onclick={() => (argValues[index] = option)}
+                  >
+                    {option}
+                  </button>
+                {/each}
+              </div>
+            {:else}
+              <Field bind:value={argValues[index]} placeholder={slot.label} />
+            {/if}
+          </div>
+        {/each}
+      {/if}
 
       <div class="preview-block">
         <span class="msc2-type-overline">Preview</span>
@@ -411,6 +511,19 @@
     font-family: var(--msc2-font-mono);
     font-size: 11px;
     color: var(--msc2-text-tertiary);
+  }
+  .rule-number {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 7px 10px;
+    border: 1px solid var(--msc2-hairline-field);
+    border-radius: 8px;
+    background: var(--msc2-tier-chrome);
+    color: var(--msc2-text-primary);
+    font: inherit;
+  }
+  .rule-number:focus-visible {
+    outline: 1px solid var(--msc2-hairline-field-focus);
   }
   .arg-field {
     display: flex;

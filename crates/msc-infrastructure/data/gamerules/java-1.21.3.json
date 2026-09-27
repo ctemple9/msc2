@@ -1,0 +1,492 @@
+{
+  "serverType": "java",
+  "minecraftVersion": "1.21.3",
+  "complete": true,
+  "source": "https://piston-data.mojang.com/v1/objects/45810d238246d90e811d896f87b14695b7fb6839/server.jar",
+  "sourceSha1": "45810d238246d90e811d896f87b14695b7fb6839",
+  "languageSource": "https://piston-data.mojang.com/v1/objects/6f67d19b4467240639cb2c368ffd4b94ba889705/client.jar",
+  "languageSha1": "6f67d19b4467240639cb2c368ffd4b94ba889705",
+  "rules": [
+    {
+      "id": "announceAdvancements",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Announce advancements",
+      "description": "Changes announce advancements for this world."
+    },
+    {
+      "id": "blockExplosionDropDecay",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "In block interaction explosions, some blocks won't drop their loot",
+      "description": "Some of the drops from blocks destroyed by explosions caused by block interactions are lost in the explosion."
+    },
+    {
+      "id": "commandBlockOutput",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Broadcast command block output",
+      "description": "Changes command block output for this world."
+    },
+    {
+      "id": "commandModificationBlockLimit",
+      "type": "integer",
+      "defaultValue": "32768",
+      "choices": [],
+      "experimental": false,
+      "label": "Command modification block limit",
+      "description": "Number of blocks that can be changed at once by one command, such as fill or clone."
+    },
+    {
+      "id": "disableElytraMovementCheck",
+      "type": "boolean",
+      "defaultValue": "false",
+      "choices": [],
+      "experimental": false,
+      "label": "Disable elytra movement check",
+      "description": "Changes disable elytra movement check for this world."
+    },
+    {
+      "id": "disablePlayerMovementCheck",
+      "type": "boolean",
+      "defaultValue": "false",
+      "choices": [],
+      "experimental": false,
+      "label": "Disable player movement check",
+      "description": "Changes disable player movement check for this world."
+    },
+    {
+      "id": "disableRaids",
+      "type": "boolean",
+      "defaultValue": "false",
+      "choices": [],
+      "experimental": false,
+      "label": "Disable raids",
+      "description": "Changes disable raids for this world."
+    },
+    {
+      "id": "doDaylightCycle",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Advance time of day",
+      "description": "Changes do daylight cycle for this world."
+    },
+    {
+      "id": "doEntityDrops",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Drop entity equipment",
+      "description": "Controls drops from minecarts (including inventories), item frames, boats, etc."
+    },
+    {
+      "id": "doFireTick",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Update fire",
+      "description": "Changes do fire tick for this world."
+    },
+    {
+      "id": "doImmediateRespawn",
+      "type": "boolean",
+      "defaultValue": "false",
+      "choices": [],
+      "experimental": false,
+      "label": "Respawn immediately",
+      "description": "Changes do immediate respawn for this world."
+    },
+    {
+      "id": "doInsomnia",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Spawn phantoms",
+      "description": "Changes do insomnia for this world."
+    },
+    {
+      "id": "doLimitedCrafting",
+      "type": "boolean",
+      "defaultValue": "false",
+      "choices": [],
+      "experimental": false,
+      "label": "Require recipe for crafting",
+      "description": "If enabled, players will be able to craft only unlocked recipes."
+    },
+    {
+      "id": "doMobLoot",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Drop mob loot",
+      "description": "Controls resource drops from mobs, including experience orbs."
+    },
+    {
+      "id": "doMobSpawning",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Spawn mobs",
+      "description": "Some entities might have separate rules."
+    },
+    {
+      "id": "doPatrolSpawning",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Spawn pillager patrols",
+      "description": "Changes do patrol spawning for this world."
+    },
+    {
+      "id": "doTileDrops",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Drop blocks",
+      "description": "Controls resource drops from blocks, including experience orbs."
+    },
+    {
+      "id": "doTraderSpawning",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Spawn Wandering Traders",
+      "description": "Changes do trader spawning for this world."
+    },
+    {
+      "id": "doVinesSpread",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Vines spread",
+      "description": "Controls whether or not the Vines block spreads randomly to adjacent blocks. Does not affect other types of vine blocks such as Weeping Vines, Twisting Vines, etc."
+    },
+    {
+      "id": "doWardenSpawning",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Spawn Wardens",
+      "description": "Changes do warden spawning for this world."
+    },
+    {
+      "id": "doWeatherCycle",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Update weather",
+      "description": "Changes do weather cycle for this world."
+    },
+    {
+      "id": "drowningDamage",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Deal drowning damage",
+      "description": "Changes drowning damage for this world."
+    },
+    {
+      "id": "enderPearlsVanishOnDeath",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Thrown Ender Pearls vanish on death",
+      "description": "Whether Ender Pearls thrown by a player vanish when that player dies."
+    },
+    {
+      "id": "fallDamage",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Deal fall damage",
+      "description": "Changes fall damage for this world."
+    },
+    {
+      "id": "fireDamage",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Deal fire damage",
+      "description": "Changes fire damage for this world."
+    },
+    {
+      "id": "forgiveDeadPlayers",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Forgive dead players",
+      "description": "Angered neutral mobs stop being angry when the targeted player dies nearby."
+    },
+    {
+      "id": "freezeDamage",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Deal freeze damage",
+      "description": "Changes freeze damage for this world."
+    },
+    {
+      "id": "globalSoundEvents",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Global sound events",
+      "description": "When certain game events happen, like a boss spawning, the sound is heard everywhere."
+    },
+    {
+      "id": "keepInventory",
+      "type": "boolean",
+      "defaultValue": "false",
+      "choices": [],
+      "experimental": false,
+      "label": "Keep inventory after death",
+      "description": "Changes keep inventory for this world."
+    },
+    {
+      "id": "lavaSourceConversion",
+      "type": "boolean",
+      "defaultValue": "false",
+      "choices": [],
+      "experimental": false,
+      "label": "Lava converts to source",
+      "description": "When flowing lava is surrounded on two sides by lava sources it converts into a source."
+    },
+    {
+      "id": "logAdminCommands",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Broadcast admin commands",
+      "description": "Changes log admin commands for this world."
+    },
+    {
+      "id": "maxCommandChainLength",
+      "type": "integer",
+      "defaultValue": "65536",
+      "choices": [],
+      "experimental": false,
+      "label": "Command chain size limit",
+      "description": "Applies to command block chains and functions."
+    },
+    {
+      "id": "maxCommandForkCount",
+      "type": "integer",
+      "defaultValue": "65536",
+      "choices": [],
+      "experimental": false,
+      "label": "Command context limit",
+      "description": "Maximum number of contexts that can be used by commands like 'execute as'."
+    },
+    {
+      "id": "maxEntityCramming",
+      "type": "integer",
+      "defaultValue": "24",
+      "choices": [],
+      "experimental": false,
+      "label": "Entity cramming threshold",
+      "description": "Changes max entity cramming for this world."
+    },
+    {
+      "id": "minecartMaxSpeed",
+      "type": "integer",
+      "defaultValue": "8",
+      "choices": [],
+      "experimental": true,
+      "label": "Minecart max speed",
+      "description": "Maximum default speed of a moving Minecart on land.",
+      "minimum": 1,
+      "maximum": 1000
+    },
+    {
+      "id": "mobExplosionDropDecay",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "In mob explosions, some blocks won't drop their loot",
+      "description": "Some of the drops from blocks destroyed by explosions caused by mobs are lost in the explosion."
+    },
+    {
+      "id": "mobGriefing",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Allow destructive mob actions",
+      "description": "Changes mob griefing for this world."
+    },
+    {
+      "id": "naturalRegeneration",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Regenerate health",
+      "description": "Changes natural regeneration for this world."
+    },
+    {
+      "id": "playersNetherPortalCreativeDelay",
+      "type": "integer",
+      "defaultValue": "0",
+      "choices": [],
+      "experimental": false,
+      "label": "Player's Nether portal delay in creative mode",
+      "description": "Time (in ticks) that a creative mode player needs to stand in a Nether portal before changing dimensions."
+    },
+    {
+      "id": "playersNetherPortalDefaultDelay",
+      "type": "integer",
+      "defaultValue": "80",
+      "choices": [],
+      "experimental": false,
+      "label": "Player's Nether portal delay in non-creative mode",
+      "description": "Time (in ticks) that a non-creative mode player needs to stand in a Nether portal before changing dimensions."
+    },
+    {
+      "id": "playersSleepingPercentage",
+      "type": "integer",
+      "defaultValue": "100",
+      "choices": [],
+      "experimental": false,
+      "label": "Sleep percentage",
+      "description": "The percentage of players who must be sleeping to skip the night."
+    },
+    {
+      "id": "projectilesCanBreakBlocks",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Projectiles can break blocks",
+      "description": "Controls whether impact projectiles will destroy blocks that are destructible by them."
+    },
+    {
+      "id": "randomTickSpeed",
+      "type": "integer",
+      "defaultValue": "3",
+      "choices": [],
+      "experimental": false,
+      "label": "Random tick speed rate",
+      "description": "Changes random tick speed for this world."
+    },
+    {
+      "id": "reducedDebugInfo",
+      "type": "boolean",
+      "defaultValue": "false",
+      "choices": [],
+      "experimental": false,
+      "label": "Reduce debug info",
+      "description": "Limits contents of debug screen."
+    },
+    {
+      "id": "sendCommandFeedback",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Send command feedback",
+      "description": "Changes send command feedback for this world."
+    },
+    {
+      "id": "showDeathMessages",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Show death messages",
+      "description": "Changes show death messages for this world."
+    },
+    {
+      "id": "snowAccumulationHeight",
+      "type": "integer",
+      "defaultValue": "1",
+      "choices": [],
+      "experimental": false,
+      "label": "Snow accumulation height",
+      "description": "When it snows, layers of snow form on the ground up to at most this number of layers."
+    },
+    {
+      "id": "spawnChunkRadius",
+      "type": "integer",
+      "defaultValue": "2",
+      "choices": [],
+      "experimental": false,
+      "label": "Spawn chunk radius",
+      "description": "Amount of chunks that stay loaded around the overworld spawn position.",
+      "minimum": 0,
+      "maximum": 32
+    },
+    {
+      "id": "spawnRadius",
+      "type": "integer",
+      "defaultValue": "10",
+      "choices": [],
+      "experimental": false,
+      "label": "Respawn location radius",
+      "description": "Controls the size of the area around the spawn point that players can spawn in."
+    },
+    {
+      "id": "spectatorsGenerateChunks",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Allow spectators to generate terrain",
+      "description": "Changes spectators generate chunks for this world."
+    },
+    {
+      "id": "tntExplosionDropDecay",
+      "type": "boolean",
+      "defaultValue": "false",
+      "choices": [],
+      "experimental": false,
+      "label": "In TNT explosions, some blocks won't drop their loot",
+      "description": "Some of the drops from blocks destroyed by explosions caused by TNT are lost in the explosion."
+    },
+    {
+      "id": "universalAnger",
+      "type": "boolean",
+      "defaultValue": "false",
+      "choices": [],
+      "experimental": false,
+      "label": "Universal anger",
+      "description": "Angered neutral mobs attack any nearby player, not just the player that angered them. Works best if forgiveDeadPlayers is disabled."
+    },
+    {
+      "id": "waterSourceConversion",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false,
+      "label": "Water converts to source",
+      "description": "When flowing water is surrounded on two sides by water sources it converts into a source."
+    }
+  ]
+}

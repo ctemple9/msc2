@@ -56,6 +56,74 @@
     }
   },
   "paths": {
+    "/v1/catalog/gamerules": {
+      "get": {
+        "summary": "Return verified built-in gamerules for an exact Minecraft release",
+        "operationId": "getGameruleCatalog",
+        "x-permission-category": "none",
+        "parameters": [
+          {
+            "name": "serverType",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "java",
+                "bedrock"
+              ]
+            }
+          },
+          {
+            "name": "minecraftVersion",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "javaFlavor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "activeServer",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exact-release catalog or explicit unavailable result; never substitutes another release",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameruleCatalogDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid edition or query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/servers/create": {
       "post": {
         "summary": "Create a new server",
@@ -7067,6 +7135,103 @@
   },
   "components": {
     "schemas": {
+      "GameruleDefinitionDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "boolean",
+              "integer",
+              "choice"
+            ]
+          },
+          "defaultValue": {
+            "type": "string"
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "experimental": {
+            "type": "boolean"
+          },
+          "minimum": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maximum": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "description",
+          "type",
+          "defaultValue",
+          "choices",
+          "experimental"
+        ]
+      },
+      "GameruleCatalogDTO": {
+        "type": "object",
+        "properties": {
+          "serverType": {
+            "type": "string",
+            "enum": [
+              "java",
+              "bedrock"
+            ]
+          },
+          "minecraftVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "complete": {
+            "type": "boolean",
+            "description": "Complete built-in registrations for this exact release; excludes mod additions."
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GameruleDefinitionDTO"
+            }
+          }
+        },
+        "required": [
+          "serverType",
+          "minecraftVersion",
+          "available",
+          "complete",
+          "source",
+          "note",
+          "rules"
+        ]
+      },
       "Error": {
         "type": "object",
         "properties": {

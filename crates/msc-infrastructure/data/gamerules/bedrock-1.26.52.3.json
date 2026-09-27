@@ -1,0 +1,363 @@
+{
+  "serverType": "bedrock",
+  "minecraftVersion": "1.26.52.3",
+  "complete": true,
+  "source": "BDS 1.26.52.3 built-in gamerule enumeration; build 51798919",
+  "sourceSha256": "0a490c711d4a2ce075debcd979e8862b7eaba008373f9970f0edbb67f98f9207",
+  "rules": [
+    {
+      "id": "commandblockoutput",
+      "label": "Broadcast command block output",
+      "description": "Changes command block output for this world.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "commandblocksenabled",
+      "label": "Enable Command Blocks",
+      "description": "Changes command blocks enabled for this world.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "dodaylightcycle",
+      "label": "Advance time of day",
+      "description": "Changes do daylight cycle for this world.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "doentitydrops",
+      "label": "Drop entity equipment",
+      "description": "Controls drops from minecarts (including inventories), item frames, boats, etc.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "dofiretick",
+      "label": "Update fire",
+      "description": "Changes do fire tick for this world.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "doimmediaterespawn",
+      "label": "Respawn immediately",
+      "description": "Changes do immediate respawn for this world.",
+      "type": "boolean",
+      "defaultValue": "false",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "doinsomnia",
+      "label": "Spawn phantoms",
+      "description": "Changes do insomnia for this world.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "dolimitedcrafting",
+      "label": "Require recipe for crafting",
+      "description": "If enabled, players will be able to craft only unlocked recipes.",
+      "type": "boolean",
+      "defaultValue": "false",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "domobloot",
+      "label": "Drop mob loot",
+      "description": "Controls resource drops from mobs, including experience orbs.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "domobspawning",
+      "label": "Spawn mobs",
+      "description": "Some entities might have separate rules.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "dotiledrops",
+      "label": "Drop blocks",
+      "description": "Controls resource drops from blocks, including experience orbs.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "doweathercycle",
+      "label": "Update weather",
+      "description": "Changes do weather cycle for this world.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "drowningdamage",
+      "label": "Deal drowning damage",
+      "description": "Changes drowning damage for this world.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "falldamage",
+      "label": "Deal fall damage",
+      "description": "Changes fall damage for this world.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "firedamage",
+      "label": "Deal fire damage",
+      "description": "Changes fire damage for this world.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "freezedamage",
+      "label": "Deal freeze damage",
+      "description": "Changes freeze damage for this world.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "functioncommandlimit",
+      "label": "Function command limit",
+      "description": "Limit commands executed by a function.",
+      "type": "integer",
+      "defaultValue": "10000",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "keepinventory",
+      "label": "Keep inventory after death",
+      "description": "Changes keep inventory for this world.",
+      "type": "boolean",
+      "defaultValue": "false",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "locatorbar",
+      "label": "Locator bar",
+      "description": "Show player locations on the locator bar.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "maxcommandchainlength",
+      "label": "Command chain size limit",
+      "description": "Applies to command block chains and functions.",
+      "type": "integer",
+      "defaultValue": "65535",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "mobgriefing",
+      "label": "Allow destructive mob actions",
+      "description": "Changes mob griefing for this world.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "naturalregeneration",
+      "label": "Regenerate health",
+      "description": "Changes natural regeneration for this world.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "playerssleepingpercentage",
+      "label": "Sleep percentage",
+      "description": "The percentage of players who must be sleeping to skip the night.",
+      "type": "integer",
+      "defaultValue": "100",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "playerwaypoints",
+      "label": "Player waypoints",
+      "description": "Show player locations on the locator bar.",
+      "type": "choice",
+      "defaultValue": "everyone",
+      "choices": [
+        "everyone",
+        "off"
+      ],
+      "experimental": false
+    },
+    {
+      "id": "projectilescanbreakblocks",
+      "label": "Projectiles can break blocks",
+      "description": "Controls whether impact projectiles will destroy blocks that are destructible by them.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "pvp",
+      "label": "Enable pvp",
+      "description": "Controls whether players are allowed to damage other players.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "randomtickspeed",
+      "label": "Random tick speed rate",
+      "description": "Changes random tick speed for this world.",
+      "type": "integer",
+      "defaultValue": "1",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "recipesunlock",
+      "label": "Unlock recipes",
+      "description": "Unlock recipes as players progress.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "respawnblocksexplode",
+      "label": "Respawn blocks explode",
+      "description": "Changes respawn blocks explode for this world.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "sendcommandfeedback",
+      "label": "Send command feedback",
+      "description": "Changes send command feedback for this world.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "showbordereffect",
+      "label": "Border effect",
+      "description": "Display the world border effect.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "showcoordinates",
+      "label": "Show coordinates",
+      "description": "Display player coordinates.",
+      "type": "boolean",
+      "defaultValue": "false",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "showdaysplayed",
+      "label": "Show days played",
+      "description": "Display the world day count.",
+      "type": "boolean",
+      "defaultValue": "false",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "showdeathmessages",
+      "label": "Show death messages",
+      "description": "Changes show death messages for this world.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "showrecipemessages",
+      "label": "Recipe messages",
+      "description": "Show notifications when recipes unlock.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "showtags",
+      "label": "Show name tags",
+      "description": "Display entity name tags.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "spawnradius",
+      "label": "Respawn location radius",
+      "description": "Controls the size of the area around the spawn point that players can spawn in.",
+      "type": "integer",
+      "defaultValue": "10",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "tntexplodes",
+      "label": "Allow TNT to be activated and to explode",
+      "description": "Changes tnt explodes for this world.",
+      "type": "boolean",
+      "defaultValue": "true",
+      "choices": [],
+      "experimental": false
+    },
+    {
+      "id": "tntexplosiondropdecay",
+      "label": "In TNT explosions, some blocks won't drop their loot",
+      "description": "Some of the drops from blocks destroyed by explosions caused by TNT are lost in the explosion.",
+      "type": "boolean",
+      "defaultValue": "false",
+      "choices": [],
+      "experimental": false
+    }
+  ]
+}

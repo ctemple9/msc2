@@ -2437,6 +2437,43 @@ impl LifecycleRoutesState {
                         let _ = self.inner.bedrock_runtime.stop();
                     } else {
                         self.record_successful_bedrock_start();
+                        if let Some(server) = self.active_bedrock_server()
+                            && let Some(profile) = active_world_profile(&server)
+                        {
+                            // Native handlers cover aliases and choice-valued rules that are not plain metadata tags.
+                            for (name, value) in &profile.gameplay.gamerules {
+                                if name.is_empty()
+                                    || !name.chars().all(|ch| ch.is_ascii_alphanumeric())
+                                    || !(value == "true"
+                                        || value == "false"
+                                        || value.parse::<i32>().is_ok()
+                                        || (name.eq_ignore_ascii_case("playerwaypoints")
+                                            && ["everyone", "off"].contains(&value.as_str())))
+                                {
+                                    continue;
+                                }
+                                if name.eq_ignore_ascii_case("showcoordinates")
+                                    && profile.gameplay.coordinates.is_some()
+                                {
+                                    continue;
+                                }
+                                let command =
+                                    format!("gamerule {} {value}", name.to_ascii_lowercase());
+                                match self.inner.bedrock_runtime.command(&command) {
+                                    Ok(_) => self.register_controller_command(&command),
+                                    Err(error) => {
+                                        self.inner.console.push(ConsoleLine::with_origin(
+                                            "msc",
+                                            None,
+                                            ConsoleLineOrigin::Controller,
+                                            format!(
+                                                "Could not apply Bedrock gamerule {name}: {error}"
+                                            ),
+                                        ))
+                                    }
+                                }
+                            }
+                        }
                         self.handle_server_ready("Bedrock server is ready.");
                     }
                 }

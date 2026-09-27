@@ -1564,6 +1564,27 @@ pub async fn create(
         return confirmation_required_response(required);
     }
     let initial_world_profile = body.world_settings.as_ref().map(world_profile_from_create);
+    if let Some(profile) = &initial_world_profile {
+        let version = if server_type == ServerType::Bedrock {
+            body.bedrock_version.clone()
+        } else {
+            body.version_id.clone().or(body.minecraft_version.clone())
+        };
+        let version = crate::routes::versions::minecraft_version_from_selection(
+            body.java_flavor
+                .as_deref()
+                .and_then(JavaServerFlavor::from_raw_value),
+            version,
+        );
+        if let Err(message) = msc_infrastructure::gamerule_catalog::validate_values(
+            server_type.raw_value(),
+            version.as_deref(),
+            &profile.gameplay.gamerules,
+        ) {
+            return invalid_body("invalid_gamerule", &message);
+        }
+    }
+
     if server_type == ServerType::Java
         && let Some(profile) = &initial_world_profile
         && let Err(error) = msc_application::java_world_settings::validate(profile)

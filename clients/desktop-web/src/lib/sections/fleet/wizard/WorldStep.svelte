@@ -42,6 +42,7 @@
 
   export let api: ScreenApi | undefined = undefined;
   export let draft: WizardDraft;
+  export let resolvingVersion = false;
 
   let fileInput: HTMLInputElement;
   let staging = false;
@@ -65,7 +66,9 @@
     const requestKey = [
       draft.serverType,
       draft.javaFlavor,
-      pack?.minecraftVersion ?? draft.versionId ?? 'latest',
+      pack?.minecraftVersion ??
+        (draft.serverType === 'bedrock' ? draft.bedrockVersion : draft.versionId) ??
+        'latest',
       pack?.loaderVersion ?? '',
     ].join('|');
     if (requestKey !== capabilityRequestKey) {
@@ -78,15 +81,25 @@
   async function loadCapabilities(requestKey: string): Promise<void> {
     if (!api) return;
     capabilitiesError = undefined;
+    resolvingVersion = true;
     try {
       const pack = draft.stagedModpack?.inspection;
-      let minecraftVersion = pack?.minecraftVersion ?? draft.versionId;
-      if (!minecraftVersion && draft.serverType === 'java') {
+      let minecraftVersion =
+        pack?.minecraftVersion ??
+        (draft.serverType === 'bedrock' ? draft.bedrockVersion : draft.versionId);
+      if (!minecraftVersion || minecraftVersion.toLowerCase() === 'latest') {
         const versions = await api.get<Schema['VersionsResponseDTO']>(
-          versionsForCreatePath('java', draft.javaFlavor),
+          versionsForCreatePath(draft.serverType, draft.javaFlavor),
         );
-        minecraftVersion =
-          versions.versions?.find((entry) => entry.isLatest)?.id ?? versions.versions?.[0]?.id;
+        if (requestKey !== capabilityRequestKey) return;
+        const resolved =
+          versions.versions?.find((entry) => entry.isLatest) ?? versions.versions?.[0];
+        minecraftVersion = resolved?.mcVersion;
+        // Pin the catalog and download to the same release. Loader selections keep their full ID.
+        if (resolved && minecraftVersion) {
+          if (draft.serverType === 'bedrock') draft.bedrockVersion = minecraftVersion;
+          else draft.versionId = resolved.id;
+        }
       }
       const params = new URLSearchParams({ serverType: draft.serverType });
       if (minecraftVersion) params.set('minecraftVersion', minecraftVersion);
@@ -102,6 +115,8 @@
         capabilities = undefined;
         capabilitiesError = errorMessage(error);
       }
+    } finally {
+      if (requestKey === capabilityRequestKey) resolvingVersion = false;
     }
   }
 
@@ -202,6 +217,7 @@
   {#if draft.worldSourceMode === 'fresh'}
     <div use:onboardingAnchor={'ob_world_creation'}>
       <WorldSettingsForm
+        {api}
         mode="wizard"
         heading="First world settings"
         serverType={draft.serverType}

@@ -84,6 +84,7 @@
 <Sheet title="Create New World" size="md" onClose={busy ? undefined : onClose}>
   <div class="body">
     <WorldSettingsForm
+      {api}
       mode="create"
       {serverType}
       {values}

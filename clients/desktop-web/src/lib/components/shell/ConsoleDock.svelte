@@ -606,6 +606,7 @@
 
 {#if showPalette}
   <CommandPaletteSheet
+    {api}
     {serverType}
     {onlinePlayers}
     {capabilities}

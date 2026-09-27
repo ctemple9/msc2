@@ -2039,14 +2039,29 @@ fn apply_bedrock_world_data(
                 "Gamerule names must contain only letters and digits",
             ));
         }
-        let tag = match value.as_str() {
-            "true" => NbtValue::Byte(1),
-            "false" => NbtValue::Byte(0),
-            _ => NbtValue::Int(value.parse().map_err(|_| {
-                io::Error::other(format!(
-                    "Gamerule {name} must be true, false, or an integer"
-                ))
-            })?),
+        // Locator bar is a native command alias; apply it through BDS on ready.
+        if name.eq_ignore_ascii_case("locatorbar") {
+            if value != "true" && value != "false" {
+                return Err(io::Error::other("Locator bar must be true or false"));
+            }
+            continue;
+        }
+        let tag = if name.eq_ignore_ascii_case("playerwaypoints") {
+            NbtValue::Int(match value.as_str() {
+                "everyone" => 1,
+                "off" => 0,
+                _ => return Err(io::Error::other("Player waypoints must be everyone or off")),
+            })
+        } else {
+            match value.as_str() {
+                "true" => NbtValue::Byte(1),
+                "false" => NbtValue::Byte(0),
+                _ => NbtValue::Int(value.parse().map_err(|_| {
+                    io::Error::other(format!(
+                        "Gamerule {name} must be true, false, or an integer"
+                    ))
+                })?),
+            }
         };
         tags.insert(name.to_ascii_lowercase(), tag);
     }

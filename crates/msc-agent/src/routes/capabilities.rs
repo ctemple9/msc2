@@ -50,6 +50,7 @@ async fn capabilities_for_query(
         .active_server_id
         .as_ref()
         .and_then(|id| config.servers.iter().find(|server| &server.id == id));
+    let hypothetical = query.server_type.is_some();
     let selected_server_type = query
         .server_type
         .as_deref()
@@ -58,7 +59,11 @@ async fn capabilities_for_query(
     let selected_version_raw = query
         .minecraft_version
         .filter(|value| !value.trim().is_empty())
-        .or_else(|| active.and_then(|server| server.minecraft_version.clone()));
+        .or_else(|| {
+            active
+                .filter(|_| !hypothetical)
+                .and_then(|server| server.minecraft_version.clone())
+        });
     let selected_flavor = query
         .java_flavor
         .as_deref()

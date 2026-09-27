@@ -909,6 +909,7 @@
     {:else if editingProfile && editingValues}
       <div class="edit-body">
         <WorldSettingsForm
+          {api}
           mode="edit"
           serverType={worldServerType()}
           metadata={editingProfile.profile.fieldMetadata}

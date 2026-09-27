@@ -3,6 +3,8 @@
   // The profile route owns the actual capability/lifecycle decision; this
   // component only makes that decision legible instead of guessing that a
   // Minecraft setting applies everywhere.
+  import GameruleEditor from './GameruleEditor.svelte';
+  import type { ScreenApi } from '../shared/types';
   import Field from '../../components/base/Field.svelte';
   import Select from '../../components/base/Select.svelte';
   import Toggle from '../../components/base/Toggle.svelte';
@@ -20,6 +22,8 @@
     type WorldSettingsValues,
   } from './model';
 
+  export let api: ScreenApi | undefined = undefined;
+  export let minecraftVersion: string | undefined = undefined;
   export let values: WorldSettingsValues;
   export let serverType: WorldServerType;
   /** `wizard` is the first-world form; `create` is the post-slot form, where
@@ -472,22 +476,30 @@
           </label>
         {/if}
 
-        <label class="field-group wide">
+        <div class="field-group wide">
           <span class="label">Gamerules</span>
           {#if unavailable('gameplay.gamerules')}
             <span class="unavailable">Unavailable: {reason('gameplay.gamerules')}</span>
           {:else}
-            <Field
-              bind:value={values.gamerules}
-              placeholder="keepInventory=true — one rule per line"
-              multiline
+            <GameruleEditor
+              {api}
+              {serverType}
+              minecraftVersion={minecraftVersion ??
+                capabilities?.context.minecraftVersion ??
+                undefined}
+              activeServer={mode !== 'wizard'}
+              value={values.gamerules}
+              coordinates={values.coordinates}
+              onCoordinatesChange={serverType === 'bedrock'
+                ? (checked) => update({ coordinates: checked })
+                : undefined}
               disabled={readOnly('gameplay.gamerules')}
+              onchange={(gamerules) => {
+                if (values.gamerules !== gamerules) update({ gamerules });
+              }}
             />
-            <span class="hint"
-              >Use one rule=value pair per line; unrecognized rules are preserved.</span
-            >
           {/if}
-        </label>
+        </div>
 
         {#if hasEditionField(bedrockFields)}
           <label class="field-group">

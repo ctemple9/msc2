@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 76ba5ee273f184df9ab3bec6d1b2ed11903efac2c7dc11ab08250620f200d646
+// Contract SHA-256: 47da69a4cf6ff85ea54aa1415d78fb745b9778c9a53982a7c805f9ae64bf33ca
 
 export interface paths {
   '/v1/active-server': {
@@ -1021,6 +1021,23 @@ export interface paths {
     };
     /** Search Modrinth Java datapacks for a Minecraft version */
     get: operations['searchJavaDatapacks'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/catalog/gamerules': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Return verified built-in gamerules for an exact Minecraft release */
+    get: operations['getGameruleCatalog'];
     put?: never;
     post?: never;
     delete?: never;
@@ -7139,6 +7156,35 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    GameruleCatalogDTO: {
+      available: boolean;
+      /** @description Complete built-in registrations for this exact release; excludes mod additions. */
+      complete: boolean;
+      minecraftVersion: string | null;
+      note: string | null;
+      rules: components['schemas']['GameruleDefinitionDTO'][];
+      /** @enum {string} */
+      serverType: 'java' | 'bedrock';
+      source: string | null;
+    } & {
+      [key: string]: unknown;
+    };
+    GameruleDefinitionDTO: {
+      choices: string[];
+      defaultValue: string;
+      description: string;
+      experimental: boolean;
+      id: string;
+      label: string;
+      /** Format: int32 */
+      maximum?: number;
+      /** Format: int32 */
+      minimum?: number;
+      /** @enum {string} */
+      type: 'boolean' | 'integer' | 'choice';
+    } & {
+      [key: string]: unknown;
+    };
     GeyserConfigResponseDTO: {
       address?: string;
       configFileExists: boolean;
@@ -9470,6 +9516,40 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['CatalogSearchResponseDTO'];
+        };
+      };
+    };
+  };
+  getGameruleCatalog: {
+    parameters: {
+      query: {
+        activeServer?: boolean;
+        javaFlavor?: string;
+        minecraftVersion?: string;
+        serverType: 'java' | 'bedrock';
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Exact-release catalog or explicit unavailable result; never substitutes another release */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['GameruleCatalogDTO'];
+        };
+      };
+      /** @description Invalid edition or query */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };

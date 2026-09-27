@@ -115,6 +115,7 @@ pub(crate) const STAGING_TTL_SECONDS: u64 = 30 * 60;
 pub fn router(state: WorldsRoutesState) -> Router {
     Router::new()
         .route("/worlds", get(list))
+        .route("/catalog/gamerules", get(gamerule_catalog))
         .route("/worlds/create", post(create))
         .route("/worlds/rename", post(rename))
         .route("/worlds/replace", post(replace))
@@ -866,6 +867,8 @@ fn apply_profile_change(
                         || !name.chars().all(|ch| ch.is_ascii_alphanumeric())
                         || !["true", "false"].contains(&value.as_str())
                             && value.parse::<i32>().is_err()
+                            && !(name.eq_ignore_ascii_case("playerwaypoints")
+                                && ["everyone", "off"].contains(&value.as_str()))
                     {
                         return Err(format!(
                             "Gamerule {name} must have a name made of letters/digits and a true, false, or integer value"
@@ -1809,6 +1812,13 @@ pub async fn update_profile(
     {
         return invalid_body("invalid_body", &error.to_string());
     }
+    if let Err(message) = msc_infrastructure::gamerule_catalog::validate_values(
+        server.server_type.raw_value(),
+        server.minecraft_version.as_deref(),
+        &profile.gameplay.gamerules,
+    ) {
+        return invalid_body("invalid_gamerule", &message);
+    }
     let confirmation = body
         .get("confirmation")
         .and_then(serde_json::Value::as_str)
@@ -2340,6 +2350,13 @@ pub async fn create(
                 && let Err(error) = msc_application::java_world_settings::validate(&profile)
             {
                 return invalid_body("invalid_body", &error.to_string());
+            }
+            if let Err(message) = msc_infrastructure::gamerule_catalog::validate_values(
+                server.server_type.raw_value(),
+                server.minecraft_version.as_deref(),
+                &profile.gameplay.gamerules,
+            ) {
+                return invalid_body("invalid_gamerule", &message);
             }
             if let Some(required) =
                 world_safety::confirmation_for_world_profile(server.server_type, &profile)
@@ -5374,4 +5391,60 @@ mod tests {
             std::sync::Arc::new(NoopSchedulerBackend),
         )))
     }
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GameruleCatalogQuery {
+    server_type: String,
+    minecraft_version: Option<String>,
+    java_flavor: Option<String>,
+    #[serde(default)]
+    active_server: bool,
+}
+
+pub async fn gamerule_catalog(
+    State(state): State<WorldsRoutesState>,
+    Query(query): Query<GameruleCatalogQuery>,
+) -> Response {
+    if !["java", "bedrock"].contains(&query.server_type.as_str()) {
+        return invalid_body("invalid_server_type", "serverType must be java or bedrock.");
+    }
+    let active = query
+        .active_server
+        .then(|| state.lifecycle.active_config_server())
+        .flatten();
+    let version = crate::routes::versions::minecraft_version_from_selection(
+        query
+            .java_flavor
+            .as_deref()
+            .and_then(msc_domain::identity::JavaServerFlavor::from_raw_value),
+        query.minecraft_version.or_else(|| {
+            active
+                .filter(|server| server.server_type.raw_value() == query.server_type)
+                .and_then(|server| server.minecraft_version)
+        }),
+    )
+    .filter(|version| !version.eq_ignore_ascii_case("latest"));
+    let catalog =
+        msc_infrastructure::gamerule_catalog::catalog(&query.server_type, version.as_deref());
+    Json(msc_api::dto::GameruleCatalogDto {
+        server_type: query.server_type.clone(),
+        minecraft_version: version,
+        available: catalog.is_some(),
+        complete: catalog.is_some_and(|catalog| catalog.complete),
+        source: catalog.map(|catalog| catalog.source.clone()),
+        note: Some(if catalog.is_some() && query.server_type == "java" {
+            "Verified built-in rules. Server mods may add rules; use Edit as Text for those.".into()
+        } else if catalog.is_some() {
+            "Verified built-in rules for this Bedrock release.".into()
+        } else {
+            "Rule picker unavailable for this version. You can enter rules manually or keep Minecraft's defaults.".into()
+        }),
+        rules: catalog.map(|catalog| catalog.rules.iter().map(|rule| msc_api::dto::GameruleDefinitionDto {
+            id: rule.id.clone(), label: rule.label.clone(), description: rule.description.clone(),
+            value_type: rule.value_type.clone(), default_value: rule.default_value.clone(),
+            choices: rule.choices.clone(), experimental: rule.experimental, minimum: rule.minimum, maximum: rule.maximum,
+        }).collect()).unwrap_or_default(),
+    }).into_response()
 }

@@ -282,6 +282,22 @@ pub enum BedrockBehaviorPackError {
     Io(String),
 }
 
+/// Return the uncompressed size of the listed files inside a saved world.
+/// A missing archive entry makes the result unavailable instead of reporting
+/// a misleading partial total.
+pub fn world_pack_size_bytes(world_zip_path: &Path, files: &[String]) -> Option<u64> {
+    let mut archive = zip::ZipArchive::new(std::fs::File::open(world_zip_path).ok()?).ok()?;
+    let world_root = archive
+        .file_names()
+        .find_map(|name| name.strip_suffix("level.dat"))
+        .unwrap_or("worlds/")
+        .to_owned();
+    files.iter().try_fold(0_u64, |total, file| {
+        let entry = archive.by_name(&format!("{world_root}{file}")).ok()?;
+        total.checked_add(entry.size())
+    })
+}
+
 /// Change a Bedrock pack's activation entry in a saved world. Removing a pack
 /// also removes its files; disabling it keeps the files so it can be enabled
 /// again later.

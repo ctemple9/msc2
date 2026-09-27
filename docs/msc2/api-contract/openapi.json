@@ -7733,6 +7733,7 @@
           "name": { "type": "string" },
           "source": { "$ref": "#/components/schemas/WorldPackSourceDTO" },
           "files": { "type": "array", "items": { "type": "string" }, "description": "Relative paths below the owning world root." },
+          "sizeBytes": { "type": "integer", "format": "int64", "minimum": 0, "description": "Uncompressed size of the pack files in the owning world archive, when available." },
           "checksum": { "type": "string", "nullable": true },
           "compatibility": { "type": "string", "nullable": true },
           "minecraftVersions": { "type": "array", "items": { "type": "string" } },

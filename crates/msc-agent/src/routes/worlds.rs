@@ -490,7 +490,11 @@ fn to_slot_dto(slot: &WorldSlot, is_active: bool) -> WorldSlotDto {
     }
 }
 
-fn profile_to_dto(profile: &WorldProfile, server_type: ServerType) -> WorldProfileDto {
+fn profile_to_dto(
+    profile: &WorldProfile,
+    server_type: ServerType,
+    world_zip_path: &Path,
+) -> WorldProfileDto {
     let field_metadata = WorldProfileField::ALL
         .into_iter()
         .map(|field| {
@@ -568,6 +572,10 @@ fn profile_to_dto(profile: &WorldProfile, server_type: ServerType) -> WorldProfi
                     url: pack.source.url.clone(),
                 },
                 files: pack.files.clone(),
+                size_bytes: msc_application::addons::world_pack_size_bytes(
+                    world_zip_path,
+                    &pack.files,
+                ),
                 checksum: pack.checksum.clone(),
                 compatibility: pack.compatibility.clone(),
                 minecraft_versions: pack.minecraft_versions.clone(),
@@ -906,7 +914,11 @@ pub async fn get_profile(
             &slot,
             resolved_active_slot_id(server_dir).as_deref() == Some(slot.id.as_str()),
         ),
-        profile: profile_to_dto(&profile, server.server_type),
+        profile: profile_to_dto(
+            &profile,
+            server.server_type,
+            &world_store::zip_path(server_dir, &slot.id),
+        ),
     })
     .into_response()
 }
@@ -1117,6 +1129,10 @@ pub async fn install_java_datapack(
                 version: pack.source.version,
                 url: pack.source.url,
             },
+            size_bytes: msc_application::addons::world_pack_size_bytes(
+                &world_store::zip_path(server_dir, &slot.id),
+                &pack.files,
+            ),
             files: pack.files,
             checksum: pack.checksum,
             compatibility: pack.compatibility,
@@ -1675,6 +1691,10 @@ pub async fn install_bedrock_behavior_pack(
                     version: pack.source.version,
                     url: pack.source.url,
                 },
+                size_bytes: msc_application::addons::world_pack_size_bytes(
+                    &world_store::zip_path(server_dir, &slot.id),
+                    &pack.files,
+                ),
                 files: pack.files,
                 checksum: pack.checksum,
                 compatibility: pack.compatibility,
@@ -2030,7 +2050,11 @@ pub async fn update_profile(
         status: status.to_string(),
         slot: WorldSlotWithProfileDto {
             slot: to_slot_dto(&updated_slot, active),
-            profile: profile_to_dto(&saved_profile, server.server_type),
+            profile: profile_to_dto(
+                &saved_profile,
+                server.server_type,
+                &world_store::zip_path(server_dir, &updated_slot.id),
+            ),
         },
         changes: response_changes,
     })

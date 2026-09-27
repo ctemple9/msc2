@@ -47,7 +47,7 @@
   import ImportWorldZipSheet from './ImportWorldZipSheet.svelte';
   import ReplaceWorldSheet from './ReplaceWorldSheet.svelte';
   import type { Schema, ScreenProps } from '../shared/types';
-  import { call, mutate } from '../shared/types';
+  import { bytesLabel, call, mutate } from '../shared/types';
   import {
     backupPaths,
     demoBackups,
@@ -110,6 +110,16 @@
   $: activeServer = servers.find((server) => server.id === serverId);
   $: isBedrock = activeServer?.serverType === 'bedrock';
   $: selectedSlot = worlds.slots.find((slot) => slot.id === selectedSlotId);
+  $: selectedBedrockPacks = selectedSlot
+    ? (profiles[selectedSlot.id]?.profile.packs ?? []).filter((pack) => pack.edition === 'bedrock')
+    : [];
+  $: selectedBedrockPackBytes = selectedBedrockPacks.reduce(
+    (total, pack) => total + (pack.sizeBytes ?? 0),
+    0,
+  );
+  $: selectedBedrockPackSizesAvailable = selectedBedrockPacks.every(
+    (pack) => pack.sizeBytes !== undefined,
+  );
 
   type SafetyPrompt = {
     token: string;
@@ -623,54 +633,62 @@
     </div>
     {#if isBedrock}
       <Card>
-        <div class="pack-panel-header">
+        <div class="pack-summary-row">
+          <span class="section-summary">
+            {selectedBedrockPacks.length}
+            {selectedBedrockPacks.length === 1 ? 'pack' : 'packs'} ·
+            {selectedBedrockPackSizesAvailable
+              ? `${bytesLabel(selectedBedrockPackBytes)} total`
+              : 'size unavailable'}
+          </span>
           <div class="pack-panel-actions">
             {#if selectedSlot}
-              <Toggle
-                label="Required"
-                checked={profiles[selectedSlot.id]?.profile.gameplay.supportedToggles?.[
-                  'require-resource-packs'
-                ] ?? false}
-                disabled={busy || worlds.serverRunning || !profiles[selectedSlot.id]}
-                onchange={(value) => void setRequireResourcePacks(value)}
-              />
-              <span class="required-label">Required</span>
+              <div class="aligned-toggle">
+                <Toggle
+                  label="Required"
+                  checked={profiles[selectedSlot.id]?.profile.gameplay.supportedToggles?.[
+                    'require-resource-packs'
+                  ] ?? false}
+                  disabled={busy || worlds.serverRunning || !profiles[selectedSlot.id]}
+                  onchange={(value) => void setRequireResourcePacks(value)}
+                />
+                <span>Required</span>
+              </div>
             {/if}
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={!selectedSlot || busy || worlds.serverRunning}
-              title={!selectedSlot
-                ? 'Select a world slot first'
-                : worlds.serverRunning
-                  ? 'Stop the server before installing a world pack'
-                  : undefined}
-              onclick={() => (showPackBrowser = true)}>Browse Packs</Button
-            >
+            <div class="section-action">
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={!selectedSlot || busy || worlds.serverRunning}
+                title={!selectedSlot
+                  ? 'Select a world slot first'
+                  : worlds.serverRunning
+                    ? 'Stop the server before installing a world pack'
+                    : undefined}
+                onclick={() => (showPackBrowser = true)}>Browse Packs</Button
+              >
+            </div>
           </div>
         </div>
         {#if !selectedSlot}
           <EmptyState title="Select a world slot" message="Select a slot to manage its packs.">
             <Icon name="folder" size={26} slot="icon" />
           </EmptyState>
+        {:else if selectedBedrockPacks.length === 0}
+          <EmptyState title="No packs installed" message="Use Browse Packs to download a pack.">
+            <Icon name="box" size={26} slot="icon" />
+          </EmptyState>
         {:else}
-          {@const packs = (profiles[selectedSlot.id]?.profile.packs ?? []).filter(
-            (pack) => pack.edition === 'bedrock',
-          )}
-          {#if packs.length === 0}
-            <EmptyState title="No packs installed" message="Use Browse Packs to download a pack.">
-              <Icon name="box" size={26} slot="icon" />
-            </EmptyState>
-          {:else}
-            <div class="pack-list">
-              {#each packs as pack, index (pack.id)}
-                <div class="pack-row" class:bordered={index > 0}>
-                  <div class="pack-info" class:disabled={!pack.enabled}>
-                    <span class="pack-name">{pack.name}</span>
-                    <span class="pack-version"
-                      >{pack.source.version ?? pack.source.versionId ?? ''}</span
-                    >
-                  </div>
+          <div class="pack-list">
+            {#each selectedBedrockPacks as pack, index (pack.id)}
+              <div class="pack-row" class:bordered={index > 0}>
+                <div class="pack-info" class:disabled={!pack.enabled}>
+                  <span class="pack-name">{pack.name}</span>
+                  <span class="pack-version"
+                    >{pack.source.version ?? pack.source.versionId ?? ''}</span
+                  >
+                </div>
+                <div class="pack-actions">
                   {#if confirmingPackDeleteId === pack.id}
                     <span class="confirm">Delete this pack?</span>
                     <Button
@@ -700,9 +718,9 @@
                     >
                   {/if}
                 </div>
-              {/each}
-            </div>
-          {/if}
+              </div>
+            {/each}
+          </div>
         {/if}
       </Card>
     {:else}
@@ -932,21 +950,50 @@
 {/if}
 
 <style>
-  .pack-panel-header {
+  .pack-summary-row {
     display: flex;
-    justify-content: flex-end;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
     margin: 0 0 12px;
+  }
+  .section-summary {
+    color: var(--msc2-text-tertiary);
+    font-size: 11px;
+  }
+  .section-action {
+    width: 112px;
+    flex: 0 0 112px;
+  }
+  .section-action :global(.btn) {
+    width: 100%;
+  }
+  .aligned-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 82px;
+    flex: 0 0 82px;
+    color: var(--msc2-text-tertiary);
+    font-size: 11px;
+  }
+  .pack-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-left: auto;
   }
   .pack-panel-actions {
     display: flex;
     align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
+    gap: 8px;
+    margin-left: auto;
   }
-  .required-label {
-    margin-left: -6px;
-    color: var(--msc2-text-tertiary);
-    font-size: 11px;
+  /* Keep the two section toggles anchored to the same column. */
+  .pack-panel-actions .aligned-toggle {
+    margin-right: 0;
   }
   .pack-list {
     display: flex;

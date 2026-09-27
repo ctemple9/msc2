@@ -33,6 +33,8 @@ pub struct WorldPackRecordDto {
     #[serde(default)]
     pub files: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size_bytes: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub checksum: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub compatibility: Option<String>,

@@ -450,3 +450,13 @@ Evidence: Scoped Rust clippy, rustfmt, Svelte check (0 errors, 7 existing warnin
 Verify: Run npx tauri dev from clients/desktop-web. On the Bedrock Worlds tab, check the headings sit above their panels, the empty pack state fills the panel, and Required/Browse Packs align at its top right. With the server stopped, disable the installed pack and confirm its name/version are struck through; enable it again, then delete it and confirm it disappears. Reinstall it, start the server, and check required-pack joining. Confirm Java datapacks and backups still appear normally.
 Commit: P14.79: match world packs and backups panel layout
 Batch: solo
+
+#### P14.80 — Align world section controls and summaries
+
+Status: awaiting Cameron verification
+Files: clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte, clients/desktop-web/src/lib/sections/worlds/BackupsPanel.svelte, clients/desktop-web/src/lib/api/generated.ts, crates/msc-agent/src/routes/worlds.rs, crates/msc-api/src/dto/worlds.rs, docs/msc2/api-contract/openapi.json, docs/msc2/rolling-plan.md
+What: Group each pack row's Enable/Disable and Delete buttons at the right edge. Anchor the pack Required and backup Auto toggles to the same column, keep the backup interval to the toggle's left, and remove the backup size from the actions row. Show pack and backup counts plus aggregate sizes at the left of each panel; report pack bytes from the uncompressed world-archive entries owned by each pack.
+Evidence: Rust formatting/clippy pass; API contract generation check passes; Prettier check passes; Svelte check reports 0 errors and 7 existing warnings; production build passes with existing bundler warnings; prepare:agent stages the updated dev agent. No tests created or run.
+Verify: Run npx tauri dev from clients/desktop-web. Confirm Enable/Disable sits beside Delete, Required and Auto toggles align with both interval states, and each panel's count and total size match its listed content. Confirm pack totals use unpacked pack files and backup totals include all listed backups, including legacy/unmatched entries.
+Commit: P14.80: align world section controls and summaries
+Batch: solo

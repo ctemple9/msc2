@@ -65,14 +65,12 @@
 </div>
 <Card>
   <div class="header">
+    <span class="section-summary">
+      {backups.length}
+      {backups.length === 1 ? 'backup' : 'backups'} · {bytesLabel(totalBytes)} total
+    </span>
     <div class="header-actions">
       {#if config}
-        <Toggle
-          checked={config.autoBackupEnabled}
-          label="Automatic backups"
-          onchange={onToggleAuto}
-        />
-        <span class="auto-label">Auto</span>
         {#if config.autoBackupEnabled && intervalOptions.length > 0}
           <Select
             options={intervalOptions}
@@ -81,11 +79,20 @@
             onchange={(value) => onIntervalChange(Number(value))}
           />
         {/if}
+        <div class="aligned-toggle">
+          <Toggle
+            checked={config.autoBackupEnabled}
+            label="Automatic backups"
+            onchange={onToggleAuto}
+          />
+          <span>Auto</span>
+        </div>
       {/if}
-      {#if totalBytes > 0}<span class="size">{bytesLabel(totalBytes)} total</span>{/if}
-      <Button size="sm" variant="secondary" disabled={busy} onclick={onBackUpNow}>
-        Back Up Now
-      </Button>
+      <div class="section-action">
+        <Button size="sm" variant="secondary" disabled={busy} onclick={onBackUpNow}>
+          Back Up Now
+        </Button>
+      </div>
     </div>
   </div>
 
@@ -206,8 +213,8 @@
 <style>
   .header {
     display: flex;
-    align-items: flex-start;
-    justify-content: flex-end;
+    align-items: center;
+    justify-content: space-between;
     gap: 10px;
     margin-bottom: 12px;
     flex-wrap: wrap;
@@ -229,16 +236,28 @@
   .header-actions {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     flex-wrap: wrap;
   }
-  .auto-label {
-    font-size: 11px;
+  .section-summary {
     color: var(--msc2-text-tertiary);
+    font-size: 11px;
   }
-  .size {
-    font-size: 11px;
+  .aligned-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 82px;
+    flex: 0 0 82px;
     color: var(--msc2-text-tertiary);
+    font-size: 11px;
+  }
+  .section-action {
+    width: 112px;
+    flex: 0 0 112px;
+  }
+  .section-action :global(.btn) {
+    width: 100%;
   }
   .days {
     display: flex;

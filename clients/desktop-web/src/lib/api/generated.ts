@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 1f372b7e608bcb90c4c1d9da2971e559c9686134d0861a0680f729b3117c712d
+// Contract SHA-256: 7bb426706d459ef667d32963a616fd2cbce0bee14715800b16276fa61c1e0d2e
 
 export interface paths {
   '/v1/active-server': {
@@ -8802,6 +8802,11 @@ export interface components {
       kind: 'java_datapack' | 'bedrock_behavior_pack' | 'bedrock_resource_pack';
       minecraftVersions: string[];
       name: string;
+      /**
+       * Format: int64
+       * @description Uncompressed size of the pack files in the owning world archive, when available.
+       */
+      sizeBytes?: number;
       source: components['schemas']['WorldPackSourceDTO'];
     } & {
       [key: string]: unknown;

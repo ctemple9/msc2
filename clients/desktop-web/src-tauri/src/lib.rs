@@ -21,7 +21,7 @@ const LOCAL_HOST_ID_KEY: &str = "msc.desktop.local-agent-host-id";
 const AGENT_SERVICE_NAME: &str = "com.ctemple.msc2.agent";
 const AGENT_PORT: u16 = 48001;
 const LOCAL_AGENT_BROWSER_ORIGIN: &str = "http://127.0.0.1:48001";
-const LOCAL_BOOTSTRAP_SOCKET: &str = "bootstrap.sock";
+const LOCAL_BOOTSTRAP_SOCKET: &str = "local-bootstrap.sock";
 #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
 const BEDROCK_SIDECAR_DIRECTORY_ENV: &str = "MSC2_BEDROCK_SIDECAR_DIR";
 #[cfg(target_os = "macos")]

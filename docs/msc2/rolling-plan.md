@@ -230,6 +230,15 @@ Verify: gh release view v0.1.16 --json url,isPrerelease,assets
 Commit: P14.60: prepare 0.1.16 prerelease
 Batch: solo
 
+#### P14.61 — Align the Linux desktop bootstrap socket path
+
+Status: awaiting Cameron verification
+Files: clients/desktop-web/src-tauri/src/lib.rs, crates/msc-platform-linux/src/service.rs, crates/msc-platform-linux/tests/desktop_service_elevation.rs, docs/msc2/rolling-plan.md
+What: Use `local-bootstrap.sock` in the desktop install request, matching the Linux service helper's allowlisted path. The prior desktop value, `bootstrap.sock`, caused the helper to reject the otherwise valid environment before writing the service unit.
+Verify: cargo fmt --all -- --check && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml
+Commit: P14.61: align linux desktop bootstrap socket path
+Batch: solo
+
 ## Current phase
 
 | Phase | Name | State |

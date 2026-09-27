@@ -234,6 +234,7 @@ struct LifecycleRoutesInner {
     notifications: NotificationState,
     active_lifecycle_operation: Mutex<Option<OperationId>>,
     bedrock_active_server_id: Mutex<Option<String>>,
+    bedrock_online_players: Mutex<BTreeMap<String, msc_domain::bedrock::BedrockPlayer>>,
     pump_tasks: Mutex<Vec<JoinHandle<()>>>,
     auth_state: Option<AuthState>,
     audit_log: &'static AuditLog<'static>,
@@ -821,6 +822,7 @@ impl LifecycleRoutesState {
                 notifications,
                 active_lifecycle_operation: Mutex::new(None),
                 bedrock_active_server_id: Mutex::new(initial_bedrock_active_server_id),
+                bedrock_online_players: Mutex::new(BTreeMap::new()),
                 pump_tasks: Mutex::new(Vec::new()),
                 auth_state,
                 audit_log,
@@ -1431,6 +1433,50 @@ impl LifecycleRoutesState {
     /// production `BackupConsole`'s read half.
     pub fn recent_console_lines(&self, count: usize) -> Vec<ConsoleLine> {
         self.inner.console.console.recent_lines(count)
+    }
+
+    pub fn bedrock_online_players(&self) -> Vec<msc_domain::bedrock::BedrockPlayer> {
+        if !self.bedrock_runtime_is_busy() {
+            return Vec::new();
+        }
+        self.inner
+            .bedrock_online_players
+            .lock()
+            .unwrap()
+            .values()
+            .cloned()
+            .collect()
+    }
+
+    fn record_bedrock_player_line(&self, line: &str) {
+        use msc_domain::bedrock::{BedrockPlayerEvent, parse_player_event};
+        let Some(event) = parse_player_event(line) else {
+            return;
+        };
+        let (player, connected) = match event {
+            BedrockPlayerEvent::Connected(player) => (player, true),
+            BedrockPlayerEvent::Disconnected(player) => (player, false),
+        };
+        {
+            let mut online = self.inner.bedrock_online_players.lock().unwrap();
+            let key = player.name.to_lowercase();
+            if connected {
+                online.insert(key, player.clone());
+            } else {
+                online.remove(&key);
+            }
+        }
+        if let Some(xuid) = player.xuid.as_deref()
+            && let Some(server) = self.active_bedrock_server()
+            && let Err(error) = msc_application::bedrock_players::record_name(
+                &StdFileSystem,
+                Path::new(&server.server_dir),
+                xuid,
+                &player.name,
+            )
+        {
+            eprintln!("msc: could not save Bedrock player name: {error}");
+        }
     }
 
     /// Appends output from a managed helper. P14.6 will supply the helper
@@ -2291,6 +2337,7 @@ impl LifecycleRoutesState {
             .operations
             .progress(&operation_id, 1, 2, "Bedrock process spawned.");
         *self.inner.active_lifecycle_operation.lock().unwrap() = Some(operation_id.clone());
+        self.inner.bedrock_online_players.lock().unwrap().clear();
         self.spawn_bedrock_pump();
         self.start_playit_if_allowed(&active);
         Ok(LifecycleActionResult {
@@ -2362,6 +2409,7 @@ impl LifecycleRoutesState {
             };
             match event {
                 BedrockRuntimeEvent::ConsoleLine(line) => {
+                    self.record_bedrock_player_line(&line);
                     let origin = self.console_line_origin(&line);
                     let internal_time_query = self.record_time_query_line(&line, origin);
                     if !internal_time_query && !Self::is_hidden_time_query_line(&line) {
@@ -2382,25 +2430,28 @@ impl LifecycleRoutesState {
                     // BedrockRuntimeSelection caches the latest backend-neutral
                     // sample while polling the sidecar or native runtime.
                 }
-                BedrockRuntimeEvent::Terminated { reason } => match reason {
-                    BedrockTerminationReason::Clean => {
-                        self.clear_console_correlation();
-                        if self.bedrock_operation_cancel_requested() {
-                            self.finish_active_lifecycle_operation_cancelled();
-                        } else {
-                            self.handle_process_termination(true);
+                BedrockRuntimeEvent::Terminated { reason } => {
+                    self.inner.bedrock_online_players.lock().unwrap().clear();
+                    match reason {
+                        BedrockTerminationReason::Clean => {
+                            self.clear_console_correlation();
+                            if self.bedrock_operation_cancel_requested() {
+                                self.finish_active_lifecycle_operation_cancelled();
+                            } else {
+                                self.handle_process_termination(true);
+                            }
+                        }
+                        BedrockTerminationReason::GuestError(message)
+                        | BedrockTerminationReason::StartFailed(message) => {
+                            self.clear_console_correlation();
+                            if let Some(server_id) = self.active_server_id() {
+                                self.stop_helpers_for_server(&server_id);
+                            }
+                            self.abort_first_start();
+                            self.finish_active_lifecycle_operation_failure(&message);
                         }
                     }
-                    BedrockTerminationReason::GuestError(message)
-                    | BedrockTerminationReason::StartFailed(message) => {
-                        self.clear_console_correlation();
-                        if let Some(server_id) = self.active_server_id() {
-                            self.stop_helpers_for_server(&server_id);
-                        }
-                        self.abort_first_start();
-                        self.finish_active_lifecycle_operation_failure(&message);
-                    }
-                },
+                }
             }
         }
     }

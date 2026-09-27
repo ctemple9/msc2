@@ -240,25 +240,21 @@ pub async fn players(State(state): State<LifecycleRoutesState>) -> Response {
         .into_response();
     }
 
-    match discover_bedrock(&server.server_dir) {
-        Ok(players) => Json(PlayersResponse {
-            count: players.len(),
-            players: players
-                .into_iter()
-                .map(|player| PlayerDto {
-                    name: player.name,
-                    uuid: Some(player.xuid),
-                })
-                .collect(),
-            note: None,
-        })
-        .into_response(),
-        Err(error) => error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "player_data_unavailable",
-            &error,
-        ),
-    }
+    // Saved world records describe everyone who has played, not the live
+    // roster. Console connection events carry the actual current names.
+    let players = state.bedrock_online_players();
+    Json(PlayersResponse {
+        count: players.len(),
+        players: players
+            .into_iter()
+            .map(|player| PlayerDto {
+                name: player.name,
+                uuid: player.xuid,
+            })
+            .collect(),
+        note: None,
+    })
+    .into_response()
 }
 
 pub async fn profiles(State(state): State<LifecycleRoutesState>) -> Response {

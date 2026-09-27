@@ -393,7 +393,14 @@ pub fn parse_player_event(line: &str) -> Option<BedrockPlayerEvent> {
     }
     let xuid = after
         .split_once("xuid:")
-        .map(|(_, value)| value.trim().to_owned())
+        .map(|(_, value)| {
+            value
+                .split(',')
+                .next()
+                .unwrap_or_default()
+                .trim()
+                .to_owned()
+        })
         .filter(|value| !value.is_empty());
     let player = BedrockPlayer {
         name: name.to_owned(),

@@ -352,3 +352,14 @@ Evidence: Reproduced the live helper rejecting the actual server's Xbox auth-tok
 Verify: Restart `npx tauri dev`, reconnect, then initiate test-Bedrock and complete Xbox Broadcast setup. Confirm the credential-key error is gone and initiation proceeds to the account setup or connection check.
 Commit: P14.70: accept server ids in linux credential keys
 Batch: solo
+
+
+#### P14.71 — Track Bedrock online names from runtime events
+
+Status: awaiting Cameron verification
+Files: crates/msc-domain/src/bedrock.rs, crates/msc-agent/src/routes/lifecycle.rs, crates/msc-agent/src/routes/players.rs, docs/msc2/rolling-plan.md
+What: Fix the online roster displaying Unknown Player after a named Bedrock join. GET /v1/players incorrectly enumerated saved world LevelDB records, including unnamed server UUID records and disconnected players. Track actual connected players in lifecycle state from the existing Bedrock connection/disconnection parser; use that roster for the online endpoint, remove players on disconnect, and clear it for successful starts and termination. Persist console-provided name/XUID pairs through the existing name cache. Trim the XUID at its comma delimiter so modern disconnect messages' pfid field cannot become part of the account ID. Keep world player-data discovery separate.
+Evidence: Inspected the screenshot's named connection and disconnect messages and traced the online endpoint to saved world records. Cargo check, domain clippy, agent clippy (allowing the existing unused-mut warning), formatting, git diff checks, and prepare:agent debug build passed. The updated agent is staged for the next dev run; the running Minecraft server was not stopped or replaced. MSC 1 oracle checkout is unavailable at its documented path on this host. No tests created or run.
+Verify: Stop the Bedrock server, restart `npx tauri dev`, Repair Service to load the latest debug agent, reconnect, and start the server. Join: Players must show camkage; leave: it must disappear from Online Now. Player Data remains a separate saved-world view.
+Commit: P14.71: track bedrock online names from runtime events
+Batch: solo

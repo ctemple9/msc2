@@ -1,5 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { getPlatform } from '../../platform';
+  import type { FileChunkSource } from '../../platform/types';
+  import StagedUploadSheet from '../components/StagedUploadSheet.svelte';
   import Sheet from '../../components/base/Sheet.svelte';
   import Button from '../../components/base/Button.svelte';
   import Field from '../../components/base/Field.svelte';
@@ -22,6 +25,11 @@
   let selectedMinecraftVersion = minecraftVersion;
   let versionLoading = true;
   let query = '';
+  let packKind: 'all' | 'resource' | 'behavior' = 'all';
+  let searchRequestId = 0;
+  let pendingPack: FileChunkSource | undefined;
+  let fileInput: HTMLInputElement;
+  let picking = false;
   let results: Schema['CatalogItemDTO'][] = [];
   let bedrockResults: Schema['BedrockBehaviorPackCatalogItemDTO'][] = [];
   let detailItem: Schema['BedrockBehaviorPackCatalogItemDTO'] | undefined;
@@ -53,11 +61,7 @@
   });
 
   $: visibleFiles = (detail?.files ?? []).filter((file) => !stableOnly || file.releaseType === 1);
-  $: projectURL =
-    detail?.sourceURL ??
-    (detail?.slug
-      ? `https://www.curseforge.com/minecraft-bedrock/addons/${encodeURIComponent(detail.slug)}`
-      : undefined);
+  $: projectURL = detail?.sourceURL;
   $: aboutParagraphs = sanitizeCurseForgeBody(detail?.description ?? '')
     .split('\n\n')
     .filter((paragraph) => paragraph.trim().length > 0);
@@ -118,10 +122,12 @@
 
   async function search(): Promise<void> {
     if (!api) return;
+    const requestId = ++searchRequestId;
     loading = true;
     notice = '';
     try {
       const params = new URLSearchParams();
+      if (bedrock) params.set('kind', packKind);
       if (query.trim()) params.set('q', query.trim());
       if (!bedrock && selectedMinecraftVersion.trim()) {
         params.set('gameVersion', selectedMinecraftVersion.trim());
@@ -129,17 +135,20 @@
       const path = `${bedrock ? '/v1/catalog/behaviorpacks' : '/v1/catalog/datapacks'}?${params}`;
       if (bedrock) {
         const response = await api.get<Schema['BedrockBehaviorPackSearchResponseDTO']>(path);
+        if (requestId !== searchRequestId) return;
         bedrockResults = response.results;
       } else {
         const response = await api.get<Schema['CatalogSearchResponseDTO']>(path);
+        if (requestId !== searchRequestId) return;
         results = response.results ?? [];
       }
     } catch (error) {
+      if (requestId !== searchRequestId) return;
       results = [];
       bedrockResults = [];
       notice = errorMessage(error);
     } finally {
-      loading = false;
+      if (requestId === searchRequestId) loading = false;
     }
   }
 
@@ -191,9 +200,7 @@
       );
       const operation = await pollOperation(api, result.operationId);
       if (operation?.state !== 'succeeded') {
-        throw new Error(
-          operation?.error?.message ?? 'The behavior pack installation did not complete.',
-        );
+        throw new Error(operation?.error?.message ?? 'The pack installation did not complete.');
       }
       notice = `${item.title} installed.`;
       installed = new Set(installed).add(item.projectId);
@@ -205,31 +212,112 @@
     }
   }
 
+  async function choosePack(): Promise<void> {
+    if (!api?.uploadFile || picking) return;
+    picking = true;
+    try {
+      pendingPack =
+        (await (
+          await getPlatform()
+        ).pickFileStream(
+          { label: 'Choose a Bedrock pack', extensions: ['mcpack', 'mcaddon', 'zip'] },
+          () =>
+            new Promise((resolve) => {
+              fileInput.addEventListener(
+                'change',
+                () => {
+                  const file = fileInput.files?.[0];
+                  resolve(
+                    file
+                      ? {
+                          name: file.name,
+                          size: file.size,
+                          readChunk: async (offset, maxBytes) =>
+                            new Uint8Array(
+                              await file.slice(offset, offset + maxBytes).arrayBuffer(),
+                            ),
+                          close: async () => undefined,
+                        }
+                      : null,
+                  );
+                },
+                { once: true },
+              );
+              fileInput.value = '';
+              fileInput.click();
+            }),
+        )) ?? undefined;
+    } catch (error) {
+      notice = errorMessage(error);
+    } finally {
+      picking = false;
+    }
+  }
+
+  async function installUploadedPack(
+    upload: Schema['StagedUploadCompleteResultDTO'],
+  ): Promise<void> {
+    const result = await mutate<Schema['BedrockBehaviorPackInstallResultDTO']>(
+      api,
+      `/v1/worlds/${encodeURIComponent(slotId)}/behaviorpacks/install`,
+      { stagedUploadId: upload.stagedUploadId },
+    );
+    const operation = await pollOperation(api, result.operationId);
+    if (operation?.state !== 'succeeded')
+      throw new Error(operation?.error?.message ?? 'Pack installation failed.');
+    notice = `${result.packs.map((pack) => pack.name).join(', ')} installed.`;
+    onInstalled();
+  }
+
   $: {
     query;
     selectedMinecraftVersion;
+    packKind;
     scheduleSearch();
   }
 </script>
 
-<Sheet title={bedrock ? 'Browse Behavior Packs' : 'Browse Datapacks'} size="lg" {onClose}>
+<Sheet title={bedrock ? 'Browse Packs' : 'Browse Datapacks'} size="lg" {onClose}>
   <div class="header">
-    <Field
-      bind:value={query}
-      placeholder={bedrock ? 'Search behavior packs…' : 'Search datapacks…'}
-    />
+    <Field bind:value={query} placeholder={bedrock ? 'Search world packs…' : 'Search datapacks…'} />
     <p class="subtitle">
       {bedrock ? 'CurseForge' : 'Modrinth'}{selectedMinecraftVersion
         ? ` · Minecraft ${selectedMinecraftVersion}`
         : ''}
     </p>
   </div>
+  {#if bedrock}
+    <div class="pack-actions">
+      <div class="pack-filters" aria-label="Pack type">
+        {#each ['all', 'resource', 'behavior'] as kind}
+          <Button
+            size="sm"
+            variant={packKind === kind ? 'primary' : 'secondary'}
+            disabled={!!installing}
+            onclick={() => (packKind = kind as typeof packKind)}
+          >
+            {kind === 'all' ? 'All' : kind === 'resource' ? 'Resource Packs' : 'Behavior Packs'}
+          </Button>
+        {/each}
+      </div>
+      <Button
+        size="sm"
+        variant="secondary"
+        disabled={picking || !!installing || !api?.uploadFile}
+        onclick={() => void choosePack()}>Import Pack…</Button
+      >
+      <input bind:this={fileInput} type="file" accept=".mcpack,.mcaddon,.zip" hidden />
+    </div>
+    <p class="subtitle">
+      Packs are installed in this world. Linked resource and behavior packs install together.
+    </p>
+  {/if}
   {#if notice}<p class="notice" role="status">{notice}</p>{/if}
 
   {#if loading && (bedrock ? bedrockResults.length === 0 : results.length === 0)}
     <p class="explain" role="status">Searching…</p>
   {:else if bedrock && bedrockResults.length === 0}
-    <EmptyState title="No behavior packs found" message="Try a different search term.">
+    <EmptyState title="No packs found" message="Try a different search term.">
       <Icon name="box" size={26} slot="icon" />
     </EmptyState>
   {:else if !bedrock && results.length === 0}
@@ -467,7 +555,28 @@
   </Sheet>
 {/if}
 
+{#if pendingPack}
+  <StagedUploadSheet
+    {api}
+    purpose="addon-local-file"
+    source={pendingPack}
+    onComplete={installUploadedPack}
+    onClose={() => (pendingPack = undefined)}
+  />
+{/if}
+
 <style>
+  .pack-actions,
+  .pack-filters {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .pack-actions {
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
   .header {
     display: flex;
     flex-direction: column;

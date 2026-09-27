@@ -35,6 +35,7 @@
   import EmptyState from '../../components/base/EmptyState.svelte';
   import Menu from '../../components/base/Menu.svelte';
   import Sheet from '../../components/base/Sheet.svelte';
+  import Toggle from '../../components/base/Toggle.svelte';
   import WorldSlotCard from './WorldSlotCard.svelte';
   import WorldSettingsForm from './WorldSettingsForm.svelte';
   import BackupsPanel from './BackupsPanel.svelte';
@@ -144,6 +145,28 @@
       entries.filter((entry): entry is [string, WorldSlotWithProfile] => Boolean(entry)),
     );
   }
+  async function setRequireResourcePacks(required: boolean): Promise<void> {
+    if (!selectedSlot || !api || busy || worlds.serverRunning) return;
+    const slot = selectedSlot;
+    const toggles = profiles[slot.id]?.profile.gameplay.supportedToggles ?? {};
+    busy = true;
+    try {
+      const result = await mutate<WorldProfileUpdateResult>(api, worldPaths.profile(slot.id), {
+        changes: {
+          'gameplay.supported-toggles': { ...toggles, 'require-resource-packs': required },
+        },
+      });
+      profiles = { ...profiles, [slot.id]: result.slot };
+      notice = required
+        ? 'Players must accept this world’s resource packs to join.'
+        : 'Players may choose whether to download this world’s resource packs.';
+    } catch (error) {
+      notice = error instanceof Error ? error.message : String(error);
+    } finally {
+      busy = false;
+    }
+  }
+
   async function loadBackupConfig(): Promise<void> {
     backupConfig = await call(api, backupConfig, backupPaths.config);
   }
@@ -567,7 +590,7 @@
   <section class="zone">
     <div class="section-header">
       <div class="overline">
-        <span class="msc2-type-overline">{isBedrock ? 'Behavior Packs' : 'Datapacks'}</span>
+        <span class="msc2-type-overline">{isBedrock ? 'World Packs' : 'Datapacks'}</span>
       </div>
       <Button
         size="sm"
@@ -580,21 +603,38 @@
             : undefined}
         onclick={() => (showPackBrowser = true)}
       >
-        {isBedrock ? 'Browse Behavior Packs' : 'Browse Datapacks'}
+        {isBedrock ? 'Browse Packs' : 'Browse Datapacks'}
       </Button>
     </div>
     {#if !selectedSlot}
       <p class="ownership">
-        Select a world slot to see its {isBedrock ? 'behavior packs' : 'datapacks'}.
+        Select a world slot to see its {isBedrock ? 'packs' : 'datapacks'}.
       </p>
     {:else if worlds.serverRunning}
       <p class="ownership">Stop the server before installing packs into a world slot.</p>
+    {/if}
+    {#if isBedrock && selectedSlot}
+      <div class="pack-preference">
+        <Toggle
+          label="Require resource packs to join"
+          checked={profiles[selectedSlot.id]?.profile.gameplay.supportedToggles?.[
+            'require-resource-packs'
+          ] ?? false}
+          disabled={busy || worlds.serverRunning || !profiles[selectedSlot.id]}
+          onchange={(value) => void setRequireResourcePacks(value)}
+        />
+        <span>Require resource packs to join</span>
+      </div>
+      <p class="ownership">
+        Minecraft offers this world’s resource packs when players join. When required, players must
+        accept to join. Vibrant Visuals effects depend on the player’s device and graphics setting.
+      </p>
     {/if}
     {#if selectedSlot}
       {@const packs = profiles[selectedSlot.id]?.profile.packs ?? []}
       {#if packs.length === 0}
         <p class="ownership">
-          No {isBedrock ? 'behavior packs' : 'datapacks'} recorded for {selectedSlot.name}.
+          No {isBedrock ? 'packs' : 'datapacks'} recorded for {selectedSlot.name}.
         </p>
       {:else}
         <Card padding="0">
@@ -602,6 +642,11 @@
             <div class="pack-row" class:bordered={index > 0}>
               <div class="pack-info">
                 <span class="pack-name">{pack.name}</span>
+                {#if isBedrock}<span class="ownership"
+                    >{pack.kind === 'bedrock_resource_pack'
+                      ? 'Resource pack'
+                      : 'Behavior pack'}</span
+                  >{/if}
                 <span class="ownership">
                   {pack.source.provider ?? 'Source unavailable'}
                   {#if pack.source.version}
@@ -826,6 +871,12 @@
 {/if}
 
 <style>
+  .pack-preference {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 12px 0;
+  }
   .worlds {
     display: flex;
     flex-direction: column;

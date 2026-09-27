@@ -822,7 +822,23 @@ pub fn update_active_slot_from_current_world(
     updated.world_level_name = Some(level_name);
     updated.zip_size_bytes = zip_size_bytes(fs, &zip_path);
 
-    let profile = detected_profile(&updated, server_type, &imported_metadata);
+    let saved_profile = world_store::load_profile(fs, server_dir, slot);
+    let mut profile = detected_profile(&updated, server_type, &imported_metadata);
+    // Snapshotting live files must retain MSC's source records and per-world join preference.
+    for pack in saved_profile.packs {
+        profile.packs.retain(|detected| detected.id != pack.id);
+        profile.packs.push(pack);
+    }
+    if let Some(required) = saved_profile
+        .gameplay
+        .supported_toggles
+        .get("require-resource-packs")
+    {
+        profile
+            .gameplay
+            .supported_toggles
+            .insert("require-resource-packs".into(), *required);
+    }
     world_store::save_profile(fs, server_dir, &updated, &profile)?;
     Ok(updated)
 }
@@ -1534,6 +1550,13 @@ fn profile_property_value(
             .gameplay
             .starting_map
             .map(|value| ("starting-map", value.to_string())),
+        WorldProfileField::GameplaySupportedToggles if server_type == ServerType::Bedrock => {
+            profile
+                .gameplay
+                .supported_toggles
+                .get("require-resource-packs")
+                .map(|value| ("texturepack-required", value.to_string()))
+        }
         _ => None,
     }
 }
@@ -1584,12 +1607,35 @@ pub fn apply_world_profile(
     let mut properties = read_properties_map(fs, &path);
     let mut expected = BTreeMap::new();
     let mut changes = Vec::new();
+    // This BDS property is server-level, but MSC owns its preference per world.
+    // A world without an explicit preference must not inherit the previous one.
+    if server_type == ServerType::Bedrock && !is_server_running {
+        let required = profile
+            .gameplay
+            .supported_toggles
+            .get("require-resource-packs")
+            .copied()
+            .unwrap_or(false);
+        properties.insert("texturepack-required".into(), required.to_string());
+        expected.insert("texturepack-required".into(), required.to_string());
+    }
 
     for field in WorldProfileField::ALL {
         if !field.applies_to(server_type) || !profile_field_present(profile, field) {
             continue;
         }
         let (mut status, mut reason) = profile_change_status(field, context, is_server_running);
+        if server_type == ServerType::Bedrock
+            && is_server_running
+            && field == WorldProfileField::GameplaySupportedToggles
+            && profile
+                .gameplay
+                .supported_toggles
+                .contains_key("require-resource-packs")
+        {
+            status = WorldProfileApplyStatus::Blocked;
+            reason = Some("server_restart_required".into());
+        }
         if let Some((key, value)) = profile_property_value(profile, server_type, context, field) {
             if status != WorldProfileApplyStatus::Blocked {
                 properties.insert(key.to_string(), value.clone());

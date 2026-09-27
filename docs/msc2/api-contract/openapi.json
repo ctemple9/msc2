@@ -6553,10 +6553,11 @@
     },
     "/v1/catalog/behaviorpacks": {
       "get": {
-        "summary": "Search CurseForge Minecraft Bedrock add-ons for a Bedrock version",
+        "summary": "Search CurseForge Minecraft Bedrock resource and behavior packs for a Bedrock version",
         "operationId": "searchBedrockBehaviorPacks",
         "x-permission-category": "none",
         "parameters": [
+          {"name": "kind", "in": "query", "required": false, "schema": {"type": "string", "enum": ["all", "resource", "behavior"], "default": "behavior"}},
           {"name": "q", "in": "query", "required": false, "schema": {"type": "string"}},
           {"name": "gameVersion", "in": "query", "required": false, "schema": {"type": "string"}},
           {"name": "offset", "in": "query", "required": false, "schema": {"type": "integer", "minimum": 0}}
@@ -6592,7 +6593,7 @@
         "parameters": [
           {"name": "slotId", "in": "path", "required": true, "schema": {"type": "string"}}
         ],
-        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/BedrockBehaviorPackInstallRequestDTO"}}}},
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"oneOf": [{"$ref": "#/components/schemas/BedrockBehaviorPackInstallRequestDTO"}, {"type": "object", "required": ["stagedUploadId"], "properties": {"stagedUploadId": {"type": "string"}}, "additionalProperties": false}]}}}},
         "responses": {
           "200": {"description": "Behavior packs installed and recorded in the slot profile", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/BedrockBehaviorPackInstallResultDTO"}}}},
           "400": {"description": "Invalid request body", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDTO"}}}},
@@ -7728,7 +7729,7 @@
         "properties": {
           "id": { "type": "string" },
           "edition": { "type": "string", "enum": ["java", "bedrock"] },
-          "kind": { "type": "string", "enum": ["java_datapack", "bedrock_behavior_pack"] },
+          "kind": { "type": "string", "enum": ["java_datapack", "bedrock_behavior_pack", "bedrock_resource_pack"] },
           "name": { "type": "string" },
           "source": { "$ref": "#/components/schemas/WorldPackSourceDTO" },
           "files": { "type": "array", "items": { "type": "string" }, "description": "Relative paths below the owning world root." },

@@ -795,6 +795,26 @@ pub fn curseforge_search_bedrock_addons(
     limit: u32,
     offset: u32,
 ) -> Result<Vec<CurseForgeSearchHit>, AddonProviderError> {
+    curseforge_search_bedrock_packs(
+        transport,
+        secrets,
+        query,
+        game_version,
+        limit,
+        offset,
+        "behavior",
+    )
+}
+
+pub fn curseforge_search_bedrock_packs(
+    transport: &dyn AddonTransport,
+    secrets: &dyn SecretStore,
+    query: &str,
+    game_version: Option<&str>,
+    limit: u32,
+    offset: u32,
+    kind: &str,
+) -> Result<Vec<CurseForgeSearchHit>, AddonProviderError> {
     let api_key = curseforge_api_key(secrets)?;
     let classes_url = format!(
         "{}/v1/categories?gameId={CURSEFORGE_MINECRAFT_GAME_ID}&classesOnly=true",
@@ -812,52 +832,69 @@ pub fn curseforge_search_bedrock_addons(
     let classes_body = bytes_to_utf8(classes_response.body, "CurseForge Bedrock categories")?;
     let classes: serde_json::Value = serde_json::from_str(&classes_body)
         .map_err(|error| malformed("CurseForge Bedrock categories", error))?;
-    let addon_class_id = classes
-        .get("data")
-        .and_then(serde_json::Value::as_array)
-        .into_iter()
-        .flatten()
-        .find(|class| {
-            class
-                .get("slug")
-                .and_then(serde_json::Value::as_str)
-                .is_some_and(|slug| slug.eq_ignore_ascii_case("addons"))
-                || class
-                    .get("name")
+    let wanted = match kind {
+        "resource" => vec!["texture-packs"],
+        "all" => vec!["addons", "texture-packs"],
+        _ => vec!["addons"],
+    };
+    let mut results = Vec::new();
+    let mut seen = std::collections::BTreeSet::new();
+    for category in wanted {
+        let addon_class_id = classes
+            .get("data")
+            .and_then(serde_json::Value::as_array)
+            .into_iter()
+            .flatten()
+            .find(|class| {
+                class
+                    .get("slug")
                     .and_then(serde_json::Value::as_str)
-                    .is_some_and(|name| name.eq_ignore_ascii_case("addons"))
-        })
-        .and_then(|class| class.get("id"))
-        .and_then(serde_json::Value::as_i64)
-        .ok_or_else(|| {
-            AddonProviderError::Network(
-                "CurseForge did not return its Bedrock Addons category.".to_string(),
+                    .is_some_and(|slug| slug.eq_ignore_ascii_case(category))
+                    || class
+                        .get("name")
+                        .and_then(serde_json::Value::as_str)
+                        .is_some_and(|name| name.to_ascii_lowercase().replace(' ', "-") == category)
+            })
+            .and_then(|class| class.get("id"))
+            .and_then(serde_json::Value::as_i64)
+            .ok_or_else(|| {
+                AddonProviderError::Network(format!(
+                    "CurseForge did not return its Bedrock {category} category."
+                ))
+            })?;
+        let mut url = format!(
+            "{}/v1/mods/search?gameId={CURSEFORGE_MINECRAFT_GAME_ID}&classId={addon_class_id}&searchFilter={}&pageSize={}&index={}",
+            curseforge_base(),
+            urlencode(query),
+            limit.clamp(1, 50),
+            offset.min(10_000),
+        );
+        if let Some(version) = game_version.filter(|version| !version.is_empty()) {
+            url.push_str("&gameVersion=");
+            url.push_str(&urlencode(version));
+        }
+        let response = transport
+            .get(
+                &url,
+                "CurseForge Bedrock add-on search",
+                &[("x-api-key", api_key.as_str())],
+                RESPONSE_MAX_BYTES,
             )
-        })?;
-    let mut url = format!(
-        "{}/v1/mods/search?gameId={CURSEFORGE_MINECRAFT_GAME_ID}&classId={addon_class_id}&searchFilter={}&pageSize={}&index={}",
-        curseforge_base(),
-        urlencode(query),
-        limit.clamp(1, 50),
-        offset.min(10_000),
-    );
-    if let Some(version) = game_version.filter(|version| !version.is_empty()) {
-        url.push_str("&gameVersion=");
-        url.push_str(&urlencode(version));
+            .map_err(map_transport_err)?;
+        ensure_curseforge_ok_for("Bedrock add-on search", response.status)?;
+        let body = bytes_to_utf8(response.body, "CurseForge Bedrock add-on search")?;
+        let result: CurseForgeSearchEnvelope = serde_json::from_str(&body)
+            .map_err(|error| malformed("CurseForge Bedrock add-on search", error))?;
+        for hit in result.data {
+            if seen.insert(hit.id) {
+                results.push(hit);
+            }
+        }
     }
-    let response = transport
-        .get(
-            &url,
-            "CurseForge Bedrock add-on search",
-            &[("x-api-key", api_key.as_str())],
-            RESPONSE_MAX_BYTES,
-        )
-        .map_err(map_transport_err)?;
-    ensure_curseforge_ok_for("Bedrock add-on search", response.status)?;
-    let body = bytes_to_utf8(response.body, "CurseForge Bedrock add-on search")?;
-    let result: CurseForgeSearchEnvelope = serde_json::from_str(&body)
-        .map_err(|error| malformed("CurseForge Bedrock add-on search", error))?;
-    Ok(result.data)
+    if kind == "all" {
+        results.sort_by_key(|item| std::cmp::Reverse(item.download_count));
+    }
+    Ok(results)
 }
 
 /// Resolve a file's API download URL when batch metadata did not include one.

@@ -536,11 +536,6 @@ pub fn install_bedrock_behavior_pack(
         .filter(|pack| pack.behavior)
         .map(|pack| pack.uuid.to_ascii_lowercase())
         .collect();
-    if behavior_ids.is_empty() {
-        return Err(BedrockBehaviorPackError::Invalid(
-            "The add-on contains no behavior pack.".into(),
-        ));
-    }
     let resource_ids: std::collections::BTreeSet<String> = packs
         .iter()
         .filter(|pack| !pack.behavior)
@@ -577,6 +572,28 @@ pub fn install_bedrock_behavior_pack(
             "The selected Bedrock world archive is invalid: {error}"
         ))
     })?;
+    // MSC archives contain server-relative paths; Bedrock reads activation lists inside its world.
+    let mut world_roots = std::collections::BTreeSet::new();
+    for index in 0..world.len() {
+        let entry = world
+            .by_index(index)
+            .map_err(|error| BedrockBehaviorPackError::Invalid(error.to_string()))?;
+        if let Some(rest) = entry.name().strip_prefix("worlds/") {
+            if rest.starts_with("db/") || rest == "level.dat" || rest == "levelname.txt" {
+                world_roots.insert("worlds/".to_owned());
+            } else if let Some((level, _)) = rest.split_once('/')
+                && !level.is_empty()
+            {
+                world_roots.insert(format!("worlds/{level}/"));
+            }
+        }
+    }
+    if world_roots.len() > 1 {
+        return Err(BedrockBehaviorPackError::Invalid(
+            "The archive contains more than one Bedrock world; no packs were installed.".into(),
+        ));
+    }
+    let world_root = world_roots.into_iter().next().unwrap_or_default();
     let mut behavior_config = serde_json::Value::Array(Vec::new());
     let mut resource_config = serde_json::Value::Array(Vec::new());
     for (name, value) in [
@@ -587,7 +604,7 @@ pub fn install_bedrock_behavior_pack(
             let mut entry = world
                 .by_index(index)
                 .map_err(|error| BedrockBehaviorPackError::Invalid(error.to_string()))?;
-            if entry.name() == name {
+            if entry.name() == format!("{world_root}{name}") {
                 let mut bytes = Vec::new();
                 entry
                     .read_to_end(&mut bytes)
@@ -619,7 +636,9 @@ pub fn install_bedrock_behavior_pack(
             .map_err(|error| BedrockBehaviorPackError::Invalid(error.to_string()))?;
         let name = entry.name().to_owned();
         existing.insert(name.clone());
-        if name == "world_behavior_packs.json" || name == "world_resource_packs.json" {
+        if name == format!("{world_root}world_behavior_packs.json")
+            || name == format!("{world_root}world_resource_packs.json")
+        {
             continue;
         }
         if entry.is_dir() {
@@ -641,7 +660,7 @@ pub fn install_bedrock_behavior_pack(
         } else {
             "resource_packs"
         };
-        let root = format!("{folder}/{}/", pack.uuid);
+        let root = format!("{world_root}{folder}/{}/", pack.uuid);
         for (name, bytes) in &pack.files {
             let path = format!("{root}{name}");
             if existing.contains(&path) {
@@ -660,14 +679,26 @@ pub fn install_bedrock_behavior_pack(
         installed.push(WorldPackRecord {
             id: pack.uuid.clone(),
             edition: "bedrock".into(),
-            kind: "bedrock_behavior_pack".into(),
+            kind: if pack.behavior {
+                "bedrock_behavior_pack"
+            } else {
+                "bedrock_resource_pack"
+            }
+            .into(),
             name: pack.name.clone(),
             source: WorldPackSource {
-                provider: Some("curseforge".into()),
-                project_id: Some(source_name.to_owned()),
-                version_id: Some(source_version.to_owned()),
+                provider: Some(
+                    if source_url == "local-file" {
+                        "local-file"
+                    } else {
+                        "curseforge"
+                    }
+                    .into(),
+                ),
+                project_id: (source_url != "local-file").then(|| source_name.to_owned()),
+                version_id: (source_url != "local-file").then(|| source_version.to_owned()),
                 version: Some(pack.version.clone()),
-                url: Some(source_url.to_owned()),
+                url: (source_url != "local-file").then(|| source_url.to_owned()),
             },
             files: pack
                 .files
@@ -711,7 +742,7 @@ pub fn install_bedrock_behavior_pack(
         ("world_resource_packs.json", resource_config),
     ] {
         output
-            .start_file(name, options)
+            .start_file(format!("{world_root}{name}"), options)
             .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?;
         output
             .write_all(

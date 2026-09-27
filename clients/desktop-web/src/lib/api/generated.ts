@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: b47f71eac86a7ba88d9c74aa28b624a9ba3d25d1cf11f782dd590e46464c6cc0
+// Contract SHA-256: 1f372b7e608bcb90c4c1d9da2971e559c9686134d0861a0680f729b3117c712d
 
 export interface paths {
   '/v1/active-server': {
@@ -985,7 +985,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Search CurseForge Minecraft Bedrock add-ons for a Bedrock version */
+    /** Search CurseForge Minecraft Bedrock resource and behavior packs for a Bedrock version */
     get: operations['searchBedrockBehaviorPacks'];
     put?: never;
     post?: never;
@@ -8799,7 +8799,7 @@ export interface components {
       files: string[];
       id: string;
       /** @enum {string} */
-      kind: 'java_datapack' | 'bedrock_behavior_pack';
+      kind: 'java_datapack' | 'bedrock_behavior_pack' | 'bedrock_resource_pack';
       minecraftVersions: string[];
       name: string;
       source: components['schemas']['WorldPackSourceDTO'];
@@ -9353,6 +9353,7 @@ export interface operations {
     parameters: {
       query?: {
         gameVersion?: string;
+        kind?: 'all' | 'resource' | 'behavior';
         offset?: number;
         q?: string;
       };
@@ -10230,7 +10231,13 @@ export interface operations {
     };
     requestBody: {
       content: {
-        'application/json': components['schemas']['BedrockBehaviorPackInstallRequestDTO'];
+        'application/json':
+          | components['schemas']['BedrockBehaviorPackInstallRequestDTO']
+          | ({
+              stagedUploadId: string;
+            } & {
+              [key: string]: unknown;
+            });
       };
     };
     responses: {

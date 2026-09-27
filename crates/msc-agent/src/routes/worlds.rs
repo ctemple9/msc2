@@ -858,7 +858,10 @@ fn decode_world_packs(
         if pack.id.trim().is_empty() || pack.name.trim().is_empty() {
             return Err("world-pack id and name must not be empty".to_string());
         }
-        if pack.edition != server_type.raw_value() || pack.kind != expected_kind {
+        if pack.edition != server_type.raw_value()
+            || !(pack.kind == expected_kind
+                || server_type == ServerType::Bedrock && pack.kind == "bedrock_resource_pack")
+        {
             return Err(format!(
                 "{} records are not supported for this server edition",
                 pack.kind
@@ -1139,6 +1142,7 @@ pub struct BedrockBehaviorPackSearchQuery {
     q: Option<String>,
     game_version: Option<String>,
     offset: Option<u32>,
+    kind: Option<String>,
 }
 
 pub async fn search_bedrock_behavior_packs(
@@ -1155,14 +1159,22 @@ pub async fn search_bedrock_behavior_packs(
             );
         }
     };
+    let kind = query.kind.as_deref().unwrap_or("behavior");
+    if !["all", "resource", "behavior"].contains(&kind) {
+        return invalid_body(
+            "invalid_pack_kind",
+            "Pack kind must be all, resource, or behavior.",
+        );
+    }
     let transport = msc_infrastructure::addon_provider::HttpTransport::new();
-    let results = match msc_infrastructure::addon_provider::curseforge_search_bedrock_addons(
+    let results = match msc_infrastructure::addon_provider::curseforge_search_bedrock_packs(
         &transport,
         secrets.as_ref(),
         query.q.as_deref().unwrap_or_default(),
         query.game_version.as_deref(),
         20,
         query.offset.unwrap_or(0),
+        kind,
     ) {
         Ok(results) => results,
         Err(error) => {
@@ -1290,7 +1302,7 @@ pub async fn install_bedrock_behavior_pack(
     State(state): State<WorldsRoutesState>,
     Extension(credential): Extension<AuthenticatedCredential>,
     AxumPath(slot_id): AxumPath<String>,
-    body: Result<Json<BedrockBehaviorPackInstallRequestDto>, JsonRejection>,
+    body: Result<Json<serde_json::Value>, JsonRejection>,
 ) -> Response {
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
         return response;
@@ -1307,7 +1319,7 @@ pub async fn install_bedrock_behavior_pack(
         return error_response(
             StatusCode::CONFLICT,
             "unsupported_server_type",
-            "Bedrock behavior packs can only be installed in Bedrock worlds.",
+            "Bedrock packs can only be installed in Bedrock worlds.",
         );
     }
     if server.minecraft_version.is_none() {
@@ -1327,76 +1339,158 @@ pub async fn install_bedrock_behavior_pack(
         return error_response(
             StatusCode::CONFLICT,
             "server_running",
-            "Stop the server before changing behavior packs in its active world.",
+            "Stop the server before changing packs in its active world.",
         );
     }
-    let project_id = match body.project_id.parse::<i64>() {
-        Ok(id) if id > 0 => id,
-        _ => {
+    let (archive, source_project_id, source_file_id, source_url) = if let Some(id) = body
+        .get("stagedUploadId")
+        .and_then(serde_json::Value::as_str)
+    {
+        if body.get("projectId").is_some() || body.get("fileId").is_some() {
             return invalid_body(
-                "invalid_project_id",
-                "CurseForge project ID must be a positive number.",
+                "invalid_pack_source",
+                "Choose a catalog file or an uploaded file, not both.",
             );
         }
-    };
-    let secrets = match crate::auth::production_secret_store() {
-        Ok(secrets) => secrets,
-        Err(error) => {
-            return error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "secret_store_unavailable",
-                &error.to_string(),
-            );
-        }
-    };
-    let transport = msc_infrastructure::addon_provider::HttpTransport::new();
-    let file = match msc_infrastructure::addon_provider::curseforge_files(
-        &transport,
-        secrets.as_ref(),
-        &[body.file_id],
-    ) {
-        Ok(files) => match files
-            .into_iter()
-            .find(|file| file.id == body.file_id && file.mod_id == project_id)
+        let entry = state.staging.uploads.lock().unwrap().remove(id);
+        let Some(entry) = entry else {
+            return invalid_body("invalid_upload", "The uploaded pack is unavailable.");
+        };
+        if now_unix() > entry.expires_at_unix
+            || !entry.complete
+            || entry.purpose != StagedUploadPurposeDto::AddonLocalFile
         {
-            Some(file) => file,
-            None => {
+            let _ = std::fs::remove_file(&entry.path);
+            return invalid_body(
+                "invalid_upload",
+                "The uploaded pack is expired, incomplete, or has the wrong purpose.",
+            );
+        }
+        let archive = std::fs::read(&entry.path);
+        let _ = std::fs::remove_file(&entry.path);
+        let archive = match archive {
+            Ok(bytes) => bytes,
+            Err(error) => {
                 return error_response(
-                    StatusCode::NOT_FOUND,
-                    "file_not_found",
-                    "That file does not belong to the selected CurseForge project.",
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "upload_read_failed",
+                    &error.to_string(),
                 );
             }
-        },
-        Err(error) => {
-            let (status, code) = match error {
-                msc_domain::addon_provider::AddonProviderError::MissingApiKey => {
-                    (StatusCode::CONFLICT, "missing_curseforge_api_key")
-                }
-                msc_domain::addon_provider::AddonProviderError::Unauthorized => {
-                    (StatusCode::UNAUTHORIZED, "curseforge_unauthorized")
-                }
-                _ => (StatusCode::BAD_GATEWAY, "provider_error"),
-            };
-            return error_response(status, code, &error.to_string());
-        }
-    };
-    let download_url = match file.download_url.clone() {
-        Some(url) => url,
-        None => match msc_infrastructure::addon_provider::curseforge_bedrock_file_download_url(
+        };
+        (
+            archive,
+            entry.file_name.unwrap_or_else(|| "Imported pack".into()),
+            String::new(),
+            "local-file".into(),
+        )
+    } else {
+        let body: BedrockBehaviorPackInstallRequestDto = match serde_json::from_value(body) {
+            Ok(body) => body,
+            Err(_) => {
+                return invalid_body(
+                    "invalid_pack_source",
+                    "Choose a catalog file or upload a pack.",
+                );
+            }
+        };
+        let project_id = match body.project_id.parse::<i64>() {
+            Ok(id) if id > 0 => id,
+            _ => {
+                return invalid_body(
+                    "invalid_project_id",
+                    "CurseForge project ID must be a positive number.",
+                );
+            }
+        };
+        let secrets = match crate::auth::production_secret_store() {
+            Ok(secrets) => secrets,
+            Err(error) => {
+                return error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "secret_store_unavailable",
+                    &error.to_string(),
+                );
+            }
+        };
+        let transport = msc_infrastructure::addon_provider::HttpTransport::new();
+        let file = match msc_infrastructure::addon_provider::curseforge_files(
             &transport,
             secrets.as_ref(),
-            project_id,
-            body.file_id,
+            &[body.file_id],
         ) {
-            Ok(Some(url)) => url,
-            Ok(None) => {
+            Ok(files) => match files
+                .into_iter()
+                .find(|file| file.id == body.file_id && file.mod_id == project_id)
+            {
+                Some(file) => file,
+                None => {
+                    return error_response(
+                        StatusCode::NOT_FOUND,
+                        "file_not_found",
+                        "That file does not belong to the selected CurseForge project.",
+                    );
+                }
+            },
+            Err(error) => {
+                let (status, code) = match error {
+                    msc_domain::addon_provider::AddonProviderError::MissingApiKey => {
+                        (StatusCode::CONFLICT, "missing_curseforge_api_key")
+                    }
+                    msc_domain::addon_provider::AddonProviderError::Unauthorized => {
+                        (StatusCode::UNAUTHORIZED, "curseforge_unauthorized")
+                    }
+                    _ => (StatusCode::BAD_GATEWAY, "provider_error"),
+                };
+                return error_response(status, code, &error.to_string());
+            }
+        };
+        let download_url = match file.download_url.clone() {
+            Some(url) => url,
+            None => match msc_infrastructure::addon_provider::curseforge_bedrock_file_download_url(
+                &transport,
+                secrets.as_ref(),
+                project_id,
+                body.file_id,
+            ) {
+                Ok(Some(url)) => url,
+                Ok(None) => {
+                    return error_response(
+                        StatusCode::CONFLICT,
+                        "manual_download_required",
+                        "CurseForge does not permit this file to be downloaded through the API.",
+                    );
+                }
+                Err(error) => {
+                    return error_response(
+                        StatusCode::BAD_GATEWAY,
+                        "provider_error",
+                        &error.to_string(),
+                    );
+                }
+            },
+        };
+        let archive = match msc_infrastructure::addon_provider::download_curseforge_bedrock_addon(
+            &transport,
+            &download_url,
+        ) {
+            Ok(bytes) => bytes,
+            Err(error) => {
                 return error_response(
-                    StatusCode::CONFLICT,
-                    "manual_download_required",
-                    "CurseForge does not permit this file to be downloaded through the API.",
+                    StatusCode::BAD_GATEWAY,
+                    "download_failed",
+                    &error.to_string(),
                 );
             }
+        };
+        let project = match msc_infrastructure::addon_provider::curseforge_mods(
+            &transport,
+            secrets.as_ref(),
+            &[project_id],
+        ) {
+            Ok(projects) => projects
+                .into_iter()
+                .find(|project| project.id == project_id),
             Err(error) => {
                 return error_response(
                     StatusCode::BAD_GATEWAY,
@@ -1404,56 +1498,74 @@ pub async fn install_bedrock_behavior_pack(
                     &error.to_string(),
                 );
             }
-        },
-    };
-    let archive = match msc_infrastructure::addon_provider::download_curseforge_bedrock_addon(
-        &transport,
-        &download_url,
-    ) {
-        Ok(bytes) => bytes,
-        Err(error) => {
-            return error_response(
-                StatusCode::BAD_GATEWAY,
-                "download_failed",
-                &error.to_string(),
-            );
-        }
-    };
-    let project = match msc_infrastructure::addon_provider::curseforge_mods(
-        &transport,
-        secrets.as_ref(),
-        &[project_id],
-    ) {
-        Ok(projects) => projects
-            .into_iter()
-            .find(|project| project.id == project_id),
-        Err(error) => {
-            return error_response(
-                StatusCode::BAD_GATEWAY,
-                "provider_error",
-                &error.to_string(),
-            );
-        }
+        };
+        (
+            archive,
+            body.project_id,
+            body.file_id.to_string(),
+            project
+                .as_ref()
+                .and_then(|project| project.website_url())
+                .unwrap_or("https://www.curseforge.com/minecraft-bedrock")
+                .to_owned(),
+        )
     };
     let operation_id = match begin_operation(
         &state.lifecycle,
         &server.id,
         "world-behavior-pack-install",
-        "Installing Bedrock behavior pack.",
+        "Installing Bedrock world pack.",
     ) {
         Ok(id) => id,
         Err(response) => return response,
     };
-    let source_file_id = body.file_id.to_string();
+    let active = resolved_active_slot_id(server_dir).as_deref() == Some(slot.id.as_str());
+    let original_profile = world_store::load_profile(&StdFileSystem, server_dir, &slot);
+    // Refresh an active world's archive before modifying it, preserving gameplay
+    // since its last save. Restore its pack/preferences metadata after detection.
+    let slot = if active
+        && server_dir
+            .join("worlds")
+            .join(
+                worlds::read_configured_level_name(&StdFileSystem, server_dir)
+                    .unwrap_or_else(|| slot.name.clone()),
+            )
+            .is_dir()
+    {
+        match worlds::update_active_slot_from_current_world(
+            &StdFileSystem,
+            server_dir,
+            ServerType::Bedrock,
+            None,
+            &slot,
+        )
+        .and_then(|updated| {
+            world_store::save_profile(&StdFileSystem, server_dir, &updated, &original_profile)?;
+            Ok(updated)
+        }) {
+            Ok(updated) => updated,
+            Err(error) => {
+                let _ = state.lifecycle.operations().fail(
+                    &operation_id,
+                    "world_snapshot_failed",
+                    error.to_string(),
+                );
+                return error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "world_snapshot_failed",
+                    &error.to_string(),
+                );
+            }
+        }
+    } else {
+        slot
+    };
     let (packs, backup_path) = match msc_application::addons::install_bedrock_behavior_pack(
         &world_store::zip_path(server_dir, &slot.id),
         &archive,
-        &body.project_id,
+        &source_project_id,
         &source_file_id,
-        project
-            .as_ref()
-            .and_then(|project| project.website_url())
-            .unwrap_or("https://www.curseforge.com/minecraft-bedrock"),
+        &source_url,
         server.minecraft_version.as_deref().unwrap_or_default(),
     ) {
         Ok(installed) => installed,
@@ -1496,13 +1608,45 @@ pub async fn install_bedrock_behavior_pack(
             &error.to_string(),
         );
     }
+    if active {
+        let raw_level_name = worlds::read_configured_level_name(&StdFileSystem, server_dir);
+        if let Err(error) = worlds::activate_slot(
+            &StdFileSystem,
+            server_dir,
+            ServerType::Bedrock,
+            &slot,
+            false,
+            &iso8601_now(),
+            || {
+                run_pre_mutation_safety_backup(
+                    &state.lifecycle,
+                    server_dir,
+                    ServerType::Bedrock,
+                    raw_level_name.as_deref(),
+                    || false,
+                )
+            },
+            || false,
+        ) {
+            let _ = state.lifecycle.operations().fail(
+                &operation_id,
+                "pack_activation_failed",
+                error.to_string(),
+            );
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "pack_activation_failed",
+                &error.to_string(),
+            );
+        }
+    }
     let result = packs
         .iter()
         .map(|pack| ("packId".to_string(), pack.id.clone()))
         .collect();
     let _ = state.lifecycle.operations().succeed(
         &operation_id,
-        "Bedrock behavior pack installed.",
+        "Bedrock world pack installed.",
         result,
     );
     let response = Json(BedrockBehaviorPackInstallResultDto {

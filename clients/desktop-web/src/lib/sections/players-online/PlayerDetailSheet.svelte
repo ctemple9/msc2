@@ -13,7 +13,7 @@
   import InventoryGrid from './InventoryGrid.svelte';
   import type { Schema } from '../shared/types';
   import { call, mutate } from '../shared/types';
-  import { bodyUrl, playerPaths, profileDisplayName } from './model';
+  import { avatarUrl, bodyUrl, playerPaths, profileDisplayName } from './model';
 
   export let profile: Schema['PlayerProfileDTO'];
   export let api: import('../shared/types').ScreenApi | undefined = undefined;
@@ -34,9 +34,8 @@
   let actionSuccess: string | undefined;
   let portraitFailed = false;
 
-  $: previewIdentifier = profile.skinOverrideIdentifier || profile.imageIdentifier;
-  $: previewHeadUrl = `https://mc-heads.net/avatar/${encodeURIComponent(previewIdentifier)}/64`;
-  $: previewBodyUrl = `https://mc-heads.net/body/${encodeURIComponent(previewIdentifier)}/64`;
+  $: previewHeadUrl = avatarUrl(profile, 64);
+  $: previewBodyUrl = bodyUrl(profile, 64);
 
   onMount(async () => {
     if (profile.isBedrockPlayer) return;

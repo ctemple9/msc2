@@ -510,3 +510,12 @@ Evidence: Rust formatting, scoped Cargo check/clippy, Svelte check, frontend for
 Verify: Run `npx tauri dev` from `clients/desktop-web`. In Java Player Profile, save a custom skin lookup, close/reopen the sheet, and confirm the identifier and preview remain. Repeat for a Bedrock profile. Stop BDS and confirm Duplicate adds a copied profile, Delete Player Data removes the selected profile, and Hide Profile still toggles; confirm Duplicate/Delete are unavailable while BDS runs. In Worlds → Settings, enable Coordinates, save, restart BDS, join the active world, and confirm the coordinate display appears; disable it, restart, and confirm it disappears.
 Commit: P14.85: restore player changes and apply bedrock world settings
 Batch: solo
+
+#### P14.86 — Use saved Bedrock skin lookups in player images
+
+Status: awaiting Cameron verification
+Files: clients/desktop-web/src/lib/sections/players-online/model.ts, clients/desktop-web/src/lib/sections/players-online/PlayerDetailSheet.svelte, docs/msc2/rolling-plan.md
+What: Use a saved skin lookup override for the profile portrait, skin preview, and player-data card. For Bedrock, use the gamertag with mc-heads.net's isometric head endpoint, since its frontal avatar endpoint falls back to Steve for the same gamertag. Without an override, use the Bedrock profile's gamertag instead of its dotted Floodgate-style identifier.
+Verify: Run `npx tauri dev` from `clients/desktop-web`. Save `camkage` as a Bedrock skin lookup and confirm the profile portrait, head preview, and Player Data card show the custom skin after saving and after closing/reopening the sheet. Confirm Java player images still use the frontal avatar.
+Commit: P14.86: apply bedrock skin lookup to player images
+Batch: solo

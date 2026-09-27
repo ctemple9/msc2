@@ -65,20 +65,25 @@ export function profileSort(
   return sorted;
 }
 
-/** mc-heads.net face-crop identifier. `PlayerProfileDTO.imageIdentifier` is
- *  already resolved server-side for both editions -- a bare uuid-hex for
- *  Java, a dotted gamertag (".Gamertag") for Bedrock, matching mc-heads.net's
- *  own documented Bedrock convention (ported server-side from
- *  PlayerProfile.imageIdentifier) -- so this always has something real to
- *  try, even for a not-yet-identified Bedrock profile (its raw XUID, same
- *  fallback the backend itself uses when no name is cached yet). */
-export function avatarUrl(profile: Schema['PlayerProfileDTO'], size = 40): string {
-  return `https://mc-heads.net/avatar/${encodeURIComponent(profile.imageIdentifier)}/${size}`;
+/** Prefer the saved lookup override. Bedrock gamertags render through
+ *  mc-heads.net's isometric head endpoint; its frontal avatar endpoint can
+ *  fall back to Steve for Bedrock identities. */
+function skinIdentifier(profile: Schema['PlayerProfileDTO']): string {
+  return (
+    profile.skinOverrideIdentifier?.trim() ||
+    (profile.isBedrockPlayer ? profile.username?.replace(/^\./, '') : undefined) ||
+    profile.imageIdentifier
+  );
 }
 
-/** Full-body render for the same identifier scheme `avatarUrl` resolves. */
+export function avatarUrl(profile: Schema['PlayerProfileDTO'], size = 40): string {
+  const endpoint = profile.isBedrockPlayer ? 'head' : 'avatar';
+  return `https://mc-heads.net/${endpoint}/${encodeURIComponent(skinIdentifier(profile))}/${size}`;
+}
+
+/** Full-body render for the same identity and saved override as `avatarUrl`. */
 export function bodyUrl(profile: Schema['PlayerProfileDTO'], size = 96): string {
-  return `https://mc-heads.net/body/${encodeURIComponent(profile.imageIdentifier)}/${size}`;
+  return `https://mc-heads.net/body/${encodeURIComponent(skinIdentifier(profile))}/${size}`;
 }
 
 // ── Session log — real backend (P12.3b/c) for Java, ported from MSC 1's

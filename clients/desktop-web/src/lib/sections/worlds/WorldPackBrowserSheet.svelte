@@ -326,7 +326,7 @@
     </EmptyState>
   {:else if bedrock}
     <div class="results">
-      {#each bedrockResults as item (item.fileId)}
+      {#each bedrockResults as item (item.projectId)}
         {@const compatible =
           !!selectedMinecraftVersion && item.minecraftVersion === selectedMinecraftVersion}
         <div class="result">

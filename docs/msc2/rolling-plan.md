@@ -396,3 +396,14 @@ Evidence: The host returned “CurseForge did not return its Bedrock Texture Pac
 Verify: Restart npx tauri dev, Repair Service, reconnect, then search “Prizma Visuals” in Browse Packs → Resource Packs. Confirm its Legacy project appears.
 Commit: P14.74: search available bedrock pack classes
 Batch: solo
+
+
+#### P14.75 — Keep Bedrock search projects without indexed files
+
+Status: awaiting Cameron verification
+Files: crates/msc-infrastructure/src/addon_provider.rs, crates/msc-agent/src/routes/worlds.rs, clients/desktop-web/src/lib/sections/worlds/WorldPackBrowserSheet.svelte, docs/msc2/rolling-plan.md
+What: Keep CurseForge Bedrock projects in search results when search metadata omits latest file indexes; opening the project loads its full version list, where the user can choose an installable file. If class-filtered text search returns no projects, retry the same query without the class filter to account for Bedrock projects missing from CurseForge's API class index. Key result rows by project ID because multiple projects may not have a search file ID.
+Evidence: Source inspection found the agent discarded projects without latest file indexes before returning catalog results, even though the project detail endpoint fetches published files independently. Scoped clippy and Svelte type checks pass. No tests created or run.
+Verify: Restart npx tauri dev, Repair Service, reconnect, then search “Prizma Visuals” in Browse Packs → Resource Packs. Confirm the project appears, open it, choose the Legacy release, and check whether its files are installable.
+Commit: P14.75: keep bedrock projects without indexed files
+Batch: solo

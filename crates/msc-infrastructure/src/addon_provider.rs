@@ -909,6 +909,30 @@ pub fn curseforge_search_bedrock_packs(
             }
         }
     }
+    // Some Bedrock projects are searchable on CurseForge's site but are missing
+    // from its class-filtered API index. Retry the text search without a class.
+    if results.is_empty() && !query.trim().is_empty() {
+        let url = format!(
+            "{}/v1/mods/search?gameId={CURSEFORGE_MINECRAFT_GAME_ID}&searchFilter={}&pageSize={}&index={}",
+            curseforge_base(),
+            urlencode(query),
+            limit.clamp(1, 50),
+            offset.min(10_000),
+        );
+        let response = transport
+            .get(
+                &url,
+                "CurseForge Bedrock add-on search fallback",
+                &[("x-api-key", api_key.as_str())],
+                RESPONSE_MAX_BYTES,
+            )
+            .map_err(map_transport_err)?;
+        ensure_curseforge_ok_for("Bedrock add-on search fallback", response.status)?;
+        let body = bytes_to_utf8(response.body, "CurseForge Bedrock add-on search fallback")?;
+        let fallback: CurseForgeSearchEnvelope = serde_json::from_str(&body)
+            .map_err(|error| malformed("CurseForge Bedrock add-on search fallback", error))?;
+        results.extend(fallback.data);
+    }
     if kind == "all" {
         results.sort_by_key(|item| std::cmp::Reverse(item.download_count));
     }

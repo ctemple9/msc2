@@ -1193,25 +1193,31 @@ pub async fn search_bedrock_behavior_packs(
     Json(BedrockBehaviorPackSearchResponseDto {
         results: results
             .into_iter()
-            .filter_map(|hit| {
-                let file = match query.game_version.as_ref() {
-                    Some(version) => hit
-                        .latest_files_indexes
-                        .iter()
-                        .find(|file| file.game_version == *version)?,
-                    None => hit.latest_files_indexes.first()?,
-                };
-                Some(msc_api::dto::BedrockBehaviorPackCatalogItemDto {
+            .map(|hit| {
+                let file = query
+                    .game_version
+                    .as_ref()
+                    .and_then(|version| {
+                        hit.latest_files_indexes
+                            .iter()
+                            .find(|file| file.game_version == *version)
+                    })
+                    .or_else(|| hit.latest_files_indexes.first());
+                msc_api::dto::BedrockBehaviorPackCatalogItemDto {
                     project_id: hit.id.to_string(),
                     slug: hit.slug,
                     title: hit.name,
                     description: hit.summary,
                     downloads: hit.download_count,
                     icon_url: hit.logo.map(|logo| logo.url),
-                    file_id: file.file_id,
-                    file_name: file.filename.clone(),
-                    minecraft_version: file.game_version.clone(),
-                })
+                    file_id: file.map(|file| file.file_id).unwrap_or_default(),
+                    file_name: file
+                        .map(|file| file.filename.clone())
+                        .unwrap_or_else(|| "Open to choose a file".into()),
+                    minecraft_version: file
+                        .map(|file| file.game_version.clone())
+                        .unwrap_or_default(),
+                }
             })
             .collect(),
         game_version: query.game_version,

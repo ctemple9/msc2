@@ -260,7 +260,8 @@ pub fn validate_key(key: &str) -> Result<(), String> {
         return Err("credential key is not allowed".to_string());
     }
     for ch in chars {
-        if !(ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '.' || ch == '-') {
+        // Server-scoped keys include MSC's uppercase UUID server IDs.
+        if !(ch.is_ascii_alphanumeric() || ch == '.' || ch == '-') {
             return Err("credential key is not allowed".to_string());
         }
     }

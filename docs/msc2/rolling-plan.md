@@ -341,3 +341,14 @@ Evidence: Live host persistent rule applied; restarted agent runs as unconfined_
 Verify: Restart `npx tauri dev`, reconnect (repair once if the debug build changed), and create the Bedrock server again. Confirm its archive provisions and the server appears. `ps -Z -p $(systemctl show com.ctemple.msc2.agent.service -p MainPID --value)` must show unconfined_service_t.
 Commit: P14.69: label linux agent executables for daemon startup
 Batch: solo
+
+
+#### P14.70 — Accept server IDs in Linux credential keys
+
+Status: awaiting Cameron verification
+Files: crates/msc-platform-linux/src/credential_helper.rs, docs/msc2/rolling-plan.md
+What: Fix Xbox Broadcast setup during Bedrock initiation failing with credential key is not allowed. MSC creates uppercase UUID server IDs; Xbox's auth-token and legacy server-password keys append that ID. Permit ASCII uppercase letters in credential key suffixes as well as existing lowercase letters, digits, dots, and hyphens. Retain the namespace-leading restriction, length bound, traversal rejection, and rejection of whitespace and path separators. Update both the agent-side client validator and the installed privileged helper.
+Evidence: Reproduced the live helper rejecting the actual server's Xbox auth-token key with no credential values displayed. Installed the corrected RPM and repaired the service with the current debug agent; both services are active and health returns HTTP 204. Live credential reads now accept the actual server's Xbox auth-token and legacy alt-password keys; no credential values displayed or changed. Debug/release agent builds, RPM packaging, platform clippy, formatting, and git diff checks passed. No tests created or run.
+Verify: Restart `npx tauri dev`, reconnect, then initiate test-Bedrock and complete Xbox Broadcast setup. Confirm the credential-key error is gone and initiation proceeds to the account setup or connection check.
+Commit: P14.70: accept server ids in linux credential keys
+Batch: solo

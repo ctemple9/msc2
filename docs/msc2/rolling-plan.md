@@ -480,3 +480,13 @@ Evidence: Prettier check passes; Svelte check reports 0 errors and 7 existing wa
 Verify: Run npx tauri dev from clients/desktop-web and confirm the backup toggle reads “Recurring.”
 Commit: P14.82: rename recurring backup toggle
 Batch: solo
+
+#### P14.83 — Draw the full world-slot selection border
+
+Status: awaiting Cameron verification
+Files: clients/desktop-web/src/lib/sections/worlds/WorldSlotCard.svelte, docs/msc2/rolling-plan.md
+What: Replace the inset selection shadow, which child content obscured, with a reserved 2px border whose color changes for the selected slot. The selection now traces the full perimeter without changing card dimensions.
+Evidence: Prettier check passes; Svelte check reports 0 errors and 7 existing warnings. No tests created or run.
+Verify: Run npx tauri dev from clients/desktop-web. Select and deselect a world slot and confirm the selection color wraps all four sides and corners without resizing the card.
+Commit: P14.83: draw full world slot selection border
+Batch: solo

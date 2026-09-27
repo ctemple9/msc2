@@ -246,13 +246,14 @@
   .slot {
     display: flex;
     flex-direction: column;
+    box-sizing: border-box;
     border-radius: 12px;
     overflow: hidden;
-    border: 1px solid transparent;
+    border: 2px solid transparent;
   }
   .slot.selected {
     background: rgba(59, 130, 246, 0.06);
-    box-shadow: inset 0 0 0 1.5px var(--msc2-selection);
+    border-color: var(--msc2-selection);
   }
   .thumb-wrap {
     position: relative;

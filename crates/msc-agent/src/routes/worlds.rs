@@ -1814,7 +1814,7 @@ pub async fn update_profile(
     }
     if let Err(message) = msc_infrastructure::gamerule_catalog::validate_values(
         server.server_type.raw_value(),
-        server.minecraft_version.as_deref(),
+        gamerule_server_version(&server, &state.lifecycle).as_deref(),
         &profile.gameplay.gamerules,
     ) {
         return invalid_body("invalid_gamerule", &message);
@@ -2353,7 +2353,7 @@ pub async fn create(
             }
             if let Err(message) = msc_infrastructure::gamerule_catalog::validate_values(
                 server.server_type.raw_value(),
-                server.minecraft_version.as_deref(),
+                gamerule_server_version(server, &state.lifecycle).as_deref(),
                 &profile.gameplay.gamerules,
             ) {
                 return invalid_body("invalid_gamerule", &message);
@@ -5414,16 +5414,16 @@ pub async fn gamerule_catalog(
         .active_server
         .then(|| state.lifecycle.active_config_server())
         .flatten();
+    let installed_version = active
+        .as_ref()
+        .filter(|server| server.server_type.raw_value() == query.server_type)
+        .and_then(|server| gamerule_server_version(server, &state.lifecycle));
     let version = crate::routes::versions::minecraft_version_from_selection(
         query
             .java_flavor
             .as_deref()
             .and_then(msc_domain::identity::JavaServerFlavor::from_raw_value),
-        query.minecraft_version.or_else(|| {
-            active
-                .filter(|server| server.server_type.raw_value() == query.server_type)
-                .and_then(|server| server.minecraft_version)
-        }),
+        installed_version.or(query.minecraft_version),
     )
     .filter(|version| !version.eq_ignore_ascii_case("latest"));
     let catalog =
@@ -5447,4 +5447,17 @@ pub async fn gamerule_catalog(
             choices: rule.choices.clone(), experimental: rule.experimental, minimum: rule.minimum, maximum: rule.maximum,
         }).collect()).unwrap_or_default(),
     }).into_response()
+}
+
+// Bedrock records its release separately from Java, and LATEST is only a selection policy.
+fn gamerule_server_version(
+    server: &ConfigServer,
+    lifecycle: &LifecycleRoutesState,
+) -> Option<String> {
+    if server.server_type == ServerType::Bedrock {
+        let runtime = crate::routes::bedrock::runtime_for(lifecycle);
+        crate::routes::versions::installed_bedrock_version(server, runtime.as_ref())
+    } else {
+        server.minecraft_version.clone()
+    }
 }

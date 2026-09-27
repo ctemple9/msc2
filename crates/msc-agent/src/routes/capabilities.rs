@@ -60,9 +60,14 @@ async fn capabilities_for_query(
         .minecraft_version
         .filter(|value| !value.trim().is_empty())
         .or_else(|| {
-            active
-                .filter(|_| !hypothetical)
-                .and_then(|server| server.minecraft_version.clone())
+            active.filter(|_| !hypothetical).and_then(|server| {
+                if server.server_type == msc_domain::identity::ServerType::Bedrock {
+                    let runtime = crate::routes::bedrock::runtime_for(&networking.lifecycle);
+                    crate::routes::versions::installed_bedrock_version(server, runtime.as_ref())
+                } else {
+                    server.minecraft_version.clone()
+                }
+            })
         });
     let selected_flavor = query
         .java_flavor

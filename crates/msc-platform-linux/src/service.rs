@@ -211,6 +211,7 @@ pub fn run_desktop_service_helper_install(
             "the installed MSC service belongs to a different user account",
         );
     }
+    label_system_agent_executables(&helper_path, &request.binary_path)?;
     install_desktop_credential_helper(&helper_path, uid, &user)?;
     apply_desktop_service_helper_install(&request, uid, &user, &home, &manager)?;
     wait_for_desktop_agent(&request, &manager)
@@ -467,37 +468,74 @@ fn prepare_service_agent_binary(
         validate_helper_executable(&destination, true)?;
     }
 
-    // Files copied from the user's build must receive the destination's
-    // system context before systemd executes them on SELinux hosts.
-    if Path::new("/sys/fs/selinux/enforce").exists() {
-        let restorecon = [
-            "/usr/bin/restorecon",
-            "/usr/sbin/restorecon",
-            "/sbin/restorecon",
-        ]
-        .into_iter()
-        .find(|path| Path::new(path).is_file())
-        .ok_or_else(|| {
-            ServiceError::Platform("SELinux is active but restorecon is unavailable".into())
-        })?;
-        let output = Command::new(restorecon)
-            .arg("-F")
-            .arg(&destination)
-            .output()
-            .map_err(|error| {
-                ServiceError::Platform(format!("could not label the system MSC build: {error}"))
-            })?;
-        if !output.status.success() {
-            return Err(ServiceError::Platform(format!(
-                "could not label the system MSC build: {}",
-                String::from_utf8_lossy(&output.stderr).trim()
-            )));
-        }
-    }
-
     let mut prepared = request.clone();
     prepared.binary_path = destination;
     Ok(prepared)
+}
+
+// lib_t permits execution without a daemon transition: the agent remains in
+// init_t, where Fedora denies HTTPS and child process groups. bin_t selects
+// Fedora's normal unconfined_service_t transition for an ordinary daemon.
+// Persist the narrow executable rule so restorecon and future repairs agree.
+fn label_system_agent_executables(helper: &Path, agent: &Path) -> Result<(), ServiceError> {
+    if !Path::new("/sys/fs/selinux/enforce").exists() {
+        return Ok(());
+    }
+    let semanage = ["/usr/sbin/semanage", "/usr/bin/semanage", "/sbin/semanage"]
+        .into_iter().find(|path| Path::new(path).is_file())
+        .ok_or_else(|| ServiceError::Platform(
+            "SELinux is active but semanage is unavailable; install policycoreutils-python-utils before repairing the MSC service".into()
+        ))?;
+    let rule = r"/usr/lib/(MSC\x202|msc2-desktop-web)/agent(/dev-builds/[0-9a-fA-F]{64})?/msc";
+    let mut output = Command::new(semanage)
+        .args(["fcontext", "-a", "-t", "bin_t", rule])
+        .output()
+        .map_err(|error| {
+            ServiceError::Platform(format!(
+                "could not register the MSC executable label: {error}"
+            ))
+        })?;
+    if !output.status.success() {
+        output = Command::new(semanage)
+            .args(["fcontext", "-m", "-t", "bin_t", rule])
+            .output()
+            .map_err(|error| {
+                ServiceError::Platform(format!(
+                    "could not update the MSC executable label: {error}"
+                ))
+            })?;
+    }
+    if !output.status.success() {
+        return Err(ServiceError::Platform(format!(
+            "could not register the MSC executable label: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        )));
+    }
+    let restorecon = [
+        "/usr/bin/restorecon",
+        "/usr/sbin/restorecon",
+        "/sbin/restorecon",
+    ]
+    .into_iter()
+    .find(|path| Path::new(path).is_file())
+    .ok_or_else(|| {
+        ServiceError::Platform("SELinux is active but restorecon is unavailable".into())
+    })?;
+    let output = Command::new(restorecon)
+        .arg("-F")
+        .arg(helper)
+        .arg(agent)
+        .output()
+        .map_err(|error| {
+            ServiceError::Platform(format!("could not label the MSC executables: {error}"))
+        })?;
+    if !output.status.success() {
+        return Err(ServiceError::Platform(format!(
+            "could not label the MSC executables: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        )));
+    }
+    Ok(())
 }
 
 fn ensure_system_build_directory(path: &Path) -> Result<(), ServiceError> {

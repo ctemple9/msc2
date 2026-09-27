@@ -330,3 +330,14 @@ Evidence: Live Fedora host-local pairing command exited 0; pairing redemption re
 Verify: Restart `npx tauri dev` in clients/desktop-web, click Reconnect, and confirm the connection becomes available while all four service controls remain present; close and reopen the dev app and reconnect again to confirm the saved credential works.
 Commit: P14.68: connect linux desktop through host-local pairing
 Batch: solo
+
+
+#### P14.69 — Label Linux agent executables for daemon startup
+
+Status: awaiting Cameron verification
+Files: crates/msc-platform-linux/src/service.rs, docs/msc2/rolling-plan.md
+What: Fix Fedora Bedrock manifest downloads failing with Permission denied. Audit evidence showed init_t denied outbound HTTPS and child setpgid; copied agents had inherited lib_t from their /usr/lib directory, which did not transition systemd into a service domain. On SELinux hosts, elevated install/repair registers a persistent bin_t file-context rule limited to the two supported packaged agent locations and their hash-named dev executables, then applies restorecon to both the helper and selected agent before service startup. Fedora's existing policy transitions bin_t from init_t into unconfined_service_t. Escape the package directory's space as a PCRE hexadecimal escape because semanage rejects literal spaces. Fail clearly if SELinux tools are unavailable. Apply this for packaged installations as well as development builds. Retain enforcing SELinux and existing service user identity.
+Evidence: Live host persistent rule applied; restarted agent runs as unconfined_service_t. Authenticated GET /v1/versions/create?serverType=bedrock returned HTTP 200 and downloaded 58 version entries through the service's real HTTPS transport. Updated RPM installed with its helper matching the current release build; rpm verification reported no package changes. Debug and release agent builds, desktop/frontend release build, platform clippy, and formatting checks passed. No tests created or run.
+Verify: Restart `npx tauri dev`, reconnect (repair once if the debug build changed), and create the Bedrock server again. Confirm its archive provisions and the server appears. `ps -Z -p $(systemctl show com.ctemple.msc2.agent.service -p MainPID --value)` must show unconfined_service_t.
+Commit: P14.69: label linux agent executables for daemon startup
+Batch: solo

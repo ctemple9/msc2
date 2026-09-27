@@ -266,6 +266,15 @@ Verify: cargo fmt --all -- --check && cargo check -p msc-platform-linux -p msc-a
 Commit: P14.64: use packaged agent for linux desktop service
 Batch: solo
 
+#### P14.65 — Refresh Fedora's trusted agent copy from development builds
+
+Status: awaiting Cameron verification
+Files: clients/desktop-web/src-tauri/src/lib.rs, crates/msc-platform-linux/Cargo.toml, crates/msc-platform-linux/src/service.rs, Cargo.lock, packaging/agent-service-layout.json, docs/msc2/rolling-plan.md
+What: Make Linux debug desktop builds stage the freshly compiled development agent on every install or repair. The elevated helper verifies its content digest, copies it into a root-owned directory beside the installed helper so Fedora applies the system executable label, and points systemd at that immutable copy. Packaged release builds continue to use their packaged agent. This lets repeated `npx tauri dev` runs exercise current Rust agent edits without replacing the installed helper each time.
+Verify: cargo fmt --all -- --check && cargo check -p msc-platform-linux -p msc-agent && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml
+Commit: P14.65: refresh fedora development agent builds
+Batch: solo
+
 ## Current phase
 
 | Phase | Name | State |

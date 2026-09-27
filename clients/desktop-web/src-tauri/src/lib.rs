@@ -11,7 +11,7 @@ use reqwest::{header, Method, Url};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
-#[cfg(any(not(target_os = "linux"), test))]
+#[cfg(any(not(target_os = "linux"), debug_assertions, test))]
 use std::sync::Mutex;
 
 mod ssh;
@@ -29,13 +29,13 @@ const BEDROCK_SIDECAR_DIRECTORY_ENV: &str = "MSC2_BEDROCK_SIDECAR_DIR";
 const PROTOCOL_VERSION: u32 = 1;
 #[cfg(target_os = "macos")]
 const PROOF_DOMAIN: &[u8] = b"msc2-local-bootstrap-v1\0";
-#[cfg(not(target_os = "linux"))]
+#[cfg(any(not(target_os = "linux"), debug_assertions, test))]
 static STAGED_PACKAGED_AGENT_PATH: PackagedAgentPathCache = PackagedAgentPathCache::new();
 
-#[cfg(any(not(target_os = "linux"), test))]
+#[cfg(any(not(target_os = "linux"), debug_assertions, test))]
 struct PackagedAgentPathCache(Mutex<Option<Result<PathBuf, String>>>);
 
-#[cfg(any(not(target_os = "linux"), test))]
+#[cfg(any(not(target_os = "linux"), debug_assertions, test))]
 impl PackagedAgentPathCache {
     const fn new() -> Self {
         Self(Mutex::new(None))
@@ -51,7 +51,6 @@ impl PackagedAgentPathCache {
         path
     }
 
-    #[cfg(not(target_os = "linux"))]
     fn refresh(&self, stage: impl FnOnce() -> Result<PathBuf, String>) -> Result<PathBuf, String> {
         let path = stage();
         *self.0.lock().expect("packaged agent path cache poisoned") = Some(path.clone());
@@ -932,10 +931,12 @@ fn service_manager() -> Result<Box<dyn ServiceManager>, String> {
 }
 
 fn agent_install_request() -> Result<ServiceInstallRequest, String> {
-    // Linux system services execute from the installed package location so
-    // SELinux can apply the package's system-file label. Other platforms keep
-    // the content-addressed user-owned copy and refresh it on repair.
-    #[cfg(target_os = "linux")]
+    // Development builds stage the current agent source; the elevated Linux
+    // helper copies it into a system-labeled, root-owned build directory.
+    // Packaged Linux builds use the agent shipped beside the desktop app.
+    #[cfg(all(target_os = "linux", debug_assertions))]
+    let binary_path = refresh_staged_packaged_agent_path()?;
+    #[cfg(all(target_os = "linux", not(debug_assertions)))]
     let binary_path = linux_system_agent_path()?;
     #[cfg(not(target_os = "linux"))]
     let binary_path = refresh_staged_packaged_agent_path()?;
@@ -1148,8 +1149,41 @@ fn linux_system_agent_path() -> Result<PathBuf, String> {
     })
 }
 
+#[cfg(all(target_os = "linux", debug_assertions))]
+fn linux_development_agent_path() -> Result<PathBuf, String> {
+    let desktop_binary = std::env::current_exe()
+        .map_err(|error| format!("Could not locate the desktop application: {error}"))?;
+    let directory = desktop_binary
+        .parent()
+        .ok_or_else(|| "The desktop application has no containing directory.".to_string())?;
+    let path = directory.join("agent/msc");
+    if !path.is_file() {
+        return Err(format!(
+            "The current development agent was not built at {}. Restart `npx tauri dev` so its build step can compile the latest agent source.",
+            path.display()
+        ));
+    }
+    std::fs::canonicalize(path)
+        .map_err(|error| format!("Could not resolve the current development agent: {error}"))
+}
+
 #[cfg(target_os = "linux")]
 fn expected_local_agent_binary() -> Result<PathBuf, String> {
+    #[cfg(debug_assertions)]
+    {
+        let staged_agent = staged_packaged_agent_path()?;
+        let digest = staged_agent
+            .parent()
+            .and_then(Path::file_name)
+            .ok_or_else(|| "The staged agent build has no content digest.".to_string())?;
+        return Ok(linux_system_agent_path()?
+            .parent()
+            .ok_or_else(|| "The installed agent has no parent directory.".to_string())?
+            .join("dev-builds")
+            .join(digest)
+            .join("msc"));
+    }
+    #[cfg(not(debug_assertions))]
     linux_system_agent_path()
 }
 
@@ -1178,13 +1212,16 @@ fn packaged_bedrock_sidecar_directory() -> Result<PathBuf, String> {
     Ok(sidecar)
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(any(not(target_os = "linux"), debug_assertions))]
 fn staged_packaged_agent_path() -> Result<PathBuf, String> {
     STAGED_PACKAGED_AGENT_PATH.resolve(stage_packaged_agent_once)
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(any(not(target_os = "linux"), debug_assertions))]
 fn stage_packaged_agent_once() -> Result<PathBuf, String> {
+    #[cfg(target_os = "linux")]
+    let source = linux_development_agent_path()?;
+    #[cfg(not(target_os = "linux"))]
     let source = packaged_agent_path()?;
     if !source.is_file() {
         return Err(format!(
@@ -1195,12 +1232,12 @@ fn stage_packaged_agent_once() -> Result<PathBuf, String> {
     stage_packaged_agent(&source, &agent_data_directory()?)
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(any(not(target_os = "linux"), debug_assertions))]
 fn refresh_staged_packaged_agent_path() -> Result<PathBuf, String> {
     STAGED_PACKAGED_AGENT_PATH.refresh(stage_packaged_agent_once)
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(any(not(target_os = "linux"), debug_assertions))]
 fn stage_packaged_agent(source: &Path, data_directory: &Path) -> Result<PathBuf, String> {
     let source_bytes = std::fs::read(source)
         .map_err(|error| format!("Could not read the packaged agent: {error}"))?;
@@ -1239,7 +1276,7 @@ fn stage_packaged_agent(source: &Path, data_directory: &Path) -> Result<PathBuf,
     Ok(destination)
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(any(not(target_os = "linux"), debug_assertions))]
 fn verify_staged_agent(destination: &Path, source_bytes: &[u8]) -> Result<(), String> {
     let staged_bytes = std::fs::read(destination)
         .map_err(|error| format!("Could not verify the staged agent: {error}"))?;
@@ -1391,7 +1428,7 @@ fn ensure_current_local_agent_service() -> Result<(), String> {
         return Ok(());
     }
     Err(
-        "The current packaged agent is not the running service. Open Agent and choose Repair service before connecting."
+        "The agent built by this desktop session is not the running service. Open Agent and choose Repair service before connecting."
             .to_string(),
     )
 }

@@ -11,9 +11,10 @@ use msc_infrastructure::service::{
     ServiceError, ServiceInstallRequest, ServiceManager, ServiceManagerCommand, ServiceName,
     ServiceState, ServiceStatusReport,
 };
+use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
-use std::fs;
+use std::fs::{self, OpenOptions};
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -23,6 +24,10 @@ const META_PREFIX: &str = "# MSC2-";
 const SYSTEM_AGENT_PATHS: [&str; 2] = [
     "/usr/lib/MSC 2/agent/msc",
     "/usr/lib/msc2-desktop-web/agent/msc",
+];
+const SYSTEM_AGENT_DEV_BUILDS_PATHS: [&str; 2] = [
+    "/usr/lib/MSC 2/agent/dev-builds",
+    "/usr/lib/msc2-desktop-web/agent/dev-builds",
 ];
 pub const DESKTOP_AGENT_SERVICE_NAME: &str = "com.ctemple.msc2.agent";
 
@@ -179,6 +184,19 @@ pub fn run_desktop_service_helper_install(
         })?;
     let manager = LinuxSystemdServiceManager::new();
     let (user, home) = user_identity(uid)?;
+    let helper_path = std::env::current_exe().map_err(|error| {
+        ServiceError::Platform(format!(
+            "could not locate the installed MSC helper: {error}"
+        ))
+    })?;
+    let helper_path = validate_helper_executable(&helper_path, true)?;
+    if !is_system_agent_path(&helper_path) {
+        return invalid_desktop_request("MSC helper is not running from an installed package path");
+    }
+    let helper_directory = helper_path.parent().ok_or_else(|| {
+        ServiceError::InvalidDefinition("MSC helper has no parent directory".to_string())
+    })?;
+    let request = prepare_service_agent_binary(&request, uid, &user, &home, helper_directory)?;
     apply_desktop_service_helper_install(&request, uid, &user, &home, &manager)
 }
 
@@ -221,6 +239,103 @@ pub fn apply_desktop_service_helper_install(
         service_name: ServiceName::new(DESKTOP_AGENT_SERVICE_NAME),
     })?;
     Ok(())
+}
+
+fn prepare_service_agent_binary(
+    request: &ServiceInstallRequest,
+    uid: u32,
+    user: &str,
+    home: &Path,
+    helper_directory: &Path,
+) -> Result<ServiceInstallRequest, ServiceError> {
+    validate_desktop_request(request, uid, user, home)?;
+    let source = fs::canonicalize(&request.binary_path).map_err(|error| {
+        ServiceError::InvalidDefinition(format!(
+            "could not resolve the MSC service executable {}: {error}",
+            request.binary_path.display()
+        ))
+    })?;
+    if is_system_agent_path(&source) {
+        return Ok(request.clone());
+    }
+
+    let bytes = fs::read(&source).map_err(|error| {
+        ServiceError::InvalidDefinition(format!(
+            "could not read the staged MSC agent {}: {error}",
+            source.display()
+        ))
+    })?;
+    let digest = hex_lower(&Sha256::digest(&bytes));
+    let staged_digest = source
+        .parent()
+        .and_then(Path::file_name)
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| ServiceError::InvalidDefinition("staged MSC build has no digest".into()))?;
+    if digest != staged_digest {
+        return invalid_desktop_request(
+            "staged MSC executable does not match its content-addressed build name",
+        );
+    }
+
+    let builds_directory = helper_directory.join("dev-builds");
+    fs::create_dir_all(&builds_directory).map_err(|error| {
+        ServiceError::Platform(format!(
+            "could not create the system MSC development build directory: {error}"
+        ))
+    })?;
+    let build_directory = builds_directory.join(&digest);
+    fs::create_dir_all(&build_directory).map_err(|error| {
+        ServiceError::Platform(format!(
+            "could not create the system MSC build directory: {error}"
+        ))
+    })?;
+    let destination = build_directory.join("msc");
+    if destination.exists() {
+        validate_helper_executable(&destination, true)?;
+        let installed = fs::read(&destination).map_err(|error| {
+            ServiceError::Platform(format!("could not verify the system MSC build: {error}"))
+        })?;
+        if Sha256::digest(&installed) != Sha256::digest(&bytes) {
+            return invalid_desktop_request(
+                "system MSC development build does not match its content-addressed name",
+            );
+        }
+    } else {
+        let temporary = build_directory.join(format!(".msc.{}.stage", std::process::id()));
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o755)
+            .open(&temporary)
+            .map_err(|error| {
+                ServiceError::Platform(format!("could not stage the system MSC build: {error}"))
+            })?;
+        use std::io::Write;
+        file.write_all(&bytes).map_err(|error| {
+            ServiceError::Platform(format!("could not write the system MSC build: {error}"))
+        })?;
+        file.sync_all().map_err(|error| {
+            ServiceError::Platform(format!("could not sync the system MSC build: {error}"))
+        })?;
+        fs::rename(&temporary, &destination).map_err(|error| {
+            ServiceError::Platform(format!("could not install the system MSC build: {error}"))
+        })?;
+        validate_helper_executable(&destination, true)?;
+    }
+
+    let mut prepared = request.clone();
+    prepared.binary_path = destination;
+    Ok(prepared)
+}
+
+fn hex_lower(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut encoded = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        encoded.push(HEX[(byte >> 4) as usize] as char);
+        encoded.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    encoded
 }
 
 pub fn apply_desktop_service_helper_uninstall(
@@ -401,6 +516,17 @@ fn is_system_agent_path(path: &Path) -> bool {
     SYSTEM_AGENT_PATHS
         .iter()
         .any(|candidate| path == Path::new(candidate))
+        || SYSTEM_AGENT_DEV_BUILDS_PATHS.iter().any(|directory| {
+            let Some(relative) = path.strip_prefix(directory).ok() else {
+                return false;
+            };
+            let components = relative.components().collect::<Vec<_>>();
+            components.len() == 2
+                && components[1].as_os_str() == "msc"
+                && components[0].as_os_str().to_str().is_some_and(|digest| {
+                    digest.len() == 64 && digest.bytes().all(|byte| byte.is_ascii_hexdigit())
+                })
+        })
 }
 
 fn canonical_owned_directory(

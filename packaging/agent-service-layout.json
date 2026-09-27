@@ -57,6 +57,8 @@
       "serviceElevation": "pkexec (polkit)",
       "serviceOwnership": "root-owned unit; installing-user process and data",
       "agentPath": "../lib/MSC 2/agent/msc",
+      "developmentAgentPath": "../lib/MSC 2/agent/dev-builds/<sha256>/msc",
+      "developmentAgentSource": "~/.local/share/msc2/agent/builds/<sha256>/msc",
       "sidecarPath": null,
       "bedrock": {
         "backend": "native",

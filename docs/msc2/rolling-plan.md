@@ -275,6 +275,15 @@ Verify: cargo fmt --all -- --check && cargo check -p msc-platform-linux -p msc-a
 Commit: P14.65: refresh fedora development agent builds
 Batch: solo
 
+#### P14.66 — Import the Unix file mode extension
+
+Status: awaiting Cameron verification
+Files: crates/msc-platform-linux/src/service.rs, docs/msc2/rolling-plan.md
+What: Import `OpenOptionsExt` so the helper can create its root-owned staged agent file with executable permissions on Linux.
+Verify: cargo fmt --all -- --check && cargo check -p msc-platform-linux -p msc-agent && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml
+Commit: P14.66: import unix file mode extension
+Batch: solo
+
 ## Current phase
 
 | Phase | Name | State |

@@ -3,6 +3,8 @@
 > ## STATUS: Phases 14 and 15 are complete and archived. Releases v0.1.13 through v0.1.15 are published. P14.50 and P14.51 repair the v0.1.13 CI failures and the Ubuntu 26.04 headless PolicyKit update path; both await Cameron verification. P14.52 adds visible, chunk-level progress to large modpack uploads and regression coverage for the remote create-server flow; it awaits Cameron verification. P14.54 fixes the missing Tauri file-stream permission exposed by the Fedora test; it awaits Cameron verification. P14.55 adds selectable chunk sizing, streamed world archives, and cancellation of partial uploads; it awaits Cameron verification. P14.56 updates the browser regressions for the upload sheet and rebuilds the production artifact before testing; it awaits Cameron verification. P14.57 prepares v0.1.15 and awaits Cameron verification. P14.58 adapts Linux updates to the headless service unit installed by the signed archive; it awaits Cameron verification. P14.59 adds a regression using the exact archive-installed unit template; it awaits Cameron verification. P14.60 prepares v0.1.16 with the Linux update repair and awaits the guarded release workflow. The external static-review record is preserved in the archive. All prior verification entries are recorded DONE, with P15.69 retaining its accepted failed-verification result.
 > **Next move:** Push the coordinated v0.1.16 preparation commit and exact tag to start the guarded cross-platform release workflow. Cameron verifies P14.55, then P14.54, P14.52, P14.50, and P14.51. The external review findings remain available in `rolling-plan-archive.md` for future triage. The current workspace has unrelated pre-existing diagnostics: a `dead_code` failure in `crates/msc-application/tests/provisioning.rs:152` and an `unused_mut` warning in `crates/msc-agent/src/routes/bedrock_runtime.rs:385`. Phase 12 visual parity, anti-slop review, release/update handoff, and Bedrock product acceptance are recorded complete on 2026-09-08. P12.121–P12.189 are archived below with all verification entries recorded as DONE. The planned Phase 13 full-screen terminal client remains retired by D-034.
 
+> **Fedora local-agent follow-up:** P14.61–P14.67 await Cameron verification. P14.67 installs the corrected local helper package and repairs the live service; the agent and credential helper run successfully, the health endpoint returns HTTP 204, and the service executable matches the current Cargo debug build. Cameron's next verification is restarting `npx tauri dev` and checking the four installed-service controls.
+
 The detailed Phase 12 working plan is preserved in `rolling-plan-archive.md` under “Reconciliation snapshot — 2026-09-08”. This file contains only the current status and next move.
 
 ---
@@ -283,6 +285,16 @@ What: Import `OpenOptionsExt` so the helper can create its root-owned staged age
 Verify: cargo fmt --all -- --check && cargo check -p msc-platform-linux -p msc-agent && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml
 Commit: P14.66: import unix file mode extension
 Batch: solo
+
+#### P14.67 — Keep repair, start, and the service controls consistent
+
+Status: awaiting Cameron verification
+Files: clients/desktop-web/src-tauri/src/lib.rs, clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte, crates/msc-platform-linux/src/service.rs, packaging/agent-service-layout.json, docs/msc2/rolling-plan.md
+What: Compare Linux repair results with the final system executable path used by status and start. Resolve the development agent directly from Cargo's debug output so Tauri resource copying cannot substitute a release build. Keep Start, Stop, Reconnect, and Repair visible for an installed service, including when it is stopped or its build differs. Protect each system build directory before copying executable bytes and restore the executable's SELinux context. Install the required credential helper service, socket, root-owned store, and boot-time socket directory before starting the agent; wait for its public health route before reporting repair success. Build and install a local RPM containing the current helper so development repairs stop invoking the older installed helper that writes the home-directory executable into the unit.
+Verify: cargo fmt --all -- --check && cargo check -p msc-platform-linux -p msc-agent && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml && npm --prefix clients/desktop-web run check
+Commit: P14.67: align linux repair paths and service controls
+Batch: solo
+Evidence: On 2026-09-26, the installed helper completed the live repair with exit status 0. The agent runs as Cameron, the credential helper runs as root, both units are active, the agent and helper socket are enabled for boot, and the health endpoint returns HTTP 204. The service executable's SHA-256 matches `target/debug/msc`. Formatting, focused Rust Clippy checks, Svelte checks, and RPM builds passed; no tests ran. Visual confirmation of the rebuilt desktop controls remains Cameron's verification.
 
 ## Current phase
 

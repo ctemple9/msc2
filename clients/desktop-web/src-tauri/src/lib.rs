@@ -9,6 +9,7 @@ use msc_infrastructure::service::{
 use rand::RngCore;
 use reqwest::{header, Method, Url};
 use serde::{Deserialize, Serialize};
+#[cfg(any(not(target_os = "linux"), debug_assertions))]
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 #[cfg(any(not(target_os = "linux"), debug_assertions, test))]
@@ -520,6 +521,7 @@ fn local_bootstrap_proof(key: &str, challenge: &str, host_id: &str) -> String {
     hex_lower(&digest.finalize())
 }
 
+#[cfg(any(not(target_os = "linux"), debug_assertions))]
 fn hex_lower(bytes: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut output = String::with_capacity(bytes.len() * 2);
@@ -833,7 +835,7 @@ fn manage_agent_service(action: AgentServiceAction) -> Result<AgentServiceStatus
     let report = match action {
         AgentServiceAction::Install | AgentServiceAction::Repair => {
             let request = agent_install_request()?;
-            let expected_binary = request.binary_path.clone();
+            let expected_binary = expected_local_agent_binary()?;
             let helper = linux_system_agent_path()?;
             let report = msc_platform_linux::service::install_desktop_service_elevated(
                 request, &helper,
@@ -1151,12 +1153,10 @@ fn linux_system_agent_path() -> Result<PathBuf, String> {
 
 #[cfg(all(target_os = "linux", debug_assertions))]
 fn linux_development_agent_path() -> Result<PathBuf, String> {
-    let desktop_binary = std::env::current_exe()
-        .map_err(|error| format!("Could not locate the desktop application: {error}"))?;
-    let directory = desktop_binary
-        .parent()
-        .ok_or_else(|| "The desktop application has no containing directory.".to_string())?;
-    let path = directory.join("agent/msc");
+    // prepare:agent builds this output before starting the desktop. Tauri's
+    // shared resource directory can contain a different Cargo profile after
+    // packaging, so development must resolve the compiler output directly.
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../target/debug/msc");
     if !path.is_file() {
         return Err(format!(
             "The current development agent was not built at {}. Restart `npx tauri dev` so its build step can compile the latest agent source.",
@@ -1176,12 +1176,12 @@ fn expected_local_agent_binary() -> Result<PathBuf, String> {
             .parent()
             .and_then(Path::file_name)
             .ok_or_else(|| "The staged agent build has no content digest.".to_string())?;
-        return Ok(linux_system_agent_path()?
+        Ok(linux_system_agent_path()?
             .parent()
             .ok_or_else(|| "The installed agent has no parent directory.".to_string())?
             .join("dev-builds")
             .join(digest)
-            .join("msc"));
+            .join("msc"))
     }
     #[cfg(not(debug_assertions))]
     linux_system_agent_path()

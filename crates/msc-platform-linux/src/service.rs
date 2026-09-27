@@ -7,6 +7,9 @@
 //! of metadata comments in the installed unit so `status` returns the same
 //! cross-platform shape P4.21 defined.
 
+use crate::credential_helper::{
+    CredentialHelperInstall, DEFAULT_STORE_DIR, SERVICE_UNIT_NAME, SOCKET_UNIT_NAME,
+};
 use msc_infrastructure::service::{
     ServiceError, ServiceInstallRequest, ServiceManager, ServiceManagerCommand, ServiceName,
     ServiceState, ServiceStatusReport,
@@ -197,7 +200,156 @@ pub fn run_desktop_service_helper_install(
         ServiceError::InvalidDefinition("MSC helper has no parent directory".to_string())
     })?;
     let request = prepare_service_agent_binary(&request, uid, &user, &home, helper_directory)?;
-    apply_desktop_service_helper_install(&request, uid, &user, &home, &manager)
+    if let Some(definition) = manager
+        .execute(ServiceManagerCommand::Status {
+            service_name: ServiceName::new(DESKTOP_AGENT_SERVICE_NAME),
+        })?
+        .definition
+        && definition.run_user.as_deref() != Some(&user)
+    {
+        return invalid_desktop_request(
+            "the installed MSC service belongs to a different user account",
+        );
+    }
+    install_desktop_credential_helper(&helper_path, uid, &user)?;
+    apply_desktop_service_helper_install(&request, uid, &user, &home, &manager)?;
+    wait_for_desktop_agent(&request, &manager)
+}
+
+fn install_desktop_credential_helper(
+    binary: &Path,
+    uid: u32,
+    user: &str,
+) -> Result<(), ServiceError> {
+    let definition = CredentialHelperInstall::new(binary, uid, user, user);
+    let units = Path::new("/etc/systemd/system");
+    let tmpfiles = Path::new("/etc/tmpfiles.d");
+    ensure_system_build_directory(units)?;
+    ensure_system_build_directory(tmpfiles)?;
+    ensure_system_build_directory(Path::new("/var/lib/msc2"))?;
+    let store = Path::new(DEFAULT_STORE_DIR);
+    ensure_system_build_directory(store)?;
+    fs::set_permissions(store, fs::Permissions::from_mode(0o700)).map_err(|error| {
+        ServiceError::Platform(format!(
+            "could not protect the MSC credential directory: {error}"
+        ))
+    })?;
+
+    // Repair replaces both sides of the socket before starting the agent;
+    // otherwise a running helper can retain the old package executable.
+    if units
+        .join(format!("{DESKTOP_AGENT_SERVICE_NAME}.service"))
+        .exists()
+    {
+        run_systemctl(&["stop", &format!("{DESKTOP_AGENT_SERVICE_NAME}.service")])?;
+    }
+    for unit in [SERVICE_UNIT_NAME, SOCKET_UNIT_NAME] {
+        if units.join(unit).exists() {
+            run_systemctl(&["stop", unit])?;
+        }
+    }
+    let files = [
+        (
+            units.join(SOCKET_UNIT_NAME),
+            definition
+                .render_socket_unit()
+                .map_err(ServiceError::InvalidDefinition)?,
+        ),
+        (
+            units.join(SERVICE_UNIT_NAME),
+            definition
+                .render_service_unit()
+                .map_err(ServiceError::InvalidDefinition)?,
+        ),
+        (
+            tmpfiles.join("msc2.conf"),
+            format!("d /run/msc2 0700 {user} {user} -\n"),
+        ),
+    ];
+    for (path, contents) in files {
+        if let Ok(metadata) = fs::symlink_metadata(&path)
+            && (!metadata.is_file() || metadata.uid() != 0 || metadata.mode() & 0o022 != 0)
+        {
+            return invalid_desktop_request(
+                "MSC credential helper definitions must be regular root-owned files",
+            );
+        }
+        fs::write(&path, contents).map_err(|error| {
+            ServiceError::Platform(format!("could not write {}: {error}", path.display()))
+        })?;
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).map_err(|error| {
+            ServiceError::Platform(format!("could not protect {}: {error}", path.display()))
+        })?;
+    }
+    let output = Command::new("/usr/bin/systemd-tmpfiles")
+        .args(["--create", "/etc/tmpfiles.d/msc2.conf"])
+        .output()
+        .map_err(|error| {
+            ServiceError::Platform(format!(
+                "could not prepare the MSC credential socket directory: {error}"
+            ))
+        })?;
+    if !output.status.success() {
+        return Err(ServiceError::Platform(format!(
+            "could not prepare the MSC credential socket directory: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        )));
+    }
+    run_systemctl(&["daemon-reload"])?;
+    run_systemctl(&["enable", SOCKET_UNIT_NAME])?;
+    run_systemctl(&["start", SOCKET_UNIT_NAME])?;
+    Ok(())
+}
+
+fn wait_for_desktop_agent(
+    request: &ServiceInstallRequest,
+    manager: &dyn ServiceManager,
+) -> Result<(), ServiceError> {
+    use std::io::{BufRead, BufReader, Write};
+    use std::net::{SocketAddr, TcpStream};
+    use std::time::{Duration, Instant};
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let address = SocketAddr::from(([127, 0, 0, 1], request.expected_port));
+    while Instant::now() < deadline {
+        let report = manager.execute(ServiceManagerCommand::Status {
+            service_name: ServiceName::new(DESKTOP_AGENT_SERVICE_NAME),
+        })?;
+        if report.state != ServiceState::Running {
+            return Err(ServiceError::Platform(format!(
+                "MSC agent exited during startup. See {} for the startup error.",
+                request.log_path.display()
+            )));
+        }
+        if let Ok(mut stream) = TcpStream::connect_timeout(&address, Duration::from_millis(250)) {
+            stream
+                .set_read_timeout(Some(Duration::from_millis(250)))
+                .ok();
+            stream
+                .set_write_timeout(Some(Duration::from_millis(250)))
+                .ok();
+            if stream
+                .write_all(
+                    b"GET /v1/healthz HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+                )
+                .is_ok()
+            {
+                let mut line = String::new();
+                if BufReader::new(stream).read_line(&mut line).is_ok()
+                    && line
+                        .split_whitespace()
+                        .nth(1)
+                        .and_then(|status| status.parse::<u16>().ok())
+                        .is_some_and(|status| (200..300).contains(&status))
+                {
+                    return Ok(());
+                }
+            }
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    Err(ServiceError::Platform(
+        "MSC agent did not become ready within 10 seconds after repair".into(),
+    ))
 }
 
 pub fn run_desktop_service_helper_uninstall() -> Result<(), ServiceError> {
@@ -278,17 +430,9 @@ fn prepare_service_agent_binary(
     }
 
     let builds_directory = helper_directory.join("dev-builds");
-    fs::create_dir_all(&builds_directory).map_err(|error| {
-        ServiceError::Platform(format!(
-            "could not create the system MSC development build directory: {error}"
-        ))
-    })?;
+    ensure_system_build_directory(&builds_directory)?;
     let build_directory = builds_directory.join(&digest);
-    fs::create_dir_all(&build_directory).map_err(|error| {
-        ServiceError::Platform(format!(
-            "could not create the system MSC build directory: {error}"
-        ))
-    })?;
+    ensure_system_build_directory(&build_directory)?;
     let destination = build_directory.join("msc");
     if destination.exists() {
         validate_helper_executable(&destination, true)?;
@@ -323,9 +467,62 @@ fn prepare_service_agent_binary(
         validate_helper_executable(&destination, true)?;
     }
 
+    // Files copied from the user's build must receive the destination's
+    // system context before systemd executes them on SELinux hosts.
+    if Path::new("/sys/fs/selinux/enforce").exists() {
+        let restorecon = [
+            "/usr/bin/restorecon",
+            "/usr/sbin/restorecon",
+            "/sbin/restorecon",
+        ]
+        .into_iter()
+        .find(|path| Path::new(path).is_file())
+        .ok_or_else(|| {
+            ServiceError::Platform("SELinux is active but restorecon is unavailable".into())
+        })?;
+        let output = Command::new(restorecon)
+            .arg("-F")
+            .arg(&destination)
+            .output()
+            .map_err(|error| {
+                ServiceError::Platform(format!("could not label the system MSC build: {error}"))
+            })?;
+        if !output.status.success() {
+            return Err(ServiceError::Platform(format!(
+                "could not label the system MSC build: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            )));
+        }
+    }
+
     let mut prepared = request.clone();
     prepared.binary_path = destination;
     Ok(prepared)
+}
+
+fn ensure_system_build_directory(path: &Path) -> Result<(), ServiceError> {
+    match fs::create_dir(path) {
+        Ok(()) => {
+            fs::set_permissions(path, fs::Permissions::from_mode(0o755)).map_err(|error| {
+                ServiceError::Platform(format!("could not protect MSC build directory: {error}"))
+            })?
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(error) => {
+            return Err(ServiceError::Platform(format!(
+                "could not create MSC build directory: {error}"
+            )));
+        }
+    }
+    let metadata = fs::symlink_metadata(path).map_err(|error| {
+        ServiceError::Platform(format!("could not inspect MSC build directory: {error}"))
+    })?;
+    if !metadata.is_dir() || metadata.uid() != 0 || metadata.mode() & 0o022 != 0 {
+        return invalid_desktop_request(
+            "system MSC build directory must be root-owned and not writable by other users",
+        );
+    }
+    Ok(())
 }
 
 fn hex_lower(bytes: &[u8]) -> String {
@@ -1100,7 +1297,11 @@ impl SystemdUnit {
             ),
             "[Unit]".to_string(),
             format!("Description=MSC 2 agent ({})", self.service_name),
-            "After=network.target".to_string(),
+            if self.service_name == DESKTOP_AGENT_SERVICE_NAME {
+                format!("Requires={SOCKET_UNIT_NAME}\nAfter=network.target {SOCKET_UNIT_NAME}")
+            } else {
+                "After=network.target".to_string()
+            },
             String::new(),
             "[Service]".to_string(),
             "Type=simple".to_string(),

@@ -458,22 +458,17 @@
               when you close this window.
             </p>
             <div class="actions">
-              {#if readiness === 'missing' || status?.state === 'not-installed'}
+              {#if status?.state === 'not-installed'}
                 <Button variant="primary" disabled={busy} onclick={() => manage('install')}
                   >Install and Continue</Button
-                >
-              {:else if readiness === 'stopped' || status?.state === 'stopped'}
-                <Button variant="primary" disabled={busy} onclick={() => manage('start')}
-                  >Start and Continue</Button
-                >
-              {:else if readiness === 'incompatible'}
-                <Button variant="secondary" disabled={busy} onclick={() => manage('repair')}
-                  >Repair service</Button
                 >
               {:else}
                 <Button
                   variant="start"
-                  disabled={busy || status?.state === 'running'}
+                  disabled={busy ||
+                    !status ||
+                    status.state === 'running' ||
+                    status.state === 'unavailable'}
                   onclick={() => manage('start')}>Start agent</Button
                 >
                 <Button
@@ -488,7 +483,7 @@
                 onclick={() => void (onAgentRetry ? onAgentRetry() : refresh())}
                 >{onAgentRetry ? 'Reconnect' : 'Refresh status'}</Button
               >
-              {#if readiness !== 'missing' && status?.state !== 'not-installed' && readiness !== 'stopped' && status?.state !== 'stopped' && readiness !== 'incompatible'}
+              {#if status && status.state !== 'not-installed'}
                 <Button variant="secondary" disabled={busy} onclick={() => manage('repair')}
                   >Repair service</Button
                 >

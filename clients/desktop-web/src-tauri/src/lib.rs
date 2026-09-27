@@ -325,18 +325,84 @@ fn describe_pairing_refusal(status: u16) -> String {
     }
 }
 
-/// Performs the same-machine bootstrap over the agent's Unix socket. The
-/// bearer value is written directly to the native credential store and is
-/// never returned to Svelte.
+/// Authorizes this desktop with the local agent using the platform bootstrap
+/// or host-local one-use pairing. Credentials remain in the native store.
 #[tauri::command]
-fn desktop_bootstrap_local() -> Result<DesktopPairingResult, String> {
+async fn desktop_bootstrap_local() -> Result<DesktopPairingResult, String> {
     ensure_current_local_agent_service()?;
     #[cfg(target_os = "macos")]
     {
         return bootstrap_local_macos();
     }
+    #[cfg(target_os = "linux")]
+    {
+        return bootstrap_local_linux().await;
+    }
     #[allow(unreachable_code)]
     Err("Local desktop bootstrap is unavailable on this platform.".to_string())
+}
+
+// Linux uses the host-local recovery pairing command rather than claiming
+// the macOS signed-process bootstrap is available on Linux. The one-use code
+// and bearer stay inside this native backend throughout the exchange.
+#[cfg(target_os = "linux")]
+async fn bootstrap_local_linux() -> Result<DesktopPairingResult, String> {
+    let store = desktop_secret_store()?;
+    if let Some(host_id) = store
+        .get(LOCAL_HOST_ID_KEY)
+        .map_err(|error| error.to_string())?
+    {
+        let probe = desktop_probe_host_route(DesktopRouteProbeRequest {
+            agent_host_id: host_id.clone(),
+            base_url: LOCAL_AGENT_BROWSER_ORIGIN.to_string(),
+        })
+        .await;
+        if probe.is_ok_and(|result| result.reachable) {
+            return Ok(DesktopPairingResult {
+                agent_host_id: host_id,
+            });
+        }
+    }
+    let binary = expected_local_agent_binary()?;
+    let data_directory = agent_data_directory()?;
+    let output = tauri::async_runtime::spawn_blocking(move || {
+        std::process::Command::new(binary)
+            .args([
+                "--json",
+                "pairing",
+                "create",
+                "--client-kind",
+                "desktop",
+                "--label",
+                "local-desktop",
+            ])
+            .env("MSC2_DATA_DIR", data_directory)
+            .output()
+    })
+    .await
+    .map_err(|error| format!("Could not create local desktop pairing: {error}"))?
+    .map_err(|error| format!("Could not run local desktop pairing: {error}"))?;
+    if !output.status.success() {
+        // Child output can contain credentials; report only its exit status.
+        return Err(format!("Local desktop pairing failed ({}).", output.status));
+    }
+    let pairing: BrowserPairingResult = serde_json::from_slice(&output.stdout)
+        .map_err(|_| "The local agent returned an invalid desktop pairing response.".to_string())?;
+    if pairing.client_kind != "desktop" || pairing.agent_host_id.trim().is_empty() {
+        return Err("The local agent returned an invalid desktop pairing identity.".to_string());
+    }
+    let result = desktop_exchange_pairing(DesktopPairingRequest {
+        base_url: LOCAL_AGENT_BROWSER_ORIGIN.to_string(),
+        pairing_code: pairing.pairing_code,
+    })
+    .await?;
+    if result.agent_host_id != pairing.agent_host_id {
+        return Err("The local agent identity changed during desktop pairing.".to_string());
+    }
+    store
+        .set(LOCAL_HOST_ID_KEY, &result.agent_host_id)
+        .map_err(|error| error.to_string())?;
+    Ok(result)
 }
 
 /// Removes only credentials named by the client, plus the special local-host
@@ -691,13 +757,13 @@ async fn desktop_probe_host_route(
 /// pairing code stays in the URL fragment, which HTTP never sends to the agent.
 #[tauri::command]
 async fn open_local_agent_browser() -> Result<(), String> {
-    let local = desktop_bootstrap_local()?;
+    let local = desktop_bootstrap_local().await?;
     let mut response = create_local_browser_pairing(&local.agent_host_id).await?;
     // `desktop_authorized_request` removes a rejected bearer record. Refresh
     // immediately so opening the browser is one action, not an invisible
     // failed click followed by a second attempt after the stale record is gone.
     if browser_pairing_needs_local_credential_refresh(response.status) {
-        let refreshed = desktop_bootstrap_local()?;
+        let refreshed = desktop_bootstrap_local().await?;
         response = create_local_browser_pairing(&refreshed.agent_host_id).await?;
     }
     if response.status != reqwest::StatusCode::CREATED.as_u16() {
@@ -837,10 +903,9 @@ fn manage_agent_service(action: AgentServiceAction) -> Result<AgentServiceStatus
             let request = agent_install_request()?;
             let expected_binary = expected_local_agent_binary()?;
             let helper = linux_system_agent_path()?;
-            let report = msc_platform_linux::service::install_desktop_service_elevated(
-                request, &helper,
-            )
-            .map_err(|error| error.to_string())?;
+            let report =
+                msc_platform_linux::service::install_desktop_service_elevated(request, &helper)
+                    .map_err(|error| error.to_string())?;
             ensure_service_report_uses_binary(report, &expected_binary)?
         }
         AgentServiceAction::Uninstall => {
@@ -1475,8 +1540,8 @@ fn desktop_secret_store() -> Result<Box<dyn SecretStore>, String> {
         return msc_platform_macos::secret_store::MacosSecretStore::at_directory(
             agent_data_directory()?.join("secrets"),
         )
-            .map(|store| Box::new(store) as Box<dyn SecretStore>)
-            .map_err(|error| error.to_string());
+        .map(|store| Box::new(store) as Box<dyn SecretStore>)
+        .map_err(|error| error.to_string());
     }
     #[cfg(target_os = "windows")]
     {

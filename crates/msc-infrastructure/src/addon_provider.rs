@@ -45,7 +45,8 @@ pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
 /// longer input list is split into this many ids per request rather than
 /// growing the request (or the caller's assumed request count) unbounded.
 pub const MAX_BATCH_SIZE: usize = 100;
-const CURSEFORGE_MINECRAFT_GAME_ID: u32 = 432;
+// Bedrock is a separate CurseForge game; 432 is the Java catalog.
+const CURSEFORGE_BEDROCK_GAME_ID: u32 = 78022;
 /// Datapack archives are larger than provider metadata responses, but must
 /// remain bounded before their entries are inspected or copied.
 pub const DATAPACK_MAX_BYTES: u64 = 512 * 1024 * 1024;
@@ -817,7 +818,7 @@ pub fn curseforge_search_bedrock_packs(
 ) -> Result<Vec<CurseForgeSearchHit>, AddonProviderError> {
     let api_key = curseforge_api_key(secrets)?;
     let classes_url = format!(
-        "{}/v1/categories?gameId={CURSEFORGE_MINECRAFT_GAME_ID}&classesOnly=true",
+        "{}/v1/categories?gameId={CURSEFORGE_BEDROCK_GAME_ID}&classesOnly=true",
         curseforge_base()
     );
     let classes_response = transport
@@ -856,7 +857,7 @@ pub fn curseforge_search_bedrock_packs(
             .and_then(|class| class.get("id"))
             .and_then(serde_json::Value::as_i64)
     };
-    let addon_class_id = find_class(&["addons", "add-ons", "mods"]);
+    let addon_class_id = find_class(&["addons", "add-ons"]);
     let resource_class_id = find_class(&[
         "resource-packs",
         "resource packs",
@@ -864,10 +865,10 @@ pub fn curseforge_search_bedrock_packs(
         "texture packs",
     ]);
     let class_ids = match kind {
-        "resource" => vec![resource_class_id.or(addon_class_id)],
-        "behavior" => vec![addon_class_id.or(resource_class_id)],
+        "resource" => vec![resource_class_id],
+        "behavior" => vec![addon_class_id],
         "all" => vec![addon_class_id, resource_class_id],
-        _ => vec![addon_class_id.or(resource_class_id)],
+        _ => vec![addon_class_id],
     }
     .into_iter()
     .flatten()
@@ -881,7 +882,7 @@ pub fn curseforge_search_bedrock_packs(
     let mut seen = std::collections::BTreeSet::new();
     for class_id in class_ids {
         let mut url = format!(
-            "{}/v1/mods/search?gameId={CURSEFORGE_MINECRAFT_GAME_ID}&classId={class_id}&searchFilter={}&pageSize={}&index={}",
+            "{}/v1/mods/search?gameId={CURSEFORGE_BEDROCK_GAME_ID}&classId={class_id}&searchFilter={}&pageSize={}&index={}",
             curseforge_base(),
             urlencode(query),
             limit.clamp(1, 50),
@@ -908,30 +909,6 @@ pub fn curseforge_search_bedrock_packs(
                 results.push(hit);
             }
         }
-    }
-    // Some Bedrock projects are searchable on CurseForge's site but are missing
-    // from its class-filtered API index. Retry the text search without a class.
-    if results.is_empty() && !query.trim().is_empty() {
-        let url = format!(
-            "{}/v1/mods/search?gameId={CURSEFORGE_MINECRAFT_GAME_ID}&searchFilter={}&pageSize={}&index={}",
-            curseforge_base(),
-            urlencode(query),
-            limit.clamp(1, 50),
-            offset.min(10_000),
-        );
-        let response = transport
-            .get(
-                &url,
-                "CurseForge Bedrock add-on search fallback",
-                &[("x-api-key", api_key.as_str())],
-                RESPONSE_MAX_BYTES,
-            )
-            .map_err(map_transport_err)?;
-        ensure_curseforge_ok_for("Bedrock add-on search fallback", response.status)?;
-        let body = bytes_to_utf8(response.body, "CurseForge Bedrock add-on search fallback")?;
-        let fallback: CurseForgeSearchEnvelope = serde_json::from_str(&body)
-            .map_err(|error| malformed("CurseForge Bedrock add-on search fallback", error))?;
-        results.extend(fallback.data);
     }
     if kind == "all" {
         results.sort_by_key(|item| std::cmp::Reverse(item.download_count));

@@ -407,3 +407,14 @@ Evidence: Source inspection found the agent discarded projects without latest fi
 Verify: Restart npx tauri dev, Repair Service, reconnect, then search “Prizma Visuals” in Browse Packs → Resource Packs. Confirm the project appears, open it, choose the Legacy release, and check whether its files are installable.
 Commit: P14.75: keep bedrock projects without indexed files
 Batch: solo
+
+
+#### P14.76 — Search CurseForge's actual Bedrock game catalog
+
+Status: awaiting Cameron verification
+Files: crates/msc-infrastructure/src/addon_provider.rs, docs/msc2/rolling-plan.md
+What: Correct the Bedrock catalog game ID from Minecraft Java (432) to Minecraft Bedrock (78022). Discover Addons (4984) and Texture Packs (6929) from the Bedrock game's actual class list. Search the selected class without crossing into another class when it is absent. Remove the speculative unfiltered fallback. The earlier P14.73/P14.74 category diagnoses were based on Java's taxonomy and did not explain or resolve the failure; this step supersedes them. Preserve visibility of projects with incomplete search-file metadata from P14.75.
+Evidence: Used this host's credential helper to perform read-only official CurseForge API requests without exposing the key. GET /v1/mods/1076812 reports gameId 78022 and classId 6929; GET /v1/games/78022 names Minecraft Bedrock. Java gameId 432 returns no Prizma projects. A temporary command compiled against the updated production libraries called the real curseforge_search_bedrock_packs function: “Prizma Visuals”/resource returned project 1076812 with 30 file indexes; “prizma”/all returned Legacy, PrizmaRTX, and two other projects; “Faithful”/resource returned 20 texture-pack projects. Scoped clippy, formatting, and prepare:agent build passed with the pre-existing unused-mut warning. No tests created or run.
+Verify: Restart npx tauri dev, Repair Service to load this agent build, and reconnect. Search “Prizma Visuals” under Resource Packs; the Legacy project must appear. Open it and select its release file. Confirm “prizma” under All also finds PrizmaRTX and a different texture-pack search returns Bedrock projects.
+Commit: P14.76: search curseforge bedrock game catalog
+Batch: solo

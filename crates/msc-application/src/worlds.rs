@@ -1592,9 +1592,8 @@ fn profile_change_status(
 
 /// Applies the shared world-profile projection used by initial creation,
 /// activation, and profile updates. Only keys represented by a world profile
-/// are changed; all other `server.properties` entries, including plugin and
-/// server-wide settings, remain untouched. The final read verifies the
-/// values the filesystem actually accepted.
+/// are changed; Bedrock coordinates are written into that world's `level.dat`
+/// while other applicable settings remain in `server.properties`.
 pub fn apply_world_profile(
     fs: &dyn FileSystem,
     server_dir: &Path,
@@ -1625,6 +1624,30 @@ pub fn apply_world_profile(
             continue;
         }
         let (mut status, mut reason) = profile_change_status(field, context, is_server_running);
+        if field == WorldProfileField::GameplayCoordinates && server_type == ServerType::Bedrock {
+            if !is_server_running
+                && status != WorldProfileApplyStatus::Blocked
+                && let Some(enabled) = profile.gameplay.coordinates
+            {
+                match apply_bedrock_coordinates(fs, server_dir, &properties, enabled) {
+                    Ok(true) => {}
+                    Ok(false) => {
+                        status = WorldProfileApplyStatus::Blocked;
+                        reason = Some("world_level_data_unavailable".to_string());
+                    }
+                    Err(error) => {
+                        status = WorldProfileApplyStatus::Blocked;
+                        reason = Some(format!("level_dat_update_failed: {error}"));
+                    }
+                }
+            }
+            changes.push(WorldProfileChange {
+                key: field.key().to_string(),
+                status,
+                reason,
+            });
+            continue;
+        }
         if server_type == ServerType::Bedrock
             && is_server_running
             && field == WorldProfileField::GameplaySupportedToggles
@@ -1674,6 +1697,36 @@ pub fn apply_world_profile(
     }
 
     Ok(WorldProfileApplicationReport { changes })
+}
+
+fn apply_bedrock_coordinates(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    properties: &BTreeMap<String, String>,
+    enabled: bool,
+) -> io::Result<bool> {
+    let Some(level_name) = properties
+        .get("level-name")
+        .map(String::as_str)
+        .filter(|value| !value.trim().is_empty())
+    else {
+        return Ok(false);
+    };
+    let level_dat = server_dir.join("worlds").join(level_name).join("level.dat");
+    let raw = match fs.read(&level_dat) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error),
+    };
+    let updated = msc_infrastructure::bedrock_nbt::set_level_dat_coordinates(&raw, enabled)
+        .map_err(|error| io::Error::other(error.to_string()))?;
+    let metadata = nbt::imported_world_metadata_from_level_dat(&updated, ServerType::Bedrock);
+    if metadata.coordinates != Some(enabled) {
+        return Ok(false);
+    }
+    msc_infrastructure::atomic_write::atomic_write(fs, &level_dat, &updated)
+        .map_err(|error| io::Error::other(error.to_string()))?;
+    Ok(true)
 }
 
 fn activation_dir(server_dir: &Path) -> PathBuf {

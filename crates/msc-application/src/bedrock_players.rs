@@ -38,6 +38,7 @@ pub enum BedrockPlayerError {
     LevelDb(String),
     AtomicWrite(String),
     InvalidPermission(String),
+    InvalidPlayerIdentity,
 }
 
 impl fmt::Display for BedrockPlayerError {
@@ -47,6 +48,7 @@ impl fmt::Display for BedrockPlayerError {
             Self::LevelDb(error) => write!(f, "{error}"),
             Self::AtomicWrite(error) => write!(f, "{error}"),
             Self::InvalidPermission(error) => write!(f, "{error}"),
+            Self::InvalidPlayerIdentity => write!(f, "Invalid Bedrock player identity."),
         }
     }
 }
@@ -183,9 +185,53 @@ pub fn set_hidden(
     write_json(fs, &server_dir.join("bedrock_hidden.json"), &entries)
 }
 
-/// Scan the active Bedrock world's LevelDB.  The reader is intentionally
-/// read-only; the service reports corrupt input instead of mutating a live
-/// world database to make it look healthy.
+/// Removes a saved player record from the active world's LevelDB. The route
+/// guards this operation so Bedrock is stopped before the database is opened.
+pub fn delete_player_data(
+    server_dir: &Path,
+    level_name: &str,
+    xuid: &str,
+) -> Result<(), BedrockPlayerError> {
+    let key = player_database_key(xuid)?;
+    msc_infrastructure::bedrock_leveldb::mutate_player_data(
+        &server_dir.join("worlds").join(level_name).join("db"),
+        &key,
+        None,
+    )
+    .map_err(|error| BedrockPlayerError::LevelDb(error.to_string()))
+}
+
+/// Copies a saved Bedrock player record under a new server UUID identity.
+pub fn duplicate_player_data(
+    server_dir: &Path,
+    level_name: &str,
+    xuid: &str,
+) -> Result<String, BedrockPlayerError> {
+    let source_key = player_database_key(xuid)?;
+    let target_xuid = format!("server_{}", uuid::Uuid::new_v4());
+    let target_key = format!("player_{target_xuid}");
+    msc_infrastructure::bedrock_leveldb::mutate_player_data(
+        &server_dir.join("worlds").join(level_name).join("db"),
+        &source_key,
+        Some(&target_key),
+    )
+    .map_err(|error| BedrockPlayerError::LevelDb(error.to_string()))?;
+    Ok(target_xuid)
+}
+
+fn player_database_key(xuid: &str) -> Result<String, BedrockPlayerError> {
+    if xuid == "local" {
+        return Ok("~local_player".to_owned());
+    }
+    let key = format!("player_{xuid}");
+    if msc_domain::bedrock::player_identity_from_key(&key).is_none() {
+        return Err(BedrockPlayerError::InvalidPlayerIdentity);
+    }
+    Ok(key)
+}
+
+/// Scan the active Bedrock world's LevelDB. Corrupt input is reported instead
+/// of being presented as an empty player list.
 pub fn discover_players(
     server_dir: &Path,
     level_name: &str,

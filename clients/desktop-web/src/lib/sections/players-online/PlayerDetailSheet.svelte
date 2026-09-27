@@ -17,6 +17,7 @@
 
   export let profile: Schema['PlayerProfileDTO'];
   export let api: import('../shared/types').ScreenApi | undefined = undefined;
+  export let serverRunning = false;
   export let onClose: () => void;
   export let onMutated: (profiles: Schema['PlayerProfileDTO'][]) => void;
   export let onDeleted: () => void;
@@ -137,21 +138,32 @@
     }
   }
   async function saveLookupOverride(): Promise<void> {
-    const trimmed = lookupInput.trim();
-    const result = await mutate<Schema['PlayerSkinOverrideResultDTO']>(
-      api,
-      playerPaths.skinOverride,
-      {
-        profileId: profile.id,
-        lookupIdentifier: trimmed || undefined,
-      },
-    );
-    profile = { ...profile, skinOverrideIdentifier: result.lookupIdentifier };
-    skin = await call<Schema['PlayerSkinResponseDTO'] | undefined>(
-      api,
-      skin,
-      playerPaths.skin(profile.id),
-    );
+    busy = true;
+    try {
+      const trimmed = lookupInput.trim();
+      const result = await mutate<Schema['PlayerSkinOverrideResultDTO']>(
+        api,
+        playerPaths.skinOverride,
+        {
+          profileId: profile.id,
+          lookupIdentifier: trimmed || undefined,
+        },
+      );
+      profile = { ...profile, skinOverrideIdentifier: result.lookupIdentifier };
+      onMutated([profile]);
+      if (!profile.isBedrockPlayer) {
+        skin = await call<Schema['PlayerSkinResponseDTO'] | undefined>(
+          api,
+          skin,
+          playerPaths.skin(profile.id),
+        );
+      }
+      flashSuccess(result.message === 'cleared' ? 'Skin lookup reset.' : 'Skin lookup saved.');
+    } catch (error) {
+      flashError(error instanceof Error ? error.message : 'Failed to save skin lookup.');
+    } finally {
+      busy = false;
+    }
   }
 
   function formatLastSeen(value: string | undefined): string {
@@ -208,7 +220,7 @@
     </div>
     <form class="lookup-row" onsubmit={(event) => (event.preventDefault(), saveLookupOverride())}>
       <Field bind:value={lookupInput} placeholder="Custom lookup name or UUID" />
-      <Button size="sm" type="submit">Save</Button>
+      <Button size="sm" type="submit" disabled={busy}>Save</Button>
     </form>
     <p class="hint">Leave blank to use this profile's own identity for the skin lookup.</p>
   </section>
@@ -306,22 +318,29 @@
             >Migrate to Custom UUID</Button
           >
         {/if}
-        <Button disabled={busy} onclick={duplicate}>Duplicate</Button>
-        {#if confirmingDelete}
-          <div class="confirm-row">
-            <span class="confirm-message"
-              >Permanently delete {profileDisplayName(profile)}'s data? This cannot be undone.</span
-            >
-            <Button size="sm" variant="destructive" disabled={busy} onclick={performDelete}
-              >Delete</Button
-            >
-            <Button size="sm" onclick={() => (confirmingDelete = false)}>Cancel</Button>
-          </div>
-        {:else}
-          <Button variant="destructive" disabled={busy} onclick={() => (confirmingDelete = true)}
-            >Delete Player Data</Button
+      {/if}
+      <Button disabled={busy || (profile.isBedrockPlayer && serverRunning)} onclick={duplicate}
+        >Duplicate</Button
+      >
+      {#if confirmingDelete}
+        <div class="confirm-row">
+          <span class="confirm-message"
+            >Permanently delete {profileDisplayName(profile)}'s data? This cannot be undone.</span
           >
-        {/if}
+          <Button
+            size="sm"
+            variant="destructive"
+            disabled={busy || (profile.isBedrockPlayer && serverRunning)}
+            onclick={performDelete}>Delete</Button
+          >
+          <Button size="sm" onclick={() => (confirmingDelete = false)}>Cancel</Button>
+        </div>
+      {:else}
+        <Button
+          variant="destructive"
+          disabled={busy || (profile.isBedrockPlayer && serverRunning)}
+          onclick={() => (confirmingDelete = true)}>Delete Player Data</Button
+        >
       {/if}
       <Button disabled={busy} onclick={toggleHidden}>
         {profile.isHidden ? 'Unhide Profile' : 'Hide Profile'}
@@ -331,8 +350,8 @@
 
   {#if profile.isBedrockPlayer}
     <p class="bedrock-note">
-      Bedrock player data is stored in a LevelDB database and cannot be edited directly from MSC.
-      Stop the server and use a LevelDB editor to modify or remove player data.
+      Bedrock player records are stored in the world's LevelDB. Stop the server before duplicating
+      or deleting a profile. Other LevelDB data must be changed with a LevelDB editor.
     </p>
   {/if}
 </Sheet>

@@ -701,11 +701,7 @@ fn mutate_java_player_data(
         );
     };
     if server.server_type == ServerType::Bedrock {
-        return error_response(
-            StatusCode::CONFLICT,
-            "not_bedrock",
-            "The active server is not a Java server.",
-        );
+        return mutate_bedrock_player_data(state, &server.server_dir, profile_id, mutation);
     }
 
     let java_profiles = match load_java_profiles(&server.server_dir) {
@@ -780,6 +776,80 @@ fn mutate_java_player_data(
         success: true,
         message: message.to_owned(),
         new_profile_id,
+        profiles: PlayerProfilesResponseDto {
+            profiles,
+            is_loading_stats: false,
+        },
+    })
+    .into_response()
+}
+
+fn mutate_bedrock_player_data(
+    state: &LifecycleRoutesState,
+    server_dir: &str,
+    profile_id: &str,
+    mutation: PlayerDataMutation,
+) -> Response {
+    if !matches!(
+        mutation,
+        PlayerDataMutation::Delete | PlayerDataMutation::Duplicate
+    ) {
+        return error_response(
+            StatusCode::CONFLICT,
+            "not_java",
+            "UUID migration is only available for Java player data.",
+        );
+    }
+    if state.status_snapshot().running {
+        return error_response(
+            StatusCode::CONFLICT,
+            "server_running",
+            "Stop the Bedrock server before changing player data.",
+        );
+    }
+    let Some(xuid) = profile_id.strip_prefix("xuid_") else {
+        return error_response(
+            StatusCode::NOT_FOUND,
+            "profile_not_found",
+            "Player profile was not found.",
+        );
+    };
+    let server_path = Path::new(server_dir);
+    let settings = msc_application::bedrock_settings::load(&StdFileSystem, server_path);
+    let mutation_result = match mutation {
+        PlayerDataMutation::Delete => {
+            bedrock_players::delete_player_data(server_path, &settings.model.level_name, xuid)
+                .map(|()| None)
+        }
+        PlayerDataMutation::Duplicate => {
+            bedrock_players::duplicate_player_data(server_path, &settings.model.level_name, xuid)
+                .map(Some)
+        }
+        PlayerDataMutation::MigrateOffline | PlayerDataMutation::Migrate(_) => unreachable!(),
+    };
+    let new_profile_id = match mutation_result {
+        Ok(new_profile_id) => new_profile_id,
+        Err(error) => {
+            return error_response(
+                StatusCode::CONFLICT,
+                "bedrock_player_data",
+                &error.to_string(),
+            );
+        }
+    };
+    let profiles = match profiles_for_server(server_dir, ServerType::Bedrock) {
+        Ok(profiles) => profiles,
+        Err(error) => {
+            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", &error);
+        }
+    };
+    Json(PlayerMutationResultDto {
+        success: true,
+        message: match new_profile_id {
+            Some(_) => "duplicated".to_owned(),
+            None => "deleted".to_owned(),
+        },
+        new_profile_id: new_profile_id.map(|id| format!("xuid_{id}")),
         profiles: PlayerProfilesResponseDto {
             profiles,
             is_loading_stats: false,
@@ -868,21 +938,46 @@ fn profiles_for_server(
     server_dir: &str,
     server_type: ServerType,
 ) -> Result<Vec<PlayerProfileDto>, String> {
+    let overrides = player_skin::load_overrides(&StdFileSystem, Path::new(server_dir));
     match server_type {
         ServerType::Java => {
             let reducer = JavaOutputReducer::new();
             player_profiles::load_player_profiles(&StdFileSystem, Path::new(server_dir), &reducer)
-                .map(|profiles| profiles.into_iter().map(java_profile_to_dto).collect())
+                .map(|profiles| {
+                    profiles
+                        .into_iter()
+                        .map(java_profile_to_dto)
+                        .map(|mut profile| {
+                            apply_skin_override(&mut profile, &overrides);
+                            profile
+                        })
+                        .collect()
+                })
                 .map_err(|error| error.to_string())
         }
         ServerType::Bedrock => discover_bedrock(server_dir).map(|players| {
             let hidden = bedrock_players::load_hidden(&StdFileSystem, Path::new(server_dir));
             players
                 .into_iter()
-                .map(|player| bedrock_profile_to_dto(player, &hidden))
+                .map(|player| {
+                    let mut profile = bedrock_profile_to_dto(player, &hidden);
+                    apply_skin_override(&mut profile, &overrides);
+                    profile
+                })
                 .collect()
         }),
     }
+}
+
+fn apply_skin_override(
+    profile: &mut PlayerProfileDto,
+    overrides: &player_skin::PlayerSkinOverrides,
+) {
+    let Some(value) = overrides.get(&profile.id) else {
+        return;
+    };
+    profile.skin_override_identifier = value.lookup_identifier.clone();
+    profile.has_skin_file_override = Some(value.skin_file_name.is_some());
 }
 
 fn discover_bedrock(server_dir: &str) -> Result<Vec<BedrockPlayerRecord>, String> {

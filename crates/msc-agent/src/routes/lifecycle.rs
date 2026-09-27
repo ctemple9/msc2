@@ -2264,6 +2264,13 @@ impl LifecycleRoutesState {
         let result = self
             .provision_bedrock_server(&active)
             .and_then(|()| {
+                apply_active_bedrock_world_profile(&active).map_err(|error| {
+                    BedrockRuntimeError::Provisioning(format!(
+                        "could not apply saved world settings: {error}"
+                    ))
+                })
+            })
+            .and_then(|()| {
                 let server_dir = Path::new(&active.server_dir);
                 let transport_result = match (sidecar, transport) {
                     (_, BedrockConnectionTransport::Raknet) => {
@@ -2853,6 +2860,31 @@ fn bedrock_safety_backup(server_dir: &Path) -> bool {
         || false,
     )
     .is_ok()
+}
+
+fn apply_active_bedrock_world_profile(server: &ConfigServer) -> Result<(), String> {
+    let server_dir = Path::new(&server.server_dir);
+    let slots = msc_infrastructure::world_store::load_slots(&StdFileSystem, server_dir);
+    let marker =
+        msc_infrastructure::world_store::load_explicit_active_slot_id(&StdFileSystem, server_dir);
+    let Some(active_id) = msc_domain::world::resolve_active_slot_id(&slots, marker.as_deref())
+    else {
+        return Ok(());
+    };
+    let Some(slot) = slots.iter().find(|slot| slot.id == active_id) else {
+        return Ok(());
+    };
+    let profile = msc_infrastructure::world_store::load_profile(&StdFileSystem, server_dir, slot);
+    msc_application::worlds::apply_world_profile(
+        &StdFileSystem,
+        server_dir,
+        ServerType::Bedrock,
+        &profile,
+        msc_application::worlds::WorldProfileApplyContext::Activation,
+        false,
+    )
+    .map(|_| ())
+    .map_err(|error| error.to_string())
 }
 
 #[derive(Debug)]

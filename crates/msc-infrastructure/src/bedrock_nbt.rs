@@ -14,6 +14,191 @@ pub const MAX_NBT_DEPTH: usize = 64;
 pub const MAX_NBT_ITEMS: usize = 100_000;
 pub const MAX_NBT_STRING_BYTES: usize = 1024 * 1024;
 
+/// Changes Bedrock's world-level coordinate visibility flag without
+/// reserializing the other NBT tags in `level.dat`.
+pub fn set_level_dat_coordinates(raw: &[u8], enabled: bool) -> Result<Vec<u8>, NbtError> {
+    const HEADER_BYTES: usize = 8;
+    const TAG_NAME: &[u8] = b"showCoordinates";
+    if raw.len() < HEADER_BYTES + 4 || raw[HEADER_BYTES] != 10 {
+        return Err(NbtError::Corrupt("Bedrock level.dat root"));
+    }
+    let mut bytes = raw.to_vec();
+    let mut cursor = HEADER_BYTES + 1;
+    let root_name_len = take_u16_le(&bytes, &mut cursor)? as usize;
+    skip_bytes(&bytes, &mut cursor, root_name_len)?;
+    let mut entries = 0;
+    let end_tag_offset = loop {
+        let tag_offset = cursor;
+        let tag_type = take_u8(&bytes, &mut cursor)?;
+        if tag_type == 0 {
+            break tag_offset;
+        }
+        entries += 1;
+        if entries > 100_000 {
+            return Err(NbtError::LimitExceeded("level.dat tags"));
+        }
+        let name_len = take_u16_le(&bytes, &mut cursor)? as usize;
+        let name_end = cursor
+            .checked_add(name_len)
+            .ok_or(NbtError::Corrupt("level.dat tag name"))?;
+        if name_end > bytes.len() {
+            return Err(NbtError::Corrupt("level.dat tag name"));
+        }
+        let name = &bytes[cursor..name_end];
+        cursor = name_end;
+        if name == TAG_NAME {
+            if tag_type != 1 {
+                return Err(NbtError::Unsupported("showCoordinates tag type"));
+            }
+            let value_offset = cursor;
+            let _ = take_u8(&bytes, &mut cursor)?;
+            bytes[value_offset] = u8::from(enabled);
+            return Ok(bytes);
+        }
+        skip_nbt_payload(&bytes, &mut cursor, tag_type, 0)?;
+    };
+    let name_len =
+        u16::try_from(TAG_NAME.len()).map_err(|_| NbtError::LimitExceeded("level.dat tag name"))?;
+    let mut tag = Vec::with_capacity(TAG_NAME.len() + 4);
+    tag.push(1);
+    tag.extend_from_slice(&name_len.to_le_bytes());
+    tag.extend_from_slice(TAG_NAME);
+    tag.push(u8::from(enabled));
+    bytes.splice(end_tag_offset..end_tag_offset, tag);
+    let payload_size = bytes
+        .len()
+        .checked_sub(HEADER_BYTES)
+        .ok_or(NbtError::Corrupt("level.dat size"))?;
+    let payload_size =
+        u32::try_from(payload_size).map_err(|_| NbtError::LimitExceeded("level.dat bytes"))?;
+    bytes[4..8].copy_from_slice(&payload_size.to_le_bytes());
+    Ok(bytes)
+}
+
+fn skip_nbt_payload(raw: &[u8], cursor: &mut usize, tag: u8, depth: usize) -> Result<(), NbtError> {
+    if depth > 64 {
+        return Err(NbtError::LimitExceeded("level.dat nesting"));
+    }
+    match tag {
+        1 => skip_bytes(raw, cursor, 1),
+        2 => skip_bytes(raw, cursor, 2),
+        3 | 5 => skip_bytes(raw, cursor, 4),
+        4 | 6 => skip_bytes(raw, cursor, 8),
+        7 => {
+            let count = take_i32_le(raw, cursor)?;
+            skip_counted_bytes(raw, cursor, count, 1)
+        }
+        8 => {
+            let count = take_u16_le(raw, cursor)? as usize;
+            if count > MAX_NBT_STRING_BYTES {
+                return Err(NbtError::LimitExceeded("level.dat string bytes"));
+            }
+            skip_bytes(raw, cursor, count)
+        }
+        9 => {
+            let element_type = take_u8(raw, cursor)?;
+            if element_type > 12 {
+                return Err(NbtError::Unsupported("level.dat list tag type"));
+            }
+            let count = take_i32_le(raw, cursor)?;
+            let count = checked_count(count)?;
+            if count > 100_000 {
+                return Err(NbtError::LimitExceeded("level.dat list items"));
+            }
+            for _ in 0..count {
+                skip_nbt_payload(raw, cursor, element_type, depth + 1)?;
+            }
+            Ok(())
+        }
+        10 => {
+            let mut count = 0;
+            loop {
+                let child_type = take_u8(raw, cursor)?;
+                if child_type == 0 {
+                    return Ok(());
+                }
+                count += 1;
+                if count > 100_000 {
+                    return Err(NbtError::LimitExceeded("level.dat compound tags"));
+                }
+                let name_len = take_u16_le(raw, cursor)? as usize;
+                skip_bytes(raw, cursor, name_len)?;
+                skip_nbt_payload(raw, cursor, child_type, depth + 1)?;
+            }
+        }
+        11 => {
+            let count = take_i32_le(raw, cursor)?;
+            skip_counted_bytes(raw, cursor, count, 4)
+        }
+        12 => {
+            let count = take_i32_le(raw, cursor)?;
+            skip_counted_bytes(raw, cursor, count, 8)
+        }
+        _ => Err(NbtError::Unsupported("level.dat tag type")),
+    }
+}
+
+fn checked_count(count: i32) -> Result<usize, NbtError> {
+    usize::try_from(count).map_err(|_| NbtError::Corrupt("negative level.dat count"))
+}
+
+fn skip_counted_bytes(
+    raw: &[u8],
+    cursor: &mut usize,
+    count: i32,
+    item_size: usize,
+) -> Result<(), NbtError> {
+    let count = checked_count(count)?;
+    if count > MAX_NBT_ITEMS {
+        return Err(NbtError::LimitExceeded("level.dat array items"));
+    }
+    let bytes = count
+        .checked_mul(item_size)
+        .ok_or(NbtError::Corrupt("level.dat array size"))?;
+    skip_bytes(raw, cursor, bytes)
+}
+
+fn take_u8(raw: &[u8], cursor: &mut usize) -> Result<u8, NbtError> {
+    let byte = *raw
+        .get(*cursor)
+        .ok_or(NbtError::Corrupt("truncated level.dat"))?;
+    *cursor += 1;
+    Ok(byte)
+}
+
+fn take_u16_le(raw: &[u8], cursor: &mut usize) -> Result<u16, NbtError> {
+    let end = cursor
+        .checked_add(2)
+        .ok_or(NbtError::Corrupt("level.dat offset"))?;
+    let bytes = raw
+        .get(*cursor..end)
+        .ok_or(NbtError::Corrupt("truncated level.dat"))?;
+    *cursor = end;
+    Ok(u16::from_le_bytes([bytes[0], bytes[1]]))
+}
+
+fn take_i32_le(raw: &[u8], cursor: &mut usize) -> Result<i32, NbtError> {
+    let end = cursor
+        .checked_add(4)
+        .ok_or(NbtError::Corrupt("level.dat offset"))?;
+    let bytes = raw
+        .get(*cursor..end)
+        .ok_or(NbtError::Corrupt("truncated level.dat"))?;
+    *cursor = end;
+    Ok(i32::from_le_bytes(bytes.try_into().unwrap()))
+}
+
+fn skip_bytes(raw: &[u8], cursor: &mut usize, count: usize) -> Result<(), NbtError> {
+    let end = cursor
+        .checked_add(count)
+        .ok_or(NbtError::Corrupt("level.dat offset"))?;
+    if end > raw.len() {
+        return Err(NbtError::Corrupt("truncated level.dat"));
+    }
+    *cursor = end;
+    Ok(())
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NbtError {
     Unavailable,

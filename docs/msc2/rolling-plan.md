@@ -500,3 +500,13 @@ Evidence: Prettier check passes; Svelte check reports 0 errors and 7 existing wa
 Verify: Run npx tauri dev from clients/desktop-web. Confirm Simulation Distance has no unit suffix and View Distance still shows “chunks.”
 Commit: P14.84: hide simulation distance unit
 Batch: solo
+
+#### P14.85 — Restore player profile changes and apply Bedrock world coordinates
+
+Status: awaiting Cameron verification
+Files: clients/desktop-web/src/lib/sections/players-online/PlayerDetailSheet.svelte, clients/desktop-web/src/lib/sections/players-online/PlayersOnlineSection.svelte, crates/msc-agent/src/routes/players.rs, crates/msc-agent/src/routes/lifecycle.rs, crates/msc-application/src/bedrock_players.rs, crates/msc-application/src/worlds.rs, crates/msc-infrastructure/Cargo.toml, crates/msc-infrastructure/src/bedrock_leveldb.rs, crates/msc-infrastructure/src/bedrock_nbt.rs, Cargo.lock, docs/msc2/rolling-plan.md
+What: Return saved skin lookup overrides in Java and Bedrock player profiles, and update the profile list immediately after Save so custom skin lookups persist when reopening the sheet. Enable Bedrock Duplicate and confirmed Delete by changing only the saved player key in the active world's LevelDB; refuse those changes while BDS is running and keep UUID migration Java-only. Apply Bedrock's per-world coordinates choice to the active world's `level.dat`, not the unsupported `server.properties` key, and reapply the saved profile before starting BDS so a choice saved during runtime takes effect after restart. Keep unrelated LevelDB tags byte-for-byte intact during coordinate updates.
+Evidence: Rust formatting, scoped Cargo check/clippy, Svelte check, frontend formatting/build, and `prepare:agent` pass. No tests created or run. Manual player-data operations and in-game coordinate visibility await Cameron verification.
+Verify: Run `npx tauri dev` from `clients/desktop-web`. In Java Player Profile, save a custom skin lookup, close/reopen the sheet, and confirm the identifier and preview remain. Repeat for a Bedrock profile. Stop BDS and confirm Duplicate adds a copied profile, Delete Player Data removes the selected profile, and Hide Profile still toggles; confirm Duplicate/Delete are unavailable while BDS runs. In Worlds → Settings, enable Coordinates, save, restart BDS, join the active world, and confirm the coordinate display appears; disable it, restart, and confirm it disappears.
+Commit: P14.85: restore player changes and apply bedrock world settings
+Batch: solo

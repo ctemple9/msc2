@@ -185,6 +185,7 @@
   <PlayerDetailSheet
     profile={selectedProfile}
     {api}
+    serverRunning={worlds.serverRunning}
     onClose={() => (selectedProfile = undefined)}
     onMutated={onProfilesMutated}
     onDeleted={() => {

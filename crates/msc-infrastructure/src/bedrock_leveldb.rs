@@ -1,15 +1,18 @@
-//! Read-only Bedrock LevelDB table and write-ahead-log decoding.
+//! Bedrock LevelDB player-record reading and stopped-world mutations.
 //!
-//! The reader only opens and reads `.ldb`/`.log` files.  It does not acquire a
-//! LevelDB lock, write a manifest, compact records, or mutate the live world.
-//! Corrupt and unsupported inputs are explicit errors for callers that need to
-//! distinguish "no player database" from "database could not be read".
+//! The reader only opens and reads `.ldb`/`.log` files. Player mutations use a
+//! LevelDB database writer, and callers must ensure the Bedrock server is
+//! stopped so it cannot write concurrently. Corrupt and unsupported inputs are
+//! explicit errors rather than being presented as an empty player database.
 
+use flate2::Compression;
 use flate2::read::DeflateDecoder;
+use flate2::write::DeflateEncoder;
+use rusty_leveldb::{Compressor, CompressorList, DB, Options, Status, StatusCode};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fs;
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 use std::path::Path;
 
 pub const MAX_LEVELDB_FILE_BYTES: u64 = 64 * 1024 * 1024;
@@ -69,6 +72,75 @@ pub fn read_player_data(path: &Path) -> Result<BTreeMap<String, Vec<u8>>, LevelD
         parse_log(&path, &mut result)?;
     }
     Ok(result)
+}
+
+/// Applies one player-key mutation using LevelDB's own write-ahead log and
+/// manifest. The caller must stop Bedrock first so the server cannot write
+/// the same database concurrently.
+pub fn mutate_player_data(
+    path: &Path,
+    source_key: &str,
+    target_key: Option<&str>,
+) -> Result<(), LevelDbError> {
+    if !is_player_key(source_key) || target_key.is_some_and(|key| !is_player_key(key)) {
+        return Err(LevelDbError::Unsupported("invalid player key"));
+    }
+    let mut compressors = CompressorList::new();
+    compressors.set(rusty_leveldb::compressor::NoneCompressor);
+    compressors.set(rusty_leveldb::compressor::SnappyCompressor);
+    compressors.set(BedrockDeflateCompressor);
+    let options = Options {
+        create_if_missing: false,
+        compressor_list: std::rc::Rc::new(compressors),
+        ..Options::default()
+    };
+    let mut db = DB::open(path, options).map_err(leveldb_error)?;
+    let source_value = db
+        .get(source_key.as_bytes())
+        .ok_or(LevelDbError::Unsupported("player record not found"))?;
+    if let Some(target_key) = target_key {
+        if db.get(target_key.as_bytes()).is_some() {
+            return Err(LevelDbError::Unsupported(
+                "duplicate player key already exists",
+            ));
+        }
+        db.put(target_key.as_bytes(), &source_value)
+            .map_err(leveldb_error)?;
+    } else {
+        db.delete(source_key.as_bytes()).map_err(leveldb_error)?;
+    }
+    db.flush().map_err(leveldb_error)
+}
+
+fn leveldb_error(error: Status) -> LevelDbError {
+    match error.code {
+        StatusCode::PermissionDenied | StatusCode::Errno(_) => {
+            LevelDbError::Unavailable(io::Error::new(io::ErrorKind::PermissionDenied, error))
+        }
+        _ => LevelDbError::Unsupported("LevelDB could not safely update this database"),
+    }
+}
+
+#[derive(Clone, Copy)]
+struct BedrockDeflateCompressor;
+
+impl rusty_leveldb::CompressorId for BedrockDeflateCompressor {
+    const ID: u8 = 4;
+}
+
+impl Compressor for BedrockDeflateCompressor {
+    fn encode(&self, block: Vec<u8>) -> rusty_leveldb::Result<Vec<u8>> {
+        let mut encoder = DeflateEncoder::new(Vec::new(), Compression::fast());
+        encoder.write_all(&block)?;
+        encoder.finish().map_err(Status::from)
+    }
+
+    fn decode(&self, block: Vec<u8>) -> rusty_leveldb::Result<Vec<u8>> {
+        let mut decoder = DeflateDecoder::new(block.as_slice());
+        let mut output = Vec::new();
+        decoder.read_to_end(&mut output)?;
+        Ok(output)
+    }
 }
 
 fn read_bounded(path: &Path) -> Result<Vec<u8>, LevelDbError> {

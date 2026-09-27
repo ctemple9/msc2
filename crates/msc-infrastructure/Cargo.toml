@@ -13,6 +13,7 @@ sha2 = "0.10"
 ureq = "3"
 zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 flate2 = "1"
+rusty-leveldb = "4.0.1"
 tar = "0.4"
 
 [target.'cfg(unix)'.dependencies]

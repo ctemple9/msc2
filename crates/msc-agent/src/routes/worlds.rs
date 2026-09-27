@@ -1328,13 +1328,16 @@ pub async fn install_bedrock_behavior_pack(
             "Bedrock packs can only be installed in Bedrock worlds.",
         );
     }
-    if server.minecraft_version.is_none() {
+    let runtime = crate::routes::bedrock::runtime_for(&state.lifecycle);
+    let Some(bedrock_version) =
+        crate::routes::versions::installed_bedrock_version(&server, runtime.as_ref())
+    else {
         return error_response(
             StatusCode::CONFLICT,
             "unknown_bedrock_version",
-            "The Bedrock server version is not available for compatibility checks.",
+            "The installed Bedrock server version could not be verified. Repair the server files before installing packs.",
         );
-    }
+    };
     let server_dir = Path::new(&server.server_dir);
     let Some(slot) = find_slot(server_dir, &slot_id) else {
         return error_response(StatusCode::NOT_FOUND, "not_found", "World slot not found.");
@@ -1572,7 +1575,7 @@ pub async fn install_bedrock_behavior_pack(
         &source_project_id,
         &source_file_id,
         &source_url,
-        server.minecraft_version.as_deref().unwrap_or_default(),
+        &bedrock_version,
     ) {
         Ok(installed) => installed,
         Err(error) => {

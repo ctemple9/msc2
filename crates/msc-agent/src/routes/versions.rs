@@ -213,7 +213,7 @@ fn bedrock_platform(runtime: Option<&msc_api::dto::BedrockRuntimeStateDto>) -> B
     }
 }
 
-fn installed_bedrock_version(
+pub(crate) fn installed_bedrock_version(
     server: &msc_domain::app_config_schema::ConfigServer,
     runtime: Option<&msc_api::dto::BedrockRuntimeStateDto>,
 ) -> Option<String> {

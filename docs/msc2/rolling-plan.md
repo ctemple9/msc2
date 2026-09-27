@@ -418,3 +418,14 @@ Evidence: Used this host's credential helper to perform read-only official Curse
 Verify: Restart npx tauri dev, Repair Service to load this agent build, and reconnect. Search “Prizma Visuals” under Resource Packs; the Legacy project must appear. Open it and select its release file. Confirm “prizma” under All also finds PrizmaRTX and a different texture-pack search returns Bedrock projects.
 Commit: P14.76: search curseforge bedrock game catalog
 Batch: solo
+
+
+#### P14.77 — Check packs against the installed Bedrock version
+
+Status: awaiting Cameron verification
+Files: crates/msc-agent/src/routes/versions.rs, crates/msc-agent/src/routes/worlds.rs, clients/desktop-web/src/lib/sections/worlds/WorldPackBrowserSheet.svelte, docs/msc2/rolling-plan.md
+What: Fix pack installation reading ConfigServer.minecraft_version, the Java version field, rather than the installed Bedrock distribution. Share the existing Versions endpoint's verified Bedrock version reader, including backend platform selection and the pinned Bedrock fallback. Pass that version to the existing manifest minimum-engine-version check. Replace exact CurseForge tag mismatches' Other version/Install anyway wording with neutral Version not listed and Install labels, and explain that tags do not establish runtime compatibility.
+Evidence: A read-only command using the production installed-distribution reader verified this host's Bedrock distribution as 1.26.52.3. Downloaded the creator's PrizmaVisuals 1.3.10.mcpack through the official CurseForge API/CDN and inspected its manifest: module resources, capability pbr, minimum engine 1.16.200, which the installed version exceeds. Agent clippy, prepare:agent build, formatting, frontend type check, and production frontend build pass with existing warnings. No tests created or run; actual client rendering awaits Cameron.
+Verify: Restart npx tauri dev, Repair Service, reconnect, stop the Bedrock server, and install Prizma's Legacy release from Browse Packs. Confirm the unknown Bedrock version error is gone, then start and join the world to accept the resource-pack download. Version not listed labels describe only missing exact CurseForge tags.
+Commit: P14.77: check packs against installed bedrock version
+Batch: solo

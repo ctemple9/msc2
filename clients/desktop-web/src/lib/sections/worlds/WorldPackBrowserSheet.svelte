@@ -356,7 +356,7 @@
           {:else if !selectedMinecraftVersion}
             <Badge variant="status" tone="warn">Version unknown</Badge>
           {:else if !compatible}
-            <Badge variant="status" tone="warn">Other version</Badge>
+            <Badge variant="category">Version not listed</Badge>
           {:else}
             <Button size="sm" variant="secondary" onclick={() => void installBedrock(item)}
               >Add</Button
@@ -429,10 +429,10 @@
         {@const hasCompatibleFile = detail.files.some((file) =>
           file.gameVersions.includes(selectedMinecraftVersion),
         )}
-        <p class="compat" class:warn={!hasCompatibleFile}>
+        <p class="compat">
           {hasCompatibleFile
-            ? `A version is available for your server (${selectedMinecraftVersion}).`
-            : `No version yet for Minecraft ${selectedMinecraftVersion}. You can still install another version below, at your own risk.`}
+            ? `The creator lists a file for Minecraft ${selectedMinecraftVersion}.`
+            : `The creator has not listed Minecraft ${selectedMinecraftVersion}. MSC checks the pack’s minimum Bedrock version when you install it; check the creator’s notes for support on newer releases.`}
         </p>
       {/if}
 
@@ -491,8 +491,8 @@
               {@const compatibilityLabel = !selectedMinecraftVersion
                 ? 'Version unknown'
                 : compatible
-                  ? 'Compatible'
-                  : 'Other version'}
+                  ? 'Version listed'
+                  : 'Version not listed'}
               {@const expanded = expandedFileIds.has(file.id)}
               <div class="version-row">
                 <button
@@ -510,7 +510,7 @@
                       <Badge variant="status" tone={fileReleaseTone(file.releaseType)}>
                         {fileReleaseLabel(file.releaseType)}
                       </Badge>
-                      <Badge variant="status" tone={compatible ? 'ok' : 'warn'}>
+                      <Badge variant={compatible ? 'status' : 'category'} tone="ok">
                         {compatibilityLabel}
                       </Badge>
                     </span>
@@ -525,8 +525,7 @@
                   <Button
                     size="sm"
                     variant="secondary"
-                    onclick={() => void installBedrock(detailItem!, file.id)}
-                    >{compatible ? 'Install' : 'Install anyway'}</Button
+                    onclick={() => void installBedrock(detailItem!, file.id)}>Install</Button
                   >
                 {/if}
               </div>
@@ -754,9 +753,8 @@
   .compat {
     margin: 14px 0;
     font-size: 12px;
-    color: var(--msc2-status-ok);
+    color: var(--msc2-text-secondary);
   }
-  .compat.warn,
   .detail-error {
     color: var(--msc2-status-warn);
   }

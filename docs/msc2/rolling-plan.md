@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 16 execution is underway. P16.1–P16.12 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
-> **Next move:** Cameron verifies P16.1–P16.12 using their `Verify:` commands.
+> ## STATUS: Phase 16 execution is underway. P16.1–P16.21 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
+> **Next move:** Cameron verifies P16.1–P16.21 using their `Verify:` commands.
 
 ## How this document works
 
@@ -208,10 +208,10 @@ Batch: solo
 
 #### P16.21 — Publish owner-selected license and security contact
 
-Status: planned — requires Cameron's source/distribution license choice before execution
-Files: LICENSE, SECURITY.md, CONTRIBUTING.md, README.md, docs/msc2/msc2-decisions.md, docs/msc2/rolling-plan.md
-What: Present Cameron with concrete license choices and the effect on reuse/contributions; publish only his selected terms. Add a private vulnerability-reporting route, supported-version policy, contributor start instructions, and notices/ownership for third-party code and bundled Bedrock VM material. Do not infer an open-source license from the word “free.”
-Verify: Run `rg -n 'License|Security|Contribut|vulnerabilit' README.md LICENSE SECURITY.md CONTRIBUTING.md` and inspect that the published terms match Cameron's recorded choice.
+Status: implemented — awaiting Cameron's verification
+Files: LICENSE, SECURITY.md, CONTRIBUTING.md, THIRD-PARTY-NOTICES.md, README.md, docs/msc2/msc2-decisions.md, docs/msc2/rolling-plan.md
+What: Apply Cameron's selected Apache-2.0 terms only to MSC 2 original code and contributions. Add a private vulnerability-reporting route, a latest-stable-release support policy, contributor start instructions, and notices that distinguish third-party components and bundled Bedrock VM material from project-owned code. Record unknown appliance source provenance plainly; checksums do not substitute for license or source compliance.
+Verify: Run `rg -n 'License|Security|Contribut|vulnerabilit' README.md LICENSE SECURITY.md CONTRIBUTING.md THIRD-PARTY-NOTICES.md docs/msc2/msc2-decisions.md` and inspect that the published terms match Cameron's recorded choice and separate third-party materials from MSC 2 original code.
 Batch: solo
 
 #### P16.22 — Record dependency and artifact provenance

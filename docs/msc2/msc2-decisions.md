@@ -1,6 +1,6 @@
 # MSC 2 — Decision Register
 
-**Revision:** 1.21 · **Date:** 2026-09-23
+**Revision:** 1.22 · **Date:** 2026-09-28
 **Owner:** Cameron Temple
 
 **Purpose:** the authoritative record of *what was decided, by whom, and why*. The product and engineering documents describe the destination; this document explains how it was chosen, what was rejected, and when a decision should be reopened.
@@ -64,6 +64,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 | D-034 | Full-screen terminal UI retired from MSC 2 | **Approved** | 2026-09-07 |
 | D-035 | Server-owned jars replace global template storage | **Approved** | 2026-09-07 |
 | D-036 | Operational refinement contracts | Proposed | — |
+| D-037 | License for MSC 2 original code | **Approved** | 2026-09-28 |
 
 ---
 
@@ -1150,6 +1151,31 @@ model.
 
 ---
 
+## D-037 — License for MSC 2 original code
+
+**Status:** **Approved** · **Origin:** Owner confirmation during P16.21 · **Approved by:** Cameron Temple · **Date:** 2026-09-28
+
+**Decision.** MSC 2 original code is licensed under the Apache License,
+Version 2.0. Contributions intentionally submitted for inclusion use the same
+license unless a separate written agreement says otherwise. Contributors keep
+copyright in their contributions.
+
+**Scope.** This grant applies only to work Cameron has the right to license as
+MSC 2 original code. It does not cover third-party dependencies, Minecraft
+software, trademarks, or the inherited Intel Bedrock kernel and initramfs.
+Those materials retain their own terms and require separate attribution and
+source compliance.
+
+**Rationale.** Apache-2.0 permits broad reuse while requiring preservation of
+license and attribution notices, and includes an express contributor patent
+grant. It allows contributors and downstream projects to reuse MSC 2 without
+requiring their larger work to adopt a reciprocal license.
+
+**Revisit if:** Cameron explicitly changes the licensing model or the project
+ownership changes.
+
+---
+
 ## Appendix A — corrections made during planning
 
 Recorded because each produced a confident wrong answer, and each is the kind of mistake likely to recur.
@@ -1177,6 +1203,7 @@ Recorded because each produced a confident wrong answer, and each is the kind of
 | Rev | Date | Change |
 |---|---|---|
 | 1.21 | 2026-09-23 | Amended D-007 and D-025 with Cameron's approved macOS Bedrock boundary: the installing-user agent controls a narrowly scoped root VZ/relay helper over authenticated local IPC. |
+| 1.22 | 2026-09-28 | Recorded D-037: Cameron selected Apache-2.0 for MSC 2 original code, with third-party runtime materials remaining under their own terms. |
 | 1.20 | 2026-09-21 | Recorded Cameron's approval of D-030's world-profile ownership boundary. |
 | 1.19 | 2026-09-21 | Recorded the proposed Phase 15 world-pack and modpack-identity contract and its D-030 approval gate. |
 | 1.18 | 2026-09-11 | Simplified the guided SSH trust flow: first connection remembers the remote identity without displaying its fingerprint; changed identities remain blocked until explicitly trusted, without showing key values. |

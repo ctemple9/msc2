@@ -249,6 +249,17 @@ connected to. Your Minecraft server and worlds remain on your hardware.
 Optional third-party services can still be used when you choose them, such as
 Playit.gg, Tailscale, DuckDNS, Modrinth, or CurseForge.
 
+## License and security
+
+MSC 2's original code is licensed under [Apache-2.0](LICENSE). This license
+does not replace the separate terms for third-party software and bundled
+runtime files; see [Third-party notices](THIRD-PARTY-NOTICES.md).
+
+For a security issue, use GitHub's [private vulnerability report
+form](https://github.com/ctemple9/msc2/security/advisories/new). Please do not
+report vulnerabilities in public issues. The supported-version policy and
+disclosure guidance are in [SECURITY.md](SECURITY.md).
+
 ## The story behind MSC 2
 
 The reason MSC 2 exists—and the story of moving from a rough Python script to
@@ -265,6 +276,8 @@ If you are interested in how MSC 2 is built or want to contribute:
 | [Engineering](docs/msc2/msc2-engineering.md) | Architecture, API contract, and platform support |
 | [Decisions](docs/msc2/msc2-decisions.md) | Decisions, reasoning, and rejected alternatives |
 | [Port plan](docs/msc2/msc2-port-plan.md) | Implementation phases and exit gates |
+| [Contributing](CONTRIBUTING.md) | Development setup and contribution expectations |
+| [Third-party notices](THIRD-PARTY-NOTICES.md) | Credits, distribution boundaries, and bundled runtime provenance |
 
 ## Built on other people's work
 

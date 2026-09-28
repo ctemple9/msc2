@@ -50,7 +50,7 @@
   $: slotBackups = backupsForSlot(backups, selectedSlot?.id);
   $: groups = groupBackupsByDay(slotBackups);
   $: legacy = legacyOrUnmatchedBackups(backups, slots);
-  $: totalBytes = backups.reduce((sum, backup) => sum + (backup.fileSize ?? 0), 0);
+  $: totalBytes = slotBackups.reduce((sum, backup) => sum + (backup.fileSize ?? 0), 0);
   $: intervalOptions = (config?.intervalOptions ?? []).map((minutes) => ({
     value: String(minutes),
     label: minutes < 60 ? `Every ${minutes} min` : `Every ${minutes / 60} hr`,
@@ -66,8 +66,8 @@
 <Card>
   <div class="header">
     <span class="section-summary">
-      {backups.length}
-      {backups.length === 1 ? 'backup' : 'backups'} · {bytesLabel(totalBytes)} total
+      {slotBackups.length}
+      {slotBackups.length === 1 ? 'backup' : 'backups'} · {bytesLabel(totalBytes)} total
     </span>
     <div class="header-actions">
       {#if config}

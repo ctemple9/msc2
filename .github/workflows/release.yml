@@ -31,21 +31,25 @@ jobs:
         include:
           - platform: macos-x86_64
             os: macos-15-intel
+            toolchain: stable
             rust-target: x86_64-apple-darwin
             tauri-bundles: dmg
             installer-extension: dmg
           - platform: macos-aarch64
             os: macos-14
+            toolchain: stable
             rust-target: aarch64-apple-darwin
             tauri-bundles: dmg
             installer-extension: dmg
           - platform: windows-x86_64
             os: windows-latest
+            toolchain: stable
             rust-target: x86_64-pc-windows-msvc
             tauri-bundles: msi
             installer-extension: msi
           - platform: linux-x86_64
-            os: ubuntu-latest
+            os: ubuntu-22.04
+            toolchain: 1.97.1
             rust-target: x86_64-unknown-linux-gnu
             tauri-bundles: deb,rpm
 
@@ -68,6 +72,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: ${{ matrix.toolchain }}
           targets: ${{ matrix.rust-target }}
           components: rustfmt, clippy
 
@@ -85,7 +90,9 @@ jobs:
             librsvg2-dev \
             libwebkit2gtk-4.1-dev \
             patchelf \
-            rpm
+            rpm \
+            cpio \
+            binutils
 
       - name: Install shared client dependencies
         working-directory: clients/desktop-web
@@ -209,6 +216,51 @@ jobs:
             test -n "$installer" || { echo "no Tauri installer found in $bundle_dir" >&2; exit 1; }
             cp "$installer" "target/release-artifacts/msc2-${RELEASE_VERSION}-${{ matrix.platform }}.${{ matrix.installer-extension }}"
           fi
+
+      - name: Record Linux artifact glibc requirements and headless links
+        if: matrix.platform == 'linux-x86_64'
+        run: |
+          python3 tools/release/check-linux-artifacts.py \
+            --headless-archive "target/release-artifacts/msc2-headless-${RELEASE_VERSION}-linux-x86_64.tar.gz" \
+            --desktop-deb "target/release-artifacts/msc2-${RELEASE_VERSION}-linux-x86_64.deb" \
+            --desktop-rpm "target/release-artifacts/msc2-${RELEASE_VERSION}-linux-x86_64.rpm" \
+            --max-glibc 2.36 \
+            --report target/release-artifacts/linux-abi-report.json
+
+      - name: Install and launch exact Linux artifacts on Debian 12
+        if: matrix.platform == 'linux-x86_64'
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE/target/release-artifacts:/artifacts:ro" \
+            -e RELEASE_VERSION="$RELEASE_VERSION" \
+            debian:12-slim bash -euc '
+              apt-get update
+              apt-get install --yes "/artifacts/msc2-${RELEASE_VERSION}-linux-x86_64.deb"
+              agent="$(find /usr/lib -type f -path "*/agent/msc" -print -quit)"
+              test -n "$agent"
+              "$agent" --help >/dev/null
+              mkdir -p /opt/msc2-headless /usr/local/bin
+              tar -xzf "/artifacts/msc2-headless-${RELEASE_VERSION}-linux-x86_64.tar.gz" -C /opt/msc2-headless
+              install -m 0755 /opt/msc2-headless/msc /usr/local/bin/msc
+              msc --help >/dev/null
+            '
+
+      - name: Install and launch exact Linux artifacts on Fedora 44
+        if: matrix.platform == 'linux-x86_64'
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE/target/release-artifacts:/artifacts:ro" \
+            -e RELEASE_VERSION="$RELEASE_VERSION" \
+            fedora:44 bash -euc '
+              dnf install --assumeyes "/artifacts/msc2-${RELEASE_VERSION}-linux-x86_64.rpm"
+              agent="$(find /usr/lib -type f -path "*/agent/msc" -print -quit)"
+              test -n "$agent"
+              "$agent" --help >/dev/null
+              mkdir -p /opt/msc2-headless /usr/local/bin
+              tar -xzf "/artifacts/msc2-headless-${RELEASE_VERSION}-linux-x86_64.tar.gz" -C /opt/msc2-headless
+              install -m 0755 /opt/msc2-headless/msc /usr/local/bin/msc
+              msc --help >/dev/null
+            '
 
       - name: Record unsigned beta evidence
         shell: bash

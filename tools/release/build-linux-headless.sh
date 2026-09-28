@@ -25,7 +25,7 @@ VERSION="$(awk -F'"' '/^[[:space:]]*version[[:space:]]*=/ { print $2; exit }' "$
 [[ -n "$VERSION" ]] || fail "could not read the msc-agent version"
 
 cd "$WORKSPACE_ROOT"
-cargo build --release --no-default-features --target "$RUST_TARGET" -p msc-agent
+cargo build --release --locked --no-default-features --target "$RUST_TARGET" -p msc-agent
 
 SOURCE_BINARY="$WORKSPACE_ROOT/target/$RUST_TARGET/release/msc"
 [[ -x "$SOURCE_BINARY" ]] || fail "release binary is missing: $SOURCE_BINARY"

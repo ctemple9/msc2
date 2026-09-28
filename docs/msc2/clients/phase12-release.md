@@ -85,6 +85,16 @@ Debian 11 is below the baseline because its `systemd` is too old for the
 credential-helper contract. The Linux package does not require a logged-in
 graphical session.
 
+Linux release binaries are built on the pinned Ubuntu 22.04 x86_64 runner with
+Rust 1.97.1. The build is older than the Debian 12 runtime floor, and release
+acceptance records every required `GLIBC_*` symbol version from the headless
+archive binary and the ELF payloads in both desktop packages. No payload may
+require a version newer than Debian 12's glibc 2.36. The headless binary is
+also checked for GUI library links. Before publication, the exact Linux
+headless archive and desktop packages are installed or staged and launched in
+clean Debian 12 and Fedora 44 containers; the headless archive's `msc --help`
+must run on both distributions.
+
 The headless archive is installed by its `install.sh` and removed by its
 `uninstall.sh`. The installer may request one elevated installation window;
 it must preserve the invoking user's identity instead of turning the service

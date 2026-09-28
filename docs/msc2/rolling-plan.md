@@ -158,8 +158,8 @@ Batch: solo
 
 #### P16.15 — Build Linux artifacts to the promised minimum
 
-Status: planned — awaiting Cameron's review
-Files: .github/workflows/release.yml, tools/release/build-linux-headless.sh, docs/msc2/clients/phase12-release.md, docs/msc2/rolling-plan.md
+Status: implemented — awaiting Cameron's Debian 12 verification
+Files: .github/workflows/release.yml, tools/release/build-linux-headless.sh, tools/release/check-linux-artifacts.py, tools/release/check-release-workflow.py, docs/msc2/clients/phase12-release.md, docs/msc2/rolling-plan.md
 What: Pin the Linux release builder/toolchain to a baseline compatible with Debian 12 and record the minimum required glibc symbols for both archive and desktop artifacts. Require a clean Debian 12 install/launch of the exact release bytes, plus a current Fedora path, before publication. Keep no-GUI-link checks for the headless archive.
 Verify: On clean Debian 12 with the staged headless artifact installed, run `msc --help` and confirm the binary launches without a missing-symbol error.
 Batch: solo

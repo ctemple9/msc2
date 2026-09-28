@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: beta-release-${{ github.ref }}
@@ -285,16 +286,42 @@ jobs:
           path: target/release-artifacts
           if-no-files-found: error
 
+  ci-evidence:
+    name: Require same-commit full CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      run_id: ${{ steps.require-ci.outputs.run_id }}
+      run_attempt: ${{ steps.require-ci.outputs.run_attempt }}
+      html_url: ${{ steps.require-ci.outputs.html_url }}
+      head_sha: ${{ steps.require-ci.outputs.head_sha }}
+    steps:
+      - name: Check out the release commit
+        uses: actions/checkout@v4
+
+      - name: Wait for successful full CI on this tag commit
+        id: require-ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python3 tools/release/require-ci-run.py --output "$GITHUB_OUTPUT"
+
   publish:
     name: Publish ${{ github.ref_name }}
     if: >-
       needs.build.result == 'success' &&
+      needs.ci-evidence.result == 'success' &&
       startsWith(github.ref, 'refs/tags/v') &&
       (
         github.event_name == 'push' ||
         (github.event_name == 'workflow_dispatch' && inputs.publish == true)
       )
-    needs: build
+    needs: [build, ci-evidence]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -340,6 +367,41 @@ jobs:
             exit 1
           }
 
+      - name: Record same-commit CI and release run IDs
+        env:
+          CI_RUN_ID: ${{ needs.ci-evidence.outputs.run_id }}
+          CI_RUN_ATTEMPT: ${{ needs.ci-evidence.outputs.run_attempt }}
+          CI_RUN_URL: ${{ needs.ci-evidence.outputs.html_url }}
+          CI_RUN_SHA: ${{ needs.ci-evidence.outputs.head_sha }}
+        run: |
+          set -Eeuo pipefail
+          test "$CI_RUN_SHA" = "$GITHUB_SHA"
+          python3 - "$CI_RUN_ID" "$CI_RUN_ATTEMPT" "$CI_RUN_URL" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          evidence = {
+              "source_commit": os.environ["GITHUB_SHA"],
+              "release_tag": os.environ["GITHUB_REF_NAME"],
+              "release_workflow": {
+                  "run_id": int(os.environ["GITHUB_RUN_ID"]),
+                  "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+                  "url": f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
+              },
+              "ci_workflow": {
+                  "run_id": int(sys.argv[1]),
+                  "run_attempt": int(sys.argv[2]),
+                  "url": sys.argv[3],
+                  "head_sha": os.environ["GITHUB_SHA"],
+              },
+          }
+          Path("target/release-assets/CI-EVIDENCE.json").write_text(
+              json.dumps(evidence, indent=2) + "\n", encoding="utf-8"
+          )
+          PY
+
       - name: Generate and verify SHA-256 manifest
         run: |
           python3 tools/release/verify-artifact-manifest.py \
@@ -366,6 +428,8 @@ jobs:
 
           This release includes the signed manifest and detached Ed25519
           signature required for native in-app installation.
+          Same-commit CI and release workflow run IDs are attached in
+          CI-EVIDENCE.json.
           Release ID: ${release_version}
           EOF
 

@@ -40,6 +40,7 @@ EXPECTED_BETA_ASSETS = {
 CHUNK_SIZE = 1024 * 1024
 RELEASE_METADATA = {
     "RELEASE-NOTES.md",
+    "CI-EVIDENCE.json",
     "SHA256SUMS",
     "UNSIGNED-BETA-NOTICE.txt",
     "msc2-update-manifest.json",

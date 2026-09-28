@@ -166,8 +166,8 @@ Batch: solo
 
 #### P16.16 — Gate publication on same-commit CI evidence
 
-Status: planned — awaiting Cameron's review
-Files: .github/workflows/ci.yml, .github/workflows/release.yml, tools/release/check-release-workflow.py, docs/msc2/rolling-plan.md
+Status: implemented — awaiting Cameron's verification
+Files: .github/workflows/ci.yml, .github/workflows/release.yml, tools/release/check-release-workflow.py, tools/release/require-ci-run.py, tools/release/verify-artifact-manifest.py, docs/msc2/rolling-plan.md
 What: Make tag publication require the full required Rust, client, browser, platform, and native checks for the same source commit as the release artifacts. Record exact workflow run IDs and refuse publication on missing, stale, cancelled, or failed jobs; keep the existing signed-manifest and nine-artifact checks.
 Verify: Run `python3 tools/release/check-release-workflow.py .github/workflows/release.yml --expect-publish-guard`.
 Batch: solo

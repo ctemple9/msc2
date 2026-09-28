@@ -100,6 +100,9 @@ def check_candidate_workflow(workflow: str) -> None:
         "build-macos-headless.sh",
         "build-windows-headless.ps1",
         "prepare-windows-icon.py",
+        "ci-evidence:",
+        "require-ci-run.py",
+        "actions: read",
         "actions/upload-artifact@v4",
         "beta-${{ matrix.platform }}-${{ env.RELEASE_VERSION }}",
         "UNSIGNED-BETA-NOTICE.txt",
@@ -144,8 +147,9 @@ def check_publish_guard(workflow: str) -> None:
     publish_start = re.search(r"(?m)^  publish:\s*$", workflow)
     require(publish_start is not None, "publish job is not a top-level job")
     publish_job = workflow[publish_start.start() :]
-    require("needs: build" in publish_job, "publish job does not require the full build matrix")
+    require("needs: [build, ci-evidence]" in publish_job, "publish job does not require build and CI evidence")
     require("needs.build.result == 'success'" in publish_job, "publish job does not require a successful matrix")
+    require("needs.ci-evidence.result == 'success'" in publish_job, "publish job does not require successful same-commit CI")
     require("github.event_name == 'push'" in publish_job, "publish job is not push-guarded")
     require("github.event_name == 'workflow_dispatch'" in publish_job, "publish job lacks manual-dispatch handling")
     require("inputs.publish == true" in publish_job, "manual publication is not explicitly opted in")
@@ -171,6 +175,27 @@ def check_publish_guard(workflow: str) -> None:
     require("softprops/action-gh-release@v2" in publish_job, "publish job does not create a GitHub release")
     require("prerelease: true" in publish_job, "GitHub publication is not marked as a prerelease")
     require("fail_on_unmatched_files: true" in publish_job, "release publication does not fail on missing assets")
+    require("CI-EVIDENCE.json" in publish_job, "release publication does not attach exact workflow run evidence")
+    ci_waiter = read_workflow(ROOT / "tools/release/require-ci-run.py")
+    for fragment in (
+        '"event": "push"',
+        '"head_sha": sha',
+        '"head_branch": tag',
+        '"status") != "completed"',
+        '"conclusion") != "success"',
+        'job.get("status") != "completed"',
+        'job.get("conclusion") != "success"',
+        "REQUIRED_JOB_COUNTS",
+    ):
+        require(fragment in ci_waiter, f"same-commit CI gate is missing {fragment!r}")
+    ci_workflow = read_workflow(ROOT / ".github/workflows/ci.yml")
+    require("tags: ['v*']" in ci_workflow, "CI does not run the full workflow on version tags")
+    require(
+        "github.event_name != 'workflow_dispatch'" in ci_workflow,
+        "tag CI can still skip required jobs through a focused dispatch scope",
+    )
+    manifest_checker = read_workflow(ROOT / "tools/release/verify-artifact-manifest.py")
+    require('"CI-EVIDENCE.json"' in manifest_checker, "release checksum gate does not treat CI evidence as metadata")
     signer = read_workflow(ROOT / "tools/release/sign-update-manifest.py")
     require(
         "verify_signature_with_openssl(bytes.fromhex(public_value), manifest_bytes, signature)" in signer,

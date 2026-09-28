@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 16 execution is underway. P16.1–P16.8 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
-> **Next move:** Cameron verifies P16.1–P16.8 using their `Verify:` commands.
+> ## STATUS: Phase 16 execution is underway. P16.1–P16.9 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
+> **Next move:** Cameron verifies P16.1–P16.9 using their `Verify:` commands.
 
 ## How this document works
 
@@ -106,7 +106,7 @@ Batch: solo
 
 #### P16.9 — Bound operation history and admission cost
 
-Status: planned — awaiting Cameron's review
+Status: implemented — awaiting Cameron's verification
 Files: crates/msc-application/src/operations.rs, crates/msc-infrastructure/src/operation_journal.rs, crates/msc-agent/src/routes/operations.rs, docs/msc2/rolling-plan.md
 What: Set a documented retention limit for terminal records and cancellation flags, preserve the durable records needed for recovery and user history, and admit against an active-reservation index instead of rescanning every historical file. Make cleanup safe across restart and ensure long-lived hosts have bounded memory and admission time.
 Verify: Run `cargo check -p msc-application -p msc-infrastructure -p msc-agent`.

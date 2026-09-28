@@ -36,17 +36,29 @@ use crate::atomic_write::{AtomicWriteError, atomic_write};
 use crate::fs::FileSystem;
 use msc_domain::operation::{OperationError, OperationId, OperationState};
 use serde_json::Value;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::fmt;
 use std::io;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock, Weak};
+use std::time::SystemTime;
 
-static JOURNAL_LOCKS: OnceLock<Mutex<HashMap<PathBuf, Weak<Mutex<()>>>>> = OnceLock::new();
+/// Completed operations kept for GET-by-id after their worker exits.
+pub const TERMINAL_HISTORY_LIMIT: usize = 1_000;
+
+#[derive(Default)]
+struct JournalIndex {
+    initialized: bool,
+    active: HashMap<OperationId, JournalEntry>,
+    terminal: VecDeque<OperationId>,
+}
+
+static JOURNAL_LOCKS: OnceLock<Mutex<HashMap<PathBuf, Weak<Mutex<JournalIndex>>>>> =
+    OnceLock::new();
 
 // Multiple application handles can point at one directory in the agent.
 // Sharing their lock keeps the scan and durable reservation one transaction.
-fn journal_lock(dir: &PathBuf) -> Arc<Mutex<()>> {
+fn journal_lock(dir: &PathBuf) -> Arc<Mutex<JournalIndex>> {
     let mut locks = JOURNAL_LOCKS
         .get_or_init(|| Mutex::new(HashMap::new()))
         .lock()
@@ -55,7 +67,7 @@ fn journal_lock(dir: &PathBuf) -> Arc<Mutex<()>> {
         return lock;
     }
     locks.retain(|_, lock| lock.strong_count() > 0);
-    let lock = Arc::new(Mutex::new(()));
+    let lock = Arc::new(Mutex::new(JournalIndex::default()));
     locks.insert(dir.clone(), Arc::downgrade(&lock));
     lock
 }
@@ -157,7 +169,7 @@ impl std::error::Error for AdmitError {}
 pub struct OperationJournal<'fs> {
     fs: &'fs dyn FileSystem,
     dir: PathBuf,
-    transaction: Arc<Mutex<()>>,
+    transaction: Arc<Mutex<JournalIndex>>,
 }
 
 impl<'fs> OperationJournal<'fs> {
@@ -182,8 +194,10 @@ impl<'fs> OperationJournal<'fs> {
     /// later state transition, so the journal's on-disk state always
     /// matches the operation's true last-known state.
     pub fn record(&self, entry: &JournalEntry) -> Result<(), JournalError> {
-        let _transaction = self.transaction.lock().unwrap();
-        self.record_unlocked(entry)
+        let mut index = self.transaction.lock().unwrap();
+        self.initialize_index(&mut index)?;
+        self.record_unlocked(entry)?;
+        self.index_entry(&mut index, entry)
     }
 
     fn record_unlocked(&self, entry: &JournalEntry) -> Result<(), JournalError> {
@@ -214,29 +228,32 @@ impl<'fs> OperationJournal<'fs> {
     /// coexist against the same target) doesn't exist until later phases
     /// populate it.
     pub fn admit(&self, entry: &JournalEntry) -> Result<(), AdmitError> {
-        let _transaction = self.transaction.lock().unwrap();
-        if let Some(existing) = self
-            .find_non_terminal_conflict(entry)
-            .map_err(AdmitError::Journal)?
-        {
+        let mut index = self.transaction.lock().unwrap();
+        self.initialize_index(&mut index)
+            .map_err(AdmitError::Journal)?;
+        if let Some(existing) = index.active.values().find(|candidate| {
+            candidate.id != entry.id
+                && (entry.operation_type == HOST_MAINTENANCE_OPERATION_TYPE
+                    || candidate.operation_type == HOST_MAINTENANCE_OPERATION_TYPE
+                    || (entry.target.is_some() && entry.target == candidate.target))
+        }) {
             let target = existing
                 .target
                 .as_deref()
                 .or(entry.target.as_deref())
                 .unwrap_or("host");
-            return Err(AdmitError::Conflict(conflict_error(&existing, target)));
+            return Err(AdmitError::Conflict(conflict_error(existing, target)));
         }
-        self.record_unlocked(entry).map_err(AdmitError::Journal)
+        self.record_unlocked(entry).map_err(AdmitError::Journal)?;
+        self.index_entry(&mut index, entry)
+            .map_err(AdmitError::Journal)
     }
 
-    /// The first non-terminal journaled entry that conflicts with `entry`.
-    /// Shares `reconcile_on_startup`'s walk-every-file-under-`dir` shape,
-    /// skipping anything that isn't a journal entry this module wrote —
-    /// same reasoning as there.
-    fn find_non_terminal_conflict(
-        &self,
-        entry: &JournalEntry,
-    ) -> Result<Option<JournalEntry>, JournalError> {
+    fn initialize_index(&self, index: &mut JournalIndex) -> Result<(), JournalError> {
+        if index.initialized {
+            return Ok(());
+        }
+        let mut terminal = Vec::new();
         for path in self.fs.list(&self.dir).map_err(JournalError::Io)? {
             let bytes = match self.fs.read(&path) {
                 Ok(bytes) => bytes,
@@ -249,16 +266,51 @@ impl<'fs> OperationJournal<'fs> {
             let Some(candidate) = entry_from_value(&value) else {
                 continue;
             };
-            if candidate.id != entry.id
-                && !candidate.state.is_terminal()
-                && (entry.operation_type == HOST_MAINTENANCE_OPERATION_TYPE
-                    || candidate.operation_type == HOST_MAINTENANCE_OPERATION_TYPE
-                    || (entry.target.is_some() && entry.target == candidate.target))
-            {
-                return Ok(Some(candidate));
+            if candidate.state.is_terminal() {
+                let modified = self
+                    .fs
+                    .stat(&path)
+                    .map(|meta| meta.modified)
+                    .unwrap_or(SystemTime::UNIX_EPOCH);
+                terminal.push((modified, candidate.id));
+            } else {
+                index.active.insert(candidate.id.clone(), candidate);
             }
         }
-        Ok(None)
+        terminal.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.as_str().cmp(b.1.as_str())));
+        index.terminal = terminal.into_iter().map(|(_, id)| id).collect();
+        index.initialized = true;
+        self.prune_terminal(index)
+    }
+
+    fn index_entry(
+        &self,
+        index: &mut JournalIndex,
+        entry: &JournalEntry,
+    ) -> Result<(), JournalError> {
+        if entry.state.is_terminal() {
+            index.active.remove(&entry.id);
+            if !index.terminal.contains(&entry.id) {
+                index.terminal.push_back(entry.id.clone());
+            }
+            self.prune_terminal(index)?;
+        } else {
+            index.active.insert(entry.id.clone(), entry.clone());
+        }
+        Ok(())
+    }
+
+    fn prune_terminal(&self, index: &mut JournalIndex) -> Result<(), JournalError> {
+        while index.terminal.len() > TERMINAL_HISTORY_LIMIT {
+            let oldest = index.terminal.front().expect("history exceeds limit");
+            match self.fs.remove(&self.entry_path(oldest)) {
+                Ok(()) => {}
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) => return Err(JournalError::Io(error)),
+            }
+            index.terminal.pop_front();
+        }
+        Ok(())
     }
 
     /// Reads back `id`'s journaled entry, or `None` if it was never
@@ -293,7 +345,8 @@ impl<'fs> OperationJournal<'fs> {
     /// per entry actually reconciled — empty if every journaled entry was
     /// already terminal.
     pub fn reconcile_on_startup(&self) -> Result<Vec<ReconciliationRecord>, JournalError> {
-        let _transaction = self.transaction.lock().unwrap();
+        let mut index = self.transaction.lock().unwrap();
+        self.initialize_index(&mut index)?;
         let mut records = Vec::new();
         for path in self.fs.list(&self.dir).map_err(JournalError::Io)? {
             let bytes = match self.fs.read(&path) {
@@ -325,6 +378,7 @@ impl<'fs> OperationJournal<'fs> {
             }
 
             self.record_unlocked(&entry)?;
+            self.index_entry(&mut index, &entry)?;
             records.push(ReconciliationRecord {
                 id: entry.id,
                 operation_type: entry.operation_type,

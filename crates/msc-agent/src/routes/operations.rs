@@ -261,7 +261,9 @@ pub async fn create(State(store): State<OperationsState>, body: Bytes) -> Respon
     (StatusCode::ACCEPTED, Json(dto)).into_response()
 }
 
-/// `GET /v1/operations/{id}` — §4.2.
+/// `GET /v1/operations/{id}` — §4.2. Completed operations remain
+/// addressable while they are among the most recent 1,000 journal entries;
+/// older ids return 404 after retention cleanup.
 pub async fn get(State(store): State<OperationsState>, Path(id): Path<String>) -> Response {
     match store.snapshot(&id) {
         Some(record) => (StatusCode::OK, Json(record)).into_response(),

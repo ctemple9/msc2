@@ -9,9 +9,9 @@ use msc_domain::operation::{OperationError, OperationId, OperationProgress, Oper
 use msc_infrastructure::fs::FileSystem;
 use msc_infrastructure::operation_journal::{
     AdmitError, HOST_MAINTENANCE_OPERATION_TYPE, JournalEntry, JournalError, OperationJournal,
-    ReconciliationRecord,
+    ReconciliationRecord, TERMINAL_HISTORY_LIMIT,
 };
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::fmt;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -95,12 +95,9 @@ pub struct LifecycleOperations<'fs> {
     /// which have no server directory to sweep in the first place.
     servers_root: Option<PathBuf>,
     records: Mutex<HashMap<OperationId, OperationRecord>>,
-    /// One cooperative-cancellation flag per operation, created alongside
-    /// its record in [`Self::begin_running`] and never removed (the same
-    /// "no eviction" lifetime `records` itself already has). Kept
-    /// separate from `records`'s own `Mutex` so [`Self::cancellation_check`]
-    /// can hand a worker a cheap, lock-free `'static` closure instead of a
-    /// reference back into this store.
+    terminal_ids: Mutex<VecDeque<OperationId>>,
+    /// Workers retain their own Arc; removing a completed flag from this
+    /// map cannot invalidate a cancellation check already handed to one.
     cancel_flags: Mutex<HashMap<OperationId, Arc<AtomicBool>>>,
 }
 
@@ -111,6 +108,7 @@ impl<'fs> LifecycleOperations<'fs> {
             fs,
             servers_root: None,
             records: Mutex::new(HashMap::new()),
+            terminal_ids: Mutex::new(VecDeque::new()),
             cancel_flags: Mutex::new(HashMap::new()),
         }
     }
@@ -449,6 +447,14 @@ impl<'fs> LifecycleOperations<'fs> {
         next.error = error;
         self.record_journal_state(id, &next)?;
         *record = next;
+        self.cancel_flags.lock().unwrap().remove(id);
+        let mut terminal_ids = self.terminal_ids.lock().unwrap();
+        terminal_ids.push_back(id.clone());
+        while terminal_ids.len() > TERMINAL_HISTORY_LIMIT {
+            if let Some(oldest) = terminal_ids.pop_front() {
+                records.remove(&oldest);
+            }
+        }
         Ok(())
     }
 

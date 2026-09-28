@@ -47,3 +47,4 @@ msc-platform-linux = { path = "../msc-platform-linux" }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 msc-platform-windows = { path = "../msc-platform-windows" }
+windows-service = "0.8"

@@ -96,6 +96,15 @@ pub struct CommonArgs {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum Command {
+    /// Internal entry point registered with Windows Service Control Manager.
+    #[cfg(target_os = "windows")]
+    #[command(name = "service-run", hide = true)]
+    ServiceRun {
+        #[arg(long)]
+        service_name: String,
+        #[arg(long, default_value = "127.0.0.1:48001")]
+        bind: std::net::SocketAddr,
+    },
     /// Start the agent's HTTP management API.
     Serve {
         /// Address to bind the management API to. Loopback by default
@@ -976,6 +985,8 @@ impl CliError {
 pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
     match command {
         Command::Serve { .. } => Err(CliError::internal("serve is handled in main")),
+        #[cfg(target_os = "windows")]
+        Command::ServiceRun { .. } => Err(CliError::internal("service-run is handled in main")),
         #[cfg(target_os = "linux")]
         Command::CredentialHelper { .. } => {
             Err(CliError::internal("credential-helper is handled in main"))

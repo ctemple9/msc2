@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 16 execution is underway. P16.1–P16.10 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
-> **Next move:** Cameron verifies P16.1–P16.10 using their `Verify:` commands.
+> ## STATUS: Phase 16 execution is underway. P16.1–P16.11 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
+> **Next move:** Cameron verifies P16.1–P16.11 using their `Verify:` commands.
 
 ## How this document works
 
@@ -124,8 +124,8 @@ Batch: solo
 
 #### P16.11 — Give the Windows agent a real service lifecycle
 
-Status: planned — awaiting Cameron's review
-Files: crates/msc-agent/src/main.rs, crates/msc-platform-windows/src/service.rs, crates/msc-agent/Cargo.toml, packaging/windows, docs/msc2/rolling-plan.md
+Status: implemented — awaiting Cameron's Windows verification
+Files: crates/msc-agent/src/main.rs, crates/msc-agent/src/windows_service.rs, crates/msc-agent/src/cli/mod.rs, crates/msc-platform-windows/src/service.rs, crates/msc-agent/Cargo.toml, Cargo.lock, packaging/windows/service-lifecycle.md, docs/msc2/rolling-plan.md
 What: Make the production-installed executable complete the Windows Service Control Manager start handshake and handle stop/shutdown control, or package a production wrapper that does so. Keep the installing-user identity and normal CLI `serve` mode. Validate the exact installer-created service path on Windows rather than relying on the separate lifecycle smoke wrapper.
 Verify: On Windows, run `cargo check -p msc-agent -p msc-platform-windows`.
 Batch: solo

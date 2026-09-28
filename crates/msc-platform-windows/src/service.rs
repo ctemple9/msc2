@@ -124,6 +124,23 @@ impl<S: Sc> ServiceManager for WindowsServiceManager<S> {
 impl<S: Sc> WindowsServiceManager<S> {
     fn install(&self, request: ServiceInstallRequest) -> Result<ServiceStatusReport, ServiceError> {
         validate_request(&request)?;
+        let mut request = request;
+        // The production agent must enter its SCM dispatcher. Keep other
+        // executable definitions intact for callers using this adapter.
+        let binary_path = request.binary_path.to_string_lossy();
+        if binary_path
+            .rsplit(['\\', '/'])
+            .next()
+            .is_some_and(|name| name.eq_ignore_ascii_case("msc.exe"))
+        {
+            request.arguments = vec![
+                "service-run".to_string(),
+                "--service-name".to_string(),
+                request.service_name.as_str().to_string(),
+                "--bind".to_string(),
+                format!("127.0.0.1:{}", request.expected_port),
+            ];
+        }
         let metadata_path = self.metadata_path(request.service_name.as_str());
 
         if let Some(parent) = metadata_path.parent() {

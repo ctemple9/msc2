@@ -9,6 +9,8 @@ mod cli;
 mod help;
 mod routes;
 mod web_ui;
+#[cfg(target_os = "windows")]
+mod windows_service;
 mod ws;
 
 use std::net::SocketAddr;
@@ -44,6 +46,10 @@ async fn main() -> ExitCode {
         cli::InvocationTarget::Usage => Err(cli::CliError::usage("a named command is required")),
         cli::InvocationTarget::Command => match command.expect("command target requires command") {
             cli::Command::Serve { bind } => run_service(bind).await,
+            #[cfg(target_os = "windows")]
+            cli::Command::ServiceRun { service_name, bind } => {
+                windows_service::dispatch(service_name, bind).map_err(cli::CliError::internal)
+            }
             #[cfg(target_os = "linux")]
             cli::Command::CredentialHelper { command } => run_credential_helper(command),
             #[cfg(target_os = "linux")]
@@ -126,6 +132,14 @@ fn run_credential_helper(command: cli::CredentialHelperCommand) -> Result<(), cl
 }
 
 async fn run_service(bind: SocketAddr) -> Result<(), cli::CliError> {
+    run_service_with_shutdown(bind, std::future::pending(), || Ok(())).await
+}
+
+async fn run_service_with_shutdown(
+    bind: SocketAddr,
+    shutdown: impl std::future::Future<Output = ()> + Send + 'static,
+    ready: impl FnOnce() -> Result<(), cli::CliError>,
+) -> Result<(), cli::CliError> {
     let listener = tokio::net::TcpListener::bind(bind)
         .await
         .map_err(|err| cli::CliError::internal(format!("failed to bind {bind}: {err}")))?;
@@ -146,7 +160,10 @@ async fn run_service(bind: SocketAddr) -> Result<(), cli::CliError> {
     #[cfg(target_os = "macos")]
     auth::spawn_local_bootstrap(auth_state.clone());
 
-    axum::serve(listener, build_app_with_auth(auth_state))
+    let app = build_app_with_auth(auth_state);
+    ready()?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown)
         .await
         .map_err(|err| cli::CliError::internal(format!("server error: {err}")))
 }

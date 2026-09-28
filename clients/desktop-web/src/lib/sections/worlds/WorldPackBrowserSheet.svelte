@@ -10,9 +10,11 @@
   import Badge from '../../components/base/Badge.svelte';
   import Icon from '../../components/base/Icon.svelte';
   import Toggle from '../../components/base/Toggle.svelte';
+  import ProjectDetailSheet from '../components/ProjectDetailSheet.svelte';
   import type { Schema, ScreenApi } from '../shared/types';
   import { errorMessage, mutate } from '../shared/types';
   import { formatCount, parseInlineMarkdown, sanitizeCurseForgeBody } from '../components/model';
+  import type { ProjectDetailItem } from '../components/model';
   import { pollOperation } from './model';
 
   export let api: ScreenApi | undefined;
@@ -32,6 +34,7 @@
   let picking = false;
   let results: Schema['CatalogItemDTO'][] = [];
   let bedrockResults: Schema['BedrockBehaviorPackCatalogItemDTO'][] = [];
+  let javaDetailItem: ProjectDetailItem | undefined;
   let detailItem: Schema['BedrockBehaviorPackCatalogItemDTO'] | undefined;
   let detail: Schema['BedrockBehaviorPackDetailDTO'] | undefined;
   let detailLoading = false;
@@ -47,7 +50,7 @@
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   onMount(async () => {
-    if (!bedrock || selectedMinecraftVersion.trim() || !api) {
+    if (selectedMinecraftVersion.trim() || !api) {
       versionLoading = false;
       return;
     }
@@ -170,11 +173,16 @@
       const versions = await api.get<Schema['CatalogVersionsResponseDTO']>(
         `/v1/catalog/projects/${encodeURIComponent(item.projectId)}/versions`,
       );
-      const version =
-        (minecraftVersion
-          ? versions.versions.find((candidate) => candidate.gameVersions.includes(minecraftVersion))
-          : undefined) ?? versions.versions[0];
-      if (!version) throw new Error('No published datapack version is available.');
+      const version = versions.versions.find((candidate) =>
+        candidate.gameVersions.includes(selectedMinecraftVersion),
+      );
+      if (!version) {
+        throw new Error(
+          selectedMinecraftVersion
+            ? `No datapack version lists Minecraft ${selectedMinecraftVersion}. Open its details to choose another version.`
+            : 'The server Minecraft version is unavailable. Open datapack details to choose a version.',
+        );
+      }
       const result = await mutate<Schema['JavaDatapackInstallResultDTO']>(
         api,
         `/v1/worlds/${encodeURIComponent(slotId)}/datapacks/install`,
@@ -185,6 +193,28 @@
       onInstalled();
     } catch (error) {
       notice = errorMessage(error);
+    } finally {
+      installing = '';
+    }
+  }
+
+  async function installJavaVersion(
+    item: ProjectDetailItem,
+    version: Schema['CatalogVersionDTO'],
+  ): Promise<string> {
+    if (!api) throw new Error('Connect to an agent to install a datapack.');
+    installing = item.projectId;
+    notice = '';
+    try {
+      const result = await mutate<Schema['JavaDatapackInstallResultDTO']>(
+        api,
+        `/v1/worlds/${encodeURIComponent(slotId)}/datapacks/install`,
+        { projectId: item.projectId, versionId: version.id },
+      );
+      return `${result.pack.name} installed.`;
+    } catch (error) {
+      notice = errorMessage(error);
+      throw error;
     } finally {
       installing = '';
     }
@@ -373,7 +403,12 @@
     <div class="results">
       {#each results as item (item.projectId)}
         <div class="result">
-          <div class="result-link">
+          <button
+            type="button"
+            class="result-link"
+            aria-label={`View ${item.title} datapack details`}
+            onclick={() => (javaDetailItem = item)}
+          >
             <div class="icon">
               {#if item.iconURL}
                 <img src={item.iconURL} alt="" width="40" height="40" loading="lazy" />
@@ -382,17 +417,29 @@
               {/if}
             </div>
             <div class="info">
-              <span class="title">{item.title}</span>
+              <span class="title-row">
+                <span class="title">{item.title}</span>
+                <Icon name="chevron" size={10} />
+              </span>
               <p class="meta">by {item.author} · {formatCount(item.downloads)} downloads</p>
               <p class="description">{item.description}</p>
             </div>
-          </div>
+          </button>
           {#if installed.has(item.projectId)}
             <span class="added">Added</span>
           {:else if installing === item.projectId}
             <span class="added">Installing…</span>
+          {:else if versionLoading}
+            <span class="added">Checking version…</span>
           {:else}
-            <Button size="sm" variant="secondary" onclick={() => void installJava(item)}>Add</Button
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={!!installing || !selectedMinecraftVersion}
+              title={!selectedMinecraftVersion
+                ? 'Open datapack details to choose a version manually'
+                : undefined}
+              onclick={() => void installJava(item)}>Add</Button
             >
           {/if}
         </div>
@@ -400,6 +447,20 @@
     </div>
   {/if}
 </Sheet>
+
+{#if javaDetailItem}
+  <ProjectDetailSheet
+    {api}
+    item={javaDetailItem}
+    serverMinecraftVersion={selectedMinecraftVersion || undefined}
+    onClose={() => (javaDetailItem = undefined)}
+    onInstalled={(projectId) => {
+      installed = new Set(installed).add(projectId);
+      onInstalled();
+    }}
+    onInstallVersion={(version) => installJavaVersion(javaDetailItem!, version)}
+  />
+{/if}
 
 {#if detailItem}
   <Sheet title={detail?.title ?? detailItem.title} size="lg" onClose={closeBedrockDetail}>

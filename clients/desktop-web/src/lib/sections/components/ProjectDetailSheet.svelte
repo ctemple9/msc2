@@ -36,6 +36,8 @@
   export let serverMinecraftVersion: string | undefined = undefined;
   export let onClose: () => void;
   export let onInstalled: (projectId: string) => void;
+  export let onInstallVersion:
+    ((version: Schema['CatalogVersionDTO']) => Promise<string | void>) | undefined = undefined;
   /** 'stage' (PluginBrowserSheet.svelte's own `mode` doc comment): picking a
    *  version stages it via `onStaged` instead of calling
    *  POST /v1/components/install, which requires an already-active server. */
@@ -105,23 +107,27 @@
       installedVersionIds = new Set(installedVersionIds).add(version.id);
       return;
     }
-    if (!api) return;
+    if (!api && !onInstallVersion) return;
     installingVersionId = version.id;
     try {
-      const result = await mutate<Schema['CatalogInstallResultDTO']>(api, addonPaths.install, {
-        projectId: item.projectId,
-        slug: item.slug ?? project?.slug,
-        title: item.title,
-        versionId: version.id,
-      });
-      if (result.operationId) {
-        const operation = await pollOperation(api, result.operationId);
-        notice =
-          operation?.state === 'succeeded'
-            ? `${result.message} — restart the server to apply.`
-            : (operation?.error?.message ?? result.message);
+      if (onInstallVersion) {
+        notice = (await onInstallVersion(version)) ?? `${version.versionNumber} installed.`;
       } else {
-        notice = result.message;
+        const result = await mutate<Schema['CatalogInstallResultDTO']>(api!, addonPaths.install, {
+          projectId: item.projectId,
+          slug: item.slug ?? project?.slug,
+          title: item.title,
+          versionId: version.id,
+        });
+        if (result.operationId) {
+          const operation = await pollOperation(api, result.operationId);
+          notice =
+            operation?.state === 'succeeded'
+              ? `${result.message} — restart the server to apply.`
+              : (operation?.error?.message ?? result.message);
+        } else {
+          notice = result.message;
+        }
       }
       installedVersionIds = new Set(installedVersionIds).add(version.id);
       onInstalled(item.projectId);
@@ -189,6 +195,11 @@
         {hasCompatibleVersion
           ? `A version is available for your server (${serverMinecraftVersion}).`
           : `No version yet for Minecraft ${serverMinecraftVersion}. You can still install another version below, at your own risk.`}
+      </p>
+    {:else if item.projectType === 'datapack'}
+      <p class="compat warn">
+        The server's Minecraft version is unavailable. Check each release's supported versions
+        before installing.
       </p>
     {/if}
 
@@ -262,7 +273,11 @@
                       {version.versionType}
                     </Badge>
                     <Badge variant="status" tone={compatible ? 'ok' : 'warn'}>
-                      {compatible ? 'Compatible' : 'Other version'}
+                      {compatible
+                        ? 'Compatible'
+                        : serverMinecraftVersion
+                          ? 'Other version'
+                          : 'Version unchecked'}
                     </Badge>
                     {#if conflicts > 0}
                       <Badge variant="status" tone="error">

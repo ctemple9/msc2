@@ -178,7 +178,7 @@ def check_management_boundary() -> list[str]:
         "management boundary: the public router no longer exposes only health",
     )
     require(
-        "auth::require_bearer_token" in main and '.route_layer(' in main,
+        "auth::require_management_auth" in main and '.route_layer(' in main,
         "management boundary: protected routes are not behind bearer auth",
     )
     require(

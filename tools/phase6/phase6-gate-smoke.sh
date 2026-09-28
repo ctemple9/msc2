@@ -333,12 +333,30 @@ wait_server_ready() {
   sleep 1
 }
 
+live_world_dir() {
+  python3 - "${SERVER_DIR}/server.properties" <<'PY'
+import sys
+from pathlib import Path
+
+level_name = "world"
+for line in Path(sys.argv[1]).read_text().splitlines():
+    key, separator, value = line.partition("=")
+    if separator and key.strip() == "level-name":
+        level_name = value.strip() or "world"
+        break
+print(Path(sys.argv[1]).parent / level_name)
+PY
+}
+
 read_generation() {
-  cat "${SERVER_DIR}/world/GENERATION.txt"
+  cat "$(live_world_dir)/GENERATION.txt"
 }
 
 write_generation() {
-  printf '%s' "$1" > "${SERVER_DIR}/world/GENERATION.txt"
+  local world_dir
+  world_dir="$(live_world_dir)"
+  mkdir -p "${world_dir}"
+  printf '%s' "$1" > "${world_dir}/GENERATION.txt"
 }
 
 operation_json() {
@@ -821,10 +839,10 @@ echo "reconciled imported slot: ${SLOT_IMPORTED_ID}"
 # 3. Slot CRUD: create, rename, duplicate, copy, export, import, delete.
 # =====================================================================
 echo "== exercising slot CRUD =="
-write_generation "GEN-2"
 run_msc world create "Slot 2" --seed "smoke-seed" >/dev/null
 SLOT2_ID="$(slot_id_by_name "Slot 2")"
 [[ "$(slot_count)" == "2" ]] || fail "expected 2 slots after create, got $(slot_count)"
+write_generation "GEN-2"
 
 run_msc world rename "${SLOT2_ID}" "Slot 2 Renamed" >/dev/null
 [[ "$(slot_id_by_name "Slot 2 Renamed")" == "${SLOT2_ID}" ]] || fail "rename did not stick"
@@ -856,10 +874,20 @@ run_msc world delete "${DUP_ID}" >/dev/null
 # 4. Running-server guard on activation.
 # =====================================================================
 echo "== checking running-server guard on activation =="
+# `world create` activates a fresh slot whose live folder has no generated
+# level.dat yet. Seed the synthetic world's real fixture metadata here so
+# this check exercises the ordinary running-server path, not first-start's
+# intentional pass-one auto-stop.
+LIVE_WORLD_DIR="$(live_world_dir)"
+mkdir -p "${LIVE_WORLD_DIR}"
+cp "${FAKE_SOURCE_DIR}/world/level.dat" "${LIVE_WORLD_DIR}/level.dat"
 run_msc server start >/dev/null
 wait_server_ready
-[[ "$(run_msc_json status | python3 -c 'import json,sys; print(json.load(sys.stdin)["running"])')" == "True" ]] \
-  || fail "the synthetic server stopped after reporting ready"
+running_status="$(run_msc_json status)"
+if [[ "$(python3 -c 'import json,sys; print(json.load(sys.stdin)["running"])' <<<"${running_status}")" != "True" ]]; then
+  recent_console="$(run_msc_json console tail --lines 12)"
+  fail "the synthetic server stopped after reporting ready (status: ${running_status}; recent console: ${recent_console})"
+fi
 if run_msc world activate "${SLOT2_ID}" >"${TMP_DIR}/unexpected-activation.out" 2>&1; then
   running_after="$(run_msc_json status | python3 -c 'import json,sys; print(json.load(sys.stdin)["running"])')"
   fail "world activate unexpectedly succeeded while server status was running before the request (running after: ${running_after}; response: $(cat "${TMP_DIR}/unexpected-activation.out"))"
@@ -868,17 +896,21 @@ run_msc server stop >/dev/null
 wait_running_state "False"
 
 # =====================================================================
-# 5. Injected archive-creation failure: occupy the backups directory
-# with a plain file before it exists, forcing `create_dir_all` (and
-# therefore the whole backup) to fail cleanly and portably -- no
+# 5. Injected archive-creation failure: preserve the existing backup
+# directory, occupy its path with a plain file, and force `create_dir_all`
+# (and therefore the whole backup) to fail cleanly and portably -- no
 # platform-specific permission bits needed.
 # =====================================================================
 echo "== injecting an archive-creation failure =="
-[[ -e "${SERVER_DIR}/backups" ]] && fail "backups path already exists before injection"
+BACKUPS_DIR="${SERVER_DIR}/backups"
+BACKUPS_STASH="${TMP_DIR}/backups-before-injection"
+[[ -d "${BACKUPS_DIR}" ]] || fail "expected the earlier world-create safety backup to exist"
+mv "${BACKUPS_DIR}" "${BACKUPS_STASH}"
 touch "${SERVER_DIR}/backups"
 expect_fail backup now
 [[ -f "${SERVER_DIR}/backups" && ! -d "${SERVER_DIR}/backups" ]] || fail "archive-creation-failure injection left an unexpected backups path"
 rm -f "${SERVER_DIR}/backups"
+mv "${BACKUPS_STASH}" "${BACKUPS_DIR}"
 
 # =====================================================================
 # 6. Manual backups: confirmed save-pause, then the timeout-as-best-
@@ -926,14 +958,12 @@ expect_fail backup restore "${BACKUP_1_ID}"
 run_msc server stop >/dev/null
 wait_running_state "False"
 
-# BACKUP_1/BACKUP_2 are associated with SLOT_IMPORTED (active when they
-# were taken). Activate SLOT2 so they become cross-slot, prove the
-# guard refuses, then switch back to SLOT_IMPORTED so the real restore
-# below is legitimate again.
-run_msc world activate "${SLOT2_ID}" >/dev/null
+# BACKUP_1/BACKUP_2 are associated with SLOT2 (active when they were
+# taken). SLOT_IMPORTED is active now, so prove the cross-slot guard
+# refuses them, then reactivate SLOT2 so the real restore below is valid.
 expect_fail backup restore "${BACKUP_1_ID}"
-run_msc world activate "${SLOT_IMPORTED_ID}" >/dev/null
-[[ "$(active_slot_id)" == "${SLOT_IMPORTED_ID}" ]] || fail "failed to reactivate SLOT_IMPORTED before restore"
+run_msc world activate "${SLOT2_ID}" >/dev/null
+[[ "$(active_slot_id)" == "${SLOT2_ID}" ]] || fail "failed to reactivate SLOT2 before restore"
 
 expect_fail backup restore "does-not-exist"
 
@@ -957,7 +987,7 @@ SAFETY_2_ID="$(new_ids_since "${TMP_DIR}/backups-before-restore.txt")"
 # either way, with no operator intervention.
 #
 # SLOT_IMPORTED and SLOT2 have fixed, distinguishable archived
-# content (GEN-IMPORTED / GEN-2) that never changes once archived. Once
+# content (GEN-IMPORTED / GEN-3) after their last live-world refresh. Once
 # the race is past its first attempt, every later attempt's target is
 # both the previous attempt's target *and* the slot that was already
 # active going in (a fully-completed activation updates both), so
@@ -965,7 +995,7 @@ SAFETY_2_ID="$(new_ids_since "${TMP_DIR}/backups-before-restore.txt")"
 # from whichever one is currently winning. The very first attempt is
 # the one exception worth naming: the restore two steps up deliberately
 # left live content (GEN-2, from the restored backup) drifted from the
-# active-slot marker (still SLOT_IMPORTED, since restore never touches
+# active-slot marker (still SLOT2, since restore never touches
 # it) -- so for a first-attempt catch specifically, "prior_moved"'s
 # recovered generation/active-slot are whatever was actually live/
 # active immediately before the race started, not simply "the other
@@ -975,7 +1005,7 @@ SAFETY_2_ID="$(new_ids_since "${TMP_DIR}/backups-before-restore.txt")"
 echo "== restart-mid-activation race =="
 PRE_RACE_LIVE_GEN="$(read_generation)"
 PRE_RACE_ACTIVE_SLOT="$(active_slot_id)"
-[[ "${PRE_RACE_ACTIVE_SLOT}" == "${SLOT_IMPORTED_ID}" ]] || fail "unexpected active slot before the activation race"
+[[ "${PRE_RACE_ACTIVE_SLOT}" == "${SLOT2_ID}" ]] || fail "unexpected active slot before the activation race"
 
 # Restart the agent dedicated to this one call, paused durably between
 # "old world moved aside" and "new world installed" -- see
@@ -1002,10 +1032,10 @@ PHASE="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["phase"])' <<<"
 ATTEMPTS="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["attempts"])' <<<"${RACE_RESULT}")"
 
 if [[ "${WINNING_TARGET}" == "a" ]]; then
-  TARGET_GEN="GEN-IMPORTED"; OTHER_GEN="GEN-2"
+  TARGET_GEN="GEN-IMPORTED"; OTHER_GEN="GEN-3"
   TARGET_SLOT="${SLOT_IMPORTED_ID}"; OTHER_SLOT="${SLOT2_ID}"
 else
-  TARGET_GEN="GEN-2"; OTHER_GEN="GEN-IMPORTED"
+  TARGET_GEN="GEN-3"; OTHER_GEN="GEN-IMPORTED"
   TARGET_SLOT="${SLOT2_ID}"; OTHER_SLOT="${SLOT_IMPORTED_ID}"
 fi
 
@@ -1132,7 +1162,7 @@ assert_operation_interrupted_by_restart "${RESTORE_OPERATION_ID}"
 # =====================================================================
 echo "== active-world replacement and its operation record =="
 mkdir -p "${TMP_DIR}/replace-source/world"
-cp "${SERVER_DIR}/world/level.dat" "${TMP_DIR}/replace-source/world/level.dat"
+cp "$(live_world_dir)/level.dat" "${TMP_DIR}/replace-source/world/level.dat"
 printf 'GEN-REPLACE' > "${TMP_DIR}/replace-source/world/GENERATION.txt"
 
 PRE_REPLACE_ACTIVE_SLOT="$(active_slot_id)"
@@ -1282,7 +1312,7 @@ else
   CANCEL_TARGET_SLOT_ID="${SLOT_IMPORTED_ID}"
 fi
 
-python3 - "${SERVER_DIR}/world/CANCEL_FILLER.bin" <<'PY'
+python3 - "$(live_world_dir)/CANCEL_FILLER.bin" <<'PY'
 import os
 import sys
 
@@ -1334,8 +1364,8 @@ PY
 
 [[ "$(active_slot_id)" == "${PRE_CANCEL_ACTIVE_SLOT}" ]] || fail "a cancelled activation changed the active slot (should_cancel's own boundary is before the live world is touched)"
 [[ "$(read_generation)" == "${PRE_CANCEL_GENERATION}" ]] || fail "a cancelled activation changed the live world's generation marker"
-[[ -f "${SERVER_DIR}/world/CANCEL_FILLER.bin" ]] || fail "a cancelled activation touched the live world it should never have reached"
-rm -f "${SERVER_DIR}/world/CANCEL_FILLER.bin"
+[[ -f "$(live_world_dir)/CANCEL_FILLER.bin" ]] || fail "a cancelled activation touched the live world it should never have reached"
+rm -f "$(live_world_dir)/CANCEL_FILLER.bin"
 echo "cancelled activation left the live world completely untouched (${CANCELLED_STATUS_LINE})"
 
 # The target is usable again for a new mutation only now that the

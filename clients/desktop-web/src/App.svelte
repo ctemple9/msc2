@@ -30,15 +30,13 @@
     type RemoteDesktopPairingResult,
   } from './lib/auth/desktop';
   import { clearClientPreferences, HostStore } from './lib/hosts/registry';
-  import { forgetSavedRemoteHost, loadSavedRemoteHosts, saveRemoteHost } from './lib/hosts/saved';
+  import { loadSavedRemoteHosts } from './lib/hosts/saved';
   import { HostConnectionManager } from './lib/hosts/connection';
   import { formatConnectionFailure } from './lib/hosts/connection-errors';
+  import { HostConnectionOrchestrator } from './lib/hosts/orchestration';
   import {
     createLocalHostRecord,
-    createRemoteHostRecord,
     hostManagementUrl,
-    withPreferredHostRoute,
-    DEFAULT_SSH_PORT,
     LOCAL_HOST_ID,
     type HostId,
     type HostRecord,
@@ -195,7 +193,6 @@
   let headerEditingServer: Schema['ServerDTO'] | undefined;
   let browserHandoffError = '';
   let addressesVisible = false;
-  let connectionGeneration = 0;
   let sshPasswordPromptHostId: HostId | null = null;
   let sshPasswordInput = '';
   let sshPasswordPromptError = '';
@@ -227,9 +224,9 @@
     hostConnectionManager.rememberSessionPassword(pendingHostId, sshPasswordInput);
     sshPasswordPromptBusy = true;
     sshPasswordPromptError = '';
-    const generation = connectionGeneration + 1;
-    await initializeClient();
-    if (generation !== connectionGeneration) return;
+    const generation = hostOrchestrator.nextGeneration();
+    await initializeClient(generation);
+    if (generation !== hostOrchestrator.currentGeneration) return;
     sshPasswordPromptBusy = false;
     if (clientReady && hostId === pendingHostId) {
       sshPasswordPromptHostId = null;
@@ -248,219 +245,50 @@
     hosts = hostStore.listHosts();
   }
 
-  function hostSummaries(): Map<HostId, { connection: string; serverCount: number }> {
-    const summaries = new Map<HostId, { connection: string; serverCount: number }>();
-    for (const host of hosts) {
-      const cache = hostStore.getState(host.id).cache;
-      summaries.set(host.id, { connection: cache.connection, serverCount: cache.servers.length });
-    }
-    return summaries;
-  }
+  const hostOrchestrator: HostConnectionOrchestrator = new HostConnectionOrchestrator({
+    store: hostStore,
+    connectionManager: hostConnectionManager,
+    localHostId: localAgentHostId,
+    hosts: () => hosts,
+    selectedHostId: () => hostId,
+    selectHostId: (id) => (hostId = id),
+    desktopShell: () => isDesktopShell,
+    agentReadiness: () => agentReadiness,
+    setShellMessage: (message) => (shellMessage = message),
+    clearLoadedSections: () => (loadedSections = []),
+    refreshHosts,
+    initializeClient: (generation) => initializeClient(generation),
+    selectSetupSection: (generation) => selectSection('agent-setup', true, generation),
+  });
 
   async function switchHost(id: HostId): Promise<void> {
-    if (id === hostId) return;
-    const generation = ++connectionGeneration;
-    const previousHostId = hostId;
-    const activeOperation = hostStore
-      .getState(previousHostId)
-      .cache.operations.find(
-        (operation) => operation.state === 'queued' || operation.state === 'running',
-      );
-    hostStore.selectHost(id);
-    loadedSections = [];
-    hostId = id;
-    if (isDesktopShell && previousHostId !== localAgentHostId) {
-      await hostConnectionManager.stop(previousHostId);
-      if (generation !== connectionGeneration) return;
-    }
-    await initializeClient(generation);
-    if (generation !== connectionGeneration) return;
-    if (generation === connectionGeneration && agentReadiness === 'ready' && activeOperation) {
-      shellMessage = `Switched hosts. ${activeOperation.statusLine ?? activeOperation.type} continues on ${previousHostId}; returning to that host will restore its progress.`;
-    }
-    await selectSection('agent-setup', true, generation);
-  }
-
-  async function addRemoteHost(
-    input: RemoteHostConnectionInput,
-  ): Promise<string | RemoteDesktopPairingResult> {
-    if (input.existingHostId) {
-      const existing = hosts.find((host) => host.id === input.existingHostId);
-      if (!existing) throw new Error('The saved host being edited is no longer registered.');
-      const repaired = createRemoteHostRecord({
-        id: existing.id,
-        displayName: input.displayName,
-        baseUrl: input.baseUrl,
-        lanAddresses: input.lanAddress ? [input.lanAddress, ...existing.lanAddresses.slice(1)] : [],
-        tailscaleAddresses: input.tailscaleAddress
-          ? [input.tailscaleAddress, ...existing.tailscaleAddresses.slice(1)]
-          : [],
-        preferredRouteOrder: [
-          input.preferredRoute,
-          input.preferredRoute === 'lan' ? 'tailscale' : 'lan',
-        ],
-        ssh: input.ssh,
-        managementPort: input.managementPort,
-        localForwardedPort: input.localForwardedPort,
-        ...(input.manualTunnel && input.manualAgentAddress
-          ? { manualAgentAddress: input.manualAgentAddress }
-          : {}),
-      });
-      hostStore.updateHost(repaired);
-      saveRemoteHost(repaired);
-      hostConnectionManager.rememberSessionPassword(repaired.id, input.sshPassword);
-      refreshHosts();
-      return repaired.id;
-    }
-
-    const auth = new DesktopSessionAuth(await loadTauriDesktopCredentialBridge());
-    let result: RemoteDesktopPairingResult;
-    try {
-      result = await auth.automateRemotePairing({
-        baseUrl: input.baseUrl,
-        ssh: {
-          sshHost: input.ssh.hostname,
-          sshPort: DEFAULT_SSH_PORT,
-          username: input.ssh.username,
-          authentication: input.ssh.authentication,
-          ...(input.ssh.privateKeyPath ? { privateKeyPath: input.ssh.privateKeyPath } : {}),
-          ...(input.sshPassword ? { password: input.sshPassword } : {}),
-          localPort: input.localForwardedPort,
-          remotePort: input.managementPort,
-          ...(input.expectedHostKeyFingerprint
-            ? { expectedHostKeyFingerprint: input.expectedHostKeyFingerprint }
-            : {}),
-          rememberHostKey: true,
-        },
-      });
-    } catch (error) {
-      if (!input.pairingCode.trim()) {
-        throw new Error(
-          `${formatConnectionFailure(error, 'ssh')} To use the manual fallback, create a desktop pairing code on the remote host and enter it here.`,
-        );
-      }
-      const manual = await auth.redeemRemotePairing(input.baseUrl, input.pairingCode);
-      result = {
-        state: 'paired',
-        agentHostId: manual.agentHostId,
-        hostKeyFingerprint: null,
-        storedHostKeyFingerprint: null,
-        detail: 'The manual desktop pairing code was accepted.',
-      };
-    }
-    if (result.state !== 'paired') return result;
-    const agentHostId = result.agentHostId;
-    if (!agentHostId) throw new Error('The remote pairing returned no host identity.');
-    const host = createRemoteHostRecord({
-      id: agentHostId,
-      displayName: input.displayName,
-      baseUrl: input.baseUrl,
-      lanAddresses: input.lanAddress ? [input.lanAddress] : [],
-      tailscaleAddresses: input.tailscaleAddress ? [input.tailscaleAddress] : [],
-      preferredRouteOrder: [
-        input.preferredRoute,
-        input.preferredRoute === 'lan' ? 'tailscale' : 'lan',
-      ],
-      ssh: input.ssh,
-      managementPort: input.managementPort,
-      localForwardedPort: input.localForwardedPort,
-      ...(input.manualTunnel && input.manualAgentAddress
-        ? { manualAgentAddress: input.manualAgentAddress }
-        : {}),
-    });
-    const existing = hostStore.listHosts().find((registered) => registered.id === host.id);
-    if (existing) hostStore.updateHost(host);
-    else hostStore.addHost(host);
-    saveRemoteHost(host);
-    hostConnectionManager.rememberSessionPassword(host.id, input.sshPassword);
-    refreshHosts();
-    return agentHostId;
+    await hostOrchestrator.switchHost(id);
   }
 
   async function connectRemoteHost(
     input: RemoteHostConnectionInput,
   ): Promise<RemoteDesktopPairingResult | void> {
-    const result = await addRemoteHost(input);
-    if (typeof result !== 'string') return result;
-    if (result === hostId) await initializeClient();
-    else await switchHost(result);
+    return hostOrchestrator.connectRemoteHost(input);
   }
 
   async function selectHostRoute(id: HostId, route: HostRoute): Promise<void> {
-    const host = hosts.find((candidate) => candidate.id === id);
-    if (!host) return;
-    const addresses = route === 'lan' ? host.lanAddresses : host.tailscaleAddresses;
-    if (!addresses.length) return;
-    const updated = withPreferredHostRoute(host, route);
-    hostStore.updateHost(updated);
-    saveRemoteHost(updated);
-    refreshHosts();
-    if (id === hostId) await initializeClient();
+    await hostOrchestrator.selectHostRoute(id, route);
   }
 
   async function pairAgain(pairingCode: string): Promise<void> {
-    if (!isDesktopShell || hostId === localAgentHostId) {
-      throw new Error('Fresh pairing is available only for a remote desktop host.');
-    }
-    const previousHost = hosts.find((host) => host.id === hostId);
-    if (!previousHost) throw new Error('The selected host is no longer registered.');
-
-    const auth = new DesktopSessionAuth(await loadTauriDesktopCredentialBridge());
-    // The reset already revoked this credential on the host. Forget it here as
-    // well so a failed or interrupted recovery cannot leave stale local state.
-    await auth.forgetCredentials([previousHost.id], false);
-    const result = await auth.redeemRemotePairing(hostManagementUrl(previousHost), pairingCode);
-
-    const replacementHost = {
-      id: result.agentHostId,
-      displayName: previousHost.displayName,
-      lanAddresses: [...previousHost.lanAddresses],
-      tailscaleAddresses: [...previousHost.tailscaleAddresses],
-      preferredRouteOrder: [...previousHost.preferredRouteOrder],
-      ssh: { ...previousHost.ssh },
-      managementPort: previousHost.managementPort,
-      ...(previousHost.localForwardedPort === undefined
-        ? {}
-        : { localForwardedPort: previousHost.localForwardedPort }),
-      tryDirectFirst: previousHost.tryDirectFirst,
-      ...(previousHost.manualAgentAddress
-        ? { manualAgentAddress: previousHost.manualAgentAddress }
-        : {}),
-    };
-    hostStore.removeHost(previousHost.id);
-    hostStore.addHost(replacementHost);
-    forgetSavedRemoteHost(previousHost.id);
-    saveRemoteHost(replacementHost);
-    hostStore.selectHost(result.agentHostId);
-    hostId = result.agentHostId;
-    refreshHosts();
-    await initializeClient();
+    await hostOrchestrator.pairAgain(pairingCode);
   }
 
   async function removeRemoteHost(id: HostId): Promise<void> {
-    if (id === localAgentHostId) return;
-    await hostConnectionManager.stop(id);
-    hostConnectionManager.forgetHost(id);
-    const auth = new DesktopSessionAuth(await loadTauriDesktopCredentialBridge());
-    await auth.forgetCredentials([id], false);
-    if (id === hostId) await switchHost(localAgentHostId);
-    hostStore.removeHost(id);
-    forgetSavedRemoteHost(id);
-    refreshHosts();
+    await hostOrchestrator.removeRemoteHost(id);
   }
 
   async function removeCurrentRemoteHost(): Promise<void> {
-    if (!isDesktopShell || hostId === localAgentHostId) {
-      throw new Error('The local agent cannot be removed from this desktop.');
-    }
-    await removeRemoteHost(hostId);
+    await hostOrchestrator.removeCurrentRemoteHost();
   }
 
   async function disconnectCurrentRemoteHost(): Promise<void> {
-    if (!isDesktopShell || hostId === localAgentHostId) {
-      throw new Error('The local agent is already selected on this desktop.');
-    }
-    await switchHost(localAgentHostId);
+    await hostOrchestrator.disconnectCurrentRemoteHost();
   }
 
   function openReset(): void {
@@ -748,7 +576,7 @@
     void servers;
     void status;
     void hostId;
-    return hosts.length ? hostSummaries() : new Map();
+    return hosts.length ? hostOrchestrator.hostSummaries() : new Map();
   })();
 
   function readinessForService(status: AgentServiceStatus): AgentReadiness {
@@ -803,19 +631,19 @@
     try {
       const rememberedServerId = hostStore.getState(selectedHostId).cache.activeServerId;
       const nextCapabilities = await selectedClient.getCapabilities();
-      if (generation !== connectionGeneration) return false;
+      if (generation !== hostOrchestrator.currentGeneration) return false;
       const me = await selectedClient.requestJson<{ permissions: string[] }>('GET', '/v1/me');
-      if (generation !== connectionGeneration) return false;
+      if (generation !== hostOrchestrator.currentGeneration) return false;
       const nextServers = await selectedClient.requestJson<Schema['ServerDTO'][]>(
         'GET',
         '/v1/servers',
       );
-      if (generation !== connectionGeneration) return false;
+      if (generation !== hostOrchestrator.currentGeneration) return false;
       const nextStatus = await selectedClient.requestJson<Schema['RemoteAPIStatus']>(
         'GET',
         '/v1/status',
       );
-      if (generation !== connectionGeneration) return false;
+      if (generation !== hostOrchestrator.currentGeneration) return false;
       const nextServerId = selectAvailableServerId(
         nextServers,
         nextStatus.activeServerId,
@@ -835,7 +663,7 @@
       await selectFromLocation(generation);
       return true;
     } catch (error) {
-      if (generation !== connectionGeneration) return false;
+      if (generation !== hostOrchestrator.currentGeneration) return false;
       capabilities = null;
       permissions = [];
       servers = [];
@@ -964,8 +792,10 @@
     void refreshServerSnapshot();
   }
 
-  async function initializeClient(generation = ++connectionGeneration): Promise<void> {
-    if (generation !== connectionGeneration) return;
+  async function initializeClient(
+    generation: number = hostOrchestrator.nextGeneration(),
+  ): Promise<void> {
+    if (generation !== hostOrchestrator.currentGeneration) return;
     const selectedHostId = hostId;
     cancelTabPreload?.();
     cancelTabPreload = undefined;
@@ -983,7 +813,7 @@
       // a remote host's agent is either already reachable or it isn't;
       // there is nothing here to install/start on someone else's machine.
       const serviceStatus = selectedHostId === localAgentHostId ? await prepareLocalAgent() : null;
-      if (generation !== connectionGeneration) return;
+      if (generation !== hostOrchestrator.currentGeneration) return;
       if (serviceStatus) {
         agentReadiness = readinessForService(serviceStatus);
         if (serviceStatus.state !== 'running') {
@@ -1003,17 +833,17 @@
           return;
         }
         const connection = await hostConnectionManager.connect(host);
-        if (generation !== connectionGeneration) return;
+        if (generation !== hostOrchestrator.currentGeneration) return;
         shellMessage = connection.detail;
       }
       const selectedClient = await createClient(selectedHostId);
-      if (generation !== connectionGeneration) return;
+      if (generation !== hostOrchestrator.currentGeneration) return;
       const ready = await restoreHostContext(generation, selectedHostId, selectedClient);
-      if (generation !== connectionGeneration) return;
+      if (generation !== hostOrchestrator.currentGeneration) return;
       clientReady = ready;
       if (clientReady) scheduleAvailableTabPreload();
     } catch (error) {
-      if (generation !== connectionGeneration) return;
+      if (generation !== hostOrchestrator.currentGeneration) return;
       const host = hostStore.getState(selectedHostId).host;
       const connectionError = formatConnectionFailure(error);
       if (
@@ -1096,9 +926,9 @@
   async function selectSection(
     id: string,
     updateUrl = true,
-    generation = connectionGeneration,
+    generation = hostOrchestrator.currentGeneration,
   ): Promise<void> {
-    if (generation !== connectionGeneration) return;
+    if (generation !== hostOrchestrator.currentGeneration) return;
     const section = router.get(id);
     const context = currentNavigationContext();
     // Setup is deliberately reachable before an agent exists or a browser has
@@ -1109,18 +939,20 @@
     }
     if (!loadedSections.some((loaded) => loaded.id === section.id)) {
       const component = (await section.load()).default;
-      if (generation !== connectionGeneration) return;
+      if (generation !== hostOrchestrator.currentGeneration) return;
       loadedSections = [...loadedSections, { id: section.id, component }];
     }
-    if (generation !== connectionGeneration) return;
+    if (generation !== hostOrchestrator.currentGeneration) return;
     activeSection = section.id;
     if (updateUrl) {
       history.pushState({}, '', buildSectionPath(section, hostId, selectedServerId));
     }
   }
 
-  async function selectFromLocation(generation = connectionGeneration): Promise<void> {
-    if (generation !== connectionGeneration) return;
+  async function selectFromLocation(
+    generation = hostOrchestrator.currentGeneration,
+  ): Promise<void> {
+    if (generation !== hostOrchestrator.currentGeneration) return;
     const context = currentNavigationContext();
     if (!context) return;
     if (window.location.pathname === '/') {

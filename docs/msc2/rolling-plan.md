@@ -200,8 +200,8 @@ Batch: solo
 
 #### P16.20 — Split host connection orchestration from the app shell
 
-Status: planned — awaiting Cameron's review
-Files: clients/desktop-web/src/App.svelte, clients/desktop-web/src/lib/hosts, clients/desktop-web/src/lib/sections, docs/msc2/rolling-plan.md
+Status: implemented — awaiting Cameron's verification
+Files: clients/desktop-web/src/App.svelte, clients/desktop-web/src/lib/hosts/orchestration.ts, docs/msc2/rolling-plan.md
 What: Extract the cohesive host-connection and generation-state logic stabilized in P16.10 into a named client module. Keep App.svelte focused on shell composition and navigation while preserving visible behavior and the single shared desktop/browser screen contract. Remove obsolete phase comments in touched code when they obscure current intent.
 Verify: Run `npm run check` from `clients/desktop-web`.
 Batch: solo

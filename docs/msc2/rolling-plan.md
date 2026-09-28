@@ -3,6 +3,34 @@
 > ## STATUS: P14.38–P14.101 have been moved to `rolling-plan-archive.md` with every step marked awaiting verification. The active plan is the external review audit below; its findings remain recommendations and have not yet been turned into implementation steps.
 > **Next move:** Select a high-priority audit finding to plan as the next implementation step.
 
+## How this document works
+
+The vision documents describe where MSC 2 is going; the port plan defines the phase sequence and exit gates; this file records the active priorities and current phase state. Completed phase plans and historical step records live in `rolling-plan-archive.md`.
+
+Each implementation step is planned, read, executed, verified by Cameron, reviewed against its phase gate, and then archived. A step's status here records whether Cameron has completed his verification; moving a step to the archive does not mean that verification is complete.
+
+## Current phase
+
+| Phase | Name | State |
+|---|---|---|
+| Setup | Repo, docs, agent instructions, CI, editor config | complete |
+| 0 | Freeze the baseline and build the harness | complete |
+| 1 | Domain types and pure rules | complete |
+| 2 | API contract and operation model | complete |
+| 3 | Safety substrate | complete |
+| 4 | Java lifecycle vertical slice | complete |
+| 5 | Configuration and migration | complete |
+| 6 | Worlds and backups | complete |
+| 7 | Server families and provisioning | complete |
+| 8 | Mods, plugins, modpacks | complete |
+| 9 | Networking and helpers | complete |
+| 10 | Bedrock runtimes | complete |
+| 11 | Desktop and web clients | complete |
+| 12 | Client redesign and post-phase corrections | complete |
+| 13 | Full-screen terminal client | retired by D-034 |
+| 14 | Operational refinements | phase complete; P14.38–P14.101 await verification |
+| 15 | Maintenance follow-ups | phase complete and archived |
+
 ## External review audit — 2026-09-17
 
 The review followed the Rust domain/application crates, infrastructure and platform crates, agent/API boundaries, Svelte/Tauri clients, and packaging/update tooling. Confidence is high for each finding. The recommendations below are recorded for triage; they are not yet implementation decisions.

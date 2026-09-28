@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 16 execution is underway. P16.1–P16.28 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
-> **Next move:** Cameron runs the P16.26–P16.28 verification commands. P16.1–P16.28 remain awaiting his verification.
+> ## STATUS: Phase 16 execution is underway. P16.1–P16.29 have implementation records; P16.29 still lacks a post-D-038 release candidate and Cameron's physical results. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
+> **Next move:** Cameron runs the P16.26–P16.28 verification commands; P16.29 needs a browser-free release candidate and physical results. P16.1–P16.29 remain awaiting his verification.
 
 ## How this document works
 
@@ -276,7 +276,7 @@ Batch: solo
 
 #### P16.29 — Record exact-artifact release acceptance
 
-Status: planned — awaiting all earlier Phase 16 steps and Cameron's physical verification
+Status: implementation scaffolded — awaiting post-P16.28 release publication and Cameron's physical verification
 Files: docs/msc2/release/phase16-acceptance.md, tools/release/check-phase16-evidence.py, docs/msc2/rolling-plan.md
 What: Assemble evidence for every Phase 16 gate item and every supported installer/archive using exact newly published bytes: install, desktop/CLI pairing and supported clients, Minecraft lifecycle, world import/backup/restore and interruption recovery, service reboot/sign-out, update rollback, permission and revocation, uninstall/data retention, artifact identity, CI/provenance, and Linux minimum. Record that the new agents do not serve a browser page or accept browser sessions, and that the exact-tag CI and release workflows no longer require browser-only jobs while retaining native desktop and headless checks. Mark unavailable or failed checks honestly; do not close the phase while any required row lacks Cameron's result. The reviewer for this phase must be the other agent, per repository rules.
 Verify: Run `python3 tools/release/check-phase16-evidence.py docs/msc2/release/phase16-acceptance.md` and confirm it accepts only complete gate rows with exact artifacts and Cameron's observed results.

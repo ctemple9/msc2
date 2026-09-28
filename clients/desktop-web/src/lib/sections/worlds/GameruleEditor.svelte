@@ -2,6 +2,7 @@
   import Button from '../../components/base/Button.svelte';
   import Field from '../../components/base/Field.svelte';
   import Select from '../../components/base/Select.svelte';
+  import NumberField from '../../components/base/NumberField.svelte';
   import Toggle from '../../components/base/Toggle.svelte';
   import type { Schema, ScreenApi } from '../shared/types';
 
@@ -203,29 +204,34 @@
               {disabled}
               onchange={(text) => set(rule, text)}
             />
+          {:else if rule?.type === 'integer'}
+            <NumberField
+              value={entry.value}
+              min={rule.minimum ?? undefined}
+              max={rule.maximum ?? undefined}
+              step={1}
+              width="105px"
+              {disabled}
+              onValueChange={(text) => set(rule, text)}
+            />
           {:else}
             <input
               class="number"
-              type={rule?.type === 'integer' ? 'number' : 'text'}
+              type="text"
               value={entry.value}
-              min={rule?.minimum ?? -2147483648}
-              max={rule?.maximum ?? 2147483647}
-              step="1"
               aria-label={rule?.label ?? entry.id}
               {disabled}
               onchange={(event) =>
-                rule
-                  ? set(rule, event.currentTarget.value)
-                  : publish(
-                      value
-                        .split('\n')
-                        .map((line) =>
-                          line.split('=')[0].trim() === entry.id
-                            ? `${entry.id}=${event.currentTarget.value}`
-                            : line,
-                        )
-                        .join('\n'),
-                    )}
+                publish(
+                  value
+                    .split('\n')
+                    .map((line) =>
+                      line.split('=')[0].trim() === entry.id
+                        ? `${entry.id}=${event.currentTarget.value}`
+                        : line,
+                    )
+                    .join('\n'),
+                )}
             />
           {/if}
           <Button size="sm" variant="secondary" {disabled} onclick={() => remove(entry.id)}

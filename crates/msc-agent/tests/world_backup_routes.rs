@@ -39,6 +39,8 @@ use msc_domain::app_config_schema::{AppConfig, ConfigServer};
 use msc_domain::identity::ServerType;
 use msc_infrastructure::config_repository::save_app_config;
 use msc_infrastructure::fs::StdFileSystem;
+use zip::write::SimpleFileOptions;
+use zip::{CompressionMethod, ZipWriter};
 
 const TOKEN: &str = "msc2_replacementrecovery_recoverysecret";
 
@@ -227,7 +229,13 @@ fn world_backup_routes_imports_an_on_disk_legacy_backup_without_redeeming_it() {
     fs::create_dir_all(&data_dir).unwrap();
     fs::create_dir_all(backup_path.parent().unwrap()).unwrap();
     fs::write(server_dir.join("paper.jar"), b"fake jar").unwrap();
-    fs::write(&backup_path, b"legacy backup bytes").unwrap();
+    let backup_file = fs::File::create(&backup_path).unwrap();
+    let mut backup = ZipWriter::new(backup_file);
+    let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+    backup.add_directory("world/", options).unwrap();
+    backup.start_file("world/level.dat", options).unwrap();
+    backup.write_all(b"legacy world data").unwrap();
+    backup.finish().unwrap();
     write_single_server_config(&config_path, &servers_root, &server_dir);
 
     let port = free_port();
@@ -273,6 +281,16 @@ fn seed_replace_boundary(server_dir: &Path, boundary: &str) {
     fs::write(
         replace_dir.join("manifest.json"),
         br#"{"level_name":"newname"}"#,
+    )
+    .unwrap();
+    let phase = if boundary == "installed" {
+        "committing"
+    } else {
+        "moving"
+    };
+    fs::write(
+        replace_dir.join("swap.json"),
+        format!(r#"{{"phase":"{phase}","old":["world"],"new":["newname"]}}"#),
     )
     .unwrap();
 

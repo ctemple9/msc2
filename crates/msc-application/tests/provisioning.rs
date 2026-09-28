@@ -1035,7 +1035,6 @@ fn provisioning_applies_the_first_world_profile_before_first_start() {
     assert_eq!(props["level-seed"], "profile-seed");
     assert_eq!(props["level-type"], "minecraft:flat");
     assert_eq!(props["generate-structures"], "false");
-    assert_eq!(props["bonus-chest"], "true");
     assert_eq!(props["generator-settings"], "{}");
     assert_eq!(props["difficulty"], "hard");
     assert_eq!(props["gamemode"], "creative");
@@ -1048,6 +1047,7 @@ fn provisioning_applies_the_first_world_profile_before_first_start() {
         &created.world_slot,
     );
     assert_eq!(saved.gameplay.gamerules["keepInventory"], "true");
+    assert_eq!(saved.generation.bonus_chest, Some(true));
 }
 
 // ---------------------------------------------------------------------

@@ -31,7 +31,7 @@
 //! oracle.
 
 use msc_domain::identity::ServerType;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fs;
 use std::io::{self, Read, Write};
@@ -203,7 +203,7 @@ pub fn validate_world_archive(
     let mut bedrock_levels = BTreeSet::new();
     let mut bedrock_loose = false;
     let mut bedrock_has_loose_entries = false;
-    let mut seen = BTreeSet::new();
+    let mut seen = BTreeMap::new();
     for index in 0..archive.len() {
         let entry = archive
             .by_index_raw(index)
@@ -215,10 +215,19 @@ pub fn validate_world_archive(
         let normalized = name.replace('\\', "/");
         let path = normalized.trim_end_matches('/');
         let parts: Vec<_> = path.split('/').collect();
-        if parts.iter().any(|part| part.is_empty() || *part == ".")
-            || !seen.insert(path.to_ascii_lowercase())
-        {
+        if parts.iter().any(|part| part.is_empty() || *part == ".") {
             return Err(ArchiveError::UnsafeEntry(name.to_string()));
+        }
+        let key = path.to_ascii_lowercase();
+        if let Some(previous_was_dir) = seen.get(&key) {
+            // ZIP tools commonly repeat a parent directory marker while
+            // adding each child. Repeated directory markers are harmless;
+            // duplicate files and file/directory collisions are ambiguous.
+            if !entry.is_dir() || !previous_was_dir {
+                return Err(ArchiveError::UnsafeEntry(name.to_string()));
+            }
+        } else {
+            seen.insert(key, entry.is_dir());
         }
         let mode = entry.unix_mode().unwrap_or(0);
         let kind = mode & 0o170000;
@@ -473,10 +482,16 @@ pub fn copy_with_world_profile(
         if name == WORLD_PROFILE_ENTRY {
             continue;
         }
-        output
-            .start_file(name, options)
-            .map_err(|error| ArchiveError::Corrupt(error.to_string()))?;
-        io::copy(&mut entry, &mut output).map_err(ArchiveError::Io)?;
+        if entry.is_dir() {
+            output
+                .add_directory(name, options)
+                .map_err(|error| ArchiveError::Corrupt(error.to_string()))?;
+        } else {
+            output
+                .start_file(name, options)
+                .map_err(|error| ArchiveError::Corrupt(error.to_string()))?;
+            io::copy(&mut entry, &mut output).map_err(ArchiveError::Io)?;
+        }
     }
     output
         .start_file(WORLD_PROFILE_ENTRY, options)

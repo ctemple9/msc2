@@ -88,7 +88,7 @@ describe('player data (profiles)', () => {
     ]);
   });
 
-  it('resolves an avatar/body URL from imageIdentifier for both editions -- Bedrock is not a special case', () => {
+  it('uses the isometric head endpoint for Bedrock and the avatar endpoint for Java', () => {
     const bedrockProfile: Schema['PlayerProfileDTO'] = {
       id: 'xuid_2535416409816137',
       username: 'camkage',
@@ -104,10 +104,9 @@ describe('player data (profiles)', () => {
     expect(bodyUrl(profiles[0], 96)).toBe(
       'https://mc-heads.net/body/11111111111141118111111111111111/96',
     );
-    // mc-heads.net's documented Bedrock convention: a dotted gamertag, already
-    // resolved server-side into imageIdentifier (PlayerProfile.imageIdentifier).
-    expect(avatarUrl(bedrockProfile)).toBe('https://mc-heads.net/avatar/.camkage/40');
-    expect(bodyUrl(bedrockProfile)).toBe('https://mc-heads.net/body/.camkage/96');
+    // The Bedrock gamertag is normalized by removing the Floodgate dot.
+    expect(avatarUrl(bedrockProfile)).toBe('https://mc-heads.net/head/camkage/40');
+    expect(bodyUrl(bedrockProfile)).toBe('https://mc-heads.net/body/camkage/96');
   });
 });
 

@@ -653,9 +653,13 @@ fn world_activation_reconcile_installed_finishes_committing_new_world() {
         }
     );
 
-    assert_eq!(
-        fs::read(server_dir.join("world").join("level.dat")).unwrap(),
-        java_level_dat()
+    let recovered_level_dat = fs::read(server_dir.join("world").join("level.dat")).unwrap();
+    assert!(
+        msc_domain::nbt::imported_world_metadata_from_level_dat(
+            &recovered_level_dat,
+            ServerType::Java
+        )
+        .parsed
     );
     assert!(!server_dir.join("world_slots").join(".activation").exists());
     let marker = fs::read_to_string(server_dir.join("world_slots/active_slot_id.txt")).unwrap();

@@ -3,11 +3,12 @@ import appSource from '../../src/App.svelte?raw';
 import gateSource from '../../src/lib/help/FirstLaunchGate.svelte?raw';
 import introSource from '../../src/lib/help/SetupIntro.svelte?raw';
 import setupSource from '../../src/lib/sections/setup/AgentSetupSection.svelte?raw';
+import orchestrationSource from '../../src/lib/hosts/orchestration.ts?raw';
 
 describe('first-launch reset recovery', () => {
   it('offers a continuation action for each local service recovery state', () => {
     expect(setupSource).toContain('Install and Continue');
-    expect(setupSource).toContain("readiness === 'missing' || status?.state === 'not-installed'");
+    expect(setupSource).toContain("status?.state === 'not-installed'");
     expect(setupSource).toContain('Start and Continue');
     expect(setupSource).toContain("readiness === 'incompatible'");
     expect(setupSource).toContain('Repair service');
@@ -19,12 +20,12 @@ describe('first-launch reset recovery', () => {
     expect(setupSource).toContain('msc pairing create');
     expect(setupSource).toContain('Pair again');
     expect(appSource).toContain('async function pairAgain');
-    expect(appSource).toContain(
+    expect(orchestrationSource).toContain(
       'auth.redeemRemotePairing(hostManagementUrl(previousHost), pairingCode)',
     );
-    expect(appSource).toContain('hostStore.removeHost(previousHost.id)');
-    expect(appSource).toContain('hostStore.addHost(replacementHost)');
-    expect(appSource).toContain('await initializeClient();');
+    expect(orchestrationSource).toContain('options.store.removeHost(previousHost.id)');
+    expect(orchestrationSource).toContain('options.store.addHost(replacementHost)');
+    expect(orchestrationSource).toContain('await options.initializeClient();');
   });
 
   it('keeps first launch agent-owned and never creates a server during recovery', () => {

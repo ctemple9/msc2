@@ -631,6 +631,21 @@
       <div class="overline">
         <span class="msc2-type-overline">{isBedrock ? 'World Packs' : 'Datapacks'}</span>
       </div>
+      {#if !isBedrock}
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={!selectedSlot || busy || worlds.serverRunning}
+          title={!selectedSlot
+            ? 'Select a world slot first'
+            : worlds.serverRunning
+              ? 'Stop the server before installing a datapack'
+              : undefined}
+          onclick={() => (showPackBrowser = true)}
+        >
+          Browse Datapacks
+        </Button>
+      {/if}
     </div>
     {#if isBedrock}
       <Card>

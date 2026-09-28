@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, VecDeque};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -75,6 +76,25 @@ pub enum ReconciliationStatus {
     /// operator diagnosis. Every world/backup mutation route must refuse
     /// this server with one structured error instead of running.
     Degraded { reason: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum BackupRun {
+    Java {
+        server_id: String,
+        process: ProcessId,
+        generation: u64,
+    },
+    Bedrock {
+        server_id: String,
+        generation: u64,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct BackupBoundary {
+    run: BackupRun,
+    sequence: u64,
 }
 
 /// The idempotent P6.1 world/`world_slots` handoff
@@ -254,6 +274,8 @@ struct LifecycleRoutesInner {
     notifications: NotificationState,
     active_lifecycle_operation: Mutex<Option<OperationId>>,
     bedrock_active_server_id: Mutex<Option<String>>,
+    java_run_generation: AtomicU64,
+    bedrock_run_generation: AtomicU64,
     bedrock_online_players: Mutex<BTreeMap<String, msc_domain::bedrock::BedrockPlayer>>,
     pump_tasks: Mutex<Vec<JoinHandle<()>>>,
     auth_state: Option<AuthState>,
@@ -843,6 +865,8 @@ impl LifecycleRoutesState {
                 notifications,
                 active_lifecycle_operation: Mutex::new(None),
                 bedrock_active_server_id: Mutex::new(initial_bedrock_active_server_id),
+                java_run_generation: AtomicU64::new(0),
+                bedrock_run_generation: AtomicU64::new(0),
                 bedrock_online_players: Mutex::new(BTreeMap::new()),
                 pump_tasks: Mutex::new(Vec::new()),
                 auth_state,
@@ -1451,10 +1475,72 @@ impl LifecycleRoutesState {
         })
     }
 
-    /// See [`AgentConsoleSink`] / `ConsoleState::recent_lines` — the
-    /// production `BackupConsole`'s read half.
-    pub fn recent_console_lines(&self, count: usize) -> Vec<ConsoleLine> {
-        self.inner.console.console.recent_lines(count)
+    fn current_backup_run(&self) -> Option<BackupRun> {
+        let server_id = self.active_server_id()?;
+        if self.active_bedrock_server().is_some() {
+            if self.inner.bedrock_runtime.state() != BedrockRuntimeState::Running {
+                return None;
+            }
+            Some(BackupRun::Bedrock {
+                server_id,
+                generation: self.inner.bedrock_run_generation.load(Ordering::Relaxed),
+            })
+        } else {
+            let lifecycle = self.inner.lifecycle.lock().unwrap();
+            if lifecycle.state() != LifecycleState::Running {
+                return None;
+            }
+            Some(BackupRun::Java {
+                server_id,
+                process: lifecycle.active_process()?,
+                generation: self.inner.java_run_generation.load(Ordering::Relaxed),
+            })
+        }
+    }
+
+    /// The console boundary and command dispatch share the same lock used
+    /// when lines enter history. A prior acknowledgement cannot slip into
+    /// the interval between taking the boundary and issuing this command.
+    pub(crate) fn send_backup_command(&self, command: &str) -> Option<BackupBoundary> {
+        if self.active_bedrock_server().is_some() {
+            self.drain_bedrock_events();
+        } else {
+            self.drain_active_process_events();
+        }
+        let run = self.current_backup_run()?;
+        let (sequence, sent) = match &run {
+            BackupRun::Bedrock { .. } => self
+                .inner
+                .console
+                .console
+                .send_with_boundary(|| self.inner.bedrock_runtime.command(command).is_ok()),
+            BackupRun::Java { .. } => {
+                let lifecycle = self.inner.lifecycle.lock().unwrap();
+                self.inner
+                    .console
+                    .console
+                    .send_with_boundary(|| lifecycle.send_command(command).is_ok())
+            }
+        };
+        if !sent || self.current_backup_run().as_ref() != Some(&run) {
+            return None;
+        }
+        self.register_controller_command(command);
+        Some(BackupBoundary { run, sequence })
+    }
+
+    pub(crate) fn backup_lines_after(&self, boundary: &BackupBoundary) -> Option<Vec<ConsoleLine>> {
+        if self.active_bedrock_server().is_some() {
+            self.drain_bedrock_events();
+        } else {
+            self.drain_active_process_events();
+        }
+        (self.current_backup_run().as_ref() == Some(&boundary.run)).then(|| {
+            self.inner
+                .console
+                .console
+                .lines_after(boundary.sequence, 50)
+        })
     }
 
     pub fn bedrock_online_players(&self) -> Vec<msc_domain::bedrock::BedrockPlayer> {
@@ -1802,6 +1888,9 @@ impl LifecycleRoutesState {
                 return Err(error.into());
             }
         };
+        self.inner
+            .java_run_generation
+            .fetch_add(1, Ordering::Relaxed);
         let _ = self
             .inner
             .operations
@@ -2404,6 +2493,9 @@ impl LifecycleRoutesState {
             let _ = self.inner.operations.fail(&operation_id, code, message);
             return Err(self.bedrock_runtime_error(error));
         }
+        self.inner
+            .bedrock_run_generation
+            .fetch_add(1, Ordering::Relaxed);
         let _ = self
             .inner
             .operations
@@ -2694,16 +2786,21 @@ impl LifecycleRoutesState {
             return;
         };
         for event in events {
+            if self.inner.lifecycle.lock().unwrap().active_process() != Some(pid) {
+                break;
+            }
             for line in framer.push_event(&event) {
-                self.push_process_line(&event, &line);
                 let now = iso8601_now();
-                let output_events = self
-                    .inner
-                    .lifecycle
-                    .lock()
-                    .unwrap()
-                    .ingest_console_line(&line, &now)
-                    .unwrap_or_default();
+                let output_events = {
+                    let mut lifecycle = self.inner.lifecycle.lock().unwrap();
+                    if lifecycle.active_process() != Some(pid) {
+                        break;
+                    }
+                    self.push_process_line(&event, &line);
+                    lifecycle
+                        .ingest_console_line(&line, &now)
+                        .unwrap_or_default()
+                };
                 if output_events.iter().any(|event| {
                     matches!(event, msc_application::output_reducer::OutputEvent::Ready)
                 }) {
@@ -2719,11 +2816,16 @@ impl LifecycleRoutesState {
                 }
             }
             let exited = matches!(event, ProcessEvent::Exited(_));
-            let _ = self.inner.lifecycle.lock().unwrap().handle_process_event(
-                pid,
-                &event,
-                &iso8601_now(),
-            );
+            let next_process = {
+                let mut lifecycle = self.inner.lifecycle.lock().unwrap();
+                let _ = lifecycle.handle_process_event(pid, &event, &iso8601_now());
+                lifecycle.active_process()
+            };
+            if exited && next_process.is_some_and(|next| next != pid) {
+                self.inner
+                    .java_run_generation
+                    .fetch_add(1, Ordering::Relaxed);
+            }
             if exited {
                 self.handle_process_termination(false);
             }

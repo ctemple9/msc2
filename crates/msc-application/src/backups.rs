@@ -359,7 +359,9 @@ fn archive_contains_every_folder(zip_path: &Path, folders: &[String]) -> bool {
 /// built in this crate yet.
 pub trait BackupConsole {
     /// `sendBackupCommand(_:)`: sends `command` to the running server's
-    /// console, returning whether the send itself succeeded.
+    /// console, returning whether the send itself succeeded. The live
+    /// implementation records the server run and console position at the
+    /// send boundary so a later wait cannot consume retained old output.
     fn send(&self, command: &str) -> bool;
     /// Arms one fresh wait for a console line satisfying `matches`, up
     /// to whatever wall-clock budget the implementation enforces.
@@ -431,10 +433,11 @@ pub fn wait_for_java_save_confirmation(console: &dyn BackupConsole) -> bool {
 pub fn wait_for_bedrock_save_ready(console: &dyn BackupConsole) -> (bool, u32) {
     let mut polls: u32 = 0;
     loop {
-        console.send("save query");
+        let query_sent = console.send("save query");
         polls += 1;
-        let ready =
-            console.wait_for_line(&|line| line.to_ascii_lowercase().contains("ready to be copied"));
+        let ready = query_sent
+            && console
+                .wait_for_line(&|line| line.to_ascii_lowercase().contains("ready to be copied"));
         if ready {
             return (true, polls);
         }

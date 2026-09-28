@@ -6,6 +6,7 @@
 //! the 200-line-backfill-then-live delivery model, a 5000-line ring buffer,
 //! and a 64 KB inbound-frame cap.
 
+use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
@@ -36,8 +37,15 @@ pub struct ConsoleQuery {
 #[derive(Clone)]
 pub struct ConsoleState {
     buffer: Arc<Mutex<ConsoleBuffer>>,
+    observed: Arc<Mutex<ObservedLines>>,
     sender: broadcast::Sender<ConsoleLine>,
     automatic_sender: broadcast::Sender<ConsoleLine>,
+}
+
+#[derive(Default)]
+struct ObservedLines {
+    sequence: u64,
+    lines: VecDeque<(u64, ConsoleLine)>,
 }
 
 impl Default for ConsoleState {
@@ -48,6 +56,7 @@ impl Default for ConsoleState {
         );
         Self {
             buffer: Arc::new(Mutex::new(ConsoleBuffer::new())),
+            observed: Arc::new(Mutex::new(ObservedLines::default())),
             sender,
             automatic_sender,
         }
@@ -56,10 +65,23 @@ impl Default for ConsoleState {
 
 impl ConsoleState {
     pub fn push(&self, line: ConsoleLine) {
+        let mut observed = self
+            .observed
+            .lock()
+            .expect("console observation lock poisoned");
         let mut buffer = self.buffer.lock().expect("console buffer lock poisoned");
         let line = buffer.push(line);
+        observed.sequence = observed.sequence.saturating_add(1);
+        let sequence = observed.sequence;
+        observed.lines.push_back((sequence, line.clone()));
+        while observed.lines.len()
+            > msc_infrastructure::console_buffer::CONSOLE_INTERNAL_HISTORY_LIMIT
+        {
+            observed.lines.pop_front();
+        }
         let is_human_line = line.origin.belongs_in_human_history();
         drop(buffer);
+        drop(observed);
         // No connected clients is the normal case; a send error just means
         // nobody's listening right now.
         if is_human_line {
@@ -88,14 +110,31 @@ impl ConsoleState {
         }
     }
 
-    /// The most recent internal lines — P6.21's `LiveBackupConsole` needs
-    /// access to controller responses such as `save-all` and `save query`,
-    /// even though those lines must not enter public human history.
-    pub fn recent_lines(&self, count: usize) -> Vec<ConsoleLine> {
-        self.buffer
+    /// Serializes a command send with console insertion and returns the last
+    /// sequence that existed before the command was issued.
+    pub fn send_with_boundary(&self, send: impl FnOnce() -> bool) -> (u64, bool) {
+        let observed = self
+            .observed
             .lock()
-            .expect("console buffer lock poisoned")
-            .internal_tail(count)
+            .expect("console observation lock poisoned");
+        let boundary = observed.sequence;
+        let sent = send();
+        (boundary, sent)
+    }
+
+    pub fn lines_after(&self, boundary: u64, count: usize) -> Vec<ConsoleLine> {
+        let observed = self
+            .observed
+            .lock()
+            .expect("console observation lock poisoned");
+        observed
+            .lines
+            .iter()
+            .rev()
+            .filter(|(sequence, _)| *sequence > boundary)
+            .take(count)
+            .map(|(_, line)| line.clone())
+            .collect()
     }
 }
 

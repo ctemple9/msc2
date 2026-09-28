@@ -41,6 +41,7 @@
 
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::sync::Mutex;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use msc_application::backups::{self, BackupConsole, BackupError};
@@ -50,7 +51,7 @@ use msc_domain::operation::OperationId;
 use msc_infrastructure::fs::StdFileSystem;
 use msc_infrastructure::world_store;
 
-use crate::routes::lifecycle::LifecycleRoutesState;
+use crate::routes::lifecycle::{BackupBoundary, LifecycleRoutesState};
 
 /// Reads the Java world's configured folder name at the agent boundary.
 /// Bedrock keeps its distinct fixed backup-root rule, so its callers pass
@@ -190,6 +191,7 @@ pub fn start_backup(
 struct LiveBackupConsole {
     lifecycle: LifecycleRoutesState,
     deadline: Instant,
+    confirmation_boundary: Mutex<Option<BackupBoundary>>,
 }
 
 impl LiveBackupConsole {
@@ -201,26 +203,38 @@ impl LiveBackupConsole {
         Self {
             lifecycle,
             deadline: Instant::now() + Self::BUDGET,
+            confirmation_boundary: Mutex::new(None),
         }
     }
 }
 
 impl BackupConsole for LiveBackupConsole {
     fn send(&self, command: &str) -> bool {
-        if self.lifecycle.active_bedrock_server().is_some() {
-            self.lifecycle
-                .send_bedrock_controller_command(command)
-                .is_ok()
-        } else {
-            self.lifecycle.send_controller_command(command).is_ok()
+        let Some(boundary) = self.lifecycle.send_backup_command(command) else {
+            return false;
+        };
+        let mut confirmation = self.confirmation_boundary.lock().unwrap();
+        if matches!(command, "save-all flush" | "save hold" | "save query")
+            || command == "save-off" && confirmation.is_none()
+        {
+            *confirmation = Some(boundary);
         }
+        true
     }
 
     fn wait_for_line(&self, matches: &dyn Fn(&str) -> bool) -> bool {
+        let Some(boundary) = self.confirmation_boundary.lock().unwrap().clone() else {
+            return false;
+        };
         let start = Instant::now();
         loop {
-            let lines = self.lifecycle.recent_console_lines(50);
-            if lines.iter().any(|line| matches(&line.text)) {
+            let Some(lines) = self.lifecycle.backup_lines_after(&boundary) else {
+                return false;
+            };
+            if lines.iter().any(|line| {
+                matches!(line.source.as_str(), "stdout" | "stderr" | "bedrock")
+                    && matches(&line.text)
+            }) {
                 return true;
             }
             if self.deadline_reached() || start.elapsed() >= Self::BUDGET {

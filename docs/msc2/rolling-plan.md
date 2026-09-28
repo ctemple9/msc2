@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 16 execution is underway. P16.1–P16.5 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
-> **Next move:** Cameron verifies P16.1–P16.5 using their `Verify:` commands.
+> ## STATUS: Phase 16 execution is underway. P16.1–P16.6 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
+> **Next move:** Cameron verifies P16.1–P16.6 using their `Verify:` commands.
 
 ## How this document works
 
@@ -82,8 +82,8 @@ Batch: solo
 
 #### P16.6 — Match online-backup acknowledgements to the current save
 
-Status: planned — awaiting Cameron's review
-Files: crates/msc-agent/src/backup_operations.rs, crates/msc-agent/src/routes/lifecycle.rs, crates/msc-application/src/backups.rs, docs/msc2/rolling-plan.md
+Status: implemented — awaiting Cameron's verification
+Files: crates/msc-agent/src/backup_operations.rs, crates/msc-agent/src/routes/lifecycle.rs, crates/msc-agent/src/ws/console.rs, crates/msc-application/src/backups.rs, docs/msc2/rolling-plan.md
 What: Capture a server-run and console-sequence boundary when issuing the save command. Accept only later matching acknowledgement from that run; preserve the separately documented timeout policy. Prevent an older line in the retained console tail from certifying a new online backup.
 Verify: Run `cargo check -p msc-agent -p msc-application`.
 Batch: solo

@@ -216,9 +216,9 @@ Batch: solo
 
 #### P16.22 — Record dependency and artifact provenance
 
-Status: planned — awaiting Cameron's review
-Files: .github/workflows/ci.yml, .github/workflows/release.yml, rust-toolchain.toml, clients/desktop-web/package-lock.json, Cargo.lock, tools/release/check-provenance.py, docs/msc2/rolling-plan.md
-What: Pin release-critical toolchains/actions or record exact immutable versions, generate a reviewable dependency and component inventory for each release, and define advisory/license triage with an owner and documented exceptions. Add a static release check that binds source commit, toolchain, manifest, and artifacts without treating a scan as a security proof.
+Status: implemented — awaiting Cameron's verification
+Files: .github/workflows/ci.yml, .github/workflows/release.yml, rust-toolchain.toml, clients/desktop-web/package-lock.json, Cargo.lock, tools/release/check-provenance.py, tools/release/check-release-workflow.py, tools/release/verify-artifact-manifest.py, tools/release/sign-update-manifest.py, docs/msc2/dependency-security.md, docs/msc2/rolling-plan.md
+What: Pin CI/release actions to full commit SHAs and pin Rust, Node.js, and cargo-nextest versions. Generate a lockfile-based dependency and signed-manifest component inventory for every release, plus provenance connecting source commit, per-platform runner images and tool versions, update manifest, lockfiles, and staged artifact hashes. Document Cameron-owned advisory and license triage, including how exceptions must be recorded. The records support review and do not claim that a scan proves security.
 Verify: Run `python3 tools/release/check-provenance.py --manifest target/release-assets/msc2-update-manifest.json` against staged release metadata; it must print the source commit, toolchain, and dependency inventory paths.
 Batch: solo
 

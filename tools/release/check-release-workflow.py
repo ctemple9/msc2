@@ -82,11 +82,11 @@ def check_candidate_workflow(workflow: str) -> None:
         "npm run test:tauri-boundary",
         "npm run test:fedora-regressions",
         "cargo fmt --all -- --check",
-        "cargo nextest run -p msc-agent --test web_ui",
-        "cargo test -p msc-agent --bin msc routes::components::staged_upload_tests::chunked_modpack_upload_requires_order_and_completes_with_verified_size -- --exact",
-        "cargo test -p msc-agent --bin msc routes::components::staged_upload_tests::world_import_chunks_can_be_cancelled_and_removed_idempotently -- --exact",
-        "cargo test -p msc-agent --bin msc cli::update::tests::authorized_update_waits_for_authorizer_and_reports_cancellation -- --exact",
-        "cargo build --release",
+        "cargo --locked nextest run -p msc-agent --test web_ui",
+        "cargo --locked test -p msc-agent --bin msc routes::components::staged_upload_tests::chunked_modpack_upload_requires_order_and_completes_with_verified_size -- --exact",
+        "cargo --locked test -p msc-agent --bin msc routes::components::staged_upload_tests::world_import_chunks_can_be_cancelled_and_removed_idempotently -- --exact",
+        "cargo --locked test -p msc-agent --bin msc cli::update::tests::authorized_update_waits_for_authorizer_and_reports_cancellation -- --exact",
+        "cargo --locked build --release",
         "--bundles \"${{ matrix.tauri-bundles }}\" --no-sign",
         "tauri-bundles: dmg",
         "tauri-bundles: msi",
@@ -104,15 +104,27 @@ def check_candidate_workflow(workflow: str) -> None:
         "ci-evidence:",
         "require-ci-run.py",
         "actions: read",
-        "actions/upload-artifact@v4",
+        "Record release builder environment",
+        "BUILD-ENVIRONMENT.json",
+        "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
         "beta-${{ matrix.platform }}-${{ env.RELEASE_VERSION }}",
         "UNSIGNED-BETA-NOTICE.txt",
         "notarization",
     ):
         require_fragment(workflow, fragment)
 
+    action_refs = re.findall(r"(?m)^\s*uses:\s+[^\s@]+@([^\s#]+)", workflow)
+    require(action_refs, "workflow has no GitHub Actions references")
     require(
-        re.search(r"cargo clippy -p msc-agent --bin msc --target", workflow) is not None,
+        all(re.fullmatch(r"[0-9a-f]{40}", reference) for reference in action_refs),
+        "every third-party action must be pinned to a full commit SHA",
+    )
+    require("node-version: '22.23.1'" in workflow, "release Node.js version is not exact")
+    require("toolchain: 1.97.1" in workflow, "release Rust version is not exact")
+    require("tool: cargo-nextest@0.9.143" in workflow, "cargo-nextest version is not exact")
+
+    require(
+        re.search(r"cargo --locked clippy -p msc-agent --bin msc --target", workflow) is not None,
         "workflow is missing the targeted msc-agent binary clippy check",
     )
     require(
@@ -156,7 +168,7 @@ def check_publish_guard(workflow: str) -> None:
     require("inputs.publish == true" in publish_job, "manual publication is not explicitly opted in")
     require("startsWith(github.ref, 'refs/tags/v')" in publish_job, "publish job is not tag-guarded")
     require("permissions:" in publish_job and "contents: write" in publish_job, "publish job lacks release permission")
-    require("actions/download-artifact@v4" in publish_job, "publish job does not collect matrix artifacts")
+    require("actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093" in publish_job, "publish job does not collect matrix artifacts")
     require("verify-artifact-manifest.py" in workflow, "manifest verifier is not wired")
     require("--write" in publish_job and "SHA256SUMS" in publish_job, "SHA-256 manifest generation is not wired")
     require("sign-update-manifest.py" in publish_job, "signed update manifest publisher is not wired")
@@ -173,7 +185,11 @@ def check_publish_guard(workflow: str) -> None:
     require("MSC2_RELEASE_SIGNING_KEY_HEX must be configured" in publish_job, "publish job allows unsigned releases")
     require("-name '*.rpm'" in publish_job, "publication does not collect RPM assets")
     require('test "$asset_count" -eq 9' in publish_job, "publication does not require nine release assets")
-    require("softprops/action-gh-release@v2" in publish_job, "publish job does not create a GitHub release")
+    require("softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631" in publish_job, "publish job does not create a GitHub release")
+    require("tools/release/check-provenance.py" in publish_job, "publish job does not generate and verify dependency provenance")
+    require("BUILD-ENVIRONMENT-" in publish_job, "publish job does not preserve platform builder records")
+    require("actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020" in publish_job, "publish job does not pin Node.js for provenance")
+    require("dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de" in publish_job, "publish job does not pin Rust for provenance")
     require("prerelease: true" in publish_job, "GitHub publication is not marked as a prerelease")
     require("fail_on_unmatched_files: true" in publish_job, "release publication does not fail on missing assets")
     require("CI-EVIDENCE.json" in publish_job, "release publication does not attach exact workflow run evidence")
@@ -190,6 +206,15 @@ def check_publish_guard(workflow: str) -> None:
     ):
         require(fragment in ci_waiter, f"same-commit CI gate is missing {fragment!r}")
     ci_workflow = read_workflow(ROOT / ".github/workflows/ci.yml")
+    ci_action_refs = re.findall(r"(?m)^\s*uses:\s+[^\s@]+@([^\s#]+)", ci_workflow)
+    require(ci_action_refs, "CI workflow has no GitHub Actions references")
+    require(
+        all(re.fullmatch(r"[0-9a-f]{40}", reference) for reference in ci_action_refs),
+        "every CI action must be pinned to a full commit SHA",
+    )
+    require('node-version: "22.23.1"' in ci_workflow, "CI Node.js version is not exact")
+    require('channel = "1.97.1"' in (ROOT / "rust-toolchain.toml").read_text(encoding="utf-8"), "repository Rust toolchain is not exact")
+    require("cargo-nextest@0.9.143" in ci_workflow, "CI cargo-nextest version is not exact")
     require("tags: ['v*']" in ci_workflow, "CI does not run the full workflow on version tags")
     require("npm run api:check" in ci_workflow, "CI does not check generated API types")
     require(

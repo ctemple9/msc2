@@ -45,6 +45,8 @@ RELEASE_METADATA = {
     "UNSIGNED-BETA-NOTICE.txt",
     "msc2-update-manifest.json",
     "msc2-update-manifest.sig",
+    "DEPENDENCY-INVENTORY.json",
+    "RELEASE-PROVENANCE.json",
 }
 
 
@@ -64,7 +66,11 @@ def asset_files(artifacts: Path, manifest: Path) -> list[Path]:
 
     assets: list[Path] = []
     for path in files:
-        if path.resolve() == manifest.resolve() or path.name in RELEASE_METADATA:
+        if (
+            path.resolve() == manifest.resolve()
+            or path.name in RELEASE_METADATA
+            or path.name.startswith("BUILD-ENVIRONMENT-")
+        ):
             continue
         require(not path.is_symlink(), f"release asset must not be a symlink: {path.name}")
         require(path.is_file(), f"release artifacts must be flat regular files: {path.name}")

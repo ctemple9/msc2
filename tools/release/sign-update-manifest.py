@@ -46,6 +46,8 @@ RELEASE_METADATA = {
     "UNSIGNED-BETA-NOTICE.txt",
     "msc2-update-manifest.json",
     "msc2-update-manifest.sig",
+    "DEPENDENCY-INVENTORY.json",
+    "RELEASE-PROVENANCE.json",
 }
 
 
@@ -209,7 +211,7 @@ def match_assets(artifacts: Path, release_id: str) -> dict[str, Path]:
     require(artifacts.is_dir(), f"artifact directory does not exist: {artifacts}")
     matches: dict[str, Path] = {}
     for path in sorted(artifacts.iterdir(), key=lambda item: item.name):
-        if path.name in RELEASE_METADATA:
+        if path.name in RELEASE_METADATA or path.name.startswith("BUILD-ENVIRONMENT-"):
             continue
         require(not path.is_symlink() and path.is_file(), f"release asset must be a regular file: {path.name}")
         matched = False

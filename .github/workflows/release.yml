@@ -32,19 +32,19 @@ jobs:
         include:
           - platform: macos-x86_64
             os: macos-15-intel
-            toolchain: stable
+            toolchain: 1.97.1
             rust-target: x86_64-apple-darwin
             tauri-bundles: dmg
             installer-extension: dmg
           - platform: macos-aarch64
             os: macos-14
-            toolchain: stable
+            toolchain: 1.97.1
             rust-target: aarch64-apple-darwin
             tauri-bundles: dmg
             installer-extension: dmg
           - platform: windows-x86_64
             os: windows-latest
-            toolchain: stable
+            toolchain: 1.97.1
             rust-target: x86_64-pc-windows-msvc
             tauri-bundles: msi
             installer-extension: msi
@@ -56,7 +56,7 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Validate release and update gate
         run: |
@@ -64,21 +64,24 @@ jobs:
           python3 tools/release/check-update-gate.py
 
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: '22'
+          node-version: '22.23.1'
           cache: npm
           cache-dependency-path: clients/desktop-web/package-lock.json
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
         with:
           toolchain: ${{ matrix.toolchain }}
           targets: ${{ matrix.rust-target }}
           components: rustfmt, clippy
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@nextest
+        uses: taiki-e/install-action@82cd3e7658a6f96c86c0234aeeda1748937cb0a1 # v2.85.13
+        with:
+          tool: cargo-nextest@0.9.143
+          fallback: none
 
       - name: Install Linux Tauri dependencies
         if: matrix.platform == 'linux-x86_64'
@@ -147,18 +150,18 @@ jobs:
       - name: Run targeted agent checks
         run: |
           cargo fmt --all -- --check
-          cargo clippy -p msc-agent --bin msc --target "${{ matrix.rust-target }}" -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format
-          cargo nextest run -p msc-agent --test web_ui
+          cargo --locked clippy -p msc-agent --bin msc --target "${{ matrix.rust-target }}" -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format
+          cargo --locked nextest run -p msc-agent --test web_ui
 
       - name: Run Linux Fedora regression tests
         if: matrix.platform == 'linux-x86_64'
         run: |
-          cargo test -p msc-agent --bin msc routes::components::staged_upload_tests::chunked_modpack_upload_requires_order_and_completes_with_verified_size -- --exact
-          cargo test -p msc-agent --bin msc routes::components::staged_upload_tests::world_import_chunks_can_be_cancelled_and_removed_idempotently -- --exact
-          cargo test -p msc-agent --bin msc cli::update::tests::authorized_update_waits_for_authorizer_and_reports_cancellation -- --exact
+          cargo --locked test -p msc-agent --bin msc routes::components::staged_upload_tests::chunked_modpack_upload_requires_order_and_completes_with_verified_size -- --exact
+          cargo --locked test -p msc-agent --bin msc routes::components::staged_upload_tests::world_import_chunks_can_be_cancelled_and_removed_idempotently -- --exact
+          cargo --locked test -p msc-agent --bin msc cli::update::tests::authorized_update_waits_for_authorizer_and_reports_cancellation -- --exact
 
       - name: Build release agent and CLI
-        run: cargo build --release --target "${{ matrix.rust-target }}" -p msc-agent
+        run: cargo --locked build --release --target "${{ matrix.rust-target }}" -p msc-agent
 
       - name: Stage the matching Tauri agent payload
         if: matrix.platform != 'windows-x86_64'
@@ -280,8 +283,41 @@ jobs:
           checksum before opening or installing it.
           EOF
 
+      - name: Record release builder environment
+        env:
+          RELEASE_PLATFORM: ${{ matrix.platform }}
+        run: |
+          python3 - target/release-artifacts/BUILD-ENVIRONMENT.json <<'PY'
+          import json
+          import os
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          def version(*command):
+              return subprocess.check_output(command, text=True).strip()
+
+          record = {
+              "schemaVersion": 1,
+              "sourceCommit": os.environ["GITHUB_SHA"],
+              "platform": os.environ["RELEASE_PLATFORM"],
+              "runner": {
+                  "imageOS": os.environ.get("ImageOS", "unknown"),
+                  "imageVersion": os.environ.get("ImageVersion", "unknown"),
+              },
+              "toolchain": {
+                  "rustc": version("rustc", "--version"),
+                  "cargo": version("cargo", "--version"),
+                  "node": version("node", "--version"),
+                  "npm": version("npm", "--version"),
+                  "cargoNextest": version("cargo", "nextest", "--version").split()[1],
+              },
+          }
+          Path(sys.argv[1]).write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          PY
+
       - name: Upload platform-labeled beta artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: beta-${{ matrix.platform }}-${{ env.RELEASE_VERSION }}
           path: target/release-artifacts
@@ -301,7 +337,7 @@ jobs:
       head_sha: ${{ steps.require-ci.outputs.head_sha }}
     steps:
       - name: Check out the release commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Wait for successful full CI on this tag commit
         id: require-ci
@@ -329,10 +365,20 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install provenance toolchains
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.23.1'
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
+        with:
+          toolchain: 1.97.1
 
       - name: Download successful platform artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: beta-*
           path: target/release-downloads
@@ -363,6 +409,25 @@ jobs:
               -name '*.zip' \
             \) -print0
           )
+          python3 - <<'PY'
+          import json
+          import shutil
+          from pathlib import Path
+
+          assets = Path("target/release-assets")
+          sources = sorted(Path("target/release-downloads").rglob("BUILD-ENVIRONMENT.json"))
+          if len(sources) != 4:
+              raise SystemExit(f"expected four release builder records, found {len(sources)}")
+          for source in sources:
+              record = json.loads(source.read_text(encoding="utf-8"))
+              platform = record.get("platform")
+              if not isinstance(platform, str) or not platform:
+                  raise SystemExit(f"missing platform in {source}")
+              destination = assets / f"BUILD-ENVIRONMENT-{platform}.json"
+              if destination.exists():
+                  raise SystemExit(f"duplicate release builder record: {platform}")
+              shutil.copyfile(source, destination)
+          PY
           test "$asset_count" -eq 9 || {
             echo "expected nine desktop/headless release assets, found $asset_count" >&2
             exit 1
@@ -467,8 +532,16 @@ jobs:
           test -s "$signature"
           echo "signed update metadata prepared"
 
+      - name: Generate and verify dependency inventory and provenance
+        run: |
+          python3 tools/release/check-provenance.py \
+            --manifest target/release-assets/msc2-update-manifest.json \
+            --write
+          python3 tools/release/check-provenance.py \
+            --manifest target/release-assets/msc2-update-manifest.json
+
       - name: Publish GitHub prerelease
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
         with:
           tag_name: ${{ github.ref_name }}
           name: MSC 2 ${{ github.ref_name }}

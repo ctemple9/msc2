@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 16 execution is underway. P16.1–P16.9 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
-> **Next move:** Cameron verifies P16.1–P16.9 using their `Verify:` commands.
+> ## STATUS: Phase 16 execution is underway. P16.1–P16.10 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
+> **Next move:** Cameron verifies P16.1–P16.10 using their `Verify:` commands.
 
 ## How this document works
 
@@ -116,8 +116,8 @@ Batch: solo
 
 #### P16.10 — Publish one host connection generation at a time
 
-Status: planned — awaiting Cameron's review
-Files: clients/desktop-web/src/App.svelte, clients/desktop-web/src/lib/hosts, docs/msc2/rolling-plan.md
+Status: implemented — awaiting Cameron's verification
+Files: clients/desktop-web/src/App.svelte, docs/msc2/rolling-plan.md
 What: Keep a newly connected client and its readiness, server list, status, and host-context state local until the generation still matches. Cancel or ignore every stale asynchronous continuation, including host-context restoration and navigation. Prevent a late host A result from replacing host B's transport or state.
 Verify: Run `npm run check` from `clients/desktop-web`.
 Batch: solo

@@ -227,7 +227,9 @@
     hostConnectionManager.rememberSessionPassword(pendingHostId, sshPasswordInput);
     sshPasswordPromptBusy = true;
     sshPasswordPromptError = '';
+    const generation = connectionGeneration + 1;
     await initializeClient();
+    if (generation !== connectionGeneration) return;
     sshPasswordPromptBusy = false;
     if (clientReady && hostId === pendingHostId) {
       sshPasswordPromptHostId = null;
@@ -264,17 +266,19 @@
       .cache.operations.find(
         (operation) => operation.state === 'queued' || operation.state === 'running',
       );
-    if (isDesktopShell && previousHostId !== localAgentHostId) {
-      await hostConnectionManager.stop(previousHostId);
-    }
     hostStore.selectHost(id);
     loadedSections = [];
     hostId = id;
+    if (isDesktopShell && previousHostId !== localAgentHostId) {
+      await hostConnectionManager.stop(previousHostId);
+      if (generation !== connectionGeneration) return;
+    }
     await initializeClient(generation);
+    if (generation !== connectionGeneration) return;
     if (generation === connectionGeneration && agentReadiness === 'ready' && activeOperation) {
       shellMessage = `Switched hosts. ${activeOperation.statusLine ?? activeOperation.type} continues on ${previousHostId}; returning to that host will restore its progress.`;
     }
-    await selectSection('agent-setup');
+    await selectSection('agent-setup', true, generation);
   }
 
   async function addRemoteHost(
@@ -791,30 +795,44 @@
     }
   }
 
-  async function restoreHostContext(generation: number): Promise<boolean> {
+  async function restoreHostContext(
+    generation: number,
+    selectedHostId: HostId,
+    selectedClient: ApiClient,
+  ): Promise<boolean> {
     try {
-      const selectedClient = requireClient();
-      const rememberedServerId = hostStore.getState(hostId).cache.activeServerId;
-      capabilities = await selectedClient.getCapabilities();
+      const rememberedServerId = hostStore.getState(selectedHostId).cache.activeServerId;
+      const nextCapabilities = await selectedClient.getCapabilities();
       if (generation !== connectionGeneration) return false;
       const me = await selectedClient.requestJson<{ permissions: string[] }>('GET', '/v1/me');
       if (generation !== connectionGeneration) return false;
-      permissions = me.permissions;
-      servers = await selectedClient.requestJson<Schema['ServerDTO'][]>('GET', '/v1/servers');
+      const nextServers = await selectedClient.requestJson<Schema['ServerDTO'][]>(
+        'GET',
+        '/v1/servers',
+      );
       if (generation !== connectionGeneration) return false;
-      status = await selectedClient.requestJson<Schema['RemoteAPIStatus']>('GET', '/v1/status');
+      const nextStatus = await selectedClient.requestJson<Schema['RemoteAPIStatus']>(
+        'GET',
+        '/v1/status',
+      );
       if (generation !== connectionGeneration) return false;
-      selectedServerId = selectAvailableServerId(
-        servers,
-        status.activeServerId,
+      const nextServerId = selectAvailableServerId(
+        nextServers,
+        nextStatus.activeServerId,
         rememberedServerId ?? selectedServerId,
       );
-      hostStore.setServers(hostId, servers);
-      if (selectedServerId) hostStore.selectServer(hostId, selectedServerId);
+      client = selectedClient;
+      capabilities = nextCapabilities;
+      permissions = me.permissions;
+      servers = nextServers;
+      status = nextStatus;
+      selectedServerId = nextServerId;
+      hostStore.setServers(selectedHostId, nextServers);
+      if (nextServerId) hostStore.selectServer(selectedHostId, nextServerId);
       agentReadiness = 'ready';
-      shellMessage = `Connected to ${hosts.find((host) => host.id === hostId)?.displayName ?? hostId}`;
-      hostStore.updateConnection(hostId, 'connected');
-      await selectFromLocation();
+      shellMessage = `Connected to ${hosts.find((host) => host.id === selectedHostId)?.displayName ?? selectedHostId}`;
+      hostStore.updateConnection(selectedHostId, 'connected');
+      await selectFromLocation(generation);
       return true;
     } catch (error) {
       if (generation !== connectionGeneration) return false;
@@ -947,6 +965,8 @@
   }
 
   async function initializeClient(generation = ++connectionGeneration): Promise<void> {
+    if (generation !== connectionGeneration) return;
+    const selectedHostId = hostId;
     cancelTabPreload?.();
     cancelTabPreload = undefined;
     clientReady = false;
@@ -957,23 +977,23 @@
     selectedServerId = '';
     status = defaultStatus;
     agentReadiness = 'starting';
-    hostStore.updateConnection(hostId, 'connecting');
+    hostStore.updateConnection(selectedHostId, 'connecting');
     try {
       // Only the local host has an OS service this client can prepare --
       // a remote host's agent is either already reachable or it isn't;
       // there is nothing here to install/start on someone else's machine.
-      const serviceStatus = hostId === localAgentHostId ? await prepareLocalAgent() : null;
+      const serviceStatus = selectedHostId === localAgentHostId ? await prepareLocalAgent() : null;
       if (generation !== connectionGeneration) return;
       if (serviceStatus) {
         agentReadiness = readinessForService(serviceStatus);
         if (serviceStatus.state !== 'running') {
           shellMessage = serviceStatus.detail;
-          await selectSection('agent-setup');
+          await selectSection('agent-setup', true, generation);
           return;
         }
       }
-      if (isDesktopShell && hostId !== localAgentHostId) {
-        const host = hostStore.getState(hostId).host;
+      if (isDesktopShell && selectedHostId !== localAgentHostId) {
+        const host = hostStore.getState(selectedHostId).host;
         if (
           host.ssh.authentication === 'password' &&
           !hostConnectionManager.hasSessionPassword(host.id) &&
@@ -986,33 +1006,35 @@
         if (generation !== connectionGeneration) return;
         shellMessage = connection.detail;
       }
-      client = await createClient(hostId);
+      const selectedClient = await createClient(selectedHostId);
       if (generation !== connectionGeneration) return;
-      clientReady = await restoreHostContext(generation);
+      const ready = await restoreHostContext(generation, selectedHostId, selectedClient);
+      if (generation !== connectionGeneration) return;
+      clientReady = ready;
       if (clientReady) scheduleAvailableTabPreload();
     } catch (error) {
       if (generation !== connectionGeneration) return;
-      const host = hostStore.getState(hostId).host;
+      const host = hostStore.getState(selectedHostId).host;
       const connectionError = formatConnectionFailure(error);
       if (
         isDesktopShell &&
-        hostId !== localAgentHostId &&
+        selectedHostId !== localAgentHostId &&
         host.ssh.authentication === 'password' &&
         (connectionError.includes('Password authentication needs a password') ||
           connectionError.includes('SSH password or key was refused'))
       ) {
-        hostConnectionManager.forgetSessionPassword(hostId);
+        hostConnectionManager.forgetSessionPassword(selectedHostId);
         promptForSshPassword(
-          hostId,
+          selectedHostId,
           connectionError.includes('refused') ? 'That password was not accepted. Try again.' : '',
         );
-        hostStore.updateConnection(hostId, 'connecting');
+        hostStore.updateConnection(selectedHostId, 'connecting');
         return;
       }
       agentReadiness = readinessForError(error);
       shellMessage = `Unable to prepare the selected host connection: ${connectionError}`;
-      hostStore.updateConnection(hostId, 'error');
-      await selectSection('agent-setup');
+      hostStore.updateConnection(selectedHostId, 'error');
+      await selectSection('agent-setup', true, generation);
     }
   }
 
@@ -1071,7 +1093,12 @@
     await initializeClient();
   }
 
-  async function selectSection(id: string, updateUrl = true): Promise<void> {
+  async function selectSection(
+    id: string,
+    updateUrl = true,
+    generation = connectionGeneration,
+  ): Promise<void> {
+    if (generation !== connectionGeneration) return;
     const section = router.get(id);
     const context = currentNavigationContext();
     // Setup is deliberately reachable before an agent exists or a browser has
@@ -1080,23 +1107,24 @@
       shellMessage = 'That section is unavailable for the selected host or credential.';
       return;
     }
-    activeSection = section.id;
     if (!loadedSections.some((loaded) => loaded.id === section.id)) {
-      loadedSections = [
-        ...loadedSections,
-        { id: section.id, component: (await section.load()).default },
-      ];
+      const component = (await section.load()).default;
+      if (generation !== connectionGeneration) return;
+      loadedSections = [...loadedSections, { id: section.id, component }];
     }
+    if (generation !== connectionGeneration) return;
+    activeSection = section.id;
     if (updateUrl) {
       history.pushState({}, '', buildSectionPath(section, hostId, selectedServerId));
     }
   }
 
-  async function selectFromLocation(): Promise<void> {
+  async function selectFromLocation(generation = connectionGeneration): Promise<void> {
+    if (generation !== connectionGeneration) return;
     const context = currentNavigationContext();
     if (!context) return;
     if (window.location.pathname === '/') {
-      await selectSection('home');
+      await selectSection('home', true, generation);
       return;
     }
     const resolution = router.resolve(window.location.pathname, context);
@@ -1110,7 +1138,7 @@
       loadedSections = [];
       selectedServerId = resolution.match.serverId;
     }
-    await selectSection(resolution.descriptor.id, false);
+    await selectSection(resolution.descriptor.id, false, generation);
   }
 
   function openAgentSetup(): void {

@@ -190,7 +190,8 @@
     </div>
   </section>
 
-  <section class="zone">
+  <!-- Keep this section: Server Health is intentionally hidden at the owner's request. Future edits must not remove it. -->
+  <section class="zone health-grid-hidden">
     <HealthGrid cards={health.cards} />
   </section>
 
@@ -256,9 +257,12 @@
   }
   .status-row {
     display: grid;
-    grid-template-columns: 1.4fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 10px;
     align-items: stretch;
+  }
+  .health-grid-hidden {
+    display: none;
   }
   .activity-row {
     display: grid;

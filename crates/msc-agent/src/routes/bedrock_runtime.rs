@@ -382,7 +382,7 @@ impl BedrockRuntimeSelection {
     /// leaving the startup server's filesystem result in place would let one
     /// server borrow another server's readiness claim.
     pub fn refresh_for_server(&self, server_dir: impl AsRef<Path>) {
-        let refreshed = runtime_eligibility(&runtime_paths(server_dir.as_ref().to_path_buf()));
+        let mut refreshed = runtime_eligibility(&runtime_paths(server_dir.as_ref().to_path_buf()));
         {
             let mut runtime = self.runtime.lock().unwrap();
             #[cfg(target_os = "macos")]

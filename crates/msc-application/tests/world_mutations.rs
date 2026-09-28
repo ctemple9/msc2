@@ -686,6 +686,7 @@ fn world_mutations_bedrock_replace_reconcile_prior_moved_restores_named_world() 
     let tmp = TempDir::new("bedrock-replace-reconcile-prior");
     let server_dir = tmp.path();
     write_server_properties(server_dir, "Bedrock level");
+    fs::create_dir_all(server_dir.join("worlds")).unwrap();
     write_file(
         &server_dir.join("world_slots/.replace/manifest.json"),
         br#"{"level_name":"newname"}"#,

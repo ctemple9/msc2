@@ -55,6 +55,12 @@ fn make_live_folder(server_dir: &Path, name: &str, content: &[u8]) {
     write_file(&server_dir.join(name).join("level.dat"), content);
 }
 
+fn java_level_dat() -> Vec<u8> {
+    let mut level_dat = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    level_dat.write_all(&[10, 0, 0, 0]).unwrap();
+    level_dat.finish().unwrap()
+}
+
 fn write_slot_archive_folders(server_dir: &Path, slot_id: &str, folders: &[(&str, &[u8])]) {
     let zip_path = server_dir
         .join("world_slots")
@@ -69,10 +75,7 @@ fn write_slot_archive_folders(server_dir: &Path, slot_id: &str, folders: &[(&str
         if content.starts_with(&[0x1f, 0x8b]) {
             zip.write_all(content).unwrap();
         } else {
-            let mut level_dat =
-                flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
-            level_dat.write_all(&[10, 0, 0, 0]).unwrap();
-            zip.write_all(&level_dat.finish().unwrap()).unwrap();
+            zip.write_all(&java_level_dat()).unwrap();
         }
     }
     zip.finish().unwrap();
@@ -157,7 +160,7 @@ fn world_activation_switches_between_distinct_profiles_and_preserves_server_sett
         &server_dir.join("server.properties"),
         b"level-name=world\nmotd=Shared server\nmax-players=12\nforce-gamemode=false\n",
     );
-    make_live_folder(server_dir, "world", b"initial world");
+    make_live_folder(server_dir, "world", &java_level_dat());
 
     let first = slot_with_archive("slot-first", "first-world");
     let second = slot_with_archive("slot-second", "second-world");
@@ -614,7 +617,7 @@ fn world_activation_reconcile_installed_finishes_committing_new_world() {
     // Simulate a crash mid-transaction, after phase 3's install step
     // (new content already at the server root, `staged/` already
     // removed) but before the commit tail (identity/metadata/marker).
-    make_live_folder(server_dir, "world", b"new overworld, already installed");
+    make_live_folder(server_dir, "world", &java_level_dat());
     write_file(
         &server_dir
             .join("world_slots")
@@ -652,7 +655,7 @@ fn world_activation_reconcile_installed_finishes_committing_new_world() {
 
     assert_eq!(
         fs::read(server_dir.join("world").join("level.dat")).unwrap(),
-        b"new overworld, already installed"
+        java_level_dat()
     );
     assert!(!server_dir.join("world_slots").join(".activation").exists());
     let marker = fs::read_to_string(server_dir.join("world_slots/active_slot_id.txt")).unwrap();

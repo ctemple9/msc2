@@ -1033,7 +1033,7 @@ fn provisioning_applies_the_first_world_profile_before_first_start() {
     );
     assert_eq!(props["level-name"], "profile_level");
     assert_eq!(props["level-seed"], "profile-seed");
-    assert_eq!(props["level-type"], "minecraft\\:flat");
+    assert_eq!(props["level-type"], "minecraft:flat");
     assert_eq!(props["generate-structures"], "false");
     assert_eq!(props["bonus-chest"], "true");
     assert_eq!(props["generator-settings"], "{}");

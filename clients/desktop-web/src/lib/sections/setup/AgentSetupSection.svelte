@@ -23,7 +23,6 @@
   import RemoteConnectionWizard from './connection/RemoteConnectionWizard.svelte';
   import type { RemoteDesktopPairingResult } from '../../auth/desktop';
   import { formatConnectionFailure } from '../../hosts/connection-errors';
-  import type { Schema, ScreenApi } from '../shared/types';
 
   export let readiness: AgentReadiness = 'starting';
   export let onAgentRetry: (() => void) | undefined = undefined;
@@ -46,7 +45,6 @@
   export let onSelectRoute: ((hostId: HostId, route: HostRoute) => Promise<void>) | undefined =
     undefined;
   export let onRemoveSavedHost: ((hostId: HostId) => Promise<void>) | undefined = undefined;
-  export let api: ScreenApi | undefined = undefined;
 
   const readinessTitles: Record<AgentReadiness, string> = {
     missing: 'Agent not installed',
@@ -93,9 +91,6 @@
   let errorMessage = '';
   let pairingCode = '';
   let pairingBusy = false;
-  let localPairingCode = '';
-  let localPairingBusy = false;
-  let copiedPairingCode = false;
   let removeHostOpen = false;
   let removeHostBusy = false;
   let disconnectBusy = false;
@@ -149,12 +144,10 @@
     if (!isLocalDesktopHost) {
       inspectedHostId = undefined;
       status = undefined;
-      localPairingCode = '';
       refreshedReadyHostId = undefined;
     } else if (inspectedHostId !== hostId) {
       inspectedHostId = hostId;
       status = undefined;
-      localPairingCode = '';
       refreshedReadyHostId = undefined;
       void refresh();
     }
@@ -204,46 +197,6 @@
       errorMessage = formatConnectionFailure(error, 'authentication');
     } finally {
       pairingBusy = false;
-    }
-  }
-
-  async function createPairingCode(): Promise<void> {
-    if (!api || readiness !== 'ready' || localPairingBusy) return;
-    localPairingBusy = true;
-    errorMessage = '';
-    try {
-      const result = await api.post<Schema['PairingCreateResultDTO']>('/v1/auth/pairings', {
-        clientKind: 'desktop',
-        label: 'Desktop pairing',
-        role: 'admin',
-        permissions: [
-          'serverControl',
-          'players',
-          'settings',
-          'addons',
-          'worlds',
-          'broadcast',
-          'networking',
-          'fleet',
-          'admin',
-        ],
-      });
-      localPairingCode = result.pairingCode;
-    } catch (error) {
-      errorMessage = formatConnectionFailure(error, 'authentication');
-    } finally {
-      localPairingBusy = false;
-    }
-  }
-
-  async function copyPairingCode(): Promise<void> {
-    if (!localPairingCode) return;
-    try {
-      await navigator.clipboard.writeText(localPairingCode);
-      copiedPairingCode = true;
-      setTimeout(() => (copiedPairingCode = false), 1500);
-    } catch {
-      // The code remains selectable in its field when clipboard access is unavailable.
     }
   }
 
@@ -486,31 +439,12 @@
 
           {#if isDesktopShell}
             <details class="secondary-disclosure">
-              <summary>Pair another client with this agent</summary>
+              <summary>Pair another desktop with this agent</summary>
               <div class="secondary-content">
                 <p class="detail">
-                  Start the agent first, then create a one-use code for another Tauri desktop,
-                  desktop app or CLI client to connect to {hostLabel}.
+                  On this computer, run <span class="mono">{pairingCommand}</span> and enter the one-use
+                  code in the other desktop app.
                 </p>
-                {#if localPairingCode}
-                  <div class="pairing-code-row">
-                    <Field type="password" value={localPairingCode} />
-                    <Button variant="secondary" onclick={() => void copyPairingCode()}>
-                      {copiedPairingCode ? 'Copied' : 'Copy'}
-                    </Button>
-                  </div>
-                  <p class="pairing-expiry">
-                    This code expires automatically and can be used once.
-                  </p>
-                {:else}
-                  <Button
-                    variant="secondary"
-                    disabled={readiness !== 'ready' || localPairingBusy}
-                    onclick={() => void createPairingCode()}
-                  >
-                    {readiness === 'ready' ? 'Create pairing code' : 'Start agent to create a code'}
-                  </Button>
-                {/if}
               </div>
             </details>
           {/if}
@@ -1026,8 +960,7 @@
     margin-top: 14px;
   }
   .command-row,
-  .pairing-row,
-  .pairing-code-row {
+  .pairing-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
@@ -1070,11 +1003,6 @@
     margin: 0;
     color: var(--msc2-text-tertiary);
     font-size: 12px;
-  }
-  .pairing-expiry {
-    margin-top: 7px;
-    color: var(--msc2-text-tertiary);
-    font-size: 11px;
   }
   .status-summary {
     display: grid;

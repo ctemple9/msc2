@@ -949,8 +949,9 @@ fn agent_install_request() -> Result<ServiceInstallRequest, String> {
     // only checks that the bootstrap key file exists rather than
     // provisioning any secret itself — see `secret_store.rs`'s module doc.
     #[cfg(target_os = "macos")]
+    ensure_local_bootstrap_key()?;
+    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
     let desktop_requirement = {
-        ensure_local_bootstrap_key()?;
         desktop_code_requirement()?
     };
     let request = ServiceInstallRequest::new(

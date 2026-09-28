@@ -378,7 +378,7 @@ fn replace_app_bundle(
         Ok((target.to_path_buf(), backup.clone(), false))
     };
     match direct() {
-        Ok(()) => Ok(()),
+        Ok(rollback) => Ok(rollback),
         Err(error)
             if error.contains("Permission denied") || error.contains("Operation not permitted") =>
         {
@@ -407,7 +407,7 @@ fn replace_app_bundle(
 #[cfg(target_os = "macos")]
 fn finalize_macos_replacement(rollback: &(PathBuf, PathBuf, bool)) -> Result<(), String> {
     let (_, backup, elevated) = rollback;
-    if elevated {
+    if *elevated {
         let command = format!("/bin/rm -rf {}", shell_quote(&backup));
         run_command(
             Command::new("/usr/bin/osascript").args([

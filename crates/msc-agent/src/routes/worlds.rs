@@ -3934,6 +3934,8 @@ mod tests {
         assert_ne!(source.id, destination.id);
         seed_slot_archive(_dir.as_path(), &source.id, "Source");
         seed_slot_archive(_dir.as_path(), &destination.id, "Destination");
+        let source_archive_path = world_store::zip_path(&_dir, &source.id);
+        let source_archive_before = std::fs::read(&source_archive_path).unwrap();
 
         let response = replace(
             State(state.clone()),
@@ -3952,17 +3954,21 @@ mod tests {
         assert_eq!(slots.len(), 2, "no slot is created or removed by replace");
         let updated_destination = slots.iter().find(|s| s.id == destination.id).unwrap();
         let untouched_source = slots.iter().find(|s| s.id == source.id).unwrap();
-        let source_archive_size = std::fs::metadata(world_store::zip_path(&_dir, &source.id))
-            .unwrap()
-            .len() as i64;
+        let source_archive_size = source_archive_before.len() as i64;
         assert_eq!(
             updated_destination.zip_size_bytes,
             Some(source_archive_size),
             "destination's content now matches the source's"
         );
         assert_eq!(
-            untouched_source.zip_size_bytes, source.zip_size_bytes,
+            untouched_source.zip_size_bytes,
+            Some(source_archive_size),
             "the source slot itself is left untouched"
+        );
+        assert_eq!(
+            std::fs::read(source_archive_path).unwrap(),
+            source_archive_before,
+            "the source archive bytes remain unchanged"
         );
 
         // A missing destination/source slot is still a 404 either way.

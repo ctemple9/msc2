@@ -190,8 +190,13 @@ fn fresh_bedrock_creation_applies_the_first_world_profile() {
     assert!(properties.contains("difficulty=hard\n"));
     assert!(properties.contains("gamemode=creative\n"));
     assert!(properties.contains("allow-cheats=true\n"));
-    assert!(properties.contains("show-coordinates=false\n"));
     assert!(properties.contains("starting-map=true\n"));
+    let saved_profile = msc_infrastructure::world_store::load_profile(
+        &StdFileSystem,
+        &server_dir,
+        &created.world_slot,
+    );
+    assert_eq!(saved_profile.gameplay.coordinates, Some(false));
     assert_eq!(created.world_slot.name, "Configured Realm");
     assert_eq!(
         created.world_slot.world_seed.as_deref(),

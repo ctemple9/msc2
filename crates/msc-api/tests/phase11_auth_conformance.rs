@@ -27,15 +27,13 @@ fn assert_required_fields(contract: &Value, name: &str, expected: &[&str]) {
 #[test]
 fn phase11_auth_conformance_keeps_desktop_pairing_on_the_public_contract() {
     let contract = contract();
-    let expected = [
-        (
-            "/v1/auth/desktop-pairings",
-            "post",
-            "exchangeDesktopPairing",
-            "desktop-pairing-code",
-            "none",
-        ),
-    ];
+    let expected = [(
+        "/v1/auth/desktop-pairings",
+        "post",
+        "exchangeDesktopPairing",
+        "desktop-pairing-code",
+        "none",
+    )];
 
     for (path, method, operation_id, authentication, permission) in expected {
         let operation = &contract["paths"][path][method];

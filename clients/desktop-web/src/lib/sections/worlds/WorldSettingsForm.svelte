@@ -168,9 +168,6 @@
   <p class="ownership">
     These settings are saved with this world. Server settings—ports, player limits, access, MOTD,
     runtime, and network helpers—apply to every world.
-    {#if serverSettingsHref}
-      <a href={serverSettingsHref}>Open Server Settings</a>
-    {/if}
   </p>
 
   {#if mode !== 'wizard' && capabilities?.thirdParty}
@@ -367,22 +364,39 @@
           </label>
         {/if}
 
-        <label class="field-group">
-          <span class="label">Bonus Chest</span>
-          {#if unavailable('generation.bonus-chest')}
-            <span class="unavailable">Unavailable: {reason('generation.bonus-chest')}</span>
-          {:else}
-            <Toggle
-              checked={values.bonusChest === true}
-              label="Generate a bonus chest"
-              disabled={readOnly('generation.bonus-chest')}
-              onchange={(checked) => update({ bonusChest: checked })}
-            />
-            {#if fieldNote('generation.bonus-chest')}<span class="hint"
-                >{fieldNote('generation.bonus-chest')}</span
-              >{/if}
+        <div class="field-group wide generation-options">
+          <div class="inline-toggle-row">
+            <span class="label">Bonus Chest</span>
+            {#if unavailable('generation.bonus-chest')}
+              <span class="unavailable">Unavailable: {reason('generation.bonus-chest')}</span>
+            {:else}
+              <Toggle
+                checked={values.bonusChest === true}
+                label="Generate a bonus chest"
+                disabled={readOnly('generation.bonus-chest')}
+                onchange={(checked) => update({ bonusChest: checked })}
+              />
+            {/if}
+          </div>
+          {#if serverType === 'bedrock'}
+            <div class="inline-toggle-row">
+              <span class="label">Starting Map</span>
+              {#if unavailable('gameplay.starting-map')}
+                <span class="unavailable">Unavailable: {reason('gameplay.starting-map')}</span>
+              {:else}
+                <Toggle
+                  checked={values.startingMap === true}
+                  label="Give players a starting map"
+                  disabled={readOnly('gameplay.starting-map')}
+                  onchange={(checked) => update({ startingMap: checked })}
+                />
+              {/if}
+            </div>
           {/if}
-        </label>
+          <span class="hint"
+            >Used only when a new world is generated. Create a new world to change it.</span
+          >
+        </div>
 
         {#if serverType === 'java' || !unavailable('generation.generator-options')}
           <label class="field-group wide">
@@ -441,7 +455,7 @@
     <div class="disclosure-body">
       <div class="field-grid">
         {#if hasEditionField(javaFields)}
-          <label class="field-group">
+          <label class="field-group inline-toggle">
             <span class="label">Hardcore</span>
             {#if unavailable('gameplay.hardcore')}
               <span class="unavailable">Unavailable: {reason('gameplay.hardcore')}</span>
@@ -458,7 +472,7 @@
             {/if}
           </label>
 
-          <label class="field-group">
+          <label class="field-group inline-toggle">
             <span class="label">Allow Commands</span>
             {#if unavailable('gameplay.commands')}
               <span class="unavailable">Unavailable: {reason('gameplay.commands')}</span>
@@ -502,7 +516,7 @@
         </div>
 
         {#if hasEditionField(bedrockFields)}
-          <label class="field-group">
+          <label class="field-group inline-toggle">
             <span class="label">Cheats</span>
             {#if unavailable('gameplay.cheats')}
               <span class="unavailable">Unavailable: {reason('gameplay.cheats')}</span>
@@ -519,7 +533,7 @@
             {/if}
           </label>
 
-          <label class="field-group">
+          <label class="field-group inline-toggle">
             <span class="label">Coordinates</span>
             {#if unavailable('gameplay.coordinates')}
               <span class="unavailable">Unavailable: {reason('gameplay.coordinates')}</span>
@@ -532,23 +546,6 @@
               />
               {#if fieldNote('gameplay.coordinates')}<span class="hint"
                   >{fieldNote('gameplay.coordinates')}</span
-                >{/if}
-            {/if}
-          </label>
-
-          <label class="field-group">
-            <span class="label">Starting Map</span>
-            {#if unavailable('gameplay.starting-map')}
-              <span class="unavailable">Unavailable: {reason('gameplay.starting-map')}</span>
-            {:else}
-              <Toggle
-                checked={values.startingMap === true}
-                label="Give players a starting map"
-                disabled={readOnly('gameplay.starting-map')}
-                onchange={(checked) => update({ startingMap: checked })}
-              />
-              {#if fieldNote('gameplay.starting-map')}<span class="hint"
-                  >{fieldNote('gameplay.starting-map')}</span
                 >{/if}
             {/if}
           </label>
@@ -573,7 +570,7 @@
 
         {#if hasSupportedToggles()}
           {#each Object.entries(values.supportedToggles) as [key, enabled] (key)}
-            <label class="field-group">
+            <label class="field-group inline-toggle">
               <span class="label">{key}</span>
               <Toggle
                 checked={enabled}
@@ -709,6 +706,33 @@
   .field-group.wide,
   .hint.wide {
     grid-column: 1 / -1;
+  }
+  .field-group.inline-toggle {
+    display: grid;
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px 12px;
+  }
+  .field-group.inline-toggle > .hint,
+  .field-group.inline-toggle > .unavailable {
+    grid-column: 1 / -1;
+  }
+  .inline-toggle-row {
+    display: flex;
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .generation-options {
+    align-items: stretch;
+    gap: 8px;
+  }
+  .field-group.wide :global(.editor) {
+    width: 100%;
+    box-sizing: border-box;
   }
   .field-group :global(.field),
   .field-group :global(.wrap) {

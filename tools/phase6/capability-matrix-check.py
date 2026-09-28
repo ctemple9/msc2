@@ -8,7 +8,7 @@ by an explicit matrix") and rolling-plan.md's Phase 6 header calls "the
 overdue D-023 matrix", against the two things it must stay true to:
 
   1. Shape: the header is exact, every row has all nine fields, every status
-     cell (agent/desktop_web/cli) is one of D-023's own three values
+     cell (agent/desktop/cli) is one of D-023's own three values
      (Implemented, Planned, Intentional exception), and an Intentional
      exception cell names the D-0xx decision that approved it (D-023: "An
      Intentional exception requires owner approval and becomes its own
@@ -18,8 +18,8 @@ overdue D-023 matrix", against the two things it must stay true to:
      real contract has exactly one row in the matrix -- no operation the
      contract defines is silently untracked, and no row in the matrix names
      an operation the contract doesn't (or no longer) define.
-  3. Status values remain explicit. Phase 11 changes delivered desktop/web
-     rows to Implemented; the Phase 6-era "all desktop/web rows are Planned"
+  3. Status values remain explicit. Phase 11 changed delivered desktop
+     rows to Implemented; the Phase 6-era "all desktop rows are Planned"
      rule is historical and must not reject the first real Phase 11 surfaces.
 
 Stdlib only, in the style of tools/api-contract-check.py (P2.8) and
@@ -41,13 +41,13 @@ HEADER = [
     "msc1_capability",
     "permission_category",
     "agent_status",
-    "desktop_web_status",
+    "desktop_status",
     "cli_status",
     "notes",
 ]
 
 STATUS_VALUES = {"Implemented", "Planned", "Intentional exception"}
-STATUS_COLUMNS = ["agent_status", "desktop_web_status", "cli_status"]
+STATUS_COLUMNS = ["agent_status", "desktop_status", "cli_status"]
 # operation_id is blank for the two WS channels (no OpenAPI operationId concept
 # applies to them) and notes is blank whenever a row has nothing to add --
 # both legitimately optional, unlike every other column.
@@ -153,7 +153,7 @@ def _clean_rows():
 def _dirty_rows():
     return [
         HEADER,
-        # blank field, bad status value, desktop_web not Planned, exception with no decision ref,
+        # blank field, bad status value, desktop not Planned, exception with no decision ref,
         # duplicate, missing the WS row entirely, and one orphan row.
         ["GET", "/v1/x", "getX", "", "none", "Implemented", "Planned", "Planned", ""],
         ["GET", "/v1/x", "getX", "list Xs", "none", "Implemented", "Planned", "Planned", ""],

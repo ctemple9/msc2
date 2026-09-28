@@ -1,24 +1,27 @@
 # MSC 2 headless installation contract
 
 **Status:** Current headless installation contract. The latest published
-artifact set is v0.1.16, an unsigned prerelease. The Phase 16 exact-artifact
-acceptance record is planned and has not been completed.
+artifact set is v0.1.16, an unsigned prerelease published before D-038 retired
+the browser client. Its immutable desktop-agent bytes may still contain the
+historical browser assets; browser management is not supported. The next
+release is expected to be browser-free, and that claim will be confirmed
+against its exact published bytes. The Phase 16 exact-artifact acceptance
+record is planned as P16.29 and has not been completed.
 
 This document defines the command-install shape for the standalone MSC 2
 headless artifacts. It is deliberately separate from the operating-system
 service contract: putting `msc` on a user's PATH must not be confused with
 registering, starting, stopping, or removing the management service.
 
-The supported headless control surface is the scriptable CLI in the same
-binary as the agent. The command is `msc` on macOS and Linux and `msc.exe` on
-Windows. The management service listens on `127.0.0.1:48001` by default.
+The supported control surfaces are the Tauri desktop app and the scriptable
+CLI in the same binary as the agent. The command is `msc` on macOS and Linux
+and `msc.exe` on Windows. A headless host is managed from its CLI or remotely
+from a Tauri desktop app or CLI. The management service listens on
+`127.0.0.1:48001` by default.
 
-No standalone headless archive contains or serves the browser UI. Their
-authenticated API and CLI remain available, so a desktop app or CLI on another
-computer can manage the host. The macOS `.dmg`, Windows `.msi`, and Linux
-`.deb`/`.rpm` desktop packages include the browser-serving agent. No graphical
-desktop is required to run the headless agent; that requirement is separate
-from whether an installation serves a browser page.
+No installation type is promised as a browser client. The agent provides the
+authenticated API used by supported desktop and CLI clients. No graphical
+desktop is required to run the headless agent.
 
 ## Current published support
 
@@ -41,7 +44,7 @@ report their minimum supported client version and refuse clients below that
 floor; keep the client and agent current. Security support is limited to the
 latest stable release under `SECURITY.md`; v0.1.16 is a prerelease, and there
 is not yet a stable release eligible for that policy. Phase 16 exact-artifact
-acceptance is planned as P16.24 and has not been recorded yet.
+acceptance is planned as P16.29 and has not been recorded yet.
 
 ## Artifact set
 

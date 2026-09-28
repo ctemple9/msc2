@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 16 execution is underway. P16.1–P16.27 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
-> **Next move:** Cameron runs the P16.26 and P16.27 verification commands. P16.1–P16.27 remain awaiting his verification.
+> ## STATUS: Phase 16 execution is underway. P16.1–P16.28 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
+> **Next move:** Cameron runs the P16.26–P16.28 verification commands. P16.1–P16.28 remain awaiting his verification.
 
 ## How this document works
 
@@ -268,8 +268,8 @@ Batch: solo
 
 #### P16.28 — Publish the revised support matrix
 
-Status: planned — awaiting Cameron's review
-Files: README.md, docs/msc2/clients/headless-installation.md, docs/msc2/clients/phase12-release.md, docs/msc2/clients/remote-access.md, docs/msc2/client-capability-matrix.csv, tools/phase6/capability-matrix-check.py, docs/msc2/rolling-plan.md
+Status: implemented — awaiting Cameron's verification
+Files: README.md, docs/msc2/clients/headless-installation.md, docs/msc2/clients/phase12-release.md, docs/msc2/clients/remote-access.md, docs/msc2/client-capability-matrix.csv, tools/phase6/capability-matrix-check.py, tools/phase8/phase8-check.py, tools/phase11/phase11-check.py, docs/msc2/rolling-plan.md
 What: Replace active browser-client promises with desktop and CLI support, including headless hosts controlled by a remote desktop or CLI. Rename the matrix's combined Desktop/Web column to Desktop and reconcile its remaining rows with the revised API contract. Keep the Phase 12 release and acceptance files as dated evidence: the already-published v0.1.16 bytes may still contain browser assets, so public release status must distinguish that historical artifact from the next browser-free release until new exact bytes are published. Record that no browser installation type is promised going forward.
 Verify: Run `python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv` and inspect the README support table against the published release and the revised client matrix.
 Batch: solo

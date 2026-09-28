@@ -9,8 +9,8 @@ Built by ctemple9
 > built to manage the server behind that group.
 
 MSC 2 runs Minecraft servers on a computer you own and gives you a desktop
-app, desktop browser, or terminal interface to manage them. Running a server
-still involves server files, Java settings, network ports, and configuration.
+app or terminal interface to manage them. Running a server still involves
+server files, Java settings, network ports, and configuration.
 MSC 2 puts as much of that as possible into guided controls and explains the
 rest as you go, so you can learn what you need without having to master
 everything first.
@@ -21,13 +21,19 @@ The newest published build is [MSC 2 v0.1.16](https://github.com/ctemple9/msc2/r
 an unsigned prerelease. There is no stable release yet. Download the
 platform-specific installer or archive from that release page and verify its
 entry in `SHA256SUMS` before installing. The Phase 16 acceptance record
-(planned as P16.24) does not exist yet, so this prerelease is not presented as
+(planned as P16.29) does not exist yet, so this prerelease is not presented as
 having passed the full release acceptance gate.
 
-| Installation | Published platform and architecture | Browser UI served by the host agent |
+| Installation | Published platform and architecture | Supported control surface |
 |---|---|---|
-| Desktop app | macOS Intel (`x86_64`) and Apple Silicon (`aarch64`); Windows 64-bit (`x86_64`); Linux 64-bit (`x86_64`) as `.deb` and `.rpm` | Yes |
-| Headless agent | macOS Intel (`x86_64`) and Apple Silicon (`aarch64`); Windows 64-bit (`x86_64`); Linux 64-bit (`x86_64`) | No; use the desktop app or CLI from another computer |
+| Desktop app | macOS Intel (`x86_64`) and Apple Silicon (`aarch64`); Windows 64-bit (`x86_64`); Linux 64-bit (`x86_64`) as `.deb` and `.rpm` | Tauri desktop app |
+| Headless agent | macOS Intel (`x86_64`) and Apple Silicon (`aarch64`); Windows 64-bit (`x86_64`); Linux 64-bit (`x86_64`) | CLI on the host; remote Tauri desktop app or CLI |
+
+The published v0.1.16 bytes predate the approved browser-client retirement.
+Those immutable files may still contain browser assets, but MSC no longer
+supports browser management or promises a browser installation type. The next
+published release will use the browser-free build; that status will be tied to
+its exact published bytes.
 
 The Linux minimum is Debian 12 (Bookworm), or another distribution with
 `systemd` 250 or newer. Linux `.deb` and `.rpm` desktop packages are built for
@@ -150,14 +156,11 @@ MSC 2 has one part that runs your servers and several ways to control it.
   monitor attached.
 - **The desktop app** gives you a graphical interface on the same computer or
   another computer.
-- **The desktop browser** lets you manage a screenless server from another
-  computer when the host installation includes the browser UI.
 - **The CLI** gives you a scriptable terminal interface when you want
   automation or prefer the command line.
 
-The server keeps running when you close the desktop app, close your browser,
-or sign out. The app is a control panel; it is not the thing keeping Minecraft
-alive.
+The server keeps running when you close the desktop app or sign out. The app
+is a control panel; it is not the thing keeping Minecraft alive.
 
 ## A simple way to think about it
 
@@ -165,8 +168,8 @@ If you are new to servers, there are two computers to think about:
 
 1. The **host** is the computer that runs the Minecraft world. It can sit in a
    closet with the lid closed and no monitor attached.
-2. The **control device** is the computer where you open the MSC 2 app, browser,
-   or CLI to make changes.
+2. The **control device** is the computer where you open the MSC 2 app or CLI
+   to make changes.
 
 They can be the same computer. They can also be different computers. The
 players' consoles, phones, and gaming PCs are separate again: they connect to
@@ -181,9 +184,6 @@ app already includes the MSC 2 agent; you do not need to download both.
   computer.
 - Use the **headless agent** when the server computer has no monitor or desktop
   environment. Manage it from another computer with the desktop app or CLI.
-No standalone headless archive serves a browser page; use a desktop
-installation that includes the browser UI if you want that page.
-
 ### macOS desktop — Intel and Apple Silicon Macs
 
 Download the matching macOS disk image from the [v0.1.16 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.16), open it, and drag MSC 2 into your Applications folder. Intel Macs include the local Bedrock runtime. Apple Silicon Macs include the app and Java runtime support, but no local Bedrock VM; Bedrock servers can still be managed on a compatible remote host.
@@ -216,10 +216,8 @@ Windows. The archive's `HEADLESS-INSTALL.md` describes the platform-specific
 command location, PATH ownership, upgrade/uninstall boundary, and the separate
 operating-system service installation.
 
-None of the standalone headless archives includes the browser UI. Their API
-and CLI still work, including for a desktop app on another computer. A host
-needing no graphical desktop is a separate question from whether its agent
-serves a browser page.
+The headless agent exposes its authenticated API and CLI. A Tauri desktop app
+or CLI on another computer can manage it over a supported network route.
 
 Each standalone headless archive includes a platform command installer and
 uninstaller. macOS archives contain `install.sh` and `uninstall.sh`, Windows

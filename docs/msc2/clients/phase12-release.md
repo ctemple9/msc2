@@ -3,6 +3,10 @@
 **Status:** Historical packaging contract for the first beta artifact set
 accepted in P12.59. It is not current-release acceptance evidence. See the
 [current support and release status](../../../README.md#current-release-and-support).
+The v0.1.16 release predates D-038 and may retain the browser assets described
+below. They are historical artifact contents, not a supported client promise.
+The next release is planned to be browser-free; its exact published bytes must
+be checked before that release status is claimed.
 **Date:** 2026-09-04
 **Authority:** `MSC2-VISION.md`, `msc2-decisions.md`,
 `msc2-engineering.md`, and the Phase 12 port-plan entry

@@ -88,7 +88,7 @@ def check_matrix() -> list[str]:
         "method",
         "path",
         "agent_status",
-        "desktop_web_status",
+        "desktop_status",
         "cli_status",
         "notes",
     }
@@ -100,25 +100,25 @@ def check_matrix() -> list[str]:
             "method",
             "path",
             "agent_status",
-            "desktop_web_status",
+            "desktop_status",
             "cli_status",
         ):
             if not row.get(column, "").strip():
                 fail(f"blank matrix field: {row.get('method')} {row.get('path')} {column}")
-        if row["desktop_web_status"] not in {"Implemented", "Planned"}:
-            fail(f"invalid Desktop/Web status: {row['desktop_web_status']}")
+        if row["desktop_status"] not in {"Implemented", "Planned"}:
+            fail(f"invalid Desktop status: {row['desktop_status']}")
     planned = {
         (row["method"], row["path"])
         for row in rows
-        if row["desktop_web_status"] == "Planned"
+        if row["desktop_status"] == "Planned"
     }
     if planned != ALLOWED_DESKTOP_PLANNED:
         fail(
-            "Desktop/Web Planned set drifted: "
+            "Desktop Planned set drifted: "
             f"missing={sorted(ALLOWED_DESKTOP_PLANNED - planned)} "
             f"unexpected={sorted(planned - ALLOWED_DESKTOP_PLANNED)}"
         )
-    return [f"{len(rows)} contract operations reconciled; {len(planned)} explicit Desktop/Web future rows"]
+    return [f"{len(rows)} contract operations reconciled; {len(planned)} explicit Desktop future rows"]
 
 
 def require_fragments(relative: str, fragments: tuple[str, ...]) -> None:

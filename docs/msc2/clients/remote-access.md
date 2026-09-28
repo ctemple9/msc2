@@ -1,7 +1,8 @@
 # MSC 2 remote access boundary
 
 **Status:** P14.17 documentation; the implementation and connection lifecycle
-are defined by P14.11–P14.16.
+are defined by P14.11–P14.16. Current remote management clients are the Tauri
+desktop app and CLI; the agent API does not provide a browser client.
 
 MSC does not provide a cloud relay and does not require Tailscale. A client and
 agent on different computers need a reachable path that the operator controls:

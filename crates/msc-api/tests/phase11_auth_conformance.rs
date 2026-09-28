@@ -1,8 +1,6 @@
-//! P11.21 freezes the browser/desktop authentication boundary before either
-//! implementation starts. These checks keep later auth work on the public
-//! `/v1` contract instead of an unreviewed private protocol.
+//! The desktop pairing boundary remains part of the public `/v1` contract.
 
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::path::Path;
 
 fn contract() -> Value {
@@ -27,37 +25,9 @@ fn assert_required_fields(contract: &Value, name: &str, expected: &[&str]) {
 }
 
 #[test]
-fn phase11_auth_conformance_routes_are_additive_and_use_error_dto() {
+fn phase11_auth_conformance_keeps_desktop_pairing_on_the_public_contract() {
     let contract = contract();
     let expected = [
-        (
-            "/v1/auth/pairings",
-            "post",
-            "createPairing",
-            "bearer-admin",
-            "admin",
-        ),
-        (
-            "/v1/auth/browser-sessions",
-            "post",
-            "exchangeBrowserSession",
-            "same-origin-pairing-code",
-            "none",
-        ),
-        (
-            "/v1/auth/csrf",
-            "get",
-            "getCsrfToken",
-            "browser-session",
-            "none",
-        ),
-        (
-            "/v1/auth/browser-sessions/current",
-            "delete",
-            "logoutBrowserSession",
-            "browser-session-csrf",
-            "none",
-        ),
         (
             "/v1/auth/desktop-pairings",
             "post",
@@ -91,33 +61,9 @@ fn phase11_auth_conformance_routes_are_additive_and_use_error_dto() {
 }
 
 #[test]
-fn phase11_auth_conformance_dtos_keep_secrets_out_of_browser_results() {
+fn phase11_auth_conformance_desktop_pairing_keeps_secrets_in_the_native_boundary() {
     let contract = contract();
 
-    assert_required_fields(
-        &contract,
-        "PairingCreateRequestDTO",
-        &["clientKind", "label", "role", "permissions"],
-    );
-    assert_eq!(
-        schema(&contract, "PairingCreateRequestDTO")["properties"]["clientKind"]["enum"],
-        json!(["browser", "desktop"])
-    );
-    assert_required_fields(
-        &contract,
-        "PairingCreateResultDTO",
-        &["pairingCode", "agentHostId", "clientKind", "expiresAt"],
-    );
-    assert_required_fields(
-        &contract,
-        "BrowserSessionExchangeRequestDTO",
-        &["pairingCode"],
-    );
-    assert_required_fields(
-        &contract,
-        "CsrfTokenResponseDTO",
-        &["csrfToken", "expiresAt"],
-    );
     assert_required_fields(
         &contract,
         "DesktopPairingExchangeRequestDTO",
@@ -129,40 +75,11 @@ fn phase11_auth_conformance_dtos_keep_secrets_out_of_browser_results() {
         &["agentHostId", "credentialId", "token"],
     );
 
-    let browser_exchange = &contract["paths"]["/v1/auth/browser-sessions"]["post"];
-    assert!(
-        browser_exchange["responses"]["204"]["content"].is_null(),
-        "a browser exchange must set an httpOnly cookie, not return a secret body"
-    );
     assert_eq!(
         contract["paths"]["/v1/auth/desktop-pairings"]["post"]["responses"]["200"]["content"]["application/json"]
             ["schema"]["$ref"],
         "#/components/schemas/DesktopCredentialResultDTO"
     );
-}
-
-#[test]
-fn phase11_auth_conformance_requires_origin_and_csrf_without_weakening_bearer() {
-    let contract = contract();
-    let policy = &contract["x-authentication"];
-    let default = policy["default"]
-        .as_str()
-        .expect("default authentication policy");
-    let origin = policy["browserOrigin"].as_str().expect("origin policy");
-    let mutation = policy["cookieMutation"].as_str().expect("CSRF policy");
-    let cookie = policy["sessionCookie"].as_str().expect("cookie policy");
-    let local = policy["localDesktopBootstrap"]
-        .as_str()
-        .expect("local desktop policy");
-
-    assert!(default.contains("Bearer") && default.contains("takes precedence"));
-    assert!(origin.contains("exactly match") && origin.contains("No permissive CORS"));
-    assert!(
-        mutation.contains("X-MSC-CSRF")
-            && mutation.contains("Bearer-authenticated requests are exempt")
-    );
-    assert!(cookie.contains("httpOnly") && cookie.contains("SameSite=Strict"));
-    assert!(local.contains("local IPC") && local.contains("never an HTTP loopback exception"));
 }
 
 #[test]

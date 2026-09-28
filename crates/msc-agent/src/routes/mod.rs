@@ -3,7 +3,6 @@
 pub mod backups;
 pub mod bedrock;
 pub mod bedrock_runtime;
-pub mod browser_session;
 pub mod capabilities;
 pub mod commands;
 pub mod components;

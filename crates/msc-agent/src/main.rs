@@ -248,40 +248,15 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
     // P7.24 replaces its Phase 2 canned card with real health-card data,
     // which needs the same `LifecycleRoutesState` every protected route
     // reads.
-    let browser_pairings = Router::new()
-        .route(
-            "/auth/pairings",
-            post(routes::browser_session::create_pairing),
-        )
-        .layer(Extension(auth_state.clone()))
-        .route_layer(axum::middleware::from_fn_with_state(
-            auth_state.clone(),
-            auth::require_bearer_token,
-        ));
-    let browser_public = Router::new()
-        .route(
-            "/auth/browser-sessions",
-            post(routes::browser_session::exchange_browser_session),
-        )
-        .layer(Extension(auth_state.clone()));
     let desktop_public = Router::new()
         .route(
             "/auth/desktop-pairings",
             post(routes::desktop_session::exchange_desktop_pairing),
         )
         .layer(Extension(auth_state.clone()));
-    let browser_protected = Router::new()
-        .route("/auth/csrf", get(routes::browser_session::csrf_token))
-        .route(
-            "/auth/browser-sessions/current",
-            delete(routes::browser_session::logout_browser_session),
-        );
-
     let public = Router::new()
         .route("/health", get(routes::health::health))
         .route("/healthz", get(routes::health::healthz))
-        .merge(browser_pairings)
-        .merge(browser_public)
         .merge(desktop_public)
         .with_state(lifecycle_state.clone());
 
@@ -476,7 +451,6 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
         .merge(backups)
         .merge(users)
         .merge(routes::help::router(help_content))
-        .merge(browser_protected)
         .layer(Extension(networking_state))
         .layer(Extension(auth_state.clone()))
         .route_layer(axum::middleware::from_fn_with_state(

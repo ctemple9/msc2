@@ -1,5 +1,5 @@
 //! Phase 4 CLI commands. Every subcommand except `serve` talks to the
-//! same HTTP API the supported desktop and browser clients use.
+//! same HTTP API the supported desktop client uses.
 
 pub mod pairing;
 pub mod service;

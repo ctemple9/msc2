@@ -1,8 +1,8 @@
 //! Authenticated HTTP transport for the one-shot CLI.
 //!
-//! Named CLI commands use the same management API as the desktop and browser
+//! Named CLI commands use the same management API as the desktop
 //! clients. This module owns only request construction and response decoding;
-//! WebSocket streams remain agent routes for the graphical clients, not part of
+//! WebSocket streams remain agent routes for the desktop client, not part of
 //! this one-shot command transport.
 
 use axum::http::{Method, StatusCode, Uri};

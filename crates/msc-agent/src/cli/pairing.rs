@@ -13,8 +13,8 @@ pub enum PairingCommand {
 
 #[derive(Debug, Clone, Args)]
 pub struct CreatePairingArgs {
-    /// The client that will redeem the code.
-    #[arg(long, default_value = "desktop", value_parser = ["desktop", "browser"])]
+    /// The supported client that will redeem the code.
+    #[arg(long, default_value = "desktop", value_parser = ["desktop"])]
     pub client_kind: String,
 
     /// A label recorded with the newly-issued administrator credential.
@@ -48,7 +48,7 @@ pub fn run(common: CommonArgs, command: PairingCommand) -> Result<(), CliError> 
             PairingCommand::Create(args) => {
                 let auth = AuthState::default_persistent_service_store();
                 let pairing = auth
-                    .create_host_local_pairing(&args.client_kind, args.label)
+                    .create_host_local_pairing(args.label)
                     .map_err(CliError::internal)?;
                 let output = PairingOutput {
                     pairing_code: pairing.pairing_code,

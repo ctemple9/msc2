@@ -506,7 +506,7 @@ pub async fn health(State(state): State<LifecycleRoutesState>) -> Response {
     // Tauri window's own webview loads its dev-mode UI from a plain
     // `http://` devUrl origin distinct from the agent's, and the shell's
     // pre-credential readiness probe (`localAgentHealthCheck`,
-    // `clients/desktop-web/src/lib/platform/index.ts`) uses a bare browser
+    // `clients/desktop-web/src/lib/platform/index.ts`) uses a bare webview
     // `fetch()` to this one route before any native-bridge credential
     // exists — without this header that probe is silently CORS-blocked and
     // the shell never gets past "Agent starting" in a dev-mode desktop

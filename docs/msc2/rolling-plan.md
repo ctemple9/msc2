@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 16 execution is underway. P16.1–P16.25 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
-> **Next move:** Cameron runs the P16.25 verification command. P16.1–P16.25 remain awaiting his verification.
+> ## STATUS: Phase 16 execution is underway. P16.1–P16.26 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
+> **Next move:** Cameron runs the P16.26 verification command. P16.1–P16.26 remain awaiting his verification.
 
 ## How this document works
 
@@ -252,8 +252,8 @@ Batch: solo
 
 #### P16.26 — Remove browser sessions from the agent contract
 
-Status: planned — awaiting Cameron's review
-Files: crates/msc-agent/src/auth.rs, crates/msc-agent/src/auth/browser.rs, crates/msc-agent/src/routes/browser_session.rs, crates/msc-agent/src/main.rs, crates/msc-agent/src/cli/pairing.rs, crates/msc-agent/src/ws, crates/msc-agent/tests, docs/msc2/api-contract/openapi.json, docs/msc2/api-contract/websocket-v1.json, clients/desktop-web/src/lib/api/generated.ts, docs/msc2/client-capability-matrix.csv, docs/msc2/rolling-plan.md
+Status: implemented — awaiting Cameron's verification
+Files: crates/msc-agent/src/auth.rs, crates/msc-agent/src/auth/browser.rs, crates/msc-agent/src/routes/browser_session.rs, crates/msc-agent/src/routes/mod.rs, crates/msc-agent/src/routes/health.rs, crates/msc-agent/src/main.rs, crates/msc-agent/src/cli/pairing.rs, crates/msc-agent/src/cli/mod.rs, crates/msc-agent/src/cli/transport.rs, crates/msc-agent/src/ws, crates/msc-agent/tests, crates/msc-api/tests/phase11_auth_conformance.rs, docs/msc2/api-contract/openapi.json, docs/msc2/api-contract/websocket-v1.json, clients/desktop-web/src/lib/api/generated.ts, docs/msc2/client-capability-matrix.csv, docs/msc2/rolling-plan.md
 What: Remove browser session cookies, browser-session and CSRF routes, the browser branch of shared pairing, browser-only authorization branches, and browser session revocation from HTTP/WebSocket handling. Remove browser pairing from the local CLI and regenerate API types; keep desktop/named-token permissions, revocation, desktop pairing, and stream lifetime behavior. Remove only browser-specific existing checks and contract rows. Old browser cookies must not authorize any retained route, and desktop/CLI routes remain intact.
 Verify: Run `cargo check -p msc-agent -p msc-api`.
 Batch: solo

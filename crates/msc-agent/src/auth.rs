@@ -12,8 +12,6 @@
 //! value at `remote-api.token.<credential-id>` is the authority for whether
 //! a token can authenticate.
 
-#[path = "auth/browser.rs"]
-mod browser;
 #[path = "auth/desktop.rs"]
 pub(crate) mod desktop;
 #[cfg(target_os = "macos")]
@@ -55,11 +53,6 @@ use subtle::ConstantTimeEq;
 use tokio::sync::watch;
 
 #[allow(unused_imports)]
-pub(crate) use browser::{
-    BrowserSessionError, CreateBrowserPairing, cleared_session_cookie, request_has_exact_origin,
-    request_uses_https, session_cookie,
-};
-#[allow(unused_imports)]
 pub(crate) use desktop::DesktopPairingError;
 
 const TOKEN_PREFIX: &str = "msc2";
@@ -67,8 +60,6 @@ const SECRET_STORE_KEY_PREFIX: &str = "remote-api.token.";
 const HASH_ALGORITHM: &str = "sha1-salted-v1";
 const AUTH_FAILURE_WINDOW: Duration = Duration::from_secs(60);
 const AUTH_FAILURE_LIMIT: usize = 10;
-const PAIRING_CREATE_WINDOW: Duration = Duration::from_secs(5);
-const PAIRING_CREATE_LIMIT: usize = 10;
 const CONSOLE_STREAM_TICKET_TTL: Duration = Duration::from_secs(60 * 60);
 const PAIRING_INDEX_KEY: &str = "remote-api.pairing-index";
 
@@ -95,20 +86,9 @@ tokio::task_local! {
     pub(crate) static INITIATING_CREDENTIAL: AuthenticatedCredential;
 }
 
-/// The browser-only information retained while a request is authenticated by
-/// an httpOnly session cookie. It is deliberately separate from
-/// `AuthenticatedCredential`: route handlers receive the same permission
-/// principal whichever supported credential form authenticated the request.
-#[derive(Debug, Clone)]
-pub(crate) struct BrowserSessionAuthentication {
-    pub session_id: String,
-    pub csrf_token: String,
-}
-
 #[derive(Clone)]
 pub(crate) struct StreamAuthentication {
     pub credential: AuthenticatedCredential,
-    pub session: Option<BrowserSessionAuthentication>,
 }
 
 #[derive(Debug, Clone)]
@@ -197,9 +177,7 @@ struct AuthStateInner {
     secret_store: Arc<dyn SecretStore + Send + Sync>,
     registry: Mutex<HashMap<String, CredentialRecord>>,
     failures: Mutex<HashMap<String, VecDeque<Instant>>>,
-    pairing_creations: Mutex<HashMap<String, VecDeque<Instant>>>,
     pairing_keys: Mutex<HashSet<String>>,
-    session_keys: Mutex<HashSet<String>>,
     console_stream_tickets: Mutex<HashMap<String, ConsoleStreamTicket>>,
     audit_events: Mutex<Vec<AuthAuditEvent>>,
     stream_changes: watch::Sender<u64>,
@@ -329,9 +307,7 @@ impl AuthState {
                 secret_store,
                 registry: Mutex::new(registry),
                 failures: Mutex::new(HashMap::new()),
-                pairing_creations: Mutex::new(HashMap::new()),
                 pairing_keys: Mutex::new(HashSet::new()),
-                session_keys: Mutex::new(HashSet::new()),
                 console_stream_tickets: Mutex::new(HashMap::new()),
                 audit_events: Mutex::new(Vec::new()),
                 stream_changes,
@@ -550,29 +526,6 @@ impl AuthState {
             .map(|record| summary_from_record(credential_id, record, SystemTime::now()))
     }
 
-    pub(crate) fn credential_for_browser_session(
-        &self,
-        credential_id: &str,
-    ) -> Result<AuthenticatedCredential, BrowserSessionError> {
-        let registry = self.inner.registry.lock().unwrap();
-        let record = registry
-            .get(credential_id)
-            .ok_or(BrowserSessionError::Unauthorized)?;
-        if record.revoked
-            || record
-                .expires_at
-                .is_some_and(|expiry| SystemTime::now() >= expiry)
-        {
-            return Err(BrowserSessionError::Unauthorized);
-        }
-        Ok(AuthenticatedCredential {
-            credential_id: credential_id.to_string(),
-            label: record.label.clone(),
-            role: record.role,
-            permissions: record.permissions.clone(),
-        })
-    }
-
     fn notify_streams(&self) {
         self.inner
             .stream_changes
@@ -584,16 +537,15 @@ impl AuthState {
     }
 
     pub(crate) fn stream_is_authorized(&self, identity: &StreamAuthentication) -> bool {
-        if self
-            .credential_for_browser_session(&identity.credential.credential_id)
-            .is_err()
-        {
-            return false;
-        }
-        identity
-            .session
-            .as_ref()
-            .is_none_or(|session| self.browser_session_is_active(session).unwrap_or(false))
+        let registry = self.inner.registry.lock().unwrap();
+        registry
+            .get(&identity.credential.credential_id)
+            .is_some_and(|record| {
+                !record.revoked
+                    && record
+                        .expires_at
+                        .is_none_or(|expiry| SystemTime::now() < expiry)
+            })
     }
 
     /// Migrates a P5.8 legacy owner token into the Phase 4 credential
@@ -696,7 +648,6 @@ impl AuthState {
             keys.extend(indexed_keys);
         }
         keys.extend(self.inner.pairing_keys.lock().unwrap().iter().cloned());
-        keys.extend(self.inner.session_keys.lock().unwrap().iter().cloned());
         keys.extend([
             LEGACY_OWNER_TOKEN_SECRET_KEY.to_string(),
             "remote-api.guest-token".to_string(),
@@ -717,7 +668,6 @@ impl AuthState {
             self.inner.secret_store.delete(&key)?;
         }
         self.inner.pairing_keys.lock().unwrap().clear();
-        self.inner.session_keys.lock().unwrap().clear();
         self.notify_streams();
         {
             let mut registry = self.inner.registry.lock().unwrap();
@@ -759,53 +709,23 @@ impl AuthState {
         self.inner.pairing_keys.lock().unwrap().remove(key);
     }
 
-    pub(crate) fn track_session_key(&self, key: String) {
-        self.inner.session_keys.lock().unwrap().insert(key);
-    }
-
-    pub(crate) fn forget_session_key(&self, key: &str) {
-        self.inner.session_keys.lock().unwrap().remove(key);
-    }
-
     #[allow(dead_code)]
     pub(crate) fn create_host_local_pairing(
         &self,
-        client_kind: &str,
         label: String,
     ) -> Result<HostLocalPairing, String> {
-        match client_kind {
-            "desktop" => self
-                .create_desktop_pairing(desktop::CreateDesktopPairing {
-                    label,
-                    role: CredentialRole::Admin,
-                    permissions: all_permissions(),
-                    expires_at: None,
-                })
-                .map(|pairing| HostLocalPairing {
-                    pairing_code: pairing.pairing_code,
-                    agent_host_id: pairing.agent_host_id,
-                    expires_at: pairing.expires_at,
-                })
-                .map_err(|error| error.to_string()),
-            "browser" => self
-                .create_browser_pairing(browser::CreateBrowserPairing {
-                    label,
-                    role: CredentialRole::Admin,
-                    permissions: all_permissions(),
-                    expires_at: None,
-                })
-                .map_err(|error| error.to_string())
-                .and_then(|pairing| {
-                    self.agent_host_id()
-                        .map_err(|error| error.to_string())
-                        .map(|agent_host_id| HostLocalPairing {
-                            pairing_code: pairing.pairing_code,
-                            agent_host_id,
-                            expires_at: pairing.expires_at,
-                        })
-                }),
-            _ => Err("client kind must be 'desktop' or 'browser'".to_string()),
-        }
+        self.create_desktop_pairing(desktop::CreateDesktopPairing {
+            label,
+            role: CredentialRole::Admin,
+            permissions: all_permissions(),
+            expires_at: None,
+        })
+        .map(|pairing| HostLocalPairing {
+            pairing_code: pairing.pairing_code,
+            agent_host_id: pairing.agent_host_id,
+            expires_at: pairing.expires_at,
+        })
+        .map_err(|error| error.to_string())
     }
 
     /// Shared by [`Self::issue_credential`] (fresh random `secret`) and
@@ -1025,51 +945,9 @@ impl AuthState {
                 code: code.to_string(),
             });
     }
-
-    pub(crate) fn record_browser_audit(&self, actor: &str, status: StatusCode, code: &str) {
-        self.record_audit(actor, status, code);
-    }
-
-    pub(crate) fn browser_failure_is_rate_limited(&self, client_key: &str) -> bool {
-        self.record_failure_is_limited(client_key)
-    }
-
-    pub(crate) fn browser_pairing_creation_is_rate_limited(&self, actor: &str) -> bool {
-        let now = Instant::now();
-        let mut attempts = self.inner.pairing_creations.lock().unwrap();
-        let entries = attempts.entry(actor.to_string()).or_default();
-        while entries
-            .front()
-            .is_some_and(|oldest| now.duration_since(*oldest) > PAIRING_CREATE_WINDOW)
-        {
-            entries.pop_front();
-        }
-        entries.push_back(now);
-        entries.len() > PAIRING_CREATE_LIMIT
-    }
 }
 
-pub async fn require_bearer_token(
-    State(auth): State<AuthState>,
-    mut request: Request,
-    next: Next,
-) -> Response {
-    match auth.authenticate_headers(request.headers(), "unknown-client") {
-        Ok(credential) => {
-            request.extensions_mut().insert(credential.clone());
-            INITIATING_CREDENTIAL
-                .scope(credential, next.run(request))
-                .await
-        }
-        Err(AuthError::RateLimited) => rate_limited(),
-        Err(AuthError::SecretStore(message)) => internal_error(message),
-        Err(_) => unauthorized(),
-    }
-}
-
-/// Authenticates an existing management route. Bearer credentials take
-/// precedence over a browser cookie so a desktop/CLI request keeps its
-/// established behavior even if a browser session happens to be present.
+/// Authenticates a management route with a named bearer credential.
 pub(crate) async fn require_management_auth(
     State(auth): State<AuthState>,
     mut request: Request,
@@ -1081,94 +959,26 @@ pub(crate) async fn require_management_auth(
         request.extensions_mut().insert(credential.clone());
         request.extensions_mut().insert(StreamAuthentication {
             credential: credential.clone(),
-            session: None,
         });
         return INITIATING_CREDENTIAL
             .scope(credential, next.run(request))
             .await;
     }
 
-    let bearer_was_present = request.headers().contains_key(header::AUTHORIZATION);
-    if bearer_was_present {
-        return match auth.authenticate_headers(request.headers(), "unknown-client") {
-            Ok(credential) => {
-                request.extensions_mut().insert(credential.clone());
-                request.extensions_mut().insert(StreamAuthentication {
-                    credential: credential.clone(),
-                    session: None,
-                });
-                INITIATING_CREDENTIAL
-                    .scope(credential, next.run(request))
-                    .await
-            }
-            Err(AuthError::RateLimited) => rate_limited(),
-            Err(AuthError::SecretStore(message)) => internal_error(message),
-            Err(_) => unauthorized(),
-        };
-    }
-
-    let session = match auth.authenticate_browser_session(request.headers()) {
-        Ok(session) => session,
-        Err(BrowserSessionError::Unauthorized | BrowserSessionError::Expired) => {
-            return unauthorized();
+    match auth.authenticate_headers(request.headers(), "unknown-client") {
+        Ok(credential) => {
+            request.extensions_mut().insert(credential.clone());
+            request.extensions_mut().insert(StreamAuthentication {
+                credential: credential.clone(),
+            });
+            INITIATING_CREDENTIAL
+                .scope(credential, next.run(request))
+                .await
         }
-        Err(BrowserSessionError::Store(message)) => return internal_error(message),
-        Err(BrowserSessionError::Consumed) => return unauthorized(),
-    };
-
-    if request.headers().contains_key(header::ORIGIN)
-        && !browser::request_has_exact_origin(request.headers())
-    {
-        return forbidden(
-            "wrong_origin",
-            "Browser requests must come from this agent origin.",
-        );
+        Err(AuthError::RateLimited) => rate_limited(),
+        Err(AuthError::SecretStore(message)) => internal_error(message),
+        Err(_) => unauthorized(),
     }
-    if !is_safe_method(request.method())
-        && !browser_mutation_is_authorized(request.headers(), &session.csrf_token)
-    {
-        return forbidden(
-            "csrf_invalid",
-            "A valid CSRF token is required for browser mutations.",
-        );
-    }
-
-    let credential = match auth.credential_for_browser_session(&session.credential_id) {
-        Ok(credential) => credential,
-        Err(_) => return unauthorized(),
-    };
-    request.extensions_mut().insert(credential.clone());
-    request.extensions_mut().insert(StreamAuthentication {
-        credential: credential.clone(),
-        session: Some(BrowserSessionAuthentication {
-            session_id: session.session_id.clone(),
-            csrf_token: session.csrf_token.clone(),
-        }),
-    });
-    request
-        .extensions_mut()
-        .insert(BrowserSessionAuthentication {
-            session_id: session.session_id,
-            csrf_token: session.csrf_token,
-        });
-    INITIATING_CREDENTIAL
-        .scope(credential, next.run(request))
-        .await
-}
-
-pub(crate) fn browser_mutation_is_authorized(headers: &HeaderMap, csrf_token: &str) -> bool {
-    browser::request_has_exact_origin(headers)
-        && headers
-            .get("X-MSC-CSRF")
-            .and_then(|value| value.to_str().ok())
-            .is_some_and(|token| constant_time_eq(token, csrf_token))
-}
-
-fn is_safe_method(method: &axum::http::Method) -> bool {
-    matches!(
-        *method,
-        axum::http::Method::GET | axum::http::Method::HEAD | axum::http::Method::OPTIONS
-    )
 }
 
 fn bearer_token(headers: &HeaderMap) -> Option<&str> {

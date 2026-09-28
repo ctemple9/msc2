@@ -143,10 +143,6 @@ POST,/v1/session-log/clear,,Clear join/leave event history for the active server
 GET,/v1/catalog/projects/{projectId},,Fetch full Modrinth project detail for the catalog browser,none,Implemented,Implemented,Planned,P12.7: Components catalog opens the agent-backed project detail
 GET,/v1/catalog/projects/{projectId}/versions,,Fetch every Modrinth version for a catalog project,none,Implemented,Implemented,Planned,P12.7: Components catalog opens the agent-backed project versions
 POST,/v1/host/reset,resetHost,Reset this host's MSC state,admin,Implemented,Implemented,Planned,P12.19: Settings exposes host reset through an explicit confirmation
-POST,/v1/auth/pairings,createPairing,Create a one-use pairing code for a browser or desktop client,admin,Implemented,Implemented,Planned,P11.29: browser and desktop setup create a one-use pairing code
-POST,/v1/auth/browser-sessions,exchangeBrowserSession,Exchange a browser pairing code for the current browser session,none,Implemented,Implemented,Planned,P11.29: browser auth exchanges the pairing code for an HttpOnly session
-GET,/v1/auth/csrf,getCsrfToken,Get the current browser session's CSRF token,none,Implemented,Implemented,Planned,P11.29: browser mutations obtain the CSRF token
-DELETE,/v1/auth/browser-sessions/current,logoutBrowserSession,Revoke the current browser session,none,Implemented,Implemented,Planned,P11.29: browser auth revokes its current session
 POST,/v1/auth/desktop-pairings,exchangeDesktopPairing,Exchange a desktop pairing code for a host-scoped bearer credential,none,Implemented,Implemented,Planned,P11.29: Tauri auth exchanges pairing for a host-scoped bearer
 GET,/v1/guides/router/search,,Search and match router guides,none,Implemented,Implemented,Planned,P12.16: Handbook router panel uses the agent-served search route
 GET,/v1/guides/router/{guideId},,Compose and resolve one router guide,none,Implemented,Implemented,Planned,P12.16: Handbook router reader uses the agent-served guide route

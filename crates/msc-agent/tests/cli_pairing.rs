@@ -8,19 +8,14 @@ use msc_infrastructure::secret_store::{FakeSecretStore, SecretStore};
 use msc_infrastructure::xbox_broadcast::{alt_password_secret_key, auth_token_secret_key};
 
 #[test]
-fn host_local_pairing_can_issue_browser_and_desktop_recovery_codes() {
+fn host_local_pairing_issues_desktop_recovery_codes() {
     let auth = auth::AuthState::new(Arc::new(FakeSecretStore::new()));
     let desktop = auth
-        .create_host_local_pairing("desktop", "desktop-recovery".to_string())
+        .create_host_local_pairing("desktop-recovery".to_string())
         .expect("desktop recovery pairing");
-    let browser = auth
-        .create_host_local_pairing("browser", "browser-recovery".to_string())
-        .expect("browser recovery pairing");
 
     assert!(desktop.pairing_code.starts_with("pair_"));
-    assert!(browser.pairing_code.starts_with("pair_"));
-    assert_eq!(desktop.agent_host_id, browser.agent_host_id);
-    assert_ne!(desktop.pairing_code, browser.pairing_code);
+    assert!(!desktop.agent_host_id.is_empty());
 }
 
 #[test]

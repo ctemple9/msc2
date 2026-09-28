@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: e31790afddd138828a69cbf27b49cb52b928adac1f6ef5f0a2ad7aefc16f04a5
+// Contract SHA-256: 072788d243268256cb01ae9646ff44acfad9cb84ff5667c456db5aae5769d365
 
 export interface paths {
   '/v1/active-server': {
@@ -190,57 +190,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/v1/auth/browser-sessions': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Exchange a browser pairing code for the current browser session */
-    post: operations['exchangeBrowserSession'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/auth/browser-sessions/current': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    /** Revoke the current browser session */
-    delete: operations['logoutBrowserSession'];
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/auth/csrf': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get the current browser session's CSRF token */
-    get: operations['getCsrfToken'];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   '/v1/auth/desktop-pairings': {
     parameters: {
       query?: never;
@@ -252,23 +201,6 @@ export interface paths {
     put?: never;
     /** Exchange a desktop pairing code for a host-scoped bearer credential */
     post: operations['exchangeDesktopPairing'];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  '/v1/auth/pairings': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Create a one-use pairing code for a browser or desktop client */
-    post: operations['createPairing'];
     delete?: never;
     options?: never;
     head?: never;
@@ -6732,11 +6664,6 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
-    BrowserSessionExchangeRequestDTO: {
-      pairingCode: string;
-    } & {
-      [key: string]: unknown;
-    };
     /** @description P2.6 SS3 -- GET /v1/capabilities response; P12.28 adds optional version-aware worldSettings. */
     CapabilitiesDTO: {
       agentVersion: string;
@@ -7066,13 +6993,6 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
-    CsrfTokenResponseDTO: {
-      /** @description Opaque token echoed in X-MSC-CSRF for cookie-authenticated mutations. */
-      csrfToken: string;
-      expiresAt: string;
-    } & {
-      [key: string]: unknown;
-    };
     CurseForgeApiKeyStatusDTO: {
       /** @description Whether a CurseForge API key is stored in the host secret store. The key itself is never returned. */
       configured: boolean;
@@ -7157,7 +7077,7 @@ export interface components {
         | null;
       /** @description Optional pointer into GET /v1/help/{helpId} (P2.2). */
       helpId?: string | null;
-      /** @description Human-readable text for the supported desktop, browser, and CLI clients. */
+      /** @description Human-readable text for the supported desktop and CLI clients. */
       message: string;
     } & {
       [key: string]: unknown;
@@ -7577,29 +7497,6 @@ export interface components {
       target?: string | null;
       /** @description Kind of work, e.g. demo-install. Not a closed enum -- new values are additive (P2.5 SS2). */
       type: string;
-    } & {
-      [key: string]: unknown;
-    };
-    /** @description An administrator's requested browser or desktop grant. The resulting code is one-use and shown once. */
-    PairingCreateRequestDTO: {
-      /** @enum {string} */
-      clientKind: 'browser' | 'desktop';
-      /** @description Optional credential expiry. Pairing-code expiry is always ten minutes. */
-      expiresAt?: string | null;
-      label: string;
-      permissions: string[];
-      /** @enum {string} */
-      role: 'admin' | 'guest' | 'named';
-    } & {
-      [key: string]: unknown;
-    };
-    PairingCreateResultDTO: {
-      agentHostId: string;
-      /** @enum {string} */
-      clientKind: 'browser' | 'desktop';
-      expiresAt: string;
-      /** @description Raw 256-bit pairing code, returned only by POST /v1/auth/pairings. */
-      pairingCode: string;
     } & {
       [key: string]: unknown;
     };
@@ -9063,129 +8960,6 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-  exchangeBrowserSession: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['BrowserSessionExchangeRequestDTO'];
-      };
-    };
-    responses: {
-      /** @description Session created; sets the httpOnly msc2_session cookie */
-      204: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description invalid_body */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ErrorDTO'];
-        };
-      };
-      /** @description forbidden (wrong Origin) */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ErrorDTO'];
-        };
-      };
-      /** @description pairing_consumed */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ErrorDTO'];
-        };
-      };
-      /** @description pairing_expired */
-      410: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ErrorDTO'];
-        };
-      };
-      /** @description rate_limited */
-      429: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ErrorDTO'];
-        };
-      };
-    };
-  };
-  logoutBrowserSession: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Session revoked and msc2_session cleared */
-      204: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description unauthorized */
-      401: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ErrorDTO'];
-        };
-      };
-      /** @description forbidden (wrong Origin or missing/bad X-MSC-CSRF) */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ErrorDTO'];
-        };
-      };
-    };
-  };
-  getCsrfToken: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description CSRF token; Cache-Control is no-store */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['CsrfTokenResponseDTO'];
-        };
-      };
-    };
-  };
   exchangeDesktopPairing: {
     parameters: {
       query?: never;
@@ -9228,57 +9002,6 @@ export interface operations {
       };
       /** @description pairing_expired */
       410: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ErrorDTO'];
-        };
-      };
-      /** @description rate_limited */
-      429: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ErrorDTO'];
-        };
-      };
-    };
-  };
-  createPairing: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['PairingCreateRequestDTO'];
-      };
-    };
-    responses: {
-      /** @description Pairing code created; the code is shown only in this response */
-      201: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['PairingCreateResultDTO'];
-        };
-      };
-      /** @description invalid_body */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          'application/json': components['schemas']['ErrorDTO'];
-        };
-      };
-      /** @description forbidden (non-admin credential) */
-      403: {
         headers: {
           [name: string]: unknown;
         };

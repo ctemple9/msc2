@@ -97,10 +97,6 @@ fn native_setup_is_networking_scoped_and_uses_the_shared_operation_model() {
         setup["x-security-boundary"]["agentKey"],
         "stored-host-scoped-and-never-returned"
     );
-    assert_eq!(
-        setup["x-security-boundary"]["browserApiClient"],
-        "forbidden"
-    );
     assert_eq!(setup["x-error-codes"].as_array().unwrap().len(), 11);
     assert_eq!(
         contract()["paths"]["/v1/playit"]["get"]["x-tunnel-inventory"]["names"]["voice"],

@@ -133,7 +133,7 @@
       const params = new URLSearchParams();
       if (bedrock) params.set('kind', packKind);
       if (query.trim()) params.set('q', query.trim());
-      if (!bedrock && selectedMinecraftVersion.trim()) {
+      if (selectedMinecraftVersion.trim()) {
         params.set('gameVersion', selectedMinecraftVersion.trim());
       }
       const path = `${bedrock ? '/v1/catalog/behaviorpacks' : '/v1/catalog/datapacks'}?${params}`;
@@ -392,8 +392,13 @@
             <Button
               size="sm"
               variant="secondary"
-              disabled={!!installing}
-              onclick={() => void showBedrockDetail(item)}>Versions</Button
+              disabled={!!installing || !selectedMinecraftVersion || item.fileId <= 0}
+              title={!selectedMinecraftVersion
+                ? 'The Bedrock server version is unavailable. Open the pack to choose a version.'
+                : item.fileId <= 0
+                  ? 'No downloadable version is listed. Open the pack to choose a version.'
+                  : undefined}
+              onclick={() => void installBedrock(item)}>Add</Button
             >
           {/if}
         </div>

@@ -1,6 +1,6 @@
 # MSC 2 — Engineering Specification
 
-**Revision:** 1.8 · **Date:** 2026-09-11 · **Owner:** Cameron Temple
+**Revision:** 1.9 · **Date:** 2026-09-28 · **Owner:** Cameron Temple
 **Baseline:** MSC 1 at commit `fccd61f0ed743086f1f5db6bef58e228a36010f3`
 
 **Companion documents:**
@@ -19,7 +19,7 @@
 
 MSC 2 is the control plane for self-hosted Minecraft servers: creation, runtime management, worlds, backups, mods, players, diagnostics, networking, and updates.
 
-Architecturally it is **one engine with several interfaces**. All server-management behavior lives in a Rust service. Every graphical and command-line surface is a client of that service's API. No client implements server-management logic.
+Architecturally it is **one engine with two supported interfaces**. All server-management behavior lives in a Rust service. The Tauri desktop app and command-line client use that service's API. No client implements server-management logic; the agent does not serve a browser UI (D-038).
 
 The defining constraint:
 
@@ -39,16 +39,14 @@ Splitting engine from interface removes all of them at once, and makes client pa
 
 ```mermaid
 flowchart TB
-    subgraph clients["Clients"]
+    subgraph clients["Supported clients"]
         Desktop["MSC Desktop<br/>Tauri shell"]
-        Web["MSC Web<br/>any browser"]
         CLI["msc CLI<br/>local or remote"]
     end
 
-    Svelte["Shared Svelte frontend<br/>(same bundle for Desktop and Web)"]
+    Svelte["Svelte frontend<br/>(desktop app)"]
 
     Desktop --> Svelte
-    Web --> Svelte
     Svelte --> API
     CLI --> API
 
@@ -71,7 +69,7 @@ flowchart TB
 | **Application services** | Workflows: start a server, restore a backup, import a modpack. Orchestrates domain + infrastructure. Owns operation state. |
 | **Infrastructure** | Filesystem repositories, HTTP providers, archive handling, process supervision, metrics collection, config persistence, audit log. |
 | **Platform adapters** | Per-OS implementations behind shared traits: services, secret storage, process enumeration, file reveal. |
-| **Agent** | Process lifetime, dependency assembly, scheduled work, operation recovery on restart, API hosting, and static asset serving when the installation includes the browser bundle. |
+| **Agent** | Process lifetime, dependency assembly, scheduled work, operation recovery on restart, and API hosting. It does not serve a browser UI (D-038). |
 | **API** | Routes, DTOs, WebSocket events, authentication, capability advertisement. |
 | **Clients** | Presentation and request initiation only. |
 
@@ -136,7 +134,7 @@ destructive. MSC does not ship a persistent full-screen terminal client.
 
 ### Source of truth
 
-A versioned **OpenAPI** description plus explicit **WebSocket event schemas** is the single source of truth. It generates the Rust server types and the shared client types used by the desktop and responsive browser clients. Hand-written client models are not permitted — the old `MSCmacOSTests/iOSModelMirrors.swift` check is historical evidence of the problem, and code generation retires it.
+A versioned **OpenAPI** description plus explicit **WebSocket event schemas** is the single source of truth. It generates the Rust server types and the client types used by the desktop app and CLI. Hand-written client models are not permitted — the old `MSCmacOSTests/iOSModelMirrors.swift` check is historical evidence of the problem, and code generation retires it. The agent does not serve a browser UI; browser-specific routes and sessions are retired under D-038.
 
 ### MSC 1's API is the compatibility **baseline**, not the whole of MSC 2's API
 
@@ -171,7 +169,7 @@ Clients ask the agent what it can do. Capabilities reflect host OS, server type,
 
 ### Versioning and skew
 
-Per D-010: the agent supports clients back a defined number of minor versions, with capability degradation inside that window, clear refusal below it, a new major route namespace for breaking changes, and additive/optional new fields.
+Per D-010: the agent supports desktop and CLI clients back a defined number of minor versions, with capability degradation inside that window, clear refusal below it, a new major route namespace for breaking changes, and additive/optional new fields. D-038 retires browser-only routes and sessions; old browser clients and cookies receive no compatibility guarantee, and old cookies cannot authorize retained routes.
 
 **The specific floor value is not yet decided.** An earlier draft asserted N-3; that was an analysis estimate, not a decision. The floor must be set from real update-adoption data across MSC 2's supported distribution channels once it ships.
 
@@ -208,12 +206,10 @@ so upgrades are idempotent and uninstall does not remove unrelated commands.
 The management service defaults to `127.0.0.1:48001`; the PATH contract is
 independent of service registration and GUI installation.
 
-The Linux headless archive is built without the browser bundle. It retains the
-authenticated HTTP/WebSocket API and CLI, so a remote desktop client can manage
-it, but its agent does not serve the browser page. A host can run without a
-graphical desktop whether or not its installation includes a browser UI;
-these are independent deployment properties. The Linux desktop packages include
-the browser-serving agent.
+The Linux headless archive retains the authenticated HTTP/WebSocket API and
+CLI, so a remote desktop client can manage it. No installation includes an
+agent-served browser UI (D-038). A host can run without a graphical desktop,
+and a remote desktop client can manage it over the API.
 
 **Remote desktop connections.** A Tauri desktop may try configured direct LAN
 or Tailscale addresses and may own an SSH local forward to the host's
@@ -436,7 +432,7 @@ The Tauri GUI is **optional everywhere** and is never a prerequisite for any cap
 |---|---|
 | **macOS** | Agent + CLI installable and runnable with no GUI ever launched. Registered as a **`launchd` LaunchDaemon** — a LaunchAgent requires a login session and is therefore insufficient. **No AppKit or window-server dependency at runtime.** The standalone macOS headless package **includes the Swift VZ sidecar** where Bedrock support is expected. |
 | **Windows** | Agent + CLI installable as a Windows Service without the desktop app. Runs with no user signed in. |
-| **Linux** | Headless archive with agent + CLI and **zero desktop dependencies**. `systemd` unit. Installs on minimal Debian with no X or Wayland present; its API works but it does not serve the browser UI. |
+| **Linux** | Headless archive with agent + CLI and **zero desktop dependencies**. `systemd` unit. Installs on minimal Debian with no X or Wayland present; its API supports remote desktop and CLI clients. |
 
 Two distribution artifacts per platform: an application bundle and a headless package. Headless packages are **verified in CI to link no GUI framework** (§17).
 
@@ -478,12 +474,14 @@ Bedrock Dedicated Server has no macOS build. MSC 1 solves this with `VMBedrockSe
 
 | Client | Mechanism |
 |---|---|
-| **Browser** | Pairing code → **httpOnly, SameSite session cookie**. Not JS-readable, revocable server-side, survives refresh. |
+| **Browser** | Retired by D-038; browser cookies do not authorize retained routes. |
 | **Tauri desktop, local host** | Shell injects a local token; no login screen. |
 | **Tauri desktop, remote host** | *Unspecified — see below.* |
 | **CLI** | Token from per-host config or `--token`; bearer header. |
 
-One permission check behind all of them. **CSRF protection is required for cookie-authenticated mutating requests**; bearer-authenticated requests are exempt.
+One permission check behind supported clients. Browser cookies and their CSRF
+requirements are retired by D-038; bearer-authenticated desktop and CLI
+requests remain supported.
 
 ### Unspecified areas that must be designed
 
@@ -494,11 +492,11 @@ Revision 1.0 described only a desktop app controlling its own computer. Multi-ho
 3. **Per-host credential storage.** One credential per host in the platform secret store, keyed to match the multi-host client model.
 4. **LAN encryption expectations.** Whether plain HTTP is permitted off-loopback at all; how a locally managed TLS certificate is provisioned and trusted across platforms.
 5. **Tailscale posture.** Default position: tailnet membership relaxes nothing. Traffic is already encrypted, but token authentication remains mandatory. Confirm this rather than assume it.
-6. **Browser origin policy.** Allowed origins, CSP for the served frontend, and the precise CSRF mechanism.
+6. **Browser origin policy.** Superseded by D-038 with the served browser client; it is no longer an open requirement for a supported client.
 
 ### Pairing
 
-A local desktop or web session displays a QR code containing host address, address preference (tailnet vs LAN), agent identity, a short-lived pairing secret, and API version. The client exchanges the pairing secret for a durable credential.
+A local desktop session displays a QR code containing host address, address preference (tailnet vs LAN), agent identity, a short-lived pairing secret, and API version. The desktop app exchanges the pairing secret for a durable credential. Browser pairing and session cookies are retired by D-038.
 
 ### Permissions — inherited from MSC 1, not invented
 
@@ -679,15 +677,14 @@ Given that MSC 1's remote-client parity gap was itself a months-long project, th
 One row per capability, maintained continuously from the first vertical slice:
 
 ```
-MSC 1 capability → MSC 2 agent operation → Desktop/Web → CLI
+MSC 1 capability → MSC 2 agent operation → Desktop → CLI
 ```
 
 Every cell is **Implemented**, **Planned**, or **Intentional exception**.
 
-The matrix covers the supported Tauri desktop, desktop browser, and CLI
-clients. The shared frontend may use responsive layout techniques, but that is
-an implementation detail and does not create a supported mobile management
-client or a separate v1 capability column.
+The matrix covers the supported Tauri desktop and CLI clients. Browser and
+mobile management are not supported v1 clients and do not receive capability
+columns (D-033, D-038).
 
 Accordingly:
 
@@ -720,7 +717,7 @@ Every megabyte the agent holds on an 8 GB host is a megabyte Java cannot have. T
 
 ## 18. Educational content (D-026)
 
-MSC 1's teaching material is among its largest assets: a 31-topic Server Handbook across 6 categories, a concept guide, an onboarding tour over the live UI, ~18 files of router port-forwarding guides with brand matching and a troubleshooting decision tree, and contextual help throughout. It is also the clearest example of the duplication MSC 2 removes — all of it is Swift compiled into the macOS app, so the former remote client required a second, separately-written educational surface (`QuickGuideView`, 706 lines).
+MSC 1's teaching material is among its largest assets: a 31-topic Server Handbook across 6 categories, a concept guide, an onboarding tour over the live UI, ~18 files of router port-forwarding guides with brand matching and a troubleshooting decision tree, and contextual help throughout. It is also the clearest example of the duplication MSC 2 removes — all of it is Swift compiled into the macOS app, so the former remote client required a second, separately-written educational surface (`QuickGuideView`, 706 lines). MSC 2's supported teaching surfaces are the Tauri desktop app and CLI; the browser presentation is retired by D-038.
 
 **Content is data the agent serves. Clients render it; they never author it.**
 
@@ -739,7 +736,7 @@ MSC 1's teaching material is among its largest assets: a 31-topic Server Handboo
 
 Every explainable thing carries a pointer to its explanation: settings fields, health cards, diagnostics, performance metrics, connection methods, crash-analysis findings.
 
-This extends a pattern that already works. MSC 1's schema-driven settings contract has the agent describe fields and clients render them generically — which is why Bedrock settings reached the former mobile client with **zero mobile-client changes**. Adding `helpId` to that description means a new setting arrives with its explanation already attached, on every client, without client work.
+This extends a pattern that already works. MSC 1's schema-driven settings contract has the agent describe fields and clients render them generically — which is why Bedrock settings reached the former mobile client with **zero mobile-client changes**. Adding `helpId` to that description means a new setting arrives with its explanation already attached, on every supported client, without client work.
 
 ```
 SettingFieldDTO {

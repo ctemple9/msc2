@@ -1,6 +1,6 @@
 # MSC 2 — Decision Register
 
-**Revision:** 1.22 · **Date:** 2026-09-28
+**Revision:** 1.23 · **Date:** 2026-09-28
 **Owner:** Cameron Temple
 
 **Purpose:** the authoritative record of *what was decided, by whom, and why*. The product and engineering documents describe the destination; this document explains how it was chosen, what was rejected, and when a decision should be reopened.
@@ -31,16 +31,16 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 |---|---|---|---|
 | D-001 | MSC 2 is a separate product, not a refactor of MSC 1 | **Approved** | 2026-07-29 |
 | D-002 | Rust for the engine | **Approved** | 2026-07-29 |
-| D-003 | Tauri shell over a shared Svelte frontend | **Approved** | 2026-07-29 |
+| D-003 | Tauri shell over a shared Svelte frontend; served-browser portion superseded by D-038 | **Approved** (browser-serving portion superseded) | 2026-07-29 |
 | D-004 | The iOS app is evolved, not rewritten | **Superseded by D-033** | 2026-07-29 |
 | D-005 | Behavior is ported, not reimagined | Proposed | — |
 | D-006 | MSC 1's API is the compatibility baseline (not the whole API) | Proposed | — |
 | D-007 | macOS Bedrock stays Swift behind a sidecar | **Approved** | 2026-08-22; service-boundary amendment 2026-09-23 |
 | D-008 | The Docker Bedrock backend is not ported | Proposed | — |
 | D-009 | MSC 1 and MSC 2 share nothing; import only | **Approved** | 2026-07-29 |
-| D-010 | Version skew: floor with capability degradation | **Approved** (mechanism) / Proposed (N-3) | 2026-07-29 |
+| D-010 | Version skew: floor with capability degradation | **Approved** (supported desktop/CLI mechanism) / Proposed (N-3) | 2026-07-29 |
 | D-011 | Headless is independently installable on all three platforms | **Approved** | 2026-07-29 |
-| D-012 | Authentication and session model | **Approved** (cookie + injected local token) / Proposed (full design) | 2026-07-29 |
+| D-012 | Authentication and session model | **Approved** (desktop-local token; browser cookie superseded by D-038) / Proposed (full design) | 2026-07-29 |
 | D-013 | Multi-host data model from day one | **Approved** | 2026-07-29 |
 | D-014 | Minecraft version floor is 1.20 | **Approved** | 2026-07-29 |
 | D-015 | v1 non-goals | **Approved** | 2026-07-29 |
@@ -65,6 +65,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 | D-035 | Server-owned jars replace global template storage | **Approved** | 2026-09-07 |
 | D-036 | Operational refinement contracts | Proposed | — |
 | D-037 | License for MSC 2 original code | **Approved** | 2026-09-28 |
+| D-038 | Retire the served browser client | **Approved** | 2026-09-28 |
 
 ---
 
@@ -102,7 +103,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 
 ---
 
-## D-003 — Tauri shell over a shared Svelte frontend
+## D-003 — Tauri shell over a shared Svelte frontend (browser portion superseded)
 
 **Status:** Approved · **Origin:** Owner (with Codex, in `msc2.md`) · **Approved by:** Cameron Temple · **Date:** 2026-07-29
 
@@ -115,6 +116,12 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 **Consequences.** The desktop app is a web view. Tauri restores native menus, file pickers, notifications, and fast launch, but it is not AppKit and this will be noticeable on macOS. Accepted deliberately.
 
 **Corollary.** No screen may exist in the desktop app that does not exist in the web UI. Native-only behavior belongs in the shell layer, not in a divergent screen.
+
+**Supersession (2026-09-28, D-038).** The owner retired the served browser
+client before release. The approved Tauri shell and shared Svelte desktop
+frontend remain; the agent no longer serves that frontend to browsers, and the
+desktop/web screen-parity corollary no longer applies. D-038 records the
+replacement support boundary. The original decision remains as history.
 
 ---
 
@@ -242,9 +249,8 @@ and failure behavior, is frozen in
 **Status:** **Approved** (mechanism) · **Proposed** (the specific N-3 value)
 **Origin:** Claude proposal, mechanism selected by owner · **Approved by:** Cameron Temple · **Date:** 2026-07-29
 
-**Context.** Client and agent will differ. The desktop bundle, responsive
-browser client, CLI, and agent do not all update through the same release path,
-so skew remains normal even without a native mobile application.
+**Context.** Client and agent will differ. The desktop bundle, CLI, and agent
+do not all update through the same release path, so skew remains normal.
 
 **Approved mechanism.** A supported-version floor, capability degradation within the window, clear refusal below it, and a new major route namespace for breaking changes. New fields additive and optional. The agent reports API major/minor and its capability set on connect.
 
@@ -258,6 +264,14 @@ release paths would make it brittle) · indefinite compatibility (shims
 accumulate forever; old clients fail in confusing partial ways).
 
 **Consequences.** Old-client/new-agent and new-client/old-agent compatibility fixtures are required test assets.
+
+**Amendment (2026-09-28, D-038).** The supported-version floor and
+capability-degradation mechanism continue to protect supported desktop and CLI
+clients. Browser-only `/v1` routes and browser session credentials are retired:
+they may be removed in the next release without preserving compatibility for
+the retired browser client, and old browser cookies must not authorize any
+retained route. This exception does not reduce the version-skew protection for
+desktop or CLI clients.
 
 ---
 
@@ -288,13 +302,13 @@ deployment on day one.
 
 ## D-012 — Authentication and session model
 
-**Status:** **Approved** (browser cookie + injected desktop-local token) · **Proposed** (everything else below)
+**Status:** **Approved** (injected desktop-local token; browser cookie superseded by D-038) · **Proposed** (remaining details below)
 **Origin:** Claude proposal, transport model selected by owner; expansion from Codex review · **Approved by:** Cameron Temple · **Date:** 2026-07-29
 
-**Approved core.** Browsers authenticate via a pairing code exchanged for an
-**httpOnly, SameSite session cookie** — not JS-readable, revocable server-side,
-surviving refresh. The Tauri shell injects a local token so a desktop app
-controlling its own machine never presents a login.
+**Approved core.** The Tauri shell injects a local token so a desktop app
+controlling its own machine never presents a login. The previously approved
+browser pairing cookie is superseded by D-038 because MSC 2 no longer ships a
+browser client.
 
 **Rejected.** Bearer token in browser storage (readable by any script on a page that manages people's worlds) · open-on-loopback (lets anything running locally drive the agent, and headless hosts are browsed remotely anyway).
 
@@ -575,14 +589,15 @@ Capability coverage across MSC 2's supported desktop, browser, and CLI clients m
 **Decision.** Parity is tracked, not asserted. MSC 2 maintains a capability matrix with one row per capability:
 
 ```
-MSC 1 capability → MSC 2 agent operation → Desktop/Web → CLI
+MSC 1 capability → MSC 2 agent operation → Desktop → CLI
 ```
 
 Every cell is Implemented, Planned, or **Intentional exception**.
 
-The matrix covers the supported desktop app, desktop browser, and CLI. A
-responsive layout is an implementation detail of the shared frontend, not a
-supported mobile management client or a separate v1 capability column.
+The matrix covers the supported desktop app and CLI. Browser and mobile
+management are not supported v1 clients and do not receive capability columns.
+D-038 retires the former browser column; historical matrices and release
+records remain evidence of the earlier scope.
 
 - An Intentional exception **requires owner approval** and becomes its own decision entry.
 - A capability omitted from a supported client must have an explicit reason; it
@@ -725,10 +740,10 @@ Full contract and threat model:
 4. **The onboarding tour splits.** Step content and ordering are data; only the *anchoring* to specific UI elements is client-side, because it is inherently per-client.
 5. **The CLI is a first-class consumer.** `msc explain <topic>` renders the same content as the handbook. Any surface that can display text can teach.
 
-**Rationale.** Write a topic once, and it appears on desktop, web, and
+**Rationale.** Write a topic once, and it appears in the desktop app and
 terminal. Content updates ship with the agent rather than with separate client
 implementations. And a new setting arrives with its explanation already
-attached on every supported surface — which is the same leverage the
+attached on every supported surface — which is the same pattern the
 schema-driven settings contract already demonstrated with the former mobile
 client.
 
@@ -741,6 +756,11 @@ client.
 **Open.** Whether the concept-guide diagrams are assets or generated · how content is versioned against API versions when a topic describes a feature an older client lacks. (Content format and embedded-vs-on-disk, formerly open here, were confirmed 2026-07-31 — see the Phase 2 addendum below.)
 
 **Revisit if:** the content model proves too rigid for the router guides, which are the most structurally complex educational surface and the natural stress test.
+
+**Scope amendment (2026-09-28, D-038).** The requirement to teach in every
+supported interface now covers the Tauri desktop app and CLI. The browser
+client and its presentation of handbook or contextual-help content are retired.
+The agent-owned content and API remain available to supported clients.
 
 **Phase 2 addendum (P2.2).** The two mechanism questions this entry left open — content format, and embedded vs on-disk — are now confirmed, not just recommended: Markdown with YAML front-matter, embedded in the `msc-agent` binary for v1 (on-disk override deferred, not foreclosed). **Confirmed by:** Cameron Temple · **Date:** 2026-07-31. Also confirmed: `SettingFieldDTO`'s existing free-text `help` field is *replaced* by `helpId` in the v1 contract, not kept alongside it. Full reasoning, and the precise `helpId` shape (`<namespace>.<name>`, resolved via `GET /v1/help/{helpId}`) with every DTO field from §18's list mapped to a concrete MSC 1 field, is in `docs/msc2/api-contract/helpid-contract.md`. Diagram format and cross-version content degradation remain genuinely open — not addressed by this addendum.
 
@@ -1176,6 +1196,42 @@ ownership changes.
 
 ---
 
+## D-038 — Retire the served browser client
+
+**Status:** **Approved** · **Origin:** Owner decision recorded for P16.24 ·
+**Approved by:** Cameron Temple · **Date:** 2026-09-28
+
+**Decision.** MSC 2 v1 supports the Tauri desktop app and headless CLI. The
+agent does not serve a browser UI, and MSC 2 does not support management from a
+desktop or mobile browser. A headless host remains manageable through a remote
+desktop app or CLI over the authenticated API.
+
+The Tauri app continues to use the shared Svelte frontend. Remote desktop
+pairing and per-host native credential storage remain supported. The browser
+pairing flow, session cookies, browser-only `/v1` routes, and browser-specific
+client/API behavior are retired. A later release may remove those routes and
+reject old browser cookies; those retired clients receive no compatibility
+guarantee. Old browser cookies must never authorize a retained route. The
+supported-version floor and capability degradation in D-010 continue to
+protect desktop and CLI clients.
+
+MSC continues to teach through agent-owned handbook and contextual-help data
+for the desktop app and CLI. Help content and its API remain in scope; the
+browser presentation is retired with that client.
+
+**Consequences.** This decision supersedes the served-browser part of D-003,
+the browser-cookie approval and browser-auth requirements in D-012, and the
+browser column in D-023. It narrows D-026's supported interfaces to desktop and
+CLI. It does not remove the agent API, WebSocket support used by retained
+clients, remote desktop pairing, or headless installation. Historical plans,
+audits, release records, and published artifact descriptions remain factual
+and are not rewritten.
+
+**Revisit if:** Cameron explicitly reopens browser management as a new product
+decision.
+
+---
+
 ## Appendix A — corrections made during planning
 
 Recorded because each produced a confident wrong answer, and each is the kind of mistake likely to recur.
@@ -1204,6 +1260,7 @@ Recorded because each produced a confident wrong answer, and each is the kind of
 |---|---|---|
 | 1.21 | 2026-09-23 | Amended D-007 and D-025 with Cameron's approved macOS Bedrock boundary: the installing-user agent controls a narrowly scoped root VZ/relay helper over authenticated local IPC. |
 | 1.22 | 2026-09-28 | Recorded D-037: Cameron selected Apache-2.0 for MSC 2 original code, with third-party runtime materials remaining under their own terms. |
+| 1.23 | 2026-09-28 | Added D-038: retired the served browser client; narrowed D-003, D-010, D-012, D-023, and D-026 to the supported desktop and CLI clients. |
 | 1.20 | 2026-09-21 | Recorded Cameron's approval of D-030's world-profile ownership boundary. |
 | 1.19 | 2026-09-21 | Recorded the proposed Phase 15 world-pack and modpack-identity contract and its D-030 approval gate. |
 | 1.18 | 2026-09-11 | Simplified the guided SSH trust flow: first connection remembers the remote identity without displaying its fingerprint; changed identities remain blocked until explicitly trusted, without showing key values. |

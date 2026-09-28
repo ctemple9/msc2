@@ -4,7 +4,7 @@
 
 ## What this repo is
 
-MSC 2 is a cross-platform Minecraft server manager: a **Rust agent** that runs as a background service, plus clients (desktop, browser, and headless CLI) that talk to it over an API. It is a behavior-preserving port of MSC 1 (a macOS SwiftUI app), not a blank-slate rewrite.
+MSC 2 is a cross-platform Minecraft server manager: a **Rust agent** that runs as a background service, plus a Tauri desktop app and headless CLI that talk to it over an API. The agent does not serve a browser UI (D-038). MSC 2 is a behavior-preserving port of MSC 1 (a macOS SwiftUI app), not a blank-slate rewrite.
 
 **Owner:** Cameron Temple. He is not a Rust developer yet and is learning as this is built. Explain what you're doing in plain language. He runs every verification himself.
 

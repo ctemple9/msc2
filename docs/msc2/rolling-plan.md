@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 16 execution is underway. P16.1–P16.23 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
-> **Next move:** Cameron verifies P16.1–P16.23 using their `Verify:` commands.
+> ## STATUS: Phase 16 execution is underway. P16.1–P16.24 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
+> **Next move:** Cameron runs the P16.24 verification command. P16.1–P16.24 remain awaiting his verification.
 
 ## How this document works
 
@@ -36,7 +36,7 @@ Each implementation step is planned, read, executed, verified by Cameron, review
 
 **Execution.** One step per conversation unless Cameron names a `Batch:` range. Each executed step gets one commit containing its implementation and rolling-plan status update. Cameron closes the step after running its `Verify:` command. The checks below are builds, type checks, format checks, static validators, or production-path commands; none authorizes this agent to run or create tests. The Phase 16 gate is in `msc2-port-plan.md`. Physical and fault-path evidence is required at that gate; a successful `cargo check` alone never proves a race or recovery fix.
 
-**Audit coverage.** September 17 findings 1–12 map respectively to P16.4, P16.2, P16.5, P16.3, P16.6, P16.10, P16.11, P16.12, P16.13, P16.7, P16.8, and P16.9. September 28 findings 1–12 map respectively to P16.14, P16.1, P16.16, P16.15, P16.17, P16.17, P16.17, P16.18, P16.19–20, P16.21, P16.22, and P16.23. P16.24 closes the release evidence gate. P15.101 landed after the September 28 snapshot; P16.17 first checks whether it already resolved that audit's player-action, permission, contract, and formatting findings. Do not rebuild an already-correct feature merely to satisfy this map.
+**Audit coverage.** September 17 findings 1–12 map respectively to P16.4, P16.2, P16.5, P16.3, P16.6, P16.10, P16.11, P16.12, P16.13, P16.7, P16.8, and P16.9. September 28 findings 1–12 map respectively to P16.14, P16.1, P16.16, P16.15, P16.17, P16.17, P16.17, P16.18, P16.19–20, P16.21, P16.22, and P16.23. Cameron's later decision to retire the browser client adds P16.24–P16.28; P16.29 closes the release evidence gate. P15.101 landed after the September 28 snapshot; P16.17 first checks whether it already resolved that audit's player-action, permission, contract, and formatting findings. Do not rebuild an already-correct feature merely to satisfy this map.
 
 ### Scope and safety substrate
 
@@ -230,11 +230,55 @@ What: Separate historical beta plans from current public support claims. State e
 Verify: Run `rg -n 'headless|browser|Debian 12|unsigned|release' README.md docs/msc2/clients/headless-installation.md` and confirm the public claims match the support matrix.
 Batch: solo
 
-#### P16.24 — Record exact-artifact release acceptance
+### Retire the browser client
+
+The owner has chosen to retire the agent-served browser client. The Tauri desktop still uses the Svelte frontend and the agent API; the CLI and remote desktop pairing remain supported. Keep the browser references in dated audits and completed evidence as history. P16.23 describes the published v0.1.16 artifacts; later steps must distinguish those immutable release bytes from the next release's scope.
+
+#### P16.24 — Record the owner-approved browser retirement
+
+Status: implemented — awaiting Cameron's verification
+Files: docs/msc2/MSC2-VISION.md, docs/msc2/msc2-decisions.md, docs/msc2/msc2-product.md, docs/msc2/msc2-engineering.md, docs/msc2/msc2-port-plan.md, AGENTS.md, CLAUDE.md, docs/msc2/rolling-plan.md
+What: Add an Approved D-038 recording Cameron's retirement of the served browser client, then propagate it through the current vision, client matrix rules, educational-content scope, and Phase 16 gate. Supersede the browser-serving part of D-003 and the browser-cookie part of D-012 without erasing their history. Explicitly amend D-010 for withdrawn browser-only `/v1` routes and old browser credentials while retaining its version-skew protection for supported desktop/CLI clients. Keep AGENTS.md and CLAUDE.md identical after their required filename line.
+Verify: Run `rg -n 'D-038|browser client|desktop browser|browser UI' docs/msc2/MSC2-VISION.md docs/msc2/msc2-decisions.md docs/msc2/msc2-product.md docs/msc2/msc2-engineering.md docs/msc2/msc2-port-plan.md AGENTS.md CLAUDE.md` and inspect that the current scope consistently names desktop and CLI while historical references remain dated.
+Batch: solo
+
+#### P16.25 — Remove the browser client and its CI job
+
+Status: planned — awaiting Cameron's review
+Files: clients/desktop-web/src/App.svelte, clients/desktop-web/src/lib/components, clients/desktop-web/src/lib/platform, clients/desktop-web/src/lib/auth, clients/desktop-web/src-tauri/src/lib.rs, clients/desktop-web/package.json, clients/desktop-web/tests, .github/workflows/ci.yml, tools/release/require-ci-run.py, tools/release/check-release-workflow.py, docs/msc2/rolling-plan.md
+What: Remove the top-bar browser launcher, one-use browser handoff, cookie-auth client adapter, browser-only platform fallback, and browser-only client checks. Preserve the Tauri Svelte screens, native credential store, remote desktop pairing, and native desktop CI. Remove the `browser` workflow-dispatch scope and three-platform Browser smoke job together with its required-job count so same-commit release evidence cannot wait for a job that no longer exists. Remove browser-only assertions from mixed checks without dropping desktop coverage.
+Verify: Run `npm run check` from `clients/desktop-web` and confirm the Tauri client type-checks without the browser adapter.
+Batch: solo
+
+#### P16.26 — Remove browser sessions from the agent contract
+
+Status: planned — awaiting Cameron's review
+Files: crates/msc-agent/src/auth.rs, crates/msc-agent/src/auth/browser.rs, crates/msc-agent/src/routes/browser_session.rs, crates/msc-agent/src/main.rs, crates/msc-agent/src/cli/pairing.rs, crates/msc-agent/src/ws, crates/msc-agent/tests, docs/msc2/api-contract/openapi.json, docs/msc2/api-contract/websocket-v1.json, clients/desktop-web/src/lib/api/generated.ts, docs/msc2/client-capability-matrix.csv, docs/msc2/rolling-plan.md
+What: Remove browser session cookies, browser-session and CSRF routes, the browser branch of shared pairing, browser-only authorization branches, and browser session revocation from HTTP/WebSocket handling. Remove browser pairing from the local CLI and regenerate API types; keep desktop/named-token permissions, revocation, desktop pairing, and stream lifetime behavior. Remove only browser-specific existing checks and contract rows. Old browser cookies must not authorize any retained route, and desktop/CLI routes remain intact.
+Verify: Run `cargo check -p msc-agent -p msc-api`.
+Batch: solo
+
+#### P16.27 — Remove browser assets from builds and release gates
+
+Status: planned — awaiting Cameron's review
+Files: crates/msc-agent/Cargo.toml, crates/msc-agent/src/main.rs, crates/msc-agent/src/web_ui.rs, crates/msc-agent/web-ui, crates/msc-agent/tests/web_ui.rs, Cargo.lock, clients/desktop-web/src-tauri/tauri.conf.json, clients/desktop-web/package.json, clients/desktop-web/tools/package-agent-bundle.mjs, tools/release/check-client-bundle.py, tools/release/check-release-workflow.py, tools/release/check-provenance.py, .github/workflows/ci.yml, .github/workflows/release.yml, docs/msc2/rolling-plan.md
+What: Remove the agent's embedded page, `web-ui` feature, tracked page assets, and frontend-to-agent staging/check scripts. Keep the frontend build used by Tauri. Update CI and beta release workflows together: remove the browser bundle smoke and its release-time `web_ui` check, remove staging/comparison steps and browser-only package scripts, and adjust static release validation and provenance without weakening same-commit CI, native desktop, headless, signing, or the nine-artifact publication checks. Ensure Tauri's before-build commands no longer invoke removed scripts.
+Verify: Run `python3 tools/release/check-release-workflow.py .github/workflows/release.yml --expect-publish-guard` and confirm the browser-free release workflow still requires successful same-commit CI and all nine assets.
+Batch: solo
+
+#### P16.28 — Publish the revised support matrix
+
+Status: planned — awaiting Cameron's review
+Files: README.md, docs/msc2/clients/headless-installation.md, docs/msc2/clients/phase12-release.md, docs/msc2/clients/remote-access.md, docs/msc2/client-capability-matrix.csv, tools/phase6/capability-matrix-check.py, docs/msc2/rolling-plan.md
+What: Replace active browser-client promises with desktop and CLI support, including headless hosts controlled by a remote desktop or CLI. Rename the matrix's combined Desktop/Web column to Desktop and reconcile its remaining rows with the revised API contract. Keep the Phase 12 release and acceptance files as dated evidence: the already-published v0.1.16 bytes may still contain browser assets, so public release status must distinguish that historical artifact from the next browser-free release until new exact bytes are published. Record that no browser installation type is promised going forward.
+Verify: Run `python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv` and inspect the README support table against the published release and the revised client matrix.
+Batch: solo
+
+#### P16.29 — Record exact-artifact release acceptance
 
 Status: planned — awaiting all earlier Phase 16 steps and Cameron's physical verification
 Files: docs/msc2/release/phase16-acceptance.md, tools/release/check-phase16-evidence.py, docs/msc2/rolling-plan.md
-What: Assemble evidence for every Phase 16 gate item and every supported installer/archive using exact published bytes: install, pairing and supported clients, Minecraft lifecycle, world import/backup/restore and interruption recovery, service reboot/sign-out, update rollback, permission and revocation, uninstall/data retention, artifact identity, CI/provenance, and Linux minimum. Mark unavailable or failed checks honestly; do not close the phase while any required row lacks Cameron's result. The reviewer for this phase must be the other agent, per repository rules.
+What: Assemble evidence for every Phase 16 gate item and every supported installer/archive using exact newly published bytes: install, desktop/CLI pairing and supported clients, Minecraft lifecycle, world import/backup/restore and interruption recovery, service reboot/sign-out, update rollback, permission and revocation, uninstall/data retention, artifact identity, CI/provenance, and Linux minimum. Record that the new agents do not serve a browser page or accept browser sessions, and that the exact-tag CI and release workflows no longer require browser-only jobs while retaining native desktop and headless checks. Mark unavailable or failed checks honestly; do not close the phase while any required row lacks Cameron's result. The reviewer for this phase must be the other agent, per repository rules.
 Verify: Run `python3 tools/release/check-phase16-evidence.py docs/msc2/release/phase16-acceptance.md` and confirm it accepts only complete gate rows with exact artifacts and Cameron's observed results.
 Batch: solo
 

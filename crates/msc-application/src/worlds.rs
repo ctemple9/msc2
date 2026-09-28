@@ -1283,58 +1283,12 @@ pub fn set_slot_thumbnail(
 // safety backup to recover from — recovery there is manual, not
 // automatic.
 //
-// This port closes that window with a three-phase on-disk transaction
-// under `world_slots/.activation/`:
-//
-//   1. **staged** — the replacement is fully extracted into
-//      `.activation/staged/` (or, for a fresh/archive-less slot, this
-//      phase is trivially already true — nothing to stage). The live
-//      folders at the server root are untouched. A failure here (a
-//      corrupt archive, an I/O error) aborts with the live world
-//      completely intact — the specific improvement over source.
-//   2. **prior_moved** — the current live folders are moved (not
-//      copied) into `.activation/prior/`. The server root now has no
-//      live world at all — the same dangerous-looking window source
-//      has, except every archive/legitimacy check already passed in
-//      phase 1, so what's left is only a plain filesystem move.
-//   3. **installed** — every entry staged in phase 1 is moved into the
-//      server root, then `.activation/staged/` itself is removed
-//      (`.activation/prior/` is deliberately left in place a moment
-//      longer — see below). World identity, slot metadata, and the
-//      active marker are then committed; `.activation/` is removed
-//      last, only once every one of those has succeeded.
-//
-// The three phases are distinguished purely by which of
-// `.activation/{prior,staged}` exist on disk — no separate journaled
-// "current phase" field to trust or fall out of sync with reality:
-//
-//   | `prior/` | `staged/` | phase        | restart recovery            |
-//   |----------|-----------|--------------|------------------------------|
-//   | absent   | n/a       | staged       | delete `.activation/` — old world already complete |
-//   | present  | present   | prior_moved  | move `prior/*` back to the server root, delete `.activation/` — old world restored |
-//   | present  | absent    | installed    | re-run the commit tail (identity/metadata/marker — each idempotent), delete `.activation/` — new world completed |
-//
-// So a restart mid-transaction always reconciles to either the fully
-// old or the fully new world, never a mixture — [`reconcile_interrupted_activation`]
-// is that reconciler, driven only by this physical layout, not by
-// trusting an in-memory or journaled "what was I doing" flag.
-//
-// A small `manifest.json` (slot id, and the identity to apply) is
-// written once, atomically, at the very start of phase 1 — the only
-// piece phase-3 recovery can't re-derive from the directory layout
-// alone. Deviation from this step's planned `Files:` list, flagged
-// rather than silent: this transaction does not route through
-// `msc-infrastructure::operation_journal`/`msc-application::operations`
-// (`LifecycleOperations`) — that substrate models an abstract
-// queued/running/succeeded/failed *operation*, with no notion of a
-// multi-step filesystem transaction's own phase, and forcing this
-// three-phase move-based recovery through it would add a second,
-// redundant source of truth alongside the directory layout itself
-// rather than reuse one. Per-target exclusivity (so a concurrent
-// backup/replace can't race an in-flight activation) is exactly the
-// kind of cross-domain concern `OperationJournal::admit` already solves
-// well — left for the route layer (P6.21) to wire once backups (P6.15+)
-// exist to conflict with.
+// The replacement is staged before touching live folders. A durable
+// `swap.json` records the exact old and new folder names and the current
+// move phase before each batch of renames. Recovery rolls back partial
+// moves, or finishes a fully installed world and its metadata commit.
+// An ambiguous or missing folder leaves the transaction in place for
+// repair; the agent keeps world mutation unavailable meanwhile.
 // =====================================================================
 /// `ServerPropertiesManager.readProperties`/
 /// `BedrockPropertiesManager.readRawProperties`'s shared parse shape —
@@ -2185,15 +2139,189 @@ pub(crate) fn top_level_entries(fs: &dyn FileSystem, dir: &Path) -> io::Result<V
     }
 }
 
-pub(crate) fn move_entries(fs: &dyn FileSystem, from_dir: &Path, to_dir: &Path) -> io::Result<()> {
-    fs.create_dir_all(to_dir)?;
-    for entry in top_level_entries(fs, from_dir)? {
-        let name = entry
-            .file_name()
-            .expect("directory listing entries are named");
-        fs.rename(&entry, &to_dir.join(name))?;
+// The swap record is written before any live rename. A phase write precedes
+// the first rename in that phase, so recovery can use the record and the
+// physical location of each named folder together.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct WorldSwap {
+    phase: SwapPhase,
+    old: Vec<String>,
+    new: Vec<String>,
+}
+
+#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum SwapPhase {
+    Moving,
+    Installing,
+    RollingBack,
+    Restoring,
+    Committing,
+}
+
+fn repair_error(reason: &str) -> io::Error {
+    io::Error::other(format!("world swap needs manual repair: {reason}"))
+}
+
+fn swap_path(dir: &Path) -> PathBuf {
+    dir.join("swap.json")
+}
+
+fn write_swap(fs: &dyn FileSystem, dir: &Path, swap: &WorldSwap) -> io::Result<()> {
+    let bytes = serde_json::to_vec_pretty(swap).map_err(io::Error::other)?;
+    msc_infrastructure::atomic_write::atomic_write(fs, &swap_path(dir), &bytes)
+        .map_err(io::Error::other)
+}
+
+fn valid_swap_names(names: &[String]) -> bool {
+    let mut unique = BTreeSet::new();
+    names
+        .iter()
+        .all(|name| safe_world_folder_name(name) && unique.insert(name))
+}
+
+pub(crate) fn begin_world_swap(
+    fs: &dyn FileSystem,
+    dir: &Path,
+    live: &Path,
+    staged: &Path,
+    prior: &Path,
+    old: Vec<String>,
+    new: Vec<String>,
+) -> io::Result<()> {
+    if !valid_swap_names(&old) || !valid_swap_names(&new) {
+        return Err(repair_error(
+            "manifest contains an unsafe or duplicate folder name",
+        ));
     }
-    Ok(())
+    for name in &old {
+        if !folder_exists(fs, &live.join(name)) || fs.stat(&prior.join(name)).is_ok() {
+            return Err(repair_error(
+                "old folder is missing or prior folder is occupied",
+            ));
+        }
+    }
+    for name in &new {
+        if !folder_exists(fs, &staged.join(name)) {
+            return Err(repair_error("staged folder is missing"));
+        }
+        if fs.stat(&live.join(name)).is_ok() && !old.contains(name) {
+            return Err(repair_error("new folder destination is occupied"));
+        }
+    }
+    let mut swap = WorldSwap {
+        phase: SwapPhase::Moving,
+        old,
+        new,
+    };
+    write_swap(fs, dir, &swap)?;
+    fs.create_dir_all(prior)?;
+    for name in &swap.old {
+        fs.rename(&live.join(name), &prior.join(name))?;
+    }
+    test_pause_after_world_move();
+    swap.phase = SwapPhase::Installing;
+    write_swap(fs, dir, &swap)?;
+    for name in &swap.new {
+        fs.rename(&staged.join(name), &live.join(name))?;
+    }
+    swap.phase = SwapPhase::Committing;
+    write_swap(fs, dir, &swap)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SwapRecovery {
+    Old,
+    New,
+}
+
+pub(crate) fn recover_world_swap(
+    fs: &dyn FileSystem,
+    dir: &Path,
+    live: &Path,
+    staged: &Path,
+    prior: &Path,
+) -> io::Result<SwapRecovery> {
+    let bytes = match fs.read(&swap_path(dir)) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            // The swap record is created only after staging is complete.
+            if fs.stat(prior).is_ok() {
+                return Err(repair_error("prior folders exist without a swap manifest"));
+            }
+            fs.remove(dir)?;
+            return Ok(SwapRecovery::Old);
+        }
+        Err(error) => return Err(error),
+    };
+    let mut swap: WorldSwap =
+        serde_json::from_slice(&bytes).map_err(|_| repair_error("swap manifest is unreadable"))?;
+    if !valid_swap_names(&swap.old) || !valid_swap_names(&swap.new) {
+        return Err(repair_error("swap manifest contains unsafe folder names"));
+    }
+    if matches!(swap.phase, SwapPhase::Committing) {
+        if swap
+            .new
+            .iter()
+            .any(|name| !folder_exists(fs, &live.join(name)))
+            || swap
+                .old
+                .iter()
+                .any(|name| !folder_exists(fs, &prior.join(name)))
+        {
+            return Err(repair_error(
+                "committed world folders cannot be proven complete",
+            ));
+        }
+        return Ok(SwapRecovery::New);
+    }
+    if matches!(swap.phase, SwapPhase::Installing | SwapPhase::RollingBack)
+        && swap
+            .old
+            .iter()
+            .any(|name| !folder_exists(fs, &prior.join(name)))
+    {
+        return Err(repair_error("a prior world folder is missing"));
+    }
+    // In the installing phase, a missing staged root is an installed root.
+    // Remove those destinations before restoring old roots, including names
+    // shared by the old and new worlds. A missing root on both sides is an
+    // error, never a reason to call the rollback complete.
+    if matches!(swap.phase, SwapPhase::Installing) {
+        for name in &swap.new {
+            if folder_exists(fs, &staged.join(name)) == folder_exists(fs, &live.join(name)) {
+                return Err(repair_error("new folder location is ambiguous"));
+            }
+        }
+        swap.phase = SwapPhase::RollingBack;
+        write_swap(fs, dir, &swap)?;
+    }
+    if matches!(swap.phase, SwapPhase::RollingBack) {
+        for name in &swap.new {
+            let source = folder_exists(fs, &staged.join(name));
+            let destination = folder_exists(fs, &live.join(name));
+            if source && destination {
+                return Err(repair_error("new folder location is ambiguous"));
+            }
+            if !source && destination {
+                fs.remove(&live.join(name))?;
+            }
+        }
+    }
+    swap.phase = SwapPhase::Restoring;
+    write_swap(fs, dir, &swap)?;
+    for name in &swap.old {
+        let source = folder_exists(fs, &prior.join(name));
+        let destination = folder_exists(fs, &live.join(name));
+        if source == destination {
+            return Err(repair_error("old folder location is ambiguous"));
+        }
+        if source {
+            fs.rename(&prior.join(name), &live.join(name))?;
+        }
+    }
+    fs.remove(dir)?;
+    Ok(SwapRecovery::Old)
 }
 
 fn move_approved_world_roots(
@@ -2404,6 +2532,9 @@ pub fn activate_slot(
     backup: impl FnOnce() -> bool,
     should_cancel: impl Fn() -> bool,
 ) -> Result<WorldSlot, ActivationError> {
+    if fs.stat(&activation_dir(server_dir)).is_ok() {
+        return Err(repair_error("activation transaction is still present").into());
+    }
     if is_server_running {
         return Err(ActivationError::ServerRunning);
     }
@@ -2529,19 +2660,16 @@ pub fn activate_slot(
         return Err(ActivationError::Cancelled);
     }
 
-    // Phase 2: move the current live folders aside.
     let prior_dir = activation_prior_dir(server_dir);
-    fs.create_dir_all(&prior_dir)?;
-    for name in &current_folders {
-        fs.rename(&server_dir.join(name), &prior_dir.join(name))?;
-    }
-    test_pause_after_world_move();
-
-    // Phase 3: install the staged replacement (if any), then commit.
-    if has_archive {
-        move_approved_world_roots(fs, &staged_dir, server_dir, &approved_roots)?;
-        let _ = fs.remove(&staged_dir);
-    }
+    begin_world_swap(
+        fs,
+        &activation_dir(server_dir),
+        server_dir,
+        &staged_dir,
+        &prior_dir,
+        current_folders,
+        approved_roots,
+    )?;
 
     finish_activation_commit(
         fs,
@@ -2600,7 +2728,7 @@ fn finish_activation_commit(
     world_store::save_metadata(fs, server_dir, &updated)?;
     world_store::set_active_slot_id(fs, server_dir, Some(&updated.id))?;
 
-    let _ = fs.remove(&activation_dir(server_dir));
+    fs.remove(&activation_dir(server_dir))?;
     Ok(updated)
 }
 
@@ -2622,9 +2750,8 @@ pub enum ActivationRecovery {
 /// route is reachable for it (the same "before routes are reachable"
 /// timing [`reconcile_imported_worlds`] already established) — reconciles
 /// an [`activate_slot`] call interrupted by a crash/restart to either
-/// the complete old world or the complete new world, driven only by
-/// which of `.activation/{prior,staged}` physically exist. See the
-/// section doc above for the three-phase table this implements.
+/// the complete old world or the complete new world. The swap manifest
+/// and each named folder's location establish which outcome is safe.
 pub fn reconcile_interrupted_activation(
     fs: &dyn FileSystem,
     server_dir: &Path,
@@ -2635,23 +2762,14 @@ pub fn reconcile_interrupted_activation(
         return Ok(None);
     }
 
-    let prior_dir = activation_prior_dir(server_dir);
-    let staged_dir = activation_staged_dir(server_dir);
-    let prior_exists = fs.stat(&prior_dir).is_ok();
-    let staged_exists = fs.stat(&staged_dir).is_ok();
-
-    if !prior_exists {
-        // Phase 1 ("staged"): nothing at the server root was ever
-        // touched — discard the abandoned staging area outright.
-        let _ = fs.remove(&activation_dir);
-        return Ok(Some(ActivationRecovery::RecoveredToOldWorld));
-    }
-
-    if staged_exists {
-        // Phase 2 ("prior_moved"): the server root currently has no
-        // live world at all — move the prior folders back.
-        move_entries(fs, &prior_dir, server_dir)?;
-        let _ = fs.remove(&activation_dir);
+    let outcome = recover_world_swap(
+        fs,
+        &activation_dir,
+        server_dir,
+        &activation_staged_dir(server_dir),
+        &activation_prior_dir(server_dir),
+    )?;
+    if outcome == SwapRecovery::Old {
         return Ok(Some(ActivationRecovery::RecoveredToOldWorld));
     }
 
@@ -2876,27 +2994,9 @@ fn copy_dir_recursive(fs: &dyn FileSystem, from: &Path, to: &Path) -> io::Result
 // rollback/reconciliation" is this correction's own point: both now
 // exist together.
 //
-//   1. **staged** — the replacement source (a validated backup ZIP, an
-//      existing folder, or nothing at all for a fresh world) is fully
-//      staged into `.replace/staged/`. The live world is untouched. A
-//      failure here (a corrupt archive, an unreadable source folder)
-//      aborts with the live world completely intact — the safety backup
-//      has already been secured either way.
-//   2. **prior_moved** — the current live folders (Java's full
-//      main/nether/end set, or Bedrock's single folder — the same set
-//      source removed outright) are moved, not deleted, into
-//      `.replace/prior/`.
-//   3. **installed** — the staged replacement is moved into place,
-//      `staged/` is removed, the new level-name is committed to
-//      `server.properties`, then `.replace/` itself is removed last.
-//
-// The three phases are distinguished purely by which of
-// `.replace/{prior,staged}` physically exist — the same journal-free
-// recovery shape `activate_slot`/`restore_backup` already use — so
-// [`reconcile_interrupted_world_replace`] always resolves an interrupted
-// transaction to either the complete old world or the complete new one.
-// `manifest.json` (just the new level-name) is the one piece phase-3
-// recovery can't re-derive from the directory layout alone.
+// Staging completes before `swap.json` records the old and new folder
+// names. The shared swap reconciler handles every partial move and the
+// replacement commit replays the new level-name when installation finished.
 // =====================================================================
 
 fn replace_dir(server_dir: &Path) -> PathBuf {
@@ -2947,7 +3047,7 @@ fn finish_replace_commit(
         apply_seed: false,
     };
     apply_world_identity(fs, server_dir, &identity)?;
-    let _ = fs.remove(&replace_dir(server_dir));
+    fs.remove(&replace_dir(server_dir))?;
     Ok(())
 }
 
@@ -2978,6 +3078,11 @@ pub fn replace_world(
     now: &str,
     should_cancel: impl Fn() -> bool,
 ) -> Result<WorldReplaceOutcome, WorldError> {
+    if fs.stat(&replace_dir(server_dir)).is_ok() {
+        return Err(WorldError::Io(repair_error(
+            "replacement transaction is still present",
+        )));
+    }
     let trimmed = new_level_name.trim();
     if trimmed.is_empty() {
         return Err(WorldError::EmptyName);
@@ -3084,18 +3189,7 @@ pub fn replace_world(
         return Err(WorldError::Cancelled);
     }
 
-    // Phase 2: move the current live folders aside.
     let prior_dir = replace_prior_dir(server_dir);
-    fs.create_dir_all(&prior_dir)?;
-    for name in &current_names {
-        let path = base.join(name);
-        if folder_exists(fs, &path) {
-            fs.rename(&path, &prior_dir.join(name))?;
-        }
-    }
-    test_pause_after_world_move();
-
-    // Phase 3: install the staged replacement (if any), then commit.
     let install_roots = if server_type == ServerType::Bedrock {
         match world_source {
             WorldReplaceSource::BackupZip(_) => top_level_entries(fs, &staged_base)?
@@ -3110,8 +3204,19 @@ pub fn replace_world(
     } else {
         approved_roots
     };
-    move_approved_world_roots(fs, &staged_base, &base, &install_roots)?;
-    let _ = fs.remove(&staged_dir);
+    let old_roots = current_names
+        .into_iter()
+        .filter(|name| folder_exists(fs, &base.join(name)))
+        .collect();
+    begin_world_swap(
+        fs,
+        &replace_dir(server_dir),
+        &base,
+        &staged_base,
+        &prior_dir,
+        old_roots,
+        install_roots,
+    )?;
     finish_replace_commit(fs, server_dir, trimmed)?;
 
     Ok(WorldReplaceOutcome {
@@ -3137,8 +3242,8 @@ pub enum WorldReplaceRecovery {
 /// Call once per server on agent startup, before any world-replace route
 /// is reachable for it — the same "before routes are reachable" timing
 /// [`reconcile_interrupted_activation`]/`reconcile_interrupted_restore`
-/// already establish. Driven purely by which of `.replace/{prior,staged}`
-/// physically exist, per the section doc's own three-phase table.
+/// already establish. The durable swap manifest lists every folder and
+/// phase; incomplete moves roll back, while a complete install commits.
 pub fn reconcile_interrupted_world_replace(
     fs: &dyn FileSystem,
     server_dir: &Path,
@@ -3149,24 +3254,15 @@ pub fn reconcile_interrupted_world_replace(
         return Ok(None);
     }
 
-    let prior_dir = replace_prior_dir(server_dir);
-    let staged_dir = replace_staged_dir(server_dir);
-    let prior_exists = fs.stat(&prior_dir).is_ok();
-    let staged_exists = fs.stat(&staged_dir).is_ok();
-
-    if !prior_exists {
-        // Phase 1 ("staged"): nothing at the live world was ever
-        // touched — discard the abandoned staging area outright.
-        let _ = fs.remove(&dir);
-        return Ok(Some(WorldReplaceRecovery::RecoveredToOldWorld));
-    }
-
-    if staged_exists {
-        // Phase 2 ("prior_moved"): the live world currently has nothing
-        // at it — move the prior folders back.
-        let base = world_base_dir(server_dir, server_type);
-        move_entries(fs, &prior_dir, &base)?;
-        let _ = fs.remove(&dir);
+    let base = world_base_dir(server_dir, server_type);
+    let outcome = recover_world_swap(
+        fs,
+        &dir,
+        &base,
+        &world_base_dir(&replace_staged_dir(server_dir), server_type),
+        &replace_prior_dir(server_dir),
+    )?;
+    if outcome == SwapRecovery::Old {
         return Ok(Some(WorldReplaceRecovery::RecoveredToOldWorld));
     }
 

@@ -573,11 +573,9 @@ pub fn prune_orphan_sidecars(fs: &dyn FileSystem, server_dir: &Path) -> Vec<Path
 // Unlike activation, a restored backup carries no new world identity to
 // commit (a backup ZIP's member paths already match *this* server's
 // current level-name — that's what `backupWorld`/`createBackup` captured
-// them as) — so this transaction's "installed" phase has no commit tail
-// beyond removing `.restore/` itself, and its own manifest doesn't need
-// to remember anything phase-3 recovery can't already re-derive from the
-// directory layout alone (unlike activation's slot id/identity) — so
-// restore's transaction carries no `manifest.json` at all.
+// them as) — so the commit tail only removes `.restore/`. The durable
+// `swap.json` still records every folder and move phase, allowing a
+// partial restore to roll back without guessing from directory existence.
 //
 // Deviation from this step's own `Files:` list, flagged rather than
 // silent: `msc-application::operations` (`LifecycleOperations`) is not
@@ -717,6 +715,11 @@ pub fn restore_backup(
     now: &str,
     should_cancel: impl Fn() -> bool,
 ) -> Result<RestoreOutcome, RestoreError> {
+    if fs.stat(&restore_dir(server_dir)).is_ok() {
+        return Err(RestoreError::Io(io::Error::other(
+            "world restore needs repair: previous transaction is still present",
+        )));
+    }
     if server_type == ServerType::Bedrock {
         return Err(RestoreError::BedrockNotSupported);
     }
@@ -789,21 +792,24 @@ pub fn restore_backup(
         return Err(RestoreError::Cancelled);
     }
 
-    // Phase 2: move the current live folders aside.
     let prior_dir = restore_prior_dir(server_dir);
-    fs.create_dir_all(&prior_dir).map_err(RestoreError::Io)?;
-    for name in &current_folders {
-        fs.rename(&server_dir.join(name), &prior_dir.join(name))
-            .map_err(RestoreError::Io)?;
-    }
-    crate::worlds::test_pause_after_world_move();
-
-    // Phase 3: install the staged restore, then remove the whole
-    // transaction directory — `prior/` is discarded too, matching
-    // source's own "restore succeeded" outcome (the safety backup, not
-    // `prior/`, is the durable fallback from here on).
-    crate::worlds::move_entries(fs, &staged_dir, server_dir).map_err(RestoreError::Io)?;
-    let _ = fs.remove(&restore_dir(server_dir));
+    let new_roots = crate::worlds::top_level_entries(fs, &staged_dir)
+        .map_err(RestoreError::Io)?
+        .into_iter()
+        .map(|path| path.file_name().unwrap().to_string_lossy().into_owned())
+        .collect();
+    crate::worlds::begin_world_swap(
+        fs,
+        &restore_dir(server_dir),
+        server_dir,
+        &staged_dir,
+        &prior_dir,
+        current_folders,
+        new_roots,
+    )
+    .map_err(RestoreError::Io)?;
+    fs.remove(&restore_dir(server_dir))
+        .map_err(RestoreError::Io)?;
 
     Ok(RestoreOutcome {
         safety_backup_zip_path: safety_backup.zip_path,
@@ -830,8 +836,8 @@ pub enum RestoreRecovery {
 /// reachable for it — the same "before routes are reachable" timing
 /// [`crate::worlds::reconcile_imported_worlds`]/
 /// [`crate::worlds::reconcile_interrupted_activation`] already
-/// established. Driven purely by which of `.restore/{prior,staged}`
-/// physically exist, per the section doc's own three-phase table.
+/// established. The durable swap manifest and physical folder locations
+/// determine rollback or completion, including partial installation.
 pub fn reconcile_interrupted_restore(
     fs: &dyn FileSystem,
     server_dir: &Path,
@@ -841,29 +847,17 @@ pub fn reconcile_interrupted_restore(
         return Ok(None);
     }
 
-    let prior_dir = restore_prior_dir(server_dir);
-    let staged_dir = restore_staged_dir(server_dir);
-    let prior_exists = fs.stat(&prior_dir).is_ok();
-    let staged_exists = fs.stat(&staged_dir).is_ok();
-
-    if !prior_exists {
-        // Phase 1 ("staged"): nothing at the server root was ever
-        // touched — discard the abandoned staging area outright.
-        let _ = fs.remove(&dir);
-        return Ok(Some(RestoreRecovery::RecoveredToOldWorld));
+    match crate::worlds::recover_world_swap(
+        fs,
+        &dir,
+        server_dir,
+        &restore_staged_dir(server_dir),
+        &restore_prior_dir(server_dir),
+    )? {
+        crate::worlds::SwapRecovery::Old => Ok(Some(RestoreRecovery::RecoveredToOldWorld)),
+        crate::worlds::SwapRecovery::New => {
+            fs.remove(&dir)?;
+            Ok(Some(RestoreRecovery::RecoveredToRestoredWorld))
+        }
     }
-
-    if staged_exists {
-        // Phase 2 ("prior_moved"): the server root currently has no
-        // live world at all — move the prior folders back.
-        crate::worlds::move_entries(fs, &prior_dir, server_dir)?;
-        let _ = fs.remove(&dir);
-        return Ok(Some(RestoreRecovery::RecoveredToOldWorld));
-    }
-
-    // Phase 3 ("installed"): the restored world is already at the
-    // server root; nothing left but to discard the transaction
-    // directory.
-    let _ = fs.remove(&dir);
-    Ok(Some(RestoreRecovery::RecoveredToRestoredWorld))
 }

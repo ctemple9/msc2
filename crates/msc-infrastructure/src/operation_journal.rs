@@ -26,6 +26,11 @@
 //! alone doesn't perform, since `record` has to stay usable for
 //! `reconcile_on_startup`'s own re-journaling of entries that have already
 //! passed the check once.
+//!
+//! A terminal operation record does not certify a completed world swap.
+//! World activation, restore, and replacement keep their own durable
+//! folder manifest; the agent refuses further world mutations while one
+//! remains and startup reconciles it before restoring mutation access.
 
 use crate::atomic_write::{AtomicWriteError, atomic_write};
 use crate::fs::FileSystem;

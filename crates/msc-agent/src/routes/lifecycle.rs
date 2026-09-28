@@ -98,18 +98,14 @@ fn reconcile_server(server: &ConfigServer) -> ReconciliationStatus {
     let mut first_failure = None;
     let now = iso8601_now();
     let server_dir = Path::new(&server.server_dir);
-    if let Err(err) = msc_application::worlds::reconcile_imported_worlds(
-        &StdFileSystem,
-        server_dir,
-        server.server_type,
-        None,
-        &now,
-    ) {
-        eprintln!(
-            "[worlds] Warning: could not reconcile imported world data for {}: {err}",
-            server.server_dir
-        );
-        first_failure = Some(format!("world reconciliation failed: {err}"));
+    let pending_swaps = [".activation", ".restore", ".replace"]
+        .iter()
+        .filter(|name| server_dir.join("world_slots").join(name).exists())
+        .count();
+    if pending_swaps > 1 {
+        return ReconciliationStatus::Degraded {
+            reason: "multiple world replacement transactions need manual repair".to_string(),
+        };
     }
     if let Err(err) =
         msc_application::worlds::reconcile_interrupted_activation(&StdFileSystem, server_dir, &now)
@@ -121,8 +117,9 @@ fn reconcile_server(server: &ConfigServer) -> ReconciliationStatus {
         first_failure
             .get_or_insert_with(|| format!("interrupted activation recovery failed: {err}"));
     }
-    if let Err(err) =
-        msc_application::backups::reconcile_interrupted_restore(&StdFileSystem, server_dir)
+    if first_failure.is_none()
+        && let Err(err) =
+            msc_application::backups::reconcile_interrupted_restore(&StdFileSystem, server_dir)
     {
         eprintln!(
             "[worlds] Warning: could not reconcile an interrupted restore for {}: {err}",
@@ -130,17 +127,38 @@ fn reconcile_server(server: &ConfigServer) -> ReconciliationStatus {
         );
         first_failure.get_or_insert_with(|| format!("interrupted restore recovery failed: {err}"));
     }
-    if let Err(err) = msc_application::worlds::reconcile_interrupted_world_replace(
-        &StdFileSystem,
-        server_dir,
-        server.server_type,
-    ) {
+    if first_failure.is_none()
+        && let Err(err) = msc_application::worlds::reconcile_interrupted_world_replace(
+            &StdFileSystem,
+            server_dir,
+            server.server_type,
+        )
+    {
         eprintln!(
             "[worlds] Warning: could not reconcile an interrupted active-world replacement for {}: {err}",
             server.server_dir
         );
         first_failure
             .get_or_insert_with(|| format!("interrupted world replacement recovery failed: {err}"));
+    }
+
+    // Import reconciliation inspects the live folders. It must see a
+    // completed swap, and it must not run against a transaction requiring
+    // manual repair.
+    if first_failure.is_none()
+        && let Err(err) = msc_application::worlds::reconcile_imported_worlds(
+            &StdFileSystem,
+            server_dir,
+            server.server_type,
+            None,
+            &now,
+        )
+    {
+        eprintln!(
+            "[worlds] Warning: could not reconcile imported world data for {}: {err}",
+            server.server_dir
+        );
+        first_failure = Some(format!("world reconciliation failed: {err}"));
     }
 
     first_failure.map_or(ReconciliationStatus::Ready, |reason| {
@@ -1545,7 +1563,8 @@ impl LifecycleRoutesState {
     /// callers must never gain mutation authority merely because no state
     /// was recorded for it.
     pub fn reconciliation_status(&self, server_id: &str) -> ReconciliationStatus {
-        self.inner
+        let status = self
+            .inner
             .reconciliation
             .lock()
             .unwrap()
@@ -1553,7 +1572,24 @@ impl LifecycleRoutesState {
             .cloned()
             .unwrap_or_else(|| ReconciliationStatus::Degraded {
                 reason: "no reconciliation state exists for this server".to_string(),
+            });
+        if matches!(status, ReconciliationStatus::Ready)
+            && let Some(server) = self
+                .app_config_servers()
+                .into_iter()
+                .find(|server| server.id == server_id)
+            && [".activation", ".restore", ".replace"].iter().any(|name| {
+                Path::new(&server.server_dir)
+                    .join("world_slots")
+                    .join(name)
+                    .exists()
             })
+        {
+            return ReconciliationStatus::Degraded {
+                reason: "world replacement is incomplete; restart for recovery or repair the reported transaction".to_string(),
+            };
+        }
+        status
     }
 
     #[cfg(test)]

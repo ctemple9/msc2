@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 16 execution is underway. P16.1–P16.4 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
-> **Next move:** Cameron verifies P16.1–P16.4 using their `Verify:` commands.
+> ## STATUS: Phase 16 execution is underway. P16.1–P16.5 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
+> **Next move:** Cameron verifies P16.1–P16.5 using their `Verify:` commands.
 
 ## How this document works
 
@@ -74,8 +74,8 @@ Batch: solo
 
 #### P16.5 — Recover partial world replacement deterministically
 
-Status: planned — awaiting Cameron's review
-Files: crates/msc-application/src/worlds.rs, crates/msc-application/src/backups.rs, crates/msc-infrastructure/src/operation_journal.rs, docs/msc2/rolling-plan.md
+Status: implemented — awaiting Cameron's verification
+Files: crates/msc-application/src/worlds.rs, crates/msc-application/src/backups.rs, crates/msc-infrastructure/src/operation_journal.rs, crates/msc-agent/src/routes/lifecycle.rs, docs/msc2/rolling-plan.md
 What: Give activation and restore a durable progress manifest listing the folders to move and install. On restart, reconcile every partial phase, including destinations already created, to one complete old or new world. Keep further mutation blocked while recovery is incomplete and surface a repair error if neither state can be proven.
 Verify: Run `cargo check -p msc-application -p msc-infrastructure`.
 Batch: solo

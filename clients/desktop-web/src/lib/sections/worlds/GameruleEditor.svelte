@@ -27,6 +27,7 @@
   let search = '';
 
   $: nextKey = JSON.stringify([serverType, minecraftVersion, activeServer]);
+  $: shownVersion = catalog?.minecraftVersion ?? minecraftVersion;
   $: if (nextKey !== requestKey || api !== lastApi) {
     requestKey = nextKey;
     lastApi = api;
@@ -124,11 +125,12 @@
 
 <div class="editor">
   <div class="toolbar">
-    <span class="context"
-      >{catalog?.minecraftVersion
-        ? `Minecraft ${catalog.minecraftVersion}`
-        : 'Gameplay rules'}</span
-    >
+    <div class="context">
+      <span class="version">
+        {shownVersion ? `Minecraft ${shownVersion}` : 'Minecraft version not verified'}
+      </span>
+      <span class="edition">{serverType === 'bedrock' ? 'Bedrock' : 'Java'}</span>
+    </div>
     <div class="actions">
       {#if catalog?.available}
         <Button
@@ -154,7 +156,11 @@
   </div>
   {#if loading}<p class="hint" role="status">Loading rules for this release…</p>
   {:else if error}<p class="hint" role="status">{error} Manual entry is available.</p>
-  {:else if catalog?.note}<p class="hint">{catalog.note}</p>
+  {:else if catalog?.note && !catalog.note.startsWith('Verified built-in rules for this ')}<p
+      class="hint"
+    >
+      {catalog.note}
+    </p>
   {:else if !api}<p class="hint">
       Connect to an agent to browse rules. Manual entry is available.
     </p>{/if}
@@ -235,7 +241,7 @@
             />
           {/if}
           <Button size="sm" variant="secondary" {disabled} onclick={() => remove(entry.id)}
-            >Remove Override</Button
+            >Remove</Button
           >
         </div>
       </div>
@@ -299,9 +305,22 @@
     gap: 12px;
     flex-shrink: 0;
   }
-  .context,
   .hint,
   code {
+    color: var(--msc2-text-secondary);
+    font-size: 12px;
+  }
+  .context {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+  .version {
+    color: var(--msc2-text-primary);
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .edition {
     color: var(--msc2-text-secondary);
     font-size: 12px;
   }

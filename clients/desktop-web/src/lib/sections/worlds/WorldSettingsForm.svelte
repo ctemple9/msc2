@@ -491,7 +491,6 @@
         {/if}
 
         <div class="field-group wide">
-          <span class="label">Gamerules</span>
           {#if unavailable('gameplay.gamerules')}
             <span class="unavailable">Unavailable: {reason('gameplay.gamerules')}</span>
           {:else}

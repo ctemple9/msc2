@@ -7,8 +7,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use axum::extract::State;
+use crate::auth::{AuthState, StreamAuthentication};
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
+use axum::extract::{Extension, State};
 use axum::response::Response;
 use msc_api::dto::NotificationEventDto;
 use tokio::sync::broadcast;
@@ -95,26 +96,58 @@ impl NotificationState {
     }
 }
 
-pub async fn upgrade(ws: WebSocketUpgrade, State(state): State<NotificationState>) -> Response {
+pub async fn upgrade(
+    ws: WebSocketUpgrade,
+    State(state): State<NotificationState>,
+    Extension(auth): Extension<AuthState>,
+    Extension(identity): Extension<StreamAuthentication>,
+) -> Response {
     ws.max_frame_size(MAX_INBOUND_FRAME_BYTES)
-        .on_upgrade(move |socket| handle_socket(socket, state))
+        .on_upgrade(move |socket| handle_socket(socket, state, auth, identity))
 }
 
-async fn handle_socket(mut socket: WebSocket, state: NotificationState) {
+async fn handle_socket(
+    mut socket: WebSocket,
+    state: NotificationState,
+    auth: AuthState,
+    identity: StreamAuthentication,
+) {
+    let mut changes = auth.stream_changes();
+    let mut expiry_check = tokio::time::interval(std::time::Duration::from_secs(1));
+    if !auth.stream_is_authorized(&identity) {
+        let _ = socket.send(Message::Close(None)).await;
+        return;
+    }
     let mut live = state.sender.subscribe();
     for event in state.backfill() {
+        if !auth.stream_is_authorized(&identity) {
+            return;
+        }
         if send_event(&mut socket, &event).await.is_err() {
             return;
         }
     }
     loop {
         tokio::select! {
+            _ = changes.changed() => {
+                if !auth.stream_is_authorized(&identity) {
+                    let _ = socket.send(Message::Close(None)).await;
+                    return;
+                }
+            }
+            _ = expiry_check.tick() => {
+                if !auth.stream_is_authorized(&identity) {
+                    let _ = socket.send(Message::Close(None)).await;
+                    return;
+                }
+            }
             incoming = socket.recv() => match incoming {
                 Some(Ok(_)) => continue,
                 Some(Err(_)) | None => return,
             },
             event = live.recv() => match event {
                 Ok(event) => {
+                    if !auth.stream_is_authorized(&identity) { return; }
                     if send_event(&mut socket, &event).await.is_err() { return; }
                 }
                 Err(broadcast::error::RecvError::Lagged(_)) => continue,

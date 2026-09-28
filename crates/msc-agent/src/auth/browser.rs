@@ -271,7 +271,27 @@ impl AuthState {
     ) -> Result<(), BrowserSessionError> {
         self.inner.secret_store.delete(&session_key(session_id))?;
         self.forget_session_key(&session_key(session_id));
+        self.notify_streams();
         Ok(())
+    }
+
+    pub(crate) fn browser_session_is_active(
+        &self,
+        authentication: &BrowserSessionAuthentication,
+    ) -> Result<bool, BrowserSessionError> {
+        let Some(json) = self
+            .inner
+            .secret_store
+            .get(&session_key(&authentication.session_id))?
+        else {
+            return Ok(false);
+        };
+        let record: BrowserSessionRecord = serde_json::from_str(&json)
+            .map_err(|error| BrowserSessionError::Store(error.to_string()))?;
+        let now = SystemTime::now();
+        Ok(now < from_unix_secs(record.idle_expires_at)
+            && now < from_unix_secs(record.absolute_expires_at)
+            && constant_time_eq(&authentication.csrf_token, &record.csrf_token))
     }
 }
 

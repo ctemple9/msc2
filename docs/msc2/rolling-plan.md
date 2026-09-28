@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 16 execution is underway. P16.1–P16.7 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
-> **Next move:** Cameron verifies P16.1–P16.7 using their `Verify:` commands.
+> ## STATUS: Phase 16 execution is underway. P16.1–P16.8 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
+> **Next move:** Cameron verifies P16.1–P16.8 using their `Verify:` commands.
 
 ## How this document works
 
@@ -98,8 +98,8 @@ Batch: solo
 
 #### P16.8 — End WebSocket streams when credentials end
 
-Status: planned — awaiting Cameron's review
-Files: crates/msc-agent/src/auth.rs, crates/msc-agent/src/ws/console.rs, crates/msc-agent/src/ws/notifications.rs, crates/msc-agent/src/main.rs, docs/msc2/rolling-plan.md
+Status: implemented — awaiting Cameron's verification
+Files: crates/msc-agent/src/auth.rs, crates/msc-agent/src/auth/browser.rs, crates/msc-agent/src/ws/console.rs, crates/msc-agent/src/ws/notifications.rs, docs/msc2/rolling-plan.md
 What: Bind upgraded console and notification streams to credential/session identity. Close them on revocation, expiry, and host-identity reset, including while idle; do not rely on another incoming HTTP request. Keep one-use stream-ticket behavior intact.
 Verify: Run `cargo check -p msc-agent`.
 Batch: solo

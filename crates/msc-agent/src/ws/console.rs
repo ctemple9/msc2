@@ -18,7 +18,7 @@ use msc_infrastructure::console_buffer::{
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
-use crate::auth::{AuthState, AuthenticatedCredential};
+use crate::auth::{AuthState, AuthenticatedCredential, StreamAuthentication};
 
 /// axum's inbound frame-size guard, matching `maxWebSocketClientFrameBytes`.
 const MAX_INBOUND_FRAME_BYTES: usize = 64 * 1024;
@@ -142,10 +142,12 @@ pub async fn upgrade(
     ws: WebSocketUpgrade,
     State(state): State<ConsoleState>,
     Query(query): Query<ConsoleQuery>,
+    Extension(auth): Extension<AuthState>,
+    Extension(identity): Extension<StreamAuthentication>,
 ) -> Response {
     let hide_auto = query.hide_auto.unwrap_or(true);
     ws.max_frame_size(MAX_INBOUND_FRAME_BYTES)
-        .on_upgrade(move |socket| handle_socket(socket, state, hide_auto))
+        .on_upgrade(move |socket| handle_socket(socket, state, hide_auto, auth, identity))
 }
 
 pub async fn tail(
@@ -176,13 +178,29 @@ pub async fn stream_ticket(
     response
 }
 
-async fn handle_socket(mut socket: WebSocket, state: ConsoleState, hide_auto: bool) {
+async fn handle_socket(
+    mut socket: WebSocket,
+    state: ConsoleState,
+    hide_auto: bool,
+    auth: AuthState,
+    identity: StreamAuthentication,
+) {
+    let mut changes = auth.stream_changes();
+    let mut expiry_check = tokio::time::interval(std::time::Duration::from_secs(1));
+    if !auth.stream_is_authorized(&identity) {
+        let _ = socket.send(Message::Close(None)).await;
+        return;
+    }
     // Subscribed before reading backfill so a line pushed mid-backfill is
     // queued for live delivery rather than silently missed.
     let mut live = state.sender.subscribe();
     let mut automatic_live = (!hide_auto).then(|| state.automatic_sender.subscribe());
 
     for line in state.backfill(!hide_auto) {
+        if !auth.stream_is_authorized(&identity) {
+            let _ = socket.send(Message::Close(None)).await;
+            return;
+        }
         if send_line(&mut socket, &line).await.is_err() {
             return;
         }
@@ -190,6 +208,18 @@ async fn handle_socket(mut socket: WebSocket, state: ConsoleState, hide_auto: bo
 
     loop {
         tokio::select! {
+            _ = changes.changed() => {
+                if !auth.stream_is_authorized(&identity) {
+                    let _ = socket.send(Message::Close(None)).await;
+                    return;
+                }
+            }
+            _ = expiry_check.tick() => {
+                if !auth.stream_is_authorized(&identity) {
+                    let _ = socket.send(Message::Close(None)).await;
+                    return;
+                }
+            }
             incoming = socket.recv() => {
                 match incoming {
                     // Inbound text/binary is intentionally ignored — this
@@ -203,6 +233,7 @@ async fn handle_socket(mut socket: WebSocket, state: ConsoleState, hide_auto: bo
             line = live.recv() => {
                 match line {
                     Ok(line) => {
+                        if !auth.stream_is_authorized(&identity) { return; }
                         if send_line(&mut socket, &line).await.is_err() {
                             return;
                         }
@@ -214,6 +245,7 @@ async fn handle_socket(mut socket: WebSocket, state: ConsoleState, hide_auto: bo
             line = receive_automatic(&mut automatic_live), if !hide_auto => {
                 match line {
                     Ok(line) => {
+                        if !auth.stream_is_authorized(&identity) { return; }
                         if send_line(&mut socket, &line).await.is_err() {
                             return;
                         }

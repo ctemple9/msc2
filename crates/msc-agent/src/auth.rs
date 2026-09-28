@@ -52,6 +52,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha1::{Digest, Sha1};
 use subtle::ConstantTimeEq;
+use tokio::sync::watch;
 
 #[allow(unused_imports)]
 pub(crate) use browser::{
@@ -102,6 +103,12 @@ tokio::task_local! {
 pub(crate) struct BrowserSessionAuthentication {
     pub session_id: String,
     pub csrf_token: String,
+}
+
+#[derive(Clone)]
+pub(crate) struct StreamAuthentication {
+    pub credential: AuthenticatedCredential,
+    pub session: Option<BrowserSessionAuthentication>,
 }
 
 #[derive(Debug, Clone)]
@@ -195,6 +202,7 @@ struct AuthStateInner {
     session_keys: Mutex<HashSet<String>>,
     console_stream_tickets: Mutex<HashMap<String, ConsoleStreamTicket>>,
     audit_events: Mutex<Vec<AuthAuditEvent>>,
+    stream_changes: watch::Sender<u64>,
     /// Where the non-secret registry is durably persisted, if at all --
     /// `None` for the in-memory-only constructors tests use.
     credential_store: Option<CredentialRegistryStore>,
@@ -315,6 +323,7 @@ impl AuthState {
         registry: HashMap<String, CredentialRecord>,
         credential_store: Option<CredentialRegistryStore>,
     ) -> Self {
+        let (stream_changes, _) = watch::channel(0);
         Self {
             inner: Arc::new(AuthStateInner {
                 secret_store,
@@ -325,6 +334,7 @@ impl AuthState {
                 session_keys: Mutex::new(HashSet::new()),
                 console_stream_tickets: Mutex::new(HashMap::new()),
                 audit_events: Mutex::new(Vec::new()),
+                stream_changes,
                 credential_store,
             }),
         }
@@ -498,6 +508,7 @@ impl AuthState {
                 .expect("updated credential remains in registry");
             summary_from_record(credential_id, record, SystemTime::now())
         };
+        self.notify_streams();
         self.record_audit(actor_label, StatusCode::OK, "token_updated");
         Ok(summary)
     }
@@ -526,6 +537,7 @@ impl AuthState {
             return Err(CredentialAdminError::SecretStore(error.to_string()));
         }
         drop(registry);
+        self.notify_streams();
         self.record_audit(actor_label, StatusCode::OK, "token_revoked");
         Ok(())
     }
@@ -559,6 +571,29 @@ impl AuthState {
             role: record.role,
             permissions: record.permissions.clone(),
         })
+    }
+
+    fn notify_streams(&self) {
+        self.inner
+            .stream_changes
+            .send_modify(|generation| *generation += 1);
+    }
+
+    pub(crate) fn stream_changes(&self) -> watch::Receiver<u64> {
+        self.inner.stream_changes.subscribe()
+    }
+
+    pub(crate) fn stream_is_authorized(&self, identity: &StreamAuthentication) -> bool {
+        if self
+            .credential_for_browser_session(&identity.credential.credential_id)
+            .is_err()
+        {
+            return false;
+        }
+        identity
+            .session
+            .as_ref()
+            .is_none_or(|session| self.browser_session_is_active(session).unwrap_or(false))
     }
 
     /// Migrates a P5.8 legacy owner token into the Phase 4 credential
@@ -683,6 +718,7 @@ impl AuthState {
         }
         self.inner.pairing_keys.lock().unwrap().clear();
         self.inner.session_keys.lock().unwrap().clear();
+        self.notify_streams();
         {
             let mut registry = self.inner.registry.lock().unwrap();
             registry.clear();
@@ -1043,6 +1079,10 @@ pub(crate) async fn require_management_auth(
         && let Some(credential) = auth.authenticate_console_stream_ticket(ticket)
     {
         request.extensions_mut().insert(credential.clone());
+        request.extensions_mut().insert(StreamAuthentication {
+            credential: credential.clone(),
+            session: None,
+        });
         return INITIATING_CREDENTIAL
             .scope(credential, next.run(request))
             .await;
@@ -1053,6 +1093,10 @@ pub(crate) async fn require_management_auth(
         return match auth.authenticate_headers(request.headers(), "unknown-client") {
             Ok(credential) => {
                 request.extensions_mut().insert(credential.clone());
+                request.extensions_mut().insert(StreamAuthentication {
+                    credential: credential.clone(),
+                    session: None,
+                });
                 INITIATING_CREDENTIAL
                     .scope(credential, next.run(request))
                     .await
@@ -1094,6 +1138,13 @@ pub(crate) async fn require_management_auth(
         Err(_) => return unauthorized(),
     };
     request.extensions_mut().insert(credential.clone());
+    request.extensions_mut().insert(StreamAuthentication {
+        credential: credential.clone(),
+        session: Some(BrowserSessionAuthentication {
+            session_id: session.session_id.clone(),
+            csrf_token: session.csrf_token.clone(),
+        }),
+    });
     request
         .extensions_mut()
         .insert(BrowserSessionAuthentication {

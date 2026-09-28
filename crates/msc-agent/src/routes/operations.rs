@@ -23,9 +23,10 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::auth::{AuthenticatedCredential, CredentialRole, INITIATING_CREDENTIAL};
 use axum::Json;
 use axum::body::Bytes;
-use axum::extract::{Path, State};
+use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use msc_api::dto::{ErrorDto, OperationDto, OperationProgressDto, OperationStateDto};
@@ -98,8 +99,15 @@ impl OperationsState {
         target: Option<String>,
         status_line: &str,
     ) -> Result<OperationId, LifecycleOperationError> {
-        self.operations
-            .begin_running(operation_type, target, status_line)
+        let credential_id = INITIATING_CREDENTIAL
+            .try_with(|credential| credential.credential_id.clone())
+            .ok();
+        self.operations.begin_running_for_credential(
+            operation_type,
+            target,
+            status_line,
+            credential_id,
+        )
     }
 
     pub fn progress(
@@ -146,12 +154,35 @@ impl OperationsState {
     /// Signals cooperative cancellation for a non-terminal operation
     /// without transitioning its state — see
     /// `LifecycleOperations::request_cancel`'s own doc.
+    #[cfg(test)]
     pub fn request_cancel(
         &self,
         id: &OperationId,
         status_line: &str,
     ) -> Result<OperationDto, LifecycleOperationError> {
         self.operations.request_cancel(id, status_line).map(to_dto)
+    }
+
+    pub fn request_cancel_authorized(
+        &self,
+        id: &OperationId,
+        status_line: &str,
+        credential: &AuthenticatedCredential,
+    ) -> Result<OperationDto, LifecycleOperationError> {
+        let permissions: Vec<String> = credential
+            .permissions
+            .iter()
+            .map(|permission| permission_name(*permission).to_string())
+            .collect();
+        self.operations
+            .request_cancel_authorized(
+                id,
+                status_line,
+                &credential.credential_id,
+                &permissions,
+                credential.role == CredentialRole::Admin,
+            )
+            .map(to_dto)
     }
 
     /// A cheap, `'static` closure a real Phase 6 worker can poll at its
@@ -258,9 +289,13 @@ pub async fn get(State(store): State<OperationsState>, Path(id): Path<String>) -
 /// the request is `409`; otherwise it is `202 Accepted` with the captured
 /// `Cancelling…` record and the client keeps polling
 /// `GET /v1/operations/{id}` or the operation stream.
-pub async fn cancel(State(store): State<OperationsState>, Path(id): Path<String>) -> Response {
+pub async fn cancel(
+    State(store): State<OperationsState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    Path(id): Path<String>,
+) -> Response {
     let id = OperationId::new(id);
-    match store.request_cancel(&id, "Cancelling…") {
+    match store.request_cancel_authorized(&id, "Cancelling…", &credential) {
         Ok(snapshot) => (StatusCode::ACCEPTED, Json(snapshot)).into_response(),
         Err(error) => operation_error_response(error),
     }
@@ -344,11 +379,20 @@ fn error_to_dto(error: msc_domain::operation::OperationError) -> ErrorDto {
 
 pub fn operation_error_response(error: LifecycleOperationError) -> Response {
     match error {
+        LifecycleOperationError::Forbidden => {
+            let body = ErrorDto {
+                code: "forbidden".to_string(),
+                message: "This credential cannot cancel that operation.".to_string(),
+                help_id: None,
+                details: None,
+            };
+            (StatusCode::FORBIDDEN, Json(body)).into_response()
+        }
         LifecycleOperationError::Conflict(error) => {
             (StatusCode::CONFLICT, Json(error_to_dto(error))).into_response()
         }
         LifecycleOperationError::UnknownOperation(id) => not_found(id.as_str()),
-        LifecycleOperationError::IllegalTransition { id, .. } => conflict(id.as_str()),
+        LifecycleOperationError::IllegalTransition { id, from, .. } => conflict(id.as_str(), from),
         LifecycleOperationError::Journal(message) => {
             let body = ErrorDto {
                 code: "internal_error".to_string(),
@@ -358,6 +402,21 @@ pub fn operation_error_response(error: LifecycleOperationError) -> Response {
             };
             (StatusCode::INTERNAL_SERVER_ERROR, Json(body)).into_response()
         }
+    }
+}
+
+fn permission_name(permission: msc_api::dto::PermissionCategoryDto) -> &'static str {
+    use msc_api::dto::PermissionCategoryDto as Permission;
+    match permission {
+        Permission::ServerControl => "serverControl",
+        Permission::Players => "players",
+        Permission::Settings => "settings",
+        Permission::Addons => "addons",
+        Permission::Worlds => "worlds",
+        Permission::Broadcast => "broadcast",
+        Permission::Networking => "networking",
+        Permission::Fleet => "fleet",
+        Permission::Admin => "admin",
     }
 }
 
@@ -387,12 +446,15 @@ fn not_found(id: &str) -> Response {
     (StatusCode::NOT_FOUND, Json(body)).into_response()
 }
 
-fn conflict(id: &str) -> Response {
+fn conflict(id: &str, state: OperationState) -> Response {
     let body = ErrorDto {
         code: "conflict".to_string(),
-        message: format!("Operation '{id}' is already finished; cancellation is not legal."),
+        message: format!(
+            "Operation '{id}' is already {}; cancellation is not legal.",
+            state.raw_value()
+        ),
         help_id: Some("operations.cancel-not-legal".to_string()),
-        details: None,
+        details: Some(serde_json::json!({ "state": state.raw_value() })),
     };
     (StatusCode::CONFLICT, Json(body)).into_response()
 }
@@ -411,6 +473,15 @@ fn conflict(id: &str) -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn admin_credential() -> AuthenticatedCredential {
+        AuthenticatedCredential {
+            credential_id: "admin".to_string(),
+            label: "Admin".to_string(),
+            role: CredentialRole::Admin,
+            permissions: vec![msc_api::dto::PermissionCategoryDto::Admin],
+        }
+    }
 
     fn body(json: serde_json::Value) -> Bytes {
         Bytes::from(json.to_string())
@@ -437,7 +508,12 @@ mod tests {
         assert_eq!(created.status(), StatusCode::ACCEPTED);
         let created: OperationDto = json_body(created).await;
 
-        let accepted = cancel(State(store.clone()), Path(created.id.clone())).await;
+        let accepted = cancel(
+            State(store.clone()),
+            Extension(admin_credential()),
+            Path(created.id.clone()),
+        )
+        .await;
         assert_eq!(accepted.status(), StatusCode::ACCEPTED);
         let accepted: OperationDto = json_body(accepted).await;
         assert_eq!(accepted.state, OperationStateDto::Running);
@@ -513,7 +589,12 @@ mod tests {
         }
         assert!(succeeded, "demo-install operation never reached succeeded");
 
-        let cancelled = cancel(State(store), Path(created.id)).await;
+        let cancelled = cancel(
+            State(store),
+            Extension(admin_credential()),
+            Path(created.id),
+        )
+        .await;
         assert_eq!(cancelled.status(), StatusCode::CONFLICT);
     }
 }

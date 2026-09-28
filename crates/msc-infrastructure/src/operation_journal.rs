@@ -78,6 +78,11 @@ pub struct JournalEntry {
     pub id: OperationId,
     pub operation_type: String,
     pub target: Option<String>,
+    /// Absent for autonomous work and journal entries written before P16.7.
+    pub initiating_credential_id: Option<String>,
+    /// The route's permission category; absent only for authenticated demo work
+    /// or entries written before P16.7.
+    pub required_permission: Option<String>,
     pub state: OperationState,
     pub error: Option<OperationError>,
 }
@@ -390,6 +395,22 @@ fn entry_to_value(entry: &JournalEntry) -> Value {
             .unwrap_or(Value::Null),
     );
     obj.insert(
+        "initiatingCredentialId".to_string(),
+        entry
+            .initiating_credential_id
+            .clone()
+            .map(Value::String)
+            .unwrap_or(Value::Null),
+    );
+    obj.insert(
+        "requiredPermission".to_string(),
+        entry
+            .required_permission
+            .clone()
+            .map(Value::String)
+            .unwrap_or(Value::Null),
+    );
+    obj.insert(
         "state".to_string(),
         Value::String(entry.state.raw_value().to_string()),
     );
@@ -432,6 +453,14 @@ fn entry_from_value(value: &Value) -> Option<JournalEntry> {
         .get("target")
         .and_then(|v| v.as_str())
         .map(str::to_string);
+    let initiating_credential_id = obj
+        .get("initiatingCredentialId")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let required_permission = obj
+        .get("requiredPermission")
+        .and_then(Value::as_str)
+        .map(str::to_string);
     let state = OperationState::from_raw_value(obj.get("state")?.as_str()?)?;
     let error = obj
         .get("error")
@@ -441,6 +470,8 @@ fn entry_from_value(value: &Value) -> Option<JournalEntry> {
         id: OperationId::new(id),
         operation_type,
         target,
+        initiating_credential_id,
+        required_permission,
         state,
         error,
     })

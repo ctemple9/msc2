@@ -26,6 +26,8 @@ fn entry(
         id: OperationId::new(id),
         operation_type: operation_type.to_string(),
         target: target.map(str::to_string),
+        initiating_credential_id: None,
+        required_permission: None,
         state,
         error: None,
     }

@@ -88,6 +88,12 @@ pub struct AuthenticatedCredential {
     pub permissions: Vec<PermissionCategoryDto>,
 }
 
+// Admission runs inside the authenticated request future; background tasks
+// spawned afterward do not inherit this identity and remain service-owned.
+tokio::task_local! {
+    pub(crate) static INITIATING_CREDENTIAL: AuthenticatedCredential;
+}
+
 /// The browser-only information retained while a request is authenticated by
 /// an httpOnly session cookie. It is deliberately separate from
 /// `AuthenticatedCredential`: route handlers receive the same permission
@@ -1014,8 +1020,10 @@ pub async fn require_bearer_token(
 ) -> Response {
     match auth.authenticate_headers(request.headers(), "unknown-client") {
         Ok(credential) => {
-            request.extensions_mut().insert(credential);
-            next.run(request).await
+            request.extensions_mut().insert(credential.clone());
+            INITIATING_CREDENTIAL
+                .scope(credential, next.run(request))
+                .await
         }
         Err(AuthError::RateLimited) => rate_limited(),
         Err(AuthError::SecretStore(message)) => internal_error(message),
@@ -1034,16 +1042,20 @@ pub(crate) async fn require_management_auth(
     if let Some(ticket) = console_stream_ticket(request.uri())
         && let Some(credential) = auth.authenticate_console_stream_ticket(ticket)
     {
-        request.extensions_mut().insert(credential);
-        return next.run(request).await;
+        request.extensions_mut().insert(credential.clone());
+        return INITIATING_CREDENTIAL
+            .scope(credential, next.run(request))
+            .await;
     }
 
     let bearer_was_present = request.headers().contains_key(header::AUTHORIZATION);
     if bearer_was_present {
         return match auth.authenticate_headers(request.headers(), "unknown-client") {
             Ok(credential) => {
-                request.extensions_mut().insert(credential);
-                next.run(request).await
+                request.extensions_mut().insert(credential.clone());
+                INITIATING_CREDENTIAL
+                    .scope(credential, next.run(request))
+                    .await
             }
             Err(AuthError::RateLimited) => rate_limited(),
             Err(AuthError::SecretStore(message)) => internal_error(message),
@@ -1081,14 +1093,16 @@ pub(crate) async fn require_management_auth(
         Ok(credential) => credential,
         Err(_) => return unauthorized(),
     };
-    request.extensions_mut().insert(credential);
+    request.extensions_mut().insert(credential.clone());
     request
         .extensions_mut()
         .insert(BrowserSessionAuthentication {
             session_id: session.session_id,
             csrf_token: session.csrf_token,
         });
-    next.run(request).await
+    INITIATING_CREDENTIAL
+        .scope(credential, next.run(request))
+        .await
 }
 
 pub(crate) fn browser_mutation_is_authorized(headers: &HeaderMap, csrf_token: &str) -> bool {

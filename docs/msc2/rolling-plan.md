@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 16 execution is underway. P16.1–P16.6 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
-> **Next move:** Cameron verifies P16.1–P16.6 using their `Verify:` commands.
+> ## STATUS: Phase 16 execution is underway. P16.1–P16.7 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
+> **Next move:** Cameron verifies P16.1–P16.7 using their `Verify:` commands.
 
 ## How this document works
 
@@ -90,8 +90,8 @@ Batch: solo
 
 #### P16.7 — Authorize operation cancellation
 
-Status: planned — awaiting Cameron's review
-Files: crates/msc-agent/src/routes/operations.rs, crates/msc-application/src/operations.rs, crates/msc-infrastructure/src/operation_journal.rs, docs/msc2/rolling-plan.md
+Status: implemented — awaiting Cameron's verification
+Files: crates/msc-agent/src/auth.rs, crates/msc-agent/src/routes/operations.rs, crates/msc-application/src/operations.rs, crates/msc-infrastructure/src/operation_journal.rs, crates/msc-infrastructure/tests/operation_exclusivity.rs, crates/msc-infrastructure/tests/operation_journal.rs, docs/msc2/rolling-plan.md
 What: Store each operation's initiating credential and required permission in its record/journal. Check both when cancelling, with an explicit owner/admin override policy; continue to return the true terminal state when a worker already finished. Do not let knowledge of an operation ID grant cancellation rights.
 Verify: Run `cargo check -p msc-agent -p msc-application -p msc-infrastructure`.
 Batch: solo

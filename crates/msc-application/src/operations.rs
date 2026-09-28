@@ -37,6 +37,8 @@ pub struct LifecycleOperationSnapshot {
 struct OperationRecord {
     operation_type: String,
     target: Option<String>,
+    initiating_credential_id: Option<String>,
+    required_permission: Option<String>,
     state: OperationState,
     progress: Option<OperationProgress>,
     status_line: Option<String>,
@@ -48,6 +50,7 @@ struct OperationRecord {
 pub enum LifecycleOperationError {
     Journal(String),
     Conflict(OperationError),
+    Forbidden,
     UnknownOperation(OperationId),
     IllegalTransition {
         id: OperationId,
@@ -61,6 +64,7 @@ impl fmt::Display for LifecycleOperationError {
         match self {
             Self::Journal(message) => write!(f, "{message}"),
             Self::Conflict(error) => write!(f, "{}", error.message),
+            Self::Forbidden => write!(f, "credential cannot cancel this operation"),
             Self::UnknownOperation(id) => write!(f, "unknown operation {}", id.as_str()),
             Self::IllegalTransition { id, from, to } => write!(
                 f,
@@ -176,13 +180,26 @@ impl<'fs> LifecycleOperations<'fs> {
         target: Option<String>,
         status_line: impl Into<String>,
     ) -> Result<OperationId, LifecycleOperationError> {
+        self.begin_running_for_credential(operation_type, target, status_line, None)
+    }
+
+    pub fn begin_running_for_credential(
+        &self,
+        operation_type: impl Into<String>,
+        target: Option<String>,
+        status_line: impl Into<String>,
+        initiating_credential_id: Option<String>,
+    ) -> Result<OperationId, LifecycleOperationError> {
         let id = next_operation_id();
         let operation_type = operation_type.into();
         let status_line = status_line.into();
+        let required_permission = required_permission_for(&operation_type).map(str::to_string);
         let running_entry = JournalEntry {
             id: id.clone(),
             operation_type: operation_type.clone(),
             target: target.clone(),
+            initiating_credential_id: initiating_credential_id.clone(),
+            required_permission: required_permission.clone(),
             state: OperationState::Running,
             error: None,
         };
@@ -196,6 +213,8 @@ impl<'fs> LifecycleOperations<'fs> {
         let record = OperationRecord {
             operation_type,
             target,
+            initiating_credential_id,
+            required_permission,
             state: OperationState::Running,
             progress: None,
             status_line: Some(status_line),
@@ -285,9 +304,47 @@ impl<'fs> LifecycleOperations<'fs> {
         id: &OperationId,
         status_line: impl Into<String>,
     ) -> Result<LifecycleOperationSnapshot, LifecycleOperationError> {
+        self.request_cancel_inner(id, status_line, None)
+    }
+
+    pub fn request_cancel_authorized(
+        &self,
+        id: &OperationId,
+        status_line: impl Into<String>,
+        actor_id: &str,
+        actor_permissions: &[String],
+        is_admin: bool,
+    ) -> Result<LifecycleOperationSnapshot, LifecycleOperationError> {
+        self.request_cancel_inner(
+            id,
+            status_line,
+            Some((actor_id, actor_permissions, is_admin)),
+        )
+    }
+
+    fn request_cancel_inner(
+        &self,
+        id: &OperationId,
+        status_line: impl Into<String>,
+        actor: Option<(&str, &[String], bool)>,
+    ) -> Result<LifecycleOperationSnapshot, LifecycleOperationError> {
         let mut records = self.records.lock().unwrap();
         let Some(record) = records.get_mut(id) else {
             return match self.journal.load(id)? {
+                Some(entry) if actor.is_none() && entry.initiating_credential_id.is_some() => {
+                    Err(LifecycleOperationError::Forbidden)
+                }
+                Some(entry)
+                    if actor.is_some_and(|actor| {
+                        !can_cancel(
+                            entry.initiating_credential_id.as_deref(),
+                            entry.required_permission.as_deref(),
+                            actor,
+                        )
+                    }) =>
+                {
+                    Err(LifecycleOperationError::Forbidden)
+                }
                 Some(entry) if entry.state.is_terminal() => {
                     Err(LifecycleOperationError::IllegalTransition {
                         id: id.clone(),
@@ -298,6 +355,18 @@ impl<'fs> LifecycleOperations<'fs> {
                 _ => Err(LifecycleOperationError::UnknownOperation(id.clone())),
             };
         };
+        if actor.is_none() && record.initiating_credential_id.is_some() {
+            return Err(LifecycleOperationError::Forbidden);
+        }
+        if actor.is_some_and(|actor| {
+            !can_cancel(
+                record.initiating_credential_id.as_deref(),
+                record.required_permission.as_deref(),
+                actor,
+            )
+        }) {
+            return Err(LifecycleOperationError::Forbidden);
+        }
         if record.state.is_terminal() {
             return Err(LifecycleOperationError::IllegalTransition {
                 id: id.clone(),
@@ -392,6 +461,8 @@ impl<'fs> LifecycleOperations<'fs> {
             id: id.clone(),
             operation_type: record.operation_type.clone(),
             target: record.target.clone(),
+            initiating_credential_id: record.initiating_credential_id.clone(),
+            required_permission: record.required_permission.clone(),
             state: record.state,
             error: record.error.clone(),
         })?;
@@ -406,6 +477,38 @@ pub fn lifecycle_error(code: impl Into<String>, message: impl Into<String>) -> O
         help_id: None,
         details: BTreeMap::new(),
     }
+}
+
+// Matches the permissions at the routes that admit these operations.
+// Unknown operation types require admin until their route is classified.
+fn required_permission_for(operation_type: &str) -> Option<&'static str> {
+    match operation_type {
+        "demo-install" => None,
+        "server-create" | "paper-import" => Some("fleet"),
+        "java-start" | "bedrock-start" | "bedrock-stop" | "bedrock-crash" => Some("serverControl"),
+        "java-download" => Some("settings"),
+        "version-change" | "bedrock-version-change" | "modpack-import" => Some("addons"),
+        "host-reset" => Some("admin"),
+        "xbox-broadcast" | "broadcast-jar-download" => Some("broadcast"),
+        name if name.starts_with("world-") || name.starts_with("backup-") => Some("worlds"),
+        name if name.starts_with("addon-") => Some("addons"),
+        name if name.starts_with("playit-") => Some("networking"),
+        _ => Some("admin"),
+    }
+}
+
+fn can_cancel(
+    initiator: Option<&str>,
+    required_permission: Option<&str>,
+    (actor_id, actor_permissions, is_admin): (&str, &[String], bool),
+) -> bool {
+    is_admin
+        || initiator == Some(actor_id)
+            && required_permission.is_none_or(|permission| {
+                actor_permissions
+                    .iter()
+                    .any(|granted| granted == permission)
+            })
 }
 
 fn next_operation_id() -> OperationId {

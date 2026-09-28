@@ -192,8 +192,8 @@ Batch: frontend-quality (P16.17–P16.18)
 
 #### P16.19 — Split large Rust modules along behavior boundaries
 
-Status: planned — awaiting Cameron's review
-Files: crates/msc-agent/src/routes/worlds.rs, crates/msc-agent/src/routes/lifecycle.rs, crates/msc-agent/src/routes/servers.rs, crates/msc-application/src/worlds.rs, docs/msc2/rolling-plan.md
+Status: implemented — awaiting Cameron's verification
+Files: crates/msc-agent/src/routes/worlds.rs, crates/msc-agent/src/routes/worlds/import_activation.rs, crates/msc-agent/src/routes/lifecycle.rs, crates/msc-agent/src/routes/lifecycle/recovery.rs, crates/msc-agent/src/routes/servers.rs, crates/msc-agent/src/routes/servers/import.rs, crates/msc-application/src/worlds.rs, crates/msc-application/src/worlds/activation.rs, docs/msc2/rolling-plan.md
 What: Extract cohesive world import/activation/recovery, server lifecycle, and route orchestration modules after the safety fixes settle. Move in-file verification helpers beside their subjects without adding new tests. Preserve public routes, permissions, transaction order, and API schemas. Do not pursue an arbitrary line-count target or a whole-repo rewrite.
 Verify: Run `cargo check -p msc-agent -p msc-application`.
 Batch: solo

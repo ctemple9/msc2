@@ -28,8 +28,8 @@ Each implementation step is planned, read, executed, verified by Cameron, review
 | 11 | Desktop and web clients | complete |
 | 12 | Client redesign and post-phase corrections | complete |
 | 13 | Full-screen terminal client | retired by D-034 |
-| 14 | Operational refinements | phase complete; P14.38–P14.101 await verification |
-| 15 | Maintenance follow-ups | phase complete and archived |
+| 14 | Operational refinements | phase complete |
+| 15 | Maintenance follow-ups | phase complete |
 
 ## External review audit — 2026-09-17
 

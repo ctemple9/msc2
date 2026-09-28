@@ -484,15 +484,23 @@ pub fn reconcile_imported_worlds(
 
         (true, Some(slot)) if has_archive(fs, server_dir, &slot.id) => {
             let zip_path = world_store::zip_path(server_dir, &slot.id);
+            let approved_roots = archive::validate_world_archive(&zip_path, server_type)
+                .map_err(ReconciliationError::Archive)?;
             let staged_dir = reconciliation_staged_dir(server_dir);
             let _ = fs.remove(&staged_dir);
             if let Err(e) = archive::extract_zip(&zip_path, &staged_dir) {
                 let _ = fs.remove(&staged_dir);
                 return Err(ReconciliationError::Archive(e));
             }
+            if server_type == ServerType::Bedrock {
+                let level_name = slot.world_level_name.as_deref().unwrap_or(&level_name);
+                relocate_legacy_bedrock_layout(&staged_dir, level_name)
+                    .map_err(ReconciliationError::Io)?;
+            }
             // The live-folder location is not touched until every entry
             // has already extracted successfully into `staged_dir`.
-            if let Err(e) = move_entries(fs, &staged_dir, server_dir) {
+            if let Err(e) = move_approved_world_roots(fs, &staged_dir, server_dir, &approved_roots)
+            {
                 let _ = fs.remove(&staged_dir);
                 return Err(ReconciliationError::Io(e));
             }
@@ -1172,14 +1180,10 @@ pub(crate) fn imported_world_metadata_from_zip(
 }
 
 /// `createSlotFromZIP(zipURL:name:for:logLine:)` (source line 1008-
-/// 1077): copies the external zip verbatim into a new slot — no
-/// structural validation is performed here, matching source's own
-/// documented baseline exactly
-/// (`fixtures/world-mutations/import-zip-as-new-slot-copies-verbatim-no-structural-validation.json`).
-/// The D-006 correction for unsafe archive content lives uniformly at
-/// every *extraction* point (`msc_infrastructure::archive::extract_zip`,
-/// `fixtures/world-archive-safety`), applied once this slot is later
-/// activated — not duplicated here.
+/// 1077): copies the external ZIP's bytes into a new slot. P16.4 adds a
+/// world-layout check before the copy, so an archive that could install
+/// server configuration or executable files is refused at import as well
+/// as activation. The generic ZIP safety check still runs at extraction.
 pub fn import_zip_as_new_slot(
     fs: &dyn FileSystem,
     server_dir: &Path,
@@ -1196,6 +1200,7 @@ pub fn import_zip_as_new_slot(
     if trimmed.is_empty() {
         return Err(WorldError::EmptyName);
     }
+    archive::validate_world_archive(source_zip_path, server_type)?;
 
     let new_id = Uuid::new_v4().to_string().to_uppercase();
     let dir = world_store::slot_directory(server_dir, &new_id);
@@ -2191,6 +2196,33 @@ pub(crate) fn move_entries(fs: &dyn FileSystem, from_dir: &Path, to_dir: &Path) 
     Ok(())
 }
 
+fn move_approved_world_roots(
+    fs: &dyn FileSystem,
+    from_dir: &Path,
+    to_dir: &Path,
+    approved_roots: &[String],
+) -> io::Result<()> {
+    let entries = top_level_entries(fs, from_dir)?;
+    if entries.len() != approved_roots.len() {
+        return Err(io::Error::other(
+            "staged world roots changed after validation",
+        ));
+    }
+    for entry in entries {
+        let name = entry
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| io::Error::other("staged world root has no portable name"))?;
+        if !approved_roots.iter().any(|root| root == name) {
+            return Err(io::Error::other("staged world root was not approved"));
+        }
+    }
+    for root in approved_roots {
+        fs.rename(&from_dir.join(root), &to_dir.join(root))?;
+    }
+    Ok(())
+}
+
 /// Freezes the calling thread indefinitely once the current live world
 /// has been moved aside but before its replacement is installed --
 /// giving `phase6-gate-smoke.sh`'s restart-race checks a stable,
@@ -2212,29 +2244,33 @@ pub(crate) fn test_pause_after_world_move() {
 
 /// `worldFolderNames(for:)`'s Bedrock legacy-layout relocation (source
 /// line 737-758), applied inside the staging directory rather than the
-/// server root — a failure here is non-fatal either way, matching
-/// source's own warning-only handling
-/// (`fixtures/world-mutations/activate-legacy-zip-loose-worlds-root-relocated.json`),
-/// but staging it first means a relocation failure never risks leaving
-/// half-relocated files at the live server root.
-fn relocate_legacy_bedrock_layout(staged_dir: &Path, level_name: &str) {
+/// server root. P16.4 treats a failed relocation as a staging failure:
+/// installing a partially normalized world would be unsafe.
+fn relocate_legacy_bedrock_layout(staged_dir: &Path, level_name: &str) -> io::Result<()> {
+    if !safe_world_folder_name(level_name) {
+        return Err(io::Error::other("Bedrock world folder name is unsafe"));
+    }
     let worlds_dir = staged_dir.join("worlds");
     let expected_dir = worlds_dir.join(level_name);
     let loose_db_dir = worlds_dir.join("db");
     if expected_dir.is_dir() || !loose_db_dir.is_dir() {
-        return;
+        return Ok(());
     }
-    let Ok(entries) = fs::read_dir(&worlds_dir) else {
-        return;
-    };
-    let _ = fs::create_dir_all(&expected_dir);
-    for entry in entries.flatten() {
+    let entries = fs::read_dir(&worlds_dir)?;
+    fs::create_dir_all(&expected_dir)?;
+    for entry in entries {
+        let entry = entry?;
         if entry.file_name() == level_name {
             continue;
         }
         let dest = expected_dir.join(entry.file_name());
-        let _ = fs::rename(entry.path(), dest);
+        fs::rename(entry.path(), dest)?;
     }
+    Ok(())
+}
+
+fn safe_world_folder_name(name: &str) -> bool {
+    !name.is_empty() && name != "." && name != ".." && !name.contains(['/', '\\', '\0'])
 }
 
 #[derive(Debug)]
@@ -2376,6 +2412,19 @@ pub fn activate_slot(
     }
 
     let (has_archive, identity) = resolve_activation_identity(fs, server_dir, server_type, slot)?;
+    if identity
+        .as_ref()
+        .is_some_and(|identity| !safe_world_folder_name(&identity.level_name))
+    {
+        return Err(ActivationError::Archive(ArchiveError::InvalidWorldLayout(
+            "world folder name is unsafe".into(),
+        )));
+    }
+    let mut approved_roots = if has_archive {
+        archive::validate_world_archive(&world_store::zip_path(server_dir, &slot.id), server_type)?
+    } else {
+        Vec::new()
+    };
 
     let current_level_name = resolved_level_name(fs, server_dir, server_type, None);
     let current_folders = existing_world_folders(fs, server_dir, server_type, &current_level_name);
@@ -2450,7 +2499,7 @@ pub fn activate_slot(
                         ))
                     {
                         let source = staged_dir.join(old);
-                        let target = staged_dir.join(new);
+                        let target = staged_dir.join(&new);
                         if fs.stat(&source).is_ok() {
                             if fs.stat(&target).is_ok() {
                                 return Err(io::Error::other(
@@ -2459,11 +2508,15 @@ pub fn activate_slot(
                                 .into());
                             }
                             fs.rename(&source, &target)?;
+                            if let Some(root) = approved_roots.iter_mut().find(|root| *root == old)
+                            {
+                                *root = new.clone();
+                            }
                         }
                     }
                 }
             } else {
-                relocate_legacy_bedrock_layout(&staged_dir, &identity.level_name);
+                relocate_legacy_bedrock_layout(&staged_dir, &identity.level_name)?;
             }
         }
     }
@@ -2486,7 +2539,7 @@ pub fn activate_slot(
 
     // Phase 3: install the staged replacement (if any), then commit.
     if has_archive {
-        move_entries(fs, &staged_dir, server_dir)?;
+        move_approved_world_roots(fs, &staged_dir, server_dir, &approved_roots)?;
         let _ = fs.remove(&staged_dir);
     }
 
@@ -2697,6 +2750,9 @@ pub fn rename_world(
     let trimmed = new_level_name.trim();
     if trimmed.is_empty() {
         return Err(WorldError::EmptyName);
+    }
+    if !safe_world_folder_name(trimmed) {
+        return Err(WorldError::InvalidWorldSource);
     }
     if is_server_running {
         return Err(WorldError::ServerRunning);
@@ -2933,7 +2989,7 @@ pub fn replace_world(
     match world_source {
         WorldReplaceSource::Fresh => {}
         WorldReplaceSource::BackupZip(path) => {
-            if archive::validate_archive_safety(path).is_err() {
+            if archive::validate_world_archive(path, server_type).is_err() {
                 return Err(WorldError::InvalidWorldSource);
             }
         }
@@ -2996,12 +3052,20 @@ pub fn replace_world(
     let staged_dir = replace_staged_dir(server_dir);
     let staged_base = world_base_dir(&staged_dir, server_type);
     fs.create_dir_all(&staged_base)?;
+    let approved_roots = match world_source {
+        WorldReplaceSource::BackupZip(path) => archive::validate_world_archive(path, server_type)?,
+        WorldReplaceSource::Fresh => Vec::new(),
+        WorldReplaceSource::ExistingFolder(_) => vec![trimmed.to_string()],
+    };
     match world_source {
         WorldReplaceSource::Fresh => {}
         WorldReplaceSource::BackupZip(path) => {
             if let Err(e) = archive::extract_zip(path, &staged_dir) {
                 let _ = fs.remove(&replace_dir(server_dir));
                 return Err(e.into());
+            }
+            if server_type == ServerType::Bedrock {
+                relocate_legacy_bedrock_layout(&staged_dir, trimmed)?;
             }
         }
         WorldReplaceSource::ExistingFolder(source_path) => {
@@ -3032,7 +3096,21 @@ pub fn replace_world(
     test_pause_after_world_move();
 
     // Phase 3: install the staged replacement (if any), then commit.
-    move_entries(fs, &staged_base, &base)?;
+    let install_roots = if server_type == ServerType::Bedrock {
+        match world_source {
+            WorldReplaceSource::BackupZip(_) => top_level_entries(fs, &staged_base)?
+                .into_iter()
+                .filter_map(|path| {
+                    path.file_name()
+                        .map(|name| name.to_string_lossy().into_owned())
+                })
+                .collect::<Vec<_>>(),
+            _ => approved_roots,
+        }
+    } else {
+        approved_roots
+    };
+    move_approved_world_roots(fs, &staged_base, &base, &install_roots)?;
     let _ = fs.remove(&staged_dir);
     finish_replace_commit(fs, server_dir, trimmed)?;
 

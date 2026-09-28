@@ -3264,6 +3264,19 @@ pub async fn import(
         (entry.zip_path, None)
     };
 
+    if let Err(error) =
+        msc_infrastructure::archive::validate_world_archive(&source_path, server.server_type)
+    {
+        if let Some(staged_path) = staged_path {
+            let _ = std::fs::remove_file(staged_path);
+        }
+        return error_response(
+            StatusCode::BAD_REQUEST,
+            "invalid_world_archive",
+            &error.to_string(),
+        );
+    }
+
     let operation_id =
         match begin_operation(lifecycle, &server.id, "world-import", "Importing world.") {
             Ok(id) => id,

@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 16 execution is underway. P16.1–P16.3 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
-> **Next move:** Cameron verifies P16.1–P16.3 using their `Verify:` commands.
+> ## STATUS: Phase 16 execution is underway. P16.1–P16.4 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
+> **Next move:** Cameron verifies P16.1–P16.4 using their `Verify:` commands.
 
 ## How this document works
 
@@ -66,7 +66,7 @@ Batch: solo
 
 #### P16.4 — Confine world archives to world data
 
-Status: planned — awaiting Cameron's review
+Status: implemented — awaiting Cameron's verification
 Files: crates/msc-application/src/worlds.rs, crates/msc-infrastructure/src/archive.rs, crates/msc-agent/src/routes/worlds.rs, docs/msc2/rolling-plan.md
 What: Define allowed Java and Bedrock archive roots and entries before activation. Reject extra executables, configuration, links, and malformed layouts before moving live folders. Install only approved world paths so a Worlds credential cannot overwrite a server JAR or settings. Preserve legitimate legacy world layouts through explicit normalization rather than a full-server merge.
 Verify: Run `cargo check -p msc-application -p msc-agent`.

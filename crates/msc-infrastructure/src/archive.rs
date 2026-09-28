@@ -30,6 +30,8 @@
 //! this port's own fixed, documented ceilings, not values read off the
 //! oracle.
 
+use msc_domain::identity::ServerType;
+use std::collections::BTreeSet;
 use std::fmt;
 use std::fs;
 use std::io::{self, Read, Write};
@@ -81,6 +83,7 @@ pub enum ArchiveError {
     /// An entry's name escapes `dest_root` (traversal, absolute, or
     /// Windows drive-absolute) or is a symlink.
     UnsafeEntry(String),
+    InvalidWorldLayout(String),
     EntryCountExceeded {
         declared: u64,
         limit: u64,
@@ -102,6 +105,9 @@ impl fmt::Display for ArchiveError {
             ArchiveError::Open(e) => write!(f, "could not open archive: {e}"),
             ArchiveError::Corrupt(msg) => write!(f, "corrupt archive: {msg}"),
             ArchiveError::UnsafeEntry(name) => write!(f, "unsafe archive entry: {name}"),
+            ArchiveError::InvalidWorldLayout(message) => {
+                write!(f, "invalid world archive: {message}")
+            }
             ArchiveError::EntryCountExceeded { declared, limit } => {
                 write!(
                     f,
@@ -180,6 +186,146 @@ fn safe_join(dest_root: &Path, name: &str) -> PathBuf {
 /// extract-to-a-scratch-dir just to answer that question.
 pub fn validate_archive_safety(zip_path: &Path) -> Result<(), ArchiveError> {
     validate_archive_safety_with_limits(zip_path, ArchiveLimits::default()).map(|_| ())
+}
+
+/// Checks the *world* layout as well as generic ZIP safety. Only these roots
+/// may later be moved into a server directory. A legacy Bedrock archive may
+/// have its world files loose under `worlds/`; the application relocates that
+/// one documented shape inside staging before installation.
+pub fn validate_world_archive(
+    zip_path: &Path,
+    server_type: ServerType,
+) -> Result<Vec<String>, ArchiveError> {
+    let mut archive = validate_archive_safety_with_limits(zip_path, ArchiveLimits::default())?;
+    let mut roots = BTreeSet::new();
+    let mut main_worlds = BTreeSet::new();
+    let mut bedrock_worlds = BTreeSet::new();
+    let mut bedrock_levels = BTreeSet::new();
+    let mut bedrock_loose = false;
+    let mut bedrock_has_loose_entries = false;
+    let mut seen = BTreeSet::new();
+    for index in 0..archive.len() {
+        let entry = archive
+            .by_index_raw(index)
+            .map_err(|error| ArchiveError::Corrupt(error.to_string()))?;
+        let name = entry.name();
+        if name == WORLD_PROFILE_ENTRY {
+            continue;
+        }
+        let normalized = name.replace('\\', "/");
+        let path = normalized.trim_end_matches('/');
+        let parts: Vec<_> = path.split('/').collect();
+        if parts.iter().any(|part| part.is_empty() || *part == ".")
+            || !seen.insert(path.to_ascii_lowercase())
+        {
+            return Err(ArchiveError::UnsafeEntry(name.to_string()));
+        }
+        let mode = entry.unix_mode().unwrap_or(0);
+        let kind = mode & 0o170000;
+        if !entry.is_dir() && (mode & 0o111 != 0 || (kind != 0 && kind != 0o100000)) {
+            return Err(ArchiveError::UnsafeEntry(name.to_string()));
+        }
+        if entry.is_dir() && kind != 0 && kind != 0o040000 {
+            return Err(ArchiveError::UnsafeEntry(name.to_string()));
+        }
+        let filename = parts.last().unwrap().to_ascii_lowercase();
+        if !entry.is_dir()
+            && (filename.ends_with(".jar")
+                || filename.ends_with(".exe")
+                || filename.ends_with(".dll")
+                || filename.ends_with(".so")
+                || filename.ends_with(".dylib")
+                || filename.ends_with(".sh")
+                || filename.ends_with(".bat")
+                || filename.ends_with(".cmd")
+                || filename.ends_with(".ps1")
+                || filename.ends_with(".class")
+                || filename == "server.properties"
+                || filename == "eula.txt"
+                || filename == "ops.json"
+                || filename == "whitelist.json"
+                || filename == "permissions.json"
+                || filename == "bukkit.yml"
+                || filename == "spigot.yml"
+                || filename == "paper.yml")
+        {
+            return Err(ArchiveError::UnsafeEntry(name.to_string()));
+        }
+        roots.insert(parts[0].to_string());
+        match server_type {
+            ServerType::Java => {
+                if parts.len() < 2 && !entry.is_dir() {
+                    return Err(ArchiveError::InvalidWorldLayout(name.to_string()));
+                }
+                if parts.len() == 2 && filename == "level.dat" && !entry.is_dir() {
+                    main_worlds.insert(parts[0].to_string());
+                }
+            }
+            ServerType::Bedrock => {
+                if parts[0] != "worlds" {
+                    return Err(ArchiveError::InvalidWorldLayout(name.to_string()));
+                }
+                if parts.len() >= 2 {
+                    let loose_name = matches!(
+                        parts[1],
+                        "db" | "level.dat"
+                            | "level.dat_old"
+                            | "levelname.txt"
+                            | "world_icon.jpeg"
+                            | "world_behavior_packs.json"
+                            | "world_resource_packs.json"
+                            | "behavior_packs"
+                            | "resource_packs"
+                    );
+                    if loose_name {
+                        bedrock_has_loose_entries = true;
+                        if parts.len() == 2 && filename == "level.dat" && !entry.is_dir() {
+                            bedrock_loose = true;
+                        }
+                    } else {
+                        bedrock_worlds.insert(parts[1].to_string());
+                        if parts.len() == 3 && filename == "level.dat" && !entry.is_dir() {
+                            bedrock_levels.insert(parts[1].to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    match server_type {
+        ServerType::Java => {
+            let matching: Vec<_> = main_worlds
+                .into_iter()
+                .filter(|main| {
+                    let allowed: BTreeSet<_> = [
+                        main.clone(),
+                        format!("{main}_nether"),
+                        format!("{main}_the_end"),
+                    ]
+                    .into_iter()
+                    .collect();
+                    roots.is_subset(&allowed)
+                })
+                .collect();
+            if matching.len() != 1 {
+                return Err(ArchiveError::InvalidWorldLayout(
+                    "Java archive needs one main world and only its dimension folders".into(),
+                ));
+            }
+        }
+        ServerType::Bedrock => {
+            let named_layout = !bedrock_worlds.is_empty()
+                && bedrock_worlds == bedrock_levels
+                && !bedrock_has_loose_entries;
+            let legacy_layout = bedrock_loose && bedrock_worlds.is_empty();
+            if roots.len() != 1 || !roots.contains("worlds") || !(named_layout || legacy_layout) {
+                return Err(ArchiveError::InvalidWorldLayout(
+                    "Bedrock archive needs named worlds or one legacy loose world".into(),
+                ));
+            }
+        }
+    }
+    Ok(roots.into_iter().collect())
 }
 
 /// Same as [`validate_archive_safety`], with caller-supplied ceilings.
@@ -374,10 +520,9 @@ fn apply_executable_bit(_path: &Path, _unix_mode: Option<u32>) -> Result<(), Arc
 /// `inferJavaLevelName(fromSlotZIP:)`/`firstLevelDatPath(inZIP:)` both
 /// shell out for (`WorldSlotManager.swift:192-199`, `1333-1345`). Used
 /// only to make an import-time naming/seed *guess* — never to decide
-/// what's safe to extract, so this deliberately skips
-/// [`extract_zip`]'s traversal/symlink/size checks (P6.12 characterizes
-/// import as accepting the zip verbatim; those checks apply once, at
-/// activation time, per `fixtures/world-archive-safety`).
+/// what's safe to extract, so this deliberately skips validation. P16.4
+/// validates the complete world archive separately before import and
+/// activation; this listing remains only a metadata hint.
 pub fn list_entry_names(zip_path: &Path) -> Result<Vec<String>, ArchiveError> {
     let file = fs::File::open(zip_path).map_err(ArchiveError::Open)?;
     let archive = ZipArchive::new(file).map_err(|e| ArchiveError::Corrupt(e.to_string()))?;

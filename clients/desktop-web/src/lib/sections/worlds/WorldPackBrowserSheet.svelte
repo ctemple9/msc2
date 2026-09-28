@@ -133,7 +133,7 @@
       const params = new URLSearchParams();
       if (bedrock) params.set('kind', packKind);
       if (query.trim()) params.set('q', query.trim());
-      if (selectedMinecraftVersion.trim()) {
+      if (!bedrock && selectedMinecraftVersion.trim()) {
         params.set('gameVersion', selectedMinecraftVersion.trim());
       }
       const path = `${bedrock ? '/v1/catalog/behaviorpacks' : '/v1/catalog/datapacks'}?${params}`;

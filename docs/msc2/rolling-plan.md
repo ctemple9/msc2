@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 16 is planned and awaiting Cameron's review. The September 17 and September 28 audits remain the source findings; their recommendations are not marked fixed by this plan.
-> **Next move:** Cameron reviews the Phase 16 steps and gate. Execute only the selected step or named batch in a later conversation.
+> ## STATUS: Phase 16 execution is underway. P16.1 is implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
+> **Next move:** Cameron verifies P16.1 using its `Verify:` command.
 
 ## How this document works
 
@@ -30,11 +30,11 @@ Each implementation step is planned, read, executed, verified by Cameron, review
 | 13 | Full-screen terminal client | retired by D-034 |
 | 14 | Operational refinements | complete |
 | 15 | Maintenance follow-ups | complete |
-| 16 | Release safety and codebase readiness | planned — awaiting Cameron's review |
+| 16 | Release safety and codebase readiness | in progress |
 
 ## Phase 16 — Release safety and codebase readiness
 
-**Plan only.** One step per conversation unless Cameron names a `Batch:` range. Each executed step gets one commit containing its implementation and rolling-plan status update. Cameron closes the step after running its `Verify:` command. The checks below are builds, type checks, format checks, static validators, or production-path commands; none authorizes this agent to run or create tests. The Phase 16 gate is in `msc2-port-plan.md`. Physical and fault-path evidence is required at that gate; a successful `cargo check` alone never proves a race or recovery fix.
+**Execution.** One step per conversation unless Cameron names a `Batch:` range. Each executed step gets one commit containing its implementation and rolling-plan status update. Cameron closes the step after running its `Verify:` command. The checks below are builds, type checks, format checks, static validators, or production-path commands; none authorizes this agent to run or create tests. The Phase 16 gate is in `msc2-port-plan.md`. Physical and fault-path evidence is required at that gate; a successful `cargo check` alone never proves a race or recovery fix.
 
 **Audit coverage.** September 17 findings 1–12 map respectively to P16.4, P16.2, P16.5, P16.3, P16.6, P16.10, P16.11, P16.12, P16.13, P16.7, P16.8, and P16.9. September 28 findings 1–12 map respectively to P16.14, P16.1, P16.16, P16.15, P16.17, P16.17, P16.17, P16.18, P16.19–20, P16.21, P16.22, and P16.23. P16.24 closes the release evidence gate. P15.101 landed after the September 28 snapshot; P16.17 first checks whether it already resolved that audit's player-action, permission, contract, and formatting findings. Do not rebuild an already-correct feature merely to satisfy this map.
 
@@ -42,7 +42,7 @@ Each implementation step is planned, read, executed, verified by Cameron, review
 
 #### P16.1 — Record the Linux headless browser boundary
 
-Status: planned — awaiting Cameron's review
+Status: implemented — awaiting Cameron's verification
 Files: README.md, docs/msc2/msc2-decisions.md, docs/msc2/msc2-engineering.md, docs/msc2/clients/headless-installation.md, docs/msc2/rolling-plan.md
 What: Record Cameron's September 28 clarification that the Linux headless archive does not serve a browser UI. Explain the difference between a host requiring no graphical desktop and an agent serving a remote browser page. Narrow the README and D-003 support wording to the intended installation types without removing browser access from packages that actually promise it. Keep the Linux headless API/CLI and no-GUI-link guarantees.
 Verify: Run `rg -n 'Linux headless|browser|web UI' README.md docs/msc2/msc2-decisions.md docs/msc2/msc2-engineering.md docs/msc2/clients/headless-installation.md` and confirm one consistent support boundary.

@@ -12,6 +12,13 @@ The supported headless control surface is the scriptable CLI in the same
 binary as the agent. The command is `msc` on macOS and Linux and `msc.exe` on
 Windows. The management service listens on `127.0.0.1:48001` by default.
 
+The Linux headless archive does not contain or serve the browser UI. Its
+authenticated API and CLI remain available, so a desktop app or CLI on another
+computer can manage the host. No graphical desktop is required to run the
+agent; that requirement is separate from whether an installation serves a
+browser page. The Linux `.deb` and `.rpm` desktop packages include the
+browser-serving agent.
+
 ## Artifact set
 
 The release workflow publishes these standalone archives:

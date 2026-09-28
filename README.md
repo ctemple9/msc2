@@ -122,7 +122,7 @@ MSC 2 has one part that runs your servers and several ways to control it.
 - **The desktop app** gives you a graphical interface on the same computer or
   another computer.
 - **The desktop browser** lets you manage a screenless server from another
-  computer.
+  computer when the host installation includes the browser UI.
 - **The CLI** gives you a scriptable terminal interface when you want
   automation or prefer the command line.
 
@@ -151,8 +151,9 @@ app already includes the MSC 2 agent; you do not need to download both.
 - Use the **desktop app** when you want a graphical interface on the server
   computer.
 - Use the **headless agent** when the server computer has no monitor or desktop
-  environment. Manage it from another computer with the desktop app, a desktop
-  browser, or the CLI.
+  environment. Manage it from another computer with the desktop app or CLI.
+  The Linux headless archive exposes the API but does not serve a browser page;
+  use an installation that includes the browser UI if you want that page.
 
 ### macOS desktop — Intel and Apple Silicon Macs
 
@@ -185,6 +186,11 @@ platforms. They contain the same `msc` agent/CLI binary, with `msc.exe` on
 Windows. The archive's `HEADLESS-INSTALL.md` describes the platform-specific
 command location, PATH ownership, upgrade/uninstall boundary, and the separate
 operating-system service installation.
+
+The Linux headless archive needs no graphical desktop and does not include the
+browser UI. Its API and CLI still work, including for a desktop app on another
+computer. A host needing no graphical desktop is a separate question from
+whether its agent serves a browser page.
 
 Each standalone headless archive includes a platform command installer and
 uninstaller. macOS archives contain `install.sh` and `uninstall.sh`, Windows

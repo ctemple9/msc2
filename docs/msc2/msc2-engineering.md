@@ -71,7 +71,7 @@ flowchart TB
 | **Application services** | Workflows: start a server, restore a backup, import a modpack. Orchestrates domain + infrastructure. Owns operation state. |
 | **Infrastructure** | Filesystem repositories, HTTP providers, archive handling, process supervision, metrics collection, config persistence, audit log. |
 | **Platform adapters** | Per-OS implementations behind shared traits: services, secret storage, process enumeration, file reveal. |
-| **Agent** | Process lifetime, dependency assembly, scheduled work, operation recovery on restart, API hosting, static asset serving. |
+| **Agent** | Process lifetime, dependency assembly, scheduled work, operation recovery on restart, API hosting, and static asset serving when the installation includes the browser bundle. |
 | **API** | Routes, DTOs, WebSocket events, authentication, capability advertisement. |
 | **Clients** | Presentation and request initiation only. |
 
@@ -207,6 +207,13 @@ is `msc` (`msc.exe` on Windows), and the installer owns the PATH entry it adds
 so upgrades are idempotent and uninstall does not remove unrelated commands.
 The management service defaults to `127.0.0.1:48001`; the PATH contract is
 independent of service registration and GUI installation.
+
+The Linux headless archive is built without the browser bundle. It retains the
+authenticated HTTP/WebSocket API and CLI, so a remote desktop client can manage
+it, but its agent does not serve the browser page. A host can run without a
+graphical desktop whether or not its installation includes a browser UI;
+these are independent deployment properties. The Linux desktop packages include
+the browser-serving agent.
 
 **Remote desktop connections.** A Tauri desktop may try configured direct LAN
 or Tailscale addresses and may own an SSH local forward to the host's
@@ -429,7 +436,7 @@ The Tauri GUI is **optional everywhere** and is never a prerequisite for any cap
 |---|---|
 | **macOS** | Agent + CLI installable and runnable with no GUI ever launched. Registered as a **`launchd` LaunchDaemon** — a LaunchAgent requires a login session and is therefore insufficient. **No AppKit or window-server dependency at runtime.** The standalone macOS headless package **includes the Swift VZ sidecar** where Bedrock support is expected. |
 | **Windows** | Agent + CLI installable as a Windows Service without the desktop app. Runs with no user signed in. |
-| **Linux** | Agent + CLI package with **zero desktop dependencies**. `systemd` unit. Installs on minimal Debian with no X or Wayland present. |
+| **Linux** | Headless archive with agent + CLI and **zero desktop dependencies**. `systemd` unit. Installs on minimal Debian with no X or Wayland present; its API works but it does not serve the browser UI. |
 
 Two distribution artifacts per platform: an application bundle and a headless package. Headless packages are **verified in CI to link no GUI framework** (§17).
 

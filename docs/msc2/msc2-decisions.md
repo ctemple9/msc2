@@ -105,7 +105,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 
 **Status:** Approved · **Origin:** Owner (with Codex, in `msc2.md`) · **Approved by:** Cameron Temple · **Date:** 2026-07-29
 
-**Decision.** One Svelte frontend. A Tauri shell loads it as the desktop application; the agent serves the same bundle to browsers. The desktop app and the web UI are the same code.
+**Decision.** One Svelte frontend. A Tauri shell loads it as the desktop application; agent installations that include the browser UI serve the same bundle to browsers. The desktop app and the web UI are the same code. The Linux headless archive is built without that bundle: it runs without a graphical desktop and retains its API and CLI, but does not serve a browser page. Running without a graphical desktop and serving a remote browser page are separate capabilities.
 
 **Rationale.** The largest available scope reduction: four graphical surfaces collapse to one frontend plus a thin shell. Sharing a single codebase substantially reduces drift — it does not make drift impossible, since conditional shell-only paths can still diverge, which is what the corollary below guards against.
 

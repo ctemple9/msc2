@@ -91,6 +91,14 @@ jobs:
         working-directory: clients/desktop-web
         run: npm ci
 
+      - name: Build and stage the shared frontend
+        working-directory: clients/desktop-web
+        run: |
+          npm run build
+          npm run bundle:identity
+          npm run bundle:stage-agent
+          npm run bundle:check-agent
+
       - name: Resolve and validate release identity
         shell: bash
         run: |
@@ -161,14 +169,13 @@ jobs:
       - name: Build unsigned Tauri installer
         if: matrix.platform != 'windows-x86_64'
         working-directory: clients/desktop-web
-        run: npm exec tauri build -- --bundles "${{ matrix.tauri-bundles }}" --no-sign
+        run: npm exec tauri build -- --bundles "${{ matrix.tauri-bundles }}" --no-sign --config '{"build":{"beforeBuildCommand":""}}'
 
       - name: Build unsigned Tauri installer on Windows
         if: matrix.platform == 'windows-x86_64'
         working-directory: clients/desktop-web
         shell: pwsh
         run: |
-          npm run build
           npm exec tauri build -- --bundles "${{ matrix.tauri-bundles }}" --no-sign --config '{"build":{"beforeBuildCommand":""},"bundle":{"icon":["icons/icon.ico"]}}'
 
       - name: Package Linux headless artifact

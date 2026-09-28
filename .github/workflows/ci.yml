@@ -116,6 +116,14 @@ jobs:
         working-directory: clients/desktop-web
         run: npm run bundle:identity
 
+      - name: Stage the same frontend for the agent
+        working-directory: clients/desktop-web
+        run: npm run bundle:stage-agent
+
+      - name: Compare desktop and agent frontend bytes
+        working-directory: clients/desktop-web
+        run: npm run bundle:check-agent
+
       - name: Build headless agent
         run: cargo build --workspace
 

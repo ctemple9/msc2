@@ -38,7 +38,9 @@
     "api:generate": "node --experimental-strip-types ./src/lib/api/generate.ts",
     "api:check": "npm run api:generate -- --check && python3 ../../tools/phase11/generated-types-check.py",
     "bundle:identity": "node ./tools/verify-bundle-identity.mjs",
-    "bundle:package-agent": "npm run build && node ./tools/package-agent-bundle.mjs",
+    "bundle:stage-agent": "node ./tools/package-agent-bundle.mjs",
+    "bundle:package-agent": "npm run build && npm run bundle:stage-agent",
+    "bundle:check-agent": "python3 ../../tools/release/check-client-bundle.py dist ../../crates/msc-agent/web-ui",
     "verify:scaffold": "npm run format:check && npm run check && npm run test:unit && npm run build && npm run bundle:identity"
   },
   "dependencies": {

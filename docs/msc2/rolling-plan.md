@@ -150,8 +150,8 @@ Batch: solo
 
 #### P16.14 — Embed the same frontend bytes in desktop and browser packages
 
-Status: planned — awaiting Cameron's review
-Files: .github/workflows/ci.yml, .github/workflows/release.yml, clients/desktop-web/package.json, clients/desktop-web/tools/package-agent-bundle.mjs, crates/msc-agent/src/web_ui.rs, tools/release/check-client-bundle.py, docs/msc2/rolling-plan.md
+Status: implemented — awaiting Cameron's verification
+Files: .github/workflows/ci.yml, .github/workflows/release.yml, clients/desktop-web/package.json, clients/desktop-web/src-tauri/tauri.conf.json, clients/desktop-web/tools/package-agent-bundle.mjs, crates/msc-agent/src/web_ui.rs, crates/msc-agent/web-ui, tools/release/check-client-bundle.py, docs/msc2/rolling-plan.md
 What: Build the shared frontend once before compiling any agent that serves it. Feed the same output to Tauri and the agent; decide whether `web-ui` is generated or checked in and enforce synchronization. Add a release artifact identity/content comparison for installation types that serve browsers. Preserve the Linux headless exclusion from P16.1.
 Verify: Run `python3 tools/release/check-client-bundle.py clients/desktop-web/dist crates/msc-agent/web-ui` after producing the staged frontend and confirm matching content.
 Batch: solo

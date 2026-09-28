@@ -1,5 +1,6 @@
-//! The optional, packaged browser UI.  Its files are byte-for-byte copies of
-//! the Vite output Tauri loads; this module only maps those bytes to HTTP.
+//! The optional, packaged browser UI. Its tracked files are staged byte-for-byte
+//! from the Vite output Tauri loads before browser-enabled agents are compiled;
+//! CI checks the two trees for drift. This module only maps those bytes to HTTP.
 
 use axum::body::Body;
 use axum::http::{HeaderValue, StatusCode, header};

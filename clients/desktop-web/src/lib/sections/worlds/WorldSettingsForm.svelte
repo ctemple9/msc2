@@ -527,9 +527,6 @@
                 disabled={readOnly('gameplay.cheats')}
                 onchange={(checked) => update({ cheats: checked })}
               />
-              {#if fieldNote('gameplay.cheats')}<span class="hint"
-                  >{fieldNote('gameplay.cheats')}</span
-                >{/if}
             {/if}
           </label>
 
@@ -544,11 +541,12 @@
                 disabled={readOnly('gameplay.coordinates')}
                 onchange={(checked) => update({ coordinates: checked })}
               />
-              {#if fieldNote('gameplay.coordinates')}<span class="hint"
-                  >{fieldNote('gameplay.coordinates')}</span
-                >{/if}
             {/if}
           </label>
+
+          {#if fieldNote('gameplay.cheats') === 'Saved now; applies after the server restarts.' || fieldNote('gameplay.coordinates') === 'Saved now; applies after the server restarts.'}
+            <p class="hint wide">Saved now; applies after the server restarts.</p>
+          {/if}
 
           <label class="field-group wide">
             <span class="label">Experiments</span>

@@ -62,7 +62,9 @@ impl OperationsState {
         if let Some(servers_root) = servers_root {
             operations = operations.with_servers_root(servers_root);
         }
-        let _ = operations.reconcile_on_startup();
+        operations
+            .reconcile_on_startup()
+            .expect("operation journal reconciliation must finish before admission");
         Self {
             operations: Arc::new(operations),
         }

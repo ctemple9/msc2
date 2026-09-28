@@ -164,7 +164,9 @@ impl<'fs> LifecycleOperations<'fs> {
     }
 
     /// Admit the operation for its target and journal it as `running`
-    /// before the caller starts mutating the server.
+    /// before the caller starts mutating the server. One durable write is
+    /// enough to claim the target; there is no intermediate queued entry
+    /// that could remain reserved after a failed second write.
     pub fn begin_running(
         &self,
         operation_type: impl Into<String>,
@@ -174,33 +176,29 @@ impl<'fs> LifecycleOperations<'fs> {
         let id = next_operation_id();
         let operation_type = operation_type.into();
         let status_line = status_line.into();
-        let queued_entry = JournalEntry {
+        let running_entry = JournalEntry {
             id: id.clone(),
             operation_type: operation_type.clone(),
             target: target.clone(),
-            state: OperationState::Queued,
+            state: OperationState::Running,
             error: None,
         };
         self.journal
-            .admit(&queued_entry)
+            .admit(&running_entry)
             .map_err(|error| match error {
                 AdmitError::Journal(error) => LifecycleOperationError::from(error),
                 AdmitError::Conflict(error) => LifecycleOperationError::Conflict(error),
             })?;
 
-        let running = OperationState::Queued
-            .transition_to(OperationState::Running)
-            .expect("queued->running is a legal operation transition");
         let record = OperationRecord {
             operation_type,
             target,
-            state: running,
+            state: OperationState::Running,
             progress: None,
             status_line: Some(status_line),
             result: None,
             error: None,
         };
-        self.record_journal_state(&id, &record)?;
         self.records.lock().unwrap().insert(id.clone(), record);
         self.cancel_flags
             .lock()
@@ -365,17 +363,21 @@ impl<'fs> LifecycleOperations<'fs> {
             .get_mut(id)
             .ok_or_else(|| LifecycleOperationError::UnknownOperation(id.clone()))?;
         let from = record.state;
-        record.state =
+        let next_state =
             from.transition_to(to)
                 .map_err(|_| LifecycleOperationError::IllegalTransition {
                     id: id.clone(),
                     from,
                     to,
                 })?;
-        record.status_line = Some(status_line);
-        record.result = result;
-        record.error = error;
-        self.record_journal_state(id, record)
+        let mut next = record.clone();
+        next.state = next_state;
+        next.status_line = Some(status_line);
+        next.result = result;
+        next.error = error;
+        self.record_journal_state(id, &next)?;
+        *record = next;
+        Ok(())
     }
 
     fn record_journal_state(

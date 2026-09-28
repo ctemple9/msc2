@@ -31,10 +31,29 @@ use crate::atomic_write::{AtomicWriteError, atomic_write};
 use crate::fs::FileSystem;
 use msc_domain::operation::{OperationError, OperationId, OperationState};
 use serde_json::Value;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::io;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex, OnceLock, Weak};
+
+static JOURNAL_LOCKS: OnceLock<Mutex<HashMap<PathBuf, Weak<Mutex<()>>>>> = OnceLock::new();
+
+// Multiple application handles can point at one directory in the agent.
+// Sharing their lock keeps the scan and durable reservation one transaction.
+fn journal_lock(dir: &PathBuf) -> Arc<Mutex<()>> {
+    let mut locks = JOURNAL_LOCKS
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .unwrap();
+    if let Some(lock) = locks.get(dir).and_then(Weak::upgrade) {
+        return lock;
+    }
+    locks.retain(|_, lock| lock.strong_count() > 0);
+    let lock = Arc::new(Mutex::new(()));
+    locks.insert(dir.clone(), Arc::downgrade(&lock));
+    lock
+}
 
 /// The reason attached to every entry reconciled by
 /// [`OperationJournal::reconcile_on_startup`] — the same explanation
@@ -126,13 +145,16 @@ impl std::error::Error for AdmitError {}
 pub struct OperationJournal<'fs> {
     fs: &'fs dyn FileSystem,
     dir: PathBuf,
+    transaction: Arc<Mutex<()>>,
 }
 
 impl<'fs> OperationJournal<'fs> {
     pub fn new(fs: &'fs dyn FileSystem, dir: impl Into<PathBuf>) -> Self {
+        let dir = dir.into();
         Self {
             fs,
-            dir: dir.into(),
+            transaction: journal_lock(&dir),
+            dir,
         }
     }
 
@@ -148,6 +170,11 @@ impl<'fs> OperationJournal<'fs> {
     /// later state transition, so the journal's on-disk state always
     /// matches the operation's true last-known state.
     pub fn record(&self, entry: &JournalEntry) -> Result<(), JournalError> {
+        let _transaction = self.transaction.lock().unwrap();
+        self.record_unlocked(entry)
+    }
+
+    fn record_unlocked(&self, entry: &JournalEntry) -> Result<(), JournalError> {
         let bytes = serde_json::to_vec_pretty(&entry_to_value(entry))
             .expect("JournalEntry always serializes to valid JSON");
         atomic_write(self.fs, &self.entry_path(&entry.id), &bytes).map_err(JournalError::Write)
@@ -161,6 +188,10 @@ impl<'fs> OperationJournal<'fs> {
     /// target, `entry` is rejected with [`AdmitError::Conflict`] instead of
     /// being journaled — refused outright, never silently queued behind
     /// the existing operation — and the existing entry is left untouched.
+    /// The directory transaction also covers terminal writes and startup
+    /// reconciliation, so a concurrent caller cannot pass the scan before
+    /// the reservation is durable or reuse a target before its terminal
+    /// transition is durable.
     ///
     /// An entry with no target (`target: None`) never conflicts with
     /// anything and is always admitted: there is no shared target to hold
@@ -170,6 +201,7 @@ impl<'fs> OperationJournal<'fs> {
     /// coexist against the same target) doesn't exist until later phases
     /// populate it.
     pub fn admit(&self, entry: &JournalEntry) -> Result<(), AdmitError> {
+        let _transaction = self.transaction.lock().unwrap();
         if let Some(target) = &entry.target
             && let Some(existing) = self
                 .find_non_terminal_for_target(target, &entry.id)
@@ -177,7 +209,7 @@ impl<'fs> OperationJournal<'fs> {
         {
             return Err(AdmitError::Conflict(conflict_error(&existing, target)));
         }
-        self.record(entry).map_err(AdmitError::Journal)
+        self.record_unlocked(entry).map_err(AdmitError::Journal)
     }
 
     /// The first non-terminal journaled entry (other than `exclude_id`)
@@ -244,6 +276,7 @@ impl<'fs> OperationJournal<'fs> {
     /// per entry actually reconciled — empty if every journaled entry was
     /// already terminal.
     pub fn reconcile_on_startup(&self) -> Result<Vec<ReconciliationRecord>, JournalError> {
+        let _transaction = self.transaction.lock().unwrap();
         let mut records = Vec::new();
         for path in self.fs.list(&self.dir).map_err(JournalError::Io)? {
             let bytes = match self.fs.read(&path) {
@@ -274,7 +307,7 @@ impl<'fs> OperationJournal<'fs> {
                 });
             }
 
-            self.record(&entry)?;
+            self.record_unlocked(&entry)?;
             records.push(ReconciliationRecord {
                 id: entry.id,
                 operation_type: entry.operation_type,

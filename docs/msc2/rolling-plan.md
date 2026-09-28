@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 16 execution is underway. P16.1 is implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
-> **Next move:** Cameron verifies P16.1 using its `Verify:` command.
+> ## STATUS: Phase 16 execution is underway. P16.1 and P16.2 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
+> **Next move:** Cameron verifies P16.1 and P16.2 using their `Verify:` commands.
 
 ## How this document works
 
@@ -50,7 +50,7 @@ Batch: solo
 
 #### P16.2 — Make operation admission atomic
 
-Status: planned — awaiting Cameron's review
+Status: implemented — awaiting Cameron's verification
 Files: crates/msc-infrastructure/src/operation_journal.rs, crates/msc-application/src/operations.rs, crates/msc-agent/src/routes/operations.rs, docs/msc2/rolling-plan.md
 What: Replace check-then-write admission with one shared reservation transaction per target. Reserve before work begins, persist enough state for restart reconciliation, refuse concurrent conflicting admissions, and release only at a truthful terminal transition. Preserve refusal rather than silently queuing. Design the mechanism to support host-wide maintenance in P16.3.
 Verify: Run `cargo check -p msc-infrastructure -p msc-application -p msc-agent`.

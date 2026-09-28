@@ -3,7 +3,12 @@ use msc_infrastructure::release_update::{
 };
 use serde::{Deserialize, Serialize};
 #[cfg(target_os = "macos")]
-use std::{fs, time::Duration};
+use std::{
+    fs,
+    io::{Read, Write},
+    net::{SocketAddr, TcpStream},
+    time::{Duration, Instant},
+};
 use std::{
     path::{Path, PathBuf},
     process::Command,
@@ -23,6 +28,25 @@ pub struct InstallResult {
 #[serde(rename_all = "camelCase")]
 pub struct InstallRequest {
     pub release_id: String,
+}
+
+pub fn report_desktop_update_ready(page_finished: bool) {
+    if !page_finished {
+        return;
+    }
+    let args: Vec<_> = std::env::args_os().collect();
+    let value_after = |name: &str| {
+        args.windows(2)
+            .find(|pair| pair[0] == name)
+            .map(|pair| pair[1].clone())
+    };
+    let (Some(marker), Some(token)) = (
+        value_after("--msc2-update-health-file"),
+        value_after("--msc2-update-health-token"),
+    ) else {
+        return;
+    };
+    let _ = std::fs::write(marker, token.to_string_lossy().as_bytes());
 }
 
 /// Runs before Tauri starts so a replacement can move the old app bundle out
@@ -200,6 +224,7 @@ fn install_macos_bundle(staged: &StagedUpdate) -> Result<String, String> {
     if !mounted.success() {
         return Err("The MSC disk image could not be mounted.".to_string());
     }
+    let mut rollback = None;
     let result = (|| {
         let source_bundle = find_app_bundle(&mount_directory, current_bundle.file_name())?;
         let replacement = work_directory.join(
@@ -214,22 +239,89 @@ fn install_macos_bundle(staged: &StagedUpdate) -> Result<String, String> {
                 .arg(&replacement),
             "Could not copy the new MSC app bundle",
         )?;
-        replace_app_bundle(&current_bundle, &replacement)?;
+        rollback = Some(replace_app_bundle(&current_bundle, &replacement)?);
+        let marker = work_directory.join("desktop-ready");
+        let token = format!(
+            "{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(|error| format!("Could not create update health token: {error}"))?
+                .as_nanos()
+        );
         run_command(
-            Command::new("/usr/bin/open").arg(&current_bundle),
+            Command::new("/usr/bin/open")
+                .arg("-n")
+                .arg(&current_bundle)
+                .args(["--args", "--msc2-update-health-file"])
+                .arg(&marker)
+                .args(["--msc2-update-health-token", &token]),
             "Could not relaunch MSC 2",
         )?;
+        wait_for_macos_health(&marker, &token)?;
+        if let Some(previous_installation) = rollback.take() {
+            finalize_macos_replacement(&previous_installation)?;
+        }
         Ok(format!(
-            "MSC 2 {} was installed and relaunched.",
+            "MSC 2 {} was installed, relaunched, and passed desktop and agent health checks.",
             staged.manifest.release_id
         ))
     })();
+    if let (Err(error), Some(rollback)) = (&result, rollback.take()) {
+        let recovery = rollback_macos_replacement(rollback).and_then(|_| {
+            run_command(
+                Command::new("/usr/bin/open").arg(&current_bundle),
+                "Could not relaunch the previous MSC app",
+            )
+        });
+        if let Err(recovery_error) = recovery {
+            return Err(format!(
+                "{error}; restoring the previous MSC app failed: {recovery_error}"
+            ));
+        }
+        return Err(format!(
+            "{error}; the previous MSC app was restored and relaunched."
+        ));
+    }
     let _ = Command::new("/usr/bin/hdiutil")
         .args(["detach", "-force"])
         .arg(&mount_directory)
         .status();
     let _ = fs::remove_dir_all(&work_directory);
     result
+}
+
+#[cfg(target_os = "macos")]
+fn wait_for_macos_health(marker: &Path, token: &str) -> Result<(), String> {
+    let deadline = Instant::now() + Duration::from_secs(90);
+    while Instant::now() < deadline {
+        let desktop_ready = fs::read_to_string(marker).is_ok_and(|value| value == token);
+        if desktop_ready && macos_agent_is_healthy() {
+            return Ok(());
+        }
+        std::thread::sleep(Duration::from_millis(500));
+    }
+    Err(
+        "The replacement desktop and local agent did not both become healthy within 90 seconds."
+            .to_string(),
+    )
+}
+
+#[cfg(target_os = "macos")]
+fn macos_agent_is_healthy() -> bool {
+    let address = SocketAddr::from(([127, 0, 0, 1], 48001));
+    let Ok(mut stream) = TcpStream::connect_timeout(&address, Duration::from_millis(500)) else {
+        return false;
+    };
+    let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
+    if stream
+        .write_all(b"GET /v1/healthz HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n")
+        .is_err()
+    {
+        return false;
+    }
+    let mut response = String::new();
+    stream.read_to_string(&mut response).is_ok() && response.starts_with("HTTP/1.1 200")
 }
 
 #[cfg(target_os = "macos")]
@@ -264,7 +356,10 @@ fn find_app_bundle(
 }
 
 #[cfg(target_os = "macos")]
-fn replace_app_bundle(target: &Path, replacement: &Path) -> Result<(), String> {
+fn replace_app_bundle(
+    target: &Path,
+    replacement: &Path,
+) -> Result<(PathBuf, PathBuf, bool), String> {
     let backup = target.with_file_name(format!(
         ".{}.msc2-backup-{}",
         target
@@ -273,15 +368,14 @@ fn replace_app_bundle(target: &Path, replacement: &Path) -> Result<(), String> {
             .unwrap_or("MSC 2.app"),
         std::process::id()
     ));
-    let direct = || -> Result<(), String> {
+    let direct = || -> Result<(PathBuf, PathBuf, bool), String> {
         fs::rename(target, &backup)
             .map_err(|error| format!("Could not back up the installed MSC app: {error}"))?;
         if let Err(error) = fs::rename(replacement, target) {
             let _ = fs::rename(&backup, target);
             return Err(format!("Could not activate the new MSC app: {error}"));
         }
-        fs::remove_dir_all(&backup)
-            .map_err(|error| format!("Could not remove the old MSC app backup: {error}"))
+        Ok((target.to_path_buf(), backup.clone(), false))
     };
     match direct() {
         Ok(()) => Ok(()),
@@ -289,12 +383,13 @@ fn replace_app_bundle(target: &Path, replacement: &Path) -> Result<(), String> {
             if error.contains("Permission denied") || error.contains("Operation not permitted") =>
         {
             let command = format!(
-                "set -e; /bin/mv {} {}; /bin/mv {} {}; /bin/rm -rf {}",
+                "set -e; /bin/mv {} {}; if ! /bin/mv {} {}; then /bin/mv {} {}; exit 1; fi",
                 shell_quote(target),
                 shell_quote(&backup),
                 shell_quote(replacement),
                 shell_quote(target),
-                shell_quote(&backup)
+                shell_quote(&backup),
+                shell_quote(target)
             );
             run_command(
                 Command::new("/usr/bin/osascript").args([
@@ -303,8 +398,58 @@ fn replace_app_bundle(target: &Path, replacement: &Path) -> Result<(), String> {
                 ]),
                 "Could not authorize replacement of the installed MSC app",
             )
+            .map(|_| (target.to_path_buf(), backup.clone(), true))
         }
         Err(error) => Err(error),
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn finalize_macos_replacement(rollback: &(PathBuf, PathBuf, bool)) -> Result<(), String> {
+    let (_, backup, elevated) = rollback;
+    if elevated {
+        let command = format!("/bin/rm -rf {}", shell_quote(&backup));
+        run_command(
+            Command::new("/usr/bin/osascript").args([
+                "-e",
+                &format!("do shell script {command:?} with administrator privileges"),
+            ]),
+            "Could not remove the previous MSC app after health succeeded",
+        )
+    } else {
+        fs::remove_dir_all(&backup).map_err(|error| {
+            format!("Could not remove the previous MSC app after health succeeded: {error}")
+        })
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn rollback_macos_replacement(rollback: (PathBuf, PathBuf, bool)) -> Result<(), String> {
+    let (target, backup, elevated) = rollback;
+    let rejected = target.with_file_name(format!(".msc2-rejected-{}", std::process::id()));
+    if elevated {
+        let command = format!(
+            "set -e; /bin/mv {} {}; /bin/mv {} {}; /bin/rm -rf {}",
+            shell_quote(&target),
+            shell_quote(&rejected),
+            shell_quote(&backup),
+            shell_quote(&target),
+            shell_quote(&rejected)
+        );
+        run_command(
+            Command::new("/usr/bin/osascript").args([
+                "-e",
+                &format!("do shell script {command:?} with administrator privileges"),
+            ]),
+            "Could not restore the previous MSC app with administrator authorization",
+        )
+    } else {
+        fs::rename(&target, &rejected)
+            .map_err(|error| format!("Could not move the failed MSC app aside: {error}"))?;
+        fs::rename(&backup, &target)
+            .map_err(|error| format!("Could not restore the previous MSC app: {error}"))?;
+        fs::remove_dir_all(&rejected)
+            .map_err(|error| format!("Could not remove the failed MSC app: {error}"))
     }
 }
 

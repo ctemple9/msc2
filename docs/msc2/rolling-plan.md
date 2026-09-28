@@ -140,7 +140,7 @@ Batch: solo
 
 #### P16.13 — Retain macOS desktop rollback until health succeeds
 
-Status: planned — awaiting Cameron's review
+Status: implemented — awaiting Cameron's macOS verification
 Files: clients/desktop-web/src-tauri/src/update.rs, clients/desktop-web/src-tauri/Cargo.toml, docs/msc2/rolling-plan.md
 What: Keep the previous signed app bundle until the replacement launches and the coordinated desktop/agent health check succeeds within a deadline. Restore and relaunch the previous bundle when launch or health fails, including authorized replacement paths. Clean rollback bytes only after success.
 Verify: On macOS, run `cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml`.

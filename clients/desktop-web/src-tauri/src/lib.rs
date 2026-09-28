@@ -1661,6 +1661,11 @@ pub fn run() {
     ensure_ad_hoc_signed_or_reexec();
 
     tauri::Builder::default()
+        .on_page_load(|_webview, payload| {
+            update::report_desktop_update_ready(
+                payload.event() == tauri::webview::PageLoadEvent::Finished,
+            );
+        })
         .manage(ssh::SshTunnelManager::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())

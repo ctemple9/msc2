@@ -270,6 +270,12 @@ pub struct CapabilitiesResponseDto {
     #[serde(flatten)]
     pub base: CapabilitiesDto,
     #[serde(
+        rename = "playerActions",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub player_actions: Option<bool>,
+    #[serde(
         rename = "worldSettings",
         default,
         skip_serializing_if = "Option::is_none"

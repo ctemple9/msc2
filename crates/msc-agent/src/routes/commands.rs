@@ -49,6 +49,23 @@ pub async fn command(
         Err(error) => return invalid_body(error.code(), &error.to_string()),
     };
 
+    match state.with_expected_active_server(body.expected_active_server_id.as_deref(), || {
+        dispatch_command(&state, command, confirmation.as_deref())
+    }) {
+        Ok(response) => response,
+        Err(()) => error_response(
+            StatusCode::CONFLICT,
+            "active_server_changed",
+            "The active server changed before the command was sent.",
+        ),
+    }
+}
+
+fn dispatch_command(
+    state: &LifecycleRoutesState,
+    command: String,
+    confirmation: Option<&str>,
+) -> Response {
     if state.active_bedrock_server().is_some() {
         // Bedrock accepts client-style slash commands but exposes the canonical
         // slash-free command in both the runtime payload and response DTO.
@@ -56,7 +73,7 @@ pub async fn command(
         if let Some(required) = world_safety::confirmation_for_command(
             msc_domain::identity::ServerType::Bedrock,
             &command,
-        ) && !world_safety::is_confirmed(required, confirmation.as_deref())
+        ) && !world_safety::is_confirmed(required, confirmation)
         {
             return confirmation_required_response(required);
         }
@@ -74,7 +91,7 @@ pub async fn command(
 
     if let Some(required) =
         world_safety::confirmation_for_command(msc_domain::identity::ServerType::Java, &command)
-        && !world_safety::is_confirmed(required, confirmation.as_deref())
+        && !world_safety::is_confirmed(required, confirmation)
     {
         return confirmation_required_response(required);
     }

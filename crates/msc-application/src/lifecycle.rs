@@ -253,6 +253,13 @@ impl<'deps> LifecycleService<'deps> {
         self.active_process
     }
 
+    pub fn online_players(&self) -> Vec<String> {
+        if self.state != LifecycleState::Running {
+            return Vec::new();
+        }
+        self.output_reducer.online_players().to_vec()
+    }
+
     pub fn status_snapshot(&self) -> Result<LifecycleStatusSnapshot, LifecycleError> {
         let server = self.load_active_server_if_selected()?;
         Ok(LifecycleStatusSnapshot {

@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 47da69a4cf6ff85ea54aa1415d78fb745b9778c9a53982a7c805f9ae64bf33ca
+// Contract SHA-256: e31790afddd138828a69cbf27b49cb52b928adac1f6ef5f0a2ad7aefc16f04a5
 
 export interface paths {
   '/v1/active-server': {
@@ -164,7 +164,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorDTO'];
           };
         };
-        /** @description not_bedrock */
+        /** @description not_bedrock or active_server_changed */
         409: {
           headers: {
             [name: string]: unknown;
@@ -1217,7 +1217,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorDTO'];
           };
         };
-        /** @description capability_unavailable when a Bedrock runtime cannot supply the command */
+        /** @description capability_unavailable, confirmation_required, or active_server_changed */
         409: {
           headers: {
             [name: string]: unknown;
@@ -6464,6 +6464,8 @@ export interface components {
     };
     AllowlistMutationRequestDTO: {
       action: string;
+      /** @description When supplied, refuse to edit the allowlist if a different server is active. */
+      expectedActiveServerId?: string;
       name: string;
     } & {
       [key: string]: unknown;
@@ -6764,6 +6766,8 @@ export interface components {
         | 'fleet'
         | 'admin'
       )[];
+      /** @description The agent supports server-scoped player commands and Bedrock allowlist edits. Older agents omit this flag. */
+      playerActions?: boolean;
       /** @description Java flags and Bedrock runtime state are host capabilities. Bedrock uses the separate D-022 compatibility matrix for published evidence. */
       serverTypes: {
         bedrock: {
@@ -6929,6 +6933,8 @@ export interface components {
       command: string;
       /** @description Acknowledgement token returned in a confirmation_required error before sending a Creative-changing command. */
       confirmation?: string;
+      /** @description When supplied, refuse to send if a different server is active. */
+      expectedActiveServerId?: string;
     } & {
       [key: string]: unknown;
     };

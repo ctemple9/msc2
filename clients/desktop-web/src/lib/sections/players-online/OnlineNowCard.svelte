@@ -4,11 +4,16 @@
   // shows which of those are still online).
   import Card from '../../components/base/Card.svelte';
   import Button from '../../components/base/Button.svelte';
+  import Icon from '../../components/base/Icon.svelte';
   import type { Schema } from '../shared/types';
 
   export let players: readonly Schema['PlayerDTO'][] = [];
   export let seenThisSession: readonly string[] = [];
   export let onRefresh: (() => void) | undefined = undefined;
+  export let onPlayer: ((player: Schema['PlayerDTO']) => void) | undefined = undefined;
+  export let onMessage: ((player: Schema['PlayerDTO']) => void) | undefined = undefined;
+  export let actionsAvailable = false;
+  export let actionsUnsupported = false;
 
   $: onlineNames = new Set(players.map((player) => player.name));
 </script>
@@ -34,10 +39,26 @@
           {#each players as player (player.uuid ?? player.name)}
             <li class="row">
               <span class="dot online" aria-hidden="true"></span>
-              <span class="name">{player.displayName || player.name}</span>
+              {#if actionsAvailable}
+                <button type="button" class="name player-action" onclick={() => onPlayer?.(player)}
+                  >{player.displayName || player.name}</button
+                >
+                <button
+                  type="button"
+                  class="message-action"
+                  aria-label={`Message ${player.name}`}
+                  title={`Message ${player.name}`}
+                  onclick={() => onMessage?.(player)}><Icon name="chat" size={14} /></button
+                >
+              {:else}
+                <span class="name">{player.displayName || player.name}</span>
+              {/if}
             </li>
           {/each}
         </ul>
+      {/if}
+      {#if actionsUnsupported && players.length > 0}
+        <p class="empty">Update this agent to use player actions.</p>
       {/if}
     </div>
 
@@ -138,5 +159,26 @@
   }
   .name.muted {
     color: var(--msc2-text-tertiary);
+  }
+  .player-action,
+  .message-action {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+  .player-action {
+    padding: 0;
+    text-align: left;
+  }
+  .player-action:hover,
+  .message-action:hover {
+    color: var(--msc2-text-primary);
+    text-decoration: underline;
+  }
+  .message-action {
+    margin-left: auto;
+    color: var(--msc2-text-secondary);
+    padding: 3px;
+    display: inline-flex;
   }
 </style>

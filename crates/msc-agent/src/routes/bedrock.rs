@@ -62,6 +62,7 @@ struct AllowlistResponse {
 pub(crate) struct AllowlistMutationRequest {
     action: Option<String>,
     name: Option<String>,
+    expected_active_server_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -110,6 +111,27 @@ pub async fn mutate_allowlist(
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Players) {
         return response;
     }
+    let Json(body) = match body {
+        Ok(body) => body,
+        Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
+    };
+    let expected = body.expected_active_server_id.clone();
+    match state.with_expected_active_server(expected.as_deref(), || {
+        mutate_allowlist_scoped(&state, body)
+    }) {
+        Ok(response) => response,
+        Err(()) => error_response(
+            StatusCode::CONFLICT,
+            "active_server_changed",
+            "The active server changed before the allowlist was edited.",
+        ),
+    }
+}
+
+fn mutate_allowlist_scoped(
+    state: &LifecycleRoutesState,
+    body: AllowlistMutationRequest,
+) -> Response {
     let Some(server) = state.active_config_server() else {
         return error_response(
             StatusCode::CONFLICT,
@@ -127,10 +149,6 @@ pub async fn mutate_allowlist(
     // The file-backed allowlist remains editable while BDS is unavailable;
     // the next start reads the same durable file.  Live-dependent Bedrock
     // operations use `require_runtime` at their route boundary instead.
-    let Json(body) = match body {
-        Ok(body) => body,
-        Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
-    };
     let Some(action) = body.action.filter(|value| !value.trim().is_empty()) else {
         return invalid_body("missing_action", "action is required.");
     };
@@ -148,7 +166,7 @@ pub async fn mutate_allowlist(
             message: action,
             server_type: "bedrock".to_owned(),
             entries: to_allowlist_dtos(entries),
-            runtime: runtime_for(&state),
+            runtime: runtime_for(state),
         })
         .into_response(),
         Err(error) => error_response(

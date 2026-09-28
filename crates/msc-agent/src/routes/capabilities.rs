@@ -116,6 +116,7 @@ async fn capabilities_for_query(
     });
 
     Json(CapabilitiesResponseDto {
+        player_actions: Some(true),
         base: CapabilitiesDto {
             agent_version: env!("CARGO_PKG_VERSION").to_string(),
             api_major: API_MAJOR,

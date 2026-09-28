@@ -15,6 +15,7 @@ use std::collections::BTreeMap;
 pub enum ConfirmationKind {
     BedrockAchievements,
     JavaCreative,
+    JavaPlayerCreative,
     JavaCommands,
     ServerForceGamemode,
 }
@@ -24,6 +25,7 @@ impl ConfirmationKind {
         match self {
             Self::BedrockAchievements => "bedrock_achievements",
             Self::JavaCreative => "java_creative",
+            Self::JavaPlayerCreative => "java_player_creative",
             Self::JavaCommands => "java_commands",
             Self::ServerForceGamemode => "server_force_gamemode",
         }
@@ -32,6 +34,7 @@ impl ConfirmationKind {
     pub const fn scope(self) -> &'static str {
         match self {
             Self::ServerForceGamemode => "server",
+            Self::JavaPlayerCreative => "player",
             Self::BedrockAchievements | Self::JavaCreative | Self::JavaCommands => "world",
         }
     }
@@ -40,6 +43,7 @@ impl ConfirmationKind {
         match self {
             Self::BedrockAchievements => "Bedrock achievements warning",
             Self::JavaCreative => "Java Creative mode confirmation",
+            Self::JavaPlayerCreative => "Player Creative mode confirmation",
             Self::JavaCommands => "Java commands confirmation",
             Self::ServerForceGamemode => "Server-wide gamemode override",
         }
@@ -52,6 +56,9 @@ impl ConfirmationKind {
             }
             Self::JavaCreative => {
                 "Java Creative mode changes the world's advancement and command semantics. Java does not have Bedrock's permanent Xbox-achievement consequence."
+            }
+            Self::JavaPlayerCreative => {
+                "Creative mode will be applied to the targeted player. It does not change the world's default game mode."
             }
             Self::JavaCommands => {
                 "Enabling Java commands changes the world's command and advancement semantics. Java does not have Bedrock's permanent Xbox-achievement consequence."
@@ -154,6 +161,14 @@ pub fn confirmation_for_command(
     });
     if !changes_gamemode {
         return None;
+    }
+    if server_type == ServerType::Java
+        && tokens.first().is_some_and(|token| token == "gamemode")
+        && tokens.len() >= 3
+    {
+        return Some(SafetyConfirmation {
+            kind: ConfirmationKind::JavaPlayerCreative,
+        });
     }
     confirmation_for_world_values(server_type, Some("creative"), None, None)
 }

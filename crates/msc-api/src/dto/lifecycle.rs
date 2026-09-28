@@ -219,6 +219,8 @@ pub struct ActiveServerRequestDto {
 #[serde(rename_all = "camelCase")]
 pub struct CommandRequestDto {
     pub command: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_active_server_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

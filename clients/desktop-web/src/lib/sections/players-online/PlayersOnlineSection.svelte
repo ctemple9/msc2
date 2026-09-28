@@ -11,6 +11,7 @@
   import BedrockAllowlistCard from './BedrockAllowlistCard.svelte';
   import PlayerDataCard from './PlayerDataCard.svelte';
   import PlayerDetailSheet from './PlayerDetailSheet.svelte';
+  import PlayerActionsSheet from './PlayerActionsSheet.svelte';
   import {
     clearSessionLog,
     playerPaths,
@@ -25,6 +26,7 @@
   export let hostId = 'local-agent';
   export let serverId = 'survival';
   export let active = true;
+  export let permissions: readonly string[] = [];
 
   let online: Schema['PlayersResponseDTO'] = { count: 0, players: [] };
   let profiles: Schema['PlayerProfileDTO'][] = [];
@@ -32,6 +34,13 @@
   let sessionEvents: SessionEvent[] = [];
   let allowlist: Schema['AllowlistResponseDTO'] = { serverType: 'bedrock', entries: [] };
   let selectedProfile: Schema['PlayerProfileDTO'] | undefined;
+  let selectedOnlinePlayer: Schema['PlayerDTO'] | undefined;
+  let selectedAction: 'message' | undefined;
+  let sheetHostId = hostId;
+  let sheetServerId = serverId;
+  let capabilities: Schema['CapabilitiesDTO'] | undefined;
+  let capabilitiesKey = '';
+  let capabilitiesApi: ScreenProps['api'];
   let servers: Schema['ServerDTO'][] = [];
   let worlds: Schema['WorldSlotsResponseDTO'] = { serverRunning: false, slots: [] };
 
@@ -47,6 +56,24 @@
     ? sessionEvents.filter((event) => new Date(event.ts).getTime() > clearedAt)
     : sessionEvents;
   $: onlineNames = new Set(online.players.map((player) => player.name));
+  $: actionsAvailable = capabilities?.playerActions === true;
+  $: canSendCommands =
+    permissions.length === 0 ||
+    permissions.includes('serverControl') ||
+    permissions.includes('admin');
+  $: canEditAccess =
+    permissions.length === 0 || permissions.includes('players') || permissions.includes('admin');
+  $: if (selectedOnlinePlayer && (sheetHostId !== hostId || sheetServerId !== serverId))
+    selectedOnlinePlayer = undefined;
+  $: if (selectedOnlinePlayer && !active) selectedOnlinePlayer = undefined;
+
+  function openPlayer(player: Schema['PlayerDTO'], action?: 'message'): void {
+    if (!actionsAvailable) return;
+    sheetHostId = hostId;
+    sheetServerId = serverId;
+    selectedAction = action;
+    selectedOnlinePlayer = player;
+  }
 
   async function loadOnline(): Promise<void> {
     online = await call(api, online, playerPaths.players);
@@ -79,13 +106,31 @@
   async function loadWorlds(): Promise<void> {
     worlds = await call(api, worlds, '/v1/worlds');
   }
+  async function loadCapabilities(): Promise<void> {
+    const targetApi = api;
+    if (!targetApi) return;
+    const key = `${hostId}:${serverId}`;
+    if (capabilitiesKey === key && capabilitiesApi === targetApi) return;
+    capabilitiesKey = key;
+    capabilitiesApi = targetApi;
+    capabilities = undefined;
+    const result = await call<Schema['CapabilitiesDTO'] | undefined>(
+      targetApi,
+      undefined,
+      '/v1/capabilities',
+    );
+    if (capabilitiesKey === key && capabilitiesApi === targetApi) {
+      capabilities = result;
+      if (!result) capabilitiesKey = '';
+    }
+  }
   async function loadAllowlist(): Promise<void> {
     if (!isBedrock) return;
     allowlist = await call(api, allowlist, playerPaths.allowlist);
   }
 
   async function loadAll(): Promise<void> {
-    await Promise.all([loadServers(), loadWorlds()]);
+    await Promise.all([loadServers(), loadWorlds(), loadCapabilities()]);
     await Promise.all([loadOnline(), loadProfiles(), loadSessionEvents(), loadAllowlist()]);
   }
 
@@ -156,6 +201,10 @@
     players={online.players}
     seenThisSession={seenThisSession(visibleSessionEvents)}
     onRefresh={() => void loadOnline()}
+    onPlayer={(player) => openPlayer(player)}
+    onMessage={(player) => openPlayer(player, 'message')}
+    {actionsAvailable}
+    actionsUnsupported={capabilities !== undefined && !actionsAvailable}
   />
 
   {#if isBedrock}
@@ -180,6 +229,23 @@
     onSelect={(profile) => (selectedProfile = profile)}
   />
 </div>
+
+{#if selectedOnlinePlayer && activeServer && actionsAvailable}
+  <PlayerActionsSheet
+    player={selectedOnlinePlayer}
+    onlinePlayers={online.players}
+    {serverId}
+    serverType={activeServer.serverType}
+    minecraftVersion={capabilities?.worldSettings?.context.minecraftVersion ?? undefined}
+    {api}
+    initialAction={selectedAction}
+    {canSendCommands}
+    {canEditAccess}
+    online={online.players.some((player) => player.name === selectedOnlinePlayer?.name)}
+    onClose={() => (selectedOnlinePlayer = undefined)}
+    onAllowlistChanged={(entries) => (allowlist = { ...allowlist, entries })}
+  />
+{/if}
 
 {#if selectedProfile}
   <PlayerDetailSheet

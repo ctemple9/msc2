@@ -230,6 +230,8 @@ struct LifecycleRoutesInner {
     console: &'static AgentConsoleSink,
     metrics: PsProcessMetricsProvider,
     lifecycle: Mutex<LifecycleService<'static>>,
+    /// Serializes selection with commands and access-list edits bound to one server.
+    selection_lock: Mutex<()>,
     operations: OperationsState,
     notifications: NotificationState,
     active_lifecycle_operation: Mutex<Option<OperationId>>,
@@ -818,6 +820,7 @@ impl LifecycleRoutesState {
                 console,
                 metrics: PsProcessMetricsProvider::default(),
                 lifecycle: Mutex::new(lifecycle),
+                selection_lock: Mutex::new(()),
                 operations,
                 notifications,
                 active_lifecycle_operation: Mutex::new(None),
@@ -997,6 +1000,7 @@ impl LifecycleRoutesState {
     }
 
     pub fn reset_after_host_reset(&self) {
+        let _selection = self.inner.selection_lock.lock().unwrap();
         self.stop_all_playit_helpers();
         self.inner.app_config.reset_in_memory();
         self.inner.lifecycle.lock().unwrap().clear_selection();
@@ -1448,6 +1452,23 @@ impl LifecycleRoutesState {
             .collect()
     }
 
+    pub fn java_online_players(&self) -> Vec<String> {
+        self.drain_active_process_events();
+        self.inner.lifecycle.lock().unwrap().online_players()
+    }
+
+    pub fn with_expected_active_server<T>(
+        &self,
+        expected: Option<&str>,
+        operation: impl FnOnce() -> T,
+    ) -> Result<T, ()> {
+        let _selection = self.inner.selection_lock.lock().unwrap();
+        if expected.is_some_and(|id| self.active_server_id().as_deref() != Some(id)) {
+            return Err(());
+        }
+        Ok(operation())
+    }
+
     fn record_bedrock_player_line(&self, line: &str) {
         use msc_domain::bedrock::{BedrockPlayerEvent, parse_player_event};
         let Some(event) = parse_player_event(line) else {
@@ -1569,6 +1590,7 @@ impl LifecycleRoutesState {
         &self,
         server_id: String,
     ) -> Result<String, ActiveServerSelectionError> {
+        let _selection = self.inner.selection_lock.lock().unwrap();
         match self.reconciliation_status(&server_id) {
             ReconciliationStatus::Ready => {}
             ReconciliationStatus::Reconciling => {

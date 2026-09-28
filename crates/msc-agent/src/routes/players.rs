@@ -231,11 +231,15 @@ pub async fn players(State(state): State<LifecycleRoutesState>) -> Response {
         })
         .into_response();
     };
-    if server.server_type != ServerType::Bedrock {
+    if server.server_type == ServerType::Java {
+        let players = state.java_online_players();
         return Json(PlayersResponse {
-            players: Vec::new(),
-            count: 0,
-            note: Some("not_bedrock".to_owned()),
+            count: players.len(),
+            players: players
+                .into_iter()
+                .map(|name| PlayerDto { name, uuid: None })
+                .collect(),
+            note: None,
         })
         .into_response();
     }

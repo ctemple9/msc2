@@ -1,6 +1,8 @@
-# MSC 2 beta release artifact contract
+# Historical: Phase 12 beta release artifact contract
 
-**Status:** frozen and owner-accepted for the first beta artifact set (P12.59)
+**Status:** Historical packaging contract for the first beta artifact set
+accepted in P12.59. It is not current-release acceptance evidence. See the
+[current support and release status](../../../README.md#current-release-and-support).
 **Date:** 2026-09-04
 **Authority:** `MSC2-VISION.md`, `msc2-decisions.md`,
 `msc2-engineering.md`, and the Phase 12 port-plan entry

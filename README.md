@@ -15,18 +15,47 @@ MSC 2 puts as much of that as possible into guided controls and explains the
 rest as you go, so you can learn what you need without having to master
 everything first.
 
-MSC 2 is **currently an unsigned prerelease**. The current release supports:
+## Current release and support
 
-- Intel and Apple Silicon macOS
-- 64-bit Windows
-- 64-bit Linux
+The newest published build is [MSC 2 v0.1.16](https://github.com/ctemple9/msc2/releases/tag/v0.1.16),
+an unsigned prerelease. There is no stable release yet. Download the
+platform-specific installer or archive from that release page and verify its
+entry in `SHA256SUMS` before installing. The Phase 16 acceptance record
+(planned as P16.24) does not exist yet, so this prerelease is not presented as
+having passed the full release acceptance gate.
 
-Apple Silicon macOS can manage Java servers locally and remote hosts, but its
-local Bedrock VM is unavailable because that VM runs only on Intel Macs. The
-release is unsigned, so macOS, Windows, or Linux may show a security warning
-the first time you open or install it.
+| Installation | Published platform and architecture | Browser UI served by the host agent |
+|---|---|---|
+| Desktop app | macOS Intel (`x86_64`) and Apple Silicon (`aarch64`); Windows 64-bit (`x86_64`); Linux 64-bit (`x86_64`) as `.deb` and `.rpm` | Yes |
+| Headless agent | macOS Intel (`x86_64`) and Apple Silicon (`aarch64`); Windows 64-bit (`x86_64`); Linux 64-bit (`x86_64`) | No; use the desktop app or CLI from another computer |
 
-[Download MSC 2 v0.1.16](https://github.com/ctemple9/msc2/releases/tag/v0.1.16)
+The Linux minimum is Debian 12 (Bookworm), or another distribution with
+`systemd` 250 or newer. Linux `.deb` and `.rpm` desktop packages are built for
+x86_64; the `.deb` is for Debian/Ubuntu systems and the `.rpm` is for Fedora
+and other RPM-based systems. No Linux arm64 artifact is published. The
+macOS and Windows operating-system version minimums are not stated in the
+current release contract. Apple Silicon Macs can manage Java servers locally
+and remote hosts, but local Bedrock requires an Intel Mac.
+
+The published installers and archives are not publisher-signed: macOS is not
+Developer ID signed or notarized, Windows has no Authenticode signature, and
+Linux packages are not distributed through a signed MSC package repository. The signed update
+manifest verifies update metadata and is not a publisher signature on the
+installers. The release page publishes checksums; a checksum confirms the
+download matches those published bytes, not who published them.
+
+Desktop app updates use the signed in-app update flow on macOS and Windows;
+Linux desktop packages remain managed by `apt` or `dnf`. Standalone headless
+archives use `msc update check` and `msc update install`; package-managed Linux
+installations remain with their package manager. The client/agent compatibility
+mechanism refuses clients below the agent's minimum supported version, but
+the project has not set a numeric version window such as N-3. Keep clients and
+agents current.
+
+Security fixes are currently promised only for the latest stable release, as
+described in [SECURITY.md](SECURITY.md). Since v0.1.16 is a prerelease and no
+stable release has been published, no release currently qualifies for that
+security-support policy.
 
 ## What MSC 2 does
 
@@ -152,8 +181,8 @@ app already includes the MSC 2 agent; you do not need to download both.
   computer.
 - Use the **headless agent** when the server computer has no monitor or desktop
   environment. Manage it from another computer with the desktop app or CLI.
-  The Linux headless archive exposes the API but does not serve a browser page;
-  use an installation that includes the browser UI if you want that page.
+No standalone headless archive serves a browser page; use a desktop
+installation that includes the browser UI if you want that page.
 
 ### macOS desktop — Intel and Apple Silicon Macs
 
@@ -187,10 +216,10 @@ Windows. The archive's `HEADLESS-INSTALL.md` describes the platform-specific
 command location, PATH ownership, upgrade/uninstall boundary, and the separate
 operating-system service installation.
 
-The Linux headless archive needs no graphical desktop and does not include the
-browser UI. Its API and CLI still work, including for a desktop app on another
-computer. A host needing no graphical desktop is a separate question from
-whether its agent serves a browser page.
+None of the standalone headless archives includes the browser UI. Their API
+and CLI still work, including for a desktop app on another computer. A host
+needing no graphical desktop is a separate question from whether its agent
+serves a browser page.
 
 Each standalone headless archive includes a platform command installer and
 uninstaller. macOS archives contain `install.sh` and `uninstall.sh`, Windows

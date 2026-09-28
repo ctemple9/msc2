@@ -1,7 +1,8 @@
 # MSC 2 headless installation contract
 
-**Status:** Current release contract. The Linux, macOS, and Windows archive
-installers are implemented and included in their respective headless archives.
+**Status:** Current headless installation contract. The latest published
+artifact set is v0.1.16, an unsigned prerelease. The Phase 16 exact-artifact
+acceptance record is planned and has not been completed.
 
 This document defines the command-install shape for the standalone MSC 2
 headless artifacts. It is deliberately separate from the operating-system
@@ -12,12 +13,35 @@ The supported headless control surface is the scriptable CLI in the same
 binary as the agent. The command is `msc` on macOS and Linux and `msc.exe` on
 Windows. The management service listens on `127.0.0.1:48001` by default.
 
-The Linux headless archive does not contain or serve the browser UI. Its
+No standalone headless archive contains or serves the browser UI. Their
 authenticated API and CLI remain available, so a desktop app or CLI on another
-computer can manage the host. No graphical desktop is required to run the
-agent; that requirement is separate from whether an installation serves a
-browser page. The Linux `.deb` and `.rpm` desktop packages include the
-browser-serving agent.
+computer can manage the host. The macOS `.dmg`, Windows `.msi`, and Linux
+`.deb`/`.rpm` desktop packages include the browser-serving agent. No graphical
+desktop is required to run the headless agent; that requirement is separate
+from whether an installation serves a browser page.
+
+## Current published support
+
+The current public prerelease is [v0.1.16](https://github.com/ctemple9/msc2/releases/tag/v0.1.16).
+It publishes macOS Intel (`x86_64`) and Apple Silicon (`aarch64`) desktop and
+headless artifacts, plus x86_64 Windows and Linux desktop/headless artifacts.
+Linux desktop artifacts are `.deb` and `.rpm`; no Linux arm64 artifact is
+published. The Linux minimum is Debian 12 (Bookworm), or another distribution
+with `systemd` 250 or newer. The release contract does not state minimum OS
+versions for macOS or Windows.
+
+The published installers and archives are unsigned by their platform publishers: no macOS
+Developer ID signature or notarization, no Windows Authenticode signature,
+and no signed Linux MSC package repository. The signed update manifest is not
+a publisher signature for these packages. Verify the checksum listed in
+`SHA256SUMS`; checksums confirm byte identity, not publisher identity.
+
+The numerical agent/client compatibility window has not been decided. Agents
+report their minimum supported client version and refuse clients below that
+floor; keep the client and agent current. Security support is limited to the
+latest stable release under `SECURITY.md`; v0.1.16 is a prerelease, and there
+is not yet a stable release eligible for that policy. Phase 16 exact-artifact
+acceptance is planned as P16.24 and has not been recorded yet.
 
 ## Artifact set
 

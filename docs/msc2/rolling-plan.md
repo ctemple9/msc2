@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 16 execution is underway. P16.1–P16.21 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
-> **Next move:** Cameron verifies P16.1–P16.21 using their `Verify:` commands.
+> ## STATUS: Phase 16 execution is underway. P16.1–P16.23 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
+> **Next move:** Cameron verifies P16.1–P16.23 using their `Verify:` commands.
 
 ## How this document works
 
@@ -224,7 +224,7 @@ Batch: solo
 
 #### P16.23 — Publish a current support and release-status page
 
-Status: planned — awaiting Cameron's review
+Status: implemented — awaiting Cameron's verification
 Files: README.md, docs/msc2/clients/phase12-release.md, docs/msc2/clients/headless-installation.md, docs/msc2/rolling-plan.md
 What: Separate historical beta plans from current public support claims. State exact platform/architecture and browser availability by installation type, unsigned installer limitations, current release link, update path, and support floor; link to the Phase 16 acceptance record once it exists. Keep previous phase evidence as history rather than rewriting it as current proof.
 Verify: Run `rg -n 'headless|browser|Debian 12|unsigned|release' README.md docs/msc2/clients/headless-installation.md` and confirm the public claims match the support matrix.

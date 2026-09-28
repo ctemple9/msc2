@@ -76,6 +76,7 @@ def check_candidate_workflow(workflow: str) -> None:
         "x86_64-pc-windows-msvc",
         "x86_64-unknown-linux-gnu",
         "npm run check",
+        "npm run api:check",
         "npm run test:contract",
         "npm run test:auth-desktop",
         "npm run test:tauri-boundary",
@@ -190,6 +191,7 @@ def check_publish_guard(workflow: str) -> None:
         require(fragment in ci_waiter, f"same-commit CI gate is missing {fragment!r}")
     ci_workflow = read_workflow(ROOT / ".github/workflows/ci.yml")
     require("tags: ['v*']" in ci_workflow, "CI does not run the full workflow on version tags")
+    require("npm run api:check" in ci_workflow, "CI does not check generated API types")
     require(
         "github.event_name != 'workflow_dispatch'" in ci_workflow,
         "tag CI can still skip required jobs through a focused dispatch scope",

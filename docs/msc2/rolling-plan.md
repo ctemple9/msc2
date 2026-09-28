@@ -174,9 +174,9 @@ Batch: solo
 
 #### P16.17 — Reconcile P15.101 with the September audit
 
-Status: planned — awaiting Cameron's review
-Files: crates/msc-agent/src/routes/commands.rs, crates/msc-agent/src/routes/bedrock.rs, crates/msc-agent/src/routes/lifecycle.rs, clients/desktop-web/src/lib/sections/players-online, clients/desktop-web/src/lib/api/generated.ts, .github/workflows/ci.yml, .github/workflows/release.yml, docs/msc2/rolling-plan.md
-What: Inspect the committed P15.101 server-selection guard, Bedrock allowlist guard, Java/Bedrock permission checks, generated API types, and formatting against September 28 findings 5–8. Record which are already fixed and repair only remaining gaps. Add `api:check` to required CI and release checks so later contract edits cannot leave generated types stale; preserve the one-server dispatch invariant under concurrent selection.
+Status: implemented — awaiting Cameron's verification
+Files: crates/msc-agent/src/routes/commands.rs, crates/msc-agent/src/routes/bedrock.rs, crates/msc-agent/src/routes/lifecycle.rs, clients/desktop-web/src/lib/sections/players-online, clients/desktop-web/src/lib/api/generated.ts, .github/workflows/ci.yml, .github/workflows/release.yml, tools/release/check-release-workflow.py, docs/msc2/rolling-plan.md
+What: Reconcile September 28 findings 5–8 against committed P15.101. Finding 5 is addressed by the shared server-selection lock held through command and Bedrock allowlist dispatch; finding 7 is addressed by Java whitelist actions requiring `serverControl` and Bedrock allowlist edits requiring `players`; P15.101 includes the generated types for its contract changes. Add `api:check` to required CI and release checks and enforce its presence in the release workflow validator so later contract edits cannot leave generated types stale. The formatter cleanup from finding 8 remains in P16.18.
 Verify: Run `npm run api:check` from `clients/desktop-web`.
 Batch: frontend-quality (P16.17–P16.18)
 

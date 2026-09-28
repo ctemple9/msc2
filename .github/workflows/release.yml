@@ -137,6 +137,7 @@ jobs:
       - name: Run targeted client checks
         working-directory: clients/desktop-web
         run: |
+          npm run api:check
           npm run check
           npm run test:contract
           npm run test:auth-desktop

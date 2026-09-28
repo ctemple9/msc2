@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 16 execution is underway. P16.1–P16.11 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
-> **Next move:** Cameron verifies P16.1–P16.11 using their `Verify:` commands.
+> ## STATUS: Phase 16 execution is underway. P16.1–P16.12 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
+> **Next move:** Cameron verifies P16.1–P16.12 using their `Verify:` commands.
 
 ## How this document works
 
@@ -132,8 +132,8 @@ Batch: solo
 
 #### P16.12 — Update Windows headless without self-replacement
 
-Status: planned — awaiting Cameron's review
-Files: crates/msc-agent/src/cli/update.rs, crates/msc-platform-windows/src/service.rs, packaging/windows, docs/msc2/rolling-plan.md
+Status: implemented — awaiting Cameron's Windows verification
+Files: crates/msc-agent/src/cli/update.rs, crates/msc-platform-windows/src/service.rs, packaging/windows/service-lifecycle.md, docs/msc2/rolling-plan.md
 What: Launch a distinct temporary updater image/process so the running `msc.exe` is never asked to remove itself. Preserve the prior service state on every extraction, replacement, restart, and health-check failure; keep rollback bytes until health succeeds. Cover both initially running and stopped services.
 Verify: On Windows, run `cargo check -p msc-agent -p msc-platform-windows`.
 Batch: solo

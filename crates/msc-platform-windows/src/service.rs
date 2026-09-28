@@ -71,7 +71,22 @@ impl Sc for SystemSc {
     }
 
     fn stop(&self, service_name: &str) -> Result<(), ServiceError> {
-        run_sc(&["stop".to_string(), service_name.to_string()]).map(|_| ())
+        if let Err(error) = run_sc(&["stop".to_string(), service_name.to_string()]) {
+            let state = run_sc(&["queryex".to_string(), service_name.to_string()])?;
+            if parse_state(&state) != Some(ServiceState::Stopped) {
+                return Err(error);
+            }
+        }
+        for _ in 0..60 {
+            let state = run_sc(&["queryex".to_string(), service_name.to_string()])?;
+            if parse_state(&state) == Some(ServiceState::Stopped) {
+                return Ok(());
+            }
+            std::thread::sleep(std::time::Duration::from_millis(500));
+        }
+        Err(ServiceError::Platform(format!(
+            "Windows service {service_name} did not stop within 30 seconds"
+        )))
     }
 
     fn query(&self, service_name: &str) -> Result<String, ServiceError> {
@@ -92,6 +107,45 @@ impl WindowsServiceManager<SystemSc> {
             sc: SystemSc,
         }
     }
+
+    /// Resolve the installed service from the binary the updater will replace.
+    pub fn installed_service_for_binary(
+        &self,
+        binary_path: &Path,
+    ) -> Result<Option<ServiceInstallRequest>, ServiceError> {
+        let entries = match fs::read_dir(&self.metadata_root) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(ServiceError::Platform(error.to_string())),
+        };
+        for entry in entries {
+            let entry = entry.map_err(|error| ServiceError::Platform(error.to_string()))?;
+            if entry
+                .path()
+                .extension()
+                .is_none_or(|extension| extension != "metadata")
+            {
+                continue;
+            }
+            let contents = fs::read_to_string(entry.path())
+                .map_err(|error| ServiceError::Platform(error.to_string()))?;
+            let request = parse_metadata(&contents)?;
+            if same_windows_path(&request.binary_path, binary_path) {
+                return Ok(Some(request));
+            }
+        }
+        Ok(None)
+    }
+}
+
+fn same_windows_path(a: &Path, b: &Path) -> bool {
+    fn normalize(path: &Path) -> String {
+        path.to_string_lossy()
+            .trim_start_matches(r"\\?\")
+            .replace('/', "\\")
+            .to_ascii_lowercase()
+    }
+    normalize(a) == normalize(b)
 }
 
 impl Default for WindowsServiceManager<SystemSc> {

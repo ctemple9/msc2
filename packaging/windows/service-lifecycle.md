@@ -37,3 +37,16 @@ sc.exe queryex msc2-agent
 `SERVICE_START_NAME` must be the selected account, and the state should reach
 `RUNNING` then `STOPPED`. The health request may require authorization; an
 HTTP response still demonstrates that the service accepted a connection.
+
+## Headless updates
+
+`msc.exe update install --release-id <release> --yes` copies the installed
+binary to a separate updater executable under the staged release directory.
+The updater waits for the confirming CLI to exit, then replaces the installed
+binary. It identifies the service by the registered executable path, so the
+service name selected at install time is retained. When the service was running,
+it waits for `STOPPED`, installs the signed payload, restarts the service, and
+checks `/v1/healthz` before considering the update healthy. If replacement or
+health fails, it restores the previous payload and running state. A service
+that was stopped before the update remains stopped. Rollback files remain in
+the staged release directory if repair is needed.

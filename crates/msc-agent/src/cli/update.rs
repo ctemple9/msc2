@@ -52,6 +52,9 @@ pub enum UpdateCommand {
         parent_pid: u32,
         #[arg(long, hide = true)]
         data_dir: Option<PathBuf>,
+        #[cfg(target_os = "windows")]
+        #[arg(long, hide = true)]
+        target_exe: PathBuf,
     },
 }
 
@@ -69,6 +72,12 @@ struct InstallOutput {
 struct PayloadChange {
     names: Vec<String>,
     rollback: PathBuf,
+}
+
+#[derive(Debug)]
+struct ReplacementFailure {
+    detail: String,
+    restored: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -89,7 +98,18 @@ pub fn run(common: CommonArgs, command: UpdateCommand) -> Result<(), CliError> {
             release_id,
             parent_pid,
             data_dir,
-        } => apply(&common, &release_id, parent_pid, data_dir.as_deref()),
+            #[cfg(target_os = "windows")]
+            target_exe,
+        } => apply(
+            &common,
+            &release_id,
+            parent_pid,
+            data_dir.as_deref(),
+            #[cfg(target_os = "windows")]
+            Some(&target_exe),
+            #[cfg(not(target_os = "windows"))]
+            None,
+        ),
     }
 }
 
@@ -130,23 +150,37 @@ fn install(common: &CommonArgs, release_id: &str, yes: bool) -> Result<(), CliEr
 
     #[cfg(target_os = "windows")]
     {
-        let child = Command::new(std::env::current_exe().map_err(|error| {
+        let current_executable = std::env::current_exe().map_err(|error| {
             CliError::internal(format!(
                 "could not resolve the current msc executable: {error}"
             ))
-        })?)
-        .args([
-            "update",
-            "apply",
-            "--release-id",
-            release_id,
-            "--parent-pid",
-            &std::process::id().to_string(),
-        ])
-        .spawn()
-        .map_err(|error| {
-            CliError::internal(format!("could not schedule the local update: {error}"))
         })?;
+        let helper = data_directory
+            .join("updates")
+            .join(&staged.manifest.release_id)
+            .join("updater")
+            .join("msc-updater.exe");
+        fs::create_dir_all(helper.parent().expect("updater has a parent")).map_err(|error| {
+            CliError::internal(format!("could not create updater directory: {error}"))
+        })?;
+        fs::copy(&current_executable, &helper).map_err(|error| {
+            CliError::internal(format!("could not copy updater executable: {error}"))
+        })?;
+        let child = Command::new(&helper)
+            .args([
+                "update",
+                "apply",
+                "--release-id",
+                release_id,
+                "--parent-pid",
+                &std::process::id().to_string(),
+            ])
+            .arg("--target-exe")
+            .arg(&current_executable)
+            .spawn()
+            .map_err(|error| {
+                CliError::internal(format!("could not schedule the local update: {error}"))
+            })?;
         let output = InstallOutput {
             state: "scheduled",
             release_id: release_id.to_string(),
@@ -183,7 +217,7 @@ fn install(common: &CommonArgs, release_id: &str, yes: bool) -> Result<(), CliEr
 
     #[cfg(not(target_os = "windows"))]
     {
-        let output = apply_verified_update(&staged, &data_directory)?;
+        let output = apply_verified_update(&staged, &data_directory, None)?;
         if common.json {
             print_json(&output)
         } else {
@@ -351,6 +385,7 @@ fn apply(
     release_id: &str,
     parent_pid: u32,
     requested_data_directory: Option<&Path>,
+    target_executable: Option<&Path>,
 ) -> Result<(), CliError> {
     let installation = detect_installation()?;
     let data_directory = requested_data_directory
@@ -361,7 +396,7 @@ fn apply(
             .map_err(CliError::internal)?;
 
     wait_for_parent(parent_pid)?;
-    let output = apply_verified_update(&staged, &data_directory)?;
+    let output = apply_verified_update(&staged, &data_directory, target_executable)?;
     if common.json {
         print_json(&output)
     } else {
@@ -402,6 +437,7 @@ fn wait_for_parent(_parent_pid: u32) -> Result<(), CliError> {
 fn apply_verified_update(
     staged: &StagedUpdate,
     data_directory: &Path,
+    target_executable: Option<&Path>,
 ) -> Result<InstallOutput, CliError> {
     let notes = read_release_notes(staged);
     if staged.install_mode == "authorized-package-install" {
@@ -419,9 +455,12 @@ fn apply_verified_update(
         ));
     }
 
-    let current_executable = std::env::current_exe().map_err(|error| {
-        CliError::internal(format!("could not resolve the current executable: {error}"))
-    })?;
+    let current_executable = match target_executable {
+        Some(path) => path.to_path_buf(),
+        None => std::env::current_exe().map_err(|error| {
+            CliError::internal(format!("could not resolve the current executable: {error}"))
+        })?,
+    };
     let installation_root = current_executable.parent().ok_or_else(|| {
         CliError::internal("the current executable has no installation directory")
     })?;
@@ -432,30 +471,78 @@ fn apply_verified_update(
     release_update::extract_standalone_archive(&staged.artifact_path, &payload)
         .map_err(CliError::internal)?;
 
-    let service_state = local_service_state()?;
-    if service_state == ServiceState::Running {
-        stop_local_service()?;
+    let (service_state, service_name, health_port) = local_service_state(&current_executable)?;
+    if service_state == ServiceState::Running
+        && let Err(error) = stop_local_service(&service_name)
+    {
+        let recovery = restore_service_state(
+            &current_executable,
+            &service_name,
+            service_state,
+            health_port,
+        );
+        return Err(CliError::internal(format!(
+            "Could not stop the agent service: {error}; recovery: {}",
+            recovery
+                .map(|_| "previous state restored".to_string())
+                .unwrap_or_else(|error| error.to_string())
+        )));
     }
 
     let rollback = data_directory
         .join("updates")
         .join(&staged.manifest.release_id)
-        .join("rollback");
-    let changed =
-        replace_payload(&payload, installation_root, &rollback).map_err(CliError::internal)?;
+        .join(format!("rollback-{}", std::process::id()));
+    let changed = match replace_payload(&payload, installation_root, &rollback) {
+        Ok(changed) => changed,
+        Err(error) => {
+            let recovery = if error.restored {
+                restore_service_state(
+                    &current_executable,
+                    &service_name,
+                    service_state,
+                    health_port,
+                )
+                .map(|_| "previous state restored".to_string())
+                .unwrap_or_else(|error| error.to_string())
+            } else {
+                "service left stopped because payload rollback failed".to_string()
+            };
+            return Err(CliError::internal(format!(
+                "Could not replace the agent payload: {}; recovery: {recovery}",
+                error.detail
+            )));
+        }
+    };
 
     if service_state == ServiceState::Running
-        && let Err(error) = start_local_service().and_then(|_| wait_for_agent_health())
+        && let Err(error) =
+            start_local_service(&service_name).and_then(|_| wait_for_agent_health(health_port))
     {
+        if let Err(stop_error) = stop_local_service(&service_name) {
+            return Err(CliError::internal(format!(
+                "Updated agent failed health ({error}) and could not be stopped for rollback: {stop_error}; rollback retained at {}",
+                rollback.display()
+            )));
+        }
         let rollback_result = rollback_payload(&changed, installation_root);
-        let _ = stop_local_service();
-        let _ = start_local_service();
         let detail = match rollback_result {
-            Ok(()) => format!(
-                "The updated agent failed its health check and the previous payload was restored: {error}"
-            ),
+            Ok(()) => {
+                let recovery = restore_service_state(
+                    &current_executable,
+                    &service_name,
+                    service_state,
+                    health_port,
+                );
+                format!(
+                    "The updated agent failed its health check and the previous payload was restored: {error}; service recovery: {}",
+                    recovery
+                        .map(|_| "previous state restored".to_string())
+                        .unwrap_or_else(|error| error.to_string())
+                )
+            }
             Err(rollback_error) => format!(
-                "The updated agent failed its health check ({error}); restoring the previous payload also failed: {rollback_error}"
+                "The updated agent failed its health check ({error}); restoring the previous payload also failed: {rollback_error}; service left stopped for repair"
             ),
         };
         return Err(CliError::internal(detail));
@@ -482,6 +569,25 @@ fn apply_verified_update(
             )
         },
     })
+}
+
+fn restore_service_state(
+    executable: &Path,
+    service_name: &str,
+    previous: ServiceState,
+    health_port: u16,
+) -> Result<(), CliError> {
+    if service_name.is_empty() {
+        return Ok(());
+    }
+    let (current, _, _) = local_service_state(executable)?;
+    if previous == ServiceState::Running && current != ServiceState::Running {
+        start_local_service(service_name)?;
+        wait_for_agent_health(health_port)?;
+    } else if previous != ServiceState::Running && current == ServiceState::Running {
+        stop_local_service(service_name)?;
+    }
+    Ok(())
 }
 
 fn client_config(installation: InstallationKind) -> Result<UpdateClientConfig, CliError> {
@@ -668,9 +774,11 @@ fn replace_payload(
     payload: &Path,
     installation_root: &Path,
     rollback: &Path,
-) -> Result<PayloadChange, String> {
-    fs::create_dir_all(rollback)
-        .map_err(|error| format!("Could not create rollback storage: {error}"))?;
+) -> Result<PayloadChange, ReplacementFailure> {
+    fs::create_dir_all(rollback).map_err(|error| ReplacementFailure {
+        detail: format!("Could not create rollback storage: {error}"),
+        restored: true,
+    })?;
     let binary_name = if cfg!(target_os = "windows") {
         "msc.exe"
     } else {
@@ -699,12 +807,12 @@ fn replace_payload(
                 remove_path(&temporary)?;
             }
             copy_path(&source, &temporary)?;
+            changed.push(name.clone());
             if target.exists() {
                 remove_path(&target)?;
             }
             fs::rename(&temporary, &target)
                 .map_err(|error| format!("Could not install {name}: {error}"))?;
-            changed.push(name);
         }
         Ok(())
     })();
@@ -715,10 +823,14 @@ fn replace_payload(
         };
         let rollback_error = rollback_payload(&partial, installation_root).err();
         return Err(match rollback_error {
-            Some(rollback_error) => {
-                format!("{error}; partial replacement rollback failed: {rollback_error}")
-            }
-            None => error,
+            Some(rollback_error) => ReplacementFailure {
+                detail: format!("{error}; partial replacement rollback failed: {rollback_error}"),
+                restored: false,
+            },
+            None => ReplacementFailure {
+                detail: error,
+                restored: true,
+            },
         });
     }
     Ok(PayloadChange {
@@ -785,7 +897,35 @@ fn remove_path(path: &Path) -> Result<(), String> {
     .map_err(|error| format!("Could not remove {}: {error}", path.display()))
 }
 
-fn local_service_state() -> Result<ServiceState, CliError> {
+fn local_service_state(executable: &Path) -> Result<(ServiceState, String, u16), CliError> {
+    #[cfg(not(target_os = "windows"))]
+    let _ = executable;
+    #[cfg(target_os = "windows")]
+    {
+        let manager = msc_platform_windows::service::WindowsServiceManager::new();
+        let request = manager
+            .installed_service_for_binary(executable)
+            .map_err(|error| {
+                CliError::internal(format!(
+                    "could not identify the installed agent service: {error}"
+                ))
+            })?;
+        let Some(request) = request else {
+            return Ok((ServiceState::NotInstalled, String::new(), AGENT_PORT));
+        };
+        let service_name = request.service_name.as_str().to_string();
+        let report = manager
+            .execute(ServiceManagerCommand::Status {
+                service_name: request.service_name,
+            })
+            .map_err(|error| {
+                CliError::internal(format!(
+                    "could not inspect the local agent service: {error}"
+                ))
+            })?;
+        return Ok((report.state, service_name, request.expected_port));
+    }
+    #[cfg(not(target_os = "windows"))]
     let service_name = ServiceName::new(AGENT_SERVICE_NAME);
     #[cfg(target_os = "macos")]
     let result = msc_platform_macos::service::MacosLaunchdServiceManager::new()
@@ -793,24 +933,24 @@ fn local_service_state() -> Result<ServiceState, CliError> {
     #[cfg(target_os = "linux")]
     return msc_platform_linux::service::LinuxSystemdServiceManager::new()
         .update_service_state(&service_name)
+        .map(|state| (state, AGENT_SERVICE_NAME.to_string(), AGENT_PORT))
         .map_err(|error| {
             CliError::internal(format!(
                 "could not inspect the local agent service: {error}"
             ))
         });
-    #[cfg(target_os = "windows")]
-    let result = msc_platform_windows::service::WindowsServiceManager::new()
-        .execute(ServiceManagerCommand::Status { service_name });
-    #[cfg(any(target_os = "macos", target_os = "windows"))]
-    result.map(|report| report.state).map_err(|error| {
-        CliError::internal(format!(
-            "could not inspect the local agent service: {error}"
-        ))
-    })
+    #[cfg(target_os = "macos")]
+    result
+        .map(|report| (report.state, AGENT_SERVICE_NAME.to_string(), AGENT_PORT))
+        .map_err(|error| {
+            CliError::internal(format!(
+                "could not inspect the local agent service: {error}"
+            ))
+        })
 }
 
-fn stop_local_service() -> Result<(), CliError> {
-    let service_name = ServiceName::new(AGENT_SERVICE_NAME);
+fn stop_local_service(name: &str) -> Result<(), CliError> {
+    let service_name = ServiceName::new(name);
     #[cfg(target_os = "macos")]
     {
         msc_platform_macos::service::stop_elevated(service_name.as_str()).map_err(|error| {
@@ -836,8 +976,8 @@ fn stop_local_service() -> Result<(), CliError> {
     Ok(())
 }
 
-fn start_local_service() -> Result<(), CliError> {
-    let service_name = ServiceName::new(AGENT_SERVICE_NAME);
+fn start_local_service(name: &str) -> Result<(), CliError> {
+    let service_name = ServiceName::new(name);
     #[cfg(target_os = "macos")]
     {
         msc_platform_macos::service::start_elevated(service_name.as_str()).map_err(|error| {
@@ -863,10 +1003,10 @@ fn start_local_service() -> Result<(), CliError> {
     Ok(())
 }
 
-fn wait_for_agent_health() -> Result<(), CliError> {
+fn wait_for_agent_health(port: u16) -> Result<(), CliError> {
     for _ in 0..40 {
         if let Ok(mut stream) = TcpStream::connect_timeout(
-            &format!("127.0.0.1:{AGENT_PORT}")
+            &format!("127.0.0.1:{port}")
                 .parse()
                 .expect("agent address is valid"),
             Duration::from_millis(250),

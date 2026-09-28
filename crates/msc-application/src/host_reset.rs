@@ -7,6 +7,7 @@
 //! next boot can finish the same idempotent filesystem work before serving
 //! the old configuration.
 
+use msc_infrastructure::atomic_write::atomic_write;
 use msc_infrastructure::fs::FileSystem;
 use serde::{Deserialize, Serialize};
 use std::io;
@@ -100,9 +101,8 @@ impl<'fs> HostResetWorkflow<'fs> {
         };
         let bytes = serde_json::to_vec(&marker)
             .map_err(|error| HostResetError::InvalidMarker(error.to_string()))?;
-        self.fs
-            .write(&marker_path(&self.config_path), &bytes)
-            .map_err(io_error)
+        atomic_write(self.fs, &marker_path(&self.config_path), &bytes)
+            .map_err(|error| HostResetError::Io(error.to_string()))
     }
 
     /// Applies only the paths named by the reset contract. Missing paths are

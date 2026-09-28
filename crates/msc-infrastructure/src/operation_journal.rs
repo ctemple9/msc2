@@ -62,6 +62,8 @@ fn journal_lock(dir: &PathBuf) -> Arc<Mutex<()>> {
 /// operation was still open.
 const RESTART_REASON: &str = "agent restarted mid-operation";
 
+pub const HOST_MAINTENANCE_OPERATION_TYPE: &str = "host-reset";
+
 /// One journaled operation record — the durable half of
 /// `msc_domain::operation`'s in-memory `OperationDTO` shape
 /// (`operation-model.md` §2's `id`/`type`/`target`), plus `state` and,
@@ -193,34 +195,37 @@ impl<'fs> OperationJournal<'fs> {
     /// the reservation is durable or reuse a target before its terminal
     /// transition is durable.
     ///
-    /// An entry with no target (`target: None`) never conflicts with
-    /// anything and is always admitted: there is no shared target to hold
-    /// exclusively. The rule itself is deliberately coarse —
+    /// Host reset is a host-wide maintenance reservation: it conflicts with
+    /// every non-terminal operation, and every new operation conflicts with
+    /// it. Other entries with no target do not conflict with one another.
+    /// The server-target rule itself is deliberately coarse —
     /// same-target-any-operation conflicts with same-target-any-operation
     /// — since the real operation-type catalog (which types may safely
     /// coexist against the same target) doesn't exist until later phases
     /// populate it.
     pub fn admit(&self, entry: &JournalEntry) -> Result<(), AdmitError> {
         let _transaction = self.transaction.lock().unwrap();
-        if let Some(target) = &entry.target
-            && let Some(existing) = self
-                .find_non_terminal_for_target(target, &entry.id)
-                .map_err(AdmitError::Journal)?
+        if let Some(existing) = self
+            .find_non_terminal_conflict(entry)
+            .map_err(AdmitError::Journal)?
         {
+            let target = existing
+                .target
+                .as_deref()
+                .or(entry.target.as_deref())
+                .unwrap_or("host");
             return Err(AdmitError::Conflict(conflict_error(&existing, target)));
         }
         self.record_unlocked(entry).map_err(AdmitError::Journal)
     }
 
-    /// The first non-terminal journaled entry (other than `exclude_id`)
-    /// whose target matches `target`, or `None` if there isn't one.
+    /// The first non-terminal journaled entry that conflicts with `entry`.
     /// Shares `reconcile_on_startup`'s walk-every-file-under-`dir` shape,
     /// skipping anything that isn't a journal entry this module wrote —
     /// same reasoning as there.
-    fn find_non_terminal_for_target(
+    fn find_non_terminal_conflict(
         &self,
-        target: &str,
-        exclude_id: &OperationId,
+        entry: &JournalEntry,
     ) -> Result<Option<JournalEntry>, JournalError> {
         for path in self.fs.list(&self.dir).map_err(JournalError::Io)? {
             let bytes = match self.fs.read(&path) {
@@ -234,9 +239,11 @@ impl<'fs> OperationJournal<'fs> {
             let Some(candidate) = entry_from_value(&value) else {
                 continue;
             };
-            if &candidate.id != exclude_id
-                && candidate.target.as_deref() == Some(target)
+            if candidate.id != entry.id
                 && !candidate.state.is_terminal()
+                && (entry.operation_type == HOST_MAINTENANCE_OPERATION_TYPE
+                    || candidate.operation_type == HOST_MAINTENANCE_OPERATION_TYPE
+                    || (entry.target.is_some() && entry.target == candidate.target))
             {
                 return Ok(Some(candidate));
             }

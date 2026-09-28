@@ -8,7 +8,8 @@
 use msc_domain::operation::{OperationError, OperationId, OperationProgress, OperationState};
 use msc_infrastructure::fs::FileSystem;
 use msc_infrastructure::operation_journal::{
-    AdmitError, JournalEntry, JournalError, OperationJournal, ReconciliationRecord,
+    AdmitError, HOST_MAINTENANCE_OPERATION_TYPE, JournalEntry, JournalError, OperationJournal,
+    ReconciliationRecord,
 };
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
@@ -17,6 +18,8 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
+
+pub const HOST_RESET_OPERATION_TYPE: &str = HOST_MAINTENANCE_OPERATION_TYPE;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LifecycleOperationSnapshot {

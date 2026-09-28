@@ -5,9 +5,8 @@
 //! in-memory cleanup, credential revocation, host-ID rotation, and marker
 //! removal. A remote caller can therefore lose its old credential without
 //! the route pretending that the reset is still reversible.
-
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+//! The host-wide journal reservation is acquired before reset preconditions
+//! and stays active if an interrupted cleanup cannot be completed in-process.
 
 use axum::Json;
 use axum::extract::{Extension, State, rejection::JsonRejection};
@@ -15,6 +14,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use msc_api::dto::{HostResetAcceptedDto, HostResetRequestDto, PermissionCategoryDto};
 use msc_application::host_reset::{HostResetMode, HostResetWorkflow};
+use msc_application::operations::HOST_RESET_OPERATION_TYPE;
 
 use crate::auth::{AuthState, AuthenticatedCredential, DesktopPairingError};
 use crate::routes::lifecycle::{
@@ -29,7 +29,6 @@ pub struct HostResetRoutesState {
     pub lifecycle: LifecycleRoutesState,
     pub auth: AuthState,
     pub operations: OperationsState,
-    in_progress: Arc<AtomicBool>,
 }
 
 impl HostResetRoutesState {
@@ -42,7 +41,6 @@ impl HostResetRoutesState {
             lifecycle,
             auth,
             operations,
-            in_progress: Arc::new(AtomicBool::new(false)),
         }
     }
 }
@@ -82,36 +80,28 @@ pub async fn reset(
             "Confirmation must exactly match RESET AGENT.",
         );
     }
+    let operation_id = match state.operations.begin_lifecycle(
+        HOST_RESET_OPERATION_TYPE,
+        None,
+        "Preparing host reset.",
+    ) {
+        Ok(id) => id,
+        Err(error) => return operation_error_response(error),
+    };
     if state.lifecycle.status_snapshot().running {
+        if let Err(error) = state.operations.fail(
+            &operation_id,
+            "server_running",
+            "Stop the running server before resetting this host.".to_string(),
+        ) {
+            return operation_error_response(error);
+        }
         return error_response(
             StatusCode::CONFLICT,
             "server_running",
             "Stop the running server before resetting this host.",
         );
     }
-    if state
-        .in_progress
-        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
-        .is_err()
-    {
-        return error_response(
-            StatusCode::CONFLICT,
-            "reset_in_progress",
-            "A host reset is already in progress.",
-        );
-    }
-
-    let operation_id =
-        match state
-            .operations
-            .begin_lifecycle("host-reset", None, "Preparing host reset.")
-        {
-            Ok(id) => id,
-            Err(error) => {
-                state.in_progress.store(false, Ordering::Release);
-                return operation_error_response(error);
-            }
-        };
     let workflow = match HostResetWorkflow::new(
         &msc_infrastructure::fs::StdFileSystem,
         state.lifecycle.app_config_path(),
@@ -127,7 +117,6 @@ pub async fn reset(
             let _ = state
                 .operations
                 .fail(&operation_id, "invalid_reset_target", error.to_string());
-            state.in_progress.store(false, Ordering::Release);
             return error_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "internal_error",
@@ -139,7 +128,6 @@ pub async fn reset(
         let _ = state
             .operations
             .fail(&operation_id, "reset_prepare_failed", error.to_string());
-        state.in_progress.store(false, Ordering::Release);
         return error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
             "internal_error",
@@ -162,13 +150,48 @@ pub async fn reset(
             workflow,
             operation_id.clone(),
             mode,
-            previous_server_ids,
+            previous_server_ids.clone(),
         )
         .await;
         if let Err((code, message)) = result {
-            let _ = worker_state.operations.fail(&operation_id, &code, message);
+            match msc_application::host_reset::recover_files(
+                &msc_infrastructure::fs::StdFileSystem,
+                worker_state.lifecycle.app_config_path(),
+            ) {
+                Ok(Some(_)) => {
+                    let recovered = worker_state
+                        .auth
+                        .reset_for_host_reset(&previous_server_ids)
+                        .is_ok()
+                        && msc_application::host_reset::finish_recovery(
+                            &msc_infrastructure::fs::StdFileSystem,
+                            worker_state.lifecycle.app_config_path(),
+                        )
+                        .is_ok();
+                    if recovered {
+                        let _ = worker_state.operations.fail(&operation_id, &code, message);
+                    } else {
+                        let _ = worker_state.operations.progress(
+                            &operation_id,
+                            0,
+                            1,
+                            "Host reset recovery required; restart the agent before making changes.",
+                        );
+                    }
+                }
+                Ok(None) => {
+                    let _ = worker_state.operations.fail(&operation_id, &code, message);
+                }
+                Err(_) => {
+                    let _ = worker_state.operations.progress(
+                        &operation_id,
+                        0,
+                        1,
+                        "Host reset recovery required; restart the agent before making changes.",
+                    );
+                }
+            }
         }
-        worker_state.in_progress.store(false, Ordering::Release);
     });
 
     (

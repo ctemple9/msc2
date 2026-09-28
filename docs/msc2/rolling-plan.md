@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 16 execution is underway. P16.1 and P16.2 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
-> **Next move:** Cameron verifies P16.1 and P16.2 using their `Verify:` commands.
+> ## STATUS: Phase 16 execution is underway. P16.1–P16.3 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
+> **Next move:** Cameron verifies P16.1–P16.3 using their `Verify:` commands.
 
 ## How this document works
 
@@ -58,8 +58,8 @@ Batch: solo
 
 #### P16.3 — Reserve the host during reset
 
-Status: planned — awaiting Cameron's review
-Files: crates/msc-agent/src/routes/host_reset.rs, crates/msc-application/src/host_reset.rs, crates/msc-application/src/operations.rs, docs/msc2/rolling-plan.md
+Status: implemented — awaiting Cameron's verification
+Files: crates/msc-agent/src/routes/host_reset.rs, crates/msc-application/src/host_reset.rs, crates/msc-application/src/operations.rs, crates/msc-infrastructure/src/operation_journal.rs, docs/msc2/rolling-plan.md
 What: Acquire a host-wide maintenance reservation before reset preconditions. Reject reset while any server mutation is active, reject new mutation while reset owns the host, and retain that exclusion through deletion, credential reset, and recovery after interruption. Report a useful conflict instead of deleting under a worker.
 Verify: Run `cargo check -p msc-agent -p msc-application`.
 Batch: solo

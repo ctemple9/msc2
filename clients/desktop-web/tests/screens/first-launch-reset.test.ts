@@ -9,7 +9,7 @@ describe('first-launch reset recovery', () => {
   it('offers a continuation action for each local service recovery state', () => {
     expect(setupSource).toContain('Install and Continue');
     expect(setupSource).toContain("status?.state === 'not-installed'");
-    expect(setupSource).toContain('Start and Continue');
+    expect(setupSource).toContain('Start agent');
     expect(setupSource).toContain("readiness === 'incompatible'");
     expect(setupSource).toContain('Repair service');
     expect(setupSource).toContain('Closing this window is safe.');

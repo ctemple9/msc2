@@ -858,7 +858,12 @@ run_msc world delete "${DUP_ID}" >/dev/null
 echo "== checking running-server guard on activation =="
 run_msc server start >/dev/null
 wait_server_ready
-expect_fail world activate "${SLOT2_ID}"
+[[ "$(run_msc_json status | python3 -c 'import json,sys; print(json.load(sys.stdin)["running"])')" == "True" ]] \
+  || fail "the synthetic server stopped after reporting ready"
+if run_msc world activate "${SLOT2_ID}" >"${TMP_DIR}/unexpected-activation.out" 2>&1; then
+  running_after="$(run_msc_json status | python3 -c 'import json,sys; print(json.load(sys.stdin)["running"])')"
+  fail "world activate unexpectedly succeeded while server status was running before the request (running after: ${running_after}; response: $(cat "${TMP_DIR}/unexpected-activation.out"))"
+fi
 run_msc server stop >/dev/null
 wait_running_state "False"
 

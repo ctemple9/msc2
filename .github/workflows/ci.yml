@@ -167,15 +167,48 @@ jobs:
           tool: cargo-nextest@0.9.143
           fallback: none
       - name: Format check
+        id: format_check
+        continue-on-error: true
         run: cargo fmt --all -- --check
       - name: Clippy
+        id: clippy
+        continue-on-error: true
         run: cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format
       - name: Workspace regression suite
+        id: workspace_regression
+        continue-on-error: true
         run: cargo nextest run --workspace --no-fail-fast --test-threads 1
       - name: Focused raw Bedrock import check
+        id: bedrock_import
+        continue-on-error: true
         run: cargo nextest run -p msc-agent raw_import_route_imports_bedrock_folder
       - name: Focused production Bedrock smoke
+        id: bedrock_smoke
+        continue-on-error: true
         run: cargo nextest run -p msc-agent --test bedrock_production_smoke
+      - name: Report Rust verification failures
+        if: always()
+        shell: bash
+        env:
+          FORMAT_OUTCOME: ${{ steps.format_check.outcome }}
+          CLIPPY_OUTCOME: ${{ steps.clippy.outcome }}
+          REGRESSION_OUTCOME: ${{ steps.workspace_regression.outcome }}
+          BEDROCK_IMPORT_OUTCOME: ${{ steps.bedrock_import.outcome }}
+          BEDROCK_SMOKE_OUTCOME: ${{ steps.bedrock_smoke.outcome }}
+        run: |
+          failed=0
+          for check in \
+            "format:${FORMAT_OUTCOME}" \
+            "clippy:${CLIPPY_OUTCOME}" \
+            "workspace regression:${REGRESSION_OUTCOME}" \
+            "raw Bedrock import:${BEDROCK_IMPORT_OUTCOME}" \
+            "production Bedrock smoke:${BEDROCK_SMOKE_OUTCOME}"; do
+            if [[ "${check#*:}" != "success" ]]; then
+              echo "::error::Rust verification failed: ${check}"
+              failed=1
+            fi
+          done
+          exit "${failed}"
   platform-smokes:
     name: Platform smokes (${{ matrix.os }})
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'platform' }}
@@ -221,34 +254,83 @@ jobs:
           cp "$binary_path" "target/debug/${{ matrix.binary_name }}"
           chmod +x "target/debug/${{ matrix.binary_name }}"
       - name: Phase 6 restart-sensitive public-path smoke
+        id: phase6_smoke
+        continue-on-error: true
         shell: bash
         run: tools/phase6/phase6-gate-smoke.sh --synthetic
       - name: Phase 7 provisioning and launch smoke
+        id: phase7_smoke
+        continue-on-error: true
         shell: bash
         run: tools/phase7/phase7-gate-smoke.sh --synthetic
       - name: Phase 8 add-on and modpack smoke
+        id: phase8_smoke
+        continue-on-error: true
         shell: bash
         run: tools/phase8/phase8-gate-smoke.sh --synthetic
       - name: Phase 9 networking and helper gate
+        id: phase9_gate
+        continue-on-error: true
         shell: bash
         run: python3 tools/phase9/phase9-check.py --gate
       - name: Phase 9 networking and helper smoke
+        id: phase9_smoke
+        continue-on-error: true
         shell: bash
         run: tools/phase9/phase9-smoke.sh --synthetic
       - name: Phase 10 Bedrock synthetic smoke
+        id: phase10_smoke
+        continue-on-error: true
         shell: bash
         run: bash tools/phase10/phase10-smoke.sh --synthetic
       - name: Phase 10 Bedrock production wiring check
+        id: phase10_production
+        continue-on-error: true
         shell: bash
         run: python3 tools/phase10/phase10-production-check.py --check
       - name: Phase 10 Bedrock compatibility check
+        id: phase10_compatibility
+        continue-on-error: true
         shell: bash
         run: python3 tools/phase10/compatibility-check.py docs/msc2/bedrock/compatibility-matrix.csv
       - name: Phase 10 Bedrock evidence checks
+        id: phase10_evidence
+        continue-on-error: true
         shell: bash
         run: |
           python3 tools/phase10/evidence-check.py --distribution
           python3 tools/phase10/evidence-check.py --runtimes
+      - name: Report platform smoke failures
+        if: always()
+        shell: bash
+        env:
+          PHASE6_OUTCOME: ${{ steps.phase6_smoke.outcome }}
+          PHASE7_OUTCOME: ${{ steps.phase7_smoke.outcome }}
+          PHASE8_OUTCOME: ${{ steps.phase8_smoke.outcome }}
+          PHASE9_GATE_OUTCOME: ${{ steps.phase9_gate.outcome }}
+          PHASE9_SMOKE_OUTCOME: ${{ steps.phase9_smoke.outcome }}
+          PHASE10_SMOKE_OUTCOME: ${{ steps.phase10_smoke.outcome }}
+          PHASE10_PRODUCTION_OUTCOME: ${{ steps.phase10_production.outcome }}
+          PHASE10_COMPATIBILITY_OUTCOME: ${{ steps.phase10_compatibility.outcome }}
+          PHASE10_EVIDENCE_OUTCOME: ${{ steps.phase10_evidence.outcome }}
+        run: |
+          failed=0
+          for check in \
+            "Phase 6:${PHASE6_OUTCOME}" \
+            "Phase 7:${PHASE7_OUTCOME}" \
+            "Phase 8:${PHASE8_OUTCOME}" \
+            "Phase 9 gate:${PHASE9_GATE_OUTCOME}" \
+            "Phase 9 smoke:${PHASE9_SMOKE_OUTCOME}" \
+            "Phase 10 smoke:${PHASE10_SMOKE_OUTCOME}" \
+            "Phase 10 production:${PHASE10_PRODUCTION_OUTCOME}" \
+            "Phase 10 compatibility:${PHASE10_COMPATIBILITY_OUTCOME}" \
+            "Phase 10 evidence:${PHASE10_EVIDENCE_OUTCOME}"; do
+            if [[ "${check#*:}" != "success" ]]; then
+              echo "::error::Platform verification failed: ${check}"
+              failed=1
+            fi
+          done
+          exit "${failed}"
 
   client-validation:
     name: Client validation (${{ matrix.os }})
@@ -276,6 +358,8 @@ jobs:
         working-directory: clients/desktop-web
         run: npm ci
       - name: Check generated API types
+        id: api_check
+        continue-on-error: true
         working-directory: clients/desktop-web
         run: npm run api:check
       - name: Download frontend artifact
@@ -284,17 +368,48 @@ jobs:
           name: frontend-${{ matrix.platform }}
           path: clients/desktop-web/dist
       - name: Format check
+        id: client_format
+        continue-on-error: true
         working-directory: clients/desktop-web
         run: npm run format:check
       - name: Type check
+        id: client_typecheck
+        continue-on-error: true
         working-directory: clients/desktop-web
         run: npm run check
       - name: Unit suite
+        id: client_unit
+        continue-on-error: true
         working-directory: clients/desktop-web
         run: npm run test:unit
       - name: Verify frontend artifact identity
+        id: client_identity
+        continue-on-error: true
         working-directory: clients/desktop-web
         run: npm run bundle:identity
+      - name: Report client verification failures
+        if: always()
+        shell: bash
+        env:
+          API_OUTCOME: ${{ steps.api_check.outcome }}
+          FORMAT_OUTCOME: ${{ steps.client_format.outcome }}
+          TYPECHECK_OUTCOME: ${{ steps.client_typecheck.outcome }}
+          UNIT_OUTCOME: ${{ steps.client_unit.outcome }}
+          IDENTITY_OUTCOME: ${{ steps.client_identity.outcome }}
+        run: |
+          failed=0
+          for check in \
+            "API types:${API_OUTCOME}" \
+            "format:${FORMAT_OUTCOME}" \
+            "type check:${TYPECHECK_OUTCOME}" \
+            "unit suite:${UNIT_OUTCOME}" \
+            "artifact identity:${IDENTITY_OUTCOME}"; do
+            if [[ "${check#*:}" != "success" ]]; then
+              echo "::error::Client verification failed: ${check}"
+              failed=1
+            fi
+          done
+          exit "${failed}"
 
   native-desktop:
     name: Native desktop (${{ matrix.os }})

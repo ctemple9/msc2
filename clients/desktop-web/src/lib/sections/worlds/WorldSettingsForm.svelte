@@ -516,7 +516,7 @@
         </div>
 
         {#if hasEditionField(bedrockFields)}
-          <label class="field-group inline-toggle">
+          <label class="field-group wide inline-toggle">
             <span class="label">Cheats</span>
             {#if unavailable('gameplay.cheats')}
               <span class="unavailable">Unavailable: {reason('gameplay.cheats')}</span>
@@ -533,7 +533,7 @@
             {/if}
           </label>
 
-          <label class="field-group inline-toggle">
+          <label class="field-group wide inline-toggle">
             <span class="label">Coordinates</span>
             {#if unavailable('gameplay.coordinates')}
               <span class="unavailable">Unavailable: {reason('gameplay.coordinates')}</span>

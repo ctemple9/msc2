@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  createBrowserPlatform,
   createTauriPlatform,
   type TauriPlatformDependencies,
 } from '../../src/lib/platform';
@@ -29,7 +28,6 @@ function nativeDependencies(): TauriPlatformDependencies {
     closeWindow: vi.fn(async () => undefined),
     quitApplication: vi.fn(async () => undefined),
     openExternal: vi.fn(async () => undefined),
-    openLocalAgentBrowser: vi.fn(async () => undefined),
     revealInFileManager: vi.fn(async () => undefined),
     onFileDrop: vi.fn(async () => () => undefined),
     onCloseRequested: vi.fn(async () => () => undefined),
@@ -54,51 +52,23 @@ function nativeDependencies(): TauriPlatformDependencies {
 }
 
 describe('Tauri boundary', () => {
-  it('uses one browser fallback vocabulary when no desktop shell is present', async () => {
-    const browser = createBrowserPlatform();
-    const fallback = vi.fn(async () => picked);
-    const notifyFallback = vi.fn(async () => undefined);
-
-    expect(await browser.pickFile({ label: 'World archive' }, fallback)).toEqual(picked);
-    await browser.notify({ title: 'Complete' }, notifyFallback);
-    await browser.showMenu([], notifyFallback);
-    await browser.closeWindow(notifyFallback);
-    await browser.requestAgentAction('install', notifyFallback);
-    await browser.revealInFileManager('/srv/example', notifyFallback);
-    const dropHandler = vi.fn();
-    await browser.onFileDrop(dropHandler);
-
-    expect(dropHandler).not.toHaveBeenCalled();
-    expect(fallback).toHaveBeenCalledOnce();
-    expect(notifyFallback).toHaveBeenCalledTimes(5);
-    expect(await browser.credentialFor('remote-host')).toBeNull();
-    expect((await browser.agentServiceStatus()).state).toBe('unavailable');
-    expect((await browser.manageAgentService('install')).available).toBe(false);
-  });
-
   it('uses native adapters only as a substitute for the same shared workflows', async () => {
     const dependencies = nativeDependencies();
     const desktop = createTauriPlatform(dependencies);
-    const fileFallback = vi.fn(async () => picked);
-    const workflowFallback = vi.fn(async () => undefined);
 
     await expect(desktop.pickFolder('Servers root')).resolves.toBe(
       '/Users/example/MinecraftServers',
     );
     await expect(desktop.pickFilePath({ label: 'Java executable' })).resolves.toBe('/usr/bin/java');
     expect(
-      await desktop.pickFile({ label: 'World archive', extensions: ['zip'] }, fileFallback),
+      await desktop.pickFile({ label: 'World archive', extensions: ['zip'] }),
     ).toEqual(picked);
-    await desktop.notify({ title: 'Complete' }, workflowFallback);
-    await desktop.showMenu(
-      [{ id: 'open-console', label: 'Open console', onSelect: vi.fn() }],
-      workflowFallback,
-    );
-    await desktop.closeWindow(workflowFallback);
+    await desktop.notify({ title: 'Complete' });
+    await desktop.showMenu([{ id: 'open-console', label: 'Open console', onSelect: vi.fn() }]);
+    await desktop.closeWindow();
     await desktop.quitApplication();
     await desktop.openExternal('https://example.test');
-    await desktop.openLocalAgentBrowser();
-    await desktop.revealInFileManager('/srv/example', workflowFallback);
+    await desktop.revealInFileManager('/srv/example');
     const dropHandler = vi.fn();
     await desktop.onFileDrop(dropHandler);
 
@@ -114,10 +84,7 @@ describe('Tauri boundary', () => {
     expect(dependencies.closeWindow).toHaveBeenCalledOnce();
     expect(dependencies.quitApplication).toHaveBeenCalledOnce();
     expect(dependencies.openExternal).toHaveBeenCalledWith('https://example.test');
-    expect(dependencies.openLocalAgentBrowser).toHaveBeenCalledOnce();
     expect(dependencies.revealInFileManager).toHaveBeenCalledWith('/srv/example');
-    expect(fileFallback).not.toHaveBeenCalled();
-    expect(workflowFallback).not.toHaveBeenCalled();
     expect(await desktop.credentialFor('remote-host')).toBeNull();
     expect(await desktop.agentHealthCheck()).toBe(true);
     expect((await desktop.agentServiceStatus()).state).toBe('running');
@@ -130,12 +97,9 @@ describe('Tauri boundary', () => {
   it('treats cancelling a native file picker as a user choice', async () => {
     const dependencies = nativeDependencies();
     vi.mocked(dependencies.pickFile).mockResolvedValue(null);
-    const fallback = vi.fn(async () => picked);
-
     await expect(
-      createTauriPlatform(dependencies).pickFile({ label: 'World archive' }, fallback),
+      createTauriPlatform(dependencies).pickFile({ label: 'World archive' }),
     ).resolves.toBeNull();
-    expect(fallback).not.toHaveBeenCalled();
   });
 
   it('passes a streamed native modpack file into the shared upload workflow', async () => {
@@ -147,14 +111,12 @@ describe('Tauri boundary', () => {
     };
     const dependencies = nativeDependencies();
     dependencies.pickFileStream = vi.fn(async () => source);
-    const fallback = vi.fn(async () => null);
     const request = { label: 'Choose a modpack archive', extensions: ['mrpack', 'zip'] };
 
-    await expect(createTauriPlatform(dependencies).pickFileStream(request, fallback)).resolves.toBe(
+    await expect(createTauriPlatform(dependencies).pickFileStream(request)).resolves.toBe(
       source,
     );
     expect(dependencies.pickFileStream).toHaveBeenCalledWith(request);
-    expect(fallback).not.toHaveBeenCalled();
   });
 
   it('allows streamed access to files explicitly selected in the native picker', () => {

@@ -36,7 +36,6 @@
     new Map();
   export let isDesktopShell = false;
   export let isLocalHost = true;
-  export let browserHandoffError = '';
   export let onPairAgain: ((pairingCode: string) => Promise<void>) | undefined = undefined;
   export let onConnectHost:
     ((input: RemoteHostConnectionInput) => Promise<RemoteDesktopPairingResult | void>) | undefined =
@@ -351,11 +350,6 @@
         {#if isLocalDesktopHost}
           <p class="detail">{status?.detail ?? 'Looking for the local service.'}</p>
           {#if status?.pid}<p class="detail">Service process: {status.pid}</p>{/if}
-        {:else if !isDesktopShell && isLoopbackHost}
-          <StatusDot tone="warn" label="Service status needs Terminal" />
-          <p class="detail">
-            This browser can reach the local agent, but Terminal manages its service.
-          </p>
         {:else}
           <StatusDot tone="warn" label={`Managed on ${hostLabel}`} />
           <p class="detail">
@@ -395,7 +389,7 @@
           <div class="architecture-node">
             <span class="node-kicker">What you use</span>
             <strong>Control panel</strong>
-            <span>Tauri desktop · Desktop Browser · CLI</span>
+            <span>Desktop app · CLI</span>
           </div>
           <div class="architecture-link" aria-hidden="true">
             <span>connects to</span>
@@ -488,33 +482,6 @@
                 >
               {/if}
             </div>
-          {:else if !isDesktopShell}
-            {#if status?.state === 'not-installed'}
-              <h3>Install the headless package first</h3>
-              <p class="detail">Install the agent package, then return here and reconnect.</p>
-            {:else}
-              <p class="service-explanation">
-                This browser can reach the local agent. Run service controls in Terminal on this
-                computer.
-              </p>
-              <div class="command-list">
-                {#each serviceCommands as command (command)}
-                  <div class="command-row">
-                    <Field value={command} />
-                    <Button size="sm" variant="secondary" onclick={() => void copyCommand(command)}>
-                      {copiedCommand === command ? 'Copied' : 'Copy'}
-                    </Button>
-                  </div>
-                {/each}
-              </div>
-              <div class="actions reconnect-only">
-                <Button
-                  variant="secondary"
-                  onclick={() => void (onAgentRetry ? onAgentRetry() : refresh())}
-                  >{onAgentRetry ? 'Reconnect' : 'Refresh status'}</Button
-                >
-              </div>
-            {/if}
           {/if}
 
           {#if isDesktopShell}
@@ -523,7 +490,7 @@
               <div class="secondary-content">
                 <p class="detail">
                   Start the agent first, then create a one-use code for another Tauri desktop,
-                  desktop browser, or CLI client to connect to {hostLabel}.
+                  desktop app or CLI client to connect to {hostLabel}.
                 </p>
                 {#if localPairingCode}
                   <div class="pairing-code-row">
@@ -679,7 +646,7 @@
           </details>
         {:else}
           <p class="service-explanation">
-            Connecting to another agent is available from the desktop app. This browser can manage
+            Connecting to another agent is available from the desktop app. This screen can manage
             the current host once it is connected.
           </p>
         {/if}
@@ -778,9 +745,9 @@
     </Card>
   {/if}
 
-  {#if errorMessage || browserHandoffError}
+  {#if errorMessage}
     <p class="error" role="alert">
-      {browserHandoffError || `Could not change the agent service: ${errorMessage}`}
+      Could not change the agent service: {errorMessage}
     </p>
   {/if}
 </div>

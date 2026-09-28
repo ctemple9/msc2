@@ -91,11 +91,11 @@
       ? `${activeServer.directory}/${relativePath}`
       : activeServer.directory;
     revealNotice = undefined;
-    await (
-      await getPlatform()
-    ).revealInFileManager(absolute, async () => {
-      revealNotice = 'Show in Finder needs the desktop app.';
-    });
+    try {
+      await (await getPlatform()).revealInFileManager(absolute);
+    } catch (error) {
+      revealNotice = errorMessage(error);
+    }
   }
 
   function fileSubtitle(entry: Schema['ServerFileItemDTO']): string {

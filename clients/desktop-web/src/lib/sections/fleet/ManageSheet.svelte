@@ -8,12 +8,8 @@
   // there rather than as its own menu item, matching the oracle (MSC 1 has
   // no separate Rename action either; it's a field inside the editor).
   //
-  // Multi-host chrome (host-group headers, Add Host) is Tauri-only: a browser
-  // tab can only ever reach the single agent that served it
-  // (src/lib/platform/index.ts's createAgentTransport always uses
-  // window.location.origin off Tauri, with no per-host baseUrl), so a browser
-  // never has more than the one host to show. With exactly one host on either
-  // platform, this renders with zero host-group chrome -- pixel-equivalent to
+  // Multi-host chrome appears when the desktop has more than one saved host.
+  // With exactly one host, this renders without host-group chrome, matching
   // MSC 1's own flat list.
   //
   // Known, deliberate gaps against the oracle (not silently glossed over):

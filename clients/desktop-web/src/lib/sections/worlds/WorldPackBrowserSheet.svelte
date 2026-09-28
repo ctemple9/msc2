@@ -30,7 +30,6 @@
   let packKind: 'all' | 'resource' | 'behavior' = 'all';
   let searchRequestId = 0;
   let pendingPack: FileChunkSource | undefined;
-  let fileInput: HTMLInputElement;
   let picking = false;
   let results: Schema['CatalogItemDTO'][] = [];
   let bedrockResults: Schema['BedrockBehaviorPackCatalogItemDTO'][] = [];
@@ -256,34 +255,10 @@
       pendingPack =
         (await (
           await getPlatform()
-        ).pickFileStream(
-          { label: 'Choose a Bedrock pack', extensions: ['mcpack', 'mcaddon', 'zip'] },
-          () =>
-            new Promise((resolve) => {
-              fileInput.addEventListener(
-                'change',
-                () => {
-                  const file = fileInput.files?.[0];
-                  resolve(
-                    file
-                      ? {
-                          name: file.name,
-                          size: file.size,
-                          readChunk: async (offset, maxBytes) =>
-                            new Uint8Array(
-                              await file.slice(offset, offset + maxBytes).arrayBuffer(),
-                            ),
-                          close: async () => undefined,
-                        }
-                      : null,
-                  );
-                },
-                { once: true },
-              );
-              fileInput.value = '';
-              fileInput.click();
-            }),
-        )) ?? undefined;
+        ).pickFileStream({
+          label: 'Choose a Bedrock pack',
+          extensions: ['mcpack', 'mcaddon', 'zip'],
+        })) ?? undefined;
     } catch (error) {
       notice = errorMessage(error);
     } finally {
@@ -343,7 +318,6 @@
         disabled={picking || !!installing || !api?.uploadFile}
         onclick={() => void choosePack()}>Import Pack…</Button
       >
-      <input bind:this={fileInput} type="file" accept=".mcpack,.mcaddon,.zip" hidden />
     </div>
     <p class="subtitle">
       Packs are installed in this world. Linked resource and behavior packs install together.

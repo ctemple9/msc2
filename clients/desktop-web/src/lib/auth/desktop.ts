@@ -177,7 +177,7 @@ export class DesktopSessionAuth {
   }
 }
 
-/** Loads the native bridge lazily, so the browser bundle has no shell token path. */
+/** Loads the native bridge lazily, keeping credential access inside the Tauri shell. */
 export async function loadTauriDesktopCredentialBridge(): Promise<DesktopCredentialBridge> {
   const { invoke } = await import('@tauri-apps/api/core');
   return {

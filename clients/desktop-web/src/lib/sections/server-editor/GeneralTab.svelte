@@ -11,7 +11,7 @@
   //
   // "Server Directory" follows MSC 1's Browse... behavior: it repoints the
   // config record and never moves files. The native picker is supplied by the
-  // shared platform adapter, with the browser adapter's manual-path prompt as
+  // shared platform adapter, with a manual-path prompt as
   // its fallback.
   //
   // Memory (RAM) is a real route (`/v1/config/ram`) but, like every route

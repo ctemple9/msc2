@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 16 execution is underway. P16.1–P16.24 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
-> **Next move:** Cameron runs the P16.24 verification command. P16.1–P16.24 remain awaiting his verification.
+> ## STATUS: Phase 16 execution is underway. P16.1–P16.25 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
+> **Next move:** Cameron runs the P16.25 verification command. P16.1–P16.25 remain awaiting his verification.
 
 ## How this document works
 
@@ -244,7 +244,7 @@ Batch: solo
 
 #### P16.25 — Remove the browser client and its CI job
 
-Status: planned — awaiting Cameron's review
+Status: implemented — awaiting Cameron's verification
 Files: clients/desktop-web/src/App.svelte, clients/desktop-web/src/lib/components, clients/desktop-web/src/lib/platform, clients/desktop-web/src/lib/auth, clients/desktop-web/src-tauri/src/lib.rs, clients/desktop-web/package.json, clients/desktop-web/tests, .github/workflows/ci.yml, tools/release/require-ci-run.py, tools/release/check-release-workflow.py, docs/msc2/rolling-plan.md
 What: Remove the top-bar browser launcher, one-use browser handoff, cookie-auth client adapter, browser-only platform fallback, and browser-only client checks. Preserve the Tauri Svelte screens, native credential store, remote desktop pairing, and native desktop CI. Remove the `browser` workflow-dispatch scope and three-platform Browser smoke job together with its required-job count so same-commit release evidence cannot wait for a job that no longer exists. Remove browser-only assertions from mixed checks without dropping desktop coverage.
 Verify: Run `npm run check` from `clients/desktop-web` and confirm the Tauri client type-checks without the browser adapter.

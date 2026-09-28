@@ -52,7 +52,6 @@
 
   let thumbnailBusy = false;
   let thumbnailError: string | undefined;
-  let fileInput: HTMLInputElement;
   let thumbnailRevision = 0;
   let thumbnailObjectUrl: string | undefined;
   let thumbnailLoadToken = 0;
@@ -107,12 +106,10 @@
 
   async function setThumbnail(): Promise<void> {
     if (!api?.upload) return;
-    const picked = await (
-      await getPlatform()
-    ).pickFile(
-      { label: 'Choose an image', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] },
-      () => browseBrowserFile(),
-    );
+    const picked = await (await getPlatform()).pickFile({
+      label: 'Choose an image',
+      extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'],
+    });
     if (!picked) return;
     thumbnailBusy = true;
     thumbnailError = undefined;
@@ -128,23 +125,6 @@
     }
   }
 
-  function browseBrowserFile(): Promise<{ name: string; bytes: Uint8Array } | null> {
-    return new Promise((resolve) => {
-      fileInput.addEventListener(
-        'change',
-        async () => {
-          const browserFile = fileInput.files?.[0];
-          resolve(
-            browserFile
-              ? { name: browserFile.name, bytes: new Uint8Array(await browserFile.arrayBuffer()) }
-              : null,
-          );
-        },
-        { once: true },
-      );
-      fileInput.click();
-    });
-  }
 </script>
 
 <Card padding="0">
@@ -165,13 +145,6 @@
         </div>
       </button>
       {#if api?.upload}
-        <input
-          bind:this={fileInput}
-          type="file"
-          accept="image/*"
-          class="hidden-input"
-          tabindex="-1"
-        />
         <button
           type="button"
           class="thumb-edit"

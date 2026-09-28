@@ -33,7 +33,6 @@ describe('S1 shell skeleton (docs/msc2/renderings/shell.html)', () => {
     expect(controlSidebarSource).toContain('onInitiate');
     expect(controlSidebarSource).toContain('firstStartRequired');
     expect(controlSidebarSource).toContain('onOpenAgentSetup');
-    expect(applicationShellSource).toContain('{onOpenBrowser}');
     expect(controlSidebarSource).toContain('onManage');
     expect(controlSidebarSource).toContain("anchorId: 'ob_manage_servers'");
     expect(controlSidebarSource).toContain("use:onboardingAnchor={'ob_server_picker'}");
@@ -46,17 +45,6 @@ describe('S1 shell skeleton (docs/msc2/renderings/shell.html)', () => {
     expect(applicationShellSource).toContain('{onOpenAgentSetup}');
     expect(appSource).toContain("selectSection('agent-setup')");
     expect(primaryTabsSource.match(/\{ id: '/g)?.length).toBe(7);
-  });
-
-  it('offers the desktop local agent in a browser without exposing remote-host controls', () => {
-    expect(topBarSource).toContain('aria-label="Open local agent in browser"');
-    expect(topBarSource).toContain('name="external-link"');
-    expect(appSource).toContain(
-      'onOpenBrowser={isDesktopShell ? () => void openLocalAgentInBrowser() : undefined}',
-    );
-    expect(appSource).toContain('await openLocalAgentBrowser()');
-    expect(appSource).toContain('redeemBrowserHandoff(window.location, window.history)');
-    expect(appSource).toContain("await selectSection('agent-setup')");
   });
 
   it('drives the primary tab strip from the registry-backed tab list, not a hardcoded switch', () => {

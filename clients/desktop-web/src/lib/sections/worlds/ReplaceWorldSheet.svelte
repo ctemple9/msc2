@@ -1,8 +1,8 @@
 <script lang="ts">
   // Ports ServerEditorWorldTab.swift's replaceWorldSheetView -- swaps the
   // live world's content from an external ZIP, taking a safety backup
-  // first. MSC 1 also offers "World Folder…" as a source; a browser file
-  // picker has no folder-to-archive equivalent, so this sheet keeps only
+  // first. MSC 1 also offers "World Folder…" as a source; the picker
+  // has no folder-to-archive equivalent, so this sheet keeps only
   // the ZIP path (WorldReplaceActiveRequestDTO only ever redeems a staged
   // ZIP anyway -- ExistingFolder is unreachable from this route). The level
   // name is read back from the server, unchanged, exactly like the oracle;
@@ -30,7 +30,6 @@
 
   let step: Step = { kind: 'pick' };
   let levelName = 'world';
-  let fileInput: HTMLInputElement;
   let pendingWorldSource: FileChunkSource | undefined;
   let picking = false;
 
@@ -45,41 +44,14 @@
     })();
   });
 
-  function browseBrowserFile(): Promise<FileChunkSource | null> {
-    return new Promise((resolve) => {
-      fileInput.addEventListener(
-        'change',
-        () => {
-          const browserFile = fileInput.files?.[0];
-          resolve(
-            browserFile
-              ? {
-                  name: browserFile.name,
-                  size: browserFile.size,
-                  readChunk: async (offset, maxBytes) =>
-                    new Uint8Array(
-                      await browserFile.slice(offset, offset + maxBytes).arrayBuffer(),
-                    ),
-                  close: async () => undefined,
-                }
-              : null,
-          );
-        },
-        { once: true },
-      );
-      fileInput.click();
-    });
-  }
-
   async function chooseAndStage(): Promise<void> {
     if (!api?.uploadFile || serverRunning || picking) return;
     picking = true;
     try {
-      const picked = await (
-        await getPlatform()
-      ).pickFileStream({ label: 'Choose a backup ZIP', extensions: ['zip'] }, () =>
-        browseBrowserFile(),
-      );
+      const picked = await (await getPlatform()).pickFileStream({
+        label: 'Choose a backup ZIP',
+        extensions: ['zip'],
+      });
       if (picked) pendingWorldSource = picked;
     } catch (error) {
       step = {
@@ -144,7 +116,6 @@
   onClose={step.kind === 'replacing' ? undefined : onClose}
 >
   <div class="body">
-    <input bind:this={fileInput} type="file" accept=".zip" class="hidden-input" />
     {#if step.kind === 'pick' || step.kind === 'staged'}
       <p class="explain">
         Swaps in a different world from a backup ZIP. A backup of the current world is taken first.

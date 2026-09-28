@@ -145,7 +145,6 @@
   let showBrowser = false;
   let componentActionMenu: { x: number; y: number } | undefined;
 
-  let fileInput: HTMLInputElement;
 
   function flash(message: string): void {
     notice = message;
@@ -377,31 +376,12 @@
     };
   }
 
-  function pickBrowserFile(): Promise<{ name: string; bytes: Uint8Array } | null> {
-    return new Promise((resolve) => {
-      fileInput.addEventListener(
-        'change',
-        async () => {
-          const browserFile = fileInput.files?.[0];
-          resolve(
-            browserFile
-              ? { name: browserFile.name, bytes: new Uint8Array(await browserFile.arrayBuffer()) }
-              : null,
-          );
-        },
-        { once: true },
-      );
-      fileInput.click();
-    });
-  }
-
   async function addLocalAddon(): Promise<void> {
     if (!api?.upload) return;
-    const picked = await (
-      await getPlatform()
-    ).pickFile({ label: `Choose a ${isModded ? 'mod' : 'plugin'} JAR`, extensions: ['jar'] }, () =>
-      pickBrowserFile(),
-    );
+    const picked = await (await getPlatform()).pickFile({
+      label: `Choose a ${isModded ? 'mod' : 'plugin'} JAR`,
+      extensions: ['jar'],
+    });
     if (!picked) return;
     try {
       const staged = await api.upload('addon-local-file', picked.bytes);
@@ -460,11 +440,13 @@
       flash('Open the add-on folder is available for a locally-connected agent.');
       return;
     }
-    await (
-      await getPlatform()
-    ).revealInFileManager(`${activeServer.directory}/${addonFolderName}`, async () => {
-      flash('Opening the add-on folder needs the desktop app.');
-    });
+    try {
+      await (await getPlatform()).revealInFileManager(
+        `${activeServer.directory}/${addonFolderName}`,
+      );
+    } catch {
+      flash('Could not open the add-on folder.');
+    }
   }
 
   let refreshTimer: ReturnType<typeof setInterval> | undefined;
@@ -791,7 +773,6 @@
     {/if}
   {/if}
 
-  <input bind:this={fileInput} type="file" accept=".jar" class="hidden-input" />
 </div>
 
 {#if componentActionMenu}

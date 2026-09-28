@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  createBrowserPlatform,
   prepareInstalledAgent,
   type AgentPreparationPlatform,
   type AgentServiceStatus,
@@ -19,13 +18,6 @@ import platformSource from '../../src/lib/platform/index.ts?raw';
 import tauriSource from '../../src/lib/platform/tauri.ts?raw';
 
 describe('local agent installation boundary', () => {
-  it('gives browser users a truthful shared-screen fallback', async () => {
-    const status = await createBrowserPlatform().agentServiceStatus();
-
-    expect(status).toMatchObject({ available: false, state: 'unavailable' });
-    expect(status.detail).toContain('headless package');
-  });
-
   it('keeps setup shared while only the shell invokes native service commands', () => {
     expect(setupSource).toContain('getPlatform()');
     expect(setupSource).not.toContain('isTauri');
@@ -37,12 +29,10 @@ describe('local agent installation boundary', () => {
 
   it('keeps service controls scoped to the selected local host', () => {
     expect(platformSource).toContain('baseUrl: configuredBaseUrl ?? LOCAL_AGENT_ORIGIN');
-    expect(platformSource).toContain("typeof window === 'undefined'");
-    expect(platformSource).toContain('window.location.origin');
+    expect(platformSource).not.toContain('window.location.origin');
     expect(appSource).toContain('isLocalHost={hostId === localAgentHostId}');
     expect(setupSource).toContain("export let hostId = '';");
     expect(setupSource).toContain('isDesktopShell && isLocalHost');
-    expect(setupSource).toContain('{:else if !isDesktopShell && isLoopbackHost}');
     expect(setupSource).toContain('Manage the agent on {hostLabel}');
     expect(setupSource).toContain('label={`Managed on ${hostLabel}`}');
   });

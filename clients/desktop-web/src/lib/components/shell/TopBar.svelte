@@ -1,7 +1,7 @@
 <script lang="ts">
   // Window chrome: title + the one sanctioned flourish (the terrain banner, shown
-  // only while running) + four icon actions. No fake OS traffic lights — the real
-  // window chrome comes from the browser or the Tauri titlebar.
+  // only while running) + five icon actions. No fake OS traffic lights — the real
+  // window chrome comes from the Tauri titlebar.
   // docs/msc2/renderings/shell.html, MSC 1 ContentView.swift top banner.
   import ShellIcon from './ShellIcon.svelte';
   import RunningBannerGame from './RunningBannerGame.svelte';
@@ -12,7 +12,6 @@
   export let onToggleSidebar: () => void;
   export let consoleCollapsed = false;
   export let onToggleConsole: () => void;
-  export let onOpenBrowser: (() => void) | undefined = undefined;
   export let onHelp: (() => void) | undefined = undefined;
   export let onSettings: (() => void) | undefined = undefined;
   export let onRefresh: (() => void) | undefined = undefined;
@@ -47,16 +46,6 @@
     >
       <ShellIcon name="console" />
     </button>
-    {#if onOpenBrowser}
-      <button
-        type="button"
-        class="icon-btn"
-        aria-label="Open local agent in browser"
-        onclick={onOpenBrowser}
-      >
-        <ShellIcon name="external-link" />
-      </button>
-    {/if}
     <button
       type="button"
       class="icon-btn"

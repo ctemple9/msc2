@@ -1,8 +1,8 @@
 <script lang="ts">
   // Ports DetailsPlayersTabView.swift: Online Now / Seen This Session,
   // Session Log, the Bedrock Allowlist card (Bedrock only), and Player Data
-  // (profiles -> detail sheet). Same shared-component pattern HomeSection
-  // uses (D-003: one component for both Tauri and the browser).
+  // (profiles -> detail sheet). Like HomeSection, this keeps screen behavior
+  // independent of the Tauri shell.
   import { onDestroy, onMount } from 'svelte';
   import type { Schema, ScreenProps } from '../shared/types';
   import { call, mutate } from '../shared/types';

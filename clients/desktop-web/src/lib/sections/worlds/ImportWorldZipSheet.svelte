@@ -26,47 +26,19 @@
 
   let step: Step = { kind: 'pick' };
   let name = '';
-  let fileInput: HTMLInputElement;
   let pendingWorldSource: FileChunkSource | undefined;
   let picking = false;
 
   $: trimmedName = name.trim();
 
-  function browseBrowserFile(): Promise<FileChunkSource | null> {
-    return new Promise((resolve) => {
-      fileInput.addEventListener(
-        'change',
-        () => {
-          const browserFile = fileInput.files?.[0];
-          resolve(
-            browserFile
-              ? {
-                  name: browserFile.name,
-                  size: browserFile.size,
-                  readChunk: async (offset, maxBytes) =>
-                    new Uint8Array(
-                      await browserFile.slice(offset, offset + maxBytes).arrayBuffer(),
-                    ),
-                  close: async () => undefined,
-                }
-              : null,
-          );
-        },
-        { once: true },
-      );
-      fileInput.click();
-    });
-  }
-
   async function chooseAndStage(): Promise<void> {
     if (!api?.uploadFile || picking) return;
     picking = true;
     try {
-      const picked = await (
-        await getPlatform()
-      ).pickFileStream({ label: 'Choose a world ZIP', extensions: ['zip'] }, () =>
-        browseBrowserFile(),
-      );
+      const picked = await (await getPlatform()).pickFileStream({
+        label: 'Choose a world ZIP',
+        extensions: ['zip'],
+      });
       if (picked) pendingWorldSource = picked;
     } catch (error) {
       step = {
@@ -120,7 +92,6 @@
   onClose={step.kind === 'importing' ? undefined : onClose}
 >
   <div class="body">
-    <input bind:this={fileInput} type="file" accept=".zip" class="hidden-input" />
     {#if step.kind === 'pick'}
       <p class="explain">Choose an external world archive to import as a new world slot.</p>
       <div class="footer">

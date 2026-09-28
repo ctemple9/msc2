@@ -22,7 +22,6 @@
   /** Called after an existing server folder/archive has been scanned. */
   export let onScanned: () => void = () => {};
 
-  let fileInput: HTMLInputElement;
   let isScanning = false;
   let pendingModpackSource: FileChunkSource | undefined;
   let scanError: string | undefined;
@@ -203,30 +202,6 @@
     }
   }
 
-  function browseBrowserFile(): Promise<FileChunkSource | null> {
-    return new Promise((resolve) => {
-      fileInput.addEventListener(
-        'change',
-        async () => {
-          const file = fileInput.files?.[0];
-          resolve(
-            file
-              ? {
-                  name: file.name,
-                  size: file.size,
-                  readChunk: async (offset, maxBytes) =>
-                    new Uint8Array(await file.slice(offset, offset + maxBytes).arrayBuffer()),
-                  close: async () => undefined,
-                }
-              : null,
-          );
-        },
-        { once: true },
-      );
-      fileInput.click();
-    });
-  }
-
   async function browseFolder(): Promise<void> {
     const path = await (await getPlatform()).pickFolder('Choose Server Folder');
     if (path) await scanServerPath(path, false);
@@ -243,12 +218,10 @@
     scanError = undefined;
     let picked: FileChunkSource | null = null;
     try {
-      picked = await (
-        await getPlatform()
-      ).pickFileStream(
-        { label: 'Choose a modpack archive', extensions: ['mrpack', 'zip'] },
-        browseBrowserFile,
-      );
+      picked = await (await getPlatform()).pickFileStream({
+        label: 'Choose a modpack archive',
+        extensions: ['mrpack', 'zip'],
+      });
       if (picked) queueModpackUpload(picked);
     } catch (error) {
       scanError = errorMessage(error);
@@ -275,7 +248,6 @@
 </script>
 
 <div class="upload" use:onboardingAnchor={'ob_wizard_body'}>
-  <input bind:this={fileInput} type="file" accept=".mrpack,.zip" class="hidden-input" />
 
   {#if draft.stagedModpack}
     {@const inspection = draft.stagedModpack.inspection}
@@ -461,7 +433,7 @@
           : 'Browse for a server folder, archive, or modpack'}
       </p>
       {#if !supportsDrop}
-        <p class="hint">Dragging a file in isn't available in the browser — use Browse below.</p>
+        <p class="hint">Drag a file into the window, or use Browse below.</p>
       {/if}
       <div class="actions">
         <Button variant="secondary" onclick={() => void browseFolder()}>Choose Folder…</Button>

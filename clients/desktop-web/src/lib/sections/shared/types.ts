@@ -7,19 +7,19 @@ export type Schema = components['schemas'];
 /** The four user-facing inventory states shown by Components. */
 export type ComponentState = 'installed' | 'missing' | 'unresolved' | 'disabled';
 
-/** The screen layer talks through this small adapter so browser and Tauri keep one workflow. */
+/** The screen layer uses this adapter to keep workflows independent of Tauri APIs. */
 export interface ScreenApi {
   get<T>(path: string): Promise<T>;
   post<T>(path: string, body?: unknown): Promise<T>;
   /** Fetches binary resources through the authenticated host transport. */
   getBytes?(path: string): Promise<Uint8Array>;
-  /** Builds a host-aware URL for resources rendered directly by the browser. */
+  /** Builds a host-aware URL for resources rendered directly by the webview. */
   resourceUrl?(path: string): string;
   upload?(
     purpose: Schema['StagedUploadBeginRequestDTO']['purpose'],
     bytes: Uint8Array,
     /** Modpack recovery uploads are bound to one operation/file and retain the
-     * browser's original name for exact filename validation. */
+     * selected file's original name for exact filename validation. */
     options?: { operationId?: string; fileId?: string; fileName?: string },
   ): Promise<Schema['StagedUploadCompleteResultDTO']>;
   uploadFile?(

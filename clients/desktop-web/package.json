@@ -18,7 +18,6 @@
     "test:hosts": "vitest run tests/hosts",
     "test:transport": "vitest run tests/transport",
     "test:fedora-regressions": "vitest run tests/transport/transport.test.ts tests/screens/fedora-regressions.test.ts",
-    "test:auth-browser": "vitest run tests/auth/browser.test.ts",
     "test:auth-desktop": "vitest run tests/auth/desktop",
     "test:visual-shell": "vitest run tests/visual",
     "test:screen-fleet": "vitest run tests/screens/fleet.test.ts",
@@ -33,8 +32,6 @@
     "test:agent-install": "vitest run tests/agent-install",
     "test:updates": "vitest run tests/updates",
     "test:e2e-tauri-linux": "wdio run wdio.conf.ts",
-    "test:e2e-browser": "npm run build && playwright test",
-    "test:e2e-browser:artifact": "playwright test",
     "api:generate": "node --experimental-strip-types ./src/lib/api/generate.ts",
     "api:check": "npm run api:generate -- --check && python3 ../../tools/phase11/generated-types-check.py",
     "bundle:identity": "node ./tools/verify-bundle-identity.mjs",
@@ -51,7 +48,6 @@
     "svelte": "^5.38.7"
   },
   "devDependencies": {
-    "@playwright/test": "^1.55.0",
     "@sveltejs/vite-plugin-svelte": "^6.1.0",
     "@tauri-apps/cli": "^2.8.0",
     "@wdio/cli": "^9.31.2",

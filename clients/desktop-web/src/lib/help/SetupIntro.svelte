@@ -546,7 +546,7 @@
           <p class="card-desc">
             {platformKind === 'tauri'
               ? 'All your servers will live inside this folder.'
-              : 'This path is on the computer running the selected agent, not on this browser device.'}
+              : 'This path is on the computer running the selected agent.'}
           </p>
           <div class="field-row">
             <input
@@ -577,7 +577,7 @@
           <Card>
             <p class="card-desc">
               Java servers require JDK 21 or later. Point to your binary or let the agent find it on
-              PATH.{platformKind === 'browser' ? ' This executable path is on the agent host.' : ''}
+              PATH.
             </p>
             <div class="field-row">
               <input
@@ -762,8 +762,7 @@
           </p>
           <ul class="feature-list">
             <li>
-              Access your host’s servers from the desktop app or a desktop browser on another
-              computer
+              Access your host’s servers from the desktop app or CLI on another computer
             </li>
             <li>Free for personal use — takes about a minute to set up</li>
             <li>Works alongside playit.gg — they solve different problems</li>

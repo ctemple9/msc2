@@ -201,11 +201,7 @@
     revealBusy = true;
     revealNotice = '';
     try {
-      await (
-        await getPlatform()
-      ).revealInFileManager(serversRootPath, async () => {
-        revealNotice = 'Open Server Folder needs the desktop app.';
-      });
+      await (await getPlatform()).revealInFileManager(serversRootPath);
     } catch (error) {
       revealNotice = errorMessage(error);
     } finally {
@@ -435,7 +431,7 @@
           {:else if updateState === 'unavailable'}
             <p class="update-status" role="status">
               {updateResult?.detail ||
-                'Native installation is local to the desktop or headless host; a browser cannot install it.'}
+                'Native installation is local to the desktop or headless host.'}
             </p>
           {:else if updateState === 'available' && updateResult}
             <div class="update-details" aria-live="polite">

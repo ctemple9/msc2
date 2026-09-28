@@ -22,7 +22,6 @@ REQUIRED_JOB_COUNTS = {
     "Rust regression (": 3,
     "Platform smokes (": 3,
     "Client validation (": 3,
-    "Browser smoke (": 3,
     "Native desktop (": 3,
     "Headless no-GUI link check": 1,
 }

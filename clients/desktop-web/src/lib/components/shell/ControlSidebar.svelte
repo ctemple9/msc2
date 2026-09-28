@@ -167,11 +167,11 @@
 
   async function revealFolder(path: string): Promise<void> {
     maintenanceNotice = '';
-    await (
-      await getPlatform()
-    ).revealInFileManager(path, async () => {
-      maintenanceNotice = 'This needs the desktop app.';
-    });
+    try {
+      await (await getPlatform()).revealInFileManager(path);
+    } catch {
+      maintenanceNotice = 'Could not open this folder.';
+    }
   }
 
   function openServerDirectory(): void {

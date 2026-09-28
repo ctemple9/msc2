@@ -18,12 +18,10 @@
     createAgentTransport,
     getPlatform,
     LOCAL_AGENT_ORIGIN,
-    openLocalAgentBrowser,
     prepareLocalAgent,
     type AgentReadiness,
     type AgentServiceStatus,
   } from './lib/platform';
-  import { redeemBrowserHandoff } from './lib/auth/browser-handoff';
   import {
     DesktopSessionAuth,
     loadTauriDesktopCredentialBridge,
@@ -179,9 +177,7 @@
 
   // Keeps every host's connection/credential/cache state (D-013). Tauri
   // rehydrates remote host metadata from localStorage on startup; credentials
-  // are never put there and remain in the native secret store. A browser tab
-  // only ever has this one Local entry because its transport targets the
-  // origin that served the page.
+  // are never put there and remain in the native secret store.
   const hostStore = new HostStore();
   const hostConnectionManager = new HostConnectionManager();
   let hosts: readonly HostRecord[] = [];
@@ -191,7 +187,6 @@
   let settingsOpen = false;
   let resetOpen = false;
   let headerEditingServer: Schema['ServerDTO'] | undefined;
-  let browserHandoffError = '';
   let addressesVisible = false;
   let sshPasswordPromptHostId: HostId | null = null;
   let sshPasswordInput = '';
@@ -907,14 +902,8 @@
   async function initializeShell(): Promise<void> {
     const platform = await getPlatform();
     isDesktopShell = platform.kind === 'tauri';
-    if (!isDesktopShell) {
-      await redeemBrowserHandoff(window.location, window.history);
-    }
-    // A browser only has one host: the agent that served this page. Keeping its
-    // actual origin here prevents a remote page from ever being mistaken for a
-    // loopback agent on the browser user's own computer.
     hostStore.addHost({
-      ...createLocalHostRecord(isDesktopShell ? LOCAL_AGENT_ORIGIN : window.location.origin),
+      ...createLocalHostRecord(LOCAL_AGENT_ORIGIN),
     });
     if (isDesktopShell) {
       for (const host of loadSavedRemoteHosts()) hostStore.addHost(host);
@@ -931,8 +920,8 @@
     if (generation !== hostOrchestrator.currentGeneration) return;
     const section = router.get(id);
     const context = currentNavigationContext();
-    // Setup is deliberately reachable before an agent exists or a browser has
-    // paired: its truthful fallback is how this host becomes manageable.
+    // Setup is deliberately reachable before an agent exists, so service
+    // installation can be the first meaningful action.
     if (!section || (!context && section.id !== 'agent-setup')) {
       shellMessage = 'That section is unavailable for the selected host or credential.';
       return;
@@ -977,15 +966,6 @@
     void selectSection('agent-setup');
   }
 
-  async function openLocalAgentInBrowser(): Promise<void> {
-    browserHandoffError = '';
-    try {
-      await openLocalAgentBrowser();
-    } catch (error) {
-      browserHandoffError = `Could not open the local agent in a browser: ${String(error)}`;
-      await selectSection('agent-setup');
-    }
-  }
 </script>
 
 <svelte:head>
@@ -1018,7 +998,6 @@
   initiationServerId={initiationServer?.id}
   onResumeInitiation={resumeInitiation}
   onOpenAgentSetup={openAgentSetup}
-  onOpenBrowser={isDesktopShell ? () => void openLocalAgentInBrowser() : undefined}
   onManage={() => (manageOpen = true)}
   {addressesVisible}
   onToggleAddresses={toggleAddresses}
@@ -1049,7 +1028,6 @@
           active={loaded.id === activeSection}
           {permissions}
           readiness={agentReadiness}
-          {browserHandoffError}
           onAgentRetry={() => void initializeClient()}
           onPairAgain={(code: string) => pairAgain(code)}
           onConnectHost={(input: RemoteHostConnectionInput) => connectRemoteHost(input)}

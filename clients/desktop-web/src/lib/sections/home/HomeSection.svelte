@@ -2,8 +2,8 @@
   // MSC 1 DetailsOverviewTabView, rebuilt to the S0 disciplined system
   // (docs/msc2/antiAIslop.md). Zones: Status (connection + live stats),
   // Server Health, Activity (players / active world / chat), Notes — the
-  // same order as MSC 1's Overview tab. This is the shared component both
-  // Tauri and the browser load (D-003); no desktop-only branch exists here.
+  // same order as MSC 1's Overview tab. This shared component keeps its
+  // server workflow independent of Tauri APIs.
   import { onDestroy, onMount } from 'svelte';
   import Card from '../../components/base/Card.svelte';
   import ConnectionCard from './ConnectionCard.svelte';

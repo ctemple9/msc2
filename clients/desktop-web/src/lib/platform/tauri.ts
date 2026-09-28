@@ -1,5 +1,4 @@
 import type {
-  AgentAction,
   AgentServiceAction,
   AgentServiceStatus,
   DesktopNotification,
@@ -33,53 +32,23 @@ export function createTauriPlatform(dependencies: TauriPlatformDependencies): Pl
         throw new Error('Streaming file reads are unavailable in this desktop build.');
       return dependencies.readFileStream(path);
     },
-    // Cancelling a native picker is a completed user choice, not a reason to
-    // open a second browser picker. Browser fallback happens at platform load.
-    pickFile: (request, _browserFallback) => dependencies.pickFile(request),
-    pickFileStream: (request, _browserFallback) => {
+    pickFile: (request) => dependencies.pickFile(request),
+    pickFileStream: (request) => {
       if (!dependencies.pickFileStream)
         throw new Error('Streaming file reads are unavailable in this desktop build.');
       return dependencies.pickFileStream(request);
     },
-    notify: async (notification, browserFallback) => {
-      try {
-        await dependencies.notify(notification);
-      } catch {
-        await browserFallback();
-      }
-    },
-    showMenu: async (entries, browserFallback) => {
-      try {
-        await dependencies.showMenu(entries);
-      } catch {
-        await browserFallback();
-      }
-    },
-    closeWindow: async (browserFallback) => {
-      try {
-        await dependencies.closeWindow();
-      } catch {
-        await browserFallback();
-      }
-    },
+    notify: dependencies.notify,
+    showMenu: dependencies.showMenu,
+    closeWindow: dependencies.closeWindow,
     quitApplication: dependencies.quitApplication,
     openExternal: (url: string) => dependencies.openExternal(url),
-    openLocalAgentBrowser: () => dependencies.openLocalAgentBrowser(),
-    revealInFileManager: async (path: string, browserFallback: () => Promise<void>) => {
-      try {
-        await dependencies.revealInFileManager(path);
-      } catch {
-        await browserFallback();
-      }
-    },
+    revealInFileManager: dependencies.revealInFileManager,
     onFileDrop: (handler) => dependencies.onFileDrop(handler),
     onCloseRequested: dependencies.onCloseRequested,
     // P11.23 supplies per-host pairing and secret-store behavior. This seam
     // deliberately cannot fabricate a local token before that contract exists.
     credentialFor: async (_hostId: string) => null,
-    requestAgentAction: async (_action: AgentAction, browserFallback: () => Promise<void>) => {
-      await browserFallback();
-    },
     agentHealthCheck: dependencies.agentHealthCheck,
     agentServiceStatus: dependencies.agentServiceStatus,
     manageAgentService: dependencies.manageAgentService,
@@ -217,7 +186,6 @@ export async function loadTauriPlatform(): Promise<PlatformAdapter> {
     closeWindow: () => getCurrentWindow().close(),
     quitApplication: () => invoke('quit_app'),
     openExternal: (url: string) => invoke('open_external_url', { url }),
-    openLocalAgentBrowser: () => invoke('open_local_agent_browser'),
     revealInFileManager: (path: string) => invoke('reveal_in_file_manager', { path }),
     // Tauri's webview intercepts native OS drag-drop before it reaches the
     // DOM (dragDropEnabled defaults true, tauri.conf.json), so this is the

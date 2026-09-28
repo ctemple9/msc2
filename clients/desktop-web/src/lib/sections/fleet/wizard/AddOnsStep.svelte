@@ -39,7 +39,7 @@
   //
   // What's still an honest simplification rather than a silent drop: the
   // platform file-picker (`platform/types.ts`'s `pickFile`) only returns one
-  // file at a time on both Tauri and the browser fallback, unlike the
+  // file at a time, unlike the
   // oracle's native panel (`allowsMultipleSelection`) or its folder-of-jars
   // sniffing in `processModpackURL`. "Add your own .jar" here is a repeatable
   // single-file pick instead -- click it again to add another -- rather than
@@ -50,7 +50,7 @@
   import { onboardingAnchor } from '../../../help/tourAnchors';
   import Button from '../../../components/base/Button.svelte';
   import { getPlatform } from '../../../platform';
-  import type { FileChunkSource, PickedFile } from '../../../platform/types';
+  import type { FileChunkSource } from '../../../platform/types';
   import type { Schema, ScreenApi } from '../../shared/types';
   import { errorMessage, mutate } from '../../shared/types';
   import { addonPaths } from '../../addons/model';
@@ -111,59 +111,16 @@
   $: hasAny = totalStaged > 0;
   $: hasStagedVoiceChat = hasStagedSimpleVoiceChat(draft);
 
-  function browseBrowserFile(input: HTMLInputElement): Promise<PickedFile | null> {
-    return new Promise((resolve) => {
-      input.addEventListener(
-        'change',
-        async () => {
-          const browserFile = input.files?.[0];
-          resolve(
-            browserFile
-              ? { name: browserFile.name, bytes: new Uint8Array(await browserFile.arrayBuffer()) }
-              : null,
-          );
-        },
-        { once: true },
-      );
-      input.click();
-    });
-  }
-
-  function browseBrowserModpack(): Promise<FileChunkSource | null> {
-    return new Promise((resolve) => {
-      modpackFileInput.addEventListener(
-        'change',
-        () => {
-          const file = modpackFileInput.files?.[0];
-          resolve(
-            file
-              ? {
-                  name: file.name,
-                  size: file.size,
-                  readChunk: async (offset, maxBytes) =>
-                    new Uint8Array(await file.slice(offset, offset + maxBytes).arrayBuffer()),
-                  close: async () => undefined,
-                }
-              : null,
-          );
-        },
-        { once: true },
-      );
-      modpackFileInput.click();
-    });
-  }
-
   async function chooseModpack(): Promise<void> {
     if (!api?.uploadFile || stagingModpack) return;
     stagingModpack = true;
     stageError = undefined;
     let picked: FileChunkSource | null = null;
     try {
-      picked = await (
-        await getPlatform()
-      ).pickFileStream({ label: 'Choose a modpack archive', extensions: ['mrpack', 'zip'] }, () =>
-        browseBrowserModpack(),
-      );
+      picked = await (await getPlatform()).pickFileStream({
+        label: 'Choose a modpack archive',
+        extensions: ['mrpack', 'zip'],
+      });
       if (!picked) {
         stagingModpack = false;
         return;
@@ -205,11 +162,10 @@
     stagingJar = true;
     stageError = undefined;
     try {
-      const picked = await (
-        await getPlatform()
-      ).pickFile({ label: `Choose a ${itemNoun} .jar`, extensions: ['jar'] }, () =>
-        browseBrowserFile(jarFileInput),
-      );
+      const picked = await (await getPlatform()).pickFile({
+        label: `Choose a ${itemNoun} .jar`,
+        extensions: ['jar'],
+      });
       if (!picked) return;
       const staged = await api.upload('addon-local-file', picked.bytes);
       draft.pendingAddOns = [
@@ -251,8 +207,6 @@
 </script>
 
 <div class="addons" use:onboardingAnchor={'ob_wizard_sheet'}>
-  <input bind:this={modpackFileInput} type="file" accept=".mrpack,.zip" class="hidden-input" />
-  <input bind:this={jarFileInput} type="file" accept=".jar" class="hidden-input" />
 
   {#if addOnKind}
     <div class="header-row">

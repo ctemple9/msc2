@@ -7,14 +7,6 @@ export interface TransportCredentialAdapter {
   requestCredentials?: RequestCredentials;
 }
 
-/** Browser sessions are deliberately represented by fetch's cookie jar. */
-export function cookieCredentialAdapter(): TransportCredentialAdapter {
-  return {
-    headersFor: async () => ({}),
-    requestCredentials: 'include',
-  };
-}
-
 /** Native Tauri requests authenticate inside the shell's authorized bridge. */
 export function desktopCredentialAdapter(): TransportCredentialAdapter {
   return {

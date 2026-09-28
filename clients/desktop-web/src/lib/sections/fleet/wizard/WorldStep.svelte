@@ -14,7 +14,7 @@
   // bounded chunks. A folder has no such primitive anywhere in this codebase or the
   // contract -- `worlds/ReplaceWorldSheet.svelte` already hit this exact
   // gap for the identical oracle picker ("World Folder…") and dropped it
-  // for the same reason: "a browser file picker has no folder-to-archive
+  // for the same reason: "a file picker has no folder-to-archive
   // equivalent." This step follows that same precedent rather than
   // re-litigating it: the World Source picker below offers only New World
   // and From Backup (.zip); `WizardDraft.worldSourceMode` has no `folder`
@@ -44,7 +44,6 @@
   export let draft: WizardDraft;
   export let resolvingVersion = false;
 
-  let fileInput: HTMLInputElement;
   let staging = false;
   let pendingWorldSource: FileChunkSource | undefined;
   let stageError: string | undefined;
@@ -125,42 +124,15 @@
     stageError = undefined;
   }
 
-  function browseBrowserFile(): Promise<FileChunkSource | null> {
-    return new Promise((resolve) => {
-      fileInput.addEventListener(
-        'change',
-        () => {
-          const browserFile = fileInput.files?.[0];
-          resolve(
-            browserFile
-              ? {
-                  name: browserFile.name,
-                  size: browserFile.size,
-                  readChunk: async (offset, maxBytes) =>
-                    new Uint8Array(
-                      await browserFile.slice(offset, offset + maxBytes).arrayBuffer(),
-                    ),
-                  close: async () => undefined,
-                }
-              : null,
-          );
-        },
-        { once: true },
-      );
-      fileInput.click();
-    });
-  }
-
   async function chooseBackup(): Promise<void> {
     if (!api?.uploadFile || staging) return;
     staging = true;
     stageError = undefined;
     try {
-      const picked = await (
-        await getPlatform()
-      ).pickFileStream({ label: 'Choose a world backup ZIP', extensions: ['zip'] }, () =>
-        browseBrowserFile(),
-      );
+      const picked = await (await getPlatform()).pickFileStream({
+        label: 'Choose a world backup ZIP',
+        extensions: ['zip'],
+      });
       if (!picked) {
         staging = false;
         return;
@@ -195,7 +167,6 @@
 </script>
 
 <div class="world">
-  <input bind:this={fileInput} type="file" accept=".zip" class="hidden-input" />
 
   <div class="intro">
     <h2>What should the first world be?</h2>

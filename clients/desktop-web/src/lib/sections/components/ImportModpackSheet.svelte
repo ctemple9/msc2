@@ -48,47 +48,19 @@
 
   let step: Step = { kind: 'stage' };
   let action: 'import' | 'replace' = 'import';
-  let fileInput: HTMLInputElement;
   let curseforgeApiKey = '';
   let curseforgeApiKeyVisible = false;
   let curseforgeKeySaving = false;
   let curseforgeKeyNotice = '';
   let pendingModpackSource: FileChunkSource | undefined;
 
-  function pickBrowserFile(): Promise<FileChunkSource | null> {
-    return new Promise((resolve) => {
-      fileInput.addEventListener(
-        'change',
-        () => {
-          const browserFile = fileInput.files?.[0];
-          resolve(
-            browserFile
-              ? {
-                  name: browserFile.name,
-                  size: browserFile.size,
-                  readChunk: async (offset, maxBytes) =>
-                    new Uint8Array(
-                      await browserFile.slice(offset, offset + maxBytes).arrayBuffer(),
-                    ),
-                  close: async () => undefined,
-                }
-              : null,
-          );
-        },
-        { once: true },
-      );
-      fileInput.click();
-    });
-  }
-
   async function chooseAndStage(): Promise<void> {
     if (!api?.uploadFile) return;
     try {
-      const picked = await (
-        await getPlatform()
-      ).pickFileStream({ label: 'Choose a modpack archive', extensions: ['mrpack', 'zip'] }, () =>
-        pickBrowserFile(),
-      );
+      const picked = await (await getPlatform()).pickFileStream({
+        label: 'Choose a modpack archive',
+        extensions: ['mrpack', 'zip'],
+      });
       if (picked) pendingModpackSource = picked;
     } catch (error) {
       step = {
@@ -218,7 +190,6 @@
   visible={!pendingModpackSource}
   onClose={step.kind === 'inspecting' || step.kind === 'importing' ? undefined : onClose}
 >
-  <input bind:this={fileInput} type="file" accept=".mrpack,.zip" class="hidden-input" />
   {#if step.kind === 'stage'}
     <div class="body">
       <p class="explain">

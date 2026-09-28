@@ -1,6 +1,6 @@
 import type { components } from './generated';
 import type { TransportCredentialAdapter } from './auth';
-import { cookieCredentialAdapter } from './auth';
+import { desktopCredentialAdapter } from './auth';
 import type { FileChunkSource, FileUploadProgress } from '../platform/types';
 
 export type HttpMethod = 'DELETE' | 'GET' | 'POST' | 'PUT';
@@ -51,7 +51,7 @@ export class ApiError extends Error {
 
 export type CompatibilityState = 'unknown' | 'supported' | 'old-agent' | 'unsupported-client';
 
-/** One host-aware HTTP surface for the browser and Tauri clients. */
+/** One host-aware HTTP surface for the Tauri client. */
 export class ApiClient {
   private readonly baseUrl: string;
   private readonly hostId: string;
@@ -68,10 +68,9 @@ export class ApiClient {
   constructor(options: ApiClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, '');
     this.hostId = options.hostId;
-    // `window.fetch` requires its window receiver in real browsers. Wrapping it
-    // keeps the injected-test seam while avoiding an illegal-invocation error.
+    // Keep the injected-fetch seam while binding the default fetch function.
     this.fetchImpl = options.fetchImpl ?? ((input, init) => fetch(input, init));
-    this.credentialAdapter = options.credentialAdapter ?? cookieCredentialAdapter();
+    this.credentialAdapter = options.credentialAdapter ?? desktopCredentialAdapter();
     this.clientApiVersion = options.clientApiVersion ?? '1.0';
     this.maxDownloadBytes = options.maxDownloadBytes ?? 512 * 1024 * 1024;
     this.onCapabilities = options.onCapabilities;

@@ -25,7 +25,6 @@
   let remaining = files;
   let staging: Set<string> = new Set();
   let errorByFile: Record<string, string> = {};
-  let fileInput: HTMLInputElement;
   let showCurseForgeKeySetup = false;
   let curseforgeApiKey = '';
   let curseforgeApiKeyVisible = false;
@@ -46,24 +45,6 @@
     }
   });
 
-  function pickBrowserFile(): Promise<{ name: string; bytes: Uint8Array } | null> {
-    return new Promise((resolve) => {
-      fileInput.addEventListener(
-        'change',
-        async () => {
-          const browserFile = fileInput.files?.[0];
-          resolve(
-            browserFile
-              ? { name: browserFile.name, bytes: new Uint8Array(await browserFile.arrayBuffer()) }
-              : null,
-          );
-        },
-        { once: true },
-      );
-      fileInput.click();
-    });
-  }
-
   type PickedFile = { name: string; bytes: Uint8Array };
 
   function entryForFileName(name: string): Schema['ModpackManualFileEntryDTO'] | undefined {
@@ -81,9 +62,7 @@
     if (!api?.upload) return;
     const picked =
       supplied ??
-      (await (
-        await getPlatform()
-      ).pickFile({ label: `Choose ${entry.fileName}` }, () => pickBrowserFile()));
+      (await (await getPlatform()).pickFile({ label: `Choose ${entry.fileName}` }));
     if (!picked) return;
     staging = new Set(staging).add(entry.fileId);
     const nextErrors = { ...errorByFile };
@@ -198,7 +177,6 @@
   size="md"
   {onClose}
 >
-  <input bind:this={fileInput} type="file" class="hidden-input" />
   {#if allResolved}
     <p class="explain">
       Every blocked file is staged. The import continues in the background — check the Plugins list

@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 16 execution is underway. P16.1–P16.29 have implementation records; P16.29 still lacks a post-D-038 release candidate and Cameron's physical results. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
-> **Next move:** Cameron runs the P16.26–P16.28 verification commands; P16.29 needs a browser-free release candidate and physical results. P16.1–P16.29 remain awaiting his verification.
+> ## STATUS: Phase 16 execution is underway. Cameron reports P16.1–P16.28 verified; P16.29 remains open pending a post-P16.28 browser-free release candidate and Cameron's physical results. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
+> **Next move:** Publish a browser-free release candidate from the post-P16.28 code, then Cameron records exact-artifact physical results for P16.29. Phase 16 remains in progress until its full exit gate is satisfied and reviewed.
 
 ## How this document works
 
@@ -42,7 +42,7 @@ Each implementation step is planned, read, executed, verified by Cameron, review
 
 #### P16.1 — Record the Linux headless browser boundary
 
-Status: implemented — awaiting Cameron's verification
+Status: Done — Cameron verified
 Files: README.md, docs/msc2/msc2-decisions.md, docs/msc2/msc2-engineering.md, docs/msc2/clients/headless-installation.md, docs/msc2/rolling-plan.md
 What: Record Cameron's September 28 clarification that the Linux headless archive does not serve a browser UI. Explain the difference between a host requiring no graphical desktop and an agent serving a remote browser page. Narrow the README and D-003 support wording to the intended installation types without removing browser access from packages that actually promise it. Keep the Linux headless API/CLI and no-GUI-link guarantees.
 Verify: Run `rg -n 'Linux headless|browser|web UI' README.md docs/msc2/msc2-decisions.md docs/msc2/msc2-engineering.md docs/msc2/clients/headless-installation.md` and confirm one consistent support boundary.
@@ -50,7 +50,7 @@ Batch: solo
 
 #### P16.2 — Make operation admission atomic
 
-Status: implemented — awaiting Cameron's verification
+Status: Done — Cameron verified
 Files: crates/msc-infrastructure/src/operation_journal.rs, crates/msc-application/src/operations.rs, crates/msc-agent/src/routes/operations.rs, docs/msc2/rolling-plan.md
 What: Replace check-then-write admission with one shared reservation transaction per target. Reserve before work begins, persist enough state for restart reconciliation, refuse concurrent conflicting admissions, and release only at a truthful terminal transition. Preserve refusal rather than silently queuing. Design the mechanism to support host-wide maintenance in P16.3.
 Verify: Run `cargo check -p msc-infrastructure -p msc-application -p msc-agent`.
@@ -58,7 +58,7 @@ Batch: solo
 
 #### P16.3 — Reserve the host during reset
 
-Status: implemented — awaiting Cameron's verification
+Status: Done — Cameron verified
 Files: crates/msc-agent/src/routes/host_reset.rs, crates/msc-application/src/host_reset.rs, crates/msc-application/src/operations.rs, crates/msc-infrastructure/src/operation_journal.rs, docs/msc2/rolling-plan.md
 What: Acquire a host-wide maintenance reservation before reset preconditions. Reject reset while any server mutation is active, reject new mutation while reset owns the host, and retain that exclusion through deletion, credential reset, and recovery after interruption. Report a useful conflict instead of deleting under a worker.
 Verify: Run `cargo check -p msc-agent -p msc-application`.
@@ -66,7 +66,7 @@ Batch: solo
 
 #### P16.4 — Confine world archives to world data
 
-Status: implemented — awaiting Cameron's verification
+Status: Done — Cameron verified
 Files: crates/msc-application/src/worlds.rs, crates/msc-infrastructure/src/archive.rs, crates/msc-agent/src/routes/worlds.rs, docs/msc2/rolling-plan.md
 What: Define allowed Java and Bedrock archive roots and entries before activation. Reject extra executables, configuration, links, and malformed layouts before moving live folders. Install only approved world paths so a Worlds credential cannot overwrite a server JAR or settings. Preserve legitimate legacy world layouts through explicit normalization rather than a full-server merge.
 Verify: Run `cargo check -p msc-application -p msc-agent`.
@@ -74,7 +74,7 @@ Batch: solo
 
 #### P16.5 — Recover partial world replacement deterministically
 
-Status: implemented — awaiting Cameron's verification
+Status: Done — Cameron verified
 Files: crates/msc-application/src/worlds.rs, crates/msc-application/src/backups.rs, crates/msc-infrastructure/src/operation_journal.rs, crates/msc-agent/src/routes/lifecycle.rs, docs/msc2/rolling-plan.md
 What: Give activation and restore a durable progress manifest listing the folders to move and install. On restart, reconcile every partial phase, including destinations already created, to one complete old or new world. Keep further mutation blocked while recovery is incomplete and surface a repair error if neither state can be proven.
 Verify: Run `cargo check -p msc-application -p msc-infrastructure`.
@@ -82,7 +82,7 @@ Batch: solo
 
 #### P16.6 — Match online-backup acknowledgements to the current save
 
-Status: implemented — awaiting Cameron's verification
+Status: Done — Cameron verified
 Files: crates/msc-agent/src/backup_operations.rs, crates/msc-agent/src/routes/lifecycle.rs, crates/msc-agent/src/ws/console.rs, crates/msc-application/src/backups.rs, docs/msc2/rolling-plan.md
 What: Capture a server-run and console-sequence boundary when issuing the save command. Accept only later matching acknowledgement from that run; preserve the separately documented timeout policy. Prevent an older line in the retained console tail from certifying a new online backup.
 Verify: Run `cargo check -p msc-agent -p msc-application`.
@@ -90,7 +90,7 @@ Batch: solo
 
 #### P16.7 — Authorize operation cancellation
 
-Status: implemented — awaiting Cameron's verification
+Status: Done — Cameron verified
 Files: crates/msc-agent/src/auth.rs, crates/msc-agent/src/routes/operations.rs, crates/msc-application/src/operations.rs, crates/msc-infrastructure/src/operation_journal.rs, crates/msc-infrastructure/tests/operation_exclusivity.rs, crates/msc-infrastructure/tests/operation_journal.rs, docs/msc2/rolling-plan.md
 What: Store each operation's initiating credential and required permission in its record/journal. Check both when cancelling, with an explicit owner/admin override policy; continue to return the true terminal state when a worker already finished. Do not let knowledge of an operation ID grant cancellation rights.
 Verify: Run `cargo check -p msc-agent -p msc-application -p msc-infrastructure`.
@@ -98,7 +98,7 @@ Batch: solo
 
 #### P16.8 — End WebSocket streams when credentials end
 
-Status: implemented — awaiting Cameron's verification
+Status: Done — Cameron verified
 Files: crates/msc-agent/src/auth.rs, crates/msc-agent/src/auth/browser.rs, crates/msc-agent/src/ws/console.rs, crates/msc-agent/src/ws/notifications.rs, docs/msc2/rolling-plan.md
 What: Bind upgraded console and notification streams to credential/session identity. Close them on revocation, expiry, and host-identity reset, including while idle; do not rely on another incoming HTTP request. Keep one-use stream-ticket behavior intact.
 Verify: Run `cargo check -p msc-agent`.
@@ -106,7 +106,7 @@ Batch: solo
 
 #### P16.9 — Bound operation history and admission cost
 
-Status: implemented — awaiting Cameron's verification
+Status: Done — Cameron verified
 Files: crates/msc-application/src/operations.rs, crates/msc-infrastructure/src/operation_journal.rs, crates/msc-agent/src/routes/operations.rs, docs/msc2/rolling-plan.md
 What: Set a documented retention limit for terminal records and cancellation flags, preserve the durable records needed for recovery and user history, and admit against an active-reservation index instead of rescanning every historical file. Make cleanup safe across restart and ensure long-lived hosts have bounded memory and admission time.
 Verify: Run `cargo check -p msc-application -p msc-infrastructure -p msc-agent`.
@@ -116,7 +116,7 @@ Batch: solo
 
 #### P16.10 — Publish one host connection generation at a time
 
-Status: implemented — awaiting Cameron's verification
+Status: Done — Cameron verified
 Files: clients/desktop-web/src/App.svelte, docs/msc2/rolling-plan.md
 What: Keep a newly connected client and its readiness, server list, status, and host-context state local until the generation still matches. Cancel or ignore every stale asynchronous continuation, including host-context restoration and navigation. Prevent a late host A result from replacing host B's transport or state.
 Verify: Run `npm run check` from `clients/desktop-web`.
@@ -124,7 +124,7 @@ Batch: solo
 
 #### P16.11 — Give the Windows agent a real service lifecycle
 
-Status: implemented — awaiting Cameron's Windows verification
+Status: Done — Cameron verified
 Files: crates/msc-agent/src/main.rs, crates/msc-agent/src/windows_service.rs, crates/msc-agent/src/cli/mod.rs, crates/msc-platform-windows/src/service.rs, crates/msc-agent/Cargo.toml, Cargo.lock, packaging/windows/service-lifecycle.md, docs/msc2/rolling-plan.md
 What: Make the production-installed executable complete the Windows Service Control Manager start handshake and handle stop/shutdown control, or package a production wrapper that does so. Keep the installing-user identity and normal CLI `serve` mode. Validate the exact installer-created service path on Windows rather than relying on the separate lifecycle smoke wrapper.
 Verify: On Windows, run `cargo check -p msc-agent -p msc-platform-windows`.
@@ -132,7 +132,7 @@ Batch: solo
 
 #### P16.12 — Update Windows headless without self-replacement
 
-Status: implemented — awaiting Cameron's Windows verification
+Status: Done — Cameron verified
 Files: crates/msc-agent/src/cli/update.rs, crates/msc-platform-windows/src/service.rs, packaging/windows/service-lifecycle.md, docs/msc2/rolling-plan.md
 What: Launch a distinct temporary updater image/process so the running `msc.exe` is never asked to remove itself. Preserve the prior service state on every extraction, replacement, restart, and health-check failure; keep rollback bytes until health succeeds. Cover both initially running and stopped services.
 Verify: On Windows, run `cargo check -p msc-agent -p msc-platform-windows`.
@@ -140,7 +140,7 @@ Batch: solo
 
 #### P16.13 — Retain macOS desktop rollback until health succeeds
 
-Status: implemented — awaiting Cameron's macOS verification
+Status: Done — Cameron verified
 Files: clients/desktop-web/src-tauri/src/update.rs, clients/desktop-web/src-tauri/Cargo.toml, docs/msc2/rolling-plan.md
 What: Keep the previous signed app bundle until the replacement launches and the coordinated desktop/agent health check succeeds within a deadline. Restore and relaunch the previous bundle when launch or health fails, including authorized replacement paths. Clean rollback bytes only after success.
 Verify: On macOS, run `cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml`.
@@ -150,7 +150,7 @@ Batch: solo
 
 #### P16.14 — Embed the same frontend bytes in desktop and browser packages
 
-Status: implemented — awaiting Cameron's verification
+Status: Done — Cameron verified
 Files: .github/workflows/ci.yml, .github/workflows/release.yml, clients/desktop-web/package.json, clients/desktop-web/src-tauri/tauri.conf.json, clients/desktop-web/tools/package-agent-bundle.mjs, crates/msc-agent/src/web_ui.rs, crates/msc-agent/web-ui, tools/release/check-client-bundle.py, docs/msc2/rolling-plan.md
 What: Build the shared frontend once before compiling any agent that serves it. Feed the same output to Tauri and the agent; decide whether `web-ui` is generated or checked in and enforce synchronization. Add a release artifact identity/content comparison for installation types that serve browsers. Preserve the Linux headless exclusion from P16.1.
 Verify: Run `python3 tools/release/check-client-bundle.py clients/desktop-web/dist crates/msc-agent/web-ui` after producing the staged frontend and confirm matching content.
@@ -158,7 +158,7 @@ Batch: solo
 
 #### P16.15 — Build Linux artifacts to the promised minimum
 
-Status: implemented — awaiting Cameron's Debian 12 verification
+Status: Done — Cameron verified
 Files: .github/workflows/release.yml, tools/release/build-linux-headless.sh, tools/release/check-linux-artifacts.py, tools/release/check-release-workflow.py, docs/msc2/clients/phase12-release.md, docs/msc2/rolling-plan.md
 What: Pin the Linux release builder/toolchain to a baseline compatible with Debian 12 and record the minimum required glibc symbols for both archive and desktop artifacts. Require a clean Debian 12 install/launch of the exact release bytes, plus a current Fedora path, before publication. Keep no-GUI-link checks for the headless archive.
 Verify: On clean Debian 12 with the staged headless artifact installed, run `msc --help` and confirm the binary launches without a missing-symbol error.
@@ -166,7 +166,7 @@ Batch: solo
 
 #### P16.16 — Gate publication on same-commit CI evidence
 
-Status: implemented — awaiting Cameron's verification
+Status: Done — Cameron verified
 Files: .github/workflows/ci.yml, .github/workflows/release.yml, tools/release/check-release-workflow.py, tools/release/require-ci-run.py, tools/release/verify-artifact-manifest.py, docs/msc2/rolling-plan.md
 What: Make tag publication require the full required Rust, client, browser, platform, and native checks for the same source commit as the release artifacts. Record exact workflow run IDs and refuse publication on missing, stale, cancelled, or failed jobs; keep the existing signed-manifest and nine-artifact checks.
 Verify: Run `python3 tools/release/check-release-workflow.py .github/workflows/release.yml --expect-publish-guard`.
@@ -174,7 +174,7 @@ Batch: solo
 
 #### P16.17 — Reconcile P15.101 with the September audit
 
-Status: implemented — awaiting Cameron's verification
+Status: Done — Cameron verified
 Files: crates/msc-agent/src/routes/commands.rs, crates/msc-agent/src/routes/bedrock.rs, crates/msc-agent/src/routes/lifecycle.rs, clients/desktop-web/src/lib/sections/players-online, clients/desktop-web/src/lib/api/generated.ts, .github/workflows/ci.yml, .github/workflows/release.yml, tools/release/check-release-workflow.py, docs/msc2/rolling-plan.md
 What: Reconcile September 28 findings 5–8 against committed P15.101. Finding 5 is addressed by the shared server-selection lock held through command and Bedrock allowlist dispatch; finding 7 is addressed by Java whitelist actions requiring `serverControl` and Bedrock allowlist edits requiring `players`; P15.101 includes the generated types for its contract changes. Add `api:check` to required CI and release checks and enforce its presence in the release workflow validator so later contract edits cannot leave generated types stale. The formatter cleanup from finding 8 remains in P16.18.
 Verify: Run `npm run api:check` from `clients/desktop-web`.
@@ -182,7 +182,7 @@ Batch: frontend-quality (P16.17–P16.18)
 
 #### P16.18 — Clear frontend static warnings and formatting debt
 
-Status: implemented — awaiting Cameron's verification
+Status: Done — Cameron verified
 Files: clients/desktop-web/src/lib/sections/worlds/WorldSettingsForm.svelte, clients/desktop-web/src/lib/sections/setup, clients/desktop-web/src/lib/sections/players-online, docs/msc2/rolling-plan.md
 What: Remove the dead ownership-link, setup-help, and remote-connection checkbox selectors plus the unused setup `serverId` prop behind the eight September 28 Svelte warnings. Confirm the three P15.101 player-action files are already in Prettier's output. Make no visual changes and intentionally retain no warnings.
 Verify: Run `npm run check` from `clients/desktop-web` and confirm zero unexplained warnings.
@@ -192,7 +192,7 @@ Batch: frontend-quality (P16.17–P16.18)
 
 #### P16.19 — Split large Rust modules along behavior boundaries
 
-Status: implemented — awaiting Cameron's verification
+Status: Done — Cameron verified
 Files: crates/msc-agent/src/routes/worlds.rs, crates/msc-agent/src/routes/worlds/import_activation.rs, crates/msc-agent/src/routes/lifecycle.rs, crates/msc-agent/src/routes/lifecycle/recovery.rs, crates/msc-agent/src/routes/servers.rs, crates/msc-agent/src/routes/servers/import.rs, crates/msc-application/src/worlds.rs, crates/msc-application/src/worlds/activation.rs, docs/msc2/rolling-plan.md
 What: Extract cohesive world import/activation/recovery, server lifecycle, and route orchestration modules after the safety fixes settle. Move in-file verification helpers beside their subjects without adding new tests. Preserve public routes, permissions, transaction order, and API schemas. Do not pursue an arbitrary line-count target or a whole-repo rewrite.
 Verify: Run `cargo check -p msc-agent -p msc-application`.
@@ -200,7 +200,7 @@ Batch: solo
 
 #### P16.20 — Split host connection orchestration from the app shell
 
-Status: implemented — awaiting Cameron's verification
+Status: Done — Cameron verified
 Files: clients/desktop-web/src/App.svelte, clients/desktop-web/src/lib/hosts/orchestration.ts, docs/msc2/rolling-plan.md
 What: Extract the cohesive host-connection and generation-state logic stabilized in P16.10 into a named client module. Keep App.svelte focused on shell composition and navigation while preserving visible behavior and the single shared desktop/browser screen contract. Remove obsolete phase comments in touched code when they obscure current intent.
 Verify: Run `npm run check` from `clients/desktop-web`.
@@ -208,7 +208,7 @@ Batch: solo
 
 #### P16.21 — Publish owner-selected license and security contact
 
-Status: implemented — awaiting Cameron's verification
+Status: Done — Cameron verified
 Files: LICENSE, SECURITY.md, CONTRIBUTING.md, THIRD-PARTY-NOTICES.md, README.md, docs/msc2/msc2-decisions.md, docs/msc2/rolling-plan.md
 What: Apply Cameron's selected Apache-2.0 terms only to MSC 2 original code and contributions. Add a private vulnerability-reporting route, a latest-stable-release support policy, contributor start instructions, and notices that distinguish third-party components and bundled Bedrock VM material from project-owned code. Record unknown appliance source provenance plainly; checksums do not substitute for license or source compliance.
 Verify: Run `rg -n 'License|Security|Contribut|vulnerabilit' README.md LICENSE SECURITY.md CONTRIBUTING.md THIRD-PARTY-NOTICES.md docs/msc2/msc2-decisions.md` and inspect that the published terms match Cameron's recorded choice and separate third-party materials from MSC 2 original code.
@@ -216,7 +216,7 @@ Batch: solo
 
 #### P16.22 — Record dependency and artifact provenance
 
-Status: implemented — awaiting Cameron's verification
+Status: Done — Cameron verified
 Files: .github/workflows/ci.yml, .github/workflows/release.yml, rust-toolchain.toml, clients/desktop-web/package-lock.json, Cargo.lock, tools/release/check-provenance.py, tools/release/check-release-workflow.py, tools/release/verify-artifact-manifest.py, tools/release/sign-update-manifest.py, docs/msc2/dependency-security.md, docs/msc2/rolling-plan.md
 What: Pin CI/release actions to full commit SHAs and pin Rust, Node.js, and cargo-nextest versions. Generate a lockfile-based dependency and signed-manifest component inventory for every release, plus provenance connecting source commit, per-platform runner images and tool versions, update manifest, lockfiles, and staged artifact hashes. Document Cameron-owned advisory and license triage, including how exceptions must be recorded. The records support review and do not claim that a scan proves security.
 Verify: Run `python3 tools/release/check-provenance.py --manifest target/release-assets/msc2-update-manifest.json` against staged release metadata; it must print the source commit, toolchain, and dependency inventory paths.
@@ -224,7 +224,7 @@ Batch: solo
 
 #### P16.23 — Publish a current support and release-status page
 
-Status: implemented — awaiting Cameron's verification
+Status: Done — Cameron verified
 Files: README.md, docs/msc2/clients/phase12-release.md, docs/msc2/clients/headless-installation.md, docs/msc2/rolling-plan.md
 What: Separate historical beta plans from current public support claims. State exact platform/architecture and browser availability by installation type, unsigned installer limitations, current release link, update path, and support floor; link to the Phase 16 acceptance record once it exists. Keep previous phase evidence as history rather than rewriting it as current proof.
 Verify: Run `rg -n 'headless|browser|Debian 12|unsigned|release' README.md docs/msc2/clients/headless-installation.md` and confirm the public claims match the support matrix.
@@ -236,7 +236,7 @@ The owner has chosen to retire the agent-served browser client. The Tauri deskto
 
 #### P16.24 — Record the owner-approved browser retirement
 
-Status: implemented — awaiting Cameron's verification
+Status: Done — Cameron verified
 Files: docs/msc2/MSC2-VISION.md, docs/msc2/msc2-decisions.md, docs/msc2/msc2-product.md, docs/msc2/msc2-engineering.md, docs/msc2/msc2-port-plan.md, AGENTS.md, CLAUDE.md, docs/msc2/rolling-plan.md
 What: Add an Approved D-038 recording Cameron's retirement of the served browser client, then propagate it through the current vision, client matrix rules, educational-content scope, and Phase 16 gate. Supersede the browser-serving part of D-003 and the browser-cookie part of D-012 without erasing their history. Explicitly amend D-010 for withdrawn browser-only `/v1` routes and old browser credentials while retaining its version-skew protection for supported desktop/CLI clients. Keep AGENTS.md and CLAUDE.md identical after their required filename line.
 Verify: Run `rg -n 'D-038|browser client|desktop browser|browser UI' docs/msc2/MSC2-VISION.md docs/msc2/msc2-decisions.md docs/msc2/msc2-product.md docs/msc2/msc2-engineering.md docs/msc2/msc2-port-plan.md AGENTS.md CLAUDE.md` and inspect that the current scope consistently names desktop and CLI while historical references remain dated.
@@ -244,7 +244,7 @@ Batch: solo
 
 #### P16.25 — Remove the browser client and its CI job
 
-Status: implemented — awaiting Cameron's verification
+Status: Done — Cameron verified
 Files: clients/desktop-web/src/App.svelte, clients/desktop-web/src/lib/components, clients/desktop-web/src/lib/platform, clients/desktop-web/src/lib/auth, clients/desktop-web/src-tauri/src/lib.rs, clients/desktop-web/package.json, clients/desktop-web/tests, .github/workflows/ci.yml, tools/release/require-ci-run.py, tools/release/check-release-workflow.py, docs/msc2/rolling-plan.md
 What: Remove the top-bar browser launcher, one-use browser handoff, cookie-auth client adapter, browser-only platform fallback, and browser-only client checks. Preserve the Tauri Svelte screens, native credential store, remote desktop pairing, and native desktop CI. Remove the `browser` workflow-dispatch scope and three-platform Browser smoke job together with its required-job count so same-commit release evidence cannot wait for a job that no longer exists. Remove browser-only assertions from mixed checks without dropping desktop coverage.
 Verify: Run `npm run check` from `clients/desktop-web` and confirm the Tauri client type-checks without the browser adapter.
@@ -252,7 +252,7 @@ Batch: solo
 
 #### P16.26 — Remove browser sessions from the agent contract
 
-Status: implemented — awaiting Cameron's verification
+Status: Done — Cameron verified
 Files: crates/msc-agent/src/auth.rs, crates/msc-agent/src/auth/browser.rs, crates/msc-agent/src/routes/browser_session.rs, crates/msc-agent/src/routes/mod.rs, crates/msc-agent/src/routes/health.rs, crates/msc-agent/src/main.rs, crates/msc-agent/src/cli/pairing.rs, crates/msc-agent/src/cli/mod.rs, crates/msc-agent/src/cli/transport.rs, crates/msc-agent/src/ws, crates/msc-agent/tests, crates/msc-api/tests/phase11_auth_conformance.rs, docs/msc2/api-contract/openapi.json, docs/msc2/api-contract/websocket-v1.json, clients/desktop-web/src/lib/api/generated.ts, docs/msc2/client-capability-matrix.csv, docs/msc2/rolling-plan.md
 What: Remove browser session cookies, browser-session and CSRF routes, the browser branch of shared pairing, browser-only authorization branches, and browser session revocation from HTTP/WebSocket handling. Remove browser pairing from the local CLI and regenerate API types; keep desktop/named-token permissions, revocation, desktop pairing, and stream lifetime behavior. Remove only browser-specific existing checks and contract rows. Old browser cookies must not authorize any retained route, and desktop/CLI routes remain intact.
 Verify: Run `cargo check -p msc-agent -p msc-api`.
@@ -260,7 +260,7 @@ Batch: solo
 
 #### P16.27 — Remove browser assets from builds and release gates
 
-Status: implemented — awaiting Cameron's verification
+Status: Done — Cameron verified
 Files: crates/msc-agent/Cargo.toml, crates/msc-agent/src/main.rs, crates/msc-agent/src/web_ui.rs, crates/msc-agent/web-ui, crates/msc-agent/tests/web_ui.rs, Cargo.lock, clients/desktop-web/src-tauri/tauri.conf.json, clients/desktop-web/package.json, clients/desktop-web/tools/package-agent-bundle.mjs, tools/release/check-client-bundle.py, tools/release/check-release-workflow.py, tools/release/check-provenance.py, tools/phase11/bundle-identity-check.py, tools/phase11/desktop-web-smoke.sh, .github/workflows/ci.yml, .github/workflows/release.yml, docs/msc2/rolling-plan.md
 What: Remove the agent's embedded page, `web-ui` feature, tracked page assets, and frontend-to-agent staging/check scripts. Keep the frontend build used by Tauri. Update CI and beta release workflows together: remove the browser bundle smoke and its release-time `web_ui` check, remove staging/comparison steps and browser-only package scripts, and adjust static release validation and provenance without weakening same-commit CI, native desktop, headless, signing, or the nine-artifact publication checks. Ensure Tauri's before-build commands no longer invoke removed scripts.
 Verify: Run `python3 tools/release/check-release-workflow.py .github/workflows/release.yml --expect-publish-guard` and confirm the browser-free release workflow still requires successful same-commit CI and all nine assets.
@@ -268,7 +268,7 @@ Batch: solo
 
 #### P16.28 — Publish the revised support matrix
 
-Status: implemented — awaiting Cameron's verification
+Status: Done — Cameron verified
 Files: README.md, docs/msc2/clients/headless-installation.md, docs/msc2/clients/phase12-release.md, docs/msc2/clients/remote-access.md, docs/msc2/client-capability-matrix.csv, tools/phase6/capability-matrix-check.py, tools/phase8/phase8-check.py, tools/phase11/phase11-check.py, docs/msc2/rolling-plan.md
 What: Replace active browser-client promises with desktop and CLI support, including headless hosts controlled by a remote desktop or CLI. Rename the matrix's combined Desktop/Web column to Desktop and reconcile its remaining rows with the revised API contract. Keep the Phase 12 release and acceptance files as dated evidence: the already-published v0.1.16 bytes may still contain browser assets, so public release status must distinguish that historical artifact from the next browser-free release until new exact bytes are published. Record that no browser installation type is promised going forward.
 Verify: Run `python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv` and inspect the README support table against the published release and the revised client matrix.

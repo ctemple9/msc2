@@ -517,7 +517,7 @@ fn java_sections(model: &ServerPropertiesModel) -> Vec<SettingsSectionDto> {
                 model.simulation_distance,
                 3,
                 32,
-                Some("chunks"),
+                None,
                 None,
             ),
             bool_field("white-list", "Whitelist", model.whitelist, None),
@@ -682,7 +682,7 @@ fn bedrock_sections(
                     raw_int("tick-distance", 4),
                     4,
                     12,
-                    Some("chunks"),
+                    None,
                     None,
                 ),
                 int_unbounded(

@@ -668,12 +668,6 @@
     text-decoration: underline;
     text-underline-offset: 2px;
   }
-  .ownership a {
-    margin-left: 4px;
-    color: var(--msc2-text-secondary);
-    text-decoration: underline;
-    text-underline-offset: 2px;
-  }
   .essentials {
     display: flex;
     flex-direction: column;

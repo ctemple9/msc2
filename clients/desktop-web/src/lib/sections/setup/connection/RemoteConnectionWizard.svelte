@@ -616,36 +616,6 @@
     gap: 7px;
   }
 
-  .check-label {
-    display: flex;
-    align-items: start;
-    gap: 8px;
-    max-width: 310px;
-    color: var(--msc2-text-secondary);
-    font-size: 12px;
-    line-height: 1.4;
-  }
-
-  .check-label input {
-    margin-top: 2px;
-    accent-color: var(--msc2-status-ok);
-  }
-
-  .check-label span {
-    display: grid;
-    gap: 2px;
-  }
-
-  .check-label strong {
-    color: var(--msc2-text-primary);
-    font-weight: 500;
-  }
-
-  .check-label small {
-    color: var(--msc2-text-tertiary);
-    font-size: 11px;
-  }
-
   .inline-warning {
     color: var(--msc2-status-warn);
   }

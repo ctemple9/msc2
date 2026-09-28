@@ -30,7 +30,6 @@
   export let hostId = '';
   export let hostLabel = 'Local agent';
   export let hostBaseUrl = 'http://127.0.0.1:48001';
-  export let serverId = 'survival';
   export let hosts: readonly HostRecord[] = [];
   export let activeHostId: HostId = '';
   export let hostSummaries: ReadonlyMap<HostId, { connection: string; serverCount: number }> =
@@ -1065,12 +1064,6 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
-  }
-  .wizard-help {
-    margin: 12px 0 0;
-    color: var(--msc2-text-tertiary);
-    font-size: 12px;
-    line-height: 1.5;
   }
   .mono {
     color: var(--msc2-text-primary);

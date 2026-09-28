@@ -182,9 +182,9 @@ Batch: frontend-quality (P16.17–P16.18)
 
 #### P16.18 — Clear frontend static warnings and formatting debt
 
-Status: planned — awaiting Cameron's review
+Status: implemented — awaiting Cameron's verification
 Files: clients/desktop-web/src/lib/sections/worlds/WorldSettingsForm.svelte, clients/desktop-web/src/lib/sections/setup, clients/desktop-web/src/lib/sections/players-online, docs/msc2/rolling-plan.md
-What: Remove or justify the eight Svelte warnings reported on September 28, and keep Prettier clean after P15.101. Change only dead selectors/unused exports or the smallest necessary view wiring; avoid visual redesign. Document any warning intentionally retained.
+What: Remove the dead ownership-link, setup-help, and remote-connection checkbox selectors plus the unused setup `serverId` prop behind the eight September 28 Svelte warnings. Confirm the three P15.101 player-action files are already in Prettier's output. Make no visual changes and intentionally retain no warnings.
 Verify: Run `npm run check` from `clients/desktop-web` and confirm zero unexplained warnings.
 Batch: frontend-quality (P16.17–P16.18)
 

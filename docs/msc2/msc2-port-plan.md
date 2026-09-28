@@ -205,6 +205,12 @@ P14.19 handoff records the static result and outstanding owner evidence in
 `docs/msc2/capabilities/phase14-acceptance.md`; static inspection alone does
 not close this gate.
 
+### Phase 16 — Release safety and codebase readiness
+
+Phase 16 resolves the September 17 external audit and September 28 public-release/codebase review. The ordered implementation steps and finding-to-step map are in `rolling-plan.md`. Cameron's clarification that the Linux headless archive has no browser UI is a support-boundary documentation task, not a mandate to add a UI to that archive. Phase 15's later P15.101 change must be rechecked before implementing any now-stale September 28 recommendation.
+
+**Exit criteria:** every finding in both audits has a documented disposition supported by current source or exact-artifact evidence; world archives cannot install non-world files; operation and host-reset admission are exclusive; interrupted world replacement reaches a provable complete state; online backups cannot use old save acknowledgements; cancellation and WebSocket streams respect credential permissions and revocation; operation history stays bounded; delayed host connections cannot publish stale state; Windows services start through the production Service Control Manager path; Windows and macOS updates restore the prior healthy installation on failure; supported browser packages embed the same frontend bytes as the desktop app; Linux release binaries launch on the declared minimum; publication requires same-commit CI and artifact provenance; API generation and frontend static checks are clean; and current public license, security, and support documents are owner-approved. Cameron records clean-machine and fault-path results for the exact release artifacts in `docs/msc2/release/phase16-acceptance.md`. A green static check or an earlier phase's completion does not substitute for this evidence. The phase reviewer is the agent that did not implement it.
+
 ### Continuous, from Phase 1 onward
 
 The client capability matrix (D-023) is updated as each capability lands, with intentional exceptions recorded rather than discovered.

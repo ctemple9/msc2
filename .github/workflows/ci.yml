@@ -116,14 +116,6 @@ jobs:
         working-directory: clients/desktop-web
         run: npm run bundle:identity
 
-      - name: Stage the same frontend for the agent
-        working-directory: clients/desktop-web
-        run: npm run bundle:stage-agent
-
-      - name: Compare desktop and agent frontend bytes
-        working-directory: clients/desktop-web
-        run: npm run bundle:check-agent
-
       - name: Build headless agent
         run: cargo build --workspace
 
@@ -182,9 +174,6 @@ jobs:
         run: cargo nextest run -p msc-agent raw_import_route_imports_bedrock_folder
       - name: Focused production Bedrock smoke
         run: cargo nextest run -p msc-agent --test bedrock_production_smoke
-      - name: Agent-served browser bundle smoke
-        run: cargo nextest run -p msc-agent --test web_ui
-
   platform-smokes:
     name: Platform smokes (${{ matrix.os }})
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'platform' }}

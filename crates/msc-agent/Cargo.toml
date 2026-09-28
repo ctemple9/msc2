@@ -3,12 +3,6 @@ name = "msc-agent"
 version = "0.1.16"
 edition = "2024"
 
-[features]
-default = ["web-ui"]
-# A headless distribution can opt out of the optional browser bundle without
-# acquiring a GUI or browser-engine dependency.
-web-ui = []
-
 [[bin]]
 name = "msc"
 path = "src/main.rs"

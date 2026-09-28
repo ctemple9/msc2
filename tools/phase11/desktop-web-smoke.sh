@@ -44,8 +44,6 @@ synthetic() {
     "npm run check" \
     "npm run test:unit" \
     "npm run bundle:identity" \
-    "cargo nextest run -p msc-agent --test web_ui" \
-    "npm run test:e2e-browser:artifact" \
     "npm exec tauri build -- --debug --no-bundle" \
     "bash tools/phase11/linux-webkitgtk-smoke.sh --native" \
     "python3 tools/phase4/headless-link-check.py --all-artifacts target/phase4-headless"; do
@@ -60,7 +58,7 @@ synthetic() {
   require_text "$evidence" "Signing and notarization status"
   require_text "$evidence" "unavailable"
 
-  echo "OK: CI exercises the shared production frontend and agent-served browser bundle on macOS, Linux, and Windows; Linux uses native WebKitGTK and headless proof remains separate"
+  echo "OK: CI exercises the Tauri desktop frontend on macOS, Linux, and Windows; Linux uses native WebKitGTK and headless proof remains separate"
 }
 
 record_platform() {
@@ -83,7 +81,7 @@ record_platform() {
   esac
 
   cat >"$output" <<EOF
-# P11.28 ${platform} desktop and web candidate
+# P11.28 ${platform} Tauri desktop candidate
 
 - Node.js: $(node --version)
 - npm: $(npm --version)

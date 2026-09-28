@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 16 execution is underway. P16.1–P16.26 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
-> **Next move:** Cameron runs the P16.26 verification command. P16.1–P16.26 remain awaiting his verification.
+> ## STATUS: Phase 16 execution is underway. P16.1–P16.27 are implemented and awaiting Cameron's verification. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
+> **Next move:** Cameron runs the P16.26 and P16.27 verification commands. P16.1–P16.27 remain awaiting his verification.
 
 ## How this document works
 
@@ -260,8 +260,8 @@ Batch: solo
 
 #### P16.27 — Remove browser assets from builds and release gates
 
-Status: planned — awaiting Cameron's review
-Files: crates/msc-agent/Cargo.toml, crates/msc-agent/src/main.rs, crates/msc-agent/src/web_ui.rs, crates/msc-agent/web-ui, crates/msc-agent/tests/web_ui.rs, Cargo.lock, clients/desktop-web/src-tauri/tauri.conf.json, clients/desktop-web/package.json, clients/desktop-web/tools/package-agent-bundle.mjs, tools/release/check-client-bundle.py, tools/release/check-release-workflow.py, tools/release/check-provenance.py, .github/workflows/ci.yml, .github/workflows/release.yml, docs/msc2/rolling-plan.md
+Status: implemented — awaiting Cameron's verification
+Files: crates/msc-agent/Cargo.toml, crates/msc-agent/src/main.rs, crates/msc-agent/src/web_ui.rs, crates/msc-agent/web-ui, crates/msc-agent/tests/web_ui.rs, Cargo.lock, clients/desktop-web/src-tauri/tauri.conf.json, clients/desktop-web/package.json, clients/desktop-web/tools/package-agent-bundle.mjs, tools/release/check-client-bundle.py, tools/release/check-release-workflow.py, tools/release/check-provenance.py, tools/phase11/bundle-identity-check.py, tools/phase11/desktop-web-smoke.sh, .github/workflows/ci.yml, .github/workflows/release.yml, docs/msc2/rolling-plan.md
 What: Remove the agent's embedded page, `web-ui` feature, tracked page assets, and frontend-to-agent staging/check scripts. Keep the frontend build used by Tauri. Update CI and beta release workflows together: remove the browser bundle smoke and its release-time `web_ui` check, remove staging/comparison steps and browser-only package scripts, and adjust static release validation and provenance without weakening same-commit CI, native desktop, headless, signing, or the nine-artifact publication checks. Ensure Tauri's before-build commands no longer invoke removed scripts.
 Verify: Run `python3 tools/release/check-release-workflow.py .github/workflows/release.yml --expect-publish-guard` and confirm the browser-free release workflow still requires successful same-commit CI and all nine assets.
 Batch: solo

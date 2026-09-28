@@ -82,7 +82,6 @@ def check_candidate_workflow(workflow: str) -> None:
         "npm run test:tauri-boundary",
         "npm run test:fedora-regressions",
         "cargo fmt --all -- --check",
-        "cargo --locked nextest run -p msc-agent --test web_ui",
         "cargo --locked test -p msc-agent --bin msc routes::components::staged_upload_tests::chunked_modpack_upload_requires_order_and_completes_with_verified_size -- --exact",
         "cargo --locked test -p msc-agent --bin msc routes::components::staged_upload_tests::world_import_chunks_can_be_cancelled_and_removed_idempotently -- --exact",
         "cargo --locked test -p msc-agent --bin msc cli::update::tests::authorized_update_waits_for_authorizer_and_reports_cancellation -- --exact",
@@ -112,6 +111,15 @@ def check_candidate_workflow(workflow: str) -> None:
         "notarization",
     ):
         require_fragment(workflow, fragment)
+
+    for obsolete in (
+        "bundle:stage-agent",
+        "bundle:check-agent",
+        "check-client-bundle.py",
+        "web-ui",
+        "--test web_ui",
+    ):
+        require(obsolete not in workflow, f"workflow still depends on retired browser bundle item {obsolete!r}")
 
     action_refs = re.findall(r"(?m)^\s*uses:\s+[^\s@]+@([^\s#]+)", workflow)
     require(action_refs, "workflow has no GitHub Actions references")

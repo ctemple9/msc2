@@ -8,7 +8,6 @@ mod backup_scheduler;
 mod cli;
 mod help;
 mod routes;
-mod web_ui;
 #[cfg(target_os = "windows")]
 mod windows_service;
 mod ws;
@@ -18,7 +17,7 @@ use std::process::ExitCode;
 
 use axum::Extension;
 use axum::Router;
-use axum::routing::{delete, get, post};
+use axum::routing::{get, post};
 use clap::Parser;
 use msc_infrastructure::config_repository::default_app_config_path;
 use msc_infrastructure::fs::StdFileSystem;
@@ -460,7 +459,6 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
 
     Router::new()
         .nest("/v1", public.merge(protected))
-        .fallback(get(web_ui::serve))
         .layer(axum::middleware::from_fn(security_headers))
 }
 

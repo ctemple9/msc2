@@ -145,7 +145,6 @@
   let showBrowser = false;
   let componentActionMenu: { x: number; y: number } | undefined;
 
-
   function flash(message: string): void {
     notice = message;
   }
@@ -378,7 +377,9 @@
 
   async function addLocalAddon(): Promise<void> {
     if (!api?.upload) return;
-    const picked = await (await getPlatform()).pickFile({
+    const picked = await (
+      await getPlatform()
+    ).pickFile({
       label: `Choose a ${isModded ? 'mod' : 'plugin'} JAR`,
       extensions: ['jar'],
     });
@@ -441,9 +442,9 @@
       return;
     }
     try {
-      await (await getPlatform()).revealInFileManager(
-        `${activeServer.directory}/${addonFolderName}`,
-      );
+      await (
+        await getPlatform()
+      ).revealInFileManager(`${activeServer.directory}/${addonFolderName}`);
     } catch {
       flash('Could not open the add-on folder.');
     }
@@ -772,7 +773,6 @@
       </section>
     {/if}
   {/if}
-
 </div>
 
 {#if componentActionMenu}

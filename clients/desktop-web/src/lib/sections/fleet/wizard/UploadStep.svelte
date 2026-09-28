@@ -218,7 +218,9 @@
     scanError = undefined;
     let picked: FileChunkSource | null = null;
     try {
-      picked = await (await getPlatform()).pickFileStream({
+      picked = await (
+        await getPlatform()
+      ).pickFileStream({
         label: 'Choose a modpack archive',
         extensions: ['mrpack', 'zip'],
       });
@@ -248,7 +250,6 @@
 </script>
 
 <div class="upload" use:onboardingAnchor={'ob_wizard_body'}>
-
   {#if draft.stagedModpack}
     {@const inspection = draft.stagedModpack.inspection}
     <div class="intro">

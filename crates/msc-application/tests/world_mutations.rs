@@ -691,6 +691,10 @@ fn world_mutations_bedrock_replace_reconcile_prior_moved_restores_named_world() 
         br#"{"level_name":"newname"}"#,
     );
     write_file(
+        &server_dir.join("world_slots/.replace/swap.json"),
+        br#"{"phase":"installing","old":["Bedrock level"],"new":["newname"]}"#,
+    );
+    write_file(
         &server_dir.join("world_slots/.replace/prior/Bedrock level/level.dat"),
         b"old world",
     );
@@ -726,6 +730,10 @@ fn world_mutations_bedrock_replace_reconcile_installed_commits_named_world() {
     write_file(
         &server_dir.join("world_slots/.replace/prior/Bedrock level/level.dat"),
         b"old world",
+    );
+    write_file(
+        &server_dir.join("world_slots/.replace/swap.json"),
+        br#"{"phase":"committing","old":["Bedrock level"],"new":["newname"]}"#,
     );
 
     let outcome = worlds::reconcile_interrupted_world_replace(
@@ -814,6 +822,10 @@ fn world_mutations_replace_world_reconcile_prior_moved_restores_old_world() {
         br#"{"level_name":"newname"}"#,
     );
     write_file(
+        &server_dir.join("world_slots/.replace/swap.json"),
+        br#"{"phase":"installing","old":["world"],"new":["newname"]}"#,
+    );
+    write_file(
         &server_dir
             .join("world_slots")
             .join(".replace")
@@ -877,6 +889,10 @@ fn world_mutations_replace_world_reconcile_installed_finishes_committing_new_wor
             .join("world")
             .join("level.dat"),
         b"old overworld, safely discardable",
+    );
+    write_file(
+        &server_dir.join("world_slots/.replace/swap.json"),
+        br#"{"phase":"committing","old":["world"],"new":["newname"]}"#,
     );
 
     let outcome =

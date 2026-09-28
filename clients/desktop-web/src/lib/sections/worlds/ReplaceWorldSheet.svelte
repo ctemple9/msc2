@@ -48,7 +48,9 @@
     if (!api?.uploadFile || serverRunning || picking) return;
     picking = true;
     try {
-      const picked = await (await getPlatform()).pickFileStream({
+      const picked = await (
+        await getPlatform()
+      ).pickFileStream({
         label: 'Choose a backup ZIP',
         extensions: ['zip'],
       });

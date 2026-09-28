@@ -569,7 +569,7 @@ fn java_level_dat() -> Vec<u8> {
 /// A minimal parsed Bedrock level.dat: little-endian root compound without
 /// the optional eight-byte Bedrock header.
 fn bedrock_level_dat() -> Vec<u8> {
-    vec![10, 0, 0, 0]
+    msc_infrastructure::bedrock_nbt::new_level_dat(&Default::default()).unwrap()
 }
 
 fn java_output_files() -> Vec<(&'static str, Vec<u8>)> {

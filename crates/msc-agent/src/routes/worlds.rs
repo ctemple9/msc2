@@ -3726,8 +3726,38 @@ mod tests {
         ));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("world")).unwrap();
-        std::fs::write(dir.join("world/level.dat"), b"fake").unwrap();
+        // Gzip'd Java root compound: world profile application now reads
+        // and updates this file when a slot becomes active.
+        std::fs::write(
+            dir.join("world/level.dat"),
+            [
+                31, 139, 8, 0, 0, 0, 0, 0, 2, 255, 227, 98, 96, 96, 0, 0, 120, 63, 249, 78, 4, 0,
+                0, 0,
+            ],
+        )
+        .unwrap();
         dir
+    }
+
+    fn seed_slot_archive(server_dir: &Path, slot_id: &str, level_name: &str) {
+        let path = world_store::zip_path(server_dir, slot_id);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let file = std::fs::File::create(path).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        zip.start_file(
+            format!("{level_name}/level.dat"),
+            zip::write::SimpleFileOptions::default(),
+        )
+        .unwrap();
+        std::io::Write::write_all(
+            &mut zip,
+            &[
+                31, 139, 8, 0, 0, 0, 0, 0, 2, 255, 227, 98, 96, 96, 0, 0, 120, 63, 249, 78, 4, 0,
+                0, 0,
+            ],
+        )
+        .unwrap();
+        zip.finish().unwrap();
     }
 
     fn state_with_active_server(tag: &str) -> (LifecycleRoutesState, PathBuf) {
@@ -3797,6 +3827,7 @@ mod tests {
             .unwrap()
             .id
             .clone();
+        seed_slot_archive(&server_dir, &slot_id, "Survival");
 
         // list
         let response = list(State(state.clone())).await;
@@ -3901,6 +3932,8 @@ mod tests {
         let source = create_slot("Source").await;
         let destination = create_slot("Destination").await;
         assert_ne!(source.id, destination.id);
+        seed_slot_archive(_dir.as_path(), &source.id, "Source");
+        seed_slot_archive(_dir.as_path(), &destination.id, "Destination");
 
         let response = replace(
             State(state.clone()),
@@ -3919,8 +3952,12 @@ mod tests {
         assert_eq!(slots.len(), 2, "no slot is created or removed by replace");
         let updated_destination = slots.iter().find(|s| s.id == destination.id).unwrap();
         let untouched_source = slots.iter().find(|s| s.id == source.id).unwrap();
+        let source_archive_size = std::fs::metadata(world_store::zip_path(&_dir, &source.id))
+            .unwrap()
+            .len() as i64;
         assert_eq!(
-            updated_destination.zip_size_bytes, source.zip_size_bytes,
+            updated_destination.zip_size_bytes,
+            Some(source_archive_size),
             "destination's content now matches the source's"
         );
         assert_eq!(
@@ -4144,7 +4181,6 @@ mod tests {
         .await;
         let created: WorldMutationResultDto = json_body(created).await;
         let slot_id = created.updated.unwrap().slots[0].id.clone();
-
         let response = activate(
             State(state.clone()),
             Extension(credential.clone()),
@@ -4433,7 +4469,7 @@ mod tests {
 
     #[tokio::test]
     async fn world_backup_routes_staged_export_download_round_trip_and_single_redemption() {
-        let (lifecycle, _dir) = state_with_active_server("staged-export");
+        let (lifecycle, server_dir) = state_with_active_server("staged-export");
         let state = WorldsRoutesState::new(lifecycle.clone());
         let credential = worlds_credential();
 
@@ -4449,6 +4485,7 @@ mod tests {
         .await;
         let created: WorldMutationResultDto = json_body(created).await;
         let slot_id = created.updated.unwrap().slots[0].id.clone();
+        seed_slot_archive(&server_dir, &slot_id, "Survival");
 
         let exported = export(
             State(state.clone()),
@@ -4727,21 +4764,7 @@ mod tests {
     #[tokio::test]
     async fn world_backup_routes_backup_now_and_delete_and_sole_verified_refusal() {
         let (lifecycle, _dir) = state_with_active_server("backup-delete");
-        let worlds_state = WorldsRoutesState::new(lifecycle.clone());
         let credential = worlds_credential();
-
-        // A real world archive must exist before a backup can be taken.
-        let created = create(
-            State(worlds_state.clone()),
-            Extension(credential.clone()),
-            Some(Json(WorldCreateRequestDto {
-                name: "Survival".to_string(),
-                seed: None,
-                ..Default::default()
-            })),
-        )
-        .await;
-        assert_eq!(created.status(), StatusCode::OK);
 
         let scheduler = test_backup_scheduler();
         let backups_state = BackupsRoutesState {

@@ -242,7 +242,8 @@ fn bedrock_slot_activation_preserves_flat_world_layout_transactionally() {
     make_bedrock_world(temp.path(), "Realm", b"old");
     let slot = archived_slot("OTHER", "Other");
     write_slot(temp.path(), &slot);
-    write_slot_archive(temp.path(), &slot.id, "Other", b"new");
+    let level_dat = msc_infrastructure::bedrock_nbt::new_level_dat(&Default::default()).unwrap();
+    write_slot_archive(temp.path(), &slot.id, "Other", &level_dat);
 
     let mut backup_called = false;
     worlds::activate_slot(
@@ -261,9 +262,10 @@ fn bedrock_slot_activation_preserves_flat_world_layout_transactionally() {
     .unwrap();
 
     assert!(backup_called, "live Bedrock data requires a safety backup");
-    assert_eq!(
-        fs::read(temp.path().join("worlds/Other/level.dat")).unwrap(),
-        b"new"
+    let installed = fs::read(temp.path().join("worlds/Other/level.dat")).unwrap();
+    assert!(
+        msc_domain::nbt::imported_world_metadata_from_level_dat(&installed, ServerType::Bedrock)
+            .parsed
     );
     assert!(!temp.path().join("worlds/Realm").exists());
     assert!(

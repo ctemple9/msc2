@@ -66,7 +66,14 @@ fn write_slot_archive_folders(server_dir: &Path, slot_id: &str, folders: &[(&str
     let opts = SimpleFileOptions::default();
     for (name, content) in folders {
         zip.start_file(format!("{name}/level.dat"), opts).unwrap();
-        zip.write_all(content).unwrap();
+        if content.starts_with(&[0x1f, 0x8b]) {
+            zip.write_all(content).unwrap();
+        } else {
+            let mut level_dat =
+                flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+            level_dat.write_all(&[10, 0, 0, 0]).unwrap();
+            zip.write_all(&level_dat.finish().unwrap()).unwrap();
+        }
     }
     zip.finish().unwrap();
 }
@@ -361,9 +368,12 @@ fn world_activation_mandatory_pre_activation_backup_runs_before_any_move() {
 
     assert!(backup_saw_untouched_live_folder.get());
     assert_eq!(updated.id, "slot-b");
-    assert_eq!(
-        fs::read(server_dir.join("world").join("level.dat")).unwrap(),
-        b"new world"
+    assert!(
+        msc_domain::nbt::imported_world_metadata_from_level_dat(
+            &fs::read(server_dir.join("world").join("level.dat")).unwrap(),
+            ServerType::Java,
+        )
+        .parsed
     );
 }
 
@@ -469,10 +479,11 @@ fn world_activation_legacy_zip_loose_worlds_root_relocated() {
     let file = fs::File::create(&zip_path).unwrap();
     let mut zip = ZipWriter::new(file);
     let opts = SimpleFileOptions::default();
+    let level_dat = msc_infrastructure::bedrock_nbt::new_level_dat(&Default::default()).unwrap();
     zip.start_file("worlds/db/dummy", opts).unwrap();
     zip.write_all(b"db bytes").unwrap();
     zip.start_file("worlds/level.dat", opts).unwrap();
-    zip.write_all(b"level dat bytes").unwrap();
+    zip.write_all(&level_dat).unwrap();
     zip.finish().unwrap();
 
     let updated = worlds::activate_slot(
@@ -534,6 +545,10 @@ fn world_activation_reconcile_prior_moved_restores_old_world() {
             .join(".activation")
             .join("manifest.json"),
         br#"{"slot_id":"slot-b","identity":{"level_name":"world","seed":null,"apply_seed":false}}"#,
+    );
+    write_file(
+        &server_dir.join("world_slots/.activation/swap.json"),
+        br#"{"phase":"installing","old":["world"],"new":["world"]}"#,
     );
     write_file(
         &server_dir
@@ -615,6 +630,10 @@ fn world_activation_reconcile_installed_finishes_committing_new_world() {
             .join("world")
             .join("level.dat"),
         b"old overworld, safely discardable",
+    );
+    write_file(
+        &server_dir.join("world_slots/.activation/swap.json"),
+        br#"{"phase":"committing","old":["world"],"new":["world"]}"#,
     );
 
     let outcome = worlds::reconcile_interrupted_activation(

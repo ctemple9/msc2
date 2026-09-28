@@ -580,8 +580,16 @@ fn provisioning_server_properties_exact_key_set_fresh_world() {
         keys,
         vec![
             "difficulty",
+            "enable-command-block",
             "gamemode",
+            "generate-structures",
+            "generator-settings",
+            "hardcore",
+            "initial-disabled-packs",
+            "initial-enabled-packs",
             "level-name",
+            "level-seed",
+            "level-type",
             "max-players",
             "motd",
             "online-mode",
@@ -595,7 +603,6 @@ fn provisioning_server_properties_exact_key_set_fresh_world() {
     assert_eq!(props["difficulty"], "hard");
     assert_eq!(props["gamemode"], "survival");
     assert_eq!(props["level-name"], "Fresh World Server");
-    assert!(!props.contains_key("level-seed"));
 }
 
 // ---------------------------------------------------------------------

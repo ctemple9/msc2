@@ -829,7 +829,7 @@ SLOT2_ID="$(slot_id_by_name "Slot 2")"
 run_msc world rename "${SLOT2_ID}" "Slot 2 Renamed" >/dev/null
 [[ "$(slot_id_by_name "Slot 2 Renamed")" == "${SLOT2_ID}" ]] || fail "rename did not stick"
 
-run_msc world duplicate "${SLOT2_ID}" >/dev/null
+run_msc world duplicate "${SLOT_IMPORTED_ID}" >/dev/null
 [[ "$(slot_count)" == "3" ]] || fail "expected 3 slots after duplicate, got $(slot_count)"
 DUP_ID="$(run_msc_json world list | python3 -c '
 import json, sys
@@ -842,7 +842,7 @@ print(extra[0])
 run_msc world copy --into "${DUP_ID}" --from "${SLOT_IMPORTED_ID}" >/dev/null
 [[ "$(slot_count)" == "3" ]] || fail "copy changed slot count unexpectedly"
 
-run_msc world export "${SLOT2_ID}" --output "${TMP_DIR}/exported.zip" >/dev/null
+run_msc world export "${SLOT_IMPORTED_ID}" --output "${TMP_DIR}/exported.zip" >/dev/null
 [[ -s "${TMP_DIR}/exported.zip" ]] || fail "world export produced an empty file"
 
 run_msc world import "${TMP_DIR}/exported.zip" "Imported Copy" >/dev/null

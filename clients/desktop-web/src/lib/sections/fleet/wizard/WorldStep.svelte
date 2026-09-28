@@ -129,7 +129,9 @@
     staging = true;
     stageError = undefined;
     try {
-      const picked = await (await getPlatform()).pickFileStream({
+      const picked = await (
+        await getPlatform()
+      ).pickFileStream({
         label: 'Choose a world backup ZIP',
         extensions: ['zip'],
       });
@@ -167,7 +169,6 @@
 </script>
 
 <div class="world">
-
   <div class="intro">
     <h2>What should the first world be?</h2>
     <p>Start with a brand new world, or bring in one from a backup.</p>

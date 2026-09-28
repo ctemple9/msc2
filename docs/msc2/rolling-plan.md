@@ -276,7 +276,7 @@ Batch: solo
 
 #### P16.29 — Record exact-artifact release acceptance
 
-Status: implementation scaffolded — awaiting post-P16.28 release publication and Cameron's physical verification
+Status: implementation scaffolded — release CI remediation in progress; no post-P16.28 candidate published
 Files: docs/msc2/release/phase16-acceptance.md, tools/release/check-phase16-evidence.py, docs/msc2/rolling-plan.md
 What: Assemble evidence for every Phase 16 gate item and every supported installer/archive using exact newly published bytes: install, desktop/CLI pairing and supported clients, Minecraft lifecycle, world import/backup/restore and interruption recovery, service reboot/sign-out, update rollback, permission and revocation, uninstall/data retention, artifact identity, CI/provenance, and Linux minimum. Record that the new agents do not serve a browser page or accept browser sessions, and that the exact-tag CI and release workflows no longer require browser-only jobs while retaining native desktop and headless checks. Mark unavailable or failed checks honestly; do not close the phase while any required row lacks Cameron's result. The reviewer for this phase must be the other agent, per repository rules.
 Verify: Run `python3 tools/release/check-phase16-evidence.py docs/msc2/release/phase16-acceptance.md` and confirm it accepts only complete gate rows with exact artifacts and Cameron's observed results.

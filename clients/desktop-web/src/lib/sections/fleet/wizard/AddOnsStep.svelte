@@ -117,7 +117,9 @@
     stageError = undefined;
     let picked: FileChunkSource | null = null;
     try {
-      picked = await (await getPlatform()).pickFileStream({
+      picked = await (
+        await getPlatform()
+      ).pickFileStream({
         label: 'Choose a modpack archive',
         extensions: ['mrpack', 'zip'],
       });
@@ -162,7 +164,9 @@
     stagingJar = true;
     stageError = undefined;
     try {
-      const picked = await (await getPlatform()).pickFile({
+      const picked = await (
+        await getPlatform()
+      ).pickFile({
         label: `Choose a ${itemNoun} .jar`,
         extensions: ['jar'],
       });
@@ -207,7 +211,6 @@
 </script>
 
 <div class="addons" use:onboardingAnchor={'ob_wizard_sheet'}>
-
   {#if addOnKind}
     <div class="header-row">
       <div class="intro">

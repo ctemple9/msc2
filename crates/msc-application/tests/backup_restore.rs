@@ -295,9 +295,8 @@ fn backup_restore_interrupted_extraction_leaves_world_untouched() {
     let backup_zip = server_dir.join("backups").join("restore-source.zip");
     write_backup_zip(&backup_zip, "world", b"restored-content");
 
-    // Pre-create the staging directory read-only so `extract_zip`'s own
-    // write phase fails partway through, after `validate_archive_safety`
-    // already passed.
+    // A leftover restore transaction must be treated as repair evidence.
+    // The restore must refuse before it writes or removes anything in it.
     let staged_dir = server_dir
         .join("world_slots")
         .join(".restore")
@@ -315,15 +314,16 @@ fn backup_restore_interrupted_extraction_leaves_world_untouched() {
 
     assert!(matches!(
         result,
-        Err(RestoreError::Archive(_)) | Err(RestoreError::Io(_))
+        Err(RestoreError::Io(error))
+            if error.to_string().contains("previous transaction is still present")
     ));
-    // The live world is completely intact -- never even moved aside,
-    // since staging (phase 1) failed before phase 2 starts.
+    // The live world is intact, and the transaction remains available for
+    // explicit recovery instead of being silently deleted.
     assert_eq!(
         fs::read(server_dir.join("world").join("level.dat")).unwrap(),
         b"pre-restore-content"
     );
-    assert!(!server_dir.join("world_slots").join(".restore").exists());
+    assert!(server_dir.join("world_slots").join(".restore").exists());
 }
 
 // ---------------------------------------------------------------------
@@ -380,6 +380,11 @@ fn backup_restore_reconcile_prior_moved_recovers_to_old_world() {
     let prior = dir.join("prior").join("world");
     fs::create_dir_all(&prior).unwrap();
     fs::write(prior.join("level.dat"), b"prior-content").unwrap();
+    fs::write(
+        dir.join("swap.json"),
+        br#"{"phase":"installing","old":["world"],"new":["world"]}"#,
+    )
+    .unwrap();
 
     let outcome = backups::reconcile_interrupted_restore(&StdFileSystem, server_dir)
         .unwrap()
@@ -405,6 +410,11 @@ fn backup_restore_reconcile_installed_recovers_to_restored_world() {
         .join("world");
     fs::create_dir_all(&prior).unwrap();
     fs::write(prior.join("level.dat"), b"prior-content").unwrap();
+    fs::write(
+        restore_transaction_dir(server_dir).join("swap.json"),
+        br#"{"phase":"committing","old":["world"],"new":["world"]}"#,
+    )
+    .unwrap();
 
     let outcome = backups::reconcile_interrupted_restore(&StdFileSystem, server_dir)
         .unwrap()

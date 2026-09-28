@@ -965,7 +965,6 @@
   function openAgentSetup(): void {
     void selectSection('agent-setup');
   }
-
 </script>
 
 <svelte:head>

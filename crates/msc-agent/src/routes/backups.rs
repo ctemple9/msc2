@@ -563,10 +563,9 @@ mod tests {
     use crate::auth::CredentialRole;
     use crate::backup_scheduler::{BackupScheduler, SchedulerBackend};
     use crate::routes::operations::OperationsState;
-    use crate::routes::worlds::{self, WorldsRoutesState};
     use crate::ws::console::ConsoleState;
     use axum::extract::{Extension, State};
-    use msc_api::dto::{PermissionCategoryDto, WorldCreateRequestDto, WorldMutationResultDto};
+    use msc_api::dto::PermissionCategoryDto;
     use msc_domain::app_config_schema::ConfigServer;
     use std::path::PathBuf;
     use uuid::Uuid;
@@ -659,19 +658,7 @@ mod tests {
             .select_active_server("java-1".to_string())
             .unwrap();
 
-        let worlds_state = WorldsRoutesState::new(lifecycle.clone());
         let credential = worlds_credential();
-        let created = worlds::create(
-            State(worlds_state),
-            Extension(credential.clone()),
-            Some(Json(WorldCreateRequestDto {
-                name: "Survival".to_string(),
-                seed: None,
-                ..Default::default()
-            })),
-        )
-        .await;
-        let _created: WorldMutationResultDto = json_body(created).await;
 
         let scheduler = test_backup_scheduler();
         let backups_state = BackupsRoutesState {

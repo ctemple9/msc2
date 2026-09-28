@@ -35,7 +35,9 @@
     if (!api?.uploadFile || picking) return;
     picking = true;
     try {
-      const picked = await (await getPlatform()).pickFileStream({
+      const picked = await (
+        await getPlatform()
+      ).pickFileStream({
         label: 'Choose a world ZIP',
         extensions: ['zip'],
       });

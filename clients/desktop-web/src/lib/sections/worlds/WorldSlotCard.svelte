@@ -106,7 +106,9 @@
 
   async function setThumbnail(): Promise<void> {
     if (!api?.upload) return;
-    const picked = await (await getPlatform()).pickFile({
+    const picked = await (
+      await getPlatform()
+    ).pickFile({
       label: 'Choose an image',
       extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'],
     });
@@ -124,7 +126,6 @@
       thumbnailBusy = false;
     }
   }
-
 </script>
 
 <Card padding="0">

@@ -61,8 +61,7 @@
   ): Promise<void> {
     if (!api?.upload) return;
     const picked =
-      supplied ??
-      (await (await getPlatform()).pickFile({ label: `Choose ${entry.fileName}` }));
+      supplied ?? (await (await getPlatform()).pickFile({ label: `Choose ${entry.fileName}` }));
     if (!picked) return;
     staging = new Set(staging).add(entry.fileId);
     const nextErrors = { ...errorByFile };

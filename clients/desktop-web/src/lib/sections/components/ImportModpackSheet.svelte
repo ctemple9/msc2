@@ -57,7 +57,9 @@
   async function chooseAndStage(): Promise<void> {
     if (!api?.uploadFile) return;
     try {
-      const picked = await (await getPlatform()).pickFileStream({
+      const picked = await (
+        await getPlatform()
+      ).pickFileStream({
         label: 'Choose a modpack archive',
         extensions: ['mrpack', 'zip'],
       });

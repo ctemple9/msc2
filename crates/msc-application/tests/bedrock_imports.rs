@@ -7,6 +7,7 @@ use msc_domain::app_config_schema::ConfigServer;
 use msc_domain::identity::ServerType;
 use msc_domain::world_profile::WorldProfile;
 use msc_infrastructure::fs::StdFileSystem;
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -134,7 +135,7 @@ fn fresh_bedrock_creation_writes_native_config_and_active_slot_transactionally()
     assert_eq!(created.world_slot.name, "New Realm");
     assert_eq!(
         fs::read_to_string(server_dir.join("server.properties")).unwrap(),
-        "# Modified via MSC 2\nallow-cheats=false\ndifficulty=easy\ngamemode=survival\nlevel-name=New Realm\nlevel-seed=12345\nmax-players=20\nonline-mode=true\nserver-name=Survival Realm\nserver-port=19132\nserver-portv6=19133\n"
+        "# Modified via MSC 2\nallow-cheats=false\ndifficulty=easy\ngamemode=survival\nlevel-name=New Realm\nlevel-seed=12345\nmax-players=20\nonline-mode=true\nserver-name=Survival Realm\nserver-port=19132\nserver-portv6=19133\ntexturepack-required=false\n"
     );
     assert_eq!(
         fs::read_to_string(server_dir.join("allowlist.json")).unwrap(),
@@ -204,7 +205,11 @@ fn existing_bedrock_world_wrapper_is_unwrapped_and_archived() {
     let source = temp.path().join("export");
     let world = source.join("Realm");
     fs::create_dir_all(world.join("db")).unwrap();
-    fs::write(world.join("level.dat"), b"not an NBT file").unwrap();
+    fs::write(
+        world.join("level.dat"),
+        msc_infrastructure::bedrock_nbt::new_level_dat(&BTreeMap::new()).unwrap(),
+    )
+    .unwrap();
     fs::write(world.join("db/chunk"), b"chunk").unwrap();
 
     let request = BedrockCreateRequest {

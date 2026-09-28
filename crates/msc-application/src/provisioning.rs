@@ -2141,7 +2141,9 @@ pub fn create_bedrock_server(
         };
         let world_seed = if matches!(request.world_source, BedrockWorldSource::Fresh) {
             request
-                .world_seed
+                .initial_world_profile
+                .and_then(|profile| profile.identity.seed.as_deref())
+                .or(request.world_seed)
                 .map(str::trim)
                 .filter(|seed| !seed.is_empty())
                 .map(str::to_owned)

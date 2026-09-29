@@ -51,7 +51,6 @@ GATE_IDS = {
     "permission-revocation",
     "uninstall-data-retention",
     "artifact-identity",
-    "same-commit-ci",
     "release-provenance",
     "linux-minimum",
     "generated-api-and-frontend",
@@ -117,9 +116,8 @@ def check(path: Path) -> list[str]:
         "Published release URL",
         "Source commit (full SHA)",
         "Published at (UTC)",
-        "Successful full CI run for this tag commit (run ID and URL)",
         "Published SHA256SUMS verification",
-        "Signed update manifest and provenance verification",
+        "Signed update manifest verification",
     )
     for field in required_identity:
         value = identity.get(field, "")
@@ -141,13 +139,10 @@ def check(path: Path) -> list[str]:
     published_at = identity.get("Published at (UTC)", "")
     if not is_pending(published_at) and not UTC_TIMESTAMP.fullmatch(published_at):
         errors.append("published time must use YYYY-MM-DDTHH:MM:SSZ")
-    ci_run = identity.get("Successful full CI run for this tag commit (run ID and URL)", "")
-    if not is_pending(ci_run) and (not re.search(r"\b\d{6,}\b", ci_run) or "https://" not in ci_run):
-        errors.append("same-commit CI evidence must include a run ID and HTTPS URL")
     if identity.get("Published SHA256SUMS verification") not in {"PASS", "PENDING"}:
         errors.append("published SHA256SUMS verification must be exactly PASS")
-    if identity.get("Signed update manifest and provenance verification") not in {"PASS", "PENDING"}:
-        errors.append("signed manifest and provenance verification must be exactly PASS")
+    if identity.get("Signed update manifest verification") not in {"PASS", "PENDING"}:
+        errors.append("signed manifest verification must be exactly PASS")
 
     _, artifact_rows = table_after(document, "Exact published artifacts")
     by_id: dict[str, dict[str, str]] = {}

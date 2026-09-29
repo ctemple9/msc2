@@ -11,7 +11,7 @@ browser-client retirement and P16.27, so it is historical and cannot serve as
 the Phase 16 acceptance candidate. See the [v0.1.16 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.16).
 
 The next release must be published from a commit containing P16.27 and P16.28.
-The candidate tag, source commit, exact asset names and digests, CI run, and
+The candidate tag, source commit, exact asset names and digests, and
 all physical observations below must come from that published release. Do not
 copy results from v0.1.16, a local build, or an earlier phase record.
 
@@ -23,9 +23,8 @@ copy results from v0.1.16, a local build, or an earlier phase record.
 | Published release URL | PENDING |
 | Source commit (full SHA) | PENDING |
 | Published at (UTC) | PENDING |
-| Successful full CI run for this tag commit (run ID and URL) | PENDING |
 | Published SHA256SUMS verification | PENDING |
-| Signed update manifest and provenance verification | PENDING |
+| Signed update manifest verification | PENDING |
 
 ## Exact published artifacts
 
@@ -76,8 +75,7 @@ artifact to which the observation applies.
 | permission-revocation | Scoped permissions deny disallowed actions and revocation ends access | PENDING | UNAVAILABLE | — | — | No candidate published |
 | uninstall-data-retention | Uninstall removes owned application/service files and preserves managed data | PENDING | UNAVAILABLE | — | — | No candidate published |
 | artifact-identity | Installer/archive identities, embedded agent versions, and published digests match | PENDING | UNAVAILABLE | — | — | No candidate published |
-| same-commit-ci | Exact-tag publication requires successful full CI on the same source commit | PENDING | UNAVAILABLE | — | — | No candidate published |
-| release-provenance | Published artifacts have verified checksum, signed manifest, and source/toolchain provenance | PENDING | UNAVAILABLE | — | — | No candidate published |
+| release-provenance | Published artifacts have verified checksums and a signed manifest tied to the candidate tag | PENDING | UNAVAILABLE | — | — | No candidate published |
 | linux-minimum | Exact Linux desktop and headless artifacts install and launch on the declared minimum | PENDING | UNAVAILABLE | — | — | No candidate published |
 | generated-api-and-frontend | Generated API types and desktop frontend static checks pass at the candidate commit | PENDING | UNAVAILABLE | — | — | No candidate published |
 | public-documents | License, security contact, and support claims match approved current scope | PENDING | UNAVAILABLE | — | — | No candidate published |

@@ -1,6 +1,6 @@
 # MSC 2 — Decision Register
 
-**Revision:** 1.23 · **Date:** 2026-09-28
+**Revision:** 1.24 · **Date:** 2026-09-28
 **Owner:** Cameron Temple
 
 **Purpose:** the authoritative record of *what was decided, by whom, and why*. The product and engineering documents describe the destination; this document explains how it was chosen, what was rejected, and when a decision should be reopened.
@@ -66,6 +66,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 | D-036 | Operational refinement contracts | Proposed | — |
 | D-037 | License for MSC 2 original code | **Approved** | 2026-09-28 |
 | D-038 | Retire the served browser client | **Approved** | 2026-09-28 |
+| D-039 | Archive automated CI and keep beta publication build-only | **Approved** | 2026-09-28 |
 
 ---
 
@@ -1232,6 +1233,35 @@ decision.
 
 ---
 
+## D-039 — Archive automated CI and keep beta publication build-only
+
+**Status:** **Approved** · **Origin:** Owner instruction after failed P16.29 release attempts ·
+**Approved by:** Cameron Temple · **Date:** 2026-09-28
+
+**Decision.** Remove the active CI workflow and archive its definition and the
+previous beta release workflow. The active beta release builds the supported
+desktop installers and headless archives, checks that all nine expected assets
+are present, writes checksums, signs the update manifest, and publishes a
+GitHub prerelease. It runs no automated test suite, lint gate, smoke gate,
+Linux install exercise, or same-commit CI waiter. Keep existing test source and
+archived workflow definitions in the repository for optional manual use.
+
+**Reason.** The full CI dependency repeatedly delayed packaging feedback and
+made small workflow failures require another complete release cycle. The owner
+chose a short publishing path and will record exact-artifact verification
+separately. A successful release build establishes that artifacts were
+produced; it does not close the Phase 16 acceptance gate.
+
+**Consequences.** This supersedes the same-commit CI publication requirement
+in the Phase 16 plan and P16.16, and the automatic headless GUI-link check
+described in D-021. Manual exact-artifact acceptance and signed update
+metadata remain required to close Phase 16. Historical CI and release evidence
+remains as a record of earlier attempts.
+
+**Revisit if:** Cameron requests automated verification for publication again.
+
+---
+
 ## Appendix A — corrections made during planning
 
 Recorded because each produced a confident wrong answer, and each is the kind of mistake likely to recur.
@@ -1261,6 +1291,7 @@ Recorded because each produced a confident wrong answer, and each is the kind of
 | 1.21 | 2026-09-23 | Amended D-007 and D-025 with Cameron's approved macOS Bedrock boundary: the installing-user agent controls a narrowly scoped root VZ/relay helper over authenticated local IPC. |
 | 1.22 | 2026-09-28 | Recorded D-037: Cameron selected Apache-2.0 for MSC 2 original code, with third-party runtime materials remaining under their own terms. |
 | 1.23 | 2026-09-28 | Added D-038: retired the served browser client; narrowed D-003, D-010, D-012, D-023, and D-026 to the supported desktop and CLI clients. |
+| 1.24 | 2026-09-28 | Added D-039: archived CI and narrowed beta publication to builds, asset completeness, checksums, and signed metadata. |
 | 1.20 | 2026-09-21 | Recorded Cameron's approval of D-030's world-profile ownership boundary. |
 | 1.19 | 2026-09-21 | Recorded the proposed Phase 15 world-pack and modpack-identity contract and its D-030 approval gate. |
 | 1.18 | 2026-09-11 | Simplified the guided SSH trust flow: first connection remembers the remote identity without displaying its fingerprint; changed identities remain blocked until explicitly trusted, without showing key values. |

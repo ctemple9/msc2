@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: beta-release-${{ github.ref }}
@@ -57,6 +58,11 @@ jobs:
       - name: Check out source
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
+      - name: Validate release and update gate
+        run: |
+          python3 tools/release/check-release-workflow.py .github/workflows/release.yml --expect-publish-guard
+          python3 tools/release/check-update-gate.py
+
       - name: Install Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -69,6 +75,13 @@ jobs:
         with:
           toolchain: ${{ matrix.toolchain }}
           targets: ${{ matrix.rust-target }}
+          components: rustfmt, clippy
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@82cd3e7658a6f96c86c0234aeeda1748937cb0a1 # v2.85.13
+        with:
+          tool: cargo-nextest@0.9.143
+          fallback: none
 
       - name: Install Linux Tauri dependencies
         if: matrix.platform == 'linux-x86_64'
@@ -76,11 +89,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes \
             build-essential \
+            file \
             libappindicator3-dev \
             librsvg2-dev \
             libwebkit2gtk-4.1-dev \
             patchelf \
-            rpm
+            rpm \
+            cpio \
+            binutils
 
       - name: Install shared client dependencies
         working-directory: clients/desktop-web
@@ -90,6 +106,7 @@ jobs:
         working-directory: clients/desktop-web
         run: |
           npm run build
+          npm run bundle:identity
 
       - name: Resolve and validate release identity
         shell: bash
@@ -117,6 +134,27 @@ jobs:
 
           echo "RELEASE_VERSION=$agent_version" >> "$GITHUB_ENV"
           echo "release version: $agent_version"
+
+      - name: Run targeted client checks
+        working-directory: clients/desktop-web
+        run: |
+          npm run api:check
+          npm run check
+          npm run test:contract
+          npm run test:auth-desktop
+          npm run test:tauri-boundary
+          npm run test:fedora-regressions
+
+      - name: Run targeted agent checks
+        run: |
+          cargo fmt --all -- --check
+          cargo --locked clippy -p msc-agent --bin msc --target "${{ matrix.rust-target }}" -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format
+      - name: Run Linux Fedora regression tests
+        if: matrix.platform == 'linux-x86_64'
+        run: |
+          cargo --locked test -p msc-agent --bin msc routes::components::staged_upload_tests::chunked_modpack_upload_requires_order_and_completes_with_verified_size -- --exact
+          cargo --locked test -p msc-agent --bin msc routes::components::staged_upload_tests::world_import_chunks_can_be_cancelled_and_removed_idempotently -- --exact
+          cargo --locked test -p msc-agent --bin msc cli::update::tests::authorized_update_waits_for_authorizer_and_reports_cancellation -- --exact
 
       - name: Build release agent and CLI
         run: cargo --locked build --release --target "${{ matrix.rust-target }}" -p msc-agent
@@ -180,6 +218,51 @@ jobs:
             cp "$installer" "target/release-artifacts/msc2-${RELEASE_VERSION}-${{ matrix.platform }}.${{ matrix.installer-extension }}"
           fi
 
+      - name: Record Linux artifact glibc requirements and headless links
+        if: matrix.platform == 'linux-x86_64'
+        run: |
+          python3 tools/release/check-linux-artifacts.py \
+            --headless-archive "target/release-artifacts/msc2-headless-${RELEASE_VERSION}-linux-x86_64.tar.gz" \
+            --desktop-deb "target/release-artifacts/msc2-${RELEASE_VERSION}-linux-x86_64.deb" \
+            --desktop-rpm "target/release-artifacts/msc2-${RELEASE_VERSION}-linux-x86_64.rpm" \
+            --max-glibc 2.36 \
+            --report target/release-artifacts/linux-abi-report.json
+
+      - name: Install and launch exact Linux artifacts on Debian 12
+        if: matrix.platform == 'linux-x86_64'
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE/target/release-artifacts:/artifacts:ro" \
+            -e RELEASE_VERSION="$RELEASE_VERSION" \
+            debian:12-slim bash -euc '
+              apt-get update
+              apt-get install --yes "/artifacts/msc2-${RELEASE_VERSION}-linux-x86_64.deb"
+              agent="$(find /usr/lib -type f -path "*/agent/msc" -print -quit)"
+              test -n "$agent"
+              "$agent" --help >/dev/null
+              mkdir -p /opt/msc2-headless /usr/local/bin
+              tar -xzf "/artifacts/msc2-headless-${RELEASE_VERSION}-linux-x86_64.tar.gz" -C /opt/msc2-headless
+              install -m 0755 /opt/msc2-headless/msc /usr/local/bin/msc
+              msc --help >/dev/null
+            '
+
+      - name: Install and launch exact Linux artifacts on Fedora 44
+        if: matrix.platform == 'linux-x86_64'
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE/target/release-artifacts:/artifacts:ro" \
+            -e RELEASE_VERSION="$RELEASE_VERSION" \
+            fedora:44 bash -euc '
+              dnf install --assumeyes "/artifacts/msc2-${RELEASE_VERSION}-linux-x86_64.rpm"
+              agent="$(find /usr/lib -type f -path "*/agent/msc" -print -quit)"
+              test -n "$agent"
+              "$agent" --help >/dev/null
+              mkdir -p /opt/msc2-headless /usr/local/bin
+              tar -xzf "/artifacts/msc2-headless-${RELEASE_VERSION}-linux-x86_64.tar.gz" -C /opt/msc2-headless
+              install -m 0755 /opt/msc2-headless/msc /usr/local/bin/msc
+              msc --help >/dev/null
+            '
+
       - name: Record unsigned beta evidence
         shell: bash
         run: |
@@ -196,6 +279,11 @@ jobs:
           checksum before opening or installing it.
           EOF
 
+      - name: Record release builder environment
+        env:
+          RELEASE_PLATFORM: ${{ matrix.platform }}
+        run: node tools/release/record-builder-environment.mjs target/release-artifacts/BUILD-ENVIRONMENT.json
+
       - name: Upload platform-labeled beta artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -203,16 +291,42 @@ jobs:
           path: target/release-artifacts
           if-no-files-found: error
 
+  ci-evidence:
+    name: Require same-commit full CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      run_id: ${{ steps.require-ci.outputs.run_id }}
+      run_attempt: ${{ steps.require-ci.outputs.run_attempt }}
+      html_url: ${{ steps.require-ci.outputs.html_url }}
+      head_sha: ${{ steps.require-ci.outputs.head_sha }}
+    steps:
+      - name: Check out the release commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Wait for successful full CI on this tag commit
+        id: require-ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python3 tools/release/require-ci-run.py --output "$GITHUB_OUTPUT"
+
   publish:
     name: Publish ${{ github.ref_name }}
     if: >-
       needs.build.result == 'success' &&
+      needs.ci-evidence.result == 'success' &&
       startsWith(github.ref, 'refs/tags/v') &&
       (
         github.event_name == 'push' ||
         (github.event_name == 'workflow_dispatch' && inputs.publish == true)
       )
-    needs: [build]
+    needs: [build, ci-evidence]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -220,6 +334,16 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install provenance toolchains
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.23.1'
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
+        with:
+          toolchain: 1.97.1
 
       - name: Download successful platform artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -253,10 +377,64 @@ jobs:
               -name '*.zip' \
             \) -print0
           )
+          python3 - <<'PY'
+          import json
+          import shutil
+          from pathlib import Path
+
+          assets = Path("target/release-assets")
+          sources = sorted(Path("target/release-downloads").rglob("BUILD-ENVIRONMENT.json"))
+          if len(sources) != 4:
+              raise SystemExit(f"expected four release builder records, found {len(sources)}")
+          for source in sources:
+              record = json.loads(source.read_text(encoding="utf-8"))
+              platform = record.get("platform")
+              if not isinstance(platform, str) or not platform:
+                  raise SystemExit(f"missing platform in {source}")
+              destination = assets / f"BUILD-ENVIRONMENT-{platform}.json"
+              if destination.exists():
+                  raise SystemExit(f"duplicate release builder record: {platform}")
+              shutil.copyfile(source, destination)
+          PY
           test "$asset_count" -eq 9 || {
             echo "expected nine desktop/headless release assets, found $asset_count" >&2
             exit 1
           }
+
+      - name: Record same-commit CI and release run IDs
+        env:
+          CI_RUN_ID: ${{ needs.ci-evidence.outputs.run_id }}
+          CI_RUN_ATTEMPT: ${{ needs.ci-evidence.outputs.run_attempt }}
+          CI_RUN_URL: ${{ needs.ci-evidence.outputs.html_url }}
+          CI_RUN_SHA: ${{ needs.ci-evidence.outputs.head_sha }}
+        run: |
+          set -Eeuo pipefail
+          test "$CI_RUN_SHA" = "$GITHUB_SHA"
+          python3 - "$CI_RUN_ID" "$CI_RUN_ATTEMPT" "$CI_RUN_URL" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          evidence = {
+              "source_commit": os.environ["GITHUB_SHA"],
+              "release_tag": os.environ["GITHUB_REF_NAME"],
+              "release_workflow": {
+                  "run_id": int(os.environ["GITHUB_RUN_ID"]),
+                  "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+                  "url": f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
+              },
+              "ci_workflow": {
+                  "run_id": int(sys.argv[1]),
+                  "run_attempt": int(sys.argv[2]),
+                  "url": sys.argv[3],
+                  "head_sha": os.environ["GITHUB_SHA"],
+              },
+          }
+          Path("target/release-assets/CI-EVIDENCE.json").write_text(
+              json.dumps(evidence, indent=2) + "\n", encoding="utf-8"
+          )
+          PY
 
       - name: Generate and verify SHA-256 manifest
         run: |
@@ -284,6 +462,8 @@ jobs:
 
           This release includes the signed manifest and detached Ed25519
           signature required for native in-app installation.
+          Same-commit CI and release workflow run IDs are attached in
+          CI-EVIDENCE.json.
           Release ID: ${release_version}
           EOF
 
@@ -319,6 +499,14 @@ jobs:
           test -s "$manifest"
           test -s "$signature"
           echo "signed update metadata prepared"
+
+      - name: Generate and verify dependency inventory and provenance
+        run: |
+          python3 tools/release/check-provenance.py \
+            --manifest target/release-assets/msc2-update-manifest.json \
+            --write
+          python3 tools/release/check-provenance.py \
+            --manifest target/release-assets/msc2-update-manifest.json
 
       - name: Publish GitHub prerelease
         uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2

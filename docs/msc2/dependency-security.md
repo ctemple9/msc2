@@ -11,8 +11,8 @@
 
 ## Immutable workflow references
 
-Release and required CI workflows pin third-party GitHub Actions to full commit SHAs. Update a pin only through a reviewed change that records the upstream version beside the SHA. Rust, Node.js, and cargo-nextest versions are pinned in workflow configuration; the release provenance record captures the actual Rust, Cargo, Node.js, and npm versions used by its metadata job.
+The release workflow pins third-party GitHub Actions to full commit SHAs. Update a pin only through a reviewed change that records the upstream version beside the SHA. Rust and Node.js versions are pinned in workflow configuration. The former CI and provenance workflow is archived under D-039.
 
 ## Release records
 
-Each release carries `DEPENDENCY-INVENTORY.json`, generated from the two lockfiles and the signed update manifest's component map, one `BUILD-ENVIRONMENT-<platform>.json` record per release platform, and `RELEASE-PROVENANCE.json`. The provenance record joins the source commit and tag to actual runner image versions and tool versions, manifest and lockfile digests, and staged artifact digests. `tools/release/check-provenance.py` checks that the records agree with the checked-out source, signed-manifest contents, and staged bytes. The update manifest signature remains the authenticity check for installable assets; provenance metadata and dependency scans are review evidence, not a substitute for signature verification or a security audit.
+The active beta release publishes nine platform assets, `SHA256SUMS`, and an Ed25519-signed update manifest. The manifest records release ID, tag, asset sizes, and digests; the signature is the authenticity check for installable assets. Dependency inventory, builder-environment, and extended provenance generation were removed from automatic publication by D-039. The former checker is preserved at `tools/release/archive/check-provenance.py` for historical reference; it expects the old CI evidence format and is not wired into the active workflow.

@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 16 execution is underway. Cameron reports P16.1–P16.28 verified; P16.29 remains open. Exact-tag CI passed on 3287ec72; corrected Windows builder metadata/upload passed, but Linux RPM inspection failed because rpm2cpio silently rejected the generated RPM. Full CI on the rpm2archive correction then exposed a macOS Phase 7 smoke cleanup race after its assertions passed; release publication remains skipped. The RPM inspector and smoke cleanup are being corrected. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
-> **Next move:** Pass full CI with the rpm2archive and smoke-cleanup corrections, move the unpublished v0.1.17 tag to that exact commit, and rerun release. Then Cameron records exact-artifact physical results for P16.29. Phase 16 remains in progress until its full exit gate is satisfied and reviewed.
+> ## STATUS: Phase 16 execution is underway. Cameron reports P16.1–P16.28 verified; P16.29 remains open. The v0.1.17 tag points to an unpublished failed candidate. D-039 archives automated CI and makes beta publication build-only; P16.30 implements that change and awaits Cameron's verification. Exact-artifact physical acceptance remains pending.
+> **Next move:** Cameron verifies P16.30. A later release tag can use the simplified workflow, after which Cameron records exact-artifact results for P16.29. Phase 16 remains in progress until its full exit gate is satisfied and reviewed.
 
 ## How this document works
 
@@ -276,10 +276,18 @@ Batch: solo
 
 #### P16.29 — Record exact-artifact release acceptance
 
-Status: implementation scaffolded — exact-tag CI passed for 3287ec72; corrected Windows metadata capture passed, but Linux rpm2cpio rejected the generated RPM with exit 1 and no diagnostic; subsequent full CI exposed a Phase 7 smoke cleanup race on macOS after all assertions passed; corrections and publication pending; physical acceptance remains open
+Status: implementation scaffolded — publication and physical acceptance remain open; same-commit CI publication requirement superseded by D-039
 Files: docs/msc2/release/phase16-acceptance.md, tools/release/check-phase16-evidence.py, tools/release/check-linux-artifacts.py, tools/release/record-builder-environment.mjs, tools/phase7/phase7-gate-smoke.sh, docs/msc2/rolling-plan.md, .github/workflows/release.yml, crates/msc-agent/Cargo.toml, Cargo.lock, clients/desktop-web/package.json, clients/desktop-web/package-lock.json, clients/desktop-web/src/lib/bundle-identity.ts, clients/desktop-web/src/lib/bundle-identity.test.ts, clients/desktop-web/src-tauri/tauri.conf.json, clients/desktop-web/src-tauri/Cargo.toml, clients/desktop-web/src-tauri/Cargo.lock, README.md, docs/msc2/clients/headless-installation.md
-What: Assemble evidence for every Phase 16 gate item and every supported installer/archive using exact newly published bytes: install, desktop/CLI pairing and supported clients, Minecraft lifecycle, world import/backup/restore and interruption recovery, service reboot/sign-out, update rollback, permission and revocation, uninstall/data retention, artifact identity, CI/provenance, and Linux minimum. Record that the new agents do not serve a browser page or accept browser sessions, and that the exact-tag CI and release workflows no longer require browser-only jobs while retaining native desktop and headless checks. Mark unavailable or failed checks honestly; do not close the phase while any required row lacks Cameron's result. The reviewer for this phase must be the other agent, per repository rules.
+What: Assemble evidence for every Phase 16 gate item and every supported installer/archive using exact newly published bytes: install, desktop/CLI pairing and supported clients, Minecraft lifecycle, world import/backup/restore and interruption recovery, service reboot/sign-out, update rollback, permission and revocation, uninstall/data retention, artifact identity, signed release metadata, and Linux minimum. Record that the new agents do not serve a browser page or accept browser sessions. Mark unavailable or failed checks honestly; do not close the phase while any required row lacks Cameron's result. The reviewer for this phase must be the other agent, per repository rules.
 Verify: Run `python3 tools/release/check-phase16-evidence.py docs/msc2/release/phase16-acceptance.md` and confirm it accepts only complete gate rows with exact artifacts and Cameron's observed results.
+Batch: solo
+
+#### P16.30 — Archive CI and simplify beta publication
+
+Status: Implemented — Cameron verification pending
+Files: .github/archive, .github/workflows/release.yml, tools/release/archive, docs/msc2/msc2-decisions.md, docs/msc2/msc2-port-plan.md, docs/msc2/dependency-security.md, docs/msc2/release/phase16-acceptance.md, tools/release/check-phase16-evidence.py, docs/msc2/rolling-plan.md
+What: Preserve the former CI and release workflows outside the active workflow directory. Keep existing test source available for optional manual use. Build and publish the nine beta artifacts without automated tests, lint, smoke checks, Linux installation exercises, or same-commit CI waiting. Retain version matching, asset completeness, SHA-256 sums, and signed update metadata. Record the owner-approved release-process change without marking Phase 16 complete.
+Verify: Run `git ls-files .github/workflows .github/archive` and confirm only `release.yml` is active, then inspect `.github/workflows/release.yml` for the build, nine-asset, checksum, signing, and publish steps.
 Batch: solo
 
 ## Public-release and codebase review — 2026-09-28

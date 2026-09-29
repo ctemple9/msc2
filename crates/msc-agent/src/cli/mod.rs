@@ -18,31 +18,34 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use axum::http::StatusCode;
 use clap::{Args, Subcommand};
 use msc_api::dto::{
-    AddonRemoveRequestDto, AddonRemoveResultDto, AddonUpdateResultDto, AddonsResponseDto,
-    BackupConfigResponseDto, BackupConfigUpdateRequestDto, BackupConfigUpdateResultDto,
-    BackupDeleteRequestDto, BackupNowResultDto, BackupRestoreRequestDto, BackupRestoreResultDto,
-    BackupsResponseDto, BedrockRuntimeStateDto, BroadcastAuthPromptDto, BroadcastAutoStartDto,
-    BroadcastCredentialsDto, BroadcastJarDownloadResultDto, BroadcastSimpleResultDto,
-    BroadcastStatusDto, CapabilitiesDto, CatalogInstallRequestDto, CatalogInstallResultDto,
-    CatalogSearchResponseDto, ClientExportResponseDto, CommandResultDto, ComponentUpdateRequestDto,
-    ConnectivityResponseDto, DuckDnsStatusResponseDto, DuckDnsUpdateRequestDto, ErrorDto,
-    HealthProblemsResponseDto, HealthRepairRequestDto, HealthRepairResultDto, HealthResponseDto,
-    JavaConfigResponseDto, JavaConfigSetRequestDto, JavaRuntimeInstallRequestDto,
-    JavaRuntimeInstallResultDto, JavaRuntimesResponseDto, ModpackImportRequestDto,
-    ModpackImportResultDto, ModpackInspectionRequestDto, ModpackInspectionResultDto,
-    ModpackManualFileRequestDto, ModpackManualFileResultDto, OperationDto, OperationStateDto,
-    PlayitActionResultDto, PlayitStatusDto, RemoteApiStatus, ResourcePackActivateRequestDto,
+    ActiveServerRequestDto, AddonRemoveRequestDto, AddonRemoveResultDto, AddonUpdateResultDto,
+    AddonsResponseDto, BackupConfigResponseDto, BackupConfigUpdateRequestDto,
+    BackupConfigUpdateResultDto, BackupDeleteRequestDto, BackupNowResultDto,
+    BackupRestoreRequestDto, BackupRestoreResultDto, BackupsResponseDto, BedrockRuntimeStateDto,
+    BroadcastAuthPromptDto, BroadcastAutoStartDto, BroadcastCredentialsDto,
+    BroadcastJarDownloadResultDto, BroadcastSimpleResultDto, BroadcastStatusDto, CapabilitiesDto,
+    CatalogInstallRequestDto, CatalogInstallResultDto, CatalogSearchResponseDto,
+    ClientExportResponseDto, CommandResultDto, ComponentUpdateRequestDto, ConnectivityResponseDto,
+    DuckDnsStatusResponseDto, DuckDnsUpdateRequestDto, ErrorDto, HealthProblemsResponseDto,
+    HealthRepairRequestDto, HealthRepairResultDto, HealthResponseDto, JavaConfigResponseDto,
+    JavaConfigSetRequestDto, JavaRuntimeInstallRequestDto, JavaRuntimeInstallResultDto,
+    JavaRuntimesResponseDto, ModpackImportRequestDto, ModpackImportResultDto,
+    ModpackInspectionRequestDto, ModpackInspectionResultDto, ModpackManualFileRequestDto,
+    ModpackManualFileResultDto, OperationDto, OperationStateDto, PlayitActionResultDto,
+    PlayitStatusDto, RemoteApiStatus, ResourcePackActivateRequestDto,
     ResourcePackMutationResultDto, ResourcePacksResponseDto, ServerCreateRequestDto,
-    ServerCreateResultDto, ServerDeleteRequestDto, ServerDeleteResultDto, ServerDto,
-    ServerEulaRequestDto, ServerEulaResultDto, ServerImportRequestDto, ServerImportResultDto,
-    ServerImportScanResponseDto, ServerRenameRequestDto, ServerRenameResultDto,
-    SettingsResponseDto, SettingsUpdateResultDto, SimpleResultDto, StagedUploadBeginRequestDto,
-    StagedUploadBeginResultDto, StagedUploadCompleteResultDto, StagedUploadPurposeDto,
-    VersionChangeRequestDto, VersionChangeResultDto, VersionsResponseDto, WorldActivateResultDto,
-    WorldConvertRequestDto, WorldConvertResultDto, WorldCreateRequestDto, WorldDeleteRequestDto,
-    WorldDuplicateRequestDto, WorldExportRequestDto, WorldExportResultDto, WorldImportRequestDto,
-    WorldMutationResultDto, WorldRenameRequestDto, WorldReplaceActiveRequestDto,
-    WorldReplaceActiveResultDto, WorldReplaceRequestDto, WorldSlotDto, WorldSlotsResponseDto,
+    ServerCreateResultDto, ServerDeleteRequestDto, ServerDeleteResultDto,
+    ServerDirectorySizeResponseDto, ServerDto, ServerEulaRequestDto, ServerEulaResultDto,
+    ServerImportRequestDto, ServerImportResultDto, ServerImportScanResponseDto,
+    ServerNotesRequestDto, ServerNotesResultDto, ServerRenameRequestDto, ServerRenameResultDto,
+    ServerTransferExportResultDto, SettingsResponseDto, SettingsUpdateResultDto, SimpleResultDto,
+    StagedUploadBeginRequestDto, StagedUploadBeginResultDto, StagedUploadCompleteResultDto,
+    StagedUploadPurposeDto, VersionChangeRequestDto, VersionChangeResultDto, VersionsResponseDto,
+    WorldActivateResultDto, WorldConvertRequestDto, WorldConvertResultDto, WorldCreateRequestDto,
+    WorldDeleteRequestDto, WorldDuplicateRequestDto, WorldExportRequestDto, WorldExportResultDto,
+    WorldImportRequestDto, WorldMutationResultDto, WorldRenameRequestDto,
+    WorldReplaceActiveRequestDto, WorldReplaceActiveResultDto, WorldReplaceRequestDto,
+    WorldSlotDto, WorldSlotsResponseDto,
 };
 use msc_infrastructure::archive::create_zip_from_folders;
 use msc_infrastructure::console_buffer::ConsoleLine;
@@ -384,6 +387,25 @@ pub enum DesktopServiceHelperCommand {
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Subcommand)]
 pub enum ServerCommand {
+    /// List every registered server and mark the current active server.
+    List,
+    /// Show one registered server by exact name or id.
+    Show { server: String },
+    /// Select a server as the active context for following commands.
+    Use { server: String },
+    /// Measure the managed directory for one server.
+    Size { server: String },
+    /// Read or replace the notes attached to one server.
+    Notes {
+        server: String,
+        text: Option<String>,
+    },
+    /// Export all registered servers to one MSC transfer archive.
+    Export {
+        /// Local file to write the transfer archive to.
+        #[arg(long, default_value = "MinecraftServers.msctransfer")]
+        output: PathBuf,
+    },
     /// Import an existing server directory/ZIP, or an MSC 1
     /// `.msctransfer` package. Pass `--scan` first to preview what a raw
     /// folder/ZIP contains before importing it.
@@ -1263,6 +1285,130 @@ fn print_bedrock_json(common: &CommonArgs, value: &serde_json::Value) -> Result<
 async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), CliError> {
     let client = ApiClient::connect_local().await?;
     match command {
+        ServerCommand::List => {
+            let servers: Vec<ServerDto> = client.get_json("/v1/servers").await?;
+            let status: RemoteApiStatus = client.get_json("/v1/status").await?;
+            if common.json {
+                print_json(
+                    &serde_json::json!({"activeServerId": status.active_server_id, "servers": servers}),
+                )?;
+            } else {
+                for server in &servers {
+                    let active = status.active_server_id.as_deref() == Some(server.id.as_str());
+                    println!(
+                        "{}{}  {} [{}]",
+                        if active { "* " } else { "  " },
+                        server.name,
+                        server.id,
+                        server.server_type
+                    );
+                }
+                if servers.is_empty() {
+                    println!("No registered servers.");
+                }
+                println!("* marks the active server.");
+            }
+            Ok(())
+        }
+        ServerCommand::Show { server } => {
+            let server = resolve_server(&client, &server).await?;
+            if common.json {
+                print_json(&server)?;
+            } else {
+                print_server_detail(&server);
+            }
+            Ok(())
+        }
+        ServerCommand::Use { server } => {
+            let selected = resolve_server(&client, &server).await?;
+            let body = ActiveServerRequestDto {
+                server_id: Some(selected.id.clone()),
+            };
+            let _: SimpleResultDto = client.post_json("/v1/active-server", &body).await?;
+            if common.json {
+                print_json(&selected)?;
+            } else {
+                println!("active server: {} ({})", selected.name, selected.id);
+            }
+            Ok(())
+        }
+        ServerCommand::Size { server } => {
+            let server = resolve_server(&client, &server).await?;
+            let size: ServerDirectorySizeResponseDto = client
+                .get_json(&format!(
+                    "/v1/servers/size?serverId={}",
+                    encode_uri_component(&server.id)
+                ))
+                .await?;
+            if common.json {
+                print_json(&size)?;
+            } else {
+                println!(
+                    "{}: {}",
+                    server.name,
+                    size.size_bytes
+                        .map(format_bytes)
+                        .unwrap_or_else(|| "unavailable".to_owned())
+                );
+            }
+            Ok(())
+        }
+        ServerCommand::Notes { server, text } => {
+            let server = resolve_server(&client, &server).await?;
+            let Some(text) = text else {
+                if common.json {
+                    print_json(&serde_json::json!({"serverId": server.id, "notes": server.notes}))?;
+                } else {
+                    println!(
+                        "{}",
+                        if server.notes.is_empty() {
+                            "(no notes)"
+                        } else {
+                            &server.notes
+                        }
+                    );
+                }
+                return Ok(());
+            };
+            let body = ServerNotesRequestDto {
+                server_id: server.id,
+                notes: text,
+            };
+            let result: ServerNotesResultDto = client.post_json("/v1/servers/notes", &body).await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                println!("{}", result.message);
+            }
+            Ok(())
+        }
+        ServerCommand::Export { output } => {
+            let result: ServerTransferExportResultDto = client
+                .post_json("/v1/servers/export", &serde_json::json!({}))
+                .await?;
+            let bytes = client
+                .get_raw_bytes(&format!(
+                    "/v1/staged-downloads/{}",
+                    result.staged_download_id
+                ))
+                .await?;
+            std::fs::write(&output, &bytes).map_err(|error| {
+                CliError::internal(format!("could not write {}: {error}", output.display()))
+            })?;
+            if common.json {
+                print_json(
+                    &serde_json::json!({"path": output, "fileName": result.file_name, "serverCount": result.server_count, "sizeBytes": bytes.len(), "expiresAt": result.expires_at}),
+                )?;
+            } else {
+                println!(
+                    "exported {} servers ({} bytes) to {}",
+                    result.server_count,
+                    bytes.len(),
+                    output.display()
+                );
+            }
+            Ok(())
+        }
         ServerCommand::Import {
             path,
             name,
@@ -3339,6 +3485,44 @@ fn print_status(status: &RemoteApiStatus) {
         println!("server type: {server_type}");
     }
     print_runtime(&status.runtime);
+}
+
+fn print_server_detail(server: &ServerDto) {
+    println!("{} ({})", server.name, server.id);
+    println!("type: {}", server.server_type);
+    println!("directory: {}", server.directory);
+    if let Some(flavor) = &server.java_flavor {
+        println!("Java flavor: {flavor}");
+    }
+    if let Some(port) = server.game_port {
+        println!("game port: {port}");
+    }
+    if let Some(port) = server.bedrock_port {
+        println!("Bedrock port: {port}");
+    }
+    println!(
+        "notes: {}",
+        if server.notes.is_empty() {
+            "(none)"
+        } else {
+            &server.notes
+        }
+    );
+}
+
+fn format_bytes(bytes: u64) -> String {
+    const UNITS: [&str; 4] = ["B", "KiB", "MiB", "GiB"];
+    let mut value = bytes as f64;
+    let mut unit = 0;
+    while value >= 1024.0 && unit < UNITS.len() - 1 {
+        value /= 1024.0;
+        unit += 1;
+    }
+    if unit == 0 {
+        format!("{bytes} B")
+    } else {
+        format!("{value:.1} {}", UNITS[unit])
+    }
 }
 
 fn print_simple_result(prefix: &str, result: &SimpleResultDto) {

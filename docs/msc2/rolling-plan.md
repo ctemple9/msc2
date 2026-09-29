@@ -169,7 +169,7 @@ remains separate. No release publication or CI gate is implied.
 
 ### P17.12 — Complete server discovery and transfer
 
-- **Status:** PLANNED
+- **Status:** IMPLEMENTED — awaiting Cameron verification
 - **Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/cli/session.rs`, `crates/msc-agent/src/routes/lifecycle.rs`
 - **What:** Add list, detail, active selection, size, notes, and export/transfer commands over existing APIs. Make active-server context obvious before mutations; accept name or ID with clear ambiguity errors. Preserve create, import, start, stop, and EULA behavior.
 - **Verify:** `cargo check -p msc-agent`

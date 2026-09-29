@@ -219,7 +219,8 @@ remains separate. No release publication or CI gate is implied.
 
 ### P17.18 — Expose host, server, and network settings
 
-- **Status:** PLANNED
+- **Status:** IMPLEMENTED — awaiting Cameron verification
+- **Commit:** P17.18: expose host and network settings
 - **Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/routes/settings.rs`, `crates/msc-agent/src/routes/networking.rs`
 - **What:** Cover host setup, server root, memory, Geyser/cross-play, CurseForge key, Playit setup/reset, Xbox Broadcast state, Java resource-pack URL/required/remove, and watchdog controls through task-oriented CLI actions. Read secrets by prompt or protected input, never positional arguments or shell history. Report unsupported combinations.
 - **Verify:** `cargo check -p msc-agent`

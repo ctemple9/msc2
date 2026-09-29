@@ -140,6 +140,11 @@ pub enum Command {
         #[command(subcommand)]
         command: AccessCommand,
     },
+    /// Configure host-wide settings and helpers through the authenticated API.
+    Config {
+        #[command(subcommand)]
+        command: ConfigCommand,
+    },
     /// Read connectivity and the DuckDNS hostname label.
     Network {
         #[command(subcommand)]
@@ -293,6 +298,12 @@ pub enum DuckdnsCommand {
 #[derive(Debug, Clone, Subcommand)]
 pub enum PlayitCommand {
     Status,
+    Setup {
+        email: String,
+        #[arg(long)]
+        password_stdin: bool,
+    },
+    Reset,
     Start {
         #[arg(long)]
         no_wait: bool,
@@ -324,8 +335,9 @@ pub enum BroadcastCommand {
     },
     Credentials {
         email: String,
-        password: String,
         gamertag: String,
+        #[arg(long)]
+        password_stdin: bool,
     },
 }
 
@@ -338,12 +350,48 @@ pub enum BroadcastAutostartCommand {
 #[derive(Debug, Clone, Subcommand)]
 pub enum ResourcePackCommand {
     List,
+    SetUrl {
+        url: String,
+        #[arg(long)]
+        sha1: Option<String>,
+        #[arg(long)]
+        require: bool,
+    },
+    ClearUrl,
+    Remove {
+        pack_id: String,
+    },
     Activate {
         /// Existing approved ZIP name; omit to clear the active pack.
         pack_id: Option<String>,
         #[arg(long)]
         require: bool,
     },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum ConfigCommand {
+    HostSetup,
+    CompleteHostSetup,
+    ServersRoot,
+    SetServersRoot {
+        path: String,
+    },
+    Geyser,
+    SetGeyser {
+        #[arg(long)]
+        address: Option<String>,
+        #[arg(long)]
+        port: Option<i64>,
+    },
+    CurseForge,
+    SetCurseForgeKey {
+        #[arg(long)]
+        key_stdin: bool,
+    },
+    Watchdog,
+    WatchdogEnable,
+    WatchdogDisable,
 }
 
 #[cfg(target_os = "linux")]
@@ -1230,6 +1278,7 @@ pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
         Command::Sessions { server } => run_sessions(common, server).await,
         Command::Capabilities => run_capabilities(common).await,
         Command::Access { command } => run_access(common, command).await,
+        Command::Config { command } => run_config(common, command).await,
         Command::Network { command } => run_network(common, command).await,
         Command::Playit { command } => run_playit(common, command).await,
         Command::Broadcast { command } => run_broadcast(common, command).await,
@@ -2646,6 +2695,78 @@ async fn run_network(common: CommonArgs, command: NetworkCommand) -> Result<(), 
     }
 }
 
+async fn run_config(common: CommonArgs, command: ConfigCommand) -> Result<(), CliError> {
+    let client = ApiClient::connect_local().await?;
+    let (method, path, body) = match command {
+        ConfigCommand::HostSetup => ("GET", "/v1/config/host-setup", None),
+        ConfigCommand::CompleteHostSetup => (
+            "POST",
+            "/v1/config/host-setup/complete",
+            Some(serde_json::json!({})),
+        ),
+        ConfigCommand::ServersRoot => ("GET", "/v1/config/servers-root", None),
+        ConfigCommand::SetServersRoot { path } => (
+            "POST",
+            "/v1/config/servers-root",
+            Some(serde_json::json!({"path": path})),
+        ),
+        ConfigCommand::Geyser => ("GET", "/v1/config/geyser", None),
+        ConfigCommand::SetGeyser { address, port } => (
+            "POST",
+            "/v1/config/geyser",
+            Some(serde_json::json!({"address": address, "port": port})),
+        ),
+        ConfigCommand::CurseForge => ("GET", "/v1/config/curseforge", None),
+        ConfigCommand::SetCurseForgeKey { key_stdin } => {
+            let key = read_secret_stdin(key_stdin, "CurseForge API key", "key-stdin")?;
+            (
+                "POST",
+                "/v1/config/curseforge",
+                Some(serde_json::json!({"apiKey": key})),
+            )
+        }
+        ConfigCommand::Watchdog => ("GET", "/v1/watchdog/status", None),
+        ConfigCommand::WatchdogEnable => {
+            ("POST", "/v1/watchdog/enable", Some(serde_json::json!({})))
+        }
+        ConfigCommand::WatchdogDisable => {
+            ("POST", "/v1/watchdog/disable", Some(serde_json::json!({})))
+        }
+    };
+    let result: serde_json::Value = if method == "GET" {
+        client.get_json(path).await?
+    } else {
+        client
+            .post_json(path, &body.unwrap_or_else(|| serde_json::json!({})))
+            .await?
+    };
+    if common.json {
+        print_json(&result)
+    } else {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&result).unwrap_or_default()
+        );
+        Ok(())
+    }
+}
+
+fn read_secret_stdin(enabled: bool, label: &str, flag: &str) -> Result<String, CliError> {
+    if !enabled {
+        return Err(CliError::usage(format!(
+            "provide {label} through stdin with --{flag}; secrets are not accepted as command-line arguments"
+        )));
+    }
+    let mut value = String::new();
+    std::io::Read::read_to_string(&mut std::io::stdin(), &mut value)
+        .map_err(|error| CliError::usage(format!("could not read {label} from stdin: {error}")))?;
+    let value = value.trim_end_matches(['\r', '\n']).to_string();
+    if value.trim().is_empty() {
+        return Err(CliError::usage(format!("{label} input was empty")));
+    }
+    Ok(value)
+}
+
 async fn run_playit(common: CommonArgs, command: PlayitCommand) -> Result<(), CliError> {
     let client = ApiClient::connect_local().await?;
     match command {
@@ -2660,6 +2781,37 @@ async fn run_playit(common: CommonArgs, command: PlayitCommand) -> Result<(), Cl
                 if let Some(address) = result.java_address {
                     println!("Java address: {address}");
                 }
+                Ok(())
+            }
+        }
+        PlayitCommand::Setup {
+            email,
+            password_stdin,
+        } => {
+            let password = read_secret_stdin(password_stdin, "Playit password", "password-stdin")?;
+            let result: serde_json::Value = client
+                .post_json(
+                    "/v1/playit/setup",
+                    &serde_json::json!({"email": email, "password": password}),
+                )
+                .await?;
+            finish_operation(
+                &client,
+                common.json,
+                false,
+                result["operationId"].as_str().map(str::to_owned),
+                "Playit setup",
+            )
+            .await
+        }
+        PlayitCommand::Reset => {
+            let result: serde_json::Value = client
+                .post_json("/v1/playit/reset", &serde_json::json!({}))
+                .await?;
+            if common.json {
+                print_json(&result)
+            } else {
+                println!("Playit host setup reset.");
                 Ok(())
             }
         }
@@ -2804,9 +2956,11 @@ async fn run_broadcast(common: CommonArgs, command: BroadcastCommand) -> Result<
         },
         BroadcastCommand::Credentials {
             email,
-            password,
             gamertag,
+            password_stdin,
         } => {
+            let password =
+                read_secret_stdin(password_stdin, "Xbox Broadcast password", "password-stdin")?;
             let _: BroadcastSimpleResultDto = client
                 .post_json(
                     "/v1/broadcast/credentials",
@@ -2848,6 +3002,48 @@ async fn run_resource_pack(
                         pack.file_name
                     );
                 }
+                Ok(())
+            }
+        }
+        ResourcePackCommand::SetUrl { url, sha1, require } => {
+            let result: serde_json::Value = client
+                .post_json(
+                    "/v1/resourcepacks/seturl",
+                    &serde_json::json!({"url": url, "sha1": sha1, "require": require}),
+                )
+                .await?;
+            if common.json {
+                print_json(&result)
+            } else {
+                println!("Java resource-pack URL saved.");
+                Ok(())
+            }
+        }
+        ResourcePackCommand::ClearUrl => {
+            let result: serde_json::Value = client
+                .post_json(
+                    "/v1/resourcepacks/activate",
+                    &serde_json::json!({"packId": null, "require": false}),
+                )
+                .await?;
+            if common.json {
+                print_json(&result)
+            } else {
+                println!("Java resource-pack URL cleared.");
+                Ok(())
+            }
+        }
+        ResourcePackCommand::Remove { pack_id } => {
+            let result: serde_json::Value = client
+                .post_json(
+                    "/v1/resourcepacks/remove",
+                    &serde_json::json!({"packId": pack_id, "packKind": "java"}),
+                )
+                .await?;
+            if common.json {
+                print_json(&result)
+            } else {
+                println!("Java resource pack removed.");
                 Ok(())
             }
         }

@@ -228,7 +228,8 @@ remains separate. No release publication or CI gate is implied.
 
 ### P17.19 — Make supported catalog installs inspectable
 
-- **Status:** PLANNED
+- **Status:** IMPLEMENTED — awaiting Cameron verification
+- **Commit:** P17.19: inspect catalog versions before install
 - **Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/routes/components.rs`
 - **What:** Improve Modrinth-backed add-on search/install to search → project/version detail → compatibility and dependencies → explicit confirmation → progress/result. Keep local-JAR install and installed add-on update/enable/disable/remove usable; preserve JSON automation and provider errors. Do not claim CurseForge modpack browsing.
 - **Verify:** `cargo check -p msc-agent`

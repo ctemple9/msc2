@@ -660,9 +660,16 @@ pub enum AddonCommand {
         #[arg(long, default_value_t = 0)]
         offset: usize,
     },
+    /// Inspect a Modrinth project and its versions before choosing one to install.
+    Inspect { project_id: String },
     /// Install one add-on from the active server's filtered Modrinth catalog.
     InstallCatalog {
         project_id: String,
+        #[arg(long = "version-id")]
+        version_id: String,
+        /// Confirm the reviewed project/version and its required dependencies.
+        #[arg(long, required = true)]
+        confirm: bool,
         #[arg(long)]
         slug: Option<String>,
         #[arg(long)]
@@ -4040,8 +4047,58 @@ async fn run_addon(common: CommonArgs, command: AddonCommand) -> Result<(), CliE
             }
             Ok(())
         }
+        AddonCommand::Inspect { project_id } => {
+            let encoded = encode_uri_component(&project_id);
+            let detail: serde_json::Value = client
+                .get_json(&format!("/v1/catalog/projects/{encoded}"))
+                .await?;
+            let versions: serde_json::Value = client
+                .get_json(&format!("/v1/catalog/projects/{encoded}/versions"))
+                .await?;
+            if common.json {
+                print_json(&serde_json::json!({"project": detail, "versions": versions}))?;
+            } else {
+                println!(
+                    "{} ({})",
+                    detail["title"].as_str().unwrap_or("Untitled"),
+                    detail["projectId"].as_str().unwrap_or(&project_id)
+                );
+                println!(
+                    "server support: {}",
+                    detail["serverSide"].as_str().unwrap_or("unknown")
+                );
+                if let Some(description) = detail["description"].as_str() {
+                    println!("{description}");
+                }
+                for version in versions["versions"].as_array().into_iter().flatten() {
+                    println!(
+                        "{}  {}  loaders: {}  Minecraft: {}",
+                        version["id"].as_str().unwrap_or("?"),
+                        version["versionNumber"].as_str().unwrap_or("?"),
+                        value_list(&version["loaders"]),
+                        value_list(&version["gameVersions"])
+                    );
+                    for dependency in version["dependencies"].as_array().into_iter().flatten() {
+                        println!(
+                            "  dependency: {} ({})",
+                            dependency["projectId"]
+                                .as_str()
+                                .or_else(|| dependency["versionId"].as_str())
+                                .unwrap_or("unknown"),
+                            dependency["dependencyType"].as_str().unwrap_or("unknown")
+                        );
+                    }
+                }
+                println!(
+                    "Choose a compatible version id, then run addon install-catalog PROJECT --version-id ID --confirm."
+                );
+            }
+            Ok(())
+        }
         AddonCommand::InstallCatalog {
             project_id,
+            version_id,
+            confirm: _,
             slug,
             title,
             no_wait,
@@ -4054,7 +4111,7 @@ async fn run_addon(common: CommonArgs, command: AddonCommand) -> Result<(), CliE
                         slug,
                         title,
                         staged_upload_id: None,
-                        version_id: None,
+                        version_id: Some(version_id),
                     },
                 )
                 .await?;
@@ -4580,6 +4637,15 @@ fn print_catalog_value(json_mode: bool, value: &serde_json::Value) -> Result<(),
         }
         Ok(())
     }
+}
+fn value_list(value: &serde_json::Value) -> String {
+    value
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(serde_json::Value::as_str)
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 fn print_modpack_inspection(result: &ModpackInspectionResultDto) {
     println!("format: {}", result.format);

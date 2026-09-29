@@ -273,7 +273,8 @@ remains separate. No release publication or CI gate is implied.
 
 ### P17.24 — Prepare physical acceptance without publishing
 
-- **Status:** PLANNED
+- **Status:** IMPLEMENTED — awaiting Cameron verification
+- **Commit:** P17.24: prepare cli physical acceptance
 - **Files:** `docs/msc2/clients/phase17-cli-acceptance.md`, `docs/msc2/clients/phase17-cli.md`
 - **What:** Record reproducible desktop/headless checks on macOS, Windows, and Linux: PATH, start/stop/status, reboot, local and SSH-shell authorization, wrong-user and forwarded-port refusal, representative server/player/world/backup/content commands, JSON scripting, provider failures, and uninstall ownership. Cameron runs and records results; the other agent reviews the gate. No test suite, CI gate, release tag, or publication run is implied.
 - **Verify:** `rg -n 'macOS|Windows|Linux|SSH|reboot|stopped|PATH|wrong user|catalog|CurseForge' docs/msc2/clients/phase17-cli-acceptance.md`

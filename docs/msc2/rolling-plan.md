@@ -407,7 +407,7 @@ support limits before implementation scope is committed.
 
 ### P18.1 — Scope the 3D world viewer vertical slice
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Done — Cameron verified section 21, 2026-09-29
 - **Files:** `docs/msc2/rolling-plan.md`, `docs/msc2/msc2-engineering.md`
 - **What:** Compare embedding Vantage's MIT viewer/protocol with an MSC-owned
   integration; define terrain access for standard and modded Java saves, live
@@ -434,3 +434,28 @@ support limits before implementation scope is committed.
   UX, and identifies safe running-world reads as the next proof.
 - **Batch:** solo — scope and feasibility before implementation
 - **Commit:** P18.1: scope the 3d world viewer vertical slice
+
+### P18.2 — Prove offline BDS terrain in the Vantage viewer
+
+- **Status:** Awaiting Cameron verification
+- **Files:** `tools/world-map-proof/`, `docs/msc2/rolling-plan.md`
+- **What:** Read an offline copy of Cameron's BDS save with a pinned Bedrock
+  chunk reader. Resolve block shapes and textures from a separately supplied
+  Bedrock resource pack, encode one 4×4-chunk Vantage tile, and open it in the
+  Vantage Three.js engine with camera controls. Keep the original save and all
+  generated world and texture data outside Git.
+- **Result:** The selected complete area near spawn begins at chunk `(-3, 2)`.
+  The exporter generated 27,146 solid faces, 529 water faces, 15 image layers,
+  zero texture fallback faces and zero missing-shape blocks from actual BDS
+  block states. The tool and
+  local viewer are in `tools/world-map-proof/README.md`. This advances the
+  **visible BDS 3D exploration** promise only: Cameron still needs to inspect
+  the rendered view. The current mesher uses the top visible block per column;
+  it omits caves, overhangs, biome tint and much water geometry. This area has
+  no stairs or glass, so a separate representative Bedrock fixture is needed
+  before claiming those shapes. BDS itself lacks terrain images; the proof
+  uses a local copy of Mojang's sample resource pack. Running-world safety,
+  changed terrain, in-window MSC navigation and live players remain open.
+- **Verify:** `cd /Users/camerontemple/msc2-world-map/tools/world-map-proof/viewer && MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-world-map-output npm run dev` — open the localhost URL, orbit and zoom the actual BDS terrain, inspect land/foliage/water and report holes or incorrect textures. This checks the visible BDS terrain promise; the next proof must establish safe running-world reads and refresh, plus stairs/glass coverage using a representative fixture.
+- **Batch:** solo — offline geometry dependency before live integration
+- **Commit:** P18.2: prove offline bds terrain in vantage

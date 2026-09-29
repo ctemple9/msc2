@@ -1,0 +1,14 @@
+{
+  "name": "msc-world-map-proof-viewer",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "vite --host 127.0.0.1" },
+  "dependencies": {
+    "@thoughts-on-things/vantage-mc": "0.15.1",
+    "three": "0.180.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "vite": "^7.1.5"
+  }
+}

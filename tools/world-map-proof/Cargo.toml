@@ -1,0 +1,11 @@
+[package]
+name = "msc-world-map-proof"
+version = "0.1.0"
+edition = "2024"
+
+[workspace]
+
+[dependencies]
+bedrock-world = { git = "https://github.com/BE-Community-Dev/bedrock-world.git", rev = "20cc0f47d3827c50ad660a479050956192243b82", default-features = false, features = ["backend-bedrock-leveldb"] }
+bedrock-block-model = { git = "https://github.com/BE-Community-Dev/bedrock-block-model.git", rev = "9f8c4436bbc26617551a5003cc2762b997e76fff" }
+image = { version = "0.25", default-features = false, features = ["png", "tga"] }

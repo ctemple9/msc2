@@ -5,8 +5,9 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -117,36 +118,45 @@ def extract_deb(package: Path, destination: Path) -> None:
 
 def extract_rpm(package: Path, destination: Path) -> None:
     try:
-        with tempfile.TemporaryFile() as cpio_stream:
-            rpm_result = subprocess.run(
-                ["rpm2cpio", str(package.resolve())],
-                stdout=cpio_stream,
+        with tempfile.TemporaryFile() as archive_stream:
+            archive_result = subprocess.run(
+                ["rpm2archive", "--nocompression", "--format=pax", str(package.resolve())],
+                stdout=archive_stream,
                 stderr=subprocess.PIPE,
                 text=True,
                 check=False,
             )
-            if rpm_result.returncode != 0:
+            if archive_result.returncode != 0:
                 fail(
-                    f"rpm2cpio failed for {package} (exit {rpm_result.returncode}): "
-                    f"{rpm_result.stderr.strip() or 'no diagnostic output'}"
+                    f"rpm2archive failed for {package} (exit {archive_result.returncode}): "
+                    f"{archive_result.stderr.strip() or 'no diagnostic output'}"
                 )
 
-            cpio_stream.seek(0)
-            extraction = subprocess.run(
-                ["cpio", "--extract", "--make-directories", "--quiet"],
-                cwd=destination,
-                stdin=cpio_stream,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                check=False,
-            )
+            archive_stream.seek(0)
+            with tarfile.open(fileobj=archive_stream, mode="r:") as archive:
+                for member in archive:
+                    relative_path = PurePosixPath(member.name)
+                    if relative_path.is_absolute() or ".." in relative_path.parts:
+                        fail(f"RPM contains an unsafe archive path: {member.name}")
+                    parts = tuple(part for part in relative_path.parts if part not in ("", "."))
+                    if not parts:
+                        continue
+
+                    output = destination.joinpath(*parts)
+                    if member.isdir():
+                        output.mkdir(parents=True, exist_ok=True)
+                    elif member.isfile():
+                        source = archive.extractfile(member)
+                        if source is None:
+                            fail(f"could not read RPM member {member.name}")
+                        output.parent.mkdir(parents=True, exist_ok=True)
+                        with source, output.open("wb") as extracted:
+                            shutil.copyfileobj(source, extracted)
+                        output.chmod(member.mode & 0o777)
     except FileNotFoundError as error:
         fail(f"required RPM inspection tool is missing: {error.filename}")
-
-    if extraction.returncode != 0:
-        diagnostic = extraction.stderr.strip() or extraction.stdout.strip() or "no diagnostic output"
-        fail(f"cpio extraction failed for {package} (exit {extraction.returncode}): {diagnostic}")
+    except (tarfile.TarError, OSError) as error:
+        fail(f"could not inspect RPM {package}: {error}")
 
 
 def package_binaries(root: Path, label: str, max_glibc: str) -> dict[str, object]:

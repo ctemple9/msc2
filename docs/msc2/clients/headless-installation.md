@@ -13,7 +13,9 @@ ownership rules.
 The supported control surfaces are the Tauri desktop app and the scriptable
 CLI in the same binary as the agent. The command is `msc` on macOS and Linux
 and `msc.exe` on Windows. A headless host is managed from its CLI or remotely
-from a Tauri desktop app. The management service listens on
+from a Tauri desktop app. CLI commands run on the host itself, either in a
+local terminal or an SSH login shell as the account that installed the agent;
+the CLI does not choose another host. The management service listens on
 `127.0.0.1:48001` by default.
 
 No installation type is promised as a browser client. The agent provides the
@@ -219,6 +221,22 @@ The final installer message identifies the command path and agent boot state.
 `msc stop agent` lasts until an explicit start or the next boot. Use
 `msc disable agent` to change future boot startup, and `msc enable agent` to
 restore it.
+
+Use the same CLI account locally or through SSH. The agent checks the
+operating-system identity and issues a short-lived credential for that
+invocation, so there is no token to export or pairing step for the CLI:
+
+```sh
+msc status agent
+msc status --json
+msc server list
+ssh msc-linux msc status
+```
+
+The SSH command runs on `msc-linux`. To manage a different host from the
+current computer, use the Tauri desktop app's separate remote-host pairing.
+CLI options for a remote host, API URL, port, or bearer token are not part of
+the local CLI contract.
 
 ## Repository references
 

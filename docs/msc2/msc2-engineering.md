@@ -115,12 +115,18 @@ msc serve --bind tailscale
 **CLI mode.** Commands run on the agent host, locally or in an SSH login shell. The CLI obtains host-local authorization from the operating-system peer identity and uses the authenticated API without operator-visible tokens (D-040). Remote desktop pairing remains separate.
 
 ```
+msc status agent
 msc status
 msc server start "Modded Survival"
 msc command "Modded Survival" "say restarting in 5"
 msc backup create "Modded Survival" --json
-ssh msc-linux msc server restart "Modded Survival"
+ssh msc-linux msc status
 ```
+
+The SSH example runs the command on `msc-linux`; it does not make the CLI a
+remote-host client. Use the Tauri desktop app's separate pairing flow to
+manage another host from a different computer. The CLI has no host, URL, port,
+or bearer-token option.
 
 Human-readable by default; `--json` on everything; meaningful exit codes; colors and spinners disabled automatically when stdout is not a TTY.
 
@@ -750,8 +756,8 @@ SettingFieldDTO {
 ### The CLI teaches too
 
 ```
-msc explain port-forwarding
-msc explain settings.view-distance
+msc help topic handbook.networking-basics
+msc help router-search "port forwarding"
 ```
 
 Same content, same source. Any surface that can render text can teach — which is the whole point of taking it out of the clients.

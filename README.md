@@ -27,7 +27,7 @@ release acceptance gate.
 | Installation | Published platform and architecture | Supported control surface |
 |---|---|---|
 | Desktop app | macOS Intel (`x86_64`) and Apple Silicon (`aarch64`); Windows 64-bit (`x86_64`); Linux 64-bit (`x86_64`) as `.deb` and `.rpm` | Tauri desktop app |
-| Headless agent | macOS Intel (`x86_64`) and Apple Silicon (`aarch64`); Windows 64-bit (`x86_64`); Linux 64-bit (`x86_64`) | CLI on the host; remote Tauri desktop app or CLI |
+| Headless agent | macOS Intel (`x86_64`) and Apple Silicon (`aarch64`); Windows 64-bit (`x86_64`); Linux 64-bit (`x86_64`) | CLI in a local terminal or SSH shell on the host; remote Tauri desktop app |
 
 The published v0.1.16 bytes predate the approved browser-client retirement
 and may contain historical browser assets. v0.1.17 was tagged but never
@@ -168,8 +168,9 @@ MSC 2 has one part that runs your servers and several ways to control it.
   monitor attached.
 - **The desktop app** gives you a graphical interface on the same computer or
   another computer.
-- **The CLI** gives you a scriptable terminal interface when you want
-  automation or prefer the command line. Limited functions for now.
+- **The CLI** gives you task commands from a local terminal or an SSH login
+  shell on the agent host. It authenticates as the installing OS account;
+  remote host selection stays in the desktop app.
 
 The server keeps running when you close the desktop app or sign out. The app
 is a control panel; it is not the thing keeping Minecraft alive.
@@ -180,8 +181,8 @@ If you are new to servers, there are two computers to think about:
 
 1. The **host** is the computer that runs the Minecraft world. It can sit in a
    closet with the lid closed and no monitor attached.
-2. The **control device** is the computer where you open the MSC 2 app or CLI
-   to make changes.
+2. The **control device** is the computer where you open the MSC 2 app. For
+   CLI work, use a terminal on the host or an SSH login to that host.
 
 They can be the same computer. They can also be different computers. The
 players' consoles, phones, and gaming PCs are separate again: they connect to
@@ -228,8 +229,10 @@ Windows. The archive's `HEADLESS-INSTALL.md` describes the platform-specific
 command location, PATH ownership, upgrade/uninstall boundary, and the separate
 operating-system service installation.
 
-The headless agent exposes its authenticated API and CLI. A Tauri desktop app
-or CLI on another computer can manage it over a supported network route.
+The headless agent exposes its authenticated API and local CLI. Use `msc`
+from a terminal on that host or from an SSH login as the account that
+installed the agent. A Tauri desktop app can manage the host remotely through
+desktop pairing; the CLI does not select another host.
 
 Each standalone headless archive includes a platform command installer and
 uninstaller. macOS archives contain `install.sh` and `uninstall.sh`, Windows

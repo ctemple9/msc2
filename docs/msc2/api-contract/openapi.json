@@ -2901,6 +2901,34 @@
         "x-permission-category": "none"
       }
     },
+    "/v1/broadcast/credentials/clear": {
+      "post": {
+        "summary": "Clear saved MCXboxBroadcast credentials",
+        "responses": {
+          "200": {
+            "description": "Credentials cleared",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BroadcastSimpleResultDTO"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "credential_store_failed or internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          }
+        },
+        "x-permission-category": "broadcast"
+      }
+    },
     "/v1/broadcast/download-jar": {
       "post": {
         "summary": "Download the MCXboxBroadcast JAR as a cancellable managed operation",
@@ -4301,6 +4329,142 @@
           }
         },
         "x-permission-category": "fleet"
+      }
+    },
+    "/v1/servers/playit": {
+      "post": {
+        "summary": "Enable or disable Playit for one registered server",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServerPlayitRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Per-server Playit setting saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerPlayitResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_json / missing_server_id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "server_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "configuration_save_failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          }
+        },
+        "x-permission-category": "networking"
+      }
+    },
+    "/v1/servers/xbox-broadcast": {
+      "post": {
+        "summary": "Enable or disable Xbox Broadcast for one registered server",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServerXboxBroadcastRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Per-server Xbox Broadcast setting saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerXboxBroadcastResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_json / missing_server_id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "server_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "configuration_save_failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          }
+        },
+        "x-permission-category": "broadcast"
       }
     },
     "/v1/servers/size": {
@@ -10332,6 +10496,42 @@
           "restartRequired": { "type": "boolean" }
         },
         "required": ["success", "message", "serverId", "transport", "restartRequired"]
+      },
+      "ServerPlayitRequestDTO": {
+        "type": "object",
+        "properties": {
+          "serverId": { "type": "string" },
+          "enabled": { "type": "boolean" }
+        },
+        "required": ["serverId", "enabled"]
+      },
+      "ServerPlayitResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "message": { "type": "string" },
+          "serverId": { "type": "string", "nullable": true },
+          "enabled": { "type": "boolean" }
+        },
+        "required": ["success", "message", "serverId", "enabled"]
+      },
+      "ServerXboxBroadcastRequestDTO": {
+        "type": "object",
+        "properties": {
+          "serverId": { "type": "string" },
+          "enabled": { "type": "boolean" }
+        },
+        "required": ["serverId", "enabled"]
+      },
+      "ServerXboxBroadcastResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "message": { "type": "string" },
+          "serverId": { "type": "string", "nullable": true },
+          "enabled": { "type": "boolean" }
+        },
+        "required": ["success", "message", "serverId", "enabled"]
       },
       "ServerNotesResultDTO": {
         "type": "object",

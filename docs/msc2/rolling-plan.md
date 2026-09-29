@@ -264,7 +264,8 @@ remains separate. No release publication or CI gate is implied.
 
 ### P17.23 — Document and audit the finished CLI
 
-- **Status:** PLANNED
+- **Status:** IMPLEMENTED — awaiting owner decisions and Cameron verification
+- **Commit:** P17.23: document cli usage and route audit
 - **Files:** `README.md`, `docs/msc2/clients/phase17-cli.md`, `docs/msc2/clients/headless-installation.md`, `docs/msc2/msc2-engineering.md`, `docs/msc2/api-contract/openapi.json`
 - **What:** Replace obsolete remote-CLI/token instructions, publish task-first local and SSH examples with edition limits, and close every row of the API-to-CLI inventory or record an owner-approved exception. Preserve desktop remote-host docs. Do not add release gates.
 - **Verify:** `git diff --check`

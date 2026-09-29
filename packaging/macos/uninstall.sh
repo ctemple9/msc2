@@ -14,8 +14,8 @@ usage() {
   cat <<'USAGE'
 Usage: uninstall.sh
 
-Remove the macOS headless MSC 2 command installed by the archive. This does
-not stop or remove the launchd management service or managed server data.
+Remove the macOS headless MSC 2 command and its launchd agent service.
+Managed server data remains in place.
 USAGE
 }
 
@@ -48,6 +48,15 @@ esac
 
 ARCH_ROOT="$INSTALL_BASE/$ARCHITECTURE"
 PATH_LINK_STATE="not present"
+AGENT_PLIST="/Library/LaunchDaemons/com.ctemple.msc2.agent.plist"
+if [[ -f "$AGENT_PLIST" ]]; then
+  SERVICE_BINARY="$(plutil -extract ProgramArguments.0 raw -o - "$AGENT_PLIST" 2>/dev/null)" || \
+    fail "could not inspect the installed agent service"
+  [[ "$SERVICE_BINARY" == "$ARCH_ROOT/"*/msc ]] || fail \
+    "the installed agent service belongs to another MSC installation"
+  /bin/launchctl bootout system "$AGENT_PLIST"
+  rm -f "$AGENT_PLIST"
+fi
 
 # Only remove a command link when its target is inside MSC's architecture root
 # and that exact version directory carries MSC's ownership marker.
@@ -89,5 +98,5 @@ cat <<MESSAGE
 MSC 2 macOS headless command removed.
 
 The MSC-owned command link at $PATH_LINK was $PATH_LINK_STATE.
-The launchd management service and managed server data were retained.
+Managed server data was retained.
 MESSAGE

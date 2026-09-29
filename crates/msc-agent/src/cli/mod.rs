@@ -77,6 +77,10 @@ pub enum Command {
     Start { target: service::AgentTarget },
     /// Stop the installed local agent service.
     Stop { target: service::AgentTarget },
+    /// Enable the local agent service at boot.
+    Enable { target: service::AgentTarget },
+    /// Disable the local agent service at boot.
+    Disable { target: service::AgentTarget },
     /// Internal entry point registered with Windows Service Control Manager.
     #[cfg(target_os = "windows")]
     #[command(name = "service-run", hide = true)]
@@ -985,6 +989,12 @@ pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
             service::run_agent(common, target, service::AgentAction::Start)
         }
         Command::Stop { target } => service::run_agent(common, target, service::AgentAction::Stop),
+        Command::Enable { target } => {
+            service::run_agent(common, target, service::AgentAction::Enable)
+        }
+        Command::Disable { target } => {
+            service::run_agent(common, target, service::AgentAction::Disable)
+        }
         Command::Update { command } => update::run(common, command),
         Command::Pairing { command } => pairing::run(common, command),
         Command::Server { command } => run_server(common, command).await,

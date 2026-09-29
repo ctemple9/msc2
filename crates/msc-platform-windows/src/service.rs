@@ -36,6 +36,16 @@ pub fn local_agent_boot_enabled() -> Result<bool, ServiceError> {
     }
 }
 
+pub fn set_local_agent_boot_enabled(enabled: bool) -> Result<(), ServiceError> {
+    run_sc(&[
+        "config".to_string(),
+        "com.ctemple.msc2.agent".to_string(),
+        "start=".to_string(),
+        if enabled { "auto" } else { "disabled" }.to_string(),
+    ])
+    .map(|_| ())
+}
+
 #[derive(Debug, Default, Clone, Copy)]
 pub struct SystemSc;
 
@@ -195,6 +205,15 @@ impl<S: Sc> ServiceManager for WindowsServiceManager<S> {
 
 impl<S: Sc> WindowsServiceManager<S> {
     fn install(&self, request: ServiceInstallRequest) -> Result<ServiceStatusReport, ServiceError> {
+        let password = std::env::var(PASSWORD_ENV).ok();
+        self.install_with_password(request, password.as_deref())
+    }
+
+    pub fn install_with_password(
+        &self,
+        request: ServiceInstallRequest,
+        password: Option<&str>,
+    ) -> Result<ServiceStatusReport, ServiceError> {
         validate_request(&request)?;
         let mut request = request;
         // The production agent must enter its SCM dispatcher. Keep other
@@ -233,16 +252,17 @@ impl<S: Sc> WindowsServiceManager<S> {
             })?;
         }
 
-        let _ = self.sc.stop(request.service_name.as_str());
-        let _ = self.sc.delete(request.service_name.as_str());
+        if metadata_path.exists() {
+            self.sc.stop(request.service_name.as_str())?;
+            self.sc.delete(request.service_name.as_str())?;
+        }
 
-        let password = std::env::var(PASSWORD_ENV).ok();
         let bin_path = render_bin_path(&request);
         self.sc.create(
             request.service_name.as_str(),
             &bin_path,
             request.run_user.as_deref().unwrap_or_default(),
-            password.as_deref(),
+            password,
         )?;
         fs::write(&metadata_path, render_metadata(&request)).map_err(|err| {
             ServiceError::Platform(format!(
@@ -261,8 +281,8 @@ impl<S: Sc> WindowsServiceManager<S> {
             ));
         }
 
-        let _ = self.sc.stop(service_name.as_str());
-        let _ = self.sc.delete(service_name.as_str());
+        self.sc.stop(service_name.as_str())?;
+        self.sc.delete(service_name.as_str())?;
         fs::remove_file(&metadata_path).map_err(|err| {
             ServiceError::Platform(format!(
                 "removing Windows service metadata {}: {err}",

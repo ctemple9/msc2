@@ -869,8 +869,9 @@ fn manage_agent_service(action: AgentServiceAction) -> Result<AgentServiceStatus
             AgentServiceAction::Install | AgentServiceAction::Repair => {
                 let request = agent_install_request()?;
                 let expected_binary = request.binary_path.clone();
-                manager
-                    .execute(ServiceManagerCommand::Install(request))
+                let password = prompt_windows_service_password()?;
+                msc_platform_windows::service::WindowsServiceManager::new()
+                    .install_with_password(request, Some(&password))
                     .map_err(|error| error.to_string())?;
                 let report = manager
                     .execute(ServiceManagerCommand::Start { service_name })
@@ -958,6 +959,7 @@ fn agent_install_request() -> Result<ServiceInstallRequest, String> {
     std::fs::create_dir_all(&secret_store_directory)
         .map_err(|error| format!("Could not create the agent secret directory: {error}"))?;
     let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
         .map_err(|_| "Could not determine the installing user's home directory.".to_string())?;
     // Both writes below are unprivileged (the desktop app already owns this
     // directory) and must happen before the elevated install step, which
@@ -1313,13 +1315,50 @@ fn agent_data_directory() -> Result<PathBuf, String> {
 }
 
 fn installing_user() -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let domain = std::env::var("USERDOMAIN")
+            .map_err(|_| "Could not determine the Windows account domain.".to_string())?;
+        let user = std::env::var("USERNAME")
+            .map_err(|_| "Could not determine the Windows account name.".to_string())?;
+        return Ok(format!("{domain}\\{user}"));
+    }
+    #[cfg(not(target_os = "windows"))]
     let user = std::env::var("USER")
         .or_else(|_| std::env::var("USERNAME"))
         .map_err(|_| "Could not determine the installing user for the service.".to_string())?;
+    #[cfg(not(target_os = "windows"))]
     if user.trim().is_empty() {
         return Err("Could not determine the installing user for the service.".to_string());
     }
+    #[cfg(not(target_os = "windows"))]
     Ok(user)
+}
+
+#[cfg(target_os = "windows")]
+fn prompt_windows_service_password() -> Result<String, String> {
+    let script = r#"
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+$name = "$env:USERDOMAIN\$env:USERNAME"
+$credential = Get-Credential -UserName $name -Message 'Enter your Windows password for the MSC 2 agent service'
+if ($null -eq $credential -or $credential.UserName -ine $name) { exit 2 }
+$pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($credential.Password)
+try { [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer) | ConvertTo-Json -Compress }
+finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer) }
+"#;
+    let output = std::process::Command::new("powershell.exe")
+        .args(["-NoProfile", "-Command", script])
+        .output()
+        .map_err(|error| format!("Could not open the Windows service credential prompt: {error}"))?;
+    if !output.status.success() {
+        return Err("The Windows service credential prompt was cancelled or failed.".into());
+    }
+    let password: String = serde_json::from_slice(&output.stdout)
+        .map_err(|_| "The Windows service credential prompt returned invalid data.".to_string())?;
+    if password.is_empty() {
+        return Err("The Windows service password cannot be empty.".into());
+    }
+    Ok(password)
 }
 
 fn report_status(report: ServiceStatusReport) -> AgentServiceStatus {

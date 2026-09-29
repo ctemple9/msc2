@@ -14,8 +14,7 @@ usage() {
   cat <<'USAGE'
 Usage: install.sh
 
-Install the macOS headless MSC 2 command. This does not install or control
-the launchd management service.
+Install the macOS headless MSC 2 command and launchd agent service.
 USAGE
 }
 
@@ -63,8 +62,16 @@ VERSION="$(sed -n '1p' "$VERSION_FILE")"
 # elevation boundary instead of needing to start the installer as root.
 if ((EUID != 0)); then
   command -v sudo >/dev/null 2>&1 || fail "sudo is required for installation"
-  exec sudo "$SCRIPT_DIR/install.sh" "$@"
+  exec sudo env "MSC2_INSTALL_HOME=$HOME" "MSC2_INSTALL_USER=$(id -un)" "$SCRIPT_DIR/install.sh" "$@"
 fi
+
+[[ -n "${MSC2_INSTALL_HOME:-}" && "${MSC2_INSTALL_HOME}" == /* ]] || fail \
+  "run install.sh as the account that will own MSC 2; it requests sudo itself"
+[[ -n "${MSC2_INSTALL_USER:-}" && "${MSC2_INSTALL_USER}" != "root" ]] || fail \
+  "run install.sh as the account that will own MSC 2"
+INSTALLING_GROUP="$(id -gn "$MSC2_INSTALL_USER")" || fail "could not resolve installing group"
+DATA_DIR="$MSC2_INSTALL_HOME/Library/Application Support/MSC 2"
+AGENT_PLIST="/Library/LaunchDaemons/com.ctemple.msc2.agent.plist"
 
 ARCH_ROOT="$INSTALL_BASE/$ARCHITECTURE"
 VERSION_ROOT="$ARCH_ROOT/$VERSION"
@@ -91,6 +98,12 @@ fi
 if [[ -e "$VERSION_ROOT" && ! -f "$OWNERSHIP_MARKER" ]]; then
   fail "existing non-MSC installation directory: $VERSION_ROOT"
 fi
+if [[ -f "$AGENT_PLIST" ]]; then
+  SERVICE_BINARY="$(plutil -extract ProgramArguments.0 raw -o - "$AGENT_PLIST" 2>/dev/null)" || \
+    fail "could not inspect the existing agent service"
+  [[ "$SERVICE_BINARY" == "$INSTALL_BASE/"*/msc ]] || fail \
+    "the installed agent service belongs to another MSC installation"
+fi
 
 install -d -m 0755 "$PATH_DIR" "$VERSION_ROOT"
 install -m 0755 "$SOURCE_BINARY" "$INSTALL_BINARY"
@@ -114,6 +127,19 @@ else
   ln -s "$INSTALL_BINARY" "$PATH_LINK"
 fi
 
+install -d -m 0700 -o "$MSC2_INSTALL_USER" -g "$INSTALLING_GROUP" "$DATA_DIR" "$DATA_DIR/logs" "$DATA_DIR/servers"
+"$INSTALL_BINARY" service install \
+  --service-name com.ctemple.msc2.agent \
+  --binary-path "$INSTALL_BINARY" \
+  --working-directory "$DATA_DIR" \
+  --log-path "$DATA_DIR/logs/agent.log" \
+  --run-user "$MSC2_INSTALL_USER" \
+  --expected-port 48001 \
+  --arg serve --arg=--bind --arg 127.0.0.1:48001 \
+  --env "HOME=$MSC2_INSTALL_HOME" \
+  --env "MSC2_DATA_DIR=$DATA_DIR"
+/bin/launchctl kickstart -k system/com.ctemple.msc2.agent
+
 cat <<MESSAGE
 MSC 2 macOS headless command installed.
 
@@ -124,6 +150,6 @@ $(if [[ ":$PATH:" == *":$PATH_DIR:"* ]]; then
     printf 'Refresh PATH or open a new shell before using it from this shell.\n'
   fi)
 
-This installed the CLI only. It did not install, start, stop, or replace the
-launchd management service. The service endpoint remains 127.0.0.1:48001.
+The launchd agent is enabled at boot and running as $MSC2_INSTALL_USER.
+Use msc status agent, msc stop agent, and msc start agent for local control.
 MESSAGE

@@ -152,7 +152,8 @@ remains separate. No release publication or CI gate is implied.
 
 ### P17.10 — Make boot and stop behavior consistent
 
-- **Status:** PLANNED
+- **Status:** IMPLEMENTED — awaiting Cameron verification
+- **Commit:** P17.10: align agent boot and stop behavior
 - **Files:** `crates/msc-platform-linux/src/service.rs`, `crates/msc-platform-macos/src/service.rs`, `crates/msc-platform-windows/src/service.rs`, `packaging/linux/`, `packaging/macos/`, `packaging/windows/`
 - **What:** Start and enable the agent during approved installation on every OS, correcting macOS's current `RunAtLoad=false`. A routine stop lasts until an explicit start or next boot; a separate explicit disable action controls future boot startup. Preserve server-process shutdown guarantees.
 - **Verify:** `git diff --check`

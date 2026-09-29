@@ -41,7 +41,10 @@ fi
 
 # Keep this list explicit. Uninstall only controls the three MSC units and
 # never asks systemd to stop an unrelated service on the host.
-systemctl stop "$AGENT_UNIT" "$HELPER_SERVICE_UNIT" "$HELPER_SOCKET_UNIT" >/dev/null 2>&1 || true
+if [[ -f "$UNIT_DIR/$AGENT_UNIT" ]]; then
+  systemctl stop "$AGENT_UNIT"
+fi
+systemctl stop "$HELPER_SERVICE_UNIT" "$HELPER_SOCKET_UNIT" >/dev/null 2>&1 || true
 systemctl disable "$AGENT_UNIT" "$HELPER_SERVICE_UNIT" "$HELPER_SOCKET_UNIT" >/dev/null 2>&1 || true
 systemctl daemon-reload
 

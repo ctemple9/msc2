@@ -1,6 +1,7 @@
 param(
     [ValidateSet('User', 'Machine')]
-    [string]$Scope = 'User'
+    [string]$Scope = 'Machine',
+    [PSCredential]$ServiceCredential
 )
 
 $ErrorActionPreference = 'Stop'
@@ -21,8 +22,8 @@ function Assert-Administrator {
 if (-not $env:LOCALAPPDATA) {
     Fail 'LOCALAPPDATA is not set'
 }
+Assert-Administrator
 if ($Scope -eq 'Machine') {
-    Assert-Administrator
     if (-not $env:ProgramFiles) {
         Fail 'ProgramFiles is not set'
     }
@@ -40,6 +41,13 @@ if (-not (Test-Path -LiteralPath $sourceBinary -PathType Leaf)) {
     Fail "package binary is missing: $sourceBinary"
 }
 
+$serviceName = 'com.ctemple.msc2.agent'
+$existingService = & sc.exe qc $serviceName 2>$null
+$servicePresent = $LASTEXITCODE -eq 0
+if ($servicePresent -and ($existingService -join "`n") -notlike "*$installedBinary*") {
+    Fail 'the installed agent service belongs to another MSC installation'
+}
+
 if (Test-Path -LiteralPath $ownershipMarker -PathType Leaf) {
     $marker = (Get-Content -LiteralPath $ownershipMarker -Raw).Trim()
     if ($marker -ne 'msc2-headless-archive') {
@@ -49,9 +57,50 @@ if (Test-Path -LiteralPath $ownershipMarker -PathType Leaf) {
     Fail "existing non-MSC executable at $installedBinary"
 }
 
+$credential = $ServiceCredential
+if (-not $credential) {
+    $credential = Get-Credential -Message 'Enter the Windows account and password that will own MSC 2 servers'
+}
+if (-not $credential) {
+    Fail 'a service account credential is required'
+}
+$account = $credential.UserName
+if ($servicePresent -and (Test-Path -LiteralPath $installedBinary -PathType Leaf)) {
+    & $installedBinary service stop --service-name $serviceName
+    if ($LASTEXITCODE -ne 0) {
+        Fail 'could not stop the existing agent before upgrade'
+    }
+}
+
 New-Item -ItemType Directory -Force -Path $installDirectory | Out-Null
 Copy-Item -LiteralPath $sourceBinary -Destination $installedBinary -Force
 [IO.File]::WriteAllText($ownershipMarker, ("msc2-headless-archive" + [Environment]::NewLine))
+
+$dataDirectory = Join-Path $env:ProgramData 'MSC2'
+New-Item -ItemType Directory -Force -Path $dataDirectory | Out-Null
+& icacls.exe $dataDirectory /grant "${account}:(OI)(CI)M" | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Fail "could not grant $account access to $dataDirectory"
+}
+$passwordPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($credential.Password)
+try {
+    $env:MSC2_WINDOWS_SERVICE_PASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($passwordPointer)
+    & $installedBinary service install --service-name $serviceName `
+        --binary-path $installedBinary --working-directory $dataDirectory `
+        --log-path (Join-Path $dataDirectory 'agent.log') `
+        --run-user $account --expected-port 48001 `
+        --env "MSC2_DATA_DIR=$dataDirectory"
+    if ($LASTEXITCODE -ne 0) {
+        Fail 'Windows Service registration failed'
+    }
+} finally {
+    Remove-Item Env:\MSC2_WINDOWS_SERVICE_PASSWORD -ErrorAction SilentlyContinue
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($passwordPointer)
+}
+& $installedBinary service start --service-name $serviceName
+if ($LASTEXITCODE -ne 0) {
+    Fail 'Windows Service registration succeeded but startup failed'
+}
 
 $oldPath = [Environment]::GetEnvironmentVariable('Path', $environmentTarget)
 $entries = @()
@@ -75,6 +124,6 @@ $pathChange
 Refresh PATH or open a new PowerShell or Command Prompt window before using
 msc.exe from a shell that was already open.
 
-This installed the CLI only. It did not install, start, stop, or replace the
-Windows Service. The service endpoint remains 127.0.0.1:48001.
+The Windows Service is enabled at boot and running as $account.
+Use msc.exe status agent, msc.exe stop agent, and msc.exe start agent for local control.
 "@

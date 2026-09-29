@@ -47,6 +47,13 @@ pub fn local_agent_boot_enabled() -> Result<bool, ServiceError> {
     Ok(run_at_load && !disabled_entry.is_some_and(|line| line.contains("=> disabled")))
 }
 
+pub fn set_local_agent_boot_enabled(enabled: bool) -> Result<(), ServiceError> {
+    run_local_launchctl(&[
+        if enabled { "enable" } else { "disable" },
+        "system/com.ctemple.msc2.agent",
+    ])
+}
+
 pub fn install_desktop_cli_link_elevated(binary: &Path) -> Result<(), ServiceError> {
     let builds = binary.parent().and_then(Path::parent).ok_or_else(|| {
         ServiceError::InvalidDefinition("desktop agent path has no build directory".into())
@@ -195,6 +202,9 @@ pub trait Launchctl: Send + Sync {
     fn start(&self, label: &str) -> Result<(), ServiceError>;
     fn stop(&self, label: &str) -> Result<(), ServiceError>;
     fn print(&self, service_target: &str) -> Result<String, ServiceError>;
+    fn enable(&self, _service_target: &str) -> Result<(), ServiceError> {
+        Ok(())
+    }
 }
 
 impl Launchctl for SystemLaunchctl {
@@ -216,6 +226,10 @@ impl Launchctl for SystemLaunchctl {
 
     fn print(&self, service_target: &str) -> Result<String, ServiceError> {
         run_launchctl(&["print", service_target], None)
+    }
+
+    fn enable(&self, service_target: &str) -> Result<(), ServiceError> {
+        run_launchctl(&["enable", service_target], None).map(|_| ())
     }
 }
 
@@ -303,6 +317,8 @@ impl<L: Launchctl> MacosLaunchdServiceManager<L> {
                 plist_path.display()
             ))
         })?;
+        self.launchctl
+            .enable(&service_target(request.service_name.as_str()))?;
         self.launchctl.bootstrap(&plist_path)?;
         Ok(ServiceStatusReport::stopped(request))
     }
@@ -779,7 +795,7 @@ if [ -e {agent_plist} ]; then /bin/launchctl bootout system {agent_plist} >/dev/
 /bin/rm -rf {helper_root}; /bin/mv \"$helper_stage\" {helper_root}; \
 /usr/bin/install -o root -g wheel -m 644 {plist} {helper_plist}; \
 /usr/bin/install -o root -g wheel -m 644 {temporary_agent} {agent_plist}; \
-/bin/launchctl bootstrap system {helper_plist}; /bin/launchctl bootstrap system {agent_plist}; \
+/bin/launchctl enable {agent_target}; /bin/launchctl bootstrap system {helper_plist}; /bin/launchctl bootstrap system {agent_plist}; \
 /bin/launchctl kickstart -k {helper_target}; /bin/launchctl kickstart -k {agent_target}; \
 /bin/launchctl print {helper_target} >/dev/null",
             binary = shell_quote(&binary),
@@ -801,7 +817,7 @@ if [ -e {agent_plist} ]; then /bin/launchctl bootout system {agent_plist} >/dev/
 /bin/rm -rf {helper_root}; \
 if [ -e {agent_plist} ]; then /bin/launchctl bootout system {agent_plist} >/dev/null 2>&1 || true; fi; \
 /usr/bin/install -o root -g wheel -m 644 {temporary_agent} {agent_plist}; \
-/bin/launchctl bootstrap system {agent_plist}; /bin/launchctl kickstart -k {agent_target}",
+/bin/launchctl enable {agent_target}; /bin/launchctl bootstrap system {agent_plist}; /bin/launchctl kickstart -k {agent_target}",
             helper_plist = shell_quote(&helper_plist_path),
             helper_root = shell_quote(BEDROCK_HELPER_INSTALL_ROOT),
             temporary_agent = shell_quote(&temporary_agent_plist.display().to_string()),
@@ -1105,7 +1121,7 @@ impl LaunchDaemonPlist {
         push_string_map(&mut xml, "EnvironmentVariables", &self.environment);
         push_string_key(&mut xml, "StandardOutPath", &self.standard_out_path);
         push_string_key(&mut xml, "StandardErrorPath", &self.standard_error_path);
-        xml.push_str("<key>RunAtLoad</key>\n<false/>\n");
+        xml.push_str("<key>RunAtLoad</key>\n<true/>\n");
         xml.push_str("<key>KeepAlive</key>\n<false/>\n");
         xml.push_str("</dict>\n</plist>\n");
         xml

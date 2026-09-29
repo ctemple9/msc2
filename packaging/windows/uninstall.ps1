@@ -1,6 +1,6 @@
 param(
     [ValidateSet('User', 'Machine')]
-    [string]$Scope = 'User'
+    [string]$Scope = 'Machine'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -46,6 +46,15 @@ if ((Get-Content -LiteralPath $ownershipMarker -Raw).Trim() -ne 'msc2-headless-a
     Fail "installation directory has an unrecognized ownership marker: $installDirectory"
 }
 
+$serviceName = 'com.ctemple.msc2.agent'
+$existingService = & sc.exe qc $serviceName 2>$null
+if ($LASTEXITCODE -eq 0 -and ($existingService -join "`n") -like "*$installedBinary*") {
+    & $installedBinary service uninstall --service-name $serviceName
+    if ($LASTEXITCODE -ne 0) {
+        Fail 'could not remove the Windows Service; the command was retained'
+    }
+}
+
 $oldPath = [Environment]::GetEnvironmentVariable('Path', $environmentTarget)
 $entries = @()
 if ($oldPath) {
@@ -73,5 +82,5 @@ $pathChange
 Refresh PATH or open a new PowerShell or Command Prompt window before using
 the changed command discovery state.
 
-The Windows Service and managed server data were retained.
+Managed server data was retained.
 "@

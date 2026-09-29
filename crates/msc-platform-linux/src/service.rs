@@ -50,6 +50,14 @@ pub fn local_agent_boot_enabled() -> Result<bool, ServiceError> {
     }
 }
 
+pub fn set_local_agent_boot_enabled(enabled: bool) -> Result<(), ServiceError> {
+    run_systemctl(&[
+        if enabled { "enable" } else { "disable" },
+        "com.ctemple.msc2.agent.service",
+    ])
+    .map(|_| ())
+}
+
 pub trait AuthorizationRunner: Send + Sync {
     fn authorize(&self, helper: &Path, args: &[OsString]) -> Result<Output, ServiceError>;
 
@@ -1035,8 +1043,8 @@ impl<S: Systemctl> LinuxSystemdServiceManager<S> {
         let unit = SystemdUnit::from_request(&request);
 
         if unit_path.exists() {
-            let _ = self.systemctl.stop(&unit_name);
-            let _ = self.systemctl.disable(&unit_name);
+            self.systemctl.stop(&unit_name)?;
+            self.systemctl.disable(&unit_name)?;
         }
 
         if let Some(parent) = unit_path.parent() {
@@ -1083,8 +1091,8 @@ impl<S: Systemctl> LinuxSystemdServiceManager<S> {
             ));
         }
 
-        let _ = self.systemctl.stop(&unit_name);
-        let _ = self.systemctl.disable(&unit_name);
+        self.systemctl.stop(&unit_name)?;
+        self.systemctl.disable(&unit_name)?;
         fs::remove_file(&unit_path).map_err(|err| {
             ServiceError::Platform(format!(
                 "removing systemd unit {}: {err}",

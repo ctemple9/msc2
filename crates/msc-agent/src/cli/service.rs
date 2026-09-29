@@ -19,6 +19,8 @@ pub enum AgentAction {
     Start,
     Stop,
     Status,
+    Enable,
+    Disable,
 }
 
 pub fn run_agent(
@@ -41,6 +43,11 @@ pub fn run_agent(
 
     let report = match action {
         AgentAction::Status => current,
+        AgentAction::Enable | AgentAction::Disable => {
+            set_local_agent_boot_enabled(matches!(action, AgentAction::Enable))
+                .map_err(service_error)?;
+            current
+        }
         AgentAction::Start if current.state == ServiceState::Running => current,
         AgentAction::Stop if current.state == ServiceState::Stopped => current,
         #[cfg(target_os = "macos")]
@@ -69,6 +76,8 @@ pub fn run_agent(
         AgentAction::Start => "start",
         AgentAction::Stop => "stop",
         AgentAction::Status => "status",
+        AgentAction::Enable => "enable",
+        AgentAction::Disable => "disable",
     };
     if common.json {
         let output = AgentServiceOutput {
@@ -134,6 +143,27 @@ fn local_agent_boot_enabled() -> Result<bool, msc_infrastructure::service::Servi
     #[cfg(target_os = "windows")]
     {
         return msc_platform_windows::service::local_agent_boot_enabled();
+    }
+    #[allow(unreachable_code)]
+    Err(msc_infrastructure::service::ServiceError::Unsupported(
+        "unsupported platform".into(),
+    ))
+}
+
+fn set_local_agent_boot_enabled(
+    enabled: bool,
+) -> Result<(), msc_infrastructure::service::ServiceError> {
+    #[cfg(target_os = "linux")]
+    {
+        return msc_platform_linux::service::set_local_agent_boot_enabled(enabled);
+    }
+    #[cfg(target_os = "macos")]
+    {
+        return msc_platform_macos::service::set_local_agent_boot_enabled(enabled);
+    }
+    #[cfg(target_os = "windows")]
+    {
+        return msc_platform_windows::service::set_local_agent_boot_enabled(enabled);
     }
     #[allow(unreachable_code)]
     Err(msc_infrastructure::service::ServiceError::Unsupported(

@@ -63,8 +63,8 @@ Bedrock sidecar; that is a platform capability boundary, not an installation fai
 The Linux archive additionally contains `install.sh`, `uninstall.sh`, and the
 systemd input definitions used by its service installer. macOS archives
 contain `install.sh` and `uninstall.sh`; Windows archives contain
-`install.ps1` and `uninstall.ps1`. These scripts install the command only;
-service registration remains a separate local operating-system action.
+`install.ps1` and `uninstall.ps1`. The installers register and start the
+local agent service, and enable it for boot.
 
 ## Command-install shapes
 
@@ -74,7 +74,7 @@ The installers use these stable locations:
 |---|---|---|---|
 | Linux archive | `/usr/lib/msc2/msc` | `/usr/local/bin/msc` symlink | Replace the MSC-owned target while preserving the symlink. |
 | macOS archive | `/usr/local/lib/msc2/<architecture>/<version>/msc` | `/usr/local/bin/msc` symlink | Install the new version beside the old one, then move the MSC-owned symlink. |
-| Windows archive | `%LOCALAPPDATA%\\MSC2\\bin\\msc.exe` | `%LOCALAPPDATA%\\MSC2\\bin` in the installing user's PATH | Replace only the MSC-owned executable in the owned directory. |
+| Windows archive | `%ProgramFiles%\\MSC2\\bin\\msc.exe` | `%ProgramFiles%\\MSC2\\bin` in the machine PATH | Replace only the MSC-owned executable in the owned directory. |
 | Linux desktop `.deb`/`.rpm` | Package resource under `/usr/lib` | Package-owned `/usr/local/bin/msc` symlink | Package scripts update and remove only a link targeting this desktop package. |
 | macOS desktop DMG | Agent staged when the desktop installs its local service | `/usr/local/bin/msc` symlink installed with the local service | Service repair updates the link; service removal removes only its matching link. |
 | Windows desktop MSI | `agent\\msc.exe` inside the MSI installation | MSI-owned machine PATH entry for the agent directory | MSI removes its PATH entry on uninstall. |
@@ -82,9 +82,8 @@ The installers use these stable locations:
 The Unix locations are intentionally conventional command locations. The
 installer may request local administrator approval to write them, but the
 agent and managed Minecraft servers keep their documented non-root service
-identity. On Windows, adding the directory to the installing user's PATH is
-separate from installing a Windows Service and does not require machine-wide
-PATH changes unless the operator explicitly chooses that scope.
+identity. On Windows, the headless installer owns a machine PATH entry and
+registers the service under the chosen regular account.
 
 An installer must establish ownership before changing an existing command
 target:
@@ -127,40 +126,40 @@ From the unpacked archive, run:
 ./install.sh
 ```
 
-The installer asks for administrator approval for /usr/local, stores the
-binary under the host architecture's version directory, and creates the
-MSC-owned /usr/local/bin/msc symlink. Intel archives include the Bedrock
-sidecar beside the binary; Apple Silicon archives intentionally do not. To
-remove the command and all MSC-owned version directories for that architecture,
-run ./uninstall.sh from an archive or retained copy of the script. A
-conflicting non-MSC file or symlink is never overwritten.
+The installer asks for administrator approval for `/usr/local` and the
+LaunchDaemon, stores the binary under the host architecture's version
+directory, creates the MSC-owned `/usr/local/bin/msc` symlink, and starts the
+agent with boot startup enabled. Intel archives include the Bedrock sidecar
+beside the binary; Apple Silicon archives intentionally do not. To remove
+the command, its service, and owned version directories for that architecture,
+run `./uninstall.sh` from an archive or retained copy. Managed server data is
+retained. A conflicting command or service from another installation is
+never overwritten.
 
 ## Windows archive installation
 
-In PowerShell, from the unpacked archive, run the per-user install:
+From an elevated PowerShell window, run:
 
 ```powershell
 .\install.ps1
 ```
 
-This installs into %LOCALAPPDATA%\MSC2\bin and updates only the installing
-user's PATH. For an explicitly machine-wide install, open an elevated
-PowerShell window and run .\install.ps1 -Scope Machine; that uses
-%ProgramFiles%\MSC2\bin and the machine PATH. Remove the matching scope with
-.\uninstall.ps1 or .\uninstall.ps1 -Scope Machine. The scripts refuse an
-unmarked existing msc.exe, remove only the exact MSC-owned PATH directory,
-and leave the Windows Service and server data alone.
+The default machine installation uses `%ProgramFiles%\MSC2\bin` and the
+machine PATH. The installer prompts for the regular Windows account that
+will own the service and server files; its password is passed to the Service
+Control Manager during registration and cleared from the installer process.
+Remove the installation with `.\uninstall.ps1` from the archive. The scripts
+refuse an unmarked existing `msc.exe` and remove only their own service,
+executable, and PATH entry. Managed server data remains in `%ProgramData%\MSC2`.
 
 PowerShell and Command Prompt sessions inherit PATH when they start. After an
 install or removal, open a new shell before using Get-Command msc,
 where.exe msc, or msc.exe from that shell. PATH installation is separate
-from Windows Service registration; the service does not depend on PATH.
+from Windows Service operation; the service does not depend on PATH.
 
 ## Service boundary
 
-Command installation does not install or control the operating-system
-service. Service registration is a local, elevated operation owned by the
-platform installer:
+Command and service registration are owned by the platform installer:
 
 | Host | Service manager | Management endpoint |
 |---|---|---|
@@ -176,8 +175,10 @@ process operation, not service management.
 
 ## Noninteractive output and shell refresh
 
-Headless installers must work without a graphical prompt. They report the
-result on standard output and use a nonzero exit status for a failed install.
+Headless installers report the result on standard output and use a nonzero
+exit status for a failed install. Windows prompts for a service account or
+accepts a `PSCredential` supplied by automation; macOS and Linux request
+administrator authorization through the terminal.
 When the command location is already on PATH, they report that no shell
 refresh is needed. When a user or process must start a new shell, they report
 the exact path entry and say so plainly, for example:
@@ -213,10 +214,11 @@ reports the authorization setup failure and leaves the staged release
 untouched. Distribution-managed `.deb` and `.rpm` installations remain owned
 by their package manager and use package-manager guidance instead.
 
-For service installation, the final message separately identifies the service
-manager, service name, endpoint, and whether the service is enabled and
-running. A successful PATH install is not reported as a successful service
-install.
+The final installer message identifies the command path and agent boot state.
+`msc status agent` reports installed, running, and boot-enabled state.
+`msc stop agent` lasts until an explicit start or the next boot. Use
+`msc disable agent` to change future boot startup, and `msc enable agent` to
+restore it.
 
 ## Repository references
 

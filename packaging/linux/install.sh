@@ -150,7 +150,10 @@ render_template "$SCRIPT_DIR/systemd/msc2.conf.in" \
 # Stop the old definitions before replacing them. This is an upgrade-safe
 # boundary: managed server files and the root-owned credential store are not
 # touched, while the next start uses the new binary and unit definitions.
-systemctl stop "$AGENT_UNIT" "$HELPER_SERVICE_UNIT" "$HELPER_SOCKET_UNIT" >/dev/null 2>&1 || true
+if [[ -f "$UNIT_DIR/$AGENT_UNIT" ]]; then
+  systemctl stop "$AGENT_UNIT"
+fi
+systemctl stop "$HELPER_SERVICE_UNIT" "$HELPER_SOCKET_UNIT" >/dev/null 2>&1 || true
 systemctl disable "$AGENT_UNIT" "$HELPER_SERVICE_UNIT" "$HELPER_SOCKET_UNIT" >/dev/null 2>&1 || true
 
 if [[ ! -e "$PATH_DIR" ]]; then

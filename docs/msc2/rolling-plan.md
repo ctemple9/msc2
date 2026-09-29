@@ -134,7 +134,8 @@ remains separate. No release publication or CI gate is implied.
 
 ### P17.8 — Add plain local agent-service commands
 
-- **Status:** PLANNED
+- **Status:** IMPLEMENTED — awaiting Cameron verification
+- **Commit:** P17.8: add local agent service commands
 - **Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/cli/service.rs`, `crates/msc-platform-linux/src/service.rs`, `crates/msc-platform-macos/src/service.rs`, `crates/msc-platform-windows/src/service.rs`
 - **What:** Add `msc start agent`, `msc stop agent`, and `msc status agent` around the installed local service, without an API credential or internal service-name flags. Show installed, running, stopped, and boot-enabled states. Keep `msc server start/stop` distinct and require only OS-level privilege where needed.
 - **Verify:** `cargo check -p msc-agent`

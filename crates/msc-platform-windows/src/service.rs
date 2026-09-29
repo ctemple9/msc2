@@ -18,6 +18,24 @@ use std::process::Command;
 
 const PASSWORD_ENV: &str = "MSC2_WINDOWS_SERVICE_PASSWORD";
 
+pub fn local_agent_boot_enabled() -> Result<bool, ServiceError> {
+    let output = run_sc(&["qc".to_string(), "com.ctemple.msc2.agent".to_string()])?;
+    let start_type = output
+        .lines()
+        .find(|line| line.contains("START_TYPE"))
+        .ok_or_else(|| ServiceError::Platform("Windows service startup type was missing".into()))?;
+    if start_type.contains("AUTO_START") {
+        Ok(true)
+    } else if start_type.contains("DEMAND_START") || start_type.contains("DISABLED") {
+        Ok(false)
+    } else {
+        Err(ServiceError::Platform(format!(
+            "unrecognized Windows service startup type: {}",
+            start_type.trim()
+        )))
+    }
+}
+
 #[derive(Debug, Default, Clone, Copy)]
 pub struct SystemSc;
 

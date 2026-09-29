@@ -34,6 +34,22 @@ const SYSTEM_AGENT_DEV_BUILDS_PATHS: [&str; 2] = [
 ];
 pub const DESKTOP_AGENT_SERVICE_NAME: &str = "com.ctemple.msc2.agent";
 
+pub fn local_agent_boot_enabled() -> Result<bool, ServiceError> {
+    let output = Command::new("systemctl")
+        .args(["is-enabled", "com.ctemple.msc2.agent.service"])
+        .output()
+        .map_err(|error| ServiceError::Platform(format!("checking agent boot startup: {error}")))?;
+    let state = String::from_utf8_lossy(&output.stdout);
+    match state.trim() {
+        "enabled" | "enabled-runtime" | "linked" | "linked-runtime" | "alias" => Ok(true),
+        "disabled" | "masked" | "masked-runtime" | "static" | "indirect" => Ok(false),
+        other => Err(ServiceError::Platform(format!(
+            "could not determine agent boot startup ({other}): {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ))),
+    }
+}
+
 pub trait AuthorizationRunner: Send + Sync {
     fn authorize(&self, helper: &Path, args: &[OsString]) -> Result<Output, ServiceError>;
 

@@ -1,4 +1,4 @@
-use clap::{Args, Subcommand};
+use clap::{Args, Subcommand, ValueEnum};
 use msc_infrastructure::service::{
     ServiceInstallRequest, ServiceManager, ServiceManagerCommand, ServiceName, ServiceState,
     ServiceStatusReport,
@@ -6,6 +6,140 @@ use msc_infrastructure::service::{
 use serde::Serialize;
 
 use super::{CliError, CommonArgs};
+
+const AGENT_SERVICE_NAME: &str = "com.ctemple.msc2.agent";
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum AgentTarget {
+    Agent,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum AgentAction {
+    Start,
+    Stop,
+    Status,
+}
+
+pub fn run_agent(
+    common: CommonArgs,
+    _target: AgentTarget,
+    action: AgentAction,
+) -> Result<(), CliError> {
+    let manager = service_manager()?;
+    let service_name = ServiceName::new(AGENT_SERVICE_NAME);
+    let current = manager
+        .execute(ServiceManagerCommand::Status {
+            service_name: service_name.clone(),
+        })
+        .map_err(service_error)?;
+    if current.state == ServiceState::NotInstalled && !matches!(action, AgentAction::Status) {
+        return Err(CliError::usage(
+            "the local MSC agent service is not installed",
+        ));
+    }
+
+    let report = match action {
+        AgentAction::Status => current,
+        AgentAction::Start if current.state == ServiceState::Running => current,
+        AgentAction::Stop if current.state == ServiceState::Stopped => current,
+        #[cfg(target_os = "macos")]
+        AgentAction::Start => {
+            msc_platform_macos::service::start_local_agent().map_err(service_error)?
+        }
+        #[cfg(target_os = "macos")]
+        AgentAction::Stop => {
+            msc_platform_macos::service::stop_local_agent().map_err(service_error)?
+        }
+        #[cfg(not(target_os = "macos"))]
+        AgentAction::Start => manager
+            .execute(ServiceManagerCommand::Start { service_name })
+            .map_err(service_error)?,
+        #[cfg(not(target_os = "macos"))]
+        AgentAction::Stop => manager
+            .execute(ServiceManagerCommand::Stop { service_name })
+            .map_err(service_error)?,
+    };
+    let boot_enabled = if report.state == ServiceState::NotInstalled {
+        None
+    } else {
+        Some(local_agent_boot_enabled().map_err(service_error)?)
+    };
+    let action_name = match action {
+        AgentAction::Start => "start",
+        AgentAction::Stop => "stop",
+        AgentAction::Status => "status",
+    };
+    if common.json {
+        let output = AgentServiceOutput {
+            command: action_name,
+            installed: report.state != ServiceState::NotInstalled,
+            state: state_name(report.state),
+            boot_enabled,
+            pid: report.pid,
+        };
+        println!(
+            "{}",
+            serde_json::to_string(&output).map_err(|error| {
+                CliError::internal(format!("failed to encode JSON output: {error}"))
+            })?
+        );
+    } else {
+        let state = match report.state {
+            ServiceState::NotInstalled => "not installed",
+            ServiceState::Stopped => "installed, stopped",
+            ServiceState::Running => "installed, running",
+        };
+        let boot = match boot_enabled {
+            Some(true) => ", starts at boot",
+            Some(false) => ", disabled at boot",
+            None => "",
+        };
+        println!("agent service: {state}{boot}");
+    }
+    Ok(())
+}
+
+fn service_error(error: msc_infrastructure::service::ServiceError) -> CliError {
+    CliError::internal(format!("local agent service: {error}"))
+}
+
+fn state_name(state: ServiceState) -> &'static str {
+    match state {
+        ServiceState::NotInstalled => "notInstalled",
+        ServiceState::Stopped => "stopped",
+        ServiceState::Running => "running",
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AgentServiceOutput {
+    command: &'static str,
+    installed: bool,
+    state: &'static str,
+    boot_enabled: Option<bool>,
+    pid: Option<u32>,
+}
+
+fn local_agent_boot_enabled() -> Result<bool, msc_infrastructure::service::ServiceError> {
+    #[cfg(target_os = "linux")]
+    {
+        return msc_platform_linux::service::local_agent_boot_enabled();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        return msc_platform_macos::service::local_agent_boot_enabled();
+    }
+    #[cfg(target_os = "windows")]
+    {
+        return msc_platform_windows::service::local_agent_boot_enabled();
+    }
+    #[allow(unreachable_code)]
+    Err(msc_infrastructure::service::ServiceError::Unsupported(
+        "unsupported platform".into(),
+    ))
+}
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum ServiceCommand {

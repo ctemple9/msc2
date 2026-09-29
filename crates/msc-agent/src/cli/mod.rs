@@ -73,6 +73,10 @@ pub struct CommonArgs {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum Command {
+    /// Start the installed local agent service.
+    Start { target: service::AgentTarget },
+    /// Stop the installed local agent service.
+    Stop { target: service::AgentTarget },
     /// Internal entry point registered with Windows Service Control Manager.
     #[cfg(target_os = "windows")]
     #[command(name = "service-run", hide = true)]
@@ -114,7 +118,9 @@ pub enum Command {
     #[command(name = "command")]
     Send(CommandArgs),
     /// Show the active server's current lifecycle state.
-    Status,
+    Status {
+        target: Option<service::AgentTarget>,
+    },
     /// Show the agent's host and capabilities.
     Capabilities,
     /// Read connectivity and the DuckDNS hostname label.
@@ -956,7 +962,10 @@ pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
         Command::DesktopServiceHelper { .. } => Err(CliError::internal(
             "desktop-service-helper is handled in main",
         )),
-        Command::Status => {
+        Command::Status {
+            target: Some(target),
+        } => service::run_agent(common, target, service::AgentAction::Status),
+        Command::Status { target: None } => {
             let client = ApiClient::connect_local().await?;
             let status: RemoteApiStatus = client.get_json("/v1/status").await?;
             if common.json {
@@ -972,6 +981,10 @@ pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
         Command::Broadcast { command } => run_broadcast(common, command).await,
         Command::ResourcePack { command } => run_resource_pack(common, command).await,
         Command::Service { command } => service::run(common, command).await,
+        Command::Start { target } => {
+            service::run_agent(common, target, service::AgentAction::Start)
+        }
+        Command::Stop { target } => service::run_agent(common, target, service::AgentAction::Stop),
         Command::Update { command } => update::run(common, command),
         Command::Pairing { command } => pairing::run(common, command),
         Command::Server { command } => run_server(common, command).await,

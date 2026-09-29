@@ -24,6 +24,28 @@ use security_framework::os::macos::code_signing::{
 };
 
 const EXPECTED_PORT_ENV: &str = "MSC2_EXPECTED_PORT";
+const LOCAL_AGENT_SERVICE_NAME: &str = "com.ctemple.msc2.agent";
+
+pub fn local_agent_boot_enabled() -> Result<bool, ServiceError> {
+    let plist = format!("/Library/LaunchDaemons/{LOCAL_AGENT_SERVICE_NAME}.plist");
+    let output = Command::new("/usr/bin/plutil")
+        .args(["-extract", "RunAtLoad", "raw", "-o", "-", &plist])
+        .output()
+        .map_err(|error| ServiceError::Platform(format!("reading agent boot setting: {error}")))?;
+    if !output.status.success() {
+        return Err(ServiceError::Platform(format!(
+            "reading agent boot setting: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        )));
+    }
+    let run_at_load = String::from_utf8_lossy(&output.stdout).trim() == "true";
+    let disabled = run_launchctl(&["print-disabled", "system"], None)?;
+    let disabled_entry = disabled.lines().find(|line| {
+        line.trim_start()
+            .starts_with(&format!("\"{LOCAL_AGENT_SERVICE_NAME}\""))
+    });
+    Ok(run_at_load && !disabled_entry.is_some_and(|line| line.contains("=> disabled")))
+}
 pub const BEDROCK_HELPER_SERVICE_NAME: &str = "com.ctemple.msc2.bedrock-helper";
 pub const BEDROCK_HELPER_SOCKET_PATH: &str = "/var/run/msc2/bedrock.sock";
 const BEDROCK_HELPER_INSTALL_ROOT: &str = "/Library/Application Support/MSC 2/bedrock-helper";
@@ -419,6 +441,43 @@ pub fn start_elevated(service_name: &str) -> Result<ServiceStatusReport, Service
         &msc_infrastructure::service::ServiceName::new(service_name),
         ServiceState::Running,
     )
+}
+
+/// Terminal and SSH service control uses sudo's ordinary shell prompt.
+pub fn start_local_agent() -> Result<ServiceStatusReport, ServiceError> {
+    run_local_launchctl(&["kickstart", "-k", "system/com.ctemple.msc2.agent"])?;
+    wait_for_service_state(
+        &msc_infrastructure::service::ServiceName::new(LOCAL_AGENT_SERVICE_NAME),
+        ServiceState::Running,
+    )
+}
+
+pub fn stop_local_agent() -> Result<ServiceStatusReport, ServiceError> {
+    run_local_launchctl(&["stop", LOCAL_AGENT_SERVICE_NAME])?;
+    let _ = run_local_launchctl(&["stop", BEDROCK_HELPER_SERVICE_NAME]);
+    wait_for_service_state(
+        &msc_infrastructure::service::ServiceName::new(LOCAL_AGENT_SERVICE_NAME),
+        ServiceState::Stopped,
+    )
+}
+
+fn run_local_launchctl(args: &[&str]) -> Result<(), ServiceError> {
+    let output = Command::new("/usr/bin/sudo")
+        .arg("/bin/launchctl")
+        .args(args)
+        .output()
+        .map_err(|error| {
+            ServiceError::Platform(format!("starting sudo for agent service control: {error}"))
+        })?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(ServiceError::Platform(format!(
+            "launchctl {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stderr).trim()
+        )))
+    }
 }
 
 /// Stops an already-installed LaunchDaemon through the same elevation boundary

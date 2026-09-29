@@ -118,7 +118,7 @@ remains separate. No release publication or CI gate is implied.
 
 ### P17.6 — Implement Windows local authentication
 
-- **Status:** PLANNED
+- **Status:** IMPLEMENTED — awaiting Cameron verification
 - **Files:** `crates/msc-agent/src/auth/`, `crates/msc-platform-windows/src/`, `packaging/windows/`
 - **What:** Use a local named pipe with an explicit access-control list and verified caller identity. Permit the installing account after reboot or remote Windows login, reject unrelated users, and preserve the Service Control Manager privilege boundary.
 - **Verify:** `cargo check -p msc-agent -p msc-platform-windows --target x86_64-pc-windows-msvc`

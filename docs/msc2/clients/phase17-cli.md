@@ -65,6 +65,20 @@ desktop bootstrap key, signed-code requirement, or bootstrap socket. Its data
 directory stays in the account's application-support area, outside
 user-selected folders that require macOS privacy consent.
 
+### Windows exchange (P17.6)
+
+The Windows agent creates `\\.\pipe\msc2-local-cli-v1` with a protected
+named-pipe DACL granting access only to the SID in the agent process token.
+Remote pipe clients are rejected. After receiving a bounded version-1 hello,
+the agent impersonates the connected pipe client long enough to read the
+kernel-backed token SID, then immediately reverts to its service identity.
+Shared auth issues a credential only when the client SID matches the service
+SID and is not LocalSystem. A local login or SSH login as the installing
+account therefore works after service or host restarts; other accounts cannot
+open the pipe and still would fail the identity comparison. The pipe has no
+relationship to the Service Control Manager, and this listener cannot start,
+stop, or replace the service.
+
 `msc start agent`, `msc stop agent`, and `msc status agent` control the installed local service while the API is down. Installation enables startup at boot. A routine stop holds until explicit start or the next boot; only an explicit disable changes future startup. Minecraft server start/stop are separate operations. Desktop and headless packages own the command on PATH.
 
 Catalog installs follow search → inspect compatible versions and dependencies → confirm → install. CurseForge modpacks begin with a local `.zip`; the agent downloads permitted manifest files and reports author-blocked files for manual supply. `msc command` is the sole raw Minecraft command path. All task commands keep human-readable output and `--json` for scripting. Destructive tasks require explicit confirmation. The route inventory below is completed in P17.2.

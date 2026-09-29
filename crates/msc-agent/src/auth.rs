@@ -26,6 +26,9 @@ mod local_cli_linux;
 #[cfg(target_os = "macos")]
 #[path = "auth/local_cli_macos.rs"]
 mod local_cli_macos;
+#[cfg(target_os = "windows")]
+#[path = "auth/local_cli_windows.rs"]
+mod local_cli_windows;
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::ffi::OsString;
@@ -190,6 +193,11 @@ pub(crate) async fn start_local_cli(auth: AuthState) -> Result<(), String> {
 #[cfg(target_os = "macos")]
 pub(crate) async fn start_local_cli(auth: AuthState) -> Result<(), String> {
     local_cli_macos::start(auth).await
+}
+
+#[cfg(target_os = "windows")]
+pub(crate) async fn start_local_cli(auth: AuthState) -> Result<(), String> {
+    local_cli_windows::start(auth).await
 }
 
 struct AuthStateInner {

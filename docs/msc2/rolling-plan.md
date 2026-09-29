@@ -94,9 +94,9 @@ remains separate. No release publication or CI gate is implied.
 
 ### P17.3 — Define host-local CLI authentication
 
-- **Status:** PLANNED
-- **Files:** `crates/msc-agent/src/auth.rs`, `crates/msc-agent/src/auth/`, `crates/msc-agent/src/main.rs`, `docs/msc2/clients/phase17-cli.md`
-- **What:** Add a local IPC exchange that verifies the connecting OS account, authorizes it for this installation, and gives the CLI a short-lived host-scoped API credential in process memory only. Preserve API route permissions and audit identity. Reject wrong users, forwarded TCP, and mere possession of the binary; never put a credential in shell startup files, arguments, or installer output. Specify stopped-service and restart behavior.
+- **Status:** IMPLEMENTED — awaiting Cameron verification
+- **Files:** `crates/msc-agent/src/auth.rs`, `crates/msc-agent/src/auth/local_cli.rs`, `docs/msc2/clients/phase17-cli.md`, `docs/msc2/rolling-plan.md`
+- **What:** Define the shared, compile-safe local-authentication interface and in-memory short-lived API credential policy. Document the trusted OS peer and service-account inputs, authorization, route permissions, audit identity, failure behavior, and restart behavior. P17.4–P17.6 add the actual platform IPC listeners and peer verification; P17.7 connects the CLI and removes its existing remote/token options. No local exchange is available to operators in this step.
 - **Verify:** `cargo check -p msc-agent`
 - **Batch:** B (P17.3–P17.7) — local authentication
 

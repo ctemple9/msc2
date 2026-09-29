@@ -10,13 +10,16 @@
 //!
 //! The credential registry is intentionally non-secret. The secret store
 //! value at `remote-api.token.<credential-id>` is the authority for whether
-//! a token can authenticate.
+//! a durable token can authenticate. Host-local CLI tokens use separate
+//! process-memory verifiers with a short lifetime.
 
 #[path = "auth/desktop.rs"]
 pub(crate) mod desktop;
 #[cfg(target_os = "macos")]
 #[path = "auth/local_bootstrap.rs"]
 mod local_bootstrap;
+#[path = "auth/local_cli.rs"]
+pub(crate) mod local_cli;
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::ffi::OsString;
@@ -176,6 +179,7 @@ pub(crate) fn spawn_local_bootstrap(auth: AuthState) {
 struct AuthStateInner {
     secret_store: Arc<dyn SecretStore + Send + Sync>,
     registry: Mutex<HashMap<String, CredentialRecord>>,
+    local_cli_credentials: Mutex<HashMap<String, local_cli::LocalCredentialRecord>>,
     failures: Mutex<HashMap<String, VecDeque<Instant>>>,
     pairing_keys: Mutex<HashSet<String>>,
     console_stream_tickets: Mutex<HashMap<String, ConsoleStreamTicket>>,
@@ -306,6 +310,7 @@ impl AuthState {
             inner: Arc::new(AuthStateInner {
                 secret_store,
                 registry: Mutex::new(registry),
+                local_cli_credentials: Mutex::new(HashMap::new()),
                 failures: Mutex::new(HashMap::new()),
                 pairing_keys: Mutex::new(HashSet::new()),
                 console_stream_tickets: Mutex::new(HashMap::new()),
@@ -375,6 +380,12 @@ impl AuthState {
             record
         };
 
+        if ticket_record
+            .credential_id
+            .starts_with(local_cli::CREDENTIAL_ID_PREFIX)
+        {
+            return self.local_cli_identity(&ticket_record.credential_id);
+        }
         let registry = self.inner.registry.lock().unwrap();
         let record = registry.get(&ticket_record.credential_id)?;
         if record.revoked
@@ -537,6 +548,16 @@ impl AuthState {
     }
 
     pub(crate) fn stream_is_authorized(&self, identity: &StreamAuthentication) -> bool {
+        if self
+            .inner
+            .local_cli_credentials
+            .lock()
+            .unwrap()
+            .get(&identity.credential.credential_id)
+            .is_some_and(|record| Instant::now() < record.expires_at)
+        {
+            return true;
+        }
         let registry = self.inner.registry.lock().unwrap();
         registry
             .get(&identity.credential.credential_id)
@@ -621,6 +642,7 @@ impl AuthState {
             registry.clear();
             self.persist_registry(&registry)?;
         }
+        self.inner.local_cli_credentials.lock().unwrap().clear();
         Ok(())
     }
 
@@ -668,6 +690,7 @@ impl AuthState {
             self.inner.secret_store.delete(&key)?;
         }
         self.inner.pairing_keys.lock().unwrap().clear();
+        self.inner.local_cli_credentials.lock().unwrap().clear();
         self.notify_streams();
         {
             let mut registry = self.inner.registry.lock().unwrap();
@@ -868,6 +891,10 @@ impl AuthState {
     fn try_authenticate(&self, headers: &HeaderMap) -> Result<AuthenticatedCredential, AuthError> {
         let token = bearer_token(headers).ok_or(AuthError::Missing)?;
         let (credential_id, secret) = parse_token(token).ok_or(AuthError::Malformed)?;
+
+        if credential_id.starts_with(local_cli::CREDENTIAL_ID_PREFIX) {
+            return self.authenticate_local_cli_credential(credential_id, secret);
+        }
 
         let record = {
             let registry = self.inner.registry.lock().unwrap();

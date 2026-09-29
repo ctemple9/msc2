@@ -2,6 +2,41 @@
 
 The `msc` CLI manages the agent on the host where the command runs. A local terminal and an SSH login shell use the same installation-authorized OS account. The agent verifies the local peer and issues an in-memory, short-lived API credential; users do not export tokens or pair the CLI. A wrong account, forwarded TCP connection, or copied binary does not confer access. Desktop remote pairing and per-host credentials remain separate. A desktop-managed `msc pairing create --client-kind desktop --json` invocation through SSH is a fixed-purpose bootstrap, not a general remote CLI mode.
 
+## P17.3 local authentication contract
+
+P17.3 adds the shared credential policy and authenticated API integration. It
+does **not** start an IPC listener or change the current CLI transport. The
+existing direct-remote/token CLI remains usable until P17.7 switches it over.
+
+The platform listener accepts only a local Unix socket (Linux/macOS) or local
+named pipe (Windows). It obtains the caller's UID or SID from the **accepted
+connection** using OS peer-identity APIs, and the installing account's UID or
+SID from the running agent process. Neither value comes from a request body,
+command argument, environment variable, forwarded HTTP header, or executable
+path. The listener calls `AuthState::issue_for_local_cli_peer` only after both
+OS lookups succeed. The shared policy requires equal identities and rejects
+root or LocalSystem as an installation account. Platform packaging must
+restrict access to its local IPC endpoint as another layer of protection.
+
+The exchange returns a random bearer credential valid for five minutes. Its
+salted verifier and the account audit label live only in this agent process;
+the credential is absent from the durable registry and secret store. It is
+valid only against the agent instance that issued it, uses the existing API
+permission middleware, and attributes requests to `cli:uid:<uid>` or
+`cli:sid:<sid>`. The installing account gets the admin role and its existing
+permission categories. The CLI keeps the credential in process memory for
+that invocation; it never writes or prints it. The exchange is separate from
+desktop package bootstrap and desktop remote pairing.
+
+An unknown or mismatched peer, failed OS lookup, unavailable endpoint, or
+full issuance capacity yields no credential. The listener must not fall back
+to a TCP exchange. A forwarded TCP connection or copied binary carries no OS
+peer evidence and cannot obtain a CLI credential. If the service is stopped,
+there is no endpoint; the CLI must report that condition when P17.7 connects
+it. Agent restart and host reboot discard all issued credentials. The same
+authorized OS account can obtain a fresh one after the service returns,
+without persistent CLI setup. A host reset clears outstanding credentials.
+
 `msc start agent`, `msc stop agent`, and `msc status agent` control the installed local service while the API is down. Installation enables startup at boot. A routine stop holds until explicit start or the next boot; only an explicit disable changes future startup. Minecraft server start/stop are separate operations. Desktop and headless packages own the command on PATH.
 
 Catalog installs follow search → inspect compatible versions and dependencies → confirm → install. CurseForge modpacks begin with a local `.zip`; the agent downloads permitted manifest files and reports author-blocked files for manual supply. `msc command` is the sole raw Minecraft command path. All task commands keep human-readable output and `--json` for scripting. Destructive tasks require explicit confirmation. The route inventory below is completed in P17.2.

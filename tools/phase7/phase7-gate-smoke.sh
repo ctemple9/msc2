@@ -163,7 +163,14 @@ cleanup() {
       -s "${KEYCHAIN_SERVICE}" \
       -a "remote-api.token.phase7" >/dev/null 2>&1 || true
   fi
-  rm -rf "${TMP_DIR}"
+  for attempt in {1..20}; do
+    rm -rf "${TMP_DIR}" 2>/dev/null || true
+    [[ ! -e "${TMP_DIR}" ]] && return
+    sleep 0.25
+  done
+  echo "FAIL: temporary smoke directory remained after cleanup retries: ${TMP_DIR}" >&2
+  find "${TMP_DIR}" -maxdepth 4 -print >&2 2>/dev/null || true
+  return 1
 }
 trap cleanup EXIT
 

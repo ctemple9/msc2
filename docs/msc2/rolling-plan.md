@@ -86,7 +86,7 @@ remains separate. No release publication or CI gate is implied.
 
 ### P17.2 — Map every API route to a CLI task or explicit exclusion
 
-- **Status:** PLANNED
+- **Status:** IMPLEMENTED — awaiting Cameron verification
 - **Files:** `docs/msc2/clients/phase17-cli.md`, `docs/msc2/api-contract/openapi.json`
 - **What:** Compare the live router and OpenAPI with the CLI. Record every user task, existing command, missing command, permission, edition limit, active-server context, and output rule. Mark staging, stream tickets, and desktop bootstrap as internal. Identify any missing API capability before implementing commands.
 - **Verify:** `rg -n 'servers|players|worlds|backups|catalog|operations|help|internal' docs/msc2/clients/phase17-cli.md`

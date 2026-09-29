@@ -299,6 +299,7 @@ struct PlayerIdentifyResultDto {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct PlayerDataMutationRequestDto {
     profile_id: Option<String>,
+    expected_active_server_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -306,6 +307,7 @@ pub(crate) struct PlayerDataMutationRequestDto {
 pub(crate) struct PlayerMigrateRequestDto {
     profile_id: Option<String>,
     target_uuid: Option<String>,
+    expected_active_server_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -733,11 +735,16 @@ pub async fn delete_player_data(
     {
         return response;
     }
-    let profile_id = match player_data_profile_id(body) {
-        Ok(profile_id) => profile_id,
+    let (profile_id, expected_server_id) = match player_data_profile_id(body) {
+        Ok(values) => values,
         Err(response) => return *response,
     };
-    mutate_java_player_data(&state, &profile_id, PlayerDataMutation::Delete)
+    mutate_player_data_with_expected(
+        &state,
+        &profile_id,
+        expected_server_id,
+        PlayerDataMutation::Delete,
+    )
 }
 
 pub async fn migrate_player_offline(
@@ -750,11 +757,16 @@ pub async fn migrate_player_offline(
     {
         return response;
     }
-    let profile_id = match player_data_profile_id(body) {
-        Ok(profile_id) => profile_id,
+    let (profile_id, expected_server_id) = match player_data_profile_id(body) {
+        Ok(values) => values,
         Err(response) => return *response,
     };
-    mutate_java_player_data(&state, &profile_id, PlayerDataMutation::MigrateOffline)
+    mutate_player_data_with_expected(
+        &state,
+        &profile_id,
+        expected_server_id,
+        PlayerDataMutation::MigrateOffline,
+    )
 }
 
 pub async fn migrate_player(
@@ -785,13 +797,15 @@ pub async fn migrate_player(
     else {
         return invalid_body("invalid_body", "targetUuid is required.");
     };
+    let expected_server_id = body.expected_active_server_id;
     let target_uuid = match Uuid::parse_str(&target_uuid) {
         Ok(uuid) => uuid,
         Err(_) => return invalid_body("invalid_uuid", "targetUuid must be a valid UUID."),
     };
-    mutate_java_player_data(
+    mutate_player_data_with_expected(
         &state,
         &profile_id,
+        expected_server_id,
         PlayerDataMutation::Migrate(target_uuid),
     )
 }
@@ -806,26 +820,60 @@ pub async fn duplicate_player_data(
     {
         return response;
     }
-    let profile_id = match player_data_profile_id(body) {
-        Ok(profile_id) => profile_id,
+    let (profile_id, expected_server_id) = match player_data_profile_id(body) {
+        Ok(values) => values,
         Err(response) => return *response,
     };
-    mutate_java_player_data(&state, &profile_id, PlayerDataMutation::Duplicate)
+    mutate_player_data_with_expected(
+        &state,
+        &profile_id,
+        expected_server_id,
+        PlayerDataMutation::Duplicate,
+    )
 }
 
 fn player_data_profile_id(
     body: Result<Json<PlayerDataMutationRequestDto>, JsonRejection>,
-) -> Result<String, Box<Response>> {
+) -> Result<(String, Option<String>), Box<Response>> {
     let Json(body) = body.map_err(|_| {
         Box::new(invalid_body(
             "invalid_body",
             "Request body must be valid JSON.",
         ))
     })?;
-    body.profile_id
+    let profile_id = body
+        .profile_id
         .map(|value| value.trim().to_owned())
         .filter(|value| !value.is_empty())
-        .ok_or_else(|| Box::new(invalid_body("invalid_body", "profileId is required.")))
+        .ok_or_else(|| Box::new(invalid_body("invalid_body", "profileId is required.")))?;
+    Ok((profile_id, body.expected_active_server_id))
+}
+
+fn mutate_player_data_with_expected(
+    state: &LifecycleRoutesState,
+    profile_id: &str,
+    expected_server_id: Option<String>,
+    mutation: PlayerDataMutation,
+) -> Response {
+    let expected_server_id =
+        expected_server_id.or_else(|| state.active_config_server().map(|server| server.id));
+    let Some(expected_server_id) = expected_server_id else {
+        return error_response(
+            StatusCode::CONFLICT,
+            "no_active_server",
+            "No server is currently active.",
+        );
+    };
+    match state.with_expected_active_server(Some(&expected_server_id), || {
+        mutate_java_player_data(state, profile_id, mutation)
+    }) {
+        Ok(response) => response,
+        Err(()) => error_response(
+            StatusCode::CONFLICT,
+            "active_server_changed",
+            "The active server changed before player data was changed.",
+        ),
+    }
 }
 
 enum PlayerDataMutation {

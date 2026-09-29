@@ -171,10 +171,10 @@ For each user task, terminal output must identify the target and result; `--json
 | POST `/v1/players/hidden` | Hide or unhide a player profile | Missing: P17 task command | `players` | active server / capability |
 | POST `/v1/players/identify` | Assign a gamertag to an unresolved Bedrock profile | Missing: P17 task command | `players` | active server / capability; Bedrock |
 | GET `/v1/players/profiles` | List all-time player profiles with stats | `msc player profiles` | `none` | active server / capability |
-| POST `/v1/players/delete` | Delete a player's data | Missing: P17 task command | `players` | active server / capability |
-| POST `/v1/players/migrate-offline` | Migrate player data to its offline UUID | Missing: P17 task command | `players` | active server / capability |
-| POST `/v1/players/migrate` | Migrate player data to a custom UUID | Missing: P17 task command | `players` | active server / capability |
-| POST `/v1/players/duplicate` | Duplicate a player's data | Missing: P17 task command | `players` | active server / capability |
+| POST `/v1/players/delete` | Delete a player's data | `msc player data delete` | `players` | active server / capability; explicit `--confirm`; Bedrock server must be stopped |
+| POST `/v1/players/migrate-offline` | Migrate player data to its offline UUID | `msc player data migrate-offline` | `players` | active server / capability; Java only; explicit `--confirm` |
+| POST `/v1/players/migrate` | Migrate player data to a custom UUID | `msc player data migrate` | `players` | active server / capability; Java only; explicit `--confirm` |
+| POST `/v1/players/duplicate` | Duplicate a player's data | `msc player data duplicate` | `players` | active server / capability; Bedrock server must be stopped |
 | GET `/v1/duckdns` | Get the configured DuckDNS hostname | Existing: `msc network duckdns` | `none` | host |
 | POST `/v1/duckdns` | Update the DuckDNS hostname | Existing: `msc network duckdns` | `settings` | host |
 | GET `/v1/servers` | List all registered servers | Missing: P17 task command | `none` | host |

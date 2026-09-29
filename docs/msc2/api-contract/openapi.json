@@ -10112,6 +10112,10 @@
         "properties": {
           "profileId": {
             "type": "string"
+          },
+          "expectedActiveServerId": {
+            "type": "string",
+            "description": "When supplied, refuse the mutation if a different server is active."
           }
         },
         "required": [
@@ -10126,6 +10130,10 @@
           },
           "targetUuid": {
             "type": "string"
+          },
+          "expectedActiveServerId": {
+            "type": "string",
+            "description": "When supplied, refuse the mutation if a different server is active."
           }
         },
         "required": [

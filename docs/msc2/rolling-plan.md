@@ -193,8 +193,8 @@ remains separate. No release publication or CI gate is implied.
 
 ### P17.15 — Add saved player-data operations
 
-- **Status:** PLANNED
-- **Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/routes/players.rs`
+- **Status:** IMPLEMENTED — awaiting Cameron verification
+- **Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/routes/players.rs`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/clients/phase17-cli.md`
 - **What:** Inspect available stats and inventory; duplicate/delete data and perform Java offline/custom UUID migration. Explain Bedrock's stopped-server requirement and Java-only migration; explicitly confirm destructive actions.
 - **Verify:** `cargo check -p msc-agent`
 - **Batch:** D (P17.11–P17.15) — core administration

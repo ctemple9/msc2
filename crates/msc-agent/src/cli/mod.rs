@@ -777,6 +777,11 @@ pub enum PlayerCommand {
         #[arg(long)]
         server: Option<String>,
     },
+    /// Inspect, duplicate, delete, or migrate saved player data.
+    Data {
+        #[command(subcommand)]
+        command: PlayerDataCommand,
+    },
     /// Send a private message to a player.
     Message {
         player: String,
@@ -822,6 +827,47 @@ pub enum PlayerCommand {
     Whitelist {
         #[command(subcommand)]
         command: PlayerWhitelistCommand,
+    },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum PlayerDataCommand {
+    /// Show available saved statistics and inventory.
+    Show {
+        player: String,
+        #[arg(long)]
+        server: Option<String>,
+    },
+    /// Duplicate saved data under a new player identifier. Bedrock servers must be stopped.
+    Duplicate {
+        player: String,
+        #[arg(long)]
+        server: Option<String>,
+    },
+    /// Permanently delete saved player data. Requires --confirm. Bedrock servers must be stopped.
+    Delete {
+        player: String,
+        #[arg(long)]
+        server: Option<String>,
+        #[arg(long)]
+        confirm: bool,
+    },
+    /// Move Java data to the account's offline UUID. Requires --confirm; Bedrock has no UUID migration.
+    MigrateOffline {
+        player: String,
+        #[arg(long)]
+        server: Option<String>,
+        #[arg(long)]
+        confirm: bool,
+    },
+    /// Move Java data to a custom UUID. Requires --confirm; Bedrock has no UUID migration.
+    Migrate {
+        player: String,
+        target_uuid: String,
+        #[arg(long)]
+        server: Option<String>,
+        #[arg(long)]
+        confirm: bool,
     },
 }
 
@@ -1280,6 +1326,7 @@ async fn run_player(common: CommonArgs, command: PlayerCommand) -> Result<(), Cl
                 }
             }
         }
+        PlayerCommand::Data { command } => run_player_data(&client, common, command).await?,
         PlayerCommand::Message {
             player,
             message,
@@ -1392,6 +1439,174 @@ async fn run_player(common: CommonArgs, command: PlayerCommand) -> Result<(), Cl
         },
     }
     Ok(())
+}
+
+async fn run_player_data(
+    client: &ApiClient,
+    common: CommonArgs,
+    command: PlayerDataCommand,
+) -> Result<(), CliError> {
+    let (player, server, action, target_uuid, confirmed) = match command {
+        PlayerDataCommand::Show { player, server } => (player, server, None, None, true),
+        PlayerDataCommand::Duplicate { player, server } => {
+            (player, server, Some("duplicate"), None, true)
+        }
+        PlayerDataCommand::Delete {
+            player,
+            server,
+            confirm,
+        } => (player, server, Some("delete"), None, confirm),
+        PlayerDataCommand::MigrateOffline {
+            player,
+            server,
+            confirm,
+        } => (player, server, Some("migrate-offline"), None, confirm),
+        PlayerDataCommand::Migrate {
+            player,
+            target_uuid,
+            server,
+            confirm,
+        } => (player, server, Some("migrate"), Some(target_uuid), confirm),
+    };
+    let selected = select_player_server(client, server.as_deref()).await?;
+    let response: serde_json::Value = client.get_json("/v1/players/profiles").await?;
+    let profiles = response["profiles"]
+        .as_array()
+        .ok_or_else(|| CliError::internal("agent returned an invalid player profile list"))?;
+    let profile = resolve_player_profile(profiles, &player)?;
+    let profile_id = profile["id"]
+        .as_str()
+        .ok_or_else(|| CliError::internal("player profile has no id"))?;
+    let Some(action) = action else {
+        if common.json {
+            print_json(profile)?;
+        } else {
+            print_player_data(profile);
+        }
+        return Ok(());
+    };
+    if !confirmed {
+        return Err(CliError::usage(format!(
+            "{action} changes saved player data; repeat the command with --confirm"
+        )));
+    }
+    let path = match action {
+        "duplicate" => "/v1/players/duplicate",
+        "delete" => "/v1/players/delete",
+        "migrate-offline" => "/v1/players/migrate-offline",
+        "migrate" => "/v1/players/migrate",
+        _ => unreachable!(),
+    };
+    let mut body =
+        serde_json::json!({"profileId": profile_id, "expectedActiveServerId": selected.id});
+    if let Some(target_uuid) = target_uuid {
+        body["targetUuid"] = target_uuid.into();
+    }
+    let result: serde_json::Value = client.post_json(path, &body).await?;
+    if common.json {
+        print_json(&result)?;
+    } else {
+        println!(
+            "{} player data for {}",
+            result["message"].as_str().unwrap_or(action),
+            profile["username"].as_str().unwrap_or(&player)
+        );
+        if let Some(new_profile_id) = result["newProfileId"].as_str() {
+            println!("new profile id: {new_profile_id}");
+        }
+        if selected.server_type == "bedrock" && action == "delete" {
+            println!("Bedrock player data changes require a stopped server.");
+        }
+    }
+    Ok(())
+}
+
+fn resolve_player_profile<'a>(
+    profiles: &'a [serde_json::Value],
+    selector: &str,
+) -> Result<&'a serde_json::Value, CliError> {
+    if let Some(profile) = profiles
+        .iter()
+        .find(|profile| profile["id"].as_str() == Some(selector))
+    {
+        return Ok(profile);
+    }
+    let exact = profiles
+        .iter()
+        .filter(|profile| profile["username"].as_str() == Some(selector))
+        .collect::<Vec<_>>();
+    if exact.len() == 1 {
+        return Ok(exact[0]);
+    }
+    if exact.len() > 1 {
+        return Err(CliError::usage(format!(
+            "multiple player profiles are named {selector:?}; use the profile id"
+        )));
+    }
+    let folded = selector.to_ascii_lowercase();
+    let matches = profiles
+        .iter()
+        .filter(|profile| {
+            profile["username"]
+                .as_str()
+                .is_some_and(|name| name.to_ascii_lowercase() == folded)
+        })
+        .collect::<Vec<_>>();
+    match matches.as_slice() {
+        [profile] => Ok(profile),
+        [] => Err(CliError::usage(format!(
+            "no player profile matched {selector:?}"
+        ))),
+        _ => Err(CliError::usage(format!(
+            "multiple player profiles match {selector:?}; use the profile id"
+        ))),
+    }
+}
+
+fn print_player_data(profile: &serde_json::Value) {
+    println!(
+        "{} ({})",
+        profile["username"].as_str().unwrap_or("unknown"),
+        profile["id"].as_str().unwrap_or("?")
+    );
+    match &profile["stats"] {
+        serde_json::Value::Object(stats) => {
+            for key in [
+                "health",
+                "maxHealth",
+                "foodLevel",
+                "xpLevel",
+                "xpTotal",
+                "gameModeDisplay",
+                "dimensionDisplay",
+                "posX",
+                "posY",
+                "posZ",
+                "score",
+            ] {
+                if let Some(value) = stats.get(key) {
+                    println!("{}: {}", key, value);
+                }
+            }
+        }
+        _ => println!("statistics: unavailable"),
+    }
+    if let Some(items) = profile["inventory"].as_array() {
+        println!("inventory items: {}", items.len());
+        for item in items {
+            println!(
+                "slot {}: {} × {}",
+                item["slot"],
+                item["count"],
+                item["displayName"]
+                    .as_str()
+                    .or(item["itemID"].as_str())
+                    .unwrap_or("unknown item")
+            );
+        }
+    } else {
+        println!("inventory: unavailable");
+    }
 }
 
 async fn select_player_server(

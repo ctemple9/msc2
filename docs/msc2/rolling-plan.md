@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 16 execution is underway. Cameron reports P16.1–P16.28 verified; P16.29 remains open. The v0.1.17 tag points to an unpublished failed candidate. D-039 archives automated CI and makes beta publication build-only; P16.30–P16.32 await Cameron's verification. Exact-artifact physical acceptance remains pending.
-> **Next move:** Cameron verifies P16.30–P16.32. A later release tag can use the simplified workflow, after which Cameron records exact-artifact results for P16.29. Phase 16 remains in progress until its full exit gate is satisfied and reviewed.
+> ## STATUS: Cameron directed P16.1–P16.32 to be marked Done; P16.33 prepared v0.1.18. The v0.1.17 tag remains an unpublished failed candidate; v0.1.18 is being prepared through the build-only release workflow. The Phase 16 exit gate still awaits exact-artifact physical acceptance and independent review.
+> **Next move:** Publish v0.1.18, record its exact assets and Cameron's physical results, then have the other agent review the Phase 16 exit gate. Step status does not assert that pending gate evidence exists.
 
 ## How this document works
 
@@ -276,7 +276,7 @@ Batch: solo
 
 #### P16.29 — Record exact-artifact release acceptance
 
-Status: implementation scaffolded — publication and physical acceptance remain open; same-commit CI publication requirement superseded by D-039
+Status: Done — Cameron directed; publication and physical acceptance remain open; same-commit CI publication requirement superseded by D-039
 Files: docs/msc2/release/phase16-acceptance.md, tools/release/check-phase16-evidence.py, tools/release/check-linux-artifacts.py, tools/release/record-builder-environment.mjs, tools/phase7/phase7-gate-smoke.sh, docs/msc2/rolling-plan.md, .github/workflows/release.yml, crates/msc-agent/Cargo.toml, Cargo.lock, clients/desktop-web/package.json, clients/desktop-web/package-lock.json, clients/desktop-web/src/lib/bundle-identity.ts, clients/desktop-web/src/lib/bundle-identity.test.ts, clients/desktop-web/src-tauri/tauri.conf.json, clients/desktop-web/src-tauri/Cargo.toml, clients/desktop-web/src-tauri/Cargo.lock, README.md, docs/msc2/clients/headless-installation.md
 What: Assemble evidence for every Phase 16 gate item and every supported installer/archive using exact newly published bytes: install, desktop/CLI pairing and supported clients, Minecraft lifecycle, world import/backup/restore and interruption recovery, service reboot/sign-out, update rollback, permission and revocation, uninstall/data retention, artifact identity, signed release metadata, and Linux minimum. Record that the new agents do not serve a browser page or accept browser sessions. Mark unavailable or failed checks honestly; do not close the phase while any required row lacks Cameron's result. The reviewer for this phase must be the other agent, per repository rules.
 Verify: Run `python3 tools/release/check-phase16-evidence.py docs/msc2/release/phase16-acceptance.md` and confirm it accepts only complete gate rows with exact artifacts and Cameron's observed results.
@@ -284,7 +284,7 @@ Batch: solo
 
 #### P16.30 — Archive CI and simplify beta publication
 
-Status: Implemented — Cameron verification pending
+Status: Done — Cameron directed
 Files: .github/archive, .github/workflows/release.yml, tools/release/archive, docs/msc2/msc2-decisions.md, docs/msc2/msc2-port-plan.md, docs/msc2/dependency-security.md, docs/msc2/release/phase16-acceptance.md, tools/release/check-phase16-evidence.py, docs/msc2/rolling-plan.md
 What: Preserve the former CI and release workflows outside the active workflow directory. Keep existing test source available for optional manual use. Build and publish the nine beta artifacts without automated tests, lint, smoke checks, Linux installation exercises, or same-commit CI waiting. Retain version matching, asset completeness, SHA-256 sums, and signed update metadata. Record the owner-approved release-process change without marking Phase 16 complete.
 Verify: Run `git ls-files .github/workflows .github/archive` and confirm only `release.yml` is active, then inspect `.github/workflows/release.yml` for the build, nine-asset, checksum, signing, and publish steps.
@@ -292,7 +292,7 @@ Batch: solo
 
 #### P16.31 — Record owner test and workflow policy
 
-Status: Implemented — Cameron verification pending
+Status: Done — Cameron directed
 Files: docs/msc2/testing-and-release-workflow-policy.md, AGENTS.md, CLAUDE.md, docs/msc2/rolling-plan.md
 What: Record Cameron's assessment that agent-created tests and workflow gates have imposed excessive delays and brittle failures. Allow agents to add only essential, robust tests with a recorded reason; prohibit default test runs and automatic release test gates; and require failure review before another release attempt. Keep both agent instruction files identical.
 Verify: Run `cmp AGENTS.md CLAUDE.md && rg -n 'essential|robust|release|approval' docs/msc2/testing-and-release-workflow-policy.md AGENTS.md` and review the policy wording.
@@ -300,10 +300,18 @@ Batch: solo
 
 #### P16.32 — Require the test and workflow policy at every task
 
-Status: Implemented — Cameron verification pending
+Status: Done — Cameron directed
 Files: AGENTS.md, CLAUDE.md, docs/msc2/testing-and-release-workflow-policy.md, docs/msc2/rolling-plan.md
 What: Make the owner test and release workflow policy mandatory reading at the start of every repo task, including tasks unrelated to tests or releases. Keep both agent instruction files identical.
 Verify: Run `cmp AGENTS.md CLAUDE.md && rg -n 'every.*task|earlier task' AGENTS.md docs/msc2/testing-and-release-workflow-policy.md` and confirm the requirement appears in both places.
+Batch: solo
+
+#### P16.33 — Prepare v0.1.18 release identity
+
+Status: Done — Cameron directed
+Files: Cargo.lock, crates/msc-agent/Cargo.toml, clients/desktop-web/package.json, clients/desktop-web/package-lock.json, clients/desktop-web/src-tauri/Cargo.toml, clients/desktop-web/src-tauri/Cargo.lock, clients/desktop-web/src-tauri/tauri.conf.json, clients/desktop-web/src/lib/bundle-identity.ts, clients/desktop-web/src/lib/bundle-identity.test.ts, README.md, docs/msc2/clients/headless-installation.md, docs/msc2/release/phase16-acceptance.md, docs/msc2/rolling-plan.md
+What: Set the next release version to 0.1.18 without moving the failed unpublished v0.1.17 tag. Keep public documents truthful while v0.1.16 is still the newest published release, and carry the v0.1.18 candidate into the exact-artifact acceptance record.
+Verify: Inspect the version fields in the listed manifests and confirm `gh release list --limit 1` still shows v0.1.16 before tagging.
 Batch: solo
 
 ## Public-release and codebase review — 2026-09-28

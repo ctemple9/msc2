@@ -19,7 +19,7 @@ copy results from v0.1.16, a local build, or an earlier phase record.
 
 | Field | Value |
 |---|---|
-| Candidate tag | v0.1.17 |
+| Candidate tag | v0.1.18 |
 | Published release URL | PENDING |
 | Source commit (full SHA) | PENDING |
 | Published at (UTC) | PENDING |

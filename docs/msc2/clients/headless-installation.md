@@ -1,9 +1,9 @@
 # MSC 2 headless installation contract
 
-**Status:** Current headless installation contract. The latest published
-artifact set is v0.1.17, an unsigned browser-free prerelease. The previous
-v0.1.16 desktop-agent bytes predate D-038 and may contain historical browser
-assets; browser management is not supported. The Phase 16 exact-artifact
+**Status:** Current headless installation contract. Browser management is not
+supported. Published v0.1.16 desktop-agent bytes predate D-038 and may contain
+historical browser assets; v0.1.17 was tagged but never published. v0.1.18 is
+the first browser-free release candidate. The Phase 16 exact-artifact
 acceptance record (P16.29) remains open pending Cameron's physical results.
 
 This document defines the command-install shape for the standalone MSC 2
@@ -21,10 +21,9 @@ No installation type is promised as a browser client. The agent provides the
 authenticated API used by supported desktop and CLI clients. No graphical
 desktop is required to run the headless agent.
 
-## Current published support
+## Release support
 
-The current public prerelease is [v0.1.17](https://github.com/ctemple9/msc2/releases/tag/v0.1.17).
-It publishes macOS Intel (`x86_64`) and Apple Silicon (`aarch64`) desktop and
+The current release contract covers macOS Intel (`x86_64`) and Apple Silicon (`aarch64`) desktop and
 headless artifacts, plus x86_64 Windows and Linux desktop/headless artifacts.
 Linux desktop artifacts are `.deb` and `.rpm`; no Linux arm64 artifact is
 published. The Linux minimum is Debian 12 (Bookworm), or another distribution
@@ -40,7 +39,7 @@ a publisher signature for these packages. Verify the checksum listed in
 The numerical agent/client compatibility window has not been decided. Agents
 report their minimum supported client version and refuse clients below that
 floor; keep the client and agent current. Security support is limited to the
-latest stable release under `SECURITY.md`; v0.1.17 is a prerelease, and there
+latest stable release under `SECURITY.md`; there
 is not yet a stable release eligible for that policy. Phase 16 exact-artifact
 acceptance remains open as P16.29.
 

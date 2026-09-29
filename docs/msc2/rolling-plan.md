@@ -597,7 +597,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2f — Use transparent texture on both pane orientations
 
-- **Status:** Awaiting Cameron visual verification
+- **Status:** Done — Cameron confirmed both pane directions clear, 2026-09-29
 - **Files:** `tools/world-map-proof/src/render.rs`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
 - **What:** The Bedrock resource pack maps the pane's east face to the opaque
@@ -608,7 +608,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Result:** Regenerated the same complete base tile with 119,876 solid
   faces, 2,039 water faces, 148 texture layers, zero texture fallbacks and
   zero missing-shape blocks. One fewer texture layer is expected because the
-  edge-only pane texture is unused. Visual correctness awaits Cameron.
+  edge-only pane texture is unused. Cameron confirmed the previously opaque
+  pane direction is clear.
 - **Verify:** Reload
   `MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-base-proof/output npm run dev`
   from `tools/world-map-proof/viewer`; view the two perpendicular house window
@@ -618,3 +619,30 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   full glass blocks and the ice mountain's different climate tint.
 - **Batch:** solo — repair remaining pane visual defect
 - **Commit:** P18.2f: fix bds pane texture orientation
+
+### P18.2g — Inspect full glass at the BDS gold farm
+
+- **Status:** Awaiting Cameron visual verification
+- **Files:** `tools/world-map-proof/src/render.rs`,
+  `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Export a separate complete 4×4 tile around Cameron's gold farm
+  at `(-11, 113, -53)` from the same private offline copy. Add fallback block
+  names to the summary so texture misses can be distinguished from glass
+  defects. Keep the output outside Git.
+- **Result:** The tile starting at chunk `(-3, -5)` has all 16 chunks and 208
+  full glass blocks. It has 103,160 solid faces, 382 water faces, 159 texture
+  layers and no missing shapes. Its 42 fallback faces all belong to
+  `minecraft:sticky_piston_arm_collision`; they do not indicate missing glass
+  textures. This establishes export coverage, while transparency, faces and
+  adjacency need Cameron's visual check. The `4294967295` biome value in 311
+  columns is unresolved and should not be treated as a mapped climate.
+- **Verify:** From `tools/world-map-proof/viewer`, run
+  `MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-gold-proof/output npm run dev`.
+  Navigate to the gold farm near `(-11, 113, -53)` and inspect full glass
+  blocks from outside and through multiple adjoining blocks. Their interior
+  must stay clear and their borders should connect without opaque faces.
+  Check `/private/tmp/msc-bds-gold-proof/output/summary.txt` for counts and
+  the named fallback. This advances the Bedrock 3D world fidelity promise;
+  the next proof should sample the ice mountain for a different biome tint.
+- **Batch:** solo — one visual proof before expanding climate mapping
+- **Commit:** P18.2g: export bds gold farm glass proof

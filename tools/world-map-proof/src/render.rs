@@ -126,6 +126,7 @@ struct Textures {
     layers: BTreeMap<PathBuf, u16>,
     pixels: Vec<u8>,
     fallback: usize,
+    fallback_blocks: BTreeMap<String, usize>,
     grass_tint: [u8; 3],
     foliage_tint: [u8; 3],
     birch_grass_tint: [u8; 3],
@@ -150,6 +151,7 @@ impl Textures {
             layers: BTreeMap::new(),
             pixels,
             fallback: 0,
+            fallback_blocks: BTreeMap::new(),
             grass_tint: colormap_tint(&pack.join("textures/colormap/grass.png"), [121, 182, 91]),
             foliage_tint: colormap_tint(
                 &pack.join("textures/colormap/foliage.png"),
@@ -199,6 +201,7 @@ impl Textures {
     fn layer(&mut self, block: &str, normal: [i32; 3]) -> u16 {
         let Some(texture) = self.resolver.texture_for(block, normal) else {
             self.fallback += 1;
+            *self.fallback_blocks.entry(block.to_owned()).or_default() += 1;
             return 0;
         };
         if let Some(index) = self.layers.get(&texture.source_path) {
@@ -206,6 +209,7 @@ impl Textures {
         }
         let Ok(image) = image::open(&texture.source_path) else {
             self.fallback += 1;
+            *self.fallback_blocks.entry(block.to_owned()).or_default() += 1;
             return 0;
         };
         let index = (self.layers.len() + 1) as u16;
@@ -728,6 +732,7 @@ pub fn render(
         drawn_logs
     )?;
     writeln!(summary, "missing shape blocks: {missing_shapes:?}")?;
+    writeln!(summary, "fallback blocks: {:?}", textures.fallback_blocks)?;
     writeln!(summary, "surface biome IDs by column: {biome_counts:?}")?;
     writeln!(
         summary,
@@ -743,6 +748,7 @@ pub fn render(
         drawn_logs
     );
     println!("missing shape blocks: {missing_shapes:?}");
+    println!("fallback blocks: {:?}", textures.fallback_blocks);
     println!("surface biome IDs by column: {biome_counts:?}");
     println!(
         "birch grass tint: {:?}, foliage tint: {:?}",

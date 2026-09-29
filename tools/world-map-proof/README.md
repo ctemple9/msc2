@@ -86,9 +86,30 @@ the connected pane cuboids sampled opaque parts of the glass texture. P18.2e
 uses flat, two-sided panes along the connected axis with the full transparent
 glass texture. Cameron's screenshots then showed one pane direction still
 opaque: Bedrock's east pane face resolves to its narrow edge texture. P18.2f
-resolves both flat pane directions through the broad transparent face. Its
-visual check is pending. The lantern treatment remains a
-bounded approximation of its first texture frame.
+resolves both flat pane directions through the broad transparent face. Cameron
+confirmed both directions now show clear centers. The lantern treatment
+remains a bounded approximation of its first texture frame.
+
+### Gold farm full glass proof (P18.2g)
+
+The same private offline world copy contains Cameron's gold farm near
+`(-11, 113, -53)`. Its complete 4×4 tile starts at chunk `(-3, -5)` and is
+generated outside Git at `/private/tmp/msc-bds-gold-proof/output`:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+tools/world-map-proof/target/release/msc-world-map-proof \
+  /private/tmp/msc-bds-base-proof/world \
+  /private/tmp/msc-bedrock-samples/resource_pack \
+  /private/tmp/msc-bds-gold-proof/output -3,-5
+```
+
+To inspect the full glass blocks, run the viewer with
+`MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-gold-proof/output`. This tile
+contains 208 full glass blocks. Its 42 texture fallback faces are all from
+`minecraft:sticky_piston_arm_collision`, not glass. Visual correctness still
+needs Cameron's check; this area does not prove stained glass or distinct
+biome climate tint.
 
 Surface biome IDs `27` and `155` occur in 1,922 and 2,174 columns. This
 bounded proof assumes their legacy mapping to birch forest and its mutated

@@ -20,6 +20,9 @@ pub(crate) mod desktop;
 mod local_bootstrap;
 #[path = "auth/local_cli.rs"]
 pub(crate) mod local_cli;
+#[cfg(target_os = "linux")]
+#[path = "auth/local_cli_linux.rs"]
+mod local_cli_linux;
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::ffi::OsString;
@@ -174,6 +177,11 @@ pub(crate) fn production_auth_state() -> AuthState {
 #[cfg(target_os = "macos")]
 pub(crate) fn spawn_local_bootstrap(auth: AuthState) {
     local_bootstrap::spawn(auth);
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) async fn start_local_cli(auth: AuthState) -> Result<(), String> {
+    local_cli_linux::start(auth).await
 }
 
 struct AuthStateInner {

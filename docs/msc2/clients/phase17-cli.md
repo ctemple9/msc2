@@ -37,6 +37,20 @@ it. Agent restart and host reboot discard all issued credentials. The same
 authorized OS account can obtain a fresh one after the service returns,
 without persistent CLI setup. A host reset clears outstanding credentials.
 
+### Linux exchange (P17.4)
+
+The Linux agent binds `local-cli.sock` inside its installing-user-owned MSC
+data directory, with directory mode 0700 and socket mode 0600. It removes an
+old socket on restart only when the old entry is a socket owned by that same
+user; an unexpected file causes startup to fail. For each accepted connection,
+the Linux adapter reads `SO_PEERCRED` from the kernel and compares the UID
+with the agent process's effective UID. A successful exchange sends one JSON
+line containing the short-lived token; refusal sends an error code without a
+token. The root credential helper and its socket remain separate and retain
+their existing privilege boundary. P17.7 supplies the CLI client for this
+exchange; a local or SSH shell running as the installing user will use the
+same socket.
+
 `msc start agent`, `msc stop agent`, and `msc status agent` control the installed local service while the API is down. Installation enables startup at boot. A routine stop holds until explicit start or the next boot; only an explicit disable changes future startup. Minecraft server start/stop are separate operations. Desktop and headless packages own the command on PATH.
 
 Catalog installs follow search → inspect compatible versions and dependencies → confirm → install. CurseForge modpacks begin with a local `.zip`; the agent downloads permitted manifest files and reports author-blocked files for manual supply. `msc command` is the sole raw Minecraft command path. All task commands keep human-readable output and `--json` for scripting. Destructive tasks require explicit confirmation. The route inventory below is completed in P17.2.

@@ -102,8 +102,8 @@ remains separate. No release publication or CI gate is implied.
 
 ### P17.4 — Implement Linux local authentication
 
-- **Status:** PLANNED
-- **Files:** `crates/msc-agent/src/auth/`, `crates/msc-platform-linux/src/`, `packaging/linux/systemd/`
+- **Status:** IMPLEMENTED — awaiting Cameron verification
+- **Files:** `crates/msc-agent/src/auth/`, `crates/msc-agent/src/main.rs`, `crates/msc-platform-linux/src/`, `docs/msc2/clients/phase17-cli.md`, `docs/msc2/rolling-plan.md`
 - **What:** Use a Unix socket with peer credentials and installation-user ownership. Authorize the same account at the keyboard or through SSH after agent and host restarts, while preserving the privileged credential helper boundary.
 - **Verify:** `cargo check -p msc-agent -p msc-platform-linux`
 - **Batch:** B (P17.3–P17.7) — local authentication

@@ -1,5 +1,5 @@
 use bedrock_block_model::{
-    BlockFace, BlockStateQuery, BlockStateValue, ModelShape, ObjTextureResolver,
+    BlockFace, BlockStateQuery, BlockStateValue, ModelPlane, ModelShape, ObjTextureResolver,
     is_full_opaque_block, model_shape_for_block_state,
 };
 use bedrock_world::{BedrockWorld, BlockState, ChunkPos, Dimension, NbtTag, SubChunkFormat};
@@ -309,12 +309,16 @@ fn connected_shape(grid: &Grid, state: &BlockState, x: i32, y: i32, z: i32) -> O
         return None;
     }
     let mut block = query(state);
-    for (key, dx, dz) in [
+    let mut connections = [false; 4];
+    for (index, (key, dx, dz)) in [
         ("north", 0, -1),
         ("south", 0, 1),
         ("east", 1, 0),
         ("west", -1, 0),
-    ] {
+    ]
+    .into_iter()
+    .enumerate()
+    {
         let other = grid.get(x + dx, y, z + dz);
         let connected = if other == 0 {
             false
@@ -324,9 +328,45 @@ fn connected_shape(grid: &Grid, state: &BlockState, x: i32, y: i32, z: i32) -> O
                 || fence && (is_fence(other_name) || other_name.ends_with("_fence_gate"))
                 || pane && is_pane(other_name)
         };
+        connections[index] = connected;
         block
             .states
             .insert(format!("{key}_connected"), BlockStateValue::Bool(connected));
+    }
+    if pane {
+        let along_x = connections[2] || connections[3];
+        let along_z = connections[0] || connections[1];
+        let uv = [[0.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, 0.0]];
+        let mut planes = Vec::with_capacity(2);
+        if along_x || !along_z {
+            planes.push(
+                ModelPlane::new(
+                    [
+                        [0.0, 0.0, 0.5],
+                        [0.0, 1.0, 0.5],
+                        [1.0, 1.0, 0.5],
+                        [1.0, 0.0, 0.5],
+                    ],
+                    [0, 0, 1],
+                )
+                .with_uv(uv),
+            );
+        }
+        if along_z || !along_x {
+            planes.push(
+                ModelPlane::new(
+                    [
+                        [0.5, 0.0, 1.0],
+                        [0.5, 1.0, 1.0],
+                        [0.5, 1.0, 0.0],
+                        [0.5, 0.0, 0.0],
+                    ],
+                    [1, 0, 0],
+                )
+                .with_uv(uv),
+            );
+        }
+        return Some(ModelShape::default().with_planes(planes));
     }
     model_shape_for_block_state(&block)
 }

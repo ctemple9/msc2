@@ -81,9 +81,11 @@ P18.2c's first visual pass found wrong-facing stairs, disconnected fences,
 crossed panes and lantern texture artifacts. P18.2d regenerates the same tile
 after interpreting the saved stair direction, deriving fence/pane neighbor
 connections, and assigning regions of the lantern atlas to its body, cap and
-hook. The pane model retains a thin center post, and the lantern treatment is
-a bounded approximation of its first texture frame. Cameron's comparison of
-the regenerated view is pending; these corrections are not yet accepted.
+hook. Cameron confirmed the stair, fence and lantern changes, then found that
+the connected pane cuboids sampled opaque parts of the glass texture. P18.2e
+uses flat, two-sided panes along the connected axis with the full transparent
+glass texture. Its visual check is pending. The lantern treatment remains a
+bounded approximation of its first texture frame.
 
 Surface biome IDs `27` and `155` occur in 1,922 and 2,174 columns. This
 bounded proof assumes their legacy mapping to birch forest and its mutated

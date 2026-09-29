@@ -553,7 +553,9 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2d — Correct mature BDS state-dependent shapes
 
-- **Status:** Awaiting Cameron visual verification
+- **Status:** Partial visual verification — Cameron confirmed stairs, fences
+  and lanterns on 2026-09-29, but window panes regressed to opaque stripes;
+  P18.2e follows
 - **Files:** `tools/world-map-proof/src/render.rs`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
 - **What:** Correct the four defects Cameron found in P18.2c's base view.
@@ -572,3 +574,22 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Verify:** `cd /Users/camerontemple/msc2-world-map/tools/world-map-proof/viewer && MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-base-proof/output npm run dev` — reload the viewer and compare the same base stairs, fence line, lanterns and windows against Cameron's P18.2c screenshots and his in-game knowledge. Stairs should face the intended side, fences should join, lantern bodies should show one coherent light/metal texture, and panes should connect across the opening without the old crossed shape. This advances Bedrock 3D exploration; if a shape still differs, correct that exact state/model path before running-world refresh.
 - **Batch:** solo — correct failed shape verification
 - **Commit:** P18.2d: correct mature bds state-dependent shapes
+
+### P18.2e — Restore see-through Bedrock glass panes
+
+- **Status:** Awaiting Cameron visual verification
+- **Files:** `tools/world-map-proof/src/render.rs`,
+  `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Replace the connected pane cuboids that cropped the full glass
+  texture into opaque stripes. Use neighboring saved blocks to choose a thin
+  north-south or east-west plane, both for corners and isolated panes, with
+  the supplied full glass texture and two visible sides. Keep the same private
+  base world and 4×4 tile.
+- **Result:** The regenerated tile has 119,876 solid faces, 2,039 water faces,
+  149 texture layers, zero texture fallbacks and zero missing-shape blocks.
+  The correction changes pane geometry only; the in-view transparency and
+  connections await Cameron's comparison screenshots. It is a visual proof of
+  vanilla glass panes, not all stained/tinted glass or full glass blocks.
+- **Verify:** `cd /Users/camerontemple/msc2-world-map/tools/world-map-proof/viewer && MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-base-proof/output npm run dev` — reload the viewer and view the same house windows from outside and inside. The panes should form a flat sheet along each window, connect across adjacent blocks, and show the house behind the clear center with narrow visible edges. Compare with Cameron's before/after screenshots. This advances the Bedrock 3D exploration promise; if it passes, the next proof can use the gold farm's 211 full glass blocks and the complete ice-mountain 4×4 area at chunk `(-35,-17)` to assess full glass and distinct climates.
+- **Batch:** solo — repair visual regression before new area proof
+- **Commit:** P18.2e: restore see-through bds glass panes

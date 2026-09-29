@@ -5,11 +5,28 @@
 //! WebSocket streams remain agent routes for the desktop client, not part of
 //! this one-shot command transport.
 
-use axum::http::{Method, StatusCode, Uri};
-use serde::Serialize;
-use serde::de::DeserializeOwned;
+use std::io;
+use std::time::Duration;
 
-use crate::cli::{CliError, CommonArgs, resolve_base_url, resolve_token};
+use axum::http::{Method, StatusCode, Uri};
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
+#[cfg(windows)]
+use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncRead, AsyncReadExt, BufReader};
+
+use crate::cli::CliError;
+
+const LOCAL_API_BASE_URL: &str = "http://127.0.0.1:48001";
+const LOCAL_RESPONSE_LIMIT: usize = 1024;
+const LOCAL_EXCHANGE_TIMEOUT: Duration = Duration::from_secs(2);
+
+#[derive(Deserialize)]
+struct LocalCliExchangeResponse {
+    status: String,
+    token: Option<String>,
+    code: Option<String>,
+}
 
 #[derive(Debug, Clone)]
 pub(crate) struct SharedClient {
@@ -18,10 +35,10 @@ pub(crate) struct SharedClient {
 }
 
 impl SharedClient {
-    pub(crate) fn from_common(common: &CommonArgs) -> Result<Self, CliError> {
+    pub(crate) async fn connect_local() -> Result<Self, CliError> {
         Ok(Self {
-            base_url: resolve_base_url(common),
-            token: resolve_token(common)?,
+            base_url: LOCAL_API_BASE_URL.to_string(),
+            token: acquire_local_cli_token().await?,
         })
     }
 
@@ -89,9 +106,9 @@ impl SharedClient {
 
         let stream = tokio::net::TcpStream::connect((host.as_str(), port))
             .await
-            .map_err(|err| {
-                CliError::internal(format!("failed to connect to {host}:{port}: {err}"))
-            })?;
+            .map_err(|err| CliError::internal(format!(
+                "the local agent API at {host}:{port} is unavailable; confirm the agent is installed and running: {err}"
+            )))?;
         let response = send_http_request(
             stream,
             &method,
@@ -112,6 +129,131 @@ impl SharedClient {
 
         Ok(response)
     }
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+async fn acquire_local_cli_token() -> Result<String, CliError> {
+    let socket_path =
+        msc_infrastructure::config_repository::default_app_data_dir().join(local_cli_socket_name());
+    let endpoint = socket_path.display().to_string();
+    let stream = tokio::net::UnixStream::connect(&socket_path)
+        .await
+        .map_err(|error| local_endpoint_error(error, &endpoint))?;
+    let mut reader = BufReader::new(stream);
+    read_local_cli_response(&mut reader).await
+}
+
+#[cfg(target_os = "linux")]
+fn local_cli_socket_name() -> &'static str {
+    msc_platform_linux::local_cli::SOCKET_NAME
+}
+
+#[cfg(target_os = "macos")]
+fn local_cli_socket_name() -> &'static str {
+    msc_platform_macos::local_cli::SOCKET_NAME
+}
+
+#[cfg(windows)]
+async fn acquire_local_cli_token() -> Result<String, CliError> {
+    use msc_platform_windows::local_cli::PIPE_NAME;
+    use tokio::net::windows::named_pipe::ClientOptions;
+
+    let mut stream = ClientOptions::new()
+        .open(PIPE_NAME)
+        .map_err(|error| local_endpoint_error(error, PIPE_NAME))?;
+    stream
+        .write_all(b"{\"version\":1}\n")
+        .await
+        .map_err(|error| local_exchange_io_error(error, PIPE_NAME))?;
+    stream
+        .flush()
+        .await
+        .map_err(|error| local_exchange_io_error(error, PIPE_NAME))?;
+    let mut reader = BufReader::new(stream);
+    read_local_cli_response(&mut reader).await
+}
+
+async fn read_local_cli_response<R: AsyncRead + Unpin>(reader: &mut R) -> Result<String, CliError> {
+    let line = tokio::time::timeout(LOCAL_EXCHANGE_TIMEOUT, read_bounded_line(reader))
+        .await
+        .map_err(|_| CliError::internal("local agent authorization exchange timed out"))?
+        .map_err(|error| {
+            CliError::internal(format!(
+                "local agent authorization exchange failed: {error}"
+            ))
+        })?;
+    let response: LocalCliExchangeResponse = serde_json::from_slice(&line).map_err(|error| {
+        CliError::internal(format!(
+            "local agent returned an invalid authorization response: {error}"
+        ))
+    })?;
+    match response.status.as_str() {
+        "ok" => response
+            .token
+            .filter(|token| !token.trim().is_empty())
+            .ok_or_else(|| CliError::internal("local agent returned no CLI credential")),
+        "error" => match response.code.as_deref() {
+            Some("unauthorized") => Err(CliError::internal(
+                "this OS account is not authorized to use the local MSC agent; run the CLI as the account that installed it",
+            )),
+            Some("busy") => Err(CliError::internal(
+                "the local agent has reached its temporary CLI credential limit; retry shortly",
+            )),
+            Some("unsupported_version") => Err(CliError::internal(
+                "the local agent and CLI use different local authorization protocols; update both",
+            )),
+            _ => Err(CliError::internal("local agent refused CLI authorization")),
+        },
+        _ => Err(CliError::internal(
+            "local agent returned an unknown authorization status",
+        )),
+    }
+}
+
+async fn read_bounded_line<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Vec<u8>, String> {
+    let mut line = Vec::with_capacity(128);
+    loop {
+        let mut byte = [0u8; 1];
+        reader
+            .read_exact(&mut byte)
+            .await
+            .map_err(|error| format!("reading local endpoint response: {error}"))?;
+        if byte[0] == b'\n' {
+            return Ok(line);
+        }
+        if line.len() >= LOCAL_RESPONSE_LIMIT {
+            return Err("local endpoint response exceeded the size limit".to_string());
+        }
+        line.push(byte[0]);
+    }
+}
+
+fn local_endpoint_error(error: io::Error, endpoint: &str) -> CliError {
+    match error.kind() {
+        io::ErrorKind::PermissionDenied => CliError::internal(
+            "this OS account cannot access the local MSC agent; run the CLI as the account that installed it",
+        ),
+        io::ErrorKind::NotFound
+        | io::ErrorKind::ConnectionRefused
+        | io::ErrorKind::ConnectionReset
+        | io::ErrorKind::BrokenPipe
+        | io::ErrorKind::TimedOut => CliError::internal(format!(
+            "the local agent is stopped or its authorization endpoint is unavailable at {endpoint}; confirm the agent is installed and running: {error}"
+        )),
+        _ if error.raw_os_error() == Some(231) => {
+            CliError::internal("the local agent authorization pipe is busy; retry the command")
+        }
+        _ => CliError::internal(format!(
+            "could not connect to the local agent authorization endpoint at {endpoint}: {error}"
+        )),
+    }
+}
+
+#[cfg(windows)]
+fn local_exchange_io_error(error: io::Error, endpoint: &str) -> CliError {
+    CliError::internal(format!(
+        "the local agent authorization exchange ended at {endpoint}; the agent may be stopped or restarting: {error}"
+    ))
 }
 
 struct RawHttpResponse {

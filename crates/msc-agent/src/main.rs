@@ -22,13 +22,13 @@ use clap::Parser;
 use msc_infrastructure::config_repository::default_app_config_path;
 use msc_infrastructure::fs::StdFileSystem;
 
-const CLI_REMOTE_ACCESS_HELP: &str = "Remote access:\n  MSC does not run a cloud relay and does not require Tailscale. A remote\n  agent must be reachable through a LAN/DNS route, Tailscale, another\n  user-operated VPN or overlay, or an SSH tunnel you maintain.\n\n  The Tauri desktop can manage the SSH tunnel for you. For a manual tunnel,\n  forward local 127.0.0.1:48002 to remote 127.0.0.1:48001, then use:\n    msc --host 127.0.0.1 --port 48002 status\n\n  A route provides transport only. Pairing, bearer credentials, and agent\n  permissions still authorize every request. Remote CLI commands cannot\n  install, start, stop, replace, or uninstall the host operating-system\n  service. See the Remote access topic in the MSC handbook for details.";
+const CLI_LOCAL_ACCESS_HELP: &str = "Local access:\n  Run msc on the agent host, locally or in an SSH login shell, as the account\n  that installed the agent. The CLI obtains short-lived authorization from\n  the local operating-system endpoint; it does not accept a host, URL, port,\n  or bearer token.\n\n  The CLI no longer supports --host, --base-url, --port, --token, or token\n  print. Use msc <task> on the agent host. To manage another host, use the\n  Tauri desktop's remote-host pairing.";
 
 #[derive(Parser)]
 #[command(
     name = "msc",
     about = "MSC 2 service and CLI",
-    after_help = CLI_REMOTE_ACCESS_HELP
+    after_help = CLI_LOCAL_ACCESS_HELP
 )]
 struct App {
     #[command(flatten)]

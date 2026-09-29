@@ -6,7 +6,8 @@ The `msc` CLI manages the agent on the host where the command runs. A local term
 
 P17.3 adds the shared credential policy and authenticated API integration. It
 does **not** start an IPC listener or change the current CLI transport. The
-existing direct-remote/token CLI remains usable until P17.7 switches it over.
+CLI transport changed in P17.7 to local OS authorization; no operator-visible
+token or remote-host option is used by API commands.
 
 The platform listener accepts only a local Unix socket (Linux/macOS) or local
 named pipe (Windows). It obtains the caller's UID or SID from the **accepted
@@ -85,7 +86,7 @@ Catalog installs follow search → inspect compatible versions and dependencies 
 
 ## P17.2 API-to-CLI route inventory
 
-Source: `openapi.json` (154 method/path entries, 138 paths), checked against `crates/msc-agent/src/main.rs`, route modules, and `cli/mod.rs` on 2026-09-29. The current CLI is still direct-remote and token-based; P17.3–P17.7 replace that transport. “Existing” means a named CLI verb exists today, not that the Phase 17 local-auth contract is met. “Missing” is implementation work, not an approved exclusion. Route permission below is the OpenAPI `x-permission-category`; the live router remains the enforcement authority. `none` does not imply unauthenticated access.
+Source: `openapi.json` (154 method/path entries, 138 paths), checked against `crates/msc-agent/src/main.rs`, route modules, and `cli/mod.rs` on 2026-09-29. The inventory was recorded before P17.7; CLI API requests now use host-local authorization as described above. “Existing” means a named CLI verb existed at inventory time, not that the Phase 17 local-auth contract was met. “Missing” is implementation work, not an approved exclusion. Route permission below is the OpenAPI `x-permission-category`; the live router remains the enforcement authority. `none` does not imply unauthenticated access.
 
 For each user task, terminal output must identify the target and result; `--json` must emit machine-readable success or error. Mutations involving a selected server must show or require the active server before execution. Destructive mutations require exact confirmation; provider and edition refusals must be explicit. Server, player, world, backup, component, and status routes use active-server context unless a route accepts a target server ID. Java-only and Bedrock-only limits follow the route request/response contract and must be shown in command help.
 
@@ -249,6 +250,23 @@ For each user task, terminal output must identify the target and result; `--json
 ### Router-only surfaces and contract gaps
 
 The live router also has routes absent from this OpenAPI snapshot: `/v1/broadcast/credentials/clear`, `/v1/servers/playit`, and `/v1/servers/xbox-broadcast`. These need contract entries and CLI task decisions in P17.18. Path-parameter spelling differences (`:slot_id` versus `{slotId}`) are the same routes. The live router additionally exposes WebSocket streams (`/v1/console/stream`, `/v1/operations/:id/stream`, `/v1/notifications/stream`) and a health probe (`/v1/healthz`). Streams are transport for console follow, operation progress, and desktop notifications; the CLI may consume the first two, while desktop notifications and the probe are internal. These are absent from OpenAPI method/path inventory and need explicit event-schema review before CLI follow commands ship.
+
+### P17.7 local CLI transport and migration
+
+Every CLI command that uses the management API first obtains a short-lived
+credential from the host-local OS endpoint, keeps it in process memory, then
+calls the agent at `127.0.0.1:48001`. Linux and macOS use the private Unix
+socket; Windows opens the named pipe and sends its version-1 hello. If the
+agent is stopped or unavailable, the CLI says to confirm it is installed and
+running. If the OS account is not authorized, the CLI says to run as the
+account that installed the agent. JSON output remains available with
+`--json`.
+
+The direct-remote CLI options `--host`, `--base-url`, `--port`, `--token`, the
+`MSC2_CLI_TOKEN` environment variable, and `msc token print` are removed. Run
+the same task command locally or through SSH as the installing account, for
+example `msc status --json`. Remote host management stays in the Tauri
+desktop; this change does not affect desktop pairing or credentials.
 
 Current OpenAPI routes appear sufficient for the planned user tasks. The CLI lacks many verbs, especially player moderation, file/help reading, active-server selection, settings, operation cancellation, and catalog inspection. There is no API for changing OS service state, by design; P17.8 uses local platform service managers. Catalog browsing is available for Modrinth add-ons, datapacks, and Bedrock behavior packs. CurseForge modpacks have archive inspection/import and manual-file recovery, but no modpack search route; Phase 17 must not promise such browsing. `GET /v1/worlds/convert/formats` exists although the current CLI comment says format discovery is absent.
 

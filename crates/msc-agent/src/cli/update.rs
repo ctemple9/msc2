@@ -90,7 +90,6 @@ enum InstallationKind {
 }
 
 pub fn run(common: CommonArgs, command: UpdateCommand) -> Result<(), CliError> {
-    reject_remote_options(&common)?;
     match command {
         UpdateCommand::Check => check(&common),
         UpdateCommand::Install { release_id, yes } => install(&common, &release_id, yes),
@@ -689,19 +688,6 @@ fn package_owns(command: &str, args: &[&str]) -> bool {
         .args(args)
         .output()
         .is_ok_and(|output| output.status.success())
-}
-
-fn reject_remote_options(common: &CommonArgs) -> Result<(), CliError> {
-    if common.base_url.is_some()
-        || common.token.is_some()
-        || common.host != super::DEFAULT_HOST
-        || common.port != super::DEFAULT_PORT
-    {
-        return Err(CliError::usage(
-            "update commands are local-only; remove remote host, URL, port, and token options",
-        ));
-    }
-    Ok(())
 }
 
 fn approve_install(release_id: &str, yes: bool) -> Result<bool, CliError> {

@@ -1,5 +1,5 @@
-//! Phase 4 CLI commands. Every subcommand except `serve` talks to the
-//! same HTTP API the supported desktop client uses.
+//! CLI commands. API tasks use the same HTTP routes as the desktop client,
+//! with authorization obtained from this host's operating system.
 
 pub mod pairing;
 pub mod service;
@@ -7,7 +7,7 @@ pub(crate) mod session;
 pub(crate) mod transport;
 pub mod update;
 
-use self::transport::SharedClient as RemoteClient;
+use self::transport::SharedClient as ApiClient;
 
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -48,9 +48,6 @@ use msc_infrastructure::archive::create_zip_from_folders;
 use msc_infrastructure::console_buffer::ConsoleLine;
 use serde::Serialize;
 
-const DEFAULT_HOST: &str = "127.0.0.1";
-const DEFAULT_PORT: u16 = 48001;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InvocationTarget {
     Command,
@@ -69,26 +66,6 @@ pub fn select_invocation(has_named_command: bool) -> InvocationTarget {
 
 #[derive(Debug, Clone, Args)]
 pub struct CommonArgs {
-    /// Full base URL for the agent, for example http://127.0.0.1:48001. For a
-    /// remote host, use its reachable LAN, DNS, Tailscale, or VPN address;
-    /// use a loopback URL when an SSH tunnel ends on this computer.
-    #[arg(long, global = true, conflicts_with_all = ["host", "port"])]
-    pub base_url: Option<String>,
-
-    /// Hostname or IP for the target agent. The default is local loopback;
-    /// remote access still needs a direct route or an operator-managed tunnel.
-    #[arg(long, global = true, default_value = DEFAULT_HOST)]
-    pub host: String,
-
-    /// TCP management port for the target agent. The default is 48001; this is
-    /// not a Minecraft player port.
-    #[arg(long, global = true, default_value_t = DEFAULT_PORT)]
-    pub port: u16,
-
-    /// Bearer token for the target agent.
-    #[arg(long, global = true)]
-    pub token: Option<String>,
-
     /// Emit JSON instead of human-readable output.
     #[arg(long, global = true)]
     pub json: bool,
@@ -128,11 +105,6 @@ pub enum Command {
         #[command(subcommand)]
         command: DesktopServiceHelperCommand,
     },
-    /// Print a bearer token the CLI can already resolve.
-    Token {
-        #[command(subcommand)]
-        command: TokenCommand,
-    },
     /// Import, start, stop, or restart the selected Java server.
     Server {
         #[command(subcommand)]
@@ -143,7 +115,7 @@ pub enum Command {
     Send(CommandArgs),
     /// Show the active server's current lifecycle state.
     Status,
-    /// Show the agent's host and token capability advertisement.
+    /// Show the agent's host and capabilities.
     Capabilities,
     /// Read connectivity and the DuckDNS hostname label.
     Network {
@@ -232,17 +204,6 @@ pub enum Command {
     Modpack {
         #[command(subcommand)]
         command: ModpackCommand,
-    },
-}
-
-#[derive(Debug, Clone, Subcommand)]
-pub enum TokenCommand {
-    /// Print a token already supplied to the CLI.
-    Print {
-        /// Print the Phase 4 test bootstrap token from
-        /// `MSC2_TEST_BOOTSTRAP_TOKEN`.
-        #[arg(long)]
-        test: bool,
     },
 }
 
@@ -995,9 +956,8 @@ pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
         Command::DesktopServiceHelper { .. } => Err(CliError::internal(
             "desktop-service-helper is handled in main",
         )),
-        Command::Token { command } => run_token(common, command),
         Command::Status => {
-            let client = RemoteClient::from_common(&common)?;
+            let client = ApiClient::connect_local().await?;
             let status: RemoteApiStatus = client.get_json("/v1/status").await?;
             if common.json {
                 print_json(&status)?;
@@ -1030,7 +990,7 @@ pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
 }
 
 async fn run_bedrock(common: CommonArgs, command: BedrockCommand) -> Result<(), CliError> {
-    let client = RemoteClient::from_common(&common)?;
+    let client = ApiClient::connect_local().await?;
     match command {
         BedrockCommand::Players => {
             let result: serde_json::Value = client.get_json("/v1/players").await?;
@@ -1085,30 +1045,8 @@ fn print_bedrock_json(common: &CommonArgs, value: &serde_json::Value) -> Result<
     }
 }
 
-fn run_token(common: CommonArgs, command: TokenCommand) -> Result<(), CliError> {
-    match command {
-        TokenCommand::Print { test } => {
-            let token = if test {
-                std::env::var("MSC2_TEST_BOOTSTRAP_TOKEN").map_err(|_| {
-                    CliError::usage(
-                        "MSC2_TEST_BOOTSTRAP_TOKEN is not set, so there is no test token to print.",
-                    )
-                })?
-            } else {
-                resolve_token(&common)?
-            };
-            if common.json {
-                print_json(&serde_json::json!({ "token": token }))?;
-            } else {
-                println!("{token}");
-            }
-            Ok(())
-        }
-    }
-}
-
 async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), CliError> {
-    let client = RemoteClient::from_common(&common)?;
+    let client = ApiClient::connect_local().await?;
     match command {
         ServerCommand::Import {
             path,
@@ -1464,7 +1402,7 @@ fn encode_uri_component(value: &str) -> String {
 }
 
 async fn stage_file_upload(
-    client: &RemoteClient,
+    client: &ApiClient,
     path: &Path,
     purpose: StagedUploadPurposeDto,
     operation_id: Option<String>,
@@ -1522,7 +1460,7 @@ fn parse_port_overrides(pairs: &[String]) -> Result<HashMap<String, i64>, CliErr
 }
 
 async fn run_command(common: CommonArgs, args: CommandArgs) -> Result<(), CliError> {
-    let client = RemoteClient::from_common(&common)?;
+    let client = ApiClient::connect_local().await?;
     if args.server.is_some() {
         ensure_active_server(&client, args.server.as_deref()).await?;
     }
@@ -1544,7 +1482,7 @@ async fn run_command(common: CommonArgs, args: CommandArgs) -> Result<(), CliErr
 }
 
 async fn run_console(common: CommonArgs, command: ConsoleCommand) -> Result<(), CliError> {
-    let client = RemoteClient::from_common(&common)?;
+    let client = ApiClient::connect_local().await?;
     match command {
         ConsoleCommand::Tail { server, lines } => {
             if server.is_some() {
@@ -1568,7 +1506,7 @@ async fn run_console(common: CommonArgs, command: ConsoleCommand) -> Result<(), 
 }
 
 async fn run_capabilities(common: CommonArgs) -> Result<(), CliError> {
-    let client = RemoteClient::from_common(&common)?;
+    let client = ApiClient::connect_local().await?;
     let result: CapabilitiesDto = client.get_json("/v1/capabilities").await?;
     if common.json {
         print_json(&result)
@@ -1588,7 +1526,7 @@ async fn run_capabilities(common: CommonArgs) -> Result<(), CliError> {
 }
 
 async fn run_network(common: CommonArgs, command: NetworkCommand) -> Result<(), CliError> {
-    let client = RemoteClient::from_common(&common)?;
+    let client = ApiClient::connect_local().await?;
     match command {
         NetworkCommand::Connectivity => {
             let result: ConnectivityResponseDto = client.get_json("/v1/connectivity").await?;
@@ -1638,7 +1576,7 @@ async fn run_network(common: CommonArgs, command: NetworkCommand) -> Result<(), 
 }
 
 async fn run_playit(common: CommonArgs, command: PlayitCommand) -> Result<(), CliError> {
-    let client = RemoteClient::from_common(&common)?;
+    let client = ApiClient::connect_local().await?;
     match command {
         PlayitCommand::Status => {
             let result: PlayitStatusDto = client.get_json("/v1/playit").await?;
@@ -1682,7 +1620,7 @@ async fn run_playit(common: CommonArgs, command: PlayitCommand) -> Result<(), Cl
 }
 
 async fn run_broadcast(common: CommonArgs, command: BroadcastCommand) -> Result<(), CliError> {
-    let client = RemoteClient::from_common(&common)?;
+    let client = ApiClient::connect_local().await?;
     match command {
         BroadcastCommand::Status => {
             let result: BroadcastStatusDto = client.get_json("/v1/broadcast/status").await?;
@@ -1822,7 +1760,7 @@ async fn run_resource_pack(
     common: CommonArgs,
     command: ResourcePackCommand,
 ) -> Result<(), CliError> {
-    let client = RemoteClient::from_common(&common)?;
+    let client = ApiClient::connect_local().await?;
     match command {
         ResourcePackCommand::List => {
             let result: ResourcePacksResponseDto = client.get_json("/v1/resourcepacks").await?;
@@ -1863,7 +1801,7 @@ async fn run_resource_pack(
 }
 
 async fn run_settings(common: CommonArgs, command: SettingsCommand) -> Result<(), CliError> {
-    let client = RemoteClient::from_common(&common)?;
+    let client = ApiClient::connect_local().await?;
     match command {
         SettingsCommand::Get { server } => {
             if server.is_some() {
@@ -1914,7 +1852,7 @@ async fn run_settings(common: CommonArgs, command: SettingsCommand) -> Result<()
 }
 
 async fn run_world(common: CommonArgs, command: WorldCommand) -> Result<(), CliError> {
-    let client = RemoteClient::from_common(&common)?;
+    let client = ApiClient::connect_local().await?;
     match command {
         WorldCommand::List => {
             let slots: WorldSlotsResponseDto = client.get_json("/v1/worlds").await?;
@@ -2158,7 +2096,7 @@ async fn run_world(common: CommonArgs, command: WorldCommand) -> Result<(), CliE
 }
 
 async fn run_backup(common: CommonArgs, command: BackupCommand) -> Result<(), CliError> {
-    let client = RemoteClient::from_common(&common)?;
+    let client = ApiClient::connect_local().await?;
     match command {
         BackupCommand::List => {
             let backups: BackupsResponseDto = client.get_json("/v1/backups").await?;
@@ -2244,7 +2182,7 @@ async fn run_backup(common: CommonArgs, command: BackupCommand) -> Result<(), Cl
 /// operation id, then either return immediately (`--no-wait`) or poll it
 /// to a terminal state.
 async fn finish_operation(
-    client: &RemoteClient,
+    client: &ApiClient,
     json: bool,
     no_wait: bool,
     operation_id: Option<String>,
@@ -2280,7 +2218,7 @@ async fn finish_operation(
 /// operation-record level; the underlying filesystem/process work may
 /// still run to completion in the background).
 async fn poll_operation(
-    client: &RemoteClient,
+    client: &ApiClient,
     operation_id: &str,
     json: bool,
 ) -> Result<(), CliError> {
@@ -2338,7 +2276,7 @@ async fn poll_operation(
 }
 
 async fn run_version(common: CommonArgs, command: VersionCommand) -> Result<(), CliError> {
-    let client = RemoteClient::from_common(&common)?;
+    let client = ApiClient::connect_local().await?;
     match command {
         VersionCommand::List => {
             let response: VersionsResponseDto = client.get_json("/v1/versions").await?;
@@ -2409,7 +2347,7 @@ fn print_versions(response: &VersionsResponseDto) {
 }
 
 async fn run_java(common: CommonArgs, command: JavaCommand) -> Result<(), CliError> {
-    let client = RemoteClient::from_common(&common)?;
+    let client = ApiClient::connect_local().await?;
     match command {
         JavaCommand::List => {
             let response: JavaRuntimesResponseDto = client.get_json("/v1/java-runtimes").await?;
@@ -2481,7 +2419,7 @@ async fn run_java(common: CommonArgs, command: JavaCommand) -> Result<(), CliErr
 }
 
 async fn run_doctor(common: CommonArgs, command: Option<DoctorCommand>) -> Result<(), CliError> {
-    let client = RemoteClient::from_common(&common)?;
+    let client = ApiClient::connect_local().await?;
     match command {
         None => {
             let health: HealthResponseDto = client.get_json("/v1/health").await?;
@@ -2522,7 +2460,7 @@ async fn run_doctor(common: CommonArgs, command: Option<DoctorCommand>) -> Resul
 }
 
 async fn run_addon(common: CommonArgs, command: AddonCommand) -> Result<(), CliError> {
-    let client = RemoteClient::from_common(&common)?;
+    let client = ApiClient::connect_local().await?;
     match command {
         AddonCommand::List => {
             let response: AddonsResponseDto = client.get_json("/v1/addons").await?;
@@ -2857,7 +2795,7 @@ async fn run_addon(common: CommonArgs, command: AddonCommand) -> Result<(), CliE
 }
 
 async fn run_modpack(common: CommonArgs, command: ModpackCommand) -> Result<(), CliError> {
-    let client = RemoteClient::from_common(&common)?;
+    let client = ApiClient::connect_local().await?;
     match command {
         ModpackCommand::Inspect { path } => {
             let staged_upload_id = stage_file_upload(
@@ -2947,7 +2885,7 @@ async fn run_modpack(common: CommonArgs, command: ModpackCommand) -> Result<(), 
 }
 
 async fn import_modpack_command(
-    client: &RemoteClient,
+    client: &ApiClient,
     path: &Path,
     action: &str,
 ) -> Result<ModpackImportResultDto, CliError> {
@@ -3140,17 +3078,17 @@ fn print_backup_config(config: &BackupConfigResponseDto) {
 }
 
 async fn ensure_active_server(
-    client: &RemoteClient,
+    client: &ApiClient,
     selector: Option<&str>,
 ) -> Result<ServerDto, CliError> {
     session::ensure_active_server(client, selector).await
 }
 
-async fn resolve_server(client: &RemoteClient, selector: &str) -> Result<ServerDto, CliError> {
+async fn resolve_server(client: &ApiClient, selector: &str) -> Result<ServerDto, CliError> {
     session::resolve_server(client, selector).await
 }
 
-async fn wait_for_stopped(client: &RemoteClient) -> Result<(), CliError> {
+async fn wait_for_stopped(client: &ApiClient) -> Result<(), CliError> {
     let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(30);
     loop {
         let status: RemoteApiStatus = client.get_json("/v1/status").await?;
@@ -3164,26 +3102,6 @@ async fn wait_for_stopped(client: &RemoteClient) -> Result<(), CliError> {
         }
         tokio::time::sleep(tokio::time::Duration::from_millis(250)).await;
     }
-}
-
-fn resolve_base_url(common: &CommonArgs) -> String {
-    if let Some(base_url) = &common.base_url {
-        base_url.trim_end_matches('/').to_string()
-    } else {
-        format!("http://{}:{}", common.host, common.port)
-    }
-}
-
-fn resolve_token(common: &CommonArgs) -> Result<String, CliError> {
-    common
-        .token
-        .clone()
-        .or_else(|| std::env::var("MSC2_CLI_TOKEN").ok())
-        .or_else(|| std::env::var("MSC2_TEST_BOOTSTRAP_TOKEN").ok())
-        .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| {
-            CliError::usage("no bearer token was provided; pass --token or set MSC2_CLI_TOKEN")
-        })
 }
 
 fn print_json<T: Serialize>(value: &T) -> Result<(), CliError> {

@@ -1,7 +1,7 @@
 //! Active-server selection for one-shot CLI commands.
 //!
-//! Selection remains an API operation: the CLI resolves a local server
-//! identifier or name, then asks the agent to make that server active.
+//! Selection remains an API operation: after local authorization, the CLI
+//! resolves a server identifier or name, then asks the agent to make it active.
 
 use msc_api::dto::{ActiveServerRequestDto, ServerDto, SimpleResultDto};
 

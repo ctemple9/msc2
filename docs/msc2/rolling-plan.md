@@ -126,7 +126,7 @@ remains separate. No release publication or CI gate is implied.
 
 ### P17.7 — Make CLI API calls local and automatic
 
-- **Status:** PLANNED
+- **Status:** IMPLEMENTED — awaiting Cameron verification
 - **Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/cli/transport.rs`, `crates/msc-agent/src/cli/session.rs`, `crates/msc-agent/src/main.rs`
 - **What:** Obtain local authorization on each invocation and use the existing authenticated API without visible tokens. Remove public direct-remote host/URL/port/token options and `token print`; explain the migration. Report a stopped or uninstalled agent and unauthorized OS account clearly. Preserve JSON scripting and route permission checks.
 - **Verify:** `cargo check -p msc-agent`

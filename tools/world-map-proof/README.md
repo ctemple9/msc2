@@ -152,6 +152,28 @@ The source and exact-version gap are recorded in
 `docs/msc2/bedrock-biome-registry.md`. The exporter labels its current mapping
 as provisional in `summary.txt`.
 
+### Optional exact-version biome registry (P18.2k)
+
+Pass a JSON file after the chunk origin to validate a registry before export:
+
+```json
+{
+  "version": [1, 26, 31, 1, 0],
+  "source": "BDS registry exporter provenance",
+  "source_sha256": "64 hexadecimal characters",
+  "ids": { "frozen_peaks": 183, "grove": 185, "stony_peaks": 189 }
+}
+```
+
+The file must also contain the current birch forest IDs, and all IDs must
+be unique. The exporter rejects a version mismatch before rendering. The
+example shows the schema only; it is **not** a generated exact-version map.
+The available private BedrockData `1.26.30` wrapper at
+`/private/tmp/msc-biome-registry-1.26.30.json` is deliberately incompatible
+with this save's `1.26.31` metadata. The exact registry still needs extraction
+from the corresponding BDS executable on Linux. See
+`docs/msc2/bedrock-biome-registry.md` for provenance and upgrade limits.
+
 Surface biome IDs `27` and `155` occur in 1,922 and 2,174 columns. This
 bounded proof assumes their legacy mapping to birch forest and its mutated
 variant; general version-specific ID mapping is still unproved. The local

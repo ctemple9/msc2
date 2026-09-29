@@ -647,6 +647,7 @@ pub fn render(
     anchor: (i32, i32),
     pack: &Path,
     output: &Path,
+    registry_status: &str,
 ) -> Result<(), Box<dyn Error>> {
     let grid = read_grid(world, anchor)?;
     let shapes: Vec<Option<ModelShape>> = grid.states.iter().map(shape_with_lantern_uv).collect();
@@ -798,10 +799,7 @@ pub fn render(
         )?;
     }
     writeln!(summary, "fallback blocks: {:?}", textures.fallback_blocks)?;
-    writeln!(
-        summary,
-        "biome ID mapping: provisional; no exact-version registry supplied"
-    )?;
+    writeln!(summary, "biome ID mapping: {registry_status}")?;
     writeln!(summary, "surface biome IDs by column: {biome_counts:?}")?;
     writeln!(
         summary,

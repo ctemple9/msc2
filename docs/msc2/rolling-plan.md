@@ -708,7 +708,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2j — Audit Bedrock biome ID registry source
 
-- **Status:** Awaiting Cameron review
+- **Status:** Done — Cameron directed the registry proof, 2026-09-29
 - **Files:** `docs/msc2/bedrock-biome-registry.md`,
   `tools/world-map-proof/src/render.rs`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
@@ -730,3 +730,38 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   registry versions in the exporter.
 - **Batch:** solo — establish registry boundary before generalizing tint
 - **Commit:** P18.2j: audit bds biome registry source
+
+### P18.2k — Reject mismatched Bedrock biome registries
+
+- **Status:** Done — Cameron confirmed the expected version rejection,
+  2026-09-29
+- **Files:** `tools/world-map-proof/Cargo.toml`, `tools/world-map-proof/Cargo.lock`,
+  `tools/world-map-proof/src/main.rs`, `tools/world-map-proof/src/render.rs`,
+  `tools/world-map-proof/README.md`, `docs/msc2/bedrock-biome-registry.md`,
+  `docs/msc2/rolling-plan.md`
+- **What:** Accept an optional private JSON biome registry carrying a five-part
+  BDS version, source, hash, and unique name-to-ID map. Compare it with
+  `lastOpenedWithVersion` before export; reject version mismatch or conflict
+  with the five IDs currently driving bounded tint. Keep exports without a
+  registry labeled provisional.
+- **Result:** The supplied save reports `[1,26,31,1,0]`; the available
+  BedrockData registry is for `[1,26,30,31,0]`. The latter is wrapped in a
+  private file outside Git for a rejection check. The supplied BDS executable
+  is version `1.26.31.1`. Docker was started, but the copied binary lacks
+  exported biome symbols, and the official archive download stalled before
+  any bytes transferred. An exact registry remains uncollected.
+  The new gate checks version and shape; it does not prove source authenticity
+  or mixed-version chunk compatibility. Cameron's run rejected
+  `[1,26,30,31,0]` against `[1,26,31,1,0]` as intended.
+- **Verify:** Run the exporter with
+  `/private/tmp/msc-biome-registry-1.26.30.json` as the fifth argument after
+  `-35,-17`; it should stop with a `biome registry version ... does not match
+  save version ...` error and write no new tile. Run without that argument and
+  confirm `summary.txt` still says `provisional`. This protects the Bedrock
+  Worlds-tab biome legend from silent nearby-version assumptions. The exact
+  map still requires a BDS package or Linux host suitable for the mapping
+  mod. While that source is unavailable, the next independent UX proof should
+  establish safe refresh from a running BDS world using consistent snapshots.
+  Named biome legends remain gated; upgrades and custom IDs remain open.
+- **Batch:** solo — enforce registry provenance boundary
+- **Commit:** P18.2k: guard bds biome registry version

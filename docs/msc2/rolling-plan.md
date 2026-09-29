@@ -496,7 +496,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2b — Restore Bedrock block depth and texture orientation
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Done — Cameron visually verified upright textures, tree trunks
+  and full terrain depth in screenshots, 2026-09-29
 - **Files:** `tools/world-map-proof/src/render.rs`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
 - **What:** Address Cameron's second visual check. Read every block in the
@@ -514,3 +515,36 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Verify:** `cd /Users/camerontemple/msc2-world-map/tools/world-map-proof/viewer && MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-world-map-output npm run dev` — reload the viewer and orbit above and below the same terrain. Confirm the grass-side green fringe sits at the *top* of dirt sides, plants stand upright, logs are visible beneath leaves, and the large sky holes from P18.2a are filled by actual lower blocks. This advances the visible Bedrock exploration promise. If it passes, the next candidate proof is a representative area containing stairs and glass plus actual biome tint; if it fails, correct the observed geometry or texture defect first.
 - **Batch:** solo — correct the failed visual proof
 - **Commit:** P18.2b: restore bds block depth and texture orientation
+
+### P18.2c — Prove mature BDS shapes and surface biome tint
+
+- **Status:** Awaiting Cameron visual verification
+- **Files:** `tools/world-map-proof/src/main.rs`,
+  `tools/world-map-proof/src/render.rs`, `tools/world-map-proof/README.md`,
+  `docs/msc2/rolling-plan.md`
+- **What:** Use a private offline copy of Cameron's mature MSC1 BDS world,
+  centered near base coordinates `(-50, 87, 65)`. Allow a selected 4×4 chunk
+  origin, convert resolver face UVs to the tile's corner and V orientation, render actual stairs
+  and glass panes, and read surface biome IDs to select grass/foliage colormap
+  tint using the supplied Bedrock climate definitions. Count shapes, fallbacks
+  and biome IDs; keep source and output outside Git.
+- **Result:** The chosen area begins at chunk `(-6, 2)` and contains 786
+  placed stairs (including 413 oak and 354 stone) and 124 glass panes. The
+  export has 119,399 solid faces, 2,039 water faces, 149 texture layers,
+  zero texture fallbacks and zero missing-shape blocks. Surface biome IDs are
+  `27` in 1,922 columns and `155` in 2,174 columns. This bounded proof uses
+  the legacy birch-forest mapping for those IDs; the local Bedrock definitions
+  for both variants give temperature and downfall of `0.6`. They therefore
+  produce the same sampled grass `[136,186,103]` and
+  foliage `[107,169,65]` tints. This establishes the biome-ID-to-colormap
+  plumbing for these two IDs, not a visible boundary between different biome
+  climates or general ID mapping. The selected area has panes but no full
+  glass blocks; cutout pane appearance and stair orientation await Cameron's
+  inspection. Cameron's first screenshots caught sideways grass and wood
+  textures from unconverted face UVs; the tile was regenerated with corrected
+  UV corner order and V origin and awaits reinspection. Export took 4.4
+  seconds and 88 MB peak RSS. Running-world reads,
+  in-window controls and live players remain open.
+- **Verify:** `cd /Users/camerontemple/msc2-world-map/tools/world-map-proof/viewer && MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-base-proof/output npm run dev` — reload the standalone viewer, move near the base at `(-50, 87, 65)`, and check that grass-side fringe is horizontal at the top of dirt and wood grain is upright. Inspect oak/stone stair direction and corners, glass-pane connections and see-through cutouts, and grass/foliage color. Inspect `/private/tmp/msc-bds-base-proof/output/summary.txt` for biome IDs and fallback counts. This advances the agreed Bedrock 3D exploration promise. The next proof should address any visible shape defects; if sound, select an area with clearly different climate values and full glass blocks before claiming broad biome/glass fidelity, then move to safe running-world refresh.
+- **Batch:** solo — mature offline BDS geometry proof
+- **Commit:** P18.2c: prove mature bds shapes and surface biome tint

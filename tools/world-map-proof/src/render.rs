@@ -17,6 +17,7 @@ const MAX_Y: i32 = 320;
 struct Grid {
     blocks: Vec<u16>,
     states: Vec<BlockState>,
+    biomes: Vec<u32>,
 }
 
 impl Grid {
@@ -28,6 +29,7 @@ impl Grid {
                 states: BTreeMap::new(),
                 version: None,
             }],
+            biomes: vec![u32::MAX; SIDE * SIDE],
         }
     }
 
@@ -126,6 +128,8 @@ struct Textures {
     fallback: usize,
     grass_tint: [u8; 3],
     foliage_tint: [u8; 3],
+    birch_grass_tint: [u8; 3],
+    birch_foliage_tint: [u8; 3],
 }
 
 impl Textures {
@@ -151,19 +155,40 @@ impl Textures {
                 &pack.join("textures/colormap/foliage.png"),
                 [110, 160, 80],
             ),
+            birch_grass_tint: climate_tint(
+                &pack.join("textures/colormap/grass.png"),
+                0.6,
+                0.6,
+                [121, 182, 91],
+            ),
+            birch_foliage_tint: climate_tint(
+                &pack.join("textures/colormap/foliage.png"),
+                0.6,
+                0.6,
+                [110, 160, 80],
+            ),
         }
     }
 
-    fn tint(&self, block: &str, normal: [i32; 3]) -> [u8; 3] {
+    fn tint(&self, block: &str, normal: [i32; 3], biome_id: u32) -> [u8; 3] {
         let name = block.strip_prefix("minecraft:").unwrap_or(block);
+        let birch = matches!(biome_id, 27 | 155);
         if name == "grass_block" && normal[1] > 0
             || name.contains("short_grass")
             || name.contains("tall_grass")
             || name.contains("fern")
         {
-            self.grass_tint
+            if birch {
+                self.birch_grass_tint
+            } else {
+                self.grass_tint
+            }
         } else if name.contains("leaves") || name.contains("leaf") || name.contains("vine") {
-            self.foliage_tint
+            if birch {
+                self.birch_foliage_tint
+            } else {
+                self.foliage_tint
+            }
         } else if name.contains("water") {
             [68, 175, 245]
         } else {
@@ -219,6 +244,16 @@ impl Textures {
 // supplied pack's colormap at temperate default climate until biome IDs are
 // mapped to climate data; this avoids pretending the grey texture is final.
 fn colormap_tint(path: &Path, fallback: [u8; 3]) -> [u8; 3] {
+    sample_colormap(path, 51, 173, fallback)
+}
+
+fn climate_tint(path: &Path, temperature: f32, downfall: f32, fallback: [u8; 3]) -> [u8; 3] {
+    let x = ((1.0 - temperature) * 255.0).round() as u32;
+    let y = ((1.0 - downfall * temperature) * 255.0).round() as u32;
+    sample_colormap(path, x, y, fallback)
+}
+
+fn sample_colormap(path: &Path, x: u32, y: u32, fallback: [u8; 3]) -> [u8; 3] {
     let Ok(image) = image::open(path) else {
         return fallback;
     };
@@ -226,7 +261,7 @@ fn colormap_tint(path: &Path, fallback: [u8; 3]) -> [u8; 3] {
     if image.width() != 256 || image.height() != 256 {
         return fallback;
     }
-    let pixel = image.get_pixel(51, 173).0;
+    let pixel = image.get_pixel(x, y).0;
     [pixel[0], pixel[1], pixel[2]]
 }
 
@@ -245,6 +280,7 @@ fn query(state: &BlockState) -> BlockStateQuery {
     result
 }
 
+#[allow(clippy::too_many_arguments)]
 fn face(
     mesh: &mut Mesh,
     textures: &mut Textures,
@@ -253,6 +289,8 @@ fn face(
     min: [f32; 3],
     max: [f32; 3],
     side: BlockFace,
+    uv: Option<[[f32; 2]; 4]>,
+    biome_id: u32,
 ) {
     let x = origin[0] + min[0];
     let xx = origin[0] + max[0];
@@ -279,11 +317,15 @@ fn face(
         _ => return,
     };
     let layer = textures.layer(block, normal);
-    let tint = textures.tint(block, normal);
+    let tint = textures.tint(block, normal, biome_id);
+    // Block-model UVs arrive as image top-left, top-right, bottom-right,
+    // bottom-left. Our face vertices begin at bottom-left, and the WebGL
+    // texture array uses bottom-origin V coordinates.
+    let uv = uv.map(|uv| [uv[3], uv[0], uv[1], uv[2]].map(|[u, v]| [u, 1.0 - v]));
     mesh.quad(
         corners,
         normal,
-        [[0.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, 0.0]],
+        uv.unwrap_or([[0.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, 0.0]]),
         layer,
         tint,
     );
@@ -299,6 +341,19 @@ fn read_grid(world: &BedrockWorld, anchor: (i32, i32)) -> Result<Grid, Box<dyn E
                 dimension: Dimension::Overworld,
             };
             let chunk = world.get_chunk_blocking(pos)?;
+            for lz in 0..16u8 {
+                for lx in 0..16u8 {
+                    let x = cx as usize * 16 + usize::from(lx);
+                    let z = cz as usize * 16 + usize::from(lz);
+                    let y = world
+                        .get_height_at_blocking(pos, lx, lz)?
+                        .map(i32::from)
+                        .unwrap_or(87);
+                    grid.biomes[z * SIDE + x] = world
+                        .get_biome_id_blocking(pos, lx, lz, y)?
+                        .unwrap_or(u32::MAX);
+                }
+            }
             for sy in -4i8..=19i8 {
                 let Some(subchunk) = chunk.get_subchunk(sy)? else {
                     continue;
@@ -379,6 +434,7 @@ fn on_boundary(min: [f32; 3], max: [f32; 3], side: BlockFace) -> bool {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn emit_plane(
     mesh: &mut Mesh,
     textures: &mut Textures,
@@ -387,10 +443,11 @@ fn emit_plane(
     corners: [[f32; 3]; 4],
     normal: [i32; 3],
     uv: [[f32; 2]; 4],
+    biome_id: u32,
 ) {
     let points = corners.map(|p| [origin[0] + p[0], origin[1] + p[1], origin[2] + p[2]]);
     let layer = textures.layer(name, normal);
-    let tint = textures.tint(name, normal);
+    let tint = textures.tint(name, normal, biome_id);
     mesh.quad(points, normal, uv, layer, tint);
     // Cross plants need to be visible from either side of their plane.
     let back = [points[0], points[3], points[2], points[1]];
@@ -420,6 +477,10 @@ pub fn render(
     let mut textures = Textures::new(pack);
     let mut missing_shapes = BTreeMap::<String, usize>::new();
     let mut drawn_logs = 0usize;
+    let mut biome_counts = BTreeMap::<u32, usize>::new();
+    for &id in &grid.biomes {
+        *biome_counts.entry(id).or_default() += 1;
+    }
     for y in MIN_Y..MAX_Y {
         for z in 0..SIDE as i32 {
             for x in 0..SIDE as i32 {
@@ -428,6 +489,7 @@ pub fn render(
                     continue;
                 }
                 let state = &grid.states[id as usize];
+                let biome_id = grid.biomes[z as usize * SIDE + x as usize];
                 let origin = [
                     (anchor.0 * 16 + x) as f32,
                     y as f32,
@@ -452,6 +514,8 @@ pub fn render(
                             [0.0, 0.0, 0.0],
                             [1.0, 0.9, 1.0],
                             side,
+                            None,
+                            biome_id,
                         );
                     }
                     continue;
@@ -489,6 +553,8 @@ pub fn render(
                             cuboid.min,
                             cuboid.max,
                             side,
+                            cuboid.face_uvs.get(&side).copied(),
+                            biome_id,
                         );
                     }
                 }
@@ -503,6 +569,7 @@ pub fn render(
                         plane
                             .uv
                             .unwrap_or([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]),
+                        biome_id,
                     );
                 }
             }
@@ -535,6 +602,12 @@ pub fn render(
         drawn_logs
     )?;
     writeln!(summary, "missing shape blocks: {missing_shapes:?}")?;
+    writeln!(summary, "surface biome IDs by column: {biome_counts:?}")?;
+    writeln!(
+        summary,
+        "birch grass tint: {:?}, foliage tint: {:?}",
+        textures.birch_grass_tint, textures.birch_foliage_tint
+    )?;
     println!(
         "render: {} solid faces, {} water faces, {} textures, {} fallback faces, {} log blocks",
         solid.indices.len() / 6,
@@ -544,5 +617,10 @@ pub fn render(
         drawn_logs
     );
     println!("missing shape blocks: {missing_shapes:?}");
+    println!("surface biome IDs by column: {biome_counts:?}");
+    println!(
+        "birch grass tint: {:?}, foliage tint: {:?}",
+        textures.birch_grass_tint, textures.birch_foliage_tint
+    );
     Ok(())
 }

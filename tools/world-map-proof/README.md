@@ -45,6 +45,50 @@ Open the localhost address Vite prints. Drag to orbit, scroll to zoom, and
 inspect terrain, foliage and water. This is a standalone technical viewer, not
 the final MSC in-window flow.
 
+### Mature BDS base proof (P18.2c)
+
+Cameron's transferred MSC1 BDS world is copied read-only to
+`/private/tmp/msc-bds-base-proof/world`. The copy stays outside Git. Its base at
+`(-50, 87, 65)` is inside the selected 4×4 chunks beginning at `(-6, 2)`.
+The generated files are `/private/tmp/msc-bds-base-proof/output`.
+
+```sh
+cd /Users/camerontemple/msc2-world-map/tools/world-map-proof/viewer
+MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-base-proof/output npm run dev
+```
+
+To regenerate from the offline copy, run:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+cargo run --release --manifest-path tools/world-map-proof/Cargo.toml -- \
+  /private/tmp/msc-bds-base-proof/world \
+  /private/tmp/msc-bedrock-samples/resource_pack \
+  /private/tmp/msc-bds-base-proof/output -6,2
+```
+
+This area contains 786 placed stairs and 124 glass panes. The exporter now
+converts the block resolver's per-face UV coordinates to the tile's face corner
+order and bottom-origin texture coordinates. Cameron's first screenshots of
+this area showed vertical grass-side fringe and sideways wood before that
+conversion; reload the regenerated tile to inspect the correction.
+`glass.png` has transparent and opaque texels, which the Vantage
+terrain shader cuts out; pane geometry and visual correctness still require
+Cameron's inspection. There are no full glass blocks here, so this cannot
+establish all glass behavior.
+
+Surface biome IDs `27` and `155` occur in 1,922 and 2,174 columns. This
+bounded proof assumes their legacy mapping to birch forest and its mutated
+variant; general version-specific ID mapping is still unproved. The local
+Bedrock biome definitions give both temperature and downfall `0.6`, so both
+sample the supplied grass and foliage colormaps at the same colors. The
+result demonstrates reading the saved IDs and applying their climate-based
+tint to the generated geometry; this area cannot prove a visible boundary
+between different climate colors. Other biome IDs still use the earlier
+representative tint. IDs are sampled at each column's recorded surface
+height, not at each block's height. General biome mapping and 3D biome layers
+remain future work.
+
 ## What this proves and what it leaves open
 
 The selected complete 4×4 area begins at chunk `(-3, 2)` near the save's

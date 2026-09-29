@@ -29,7 +29,7 @@ fn family(name: &str) -> &'static str {
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().collect();
-    let path = args.get(1).ok_or("usage: msc-world-map-proof <offline world copy> <Bedrock resource pack> <private output directory>")?;
+    let path = args.get(1).ok_or("usage: msc-world-map-proof <offline world copy> <Bedrock resource pack> <private output directory> [chunk-x,chunk-z]")?;
     let world = BedrockWorld::open_blocking(Path::new(&path), OpenOptions::default())?;
     let positions: BTreeSet<_> = world
         .list_render_chunk_positions_blocking(WorldScanOptions::default())?
@@ -52,18 +52,25 @@ fn main() -> Result<(), Box<dyn Error>> {
             Some((x.div_euclid(16), z.div_euclid(16)))
         })
         .unwrap_or((0, 0));
-    let anchor = positions
-        .iter()
-        .copied()
-        .max_by_key(|&(x, z)| {
-            let present = (0..4)
-                .flat_map(|dx| (0..4).map(move |dz| (dx, dz)))
-                .filter(|&(dx, dz)| positions.contains(&(x + dx, z + dz)))
-                .count();
-            let distance = (x + 2 - spawn.0).abs() + (z + 2 - spawn.1).abs();
-            (present, -distance)
-        })
-        .ok_or("no Overworld chunks")?;
+    let anchor = if let Some(value) = args.get(4) {
+        let (x, z) = value
+            .split_once(',')
+            .ok_or("anchor must be chunk-x,chunk-z")?;
+        (x.parse::<i32>()?, z.parse::<i32>()?)
+    } else {
+        positions
+            .iter()
+            .copied()
+            .max_by_key(|&(x, z)| {
+                let present = (0..4)
+                    .flat_map(|dx| (0..4).map(move |dz| (dx, dz)))
+                    .filter(|&(dx, dz)| positions.contains(&(x + dx, z + dz)))
+                    .count();
+                let distance = (x + 2 - spawn.0).abs() + (z + 2 - spawn.1).abs();
+                (present, -distance)
+            })
+            .ok_or("no Overworld chunks")?
+    };
     let mut states = BTreeMap::<String, usize>::new();
     let mut families = BTreeMap::<&str, usize>::new();
     let mut missing = Vec::new();

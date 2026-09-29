@@ -77,6 +77,14 @@ terrain shader cuts out; pane geometry and visual correctness still require
 Cameron's inspection. There are no full glass blocks here, so this cannot
 establish all glass behavior.
 
+P18.2c's first visual pass found wrong-facing stairs, disconnected fences,
+crossed panes and lantern texture artifacts. P18.2d regenerates the same tile
+after interpreting the saved stair direction, deriving fence/pane neighbor
+connections, and assigning regions of the lantern atlas to its body, cap and
+hook. The pane model retains a thin center post, and the lantern treatment is
+a bounded approximation of its first texture frame. Cameron's comparison of
+the regenerated view is pending; these corrections are not yet accepted.
+
 Surface biome IDs `27` and `155` occur in 1,922 and 2,174 columns. This
 bounded proof assumes their legacy mapping to birch forest and its mutated
 variant; general version-specific ID mapping is still unproved. The local

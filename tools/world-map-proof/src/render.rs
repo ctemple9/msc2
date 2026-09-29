@@ -277,7 +277,93 @@ fn query(state: &BlockState) -> BlockStateQuery {
         };
         result.states.insert(key.clone(), value);
     }
+    if state.name.contains("stairs")
+        && let Some(NbtTag::Int(value)) = state.states.get("weirdo_direction")
+    {
+        let direction = match value.rem_euclid(4) {
+            0 => "east",
+            1 => "west",
+            2 => "south",
+            _ => "north",
+        };
+        result.states.insert(
+            "minecraft:cardinal_direction".into(),
+            BlockStateValue::String(direction.into()),
+        );
+    }
     result
+}
+
+fn is_fence(name: &str) -> bool {
+    name.ends_with("_fence") || name == "minecraft:fence"
+}
+
+fn is_pane(name: &str) -> bool {
+    name.ends_with("_pane") || name == "minecraft:glass_pane"
+}
+
+fn connected_shape(grid: &Grid, state: &BlockState, x: i32, y: i32, z: i32) -> Option<ModelShape> {
+    let fence = is_fence(&state.name);
+    let pane = is_pane(&state.name);
+    if !fence && !pane {
+        return None;
+    }
+    let mut block = query(state);
+    for (key, dx, dz) in [
+        ("north", 0, -1),
+        ("south", 0, 1),
+        ("east", 1, 0),
+        ("west", -1, 0),
+    ] {
+        let other = grid.get(x + dx, y, z + dz);
+        let connected = if other == 0 {
+            false
+        } else {
+            let other_name = &grid.states[other as usize].name;
+            is_full_opaque_block(other_name)
+                || fence && (is_fence(other_name) || other_name.ends_with("_fence_gate"))
+                || pane && is_pane(other_name)
+        };
+        block
+            .states
+            .insert(format!("{key}_connected"), BlockStateValue::Bool(connected));
+    }
+    model_shape_for_block_state(&block)
+}
+
+fn atlas_uv(u0: f32, v0: f32, u1: f32, v1: f32) -> [[f32; 2]; 4] {
+    [
+        [u0 / 16.0, v0 / 16.0],
+        [u1 / 16.0, v0 / 16.0],
+        [u1 / 16.0, v1 / 16.0],
+        [u0 / 16.0, v1 / 16.0],
+    ]
+}
+
+fn shape_with_lantern_uv(state: &BlockState) -> Option<ModelShape> {
+    let mut shape = model_shape_for_block_state(&query(state))?;
+    if (state.name.ends_with("_lantern") || state.name == "minecraft:lantern")
+        && state.name != "minecraft:sea_lantern"
+    {
+        for (index, cuboid) in shape.cuboids.iter_mut().enumerate() {
+            let uv = match index {
+                0 => atlas_uv(0.0, 2.0, 6.0, 8.0),
+                1 => atlas_uv(0.0, 9.0, 6.0, 15.0),
+                _ => atlas_uv(1.0, 0.0, 5.0, 2.0),
+            };
+            for face in [
+                BlockFace::Up,
+                BlockFace::Down,
+                BlockFace::North,
+                BlockFace::South,
+                BlockFace::East,
+                BlockFace::West,
+            ] {
+                cuboid.face_uvs.insert(face, uv);
+            }
+        }
+    }
+    Some(shape)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -467,11 +553,7 @@ pub fn render(
     output: &Path,
 ) -> Result<(), Box<dyn Error>> {
     let grid = read_grid(world, anchor)?;
-    let shapes: Vec<Option<ModelShape>> = grid
-        .states
-        .iter()
-        .map(|state| model_shape_for_block_state(&query(state)))
-        .collect();
+    let shapes: Vec<Option<ModelShape>> = grid.states.iter().map(shape_with_lantern_uv).collect();
     let mut solid = Mesh::default();
     let mut fluid = Mesh::default();
     let mut textures = Textures::new(pack);
@@ -520,7 +602,8 @@ pub fn render(
                     }
                     continue;
                 }
-                let Some(shape) = &shapes[id as usize] else {
+                let local_shape = connected_shape(&grid, state, x, y, z);
+                let Some(shape) = local_shape.as_ref().or(shapes[id as usize].as_ref()) else {
                     *missing_shapes.entry(state.name.clone()).or_default() += 1;
                     continue;
                 };

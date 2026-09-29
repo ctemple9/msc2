@@ -518,7 +518,9 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2c — Prove mature BDS shapes and surface biome tint
 
-- **Status:** Awaiting Cameron visual verification
+- **Status:** Visual verification failed — Cameron's 2026-09-29 screenshots
+  showed stair facing, unconnected fences, lantern UV, and crossed glass-pane
+  defects; P18.2d follows
 - **Files:** `tools/world-map-proof/src/main.rs`,
   `tools/world-map-proof/src/render.rs`, `tools/world-map-proof/README.md`,
   `docs/msc2/rolling-plan.md`
@@ -548,3 +550,25 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Verify:** `cd /Users/camerontemple/msc2-world-map/tools/world-map-proof/viewer && MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-base-proof/output npm run dev` — reload the standalone viewer, move near the base at `(-50, 87, 65)`, and check that grass-side fringe is horizontal at the top of dirt and wood grain is upright. Inspect oak/stone stair direction and corners, glass-pane connections and see-through cutouts, and grass/foliage color. Inspect `/private/tmp/msc-bds-base-proof/output/summary.txt` for biome IDs and fallback counts. This advances the agreed Bedrock 3D exploration promise. The next proof should address any visible shape defects; if sound, select an area with clearly different climate values and full glass blocks before claiming broad biome/glass fidelity, then move to safe running-world refresh.
 - **Batch:** solo — mature offline BDS geometry proof
 - **Commit:** P18.2c: prove mature bds shapes and surface biome tint
+
+### P18.2d — Correct mature BDS state-dependent shapes
+
+- **Status:** Awaiting Cameron visual verification
+- **Files:** `tools/world-map-proof/src/render.rs`,
+  `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Correct the four defects Cameron found in P18.2c's base view.
+  Translate saved stair direction before model resolution; derive fence and
+  glass-pane connections from adjacent blocks when the save omits connection
+  state; map the Bedrock lantern texture atlas onto the lantern's body, cap and
+  hook. Regenerate the same private tile without changing the source world.
+- **Result:** The regenerated area contains 121,426 solid faces, 2,039 water
+  faces, 149 texture layers, zero texture fallbacks and zero missing-shape
+  blocks. Export took 4.84 seconds and 88 MB peak RSS. These are structural
+  checks only; stair facing, fence joins, lantern appearance and pane shape
+  need Cameron's visual comparison. The pane model still includes its narrow
+  center post; a perfectly flat sheet is not claimed. Lantern UV regions are
+  a bounded approximation of the supplied 16×16 first animation frame, not
+  full animated Bedrock model fidelity.
+- **Verify:** `cd /Users/camerontemple/msc2-world-map/tools/world-map-proof/viewer && MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-base-proof/output npm run dev` — reload the viewer and compare the same base stairs, fence line, lanterns and windows against Cameron's P18.2c screenshots and his in-game knowledge. Stairs should face the intended side, fences should join, lantern bodies should show one coherent light/metal texture, and panes should connect across the opening without the old crossed shape. This advances Bedrock 3D exploration; if a shape still differs, correct that exact state/model path before running-world refresh.
+- **Batch:** solo — correct failed shape verification
+- **Commit:** P18.2d: correct mature bds state-dependent shapes

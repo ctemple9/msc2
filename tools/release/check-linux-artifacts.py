@@ -116,25 +116,37 @@ def extract_deb(package: Path, destination: Path) -> None:
 
 
 def extract_rpm(package: Path, destination: Path) -> None:
-    rpm2cpio = subprocess.Popen(
-        ["rpm2cpio", str(package.resolve())], stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    )
-    assert rpm2cpio.stdout is not None
     try:
-        extraction = subprocess.run(
-            ["cpio", "--extract", "--make-directories", "--quiet"],
-            cwd=destination,
-            stdin=rpm2cpio.stdout,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=False,
-        )
-    finally:
-        rpm2cpio.stdout.close()
-    rpm_error = rpm2cpio.stderr.read().decode("utf-8", errors="replace") if rpm2cpio.stderr else ""
-    rpm_status = rpm2cpio.wait()
-    if rpm_status != 0 or extraction.returncode != 0:
-        fail(f"could not extract RPM {package}: {rpm_error or extraction.stderr.decode(errors='replace')}")
+        with tempfile.TemporaryFile() as cpio_stream:
+            rpm_result = subprocess.run(
+                ["rpm2cpio", str(package.resolve())],
+                stdout=cpio_stream,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+            if rpm_result.returncode != 0:
+                fail(
+                    f"rpm2cpio failed for {package} (exit {rpm_result.returncode}): "
+                    f"{rpm_result.stderr.strip() or 'no diagnostic output'}"
+                )
+
+            cpio_stream.seek(0)
+            extraction = subprocess.run(
+                ["cpio", "--extract", "--make-directories", "--quiet"],
+                cwd=destination,
+                stdin=cpio_stream,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+    except FileNotFoundError as error:
+        fail(f"required RPM inspection tool is missing: {error.filename}")
+
+    if extraction.returncode != 0:
+        diagnostic = extraction.stderr.strip() or extraction.stdout.strip() or "no diagnostic output"
+        fail(f"cpio extraction failed for {package} (exit {extraction.returncode}): {diagnostic}")
 
 
 def package_binaries(root: Path, label: str, max_glibc: str) -> dict[str, object]:

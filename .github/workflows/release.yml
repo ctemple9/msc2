@@ -282,35 +282,7 @@ jobs:
       - name: Record release builder environment
         env:
           RELEASE_PLATFORM: ${{ matrix.platform }}
-        run: |
-          python3 - target/release-artifacts/BUILD-ENVIRONMENT.json <<'PY'
-          import json
-          import os
-          import subprocess
-          import sys
-          from pathlib import Path
-
-          def version(*command):
-              return subprocess.check_output(command, text=True).strip()
-
-          record = {
-              "schemaVersion": 1,
-              "sourceCommit": os.environ["GITHUB_SHA"],
-              "platform": os.environ["RELEASE_PLATFORM"],
-              "runner": {
-                  "imageOS": os.environ.get("ImageOS", "unknown"),
-                  "imageVersion": os.environ.get("ImageVersion", "unknown"),
-              },
-              "toolchain": {
-                  "rustc": version("rustc", "--version"),
-                  "cargo": version("cargo", "--version"),
-                  "node": version("node", "--version"),
-                  "npm": version("npm", "--version"),
-                  "cargoNextest": version("cargo", "nextest", "--version").split()[1],
-              },
-          }
-          Path(sys.argv[1]).write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-          PY
+        run: node tools/release/record-builder-environment.mjs target/release-artifacts/BUILD-ENVIRONMENT.json
 
       - name: Upload platform-labeled beta artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

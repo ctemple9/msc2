@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 16 execution is underway. Cameron reports P16.1–P16.28 verified; P16.29 remains open pending publication and Cameron's physical results for the post-P16.28 v0.1.17 candidate. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
-> **Next move:** Push the v0.1.17 tag after its exact source commit passes full CI, then Cameron records exact-artifact physical results for P16.29. Phase 16 remains in progress until its full exit gate is satisfied and reviewed.
+> ## STATUS: Phase 16 execution is underway. Cameron reports P16.1–P16.28 verified; P16.29 remains open. The first v0.1.17 tag run passed tag CI, Apple Silicon, and Intel macOS, but failed Linux RPM inspection and Windows builder-metadata capture; publication was skipped. The September 17 and September 28 audits remain the source findings; the remaining recommendations are not marked fixed.
+> **Next move:** Commit the RPM extraction and cross-platform metadata corrections, pass full CI on the corrected source, move the unpublished v0.1.17 tag to that exact commit, and rerun release. Then Cameron records exact-artifact physical results for P16.29. Phase 16 remains in progress until its full exit gate is satisfied and reviewed.
 
 ## How this document works
 
@@ -276,8 +276,8 @@ Batch: solo
 
 #### P16.29 — Record exact-artifact release acceptance
 
-Status: implementation scaffolded — CI green for source 15b3e8e0; preparing the v0.1.17 candidate; no candidate published and physical acceptance remains open
-Files: docs/msc2/release/phase16-acceptance.md, tools/release/check-phase16-evidence.py, docs/msc2/rolling-plan.md, crates/msc-agent/Cargo.toml, Cargo.lock, clients/desktop-web/package.json, clients/desktop-web/package-lock.json, clients/desktop-web/src/lib/bundle-identity.ts, clients/desktop-web/src/lib/bundle-identity.test.ts, clients/desktop-web/src-tauri/tauri.conf.json, clients/desktop-web/src-tauri/Cargo.toml, clients/desktop-web/src-tauri/Cargo.lock, README.md, docs/msc2/clients/headless-installation.md
+Status: implementation scaffolded — source CI and exact-tag CI passed for aa54823e; first tag release failed Linux RPM extraction and Windows PowerShell metadata capture; corrective commit and publication pending; physical acceptance remains open
+Files: docs/msc2/release/phase16-acceptance.md, tools/release/check-phase16-evidence.py, tools/release/check-linux-artifacts.py, tools/release/record-builder-environment.mjs, docs/msc2/rolling-plan.md, .github/workflows/release.yml, crates/msc-agent/Cargo.toml, Cargo.lock, clients/desktop-web/package.json, clients/desktop-web/package-lock.json, clients/desktop-web/src/lib/bundle-identity.ts, clients/desktop-web/src/lib/bundle-identity.test.ts, clients/desktop-web/src-tauri/tauri.conf.json, clients/desktop-web/src-tauri/Cargo.toml, clients/desktop-web/src-tauri/Cargo.lock, README.md, docs/msc2/clients/headless-installation.md
 What: Assemble evidence for every Phase 16 gate item and every supported installer/archive using exact newly published bytes: install, desktop/CLI pairing and supported clients, Minecraft lifecycle, world import/backup/restore and interruption recovery, service reboot/sign-out, update rollback, permission and revocation, uninstall/data retention, artifact identity, CI/provenance, and Linux minimum. Record that the new agents do not serve a browser page or accept browser sessions, and that the exact-tag CI and release workflows no longer require browser-only jobs while retaining native desktop and headless checks. Mark unavailable or failed checks honestly; do not close the phase while any required row lacks Cameron's result. The reviewer for this phase must be the other agent, per repository rules.
 Verify: Run `python3 tools/release/check-phase16-evidence.py docs/msc2/release/phase16-acceptance.md` and confirm it accepts only complete gate rows with exact artifacts and Cameron's observed results.
 Batch: solo

@@ -49,13 +49,18 @@ the final MSC in-window flow.
 
 The selected complete 4×4 area begins at chunk `(-3, 2)` near the save's
 spawn. This save yields real terrain, foliage and water states; the first export
-produced 27,146 solid faces, 529 water faces, 15 texture layers, no texture
+produced 8,971 solid faces, 610 water faces, 16 texture layers, no texture
 fallback faces and no missing-shape blocks. This proves a Bedrock chunk reader
 can feed the Vantage format and renderer with supplied Bedrock assets. It does
-**not** prove a finished
-Bedrock geometry path: this mesher retains only the top visible block per X/Z
-column, so caves, overhangs, structures under canopy, exact neighbor culling,
-biome tint and all water volume faces are absent. Block face UV/material slots
+**not** prove a finished Bedrock geometry path: this mesher retains only the top
+visible block per X/Z column, so caves, overhangs, structures under canopy,
+exact neighbor culling, exact biome tint and much water volume geometry are
+absent. The grey grass in Cameron's first visual check came from writing white
+vertex tint for Bedrock's greyscale grass texture. P18.2a reads grass/foliage
+colormaps from the supplied pack at a **representative temperate climate**;
+actual biome ID-to-climate mapping is still needed before this can be called
+biome-correct. It also omits buried/down surface faces and adds water sides.
+Block face UV/material slots
 are not yet fully mapped. Stairs and glass do not occur in this 4×4 area, so
 their shape, transparency and texture behavior need a separate representative
 Bedrock fixture before any coverage claim. The tool currently emits fallback
@@ -64,7 +69,11 @@ checker texture for missing assets and counts affected faces.
 No running-world snapshot, live terrain refresh, authenticated MSC route,
 in-window Worlds navigation or player movement is present. The next proof is
 safe reads and refreshes from a running BDS save, alongside a shape fixture
-for stairs and glass; the later user-facing slice brings the viewer into MSC.
+for stairs and glass; the later user-facing slice brings the viewer into MSC
+with the Vantage-style bottom toolbar and biome panel Cameron requested.
+Repeated reads of this offline copy varied by three buried grass-block counts;
+the exported face counts stayed stable. Resolve that reader inconsistency
+before using counts or changes as running-world evidence.
 
 For Cameron's visual verification, record whether the tile loads and camera
 movement works, whether land and water look plausible, and any holes or

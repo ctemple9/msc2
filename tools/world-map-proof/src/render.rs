@@ -30,13 +30,20 @@ struct Mesh {
 }
 
 impl Mesh {
-    fn quad(&mut self, corners: [[f32; 3]; 4], normal: [i32; 3], uv: [[f32; 2]; 4], layer: u16) {
+    fn quad(
+        &mut self,
+        corners: [[f32; 3]; 4],
+        normal: [i32; 3],
+        uv: [[f32; 2]; 4],
+        layer: u16,
+        tint: [u8; 3],
+    ) {
         let start = (self.positions.len() / 3) as u32;
         for i in 0..4 {
             self.positions.extend(corners[i]);
             self.uv.extend(uv[i]);
             self.layer.push(f32::from(layer));
-            self.colors.extend([255, 255, 255, 255]);
+            self.colors.extend([tint[0], tint[1], tint[2], 255]);
             self.normals.extend([
                 normal[0] as i8 as u8,
                 normal[1] as i8 as u8,
@@ -77,6 +84,8 @@ struct Textures {
     layers: BTreeMap<PathBuf, u16>,
     pixels: Vec<u8>,
     fallback: usize,
+    grass_tint: [u8; 3],
+    foliage_tint: [u8; 3],
 }
 
 impl Textures {
@@ -97,6 +106,28 @@ impl Textures {
             layers: BTreeMap::new(),
             pixels,
             fallback: 0,
+            grass_tint: colormap_tint(&pack.join("textures/colormap/grass.png"), [121, 182, 91]),
+            foliage_tint: colormap_tint(
+                &pack.join("textures/colormap/foliage.png"),
+                [110, 160, 80],
+            ),
+        }
+    }
+
+    fn tint(&self, block: &str, normal: [i32; 3]) -> [u8; 3] {
+        let name = block.strip_prefix("minecraft:").unwrap_or(block);
+        if name == "grass_block" && normal[1] > 0
+            || name.contains("short_grass")
+            || name.contains("tall_grass")
+            || name.contains("fern")
+        {
+            self.grass_tint
+        } else if name.contains("leaves") || name.contains("leaf") || name.contains("vine") {
+            self.foliage_tint
+        } else if name.contains("water") {
+            [68, 175, 245]
+        } else {
+            [255, 255, 255]
         }
     }
 
@@ -137,6 +168,21 @@ impl Textures {
         fs::write(path, out)?;
         Ok(())
     }
+}
+
+// Bedrock textures are greyscale masks for grass/foliage. The proof uses the
+// supplied pack's colormap at temperate default climate until biome IDs are
+// mapped to climate data; this avoids pretending the grey texture is final.
+fn colormap_tint(path: &Path, fallback: [u8; 3]) -> [u8; 3] {
+    let Ok(image) = image::open(path) else {
+        return fallback;
+    };
+    let image = image.to_rgba8();
+    if image.width() != 256 || image.height() != 256 {
+        return fallback;
+    }
+    let pixel = image.get_pixel(51, 173).0;
+    [pixel[0], pixel[1], pixel[2]]
 }
 
 fn query(state: &BlockState) -> BlockStateQuery {
@@ -197,11 +243,13 @@ fn face(
         _ => return,
     };
     let layer = textures.layer(block, normal);
+    let tint = textures.tint(block, normal);
     mesh.quad(
         corners,
         normal,
         [[0.0, 0.0], [0.0, 1.0], [1.0, 1.0], [1.0, 0.0]],
         layer,
+        tint,
     );
 }
 
@@ -212,6 +260,7 @@ fn block_mesh(
     x: f32,
     y: f32,
     z: f32,
+    neighbors: [Option<i32>; 4],
 ) -> bool {
     let shape = model_shape_for_block_state(&query(state));
     let Some(shape) = shape else {
@@ -229,6 +278,19 @@ fn block_mesh(
             BlockFace::East,
             BlockFace::West,
         ] {
+            if side == BlockFace::Down {
+                continue;
+            }
+            let adjacent = match side {
+                BlockFace::North => neighbors[0],
+                BlockFace::South => neighbors[1],
+                BlockFace::East => neighbors[2],
+                BlockFace::West => neighbors[3],
+                _ => None,
+            };
+            if adjacent.is_some_and(|height| height >= y as i32) {
+                continue;
+            }
             face(
                 mesh,
                 textures,
@@ -243,6 +305,7 @@ fn block_mesh(
     for plane in shape.planes {
         let corners = plane.corners.map(|p| [x + p[0], y + p[1], z + p[2]]);
         let layer = textures.layer(&state.name, plane.normal);
+        let tint = textures.tint(&state.name, plane.normal);
         mesh.quad(
             corners,
             plane.normal,
@@ -250,6 +313,7 @@ fn block_mesh(
                 .uv
                 .unwrap_or([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]),
             layer,
+            tint,
         );
     }
     true
@@ -307,30 +371,102 @@ pub fn render(
     for z in 0..SIDE {
         for x in 0..SIDE {
             let column = &columns[z * SIDE + x];
+            let adjacent = [
+                z.checked_sub(1)
+                    .and_then(|nz| columns[nz * SIDE + x].solid.as_ref().map(|(y, _)| *y)),
+                (z + 1 < SIDE)
+                    .then(|| columns[(z + 1) * SIDE + x].solid.as_ref().map(|(y, _)| *y))
+                    .flatten(),
+                (x + 1 < SIDE)
+                    .then(|| columns[z * SIDE + x + 1].solid.as_ref().map(|(y, _)| *y))
+                    .flatten(),
+                x.checked_sub(1)
+                    .and_then(|nx| columns[z * SIDE + nx].solid.as_ref().map(|(y, _)| *y)),
+            ];
             let wx = (anchor.0 * 16 + x as i32) as f32;
             let wz = (anchor.1 * 16 + z as i32) as f32;
             if let Some((y, state)) = &column.solid
-                && !block_mesh(&mut solid, &mut textures, state, wx, *y as f32, wz)
+                && !block_mesh(
+                    &mut solid,
+                    &mut textures,
+                    state,
+                    wx,
+                    *y as f32,
+                    wz,
+                    adjacent,
+                )
             {
                 *missing_shapes.entry(state.name.clone()).or_default() += 1;
             }
             if let Some((y, state)) = &column.plant
-                && !block_mesh(&mut solid, &mut textures, state, wx, *y as f32, wz)
+                && !block_mesh(
+                    &mut solid,
+                    &mut textures,
+                    state,
+                    wx,
+                    *y as f32,
+                    wz,
+                    adjacent,
+                )
             {
                 *missing_shapes.entry(state.name.clone()).or_default() += 1;
             }
             if let Some(y) = column.water
                 && column.solid.as_ref().is_none_or(|(sy, _)| y > *sy)
             {
+                let water_origin = [wx, y as f32, wz];
                 face(
                     &mut fluid,
                     &mut textures,
                     "minecraft:water",
-                    [wx, y as f32, wz],
+                    water_origin,
                     [0.0, 0.0, 0.0],
                     [1.0, 0.9, 1.0],
                     BlockFace::Up,
                 );
+                for (side, next) in [
+                    (
+                        BlockFace::North,
+                        z.checked_sub(1).map(|nz| &columns[nz * SIDE + x]),
+                    ),
+                    (
+                        BlockFace::South,
+                        (z + 1 < SIDE).then(|| &columns[(z + 1) * SIDE + x]),
+                    ),
+                    (
+                        BlockFace::East,
+                        (x + 1 < SIDE).then(|| &columns[z * SIDE + x + 1]),
+                    ),
+                    (
+                        BlockFace::West,
+                        x.checked_sub(1).map(|nx| &columns[z * SIDE + nx]),
+                    ),
+                ] {
+                    let neighbor_water = next.and_then(|c| c.water);
+                    if neighbor_water.is_some_and(|height| height >= y) {
+                        continue;
+                    }
+                    let neighbor_solid =
+                        next.and_then(|c| c.solid.as_ref().map(|(height, _)| *height));
+                    let own_solid = column.solid.as_ref().map(|(height, _)| *height);
+                    let floor = [neighbor_water, neighbor_solid, own_solid]
+                        .into_iter()
+                        .flatten()
+                        .max()
+                        .unwrap_or(y - 1);
+                    if floor >= y {
+                        continue;
+                    }
+                    face(
+                        &mut fluid,
+                        &mut textures,
+                        "minecraft:water",
+                        water_origin,
+                        [0.0, (floor + 1 - y) as f32, 0.0],
+                        [1.0, 0.9, 1.0],
+                        side,
+                    );
+                }
             }
         }
     }

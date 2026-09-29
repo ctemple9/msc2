@@ -374,12 +374,18 @@ it becomes a dependency.
 Each checkpoint should produce a concrete result and a stop/go decision. The
 next checkpoint is chosen from that result, so implementation can stop or
 change direction if a core assumption fails.
+At each handoff, recommend the next in-scope step based on the result and name
+the UX promise it advances; do not leave Cameron to infer the route forward.
 
 **UX check required in every Phase 18 verification:** Recheck the result
 against the agreed path: Worlds → active world → 3D opens inside the MSC window
 and fills the Worlds tab; the viewer supports the agreed terrain exploration;
 online Java and BDS players appear as moving 3D models; roster selection flies
 to a player and follow keeps the camera with them; exit returns to Worlds.
+The in-window view should retain the Vantage reference's bottom navigation
+toolbar, lighting and quality controls, biome legend, and available terrain
+view controls, adapted to MSC's shell. Cameron's 2026-09-29 comparison images
+are the visual reference for the Bedrock view and control placement.
 Every step's `Verify:` must say which visible promise it advances and what
 observable result supports that claim. An early technical checkpoint may prove
 a named dependency rather than show the complete flow, but it must identify
@@ -389,9 +395,8 @@ player, presents stale coordinates as live, opens outside MSC, or drops a
 target server type, stop and revise the step, add the required dependency, or
 reject that approach before continuing.
 
-This phase is proposed follow-on work, not the current phase. The first step
-must settle reuse boundaries, a thin end-to-end vertical slice, and measurable
-support limits before implementation scope is committed.
+This phase remains an isolated experiment in `feature/world-map-3d`; each
+implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.0 — Prepare isolated world-map worktree
 
@@ -437,7 +442,8 @@ support limits before implementation scope is committed.
 
 ### P18.2 — Prove offline BDS terrain in the Vantage viewer
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Visual verification failed — Cameron reported grey grass and
+  jagged terrain, 2026-09-29; corrective checkpoint P18.2a follows
 - **Files:** `tools/world-map-proof/`, `docs/msc2/rolling-plan.md`
 - **What:** Read an offline copy of Cameron's BDS save with a pinned Bedrock
   chunk reader. Resolve block shapes and textures from a separately supplied
@@ -447,15 +453,41 @@ support limits before implementation scope is committed.
 - **Result:** The selected complete area near spawn begins at chunk `(-3, 2)`.
   The exporter generated 27,146 solid faces, 529 water faces, 15 image layers,
   zero texture fallback faces and zero missing-shape blocks from actual BDS
-  block states. The tool and
-  local viewer are in `tools/world-map-proof/README.md`. This advances the
-  **visible BDS 3D exploration** promise only: Cameron still needs to inspect
-  the rendered view. The current mesher uses the top visible block per column;
+  block states. The tool and local viewer are in
+  `tools/world-map-proof/README.md`. Cameron's visual check showed that the
+  **visible BDS 3D exploration** promise was not met: grass appeared grey and
+  buried cube faces made the terrain jagged. The first mesher uses the top
+  visible block per column;
   it omits caves, overhangs, biome tint and much water geometry. This area has
   no stairs or glass, so a separate representative Bedrock fixture is needed
   before claiming those shapes. BDS itself lacks terrain images; the proof
   uses a local copy of Mojang's sample resource pack. Running-world safety,
   changed terrain, in-window MSC navigation and live players remain open.
-- **Verify:** `cd /Users/camerontemple/msc2-world-map/tools/world-map-proof/viewer && MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-world-map-output npm run dev` — open the localhost URL, orbit and zoom the actual BDS terrain, inspect land/foliage/water and report holes or incorrect textures. This checks the visible BDS terrain promise; the next proof must establish safe running-world reads and refresh, plus stairs/glass coverage using a representative fixture.
+- **Verify:** Cameron opened the local viewer, orbited the actual BDS terrain,
+  and supplied comparison screenshots on 2026-09-29. Grey grass and jagged
+  terrain failed the visible BDS exploration check; P18.2a addresses these
+  defects before the running-world proof.
 - **Batch:** solo — offline geometry dependency before live integration
 - **Commit:** P18.2: prove offline bds terrain in vantage
+
+### P18.2a — Correct the visible BDS terrain proof
+
+- **Status:** Awaiting Cameron verification
+- **Files:** `tools/world-map-proof/src/render.rs`,
+  `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Respond to Cameron's P18.2 screenshots. Apply the Bedrock resource
+  pack's grass and foliage colormaps at a clearly labeled representative
+  climate, omit buried/down faces of sampled surface cubes, and draw exposed
+  water sides. Regenerate the same private 4×4 tile. Do not imply this is exact
+  biome tint, full 3D terrain, or the final in-app controls.
+- **Result:** The regenerated tile has 8,971 solid faces, 610 water faces,
+  16 texture layers, zero texture fallbacks and zero missing shapes. The
+  rendered appearance is awaiting Cameron's inspection. Exact Bedrock biome
+  IDs/climate mapping, cave/overhang meshing, stairs/glass coverage, and the
+  Vantage-style in-window toolbar and biome panel remain open.
+  Repeated reads of the same offline copy varied by three buried grass-block
+  counts while exported face counts stayed stable; investigate before claiming
+  reliable running-world scans.
+- **Verify:** `cd /Users/camerontemple/msc2-world-map/tools/world-map-proof/viewer && MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-world-map-output npm run dev` — reload the viewer and compare with Cameron's P18.2 screenshot: grass/foliage should no longer be grey, buried-face spikes should be reduced, and shore water should be more continuous. Orbit and zoom to find remaining holes. This advances the visible Bedrock exploration promise; the next candidate is actual biome tint and full surface fidelity with a representative stairs/glass area before live-world reads.
+- **Batch:** solo — correct the failed visual proof
+- **Commit:** P18.2a: correct the visible bds terrain proof

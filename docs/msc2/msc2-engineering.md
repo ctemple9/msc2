@@ -41,7 +41,7 @@ Splitting engine from interface removes all of them at once, and makes client pa
 flowchart TB
     subgraph clients["Supported clients"]
         Desktop["MSC Desktop<br/>Tauri shell"]
-        CLI["msc CLI<br/>local or remote"]
+        CLI["msc CLI<br/>host-local or SSH shell"]
     end
 
     Svelte["Svelte frontend<br/>(desktop app)"]
@@ -112,14 +112,14 @@ msc serve --bind 127.0.0.1:48001
 msc serve --bind tailscale
 ```
 
-**CLI mode.** Direct commands against a local or remote agent.
+**CLI mode.** Commands run on the agent host, locally or in an SSH login shell. The CLI obtains host-local authorization from the operating-system peer identity and uses the authenticated API without operator-visible tokens (D-040). Remote desktop pairing remains separate.
 
 ```
 msc status
 msc server start "Modded Survival"
 msc command "Modded Survival" "say restarting in 5"
 msc backup create "Modded Survival" --json
-msc --host msc-linux server restart "Modded Survival"
+ssh msc-linux msc server restart "Modded Survival"
 ```
 
 Human-readable by default; `--json` on everything; meaningful exit codes; colors and spinners disabled automatically when stdout is not a TTY.
@@ -303,7 +303,7 @@ msc-agent
     scheduler · operation recovery · static asset serving
 
 msc-cli
-    local and remote commands (ships in the same binary)
+    host-local commands, including SSH login shells (ships in the same binary)
 
 msc-platform-macos      launchd LaunchDaemons · Keychain · privileged VZ helper client
 msc-platform-windows    Windows Service · DPAPI · Job Objects · firewall
@@ -477,7 +477,7 @@ Bedrock Dedicated Server has no macOS build. MSC 1 solves this with `VMBedrockSe
 | **Browser** | Retired by D-038; browser cookies do not authorize retained routes. |
 | **Tauri desktop, local host** | Shell injects a local token; no login screen. |
 | **Tauri desktop, remote host** | *Unspecified — see below.* |
-| **CLI** | Token from per-host config or `--token`; bearer header. |
+| **CLI** | Verified host-local OS account; short-lived in-memory API credential. No public direct-remote or token option (D-040). |
 
 One permission check behind supported clients. Browser cookies and their CSRF
 requirements are retired by D-038; bearer-authenticated desktop and CLI

@@ -67,6 +67,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 | D-037 | License for MSC 2 original code | **Approved** | 2026-09-28 |
 | D-038 | Retire the served browser client | **Approved** | 2026-09-28 |
 | D-039 | Archive automated CI and keep beta publication build-only | **Approved** | 2026-09-28 |
+| D-040 | Host-local CLI access and service control | **Approved** | 2026-09-29 |
 
 ---
 
@@ -1197,6 +1198,22 @@ ownership changes.
 
 ---
 
+## D-040 — Host-local CLI access and service control
+
+**Status:** **Approved** · **Origin:** Cameron's Phase 17 direction · **Approved by:** Cameron Temple · **Date:** 2026-09-29
+
+**Decision.** The supported `msc` CLI controls the agent installed on the same host, from a local terminal or an SSH login shell on that host. Its authorization is automatic and invisible to the operator: the agent verifies the local operating-system account and grants only that installation's authorized account access. No token export, pairing code, shell-profile secret, or repeated setup is required after an agent restart or host reboot. A forwarded TCP connection or possession of the executable alone does not establish local identity. Route permissions and audit attribution still apply. A desktop app retains its separate remote-host pairing and authenticated API access; the CLI has no general direct-remote host, port, URL, or token mode. A desktop-managed SSH pairing bootstrap remains a fixed-purpose exception, not a general remote CLI session.
+
+`msc start agent`, `msc stop agent`, and `msc status agent` address the local operating-system service even while its API is down. Installation enables boot startup. A routine stop leaves boot enablement intact, so the agent starts again at the next boot unless explicitly disabled. Service control never appears as a remote API route. `msc server start` and `msc server stop` act on a Minecraft server and remain distinct. Desktop and headless installers own `msc` on PATH and clean up their own command registration.
+
+The CLI exposes the agent's supported Minecraft-management tasks, with readable terminal output and scriptable JSON. It may search and inspect supported add-on catalogs before installing. A CurseForge modpack still starts from a user-supplied archive; author-blocked files require a user-supplied matching file. `msc command` remains the sole raw Minecraft command path. This decision adds no new Minecraft command vocabulary or full-screen terminal client.
+
+**Rationale.** The local CLI should work in the same host account before and after reboot without requiring the owner to handle bearer secrets. Remote desktop management already has a separate pairing and trust model. Local service control must remain available when the management API is stopped.
+
+**Supersedes.** Earlier direct-remote CLI and token examples in D-038 and the engineering/product descriptions. It does not change D-013 multi-host desktop support or D-038's retained authenticated API.
+
+---
+
 ## D-038 — Retire the served browser client
 
 **Status:** **Approved** · **Origin:** Owner decision recorded for P16.24 ·
@@ -1205,7 +1222,7 @@ ownership changes.
 **Decision.** MSC 2 v1 supports the Tauri desktop app and headless CLI. The
 agent does not serve a browser UI, and MSC 2 does not support management from a
 desktop or mobile browser. A headless host remains manageable through a remote
-desktop app or CLI over the authenticated API.
+desktop app or a host-local CLI in a shell on that host.
 
 The Tauri app continues to use the shared Svelte frontend. Remote desktop
 pairing and per-host native credential storage remain supported. The browser

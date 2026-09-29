@@ -1,0 +1,7 @@
+# Phase 17 — Host-local CLI contract and API inventory
+
+The `msc` CLI manages the agent on the host where the command runs. A local terminal and an SSH login shell use the same installation-authorized OS account. The agent verifies the local peer and issues an in-memory, short-lived API credential; users do not export tokens or pair the CLI. A wrong account, forwarded TCP connection, or copied binary does not confer access. Desktop remote pairing and per-host credentials remain separate. A desktop-managed `msc pairing create --client-kind desktop --json` invocation through SSH is a fixed-purpose bootstrap, not a general remote CLI mode.
+
+`msc start agent`, `msc stop agent`, and `msc status agent` control the installed local service while the API is down. Installation enables startup at boot. A routine stop holds until explicit start or the next boot; only an explicit disable changes future startup. Minecraft server start/stop are separate operations. Desktop and headless packages own the command on PATH.
+
+Catalog installs follow search → inspect compatible versions and dependencies → confirm → install. CurseForge modpacks begin with a local `.zip`; the agent downloads permitted manifest files and reports author-blocked files for manual supply. `msc command` is the sole raw Minecraft command path. All task commands keep human-readable output and `--json` for scripting. Destructive tasks require explicit confirmation. The route inventory below is completed in P17.2.

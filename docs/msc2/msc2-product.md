@@ -55,7 +55,7 @@ MSC 2 splits into two halves: a small program that actually runs your server, an
 
 **Your server can live on a machine with no screen.** An old laptop with the lid shut, in a closet, plugged into ethernet. No desktop, no monitor, no keyboard. This matters more than it sounds: on an 8 GB machine, not running a graphical desktop environment can be the difference between a modpack that runs and one that stutters.
 
-**You can manage it from the supported control surfaces.** The desktop app and scriptable CLI talk to the same server and reach the same agent capabilities. A remote computer can be reached directly over a LAN or DNS name, through an optional Tailscale or other user-operated VPN/overlay, or through an SSH tunnel. Ordinary local use does not require any third-party network service.
+**You can manage it from the supported control surfaces.** The desktop app and scriptable CLI talk to the same server and reach the same agent capabilities. The desktop app can reach a remote agent over LAN, DNS, an optional Tailscale or other user-operated VPN, or an SSH tunnel. The CLI runs on the agent host, including in an SSH login shell. Ordinary local use does not require any third-party network service.
 
 **A remote host does not require a second manual setup ritual.** The desktop
 app can use a direct LAN or Tailscale address, or manage an SSH tunnel to the
@@ -104,7 +104,7 @@ Some things are better suited to one surface than another — editing a large co
 
 **The terminal.** For automation and for people who like terminals. Every action available as a command, with proper output for scripts.
 
-The agent does not serve a browser interface. A screenless machine can be managed from the desktop app or CLI on another computer over the authenticated API.
+The agent does not serve a browser interface. A screenless machine can be managed from a remote desktop app over the authenticated API, or with `msc` in an SSH shell on that machine.
 
 ---
 

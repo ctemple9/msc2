@@ -246,7 +246,8 @@ remains separate. No release publication or CI gate is implied.
 
 ### P17.21 — Add operation and recovery controls
 
-- **Status:** PLANNED
+- **Status:** IMPLEMENTED — awaiting Cameron verification
+- **Commit:** P17.21: add operation and host reset controls
 - **Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/routes/operations.rs`, `crates/msc-agent/src/routes/host_reset.rs`
 - **What:** Inspect and cancel owned long-running operations and expose host reset with existing guards and exact confirmation. Keep local client reset distinct from host reset; preserve role permissions and no remote service-control route.
 - **Verify:** `cargo check -p msc-agent`

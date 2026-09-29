@@ -28,25 +28,25 @@ use msc_api::dto::{
     CatalogInstallRequestDto, CatalogInstallResultDto, CatalogSearchResponseDto,
     ClientExportResponseDto, CommandResultDto, ComponentUpdateRequestDto, ConnectivityResponseDto,
     DuckDnsStatusResponseDto, DuckDnsUpdateRequestDto, ErrorDto, HealthProblemsResponseDto,
-    HealthRepairRequestDto, HealthRepairResultDto, HealthResponseDto, JavaConfigResponseDto,
-    JavaConfigSetRequestDto, JavaRuntimeInstallRequestDto, JavaRuntimeInstallResultDto,
-    JavaRuntimesResponseDto, ModpackImportRequestDto, ModpackImportResultDto,
-    ModpackInspectionRequestDto, ModpackInspectionResultDto, ModpackManualFileRequestDto,
-    ModpackManualFileResultDto, OperationDto, OperationStateDto, PerformanceMetricNumberDto,
-    PerformanceSnapshotDto, PlayitActionResultDto, PlayitStatusDto, RemoteApiStatus,
-    ResourcePackActivateRequestDto, ResourcePackMutationResultDto, ResourcePacksResponseDto,
-    ServerCreateRequestDto, ServerCreateResultDto, ServerDeleteRequestDto, ServerDeleteResultDto,
-    ServerDirectorySizeResponseDto, ServerDto, ServerEulaRequestDto, ServerEulaResultDto,
-    ServerImportRequestDto, ServerImportResultDto, ServerImportScanResponseDto,
-    ServerNotesRequestDto, ServerNotesResultDto, ServerRenameRequestDto, ServerRenameResultDto,
-    ServerTransferExportResultDto, SettingsResponseDto, SettingsUpdateResultDto, SimpleResultDto,
-    StagedUploadBeginRequestDto, StagedUploadBeginResultDto, StagedUploadCompleteResultDto,
-    StagedUploadPurposeDto, VersionChangeRequestDto, VersionChangeResultDto, VersionsResponseDto,
-    WorldActivateResultDto, WorldConvertRequestDto, WorldConvertResultDto, WorldCreateRequestDto,
-    WorldDeleteRequestDto, WorldDuplicateRequestDto, WorldExportRequestDto, WorldExportResultDto,
-    WorldImportRequestDto, WorldMutationResultDto, WorldRenameRequestDto,
-    WorldReplaceActiveRequestDto, WorldReplaceActiveResultDto, WorldReplaceRequestDto,
-    WorldSlotDto, WorldSlotsResponseDto,
+    HealthRepairRequestDto, HealthRepairResultDto, HealthResponseDto, HostResetAcceptedDto,
+    JavaConfigResponseDto, JavaConfigSetRequestDto, JavaRuntimeInstallRequestDto,
+    JavaRuntimeInstallResultDto, JavaRuntimesResponseDto, ModpackImportRequestDto,
+    ModpackImportResultDto, ModpackInspectionRequestDto, ModpackInspectionResultDto,
+    ModpackManualFileRequestDto, ModpackManualFileResultDto, OperationDto, OperationStateDto,
+    PerformanceMetricNumberDto, PerformanceSnapshotDto, PlayitActionResultDto, PlayitStatusDto,
+    RemoteApiStatus, ResourcePackActivateRequestDto, ResourcePackMutationResultDto,
+    ResourcePacksResponseDto, ServerCreateRequestDto, ServerCreateResultDto,
+    ServerDeleteRequestDto, ServerDeleteResultDto, ServerDirectorySizeResponseDto, ServerDto,
+    ServerEulaRequestDto, ServerEulaResultDto, ServerImportRequestDto, ServerImportResultDto,
+    ServerImportScanResponseDto, ServerNotesRequestDto, ServerNotesResultDto,
+    ServerRenameRequestDto, ServerRenameResultDto, ServerTransferExportResultDto,
+    SettingsResponseDto, SettingsUpdateResultDto, SimpleResultDto, StagedUploadBeginRequestDto,
+    StagedUploadBeginResultDto, StagedUploadCompleteResultDto, StagedUploadPurposeDto,
+    VersionChangeRequestDto, VersionChangeResultDto, VersionsResponseDto, WorldActivateResultDto,
+    WorldConvertRequestDto, WorldConvertResultDto, WorldCreateRequestDto, WorldDeleteRequestDto,
+    WorldDuplicateRequestDto, WorldExportRequestDto, WorldExportResultDto, WorldImportRequestDto,
+    WorldMutationResultDto, WorldRenameRequestDto, WorldReplaceActiveRequestDto,
+    WorldReplaceActiveResultDto, WorldReplaceRequestDto, WorldSlotDto, WorldSlotsResponseDto,
 };
 use msc_infrastructure::archive::create_zip_from_folders;
 use msc_infrastructure::console_buffer::ConsoleLine;
@@ -237,6 +237,40 @@ pub enum Command {
     Modpack {
         #[command(subcommand)]
         command: ModpackCommand,
+    },
+    /// Inspect or cancel a long-running agent operation.
+    Operation {
+        #[command(subcommand)]
+        command: OperationCommand,
+    },
+    /// Reset host-wide MSC configuration or all managed data.
+    HostReset {
+        #[command(subcommand)]
+        command: HostResetCommand,
+    },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum OperationCommand {
+    /// Show the current state and result of an operation by ID.
+    Show { operation_id: String },
+    /// Ask the operation's owner to stop it at a safe point.
+    Cancel { operation_id: String },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum HostResetCommand {
+    /// Clear host configuration while preserving managed server data.
+    Configuration {
+        /// Must be exactly `RESET AGENT`.
+        #[arg(long)]
+        confirm: String,
+    },
+    /// Clear host configuration and managed server data.
+    Everything {
+        /// Must be exactly `RESET AGENT`.
+        #[arg(long)]
+        confirm: String,
     },
 }
 
@@ -1326,7 +1360,79 @@ pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
         Command::Doctor { command } => run_doctor(common, command).await,
         Command::Addon { command } => run_addon(common, command).await,
         Command::Modpack { command } => run_modpack(common, command).await,
+        Command::Operation { command } => run_operation(common, command).await,
+        Command::HostReset { command } => run_host_reset(common, command).await,
     }
+}
+
+async fn run_operation(common: CommonArgs, command: OperationCommand) -> Result<(), CliError> {
+    let client = ApiClient::connect_local().await?;
+    let operation = match command {
+        OperationCommand::Show { operation_id } => {
+            client
+                .get_json::<OperationDto>(&format!("/v1/operations/{operation_id}"))
+                .await?
+        }
+        OperationCommand::Cancel { operation_id } => {
+            client
+                .post_json::<_, OperationDto>(
+                    &format!("/v1/operations/{operation_id}/cancel"),
+                    &serde_json::json!({}),
+                )
+                .await?
+        }
+    };
+    if common.json {
+        print_json(&operation)?;
+    } else {
+        println!("operation: {}", operation.id);
+        println!("type: {}", operation.r#type);
+        println!("state: {:?}", operation.state);
+        if let Some(target) = operation.target {
+            println!("target: {target}");
+        }
+        if let Some(status) = operation.status_line {
+            println!("status: {status}");
+        }
+        if let Some(progress) = operation.progress {
+            println!("progress: {}/{}", progress.current, progress.total);
+        }
+        if let Some(result) = operation.result {
+            println!("result: {result}");
+        }
+        if let Some(error) = operation.error {
+            println!("error: {} — {}", error.code, error.message);
+        }
+    }
+    Ok(())
+}
+
+async fn run_host_reset(common: CommonArgs, command: HostResetCommand) -> Result<(), CliError> {
+    let (mode, confirmation) = match command {
+        HostResetCommand::Configuration { confirm } => ("configuration", confirm),
+        HostResetCommand::Everything { confirm } => ("everything", confirm),
+    };
+    if confirmation != "RESET AGENT" {
+        return Err(CliError::internal(
+            "confirmation must exactly match RESET AGENT",
+        ));
+    }
+    let client = ApiClient::connect_local().await?;
+    let accepted: HostResetAcceptedDto = client
+        .post_json(
+            "/v1/host/reset",
+            &serde_json::json!({ "mode": mode, "confirmation": confirmation }),
+        )
+        .await?;
+    if common.json {
+        print_json(&accepted)?;
+    } else {
+        println!("{}", accepted.message);
+        println!("operation id: {}", accepted.operation_id);
+        println!("host id: {}", accepted.host_id);
+        println!("agent state: {}", accepted.agent_state);
+    }
+    Ok(())
 }
 
 async fn run_bedrock(common: CommonArgs, command: BedrockCommand) -> Result<(), CliError> {

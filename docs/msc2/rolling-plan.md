@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 16 step records P16.1–P16.34 are Done at Cameron's direction and archived. [v0.1.18](https://github.com/ctemple9/msc2/releases/tag/v0.1.18) published all nine artifacts from `ededaf33632bbbdcc518ae8928a54bb3ba073cc6`. The Phase 16 exit gate remains open for Cameron's physical results and an independent review.
-> **Next move:** Cameron reviews the proposed Phase 17 CLI plan below. Phase 16 still needs Cameron's exact-artifact results in `docs/msc2/release/phase16-acceptance.md` and an independent gate review. Done step statuses do not assert that pending gate evidence exists.
+> **Next move:** Cameron reviews the proposed P17.25–P17.27 CLI completion steps below. Phase 16 still needs Cameron's exact-artifact results in `docs/msc2/release/phase16-acceptance.md` and an independent gate review. Done step statuses do not assert that pending gate evidence exists.
 
 ## How this document works
 
@@ -31,7 +31,7 @@ Each implementation step is planned, read, executed, verified by Cameron, review
 | 14 | Operational refinements | complete |
 | 15 | Maintenance follow-ups | complete |
 | 16 | Release safety and codebase readiness | complete |
-| 17 | Local CLI refinement | planned; owner review pending |
+| 17 | Local CLI refinement | planned; completion steps pending review |
 
 ## Active Phase 16 acceptance
 
@@ -264,7 +264,7 @@ remains separate. No release publication or CI gate is implied.
 
 ### P17.23 — Document and audit the finished CLI
 
-- **Status:** IMPLEMENTED — awaiting owner decisions and Cameron verification
+- **Status:** IMPLEMENTED — Cameron's decisions recorded for P17.27; awaiting Cameron verification
 - **Commit:** P17.23: document cli usage and route audit
 - **Files:** `README.md`, `docs/msc2/clients/phase17-cli.md`, `docs/msc2/clients/headless-installation.md`, `docs/msc2/msc2-engineering.md`, `docs/msc2/api-contract/openapi.json`
 - **What:** Replace obsolete remote-CLI/token instructions, publish task-first local and SSH examples with edition limits, and close every row of the API-to-CLI inventory or record an owner-approved exception. Preserve desktop remote-host docs. Do not add release gates.
@@ -279,3 +279,37 @@ remains separate. No release publication or CI gate is implied.
 - **What:** Record reproducible desktop/headless checks on macOS, Windows, and Linux: PATH, start/stop/status, reboot, local and SSH-shell authorization, wrong-user and forwarded-port refusal, representative server/player/world/backup/content commands, JSON scripting, provider failures, and uninstall ownership. Cameron runs and records results; the other agent reviews the gate. No test suite, CI gate, release tag, or publication run is implied.
 - **Verify:** `rg -n 'macOS|Windows|Linux|SSH|reboot|stopped|PATH|wrong user|catalog|CurseForge' docs/msc2/clients/phase17-cli-acceptance.md`
 - **Batch:** F (P17.21–P17.24) — information and acceptance
+
+## Proposed Phase 17 completion steps
+
+**Owner direction received 2026-09-29:** Cameron approved adding CLI commands
+for the server-setup and player/pack-maintenance groups recommended in the
+P17.23 audit. He approved keeping built-in gamerule lookup and the router
+symptom-analysis action out of the CLI; the existing raw game-command path and
+router-guide reading remain available. P17.27 records these two deliberate
+exceptions and the resulting inventory in the decision register and gate.
+
+### P17.25 — Complete server setup and inspection commands
+
+- **Status:** IMPLEMENTED — awaiting Cameron verification
+- **Commit:** P17.25: complete server setup cli commands
+- **Files:** `crates/msc-agent/src/cli/mod.rs`, `docs/msc2/clients/phase17-cli.md`, `docs/msc2/rolling-plan.md`
+- **What:** Add task commands for active-server RAM read/write, registered-server Bedrock transport, per-server Playit and Xbox Broadcast enablement, and installed system-component inspection. Use the existing routes and permissions; keep target server identity explicit, active-server effects visible, JSON output machine-readable, and provider or edition limits clear.
+- **Verify:** `cargo check -p msc-agent`
+- **Batch:** G (P17.25–P17.27) — close the inventory and record approved exceptions
+
+### P17.26 — Complete player and pack maintenance commands
+
+- **Status:** PLANNED
+- **Files:** `crates/msc-agent/src/cli/mod.rs`, `docs/msc2/clients/phase17-cli.md`, `docs/msc2/rolling-plan.md`
+- **What:** Add task commands for player skin overrides, profile hiding, unresolved Bedrock-player identification, session-history clearing, Geyser resource-pack toggles, and clearing Xbox Broadcast credentials. Preserve existing role and edition checks, operation/confirmation behavior, and JSON results; use server IDs where required and never put account secrets in arguments.
+- **Verify:** `cargo check -p msc-agent`
+- **Batch:** G (P17.25–P17.27) — close the inventory and record approved exceptions
+
+### P17.27 — Record CLI task exceptions and close the route audit
+
+- **Status:** PLANNED
+- **Files:** `docs/msc2/msc2-decisions.md`, `docs/msc2/msc2-port-plan.md`, `docs/msc2/clients/phase17-cli.md`, `docs/msc2/clients/phase17-cli-acceptance.md`, `docs/msc2/rolling-plan.md`
+- **What:** Record Cameron's 2026-09-29 approval to exclude gamerule-catalog lookup and router symptom analysis from CLI task coverage while retaining their API/desktop use. Update the API-to-CLI inventory for P17.25–P17.26, decision index/history, ordered phase-step range, working gate, and physical acceptance notes. Keep desktop remote pairing, raw `msc command`, and build-only beta publishing unchanged.
+- **Verify:** `git diff --check`
+- **Batch:** G (P17.25–P17.27) — close the inventory and record approved exceptions

@@ -82,7 +82,7 @@ stop, or replace the service.
 
 `msc start agent`, `msc stop agent`, and `msc status agent` control the installed local service while the API is down. Installation enables startup at boot. A routine stop holds until explicit start or the next boot; only an explicit disable changes future startup. Minecraft server start/stop are separate operations. Desktop and headless packages own the command on PATH.
 
-Catalog installs follow search → inspect compatible versions and dependencies → confirm → install. CurseForge modpacks begin with a local `.zip`; the agent downloads permitted manifest files and reports author-blocked files for manual supply. `msc command` is the sole raw Minecraft command path. All task commands keep human-readable output and `--json` for scripting. Destructive tasks require explicit confirmation. The inventory below reflects the CLI source after P17.22; rows marked for owner review remain open and are not approved exceptions.
+Catalog installs follow search → inspect compatible versions and dependencies → confirm → install. CurseForge modpacks begin with a local `.zip`; the agent downloads permitted manifest files and reports author-blocked files for manual supply. `msc command` is the sole raw Minecraft command path. RAM commands act on the active server; inspect `msc status` or `msc server list` first. `msc components` lists installed server components. Server-level Playit, Xbox Broadcast, and Bedrock transport commands take a server name or ID explicitly. All task commands keep human-readable output and `--json` for scripting. Destructive tasks require explicit confirmation. The inventory below reflects the CLI source after P17.22; rows marked for owner review remain open and are not approved exceptions.
 
 ## Task-first examples
 
@@ -154,8 +154,8 @@ For each user task, terminal output must identify the target and result; `--json
 | POST `/v1/config/servers-root` | Set the folder where this agent stores servers | Existing: `msc config set-servers-root` | `settings` | host |
 | GET `/v1/config/curseforge` | Get whether this agent has a CurseForge API key | Existing: `msc config curseforge` | `none` | host |
 | POST `/v1/config/curseforge` | Save or clear this agent's CurseForge API key | Existing: `msc config set-curse-forge-key --key-stdin` | `settings` | host; protected stdin |
-| GET `/v1/config/ram` | Get the active server's RAM allocation | Owner review: no CLI command found | `none` | host |
-| POST `/v1/config/ram` | Update the active server's RAM allocation | Owner review: no CLI command found | `settings` | host |
+| GET `/v1/config/ram` | Get the active server's RAM allocation | Existing: `msc config ram get` | `none` | active server |
+| POST `/v1/config/ram` | Update the active server's RAM allocation | Existing: `msc config ram set` | `settings` | active server; restart may be required |
 | GET `/v1/config/geyser` | Get the active server's Geyser config | Existing: `msc config geyser` | `none` | host |
 | POST `/v1/config/geyser` | Update the active server's Geyser config | Existing: `msc config set-geyser` | `settings` | host |
 | GET `/v1/users` | List named-access users | Existing: `msc access list` | `admin` | host |
@@ -166,7 +166,7 @@ For each user task, terminal output must identify the target and result; `--json
 | GET `/v1/playit` | Get Playit tunnel status | Existing: `msc playit status` | `none` | host |
 | POST `/v1/playit/setup` | Start native Playit account and tunnel setup | Existing: `msc playit setup` | `networking` | host; password via protected stdin |
 | POST `/v1/playit/reset` | Clear host-local Playit credentials and derived state | Existing: `msc playit reset` | `networking` | host |
-| POST `/v1/servers/playit` | Enable or disable Playit for one registered server | Owner review: no CLI command found | `networking` | host; selected server ID |
+| POST `/v1/servers/playit` | Enable or disable Playit for one registered server | Existing: `msc server playit <server> <enabled>` | `networking` | host; resolved server ID |
 | POST `/v1/playit/start` | Start the Playit tunnel as a cancellable managed operation | Existing: `msc playit start` | `networking` | host |
 | POST `/v1/playit/stop` | Stop the Playit tunnel as a managed operation | Existing: `msc playit stop` | `networking` | host |
 | GET `/v1/broadcast/autostart` | Get Xbox broadcast auto-start setting | Existing: `msc broadcast autostart` | `none` | host |
@@ -180,7 +180,7 @@ For each user task, terminal output must identify the target and result; `--json
 | GET `/v1/broadcast/credentials` | Get the host-wide MCXboxBroadcast account status | Existing: `msc broadcast credentials` | `undocumented` | host |
 | POST `/v1/broadcast/credentials` | Update the host-wide MCXboxBroadcast Microsoft account credentials | Existing: `msc broadcast credentials` | `broadcast` | host |
 | POST `/v1/broadcast/credentials/clear` | Clear saved MCXboxBroadcast credentials | Owner review: no CLI command found | `broadcast` | host |
-| POST `/v1/servers/xbox-broadcast` | Enable or disable Xbox Broadcast for one registered server | Owner review: no CLI command found | `broadcast` | host; Bedrock server ID |
+| POST `/v1/servers/xbox-broadcast` | Enable or disable Xbox Broadcast for one registered server | Existing: `msc server xbox-broadcast <server> <enabled>` | `broadcast` | host; Bedrock server ID |
 | GET `/v1/broadcast/jar-status` | Get MCXboxBroadcast JAR install status | Existing: `msc broadcast download-jar` reports status before/after the operation | `none` | host |
 | POST `/v1/broadcast/download-jar` | Download the MCXboxBroadcast JAR as a cancellable managed operation | Existing: `msc broadcast download-jar` | `broadcast` | host |
 | GET `/v1/resourcepacks` | List resource packs | Existing: `msc resource-pack list` | `none` | active server / capability; Java |
@@ -211,7 +211,7 @@ For each user task, terminal output must identify the target and result; `--json
 | POST `/v1/duckdns` | Update the DuckDNS hostname | Existing: `msc network duckdns` | `settings` | host |
 | GET `/v1/servers` | List all registered servers | Existing: `msc server list` | `none` | host |
 | POST `/v1/servers/notes` | Update a server's Overview notes | Existing: `msc server notes` | `fleet` | host |
-| POST `/v1/servers/bedrock-transport` | Select the managed connection transport for one Bedrock server | Owner review: no CLI command found | `fleet` | host; Bedrock |
+| POST `/v1/servers/bedrock-transport` | Select the managed connection transport for one Bedrock server | Existing: `msc server bedrock-transport <server> <transport>` | `fleet` | host; Bedrock |
 | GET `/v1/servers/size` | Measure a registered server's directory | Existing: `msc server size` | `none` | host |
 | GET `/v1/status` | Current run status (active server, pid, running state) | Existing: `msc status` | `none` | active server / capability |
 | GET `/v1/performance` | Latest performance snapshot (TPS, players, CPU, RAM, world size) | Existing: `msc metrics` | `none` | active server / capability |
@@ -220,7 +220,7 @@ For each user task, terminal output must identify the target and result; `--json
 | POST `/v1/session-log/clear` | Clear join/leave event history for the active server | Owner review: no CLI command found | `players` | active server / capability |
 | GET `/v1/console/tail` | Last N console lines; hideAuto defaults to true and prevents automatic output from being sent to the client | Existing: `msc console tail` | `none` | active server / capability |
 | POST `/v1/console/stream-ticket` | Create a short-lived console WebSocket ticket | Internal — desktop WebSocket ticket | `none` | active server / capability |
-| GET `/v1/components` | Installed system components (Paper/Geyser/Floodgate/flavor jar) and update status | Owner review: no CLI command found | `none` | active server / capability |
+| GET `/v1/components` | Installed system components (Paper/Geyser/Floodgate/flavor jar) and update status | Existing: `msc components` | `none` | active server / capability |
 | GET `/v1/addons` | Installed add-ons (mods/plugins) with update status | Existing: `msc addon list` | `none` | active server / capability |
 | GET `/v1/files` | Browse the active server's directory (admin-only; query param path). 409 reuses the same shape with note=no_active_server. | Existing: `msc file browse` | `admin` | active server / capability |
 | GET `/v1/files/read` | Read a previewable file's contents (admin-only; query param path, required) | Existing: `msc file read` | `admin` | active server / capability |

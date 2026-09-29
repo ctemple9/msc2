@@ -160,6 +160,8 @@ pub enum Command {
         #[command(subcommand)]
         command: BroadcastCommand,
     },
+    /// Inspect components installed in the active server.
+    Components,
     /// List or mutate Java resource-pack publication.
     ResourcePack {
         #[command(subcommand)]
@@ -439,6 +441,11 @@ pub enum ResourcePackCommand {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum ConfigCommand {
+    /// Read or change RAM allocation for the active server.
+    Ram {
+        #[command(subcommand)]
+        command: RamCommand,
+    },
     HostSetup,
     CompleteHostSetup,
     ServersRoot,
@@ -460,6 +467,17 @@ pub enum ConfigCommand {
     Watchdog,
     WatchdogEnable,
     WatchdogDisable,
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum RamCommand {
+    Get,
+    Set {
+        #[arg(long)]
+        min_gb: Option<f64>,
+        #[arg(long)]
+        max_gb: Option<f64>,
+    },
 }
 
 #[cfg(target_os = "linux")]
@@ -516,15 +534,33 @@ pub enum ServerCommand {
     /// List every registered server and mark the current active server.
     List,
     /// Show one registered server by exact name or id.
-    Show { server: String },
+    Show {
+        server: String,
+    },
     /// Select a server as the active context for following commands.
-    Use { server: String },
+    Use {
+        server: String,
+    },
     /// Measure the managed directory for one server.
-    Size { server: String },
+    Size {
+        server: String,
+    },
     /// Read or replace the notes attached to one server.
     Notes {
         server: String,
         text: Option<String>,
+    },
+    BedrockTransport {
+        server: String,
+        transport: String,
+    },
+    Playit {
+        server: String,
+        enabled: bool,
+    },
+    XboxBroadcast {
+        server: String,
+        enabled: bool,
     },
     /// Export all registered servers to one MSC transfer archive.
     Export {
@@ -583,18 +619,29 @@ pub enum ServerCommand {
     /// Rescan the managed servers root and register untracked servers in place.
     Rescan,
     /// Start the selected server, or the current active server if omitted.
-    Start { server: Option<String> },
+    Start {
+        server: Option<String>,
+    },
     /// Stop the selected server, or the current active server if omitted.
-    Stop { server: Option<String> },
+    Stop {
+        server: Option<String>,
+    },
     /// Restart the selected server, or the current active server if omitted.
-    Restart { server: Option<String> },
+    Restart {
+        server: Option<String>,
+    },
     /// Create a new Java server. Long-running for Forge/NeoForge (a real
     /// supervised installer run); always operation-backed.
     Create(ServerCreateArgs),
     /// Delete a server. Refuses a running server.
-    Delete { server: String },
+    Delete {
+        server: String,
+    },
     /// Rename a server's display name (not its on-disk folder).
-    Rename { server: String, name: String },
+    Rename {
+        server: String,
+        name: String,
+    },
     /// Accept the Minecraft EULA for a server (writes `eula.txt`).
     Eula {
         /// Select a server by id or display name. Defaults to the active
@@ -1364,6 +1411,7 @@ pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
         Command::Capabilities => run_capabilities(common).await,
         Command::Access { command } => run_access(common, command).await,
         Command::Config { command } => run_config(common, command).await,
+        Command::Components => run_components(common).await,
         Command::Network { command } => run_network(common, command).await,
         Command::Playit { command } => run_playit(common, command).await,
         Command::Broadcast { command } => run_broadcast(common, command).await,
@@ -2403,6 +2451,36 @@ async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), Cl
             }
             Ok(())
         }
+        ServerCommand::BedrockTransport { server, transport } => {
+            let server = resolve_server(&client, &server).await?;
+            let value: serde_json::Value = client
+                .post_json(
+                    "/v1/servers/bedrock-transport",
+                    &serde_json::json!({"serverId":server.id,"transport":transport}),
+                )
+                .await?;
+            output_value(common.json, &value)
+        }
+        ServerCommand::Playit { server, enabled } => {
+            let server = resolve_server(&client, &server).await?;
+            let value: serde_json::Value = client
+                .post_json(
+                    "/v1/servers/playit",
+                    &serde_json::json!({"serverId":server.id,"enabled":enabled}),
+                )
+                .await?;
+            output_value(common.json, &value)
+        }
+        ServerCommand::XboxBroadcast { server, enabled } => {
+            let server = resolve_server(&client, &server).await?;
+            let value: serde_json::Value = client
+                .post_json(
+                    "/v1/servers/xbox-broadcast",
+                    &serde_json::json!({"serverId":server.id,"enabled":enabled}),
+                )
+                .await?;
+            output_value(common.json, &value)
+        }
         ServerCommand::Export { output } => {
             let result: ServerTransferExportResultDto = client
                 .post_json("/v1/servers/export", &serde_json::json!({}))
@@ -3087,6 +3165,20 @@ async fn run_network(common: CommonArgs, command: NetworkCommand) -> Result<(), 
 async fn run_config(common: CommonArgs, command: ConfigCommand) -> Result<(), CliError> {
     let client = ApiClient::connect_local().await?;
     let (method, path, body) = match command {
+        ConfigCommand::Ram { command } => {
+            let value: serde_json::Value = match command {
+                RamCommand::Get => client.get_json("/v1/config/ram").await?,
+                RamCommand::Set { min_gb, max_gb } => {
+                    client
+                        .post_json(
+                            "/v1/config/ram",
+                            &serde_json::json!({"minRamGB":min_gb,"maxRamGB":max_gb}),
+                        )
+                        .await?
+                }
+            };
+            return output_value(common.json, &value);
+        }
         ConfigCommand::HostSetup => ("GET", "/v1/config/host-setup", None),
         ConfigCommand::CompleteHostSetup => (
             "POST",
@@ -3135,6 +3227,40 @@ async fn run_config(common: CommonArgs, command: ConfigCommand) -> Result<(), Cl
         println!(
             "{}",
             serde_json::to_string_pretty(&result).unwrap_or_default()
+        );
+        Ok(())
+    }
+}
+
+async fn run_components(common: CommonArgs) -> Result<(), CliError> {
+    let client = ApiClient::connect_local().await?;
+    let value: serde_json::Value = client.get_json("/v1/components").await?;
+    if common.json {
+        print_json(&value)
+    } else {
+        if let Some(items) = value["components"].as_array() {
+            for item in items {
+                println!(
+                    "{}: {}",
+                    item["name"].as_str().unwrap_or("component"),
+                    item["installedLabel"]
+                        .as_str()
+                        .or_else(|| item["installedVersion"].as_str())
+                        .unwrap_or("not installed")
+                );
+            }
+        }
+        Ok(())
+    }
+}
+
+fn output_value(json: bool, value: &serde_json::Value) -> Result<(), CliError> {
+    if json {
+        print_json(value)
+    } else {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(value).unwrap_or_default()
         );
         Ok(())
     }

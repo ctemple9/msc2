@@ -826,3 +826,97 @@ assumed here. The traceability table and source map are maintained in
 The world-profile ownership boundary is approved under D-030. The remaining
 Phase 15 pack-provider and lifecycle contract in this section remains
 **Proposed**.
+
+---
+
+## 21. 3D world viewer scope (P18.1, Proposed)
+
+### Owner-directed experience and first proof
+
+**Worlds → selected active world → 3D** replaces the Worlds tab content inside
+the MSC window. Exit returns to the same world list and selection. The viewer
+supports 3D navigation, depth cutaway, biome and lighting views, and quality
+controls. Online players walk and turn as 3D models; the roster flies to one
+and can follow them. Standard and modded Java plus BDS, including console
+clients, are the target server families. Saved player coordinates must never
+be presented as current positions.
+
+The first implementation proof is a **4×4-chunk area of a real BDS Overworld
+save**, rendered as textured geometry in the intended Vantage viewer engine.
+It must show cubes, stairs, foliage, glass, and water from actual block states
+and allow camera movement. This advances the visible promise that BDS terrain
+can be explored in 3D. It does not demonstrate live terrain or players. The
+next proof must establish safe reads of a running world and changed terrain.
+The first user-facing vertical slice then connects an active world through
+MSC's authenticated agent to the full Worlds tab, with terrain freshness and
+clean exit. Player movement is added only when a current server feed has been
+demonstrated. Choose each later checkpoint from the preceding result.
+
+### Reuse and system boundaries
+
+| Area | Direction | Unproved boundary |
+|---|---|---|
+| Viewer | Trial Vantage's MIT `@thoughts-on-things/vantage-mc/three` engine and `core` decoder in Svelte; MSC owns the controls and navigation. | Vantage's ready-made UI is React. Pin the package and tile format for the proof. Its native Zig generator reads Java Anvil saves, not BDS. |
+| Geometry | Prefer one versioned manifest/tile/texture format consumed by both Java and Bedrock views. | Vantage publishes a tile decoder, not a general Bedrock tile writer. The proof must encode its geometry and textures, including coordinates, transparency, water and biome tint. Record any format blocker before choosing an MSC-owned format. |
+| Java terrain | Evaluate Vantage's Anvil pipeline on vanilla, Fabric, Forge and NeoForge saves with available assets. | Unknown mod states and missing client assets need counted, visible fallbacks; no single fixture proves every mod. Saved terrain may lag play. |
+| Bedrock terrain | Trial `bedrock-world` read-only render chunk APIs and `bedrock-block-model` state-to-shape resolution. | MSC's current `bedrock_leveldb.rs` handles player records, not chunks. The community `bedrock-render` produces raster tiles. Pack precedence, versions, missing shapes and texture rights still need evidence. |
+| Players | Use one MSC-normalized, dimension-aware feed containing identity, position, yaw, source time and source type. | `/v1/players` has an online roster but no current coordinates. Vantage animates a supplied feed or saved last-known positions. Java vanilla needs a proven server-side adapter; BDS needs one that sees console clients. BDS scripting is a candidate, with version and experimental-permission checks. No client map mod is assumed. |
+| MSC transport | Agent resolves the selected active slot within approved server roots and serves bounded, read-only map resources under Worlds permission. | `WorldsSection.svelte` owns selection. `ApiClient.requestBytes` authenticates binary reads; Vantage's direct URL fetches cannot be assumed to carry MSC credentials. Prove a fetch adapter or authenticated bridge before embedding. |
+
+Terrain and players have separate clocks. Show the last observed terrain save
+or scan time. For an instrumented server, provisional player targets are one
+sample per second, a visible update within two seconds, and removal or an
+explicit stale state after five seconds without a fresh sample. Interpolation
+between samples is visual only. Follow stops or is marked stale when the feed
+stops. Measure these targets on each server type before making release claims.
+
+### Safety and acceptance measurements
+
+- Client requests use server and active-slot IDs, never arbitrary filesystem
+  paths. The agent must not expose inactive archives, another server's map,
+  pack secrets, or unbounded files. The game retains ownership of its save.
+- Use an offline BDS copy for the first geometry proof. Live LevelDB reads and
+  consistent snapshots are unresolved. Microsoft's BDS-only
+  `LevelStorage.saveHold/saveQuery/saveResume` APIs are experimental; measure
+  compatibility and server pause cost before relying on them.
+- The repository's Bedrock fixtures are JSON behavior cases, not a real BDS
+  chunk save. Cameron has supplied private local inputs outside Git:
+  `~/msc2-servers/bedrock/juice/worlds/Juice!` (BDS `level.dat` plus LevelDB)
+  and `~/msc2-servers/java/campack/campak-ubuntu` (modded Java Anvil).
+  Use a consistent, read-only working copy for the first proof, and keep
+  these worlds and any derived player data out of the repository. Inspect
+  whether the BDS save actually contains every named shape; if it does not,
+  add a separate representative area before claiming shape coverage.
+- For the 4×4-chunk proof, cap meshing at two workers and stop to investigate
+  if added RSS exceeds 512 MiB. Record first-visible time, CPU while baking
+  and idle, bytes transferred, block-model exact/fallback/missing counts,
+  holes, and water/glass behavior. Later live proofs also measure server tick
+  effect. These are experiment guardrails, not published performance targets.
+- The support matrix must include vanilla Java, representative Fabric and
+  Forge/NeoForge saves, and BDS with a console-connected player. Record game
+  version, dimension, terrain age, player sample age, model fallbacks, and
+  whether fly-to/follow reaches the right dimension. Overworld comes first;
+  Nether, End and custom dimensions remain named gaps until demonstrated.
+  Vantage's batch README says it discovers dimensions, while its server
+  protocol document describes one default Overworld: verify each serving mode
+  instead of treating those claims as equivalent.
+- Resolve Java and Bedrock textures from user/server-installed assets where
+  possible. Audit redistribution rights before packaging any game assets.
+  Capability discovery should explain absent terrain or live-position support
+  per active world instead of implying a complete live map from a roster.
+
+**UX check for every later `Verify:`** Name the visible promise advanced, the
+observable proof, and the next checkpoint for a missing part. A decoder pass
+is only a Bedrock terrain dependency. Full acceptance needs the in-window
+entry/exit, both terrain paths, controls, and live Java/BDS player models with
+roster flight/follow together. Revise the approach if it hides a supported
+player, labels saved coordinates live, opens outside MSC, or drops a server
+family.
+
+**Sources inspected 2026-09-29:** [Vantage repository](https://github.com/thoughts-on-things/vantage-mc),
+[viewer package](https://github.com/thoughts-on-things/vantage-mc/blob/main/web/README.md),
+[server protocol](https://github.com/thoughts-on-things/vantage-mc/blob/main/docs/server.md),
+[Bedrock world reader](https://github.com/BE-Community-Dev/bedrock-world),
+[Bedrock block models](https://github.com/BE-Community-Dev/bedrock-block-model),
+[Microsoft BDS scripting](https://learn.microsoft.com/en-us/minecraft/creator/documents/bedrockserver/scripting?view=minecraft-bedrock-stable),
+[experimental save control](https://learn.microsoft.com/en-us/minecraft/creator/scriptapi/minecraft/server-admin/levelstorage?view=minecraft-bedrock-experimental).

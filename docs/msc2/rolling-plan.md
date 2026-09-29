@@ -407,7 +407,7 @@ support limits before implementation scope is committed.
 
 ### P18.1 — Scope the 3D world viewer vertical slice
 
-- **Status:** Proposed — product direction recorded; implementation scope open
+- **Status:** Awaiting Cameron verification
 - **Files:** `docs/msc2/rolling-plan.md`, `docs/msc2/msc2-engineering.md`
 - **What:** Compare embedding Vantage's MIT viewer/protocol with an MSC-owned
   integration; define terrain access for standard and modded Java saves, live
@@ -421,7 +421,16 @@ support limits before implementation scope is committed.
   name the visible promise advanced, the observable proof, and the next
   checkpoint for any gap. Do not promise that the existing raster renderer
   provides 3D geometry or that saved player records are live.
-- **Verify:** `rg -n 'UX check required|observable result|stale coordinates as live|Proposed Phase 18|P18.1|Bedrock|live player|click-to-fly' docs/msc2/rolling-plan.md docs/msc2/msc2-engineering.md`
-  plus a review that each checkpoint has a named UX outcome or dependency and
-  a next proof.
+- **Result:** Section 21 of the engineering specification records the reuse
+  boundaries, authenticated MSC path, separate terrain/player freshness,
+  support matrix and experiment guardrails. The next candidate checkpoint is
+  a real BDS save rendered as a textured 4×4-chunk 3D area in the intended
+  viewer. This advances the Bedrock terrain part of the UX; running-world
+  freshness and live players remain named follow-on proofs. Choose the formal
+  next step after reviewing this scope.
+- **Verify:** `rg -n '## 21\.|first implementation proof|4×4-chunk|UX check for every later|Worlds → selected active world' docs/msc2/msc2-engineering.md`
+  then read section 21: confirm the first proof visibly advances Bedrock 3D
+  exploration, names what is still missing from the agreed full-tab/live-player
+  UX, and identifies safe running-world reads as the next proof.
 - **Batch:** solo — scope and feasibility before implementation
+- **Commit:** P18.1: scope the 3d world viewer vertical slice

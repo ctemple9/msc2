@@ -237,7 +237,8 @@ remains separate. No release publication or CI gate is implied.
 
 ### P17.20 — Make archive modpack import and recovery clear
 
-- **Status:** PLANNED
+- **Status:** IMPLEMENTED — awaiting Cameron verification
+- **Commit:** P17.20: clarify modpack import recovery
 - **Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/routes/components.rs`
 - **What:** Keep Modrinth `.mrpack` and CurseForge `.zip` as user-supplied archives. Show inspection, API-key setup, exact target, pack-managed consequences, progress, and author-blocked files with links and expected names. Resume with a matching local file through the existing operation-bound upload; make cancel/retry clear.
 - **Verify:** `cargo check -p msc-agent`

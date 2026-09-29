@@ -725,12 +725,20 @@ pub enum ModpackCommand {
     /// Import a local modpack into the active server.
     Import {
         path: PathBuf,
+        #[arg(long, required = true)]
+        target_server: String,
+        #[arg(long, required = true)]
+        confirm: bool,
         #[arg(long)]
         no_wait: bool,
     },
     /// Explicitly replace the active server's current pack with a new local modpack.
     Replace {
         path: PathBuf,
+        #[arg(long, required = true)]
+        target_server: String,
+        #[arg(long, required = true)]
+        confirm: bool,
         #[arg(long)]
         no_wait: bool,
     },
@@ -740,6 +748,8 @@ pub enum ModpackCommand {
         file_id: String,
         path: PathBuf,
     },
+    /// Cancel a modpack operation that is still waiting on downloads or manual files.
+    Cancel { operation_id: String },
 }
 
 #[derive(Debug, Clone, Args)]
@@ -4432,33 +4442,61 @@ async fn run_modpack(common: CommonArgs, command: ModpackCommand) -> Result<(), 
             }
             Ok(())
         }
-        ModpackCommand::Import { path, no_wait } => {
+        ModpackCommand::Import {
+            path,
+            target_server,
+            confirm: _,
+            no_wait,
+        } => {
+            let target = ensure_active_server(&client, Some(&target_server)).await?;
+            ensure_modpack_provider_ready(&client, &path).await?;
+            if !common.json {
+                println!("target server: {} ({})", target.name, target.id);
+                println!("the archive will add pack-managed files and metadata to this server");
+            }
             let result = import_modpack_command(&client, &path, "import").await?;
             if common.json {
-                print_json(&result)?;
+                print_json(
+                    &serde_json::json!({"targetServer": {"id": target.id, "name": target.name}, "action": "import", "result": result}),
+                )?;
             } else {
                 println!("{}", result.message);
+                print_manual_files(&result.pending_manual_files);
             }
             finish_operation(
                 &client,
                 common.json,
-                no_wait,
+                no_wait || !result.pending_manual_files.is_empty(),
                 Some(result.operation_id),
                 "modpack import",
             )
             .await
         }
-        ModpackCommand::Replace { path, no_wait } => {
+        ModpackCommand::Replace {
+            path,
+            target_server,
+            confirm: _,
+            no_wait,
+        } => {
+            let target = ensure_active_server(&client, Some(&target_server)).await?;
+            ensure_modpack_provider_ready(&client, &path).await?;
+            if !common.json {
+                println!("target server: {} ({})", target.name, target.id);
+                println!("this replaces the server's current pack-managed content");
+            }
             let result = import_modpack_command(&client, &path, "replace").await?;
             if common.json {
-                print_json(&result)?;
+                print_json(
+                    &serde_json::json!({"targetServer": {"id": target.id, "name": target.name}, "action": "replace", "result": result}),
+                )?;
             } else {
                 println!("{}", result.message);
+                print_manual_files(&result.pending_manual_files);
             }
             finish_operation(
                 &client,
                 common.json,
-                no_wait,
+                no_wait || !result.pending_manual_files.is_empty(),
                 Some(result.operation_id),
                 "modpack replacement",
             )
@@ -4493,6 +4531,20 @@ async fn run_modpack(common: CommonArgs, command: ModpackCommand) -> Result<(), 
                 println!("{}", result.message);
             }
             Ok(())
+        }
+        ModpackCommand::Cancel { operation_id } => {
+            let result: serde_json::Value = client
+                .post_json(
+                    &format!("/v1/operations/{operation_id}/cancel"),
+                    &serde_json::json!({}),
+                )
+                .await?;
+            if common.json {
+                print_json(&result)
+            } else {
+                println!("Cancellation requested for modpack operation {operation_id}.");
+                Ok(())
+            }
         }
     }
 }
@@ -4655,13 +4707,76 @@ fn print_modpack_inspection(result: &ModpackInspectionResultDto) {
     if let Some(version) = &result.pack_version {
         println!("version: {version}");
     }
+    if let Some(version) = &result.minecraft_version {
+        println!("Minecraft: {version}");
+    }
+    if let Some(loader) = &result.loader_name {
+        println!(
+            "loader: {} {}",
+            loader,
+            result.loader_version.as_deref().unwrap_or("")
+        );
+    }
     println!("files: {}", result.file_count);
+    println!("client-only files: {}", result.client_only_file_count);
+    println!("override files: {}", result.override_file_count);
+    if let Some(available) = result.curseforge_lookup_available {
+        println!("CurseForge file lookup available: {available}");
+    }
+    for warning in &result.warnings {
+        println!("warning: {warning}");
+    }
     if !result.manual_files.is_empty() {
         println!("manual files:");
         for file in &result.manual_files {
-            println!("  {} {}", file.file_id, file.file_name);
+            println!(
+                "  {} — {} [{}]",
+                file.file_name, file.project_name, file.file_id
+            );
+            if let Some(reason) = &file.reason {
+                println!("    reason: {reason}");
+            }
+            if let Some(url) = &file.project_url {
+                println!("    obtain the exact file: {url}");
+            }
         }
     }
+}
+
+fn print_manual_files(files: &[msc_api::dto::ModpackManualFileDto]) {
+    if files.is_empty() {
+        return;
+    }
+    println!("author-blocked files need a local download; the import operation is waiting:");
+    for file in files {
+        println!("  expected file: {} (id {})", file.file_name, file.file_id);
+        if let Some(reason) = &file.reason {
+            println!("    reason: {reason}");
+        }
+        if let Some(url) = &file.project_url {
+            println!("    download page: {url}");
+        }
+        println!(
+            "    resume: msc modpack manual-file OPERATION_ID {} /path/to/{}",
+            file.file_id, file.file_name
+        );
+    }
+}
+
+async fn ensure_modpack_provider_ready(client: &ApiClient, path: &Path) -> Result<(), CliError> {
+    if path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("zip"))
+    {
+        let status: serde_json::Value = client.get_json("/v1/config/curseforge").await?;
+        if status["configured"].as_bool() != Some(true) {
+            return Err(CliError::usage(
+                "CurseForge import needs an API key. Set it without exposing it in shell history: msc config set-curse-forge-key --key-stdin < protected-input",
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn print_world_slots(response: &WorldSlotsResponseDto) {

@@ -193,6 +193,7 @@ pub fn start_backup(
 
 const MAP_SNAPSHOT_MAX_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const MAP_SNAPSHOT_COPY_LIMIT: Duration = Duration::from_secs(30);
+const MAP_SNAPSHOT_MAX_DEPTH: usize = 32;
 
 pub(crate) struct WorldMapSnapshot {
     pub(crate) path: PathBuf,
@@ -234,7 +235,14 @@ fn copy_snapshot_tree(
     bytes: &mut u64,
     deadline: Instant,
     should_cancel: &impl Fn() -> bool,
+    depth: usize,
 ) -> io::Result<()> {
+    if depth > MAP_SNAPSHOT_MAX_DEPTH {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "world directory exceeds snapshot depth limit",
+        ));
+    }
     if should_cancel() || Instant::now() >= deadline {
         return Err(io::Error::new(
             io::ErrorKind::TimedOut,
@@ -258,12 +266,14 @@ fn copy_snapshot_tree(
                 bytes,
                 deadline,
                 should_cancel,
+                depth + 1,
             )?;
         }
     } else if metadata.is_file() {
         let mut input = File::open(source)?;
         let mut output = File::create(destination)?;
-        let mut buffer = [0u8; 1024 * 1024];
+        // A stack buffer here is reserved by every recursive directory frame.
+        let mut buffer = vec![0u8; 1024 * 1024];
         loop {
             if should_cancel() || Instant::now() >= deadline {
                 return Err(io::Error::new(
@@ -361,6 +371,7 @@ pub(crate) fn snapshot_bedrock_world(
         &mut bytes,
         Instant::now() + MAP_SNAPSHOT_COPY_LIMIT,
         &should_cancel,
+        0,
     );
     let hold_millis = started.elapsed().as_millis();
     let resume_sent = held.resume();

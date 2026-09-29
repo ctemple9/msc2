@@ -801,3 +801,24 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   versioned tile replacement in the open viewer, then measure refresh cost.
 - **Batch:** solo — prove the BDS hold/copy/resume boundary before auto refresh
 - **Commit:** P18.2l: capture running bds map snapshot
+
+### P18.2m — Repair snapshot copy stack overflow
+
+- **Status:** Awaiting Cameron verification
+- **Files:** `crates/msc-agent/src/backup_operations.rs`,
+  `docs/msc2/rolling-plan.md`
+- **What:** The first live snapshot attempt ended with an agent stack overflow,
+  disconnecting the MSC-managed BDS server. The recursive world copy reserved
+  a 1 MiB buffer in every call frame. Allocate that buffer on the heap and
+  reject directory trees deeper than 32 levels. The live proof remains open
+  until Cameron confirms the agent and BDS both survive a new capture.
+- **Verify:** After loading the repaired development agent with an MSC-managed
+  BDS server running, run
+  `cd /Users/camerontemple/msc2-world-map && MSC2_DATA_DIR="$HOME/Library/Application Support/MSC 2" target/debug/msc --json world map-snapshot`.
+  Confirm the operation reports a `worldPath`, the agent and BDS stay running,
+  and a new block can still be placed. Then export the snapshot near the
+  diamond pillar and confirm that its shape appears in the 3D proof viewer.
+  This advances fresh Bedrock terrain in the eventual Worlds-tab 3D view;
+  it does not yet provide automatic refresh or live player movement.
+- **Batch:** solo — repair live snapshot safety before further refresh work
+- **Commit:** P18.2m: repair bds snapshot copy stack overflow

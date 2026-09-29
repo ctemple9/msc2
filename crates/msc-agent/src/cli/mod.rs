@@ -248,6 +248,16 @@ pub enum Command {
         #[command(subcommand)]
         command: HostResetCommand,
     },
+    /// Browse or read permitted files in the active server directory.
+    File {
+        #[command(subcommand)]
+        command: FileCommand,
+    },
+    /// Search and read the embedded handbook and setup guides.
+    Help {
+        #[command(subcommand)]
+        command: HelpCommand,
+    },
 }
 
 #[derive(Debug, Clone, Subcommand)]
@@ -272,6 +282,30 @@ pub enum HostResetCommand {
         #[arg(long)]
         confirm: String,
     },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum FileCommand {
+    /// List a permitted directory in the active server tree.
+    Browse { path: Option<String> },
+    /// Read a permitted text file in the active server tree.
+    Read { path: String },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum HelpCommand {
+    /// List handbook topics and their IDs.
+    Catalog,
+    /// Read a handbook topic by its help ID.
+    Topic { help_id: String },
+    /// Read first-launch onboarding guidance.
+    Onboarding,
+    /// List router-guide topics and troubleshooting entries.
+    RouterCatalog,
+    /// Search router guides by symptom or description.
+    RouterSearch { query: String },
+    /// Read a resolved router guide by ID.
+    RouterGuide { guide_id: String },
 }
 
 #[derive(Debug, Clone, Subcommand)]
@@ -1362,6 +1396,8 @@ pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
         Command::Modpack { command } => run_modpack(common, command).await,
         Command::Operation { command } => run_operation(common, command).await,
         Command::HostReset { command } => run_host_reset(common, command).await,
+        Command::File { command } => run_file(common, command).await,
+        Command::Help { command } => run_help(common, command).await,
     }
 }
 
@@ -1432,6 +1468,236 @@ async fn run_host_reset(common: CommonArgs, command: HostResetCommand) -> Result
         println!("host id: {}", accepted.host_id);
         println!("agent state: {}", accepted.agent_state);
     }
+    Ok(())
+}
+
+async fn run_file(common: CommonArgs, command: FileCommand) -> Result<(), CliError> {
+    let client = ApiClient::connect_local().await?;
+    let (path, result, reading) = match command {
+        FileCommand::Browse { path } => {
+            let route = path
+                .as_deref()
+                .map(|path| format!("/v1/files?path={}", encode_uri_component(path)))
+                .unwrap_or_else(|| "/v1/files".to_owned());
+            (
+                path,
+                client.get_json::<serde_json::Value>(&route).await?,
+                false,
+            )
+        }
+        FileCommand::Read { path } => {
+            let route = format!("/v1/files/read?path={}", encode_uri_component(&path));
+            (
+                Some(path),
+                client.get_json::<serde_json::Value>(&route).await?,
+                true,
+            )
+        }
+    };
+    if common.json {
+        print_json(&result)?;
+    } else if reading {
+        let name = result
+            .get("name")
+            .and_then(serde_json::Value::as_str)
+            .or(path.as_deref())
+            .unwrap_or("file");
+        println!("{name}:");
+        println!(
+            "{}",
+            result
+                .get("content")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("")
+        );
+        if result.get("truncated").and_then(serde_json::Value::as_bool) == Some(true) {
+            eprintln!("note: the API limited this preview; the file continues beyond this output");
+        }
+    } else {
+        if let Some(server) = result.get("serverName").and_then(serde_json::Value::as_str) {
+            println!("server: {server}");
+        }
+        println!(
+            "path: {}",
+            result
+                .get("path")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or(".")
+        );
+        if let Some(note) = result.get("note").and_then(serde_json::Value::as_str) {
+            println!("note: {note}");
+        }
+        if let Some(items) = result.get("items").and_then(serde_json::Value::as_array) {
+            for item in items {
+                let name = item
+                    .get("name")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or("?");
+                let kind =
+                    if item.get("isDirectory").and_then(serde_json::Value::as_bool) == Some(true) {
+                        "directory"
+                    } else {
+                        "file"
+                    };
+                let size = item.get("sizeBytes").and_then(serde_json::Value::as_u64);
+                if let Some(size) = size {
+                    println!("{kind:9} {size:>10} B  {name}");
+                } else {
+                    println!("{kind:9}              {name}");
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn run_help(common: CommonArgs, command: HelpCommand) -> Result<(), CliError> {
+    let client = ApiClient::connect_local().await?;
+    let (result, topic_view) = match command {
+        HelpCommand::Catalog => (
+            client
+                .get_json::<serde_json::Value>("/v1/help/catalog")
+                .await?,
+            false,
+        ),
+        HelpCommand::Topic { help_id } => (
+            client
+                .get_json::<serde_json::Value>(&format!(
+                    "/v1/help/{}",
+                    encode_uri_component(&help_id)
+                ))
+                .await?,
+            true,
+        ),
+        HelpCommand::Onboarding => (
+            client
+                .get_json::<serde_json::Value>("/v1/guides/onboarding")
+                .await?,
+            false,
+        ),
+        HelpCommand::RouterCatalog => (
+            client
+                .get_json::<serde_json::Value>("/v1/guides/router-catalog")
+                .await?,
+            false,
+        ),
+        HelpCommand::RouterSearch { query } => (
+            client
+                .get_json::<serde_json::Value>(&format!(
+                    "/v1/guides/router/search?q={}",
+                    encode_uri_component(&query)
+                ))
+                .await?,
+            false,
+        ),
+        HelpCommand::RouterGuide { guide_id } => (
+            client
+                .get_json::<serde_json::Value>(&format!(
+                    "/v1/guides/router/{}",
+                    encode_uri_component(&guide_id)
+                ))
+                .await?,
+            false,
+        ),
+    };
+    if common.json {
+        print_json(&result)?;
+    } else if topic_view {
+        if let Some(title) = result.get("title").and_then(serde_json::Value::as_str) {
+            println!("{title}");
+        }
+        if let Some(subtitle) = result.get("subtitle").and_then(serde_json::Value::as_str) {
+            println!("{subtitle}\n");
+        }
+        if let Some(body) = result.get("body").and_then(serde_json::Value::as_str) {
+            println!("{body}");
+        }
+        if let Some(sections) = result.get("sections").and_then(serde_json::Value::as_array) {
+            for section in sections {
+                print_help_section(section);
+            }
+        }
+    } else {
+        print_pretty_json(&result)?;
+    }
+    Ok(())
+}
+
+fn print_help_section(section: &serde_json::Value) {
+    match section.get("type").and_then(serde_json::Value::as_str) {
+        Some("body") | Some("advanced") => {
+            if let Some(markdown) = section.get("markdown").and_then(serde_json::Value::as_str) {
+                println!("\n{markdown}");
+            }
+        }
+        Some("bulletList") | Some("inApp") => {
+            if let Some(items) = section.get("items").and_then(serde_json::Value::as_array) {
+                for item in items.iter().filter_map(serde_json::Value::as_str) {
+                    println!("- {item}");
+                }
+            }
+        }
+        Some("callout") => {
+            if let Some(text) = section.get("text").and_then(serde_json::Value::as_str) {
+                println!("\nnote: {text}");
+            }
+        }
+        Some("checklist") => {
+            if let Some(steps) = section.get("steps").and_then(serde_json::Value::as_array) {
+                for step in steps {
+                    let number = step
+                        .get("number")
+                        .and_then(serde_json::Value::as_u64)
+                        .unwrap_or(0);
+                    let title = step
+                        .get("title")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or("");
+                    let detail = step
+                        .get("detail")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or("");
+                    println!("{number}. {title}: {detail}");
+                }
+            }
+        }
+        Some("table") => {
+            let headers = section.get("headers").and_then(serde_json::Value::as_array);
+            let rows = section.get("rows").and_then(serde_json::Value::as_array);
+            if let Some(headers) = headers {
+                println!(
+                    "\n{}",
+                    headers
+                        .iter()
+                        .map(value_text)
+                        .collect::<Vec<_>>()
+                        .join(" | ")
+                );
+            }
+            if let Some(rows) = rows {
+                for row in rows.iter().filter_map(serde_json::Value::as_array) {
+                    println!(
+                        "{}",
+                        row.iter().map(value_text).collect::<Vec<_>>().join(" | ")
+                    );
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn value_text(value: &serde_json::Value) -> String {
+    value.as_str().unwrap_or("").to_owned()
+}
+
+fn print_pretty_json(value: &serde_json::Value) -> Result<(), CliError> {
+    println!(
+        "{}",
+        serde_json::to_string_pretty(value).map_err(|error| CliError::internal(format!(
+            "failed to encode help output: {error}"
+        )))?
+    );
     Ok(())
 }
 

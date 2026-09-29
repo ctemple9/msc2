@@ -255,7 +255,8 @@ remains separate. No release publication or CI gate is implied.
 
 ### P17.22 — Read permitted files and built-in help
 
-- **Status:** PLANNED
+- **Status:** IMPLEMENTED — awaiting Cameron verification
+- **Commit:** P17.22: add file and help commands
 - **Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/routes/files.rs`, `crates/msc-agent/src/routes/help.rs`
 - **What:** Browse/read permitted server files without escaping API path limits. Search and read handbook topics, onboarding guidance, and router guides as terminal text. Preserve permissions and avoid a full-screen interface.
 - **Verify:** `cargo check -p msc-agent`

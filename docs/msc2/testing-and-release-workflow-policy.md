@@ -2,6 +2,9 @@
 
 **Owner:** Cameron Temple · **Recorded:** 2026-09-28
 
+Agents must read this document at the start of every repository task, even if
+they read it during a previous task.
+
 ## Cameron's assessment
 
 Cameron values tests when they protect important behavior. He is deeply

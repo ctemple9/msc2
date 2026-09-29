@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 16 execution is underway. Cameron reports P16.1–P16.28 verified; P16.29 remains open. The v0.1.17 tag points to an unpublished failed candidate. D-039 archives automated CI and makes beta publication build-only; P16.30 and P16.31 await Cameron's verification. Exact-artifact physical acceptance remains pending.
-> **Next move:** Cameron verifies P16.30 and P16.31. A later release tag can use the simplified workflow, after which Cameron records exact-artifact results for P16.29. Phase 16 remains in progress until its full exit gate is satisfied and reviewed.
+> ## STATUS: Phase 16 execution is underway. Cameron reports P16.1–P16.28 verified; P16.29 remains open. The v0.1.17 tag points to an unpublished failed candidate. D-039 archives automated CI and makes beta publication build-only; P16.30–P16.32 await Cameron's verification. Exact-artifact physical acceptance remains pending.
+> **Next move:** Cameron verifies P16.30–P16.32. A later release tag can use the simplified workflow, after which Cameron records exact-artifact results for P16.29. Phase 16 remains in progress until its full exit gate is satisfied and reviewed.
 
 ## How this document works
 
@@ -296,6 +296,14 @@ Status: Implemented — Cameron verification pending
 Files: docs/msc2/testing-and-release-workflow-policy.md, AGENTS.md, CLAUDE.md, docs/msc2/rolling-plan.md
 What: Record Cameron's assessment that agent-created tests and workflow gates have imposed excessive delays and brittle failures. Allow agents to add only essential, robust tests with a recorded reason; prohibit default test runs and automatic release test gates; and require failure review before another release attempt. Keep both agent instruction files identical.
 Verify: Run `cmp AGENTS.md CLAUDE.md && rg -n 'essential|robust|release|approval' docs/msc2/testing-and-release-workflow-policy.md AGENTS.md` and review the policy wording.
+Batch: solo
+
+#### P16.32 — Require the test and workflow policy at every task
+
+Status: Implemented — Cameron verification pending
+Files: AGENTS.md, CLAUDE.md, docs/msc2/testing-and-release-workflow-policy.md, docs/msc2/rolling-plan.md
+What: Make the owner test and release workflow policy mandatory reading at the start of every repo task, including tasks unrelated to tests or releases. Keep both agent instruction files identical.
+Verify: Run `cmp AGENTS.md CLAUDE.md && rg -n 'every.*task|earlier task' AGENTS.md docs/msc2/testing-and-release-workflow-policy.md` and confirm the requirement appears in both places.
 Batch: solo
 
 ## Public-release and codebase review — 2026-09-28

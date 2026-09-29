@@ -18,8 +18,12 @@ MSC 2 is a cross-platform Minecraft server manager: a **Rust agent** that runs a
 | `docs/msc2/msc2-product.md` | What MSC 2 is, in plain language |
 | `docs/msc2/msc2-port-plan.md` | The phases and their **exit gates** |
 | `docs/msc2/rolling-plan.md` | **Current state.** Which phase, which step, what's done |
-| `docs/msc2/testing-and-release-workflow-policy.md` | **Owner policy.** Why the existing test/workflow approach failed and how to keep tests essential, robust, and outside beta publication |
+| `docs/msc2/testing-and-release-workflow-policy.md` | **Required for every repo task.** Owner policy on essential tests, workflow cost, and beta publication |
 | `docs/msc2/antiAIslop.md` | **Design law.** Anti-AI-slop guiding principle — **required reading before any design, styling, or frontend work** |
+
+Read `docs/msc2/testing-and-release-workflow-policy.md` at the start of **every**
+task in this repository, including planning, review, documentation, code,
+workflow, and release work. A read from an earlier task does not count.
 
 `docs/msc2/audit/` holds the MSC 1 analysis — including two per-file inventory CSVs used during extraction.
 

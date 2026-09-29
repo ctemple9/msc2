@@ -346,7 +346,3 @@ If I forgot to credit your project, that's on me. Let me know and I'll address t
 **Rust** · **Tauri** · **Svelte** · **Swift**
 
 Swift is used for the macOS Bedrock runtime.
-
-## License
-
-TBD

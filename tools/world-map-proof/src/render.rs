@@ -572,7 +572,10 @@ fn emit_plane(
     biome_id: u32,
 ) {
     let points = corners.map(|p| [origin[0] + p[0], origin[1] + p[1], origin[2] + p[2]]);
-    let layer = textures.layer(name, normal);
+    // Bedrock's east pane face selects the opaque narrow edge texture. These
+    // flat planes represent the broad glass surface in either orientation.
+    let texture_normal = if is_pane(name) { [0, 0, 1] } else { normal };
+    let layer = textures.layer(name, texture_normal);
     let tint = textures.tint(name, normal, biome_id);
     mesh.quad(points, normal, uv, layer, tint);
     // Cross plants need to be visible from either side of their plane.

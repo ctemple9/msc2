@@ -577,7 +577,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2e — Restore see-through Bedrock glass panes
 
-- **Status:** Awaiting Cameron visual verification
+- **Status:** Cameron visual check found one pane orientation still opaque;
+  P18.2f follows
 - **Files:** `tools/world-map-proof/src/render.rs`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
 - **What:** Replace the connected pane cuboids that cropped the full glass
@@ -593,3 +594,27 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Verify:** `cd /Users/camerontemple/msc2-world-map/tools/world-map-proof/viewer && MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-base-proof/output npm run dev` — reload the viewer and view the same house windows from outside and inside. The panes should form a flat sheet along each window, connect across adjacent blocks, and show the house behind the clear center with narrow visible edges. Compare with Cameron's before/after screenshots. This advances the Bedrock 3D exploration promise; if it passes, the next proof can use the gold farm's 211 full glass blocks and the complete ice-mountain 4×4 area at chunk `(-35,-17)` to assess full glass and distinct climates.
 - **Batch:** solo — repair visual regression before new area proof
 - **Commit:** P18.2e: restore see-through bds glass panes
+
+### P18.2f — Use transparent texture on both pane orientations
+
+- **Status:** Awaiting Cameron visual verification
+- **Files:** `tools/world-map-proof/src/render.rs`,
+  `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
+- **What:** The Bedrock resource pack maps the pane's east face to the opaque
+  narrow edge texture and its north/south faces to the transparent broad
+  glass texture. The flat east-west pane was resolving the east face. Resolve
+  all flat pane surfaces through the broad glass face while retaining their
+  actual geometric orientation and two visible sides.
+- **Result:** Regenerated the same complete base tile with 119,876 solid
+  faces, 2,039 water faces, 148 texture layers, zero texture fallbacks and
+  zero missing-shape blocks. One fewer texture layer is expected because the
+  edge-only pane texture is unused. Visual correctness awaits Cameron.
+- **Verify:** Reload
+  `MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-base-proof/output npm run dev`
+  from `tools/world-map-proof/viewer`; view the two perpendicular house window
+  directions shown in Cameron's screenshots. Both should have thin borders
+  and a clear center showing the room behind them. This advances the Bedrock
+  explorable 3D world promise; the next proof should inspect the gold farm's
+  full glass blocks and the ice mountain's different climate tint.
+- **Batch:** solo — repair remaining pane visual defect
+- **Commit:** P18.2f: fix bds pane texture orientation

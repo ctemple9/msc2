@@ -84,7 +84,10 @@ connections, and assigning regions of the lantern atlas to its body, cap and
 hook. Cameron confirmed the stair, fence and lantern changes, then found that
 the connected pane cuboids sampled opaque parts of the glass texture. P18.2e
 uses flat, two-sided panes along the connected axis with the full transparent
-glass texture. Its visual check is pending. The lantern treatment remains a
+glass texture. Cameron's screenshots then showed one pane direction still
+opaque: Bedrock's east pane face resolves to its narrow edge texture. P18.2f
+resolves both flat pane directions through the broad transparent face. Its
+visual check is pending. The lantern treatment remains a
 bounded approximation of its first texture frame.
 
 Surface biome IDs `27` and `155` occur in 1,922 and 2,174 columns. This

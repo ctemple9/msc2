@@ -41,6 +41,24 @@
     ],
     "resources": {
       "target/package/agent": "agent"
+    },
+    "linux": {
+      "deb": {
+        "preInstallScript": "../../../packaging/linux/desktop-cli-preinstall.sh",
+        "postInstallScript": "../../../packaging/linux/desktop-cli-postinstall.sh",
+        "postRemoveScript": "../../../packaging/linux/desktop-cli-postremove.sh"
+      },
+      "rpm": {
+        "preInstallScript": "../../../packaging/linux/desktop-cli-preinstall.sh",
+        "postInstallScript": "../../../packaging/linux/desktop-cli-postinstall.sh",
+        "postRemoveScript": "../../../packaging/linux/desktop-cli-postremove.sh"
+      }
+    },
+    "windows": {
+      "wix": {
+        "fragmentPaths": ["../../../packaging/windows/desktop-cli-path.wxs"],
+        "componentRefs": ["MscCliPath"]
+      }
     }
   }
 }

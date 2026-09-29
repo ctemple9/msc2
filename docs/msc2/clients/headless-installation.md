@@ -6,15 +6,14 @@ historical browser assets; v0.1.17 was tagged but never published. v0.1.18 is
 the first published browser-free prerelease. The Phase 16 exact-artifact
 acceptance record (P16.29) remains open pending Cameron's physical results.
 
-This document defines the command-install shape for the standalone MSC 2
-headless artifacts. It is deliberately separate from the operating-system
-service contract: putting `msc` on a user's PATH must not be confused with
-registering, starting, stopping, or removing the management service.
+This document defines the command-install shape for standalone headless and
+desktop packages. Service registration and command registration have separate
+ownership rules.
 
 The supported control surfaces are the Tauri desktop app and the scriptable
 CLI in the same binary as the agent. The command is `msc` on macOS and Linux
 and `msc.exe` on Windows. A headless host is managed from its CLI or remotely
-from a Tauri desktop app or CLI. The management service listens on
+from a Tauri desktop app. The management service listens on
 `127.0.0.1:48001` by default.
 
 No installation type is promised as a browser client. The agent provides the
@@ -69,13 +68,16 @@ service registration remains a separate local operating-system action.
 
 ## Command-install shapes
 
-The standalone archive installers use these stable locations:
+The installers use these stable locations:
 
 | Host | Installed executable | PATH entry owned by MSC | Upgrade behavior |
 |---|---|---|---|
 | Linux archive | `/usr/lib/msc2/msc` | `/usr/local/bin/msc` symlink | Replace the MSC-owned target while preserving the symlink. |
 | macOS archive | `/usr/local/lib/msc2/<architecture>/<version>/msc` | `/usr/local/bin/msc` symlink | Install the new version beside the old one, then move the MSC-owned symlink. |
 | Windows archive | `%LOCALAPPDATA%\\MSC2\\bin\\msc.exe` | `%LOCALAPPDATA%\\MSC2\\bin` in the installing user's PATH | Replace only the MSC-owned executable in the owned directory. |
+| Linux desktop `.deb`/`.rpm` | Package resource under `/usr/lib` | Package-owned `/usr/local/bin/msc` symlink | Package scripts update and remove only a link targeting this desktop package. |
+| macOS desktop DMG | Agent staged when the desktop installs its local service | `/usr/local/bin/msc` symlink installed with the local service | Service repair updates the link; service removal removes only its matching link. |
+| Windows desktop MSI | `agent\\msc.exe` inside the MSI installation | MSI-owned machine PATH entry for the agent directory | MSI removes its PATH entry on uninstall. |
 
 The Unix locations are intentionally conventional command locations. The
 installer may request local administrator approval to write them, but the
@@ -103,9 +105,13 @@ data, logs, configuration, worlds, backups, or credentials.
 
 ## Linux package-manager boundary
 
-The `.deb` and `.rpm` artifacts in the current beta are desktop packages, not
-standalone headless packages. They remain owned by `apt`/`dpkg` or `dnf`/`rpm`;
-the archive `install.sh` and `uninstall.sh` must not be used for them.
+The `.deb` and `.rpm` artifacts are desktop packages, not standalone headless
+packages. They remain owned by `apt`/`dpkg` or `dnf`/`rpm`; the archive
+`install.sh` and `uninstall.sh` must not be used for them. Their package
+scripts reject another command at `/usr/local/bin/msc`, and remove the symlink
+only when the package target is gone. A DMG has no install hook: on macOS the
+desktop registers its command when the owner explicitly installs the local
+agent service. The MSI owns its machine PATH entry and removes it with the MSI.
 
 If a distribution-managed headless package is published later, its package
 manager owns `/usr/bin/msc` directly. That shape has no archive symlink and no

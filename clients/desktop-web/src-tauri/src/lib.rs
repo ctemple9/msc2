@@ -809,7 +809,10 @@ fn manage_agent_service(action: AgentServiceAction) -> Result<AgentServiceStatus
             let helper = bedrock_helper_install_request()?;
             let report = msc_platform_macos::service::install_and_start_elevated(request, helper)
                 .map_err(|error| error.to_string())?;
-            ensure_service_report_uses_binary(report, &expected_binary)?
+            let report = ensure_service_report_uses_binary(report, &expected_binary)?;
+            msc_platform_macos::service::install_desktop_cli_link_elevated(&expected_binary)
+                .map_err(|error| error.to_string())?;
+            report
         }
         AgentServiceAction::Start => {
             msc_platform_macos::service::start_elevated(service_name.as_str())
@@ -820,8 +823,20 @@ fn manage_agent_service(action: AgentServiceAction) -> Result<AgentServiceStatus
                 .map_err(|error| error.to_string())?
         }
         AgentServiceAction::Uninstall => {
-            msc_platform_macos::service::uninstall_elevated(service_name.as_str())
-                .map_err(|error| error.to_string())?
+            let installed = service_manager()?
+                .execute(ServiceManagerCommand::Status {
+                    service_name: service_name.clone(),
+                })
+                .map_err(|error| error.to_string())?;
+            let report = msc_platform_macos::service::uninstall_elevated(service_name.as_str())
+                .map_err(|error| error.to_string())?;
+            if let Some(definition) = installed.definition {
+                msc_platform_macos::service::remove_desktop_cli_link_elevated(
+                    &definition.binary_path,
+                )
+                .map_err(|error| error.to_string())?;
+            }
+            report
         }
     };
     #[cfg(target_os = "linux")]

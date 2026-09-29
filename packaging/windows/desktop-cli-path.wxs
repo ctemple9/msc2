@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="MscCliPath" Guid="*">
+        <RegistryValue Root="HKLM" Key="Software\CTemple\MSC2" Name="DesktopCliPath" Type="string" Value="[INSTALLDIR]agent" KeyPath="yes" />
+        <Environment Id="MscCliPathEntry" Name="PATH" Value="[INSTALLDIR]agent" Action="set" Part="last" System="yes" Permanent="no" />
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+</Wix>

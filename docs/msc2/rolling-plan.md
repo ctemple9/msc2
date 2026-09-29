@@ -143,7 +143,8 @@ remains separate. No release publication or CI gate is implied.
 
 ### P17.9 — Put the CLI on PATH for both installation types
 
-- **Status:** PLANNED
+- **Status:** IMPLEMENTED — awaiting Cameron verification
+- **Commit:** P17.9: register desktop cli command paths
 - **Files:** `packaging/linux/`, `packaging/macos/`, `packaging/windows/`, `clients/desktop-web/src-tauri/`, `docs/msc2/clients/headless-installation.md`
 - **What:** Audit desktop packages and headless installers on all three OSes. Install `msc` in a standard command location or installer-owned PATH entry; preserve conflict, upgrade, and uninstall ownership rules. Tell users when only a new shell can see a PATH change.
 - **Verify:** `git diff --check`

@@ -46,6 +46,49 @@ pub fn local_agent_boot_enabled() -> Result<bool, ServiceError> {
     });
     Ok(run_at_load && !disabled_entry.is_some_and(|line| line.contains("=> disabled")))
 }
+
+pub fn install_desktop_cli_link_elevated(binary: &Path) -> Result<(), ServiceError> {
+    let builds = binary.parent().and_then(Path::parent).ok_or_else(|| {
+        ServiceError::InvalidDefinition("desktop agent path has no build directory".into())
+    })?;
+    if binary.file_name().is_none_or(|name| name != "msc")
+        || builds.file_name().is_none_or(|name| name != "builds")
+        || !binary.is_file()
+    {
+        return Err(ServiceError::InvalidDefinition(
+            "desktop CLI link requires a staged MSC agent binary".into(),
+        ));
+    }
+    let link = Path::new("/usr/local/bin/msc");
+    if let Ok(existing) = fs::read_link(link) {
+        if !existing.starts_with(builds) {
+            return Err(ServiceError::Platform(format!(
+                "{} belongs to another installation; remove that command before installing the desktop CLI",
+                link.display()
+            )));
+        }
+    } else if link.exists() {
+        return Err(ServiceError::Platform(format!(
+            "{} belongs to another installation; remove that command before installing the desktop CLI",
+            link.display()
+        )));
+    }
+    let command = format!(
+        "set -eu; /usr/bin/install -d -o root -g wheel -m 755 /usr/local/bin; \
+         if [ -L /usr/local/bin/msc ]; then /bin/rm /usr/local/bin/msc; fi; \
+         /bin/ln -s {} /usr/local/bin/msc",
+        shell_quote(&binary.display().to_string())
+    );
+    run_as_administrator(&format!("/bin/sh -c {}", shell_quote(&command)))
+}
+
+pub fn remove_desktop_cli_link_elevated(binary: &Path) -> Result<(), ServiceError> {
+    let link = Path::new("/usr/local/bin/msc");
+    if fs::read_link(link).ok().as_deref() == Some(binary) {
+        run_as_administrator("/bin/rm /usr/local/bin/msc")?;
+    }
+    Ok(())
+}
 pub const BEDROCK_HELPER_SERVICE_NAME: &str = "com.ctemple.msc2.bedrock-helper";
 pub const BEDROCK_HELPER_SOCKET_PATH: &str = "/var/run/msc2/bedrock.sock";
 const BEDROCK_HELPER_INSTALL_ROOT: &str = "/Library/Application Support/MSC 2/bedrock-helper";

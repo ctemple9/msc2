@@ -127,6 +127,11 @@ pub enum Command {
     },
     /// Show the agent's host and capabilities.
     Capabilities,
+    /// Inspect this authorization or administer delegated API tokens.
+    Access {
+        #[command(subcommand)]
+        command: AccessCommand,
+    },
     /// Read connectivity and the DuckDNS hostname label.
     Network {
         #[command(subcommand)]
@@ -215,6 +220,40 @@ pub enum Command {
         #[command(subcommand)]
         command: ModpackCommand,
     },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum AccessCommand {
+    /// Show the role and permissions used by this local CLI invocation.
+    Me,
+    /// List delegated named tokens. Admin permission required.
+    List,
+    /// Create a named token; its secret is shown once in a terminal. Admin permission required.
+    Create {
+        label: String,
+        #[arg(long, default_value = "named")]
+        role: String,
+        #[arg(long = "permission", value_delimiter = ',')]
+        permissions: Vec<String>,
+        #[arg(long = "expires-in-days")]
+        expires_in_days: Option<i64>,
+    },
+    /// Update a delegated token. Negative expiry clears its expiry; omit to leave it unchanged.
+    Update {
+        user_id: String,
+        #[arg(long)]
+        label: Option<String>,
+        #[arg(long)]
+        role: Option<String>,
+        #[arg(long = "permission", value_delimiter = ',')]
+        permissions: Vec<String>,
+        #[arg(long, conflicts_with = "permissions")]
+        clear_permissions: bool,
+        #[arg(long = "expires-in-days")]
+        expires_in_days: Option<i64>,
+    },
+    /// Revoke a delegated token immediately. Admin permission required.
+    Revoke { user_id: String },
 }
 
 #[derive(Debug, Clone, Subcommand)]
@@ -980,6 +1019,7 @@ pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
             Ok(())
         }
         Command::Capabilities => run_capabilities(common).await,
+        Command::Access { command } => run_access(common, command).await,
         Command::Network { command } => run_network(common, command).await,
         Command::Playit { command } => run_playit(common, command).await,
         Command::Broadcast { command } => run_broadcast(common, command).await,
@@ -1056,6 +1096,158 @@ async fn run_bedrock(common: CommonArgs, command: BedrockCommand) -> Result<(), 
         },
     }
     Ok(())
+}
+
+async fn run_access(common: CommonArgs, command: AccessCommand) -> Result<(), CliError> {
+    use std::io::IsTerminal;
+
+    let client = ApiClient::connect_local().await?;
+    match command {
+        AccessCommand::Me => {
+            let value: serde_json::Value = client.get_json("/v1/me").await?;
+            if common.json {
+                print_json(&value)?;
+            } else {
+                println!("role: {}", value["role"].as_str().unwrap_or("unknown"));
+                println!("name: {}", value["name"].as_str().unwrap_or("unknown"));
+                println!(
+                    "named token: {}",
+                    value["isNamedToken"].as_bool().unwrap_or(false)
+                );
+                println!(
+                    "permissions: {}",
+                    value["permissions"]
+                        .as_array()
+                        .map(|items| items
+                            .iter()
+                            .filter_map(serde_json::Value::as_str)
+                            .collect::<Vec<_>>()
+                            .join(", "))
+                        .unwrap_or_default()
+                );
+            }
+        }
+        AccessCommand::List => {
+            let value: serde_json::Value = client.get_json("/v1/users").await?;
+            if common.json {
+                print_json(&value)?;
+            } else if let Some(users) = value["users"].as_array() {
+                for user in users {
+                    println!(
+                        "{}  {} ({}){}",
+                        user["id"].as_str().unwrap_or("?"),
+                        user["label"].as_str().unwrap_or("unnamed"),
+                        user["role"].as_str().unwrap_or("unknown"),
+                        if user["isExpired"].as_bool() == Some(true) {
+                            " [expired]"
+                        } else {
+                            ""
+                        }
+                    );
+                    println!(
+                        "  permissions: {}",
+                        user["permissions"]
+                            .as_array()
+                            .map(|items| items
+                                .iter()
+                                .filter_map(serde_json::Value::as_str)
+                                .collect::<Vec<_>>()
+                                .join(", "))
+                            .unwrap_or_default()
+                    );
+                    println!(
+                        "  expires: {}",
+                        user["expiresAtISO8601"].as_str().unwrap_or("never")
+                    );
+                }
+            }
+        }
+        AccessCommand::Create {
+            label,
+            role,
+            permissions,
+            expires_in_days,
+        } => {
+            if !std::io::stdout().is_terminal() {
+                return Err(CliError::usage(
+                    "token creation prints the new secret once; run this command in a terminal",
+                ));
+            }
+            let value: serde_json::Value = client.post_json("/v1/users", &serde_json::json!({"label": label, "role": role, "permissions": permissions, "expiresInDays": expires_in_days})).await?;
+            if common.json {
+                print_json(&value)?;
+            } else {
+                println!(
+                    "created token: {}",
+                    value["user"]["label"].as_str().unwrap_or(&label)
+                );
+                println!("id: {}", value["user"]["id"].as_str().unwrap_or("unknown"));
+                println!(
+                    "secret (shown once): {}",
+                    value["token"].as_str().unwrap_or("missing")
+                );
+                println!(
+                    "permissions: {}",
+                    value["user"]["permissions"]
+                        .as_array()
+                        .map(|items| items
+                            .iter()
+                            .filter_map(serde_json::Value::as_str)
+                            .collect::<Vec<_>>()
+                            .join(", "))
+                        .unwrap_or_default()
+                );
+                println!(
+                    "expires: {}",
+                    value["user"]["expiresAtISO8601"]
+                        .as_str()
+                        .unwrap_or("never")
+                );
+            }
+        }
+        AccessCommand::Update {
+            user_id,
+            label,
+            role,
+            permissions,
+            clear_permissions,
+            expires_in_days,
+        } => {
+            let mut body = serde_json::json!({"userId": user_id});
+            if let Some(label) = label {
+                body["label"] = label.into();
+            }
+            if let Some(role) = role {
+                body["role"] = role.into();
+            }
+            if clear_permissions {
+                body["permissions"] = serde_json::json!([]);
+            } else if !permissions.is_empty() {
+                body["permissions"] = serde_json::json!(permissions);
+            }
+            if let Some(days) = expires_in_days {
+                body["expiresInDays"] = days.into();
+            }
+            let value: serde_json::Value = client.post_json("/v1/users/update", &body).await?;
+            print_admin_result(&common, &value)?;
+        }
+        AccessCommand::Revoke { user_id } => {
+            let value: serde_json::Value = client
+                .post_json("/v1/users/revoke", &serde_json::json!({"userId": user_id}))
+                .await?;
+            print_admin_result(&common, &value)?;
+        }
+    }
+    Ok(())
+}
+
+fn print_admin_result(common: &CommonArgs, value: &serde_json::Value) -> Result<(), CliError> {
+    if common.json {
+        print_json(value)
+    } else {
+        println!("{}", value["message"].as_str().unwrap_or("ok"));
+        Ok(())
+    }
 }
 
 fn print_bedrock_json(common: &CommonArgs, value: &serde_json::Value) -> Result<(), CliError> {

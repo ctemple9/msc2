@@ -161,7 +161,7 @@ remains separate. No release publication or CI gate is implied.
 
 ### P17.11 — Add CLI access administration
 
-- **Status:** PLANNED
+- **Status:** IMPLEMENTED — awaiting Cameron verification
 - **Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/routes/users.rs`
 - **What:** Expose named-token list/create/update/revoke for intentional delegation and inspect the current local authorization. Show a new delegated secret once through a safe terminal path; never use it to authenticate the local CLI. Keep admin permissions and expiry visible.
 - **Verify:** `cargo check -p msc-agent`

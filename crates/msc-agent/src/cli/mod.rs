@@ -17,6 +17,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use axum::http::StatusCode;
 use clap::{Args, Subcommand};
+use futures_util::StreamExt;
 use msc_api::dto::{
     ActiveServerRequestDto, AddonRemoveRequestDto, AddonRemoveResultDto, AddonUpdateResultDto,
     AddonsResponseDto, BackupConfigResponseDto, BackupConfigUpdateRequestDto,
@@ -31,10 +32,10 @@ use msc_api::dto::{
     JavaConfigSetRequestDto, JavaRuntimeInstallRequestDto, JavaRuntimeInstallResultDto,
     JavaRuntimesResponseDto, ModpackImportRequestDto, ModpackImportResultDto,
     ModpackInspectionRequestDto, ModpackInspectionResultDto, ModpackManualFileRequestDto,
-    ModpackManualFileResultDto, OperationDto, OperationStateDto, PlayitActionResultDto,
-    PlayitStatusDto, RemoteApiStatus, ResourcePackActivateRequestDto,
-    ResourcePackMutationResultDto, ResourcePacksResponseDto, ServerCreateRequestDto,
-    ServerCreateResultDto, ServerDeleteRequestDto, ServerDeleteResultDto,
+    ModpackManualFileResultDto, OperationDto, OperationStateDto, PerformanceMetricNumberDto,
+    PerformanceSnapshotDto, PlayitActionResultDto, PlayitStatusDto, RemoteApiStatus,
+    ResourcePackActivateRequestDto, ResourcePackMutationResultDto, ResourcePacksResponseDto,
+    ServerCreateRequestDto, ServerCreateResultDto, ServerDeleteRequestDto, ServerDeleteResultDto,
     ServerDirectorySizeResponseDto, ServerDto, ServerEulaRequestDto, ServerEulaResultDto,
     ServerImportRequestDto, ServerImportResultDto, ServerImportScanResponseDto,
     ServerNotesRequestDto, ServerNotesResultDto, ServerRenameRequestDto, ServerRenameResultDto,
@@ -128,6 +129,10 @@ pub enum Command {
     Status {
         target: Option<service::AgentTarget>,
     },
+    /// Show the latest performance and resource measurements.
+    Metrics { server: Option<String> },
+    /// Read recent player join and leave events.
+    Sessions { server: Option<String> },
     /// Show the agent's host and capabilities.
     Capabilities,
     /// Inspect this authorization or administer delegated API tokens.
@@ -704,6 +709,12 @@ pub enum ConsoleCommand {
         #[arg(short = 'n', long, default_value_t = 200)]
         lines: usize,
     },
+    /// Follow live console output until Ctrl-C, starting with bounded history.
+    Follow {
+        /// Select a server by id or display name before following its console.
+        #[arg(long)]
+        server: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Subcommand)]
@@ -1040,6 +1051,8 @@ pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
             }
             Ok(())
         }
+        Command::Metrics { server } => run_metrics(common, server).await,
+        Command::Sessions { server } => run_sessions(common, server).await,
         Command::Capabilities => run_capabilities(common).await,
         Command::Access { command } => run_access(common, command).await,
         Command::Network { command } => run_network(common, command).await,
@@ -1863,6 +1876,133 @@ async fn run_console(common: CommonArgs, command: ConsoleCommand) -> Result<(), 
             }
             Ok(())
         }
+        ConsoleCommand::Follow { server } => {
+            if let Some(server) = server.as_deref() {
+                let selected = ensure_active_server(&client, Some(server)).await?;
+                if !common.json {
+                    eprintln!(
+                        "following {} ({}) — Ctrl-C to stop",
+                        selected.name, selected.id
+                    );
+                }
+            } else {
+                let status: RemoteApiStatus = client.get_json("/v1/status").await?;
+                if status.active_server_id.is_none() {
+                    return Err(CliError::usage("no active server; pass --server"));
+                }
+                if !common.json {
+                    eprintln!("following active server — Ctrl-C to stop");
+                }
+            }
+            let mut stream = client.connect_console_stream().await?;
+            loop {
+                tokio::select! {
+                    signal = tokio::signal::ctrl_c() => {
+                        signal.map_err(|error| CliError::internal(format!("could not listen for Ctrl-C: {error}")))?;
+                        break;
+                    }
+                    message = stream.next() => {
+                        match message {
+                            Some(Ok(tokio_tungstenite::tungstenite::Message::Text(line))) => print_console_line(common.json, line.as_str()),
+                            Some(Ok(tokio_tungstenite::tungstenite::Message::Close(_))) | None => break,
+                            Some(Ok(_)) => {},
+                            Some(Err(error)) => return Err(CliError::internal(format!("console stream ended with an error: {error}"))),
+                        }
+                    }
+                }
+            }
+            Ok(())
+        }
+    }
+}
+
+async fn run_metrics(common: CommonArgs, server: Option<String>) -> Result<(), CliError> {
+    let client = ApiClient::connect_local().await?;
+    if let Some(server) = server.as_deref() {
+        ensure_active_server(&client, Some(server)).await?;
+    }
+    let snapshot: PerformanceSnapshotDto = client.get_json("/v1/performance").await?;
+    if common.json {
+        print_json(&snapshot)?;
+    } else {
+        println!(
+            "server: {}",
+            snapshot.server_type.as_deref().unwrap_or("unknown")
+        );
+        println!("sampled: {}", snapshot.ts);
+        print_optional_metric("TPS (1 min)", &snapshot.tps_1m);
+        print_optional_metric("TPS (5 min)", &snapshot.tps_5m);
+        print_optional_metric("TPS (15 min)", &snapshot.tps_15m);
+        println!(
+            "players online: {}",
+            snapshot
+                .players_online
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| "unavailable".to_owned())
+        );
+        print_optional_metric("server CPU", &snapshot.cpu_percent);
+        print_optional_metric("server RAM used (MB)", &snapshot.ram_used_mb);
+        print_optional_metric("server RAM maximum (MB)", &snapshot.ram_max_mb);
+        print_optional_metric("world size (MB)", &snapshot.world_size_mb);
+        println!(
+            "world day: {}",
+            snapshot
+                .world_day
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| "unavailable".to_owned())
+        );
+        if snapshot.server_type.as_deref() == Some("bedrock") {
+            println!("TPS: unavailable for Bedrock");
+        }
+        print_runtime(&snapshot.runtime);
+    }
+    Ok(())
+}
+
+async fn run_sessions(common: CommonArgs, server: Option<String>) -> Result<(), CliError> {
+    let client = ApiClient::connect_local().await?;
+    if let Some(server) = server.as_deref() {
+        ensure_active_server(&client, Some(server)).await?;
+    }
+    let value: serde_json::Value = client.get_json("/v1/session-log").await?;
+    if common.json {
+        print_json(&value)?;
+    } else if let Some(events) = value["events"].as_array() {
+        if events.is_empty() {
+            println!("No player sessions recorded.");
+        }
+        for event in events {
+            println!(
+                "{}  {}  {}",
+                event["timestamp"].as_str().unwrap_or("unknown time"),
+                event["eventType"].as_str().unwrap_or("event"),
+                event["playerName"].as_str().unwrap_or("unknown player")
+            );
+        }
+    }
+    Ok(())
+}
+
+fn print_console_line(json: bool, line: &str) {
+    if json {
+        println!("{line}");
+        return;
+    }
+    if let Ok(value) = serde_json::from_str::<serde_json::Value>(line) {
+        println!(
+            "{} {}",
+            value["level"].as_str().unwrap_or(""),
+            value["text"].as_str().unwrap_or(line)
+        );
+    } else {
+        println!("{line}");
+    }
+}
+
+fn print_optional_metric(label: &str, metric: &Option<PerformanceMetricNumberDto>) {
+    match metric {
+        Some(metric) => println!("{label}: {}", metric.value),
+        None => println!("{label}: unavailable"),
     }
 }
 
@@ -3474,7 +3614,7 @@ fn print_json<T: Serialize>(value: &T) -> Result<(), CliError> {
 
 fn print_status(status: &RemoteApiStatus) {
     let state = if status.running { "RUNNING" } else { "STOPPED" };
-    println!("status: {state}");
+    println!("server status: {state}");
     if let Some(active_server_id) = &status.active_server_id {
         println!("active server id: {active_server_id}");
     }

@@ -14,6 +14,8 @@ use serde::{Deserialize, Serialize};
 #[cfg(windows)]
 use tokio::io::AsyncWriteExt;
 use tokio::io::{AsyncRead, AsyncReadExt, BufReader};
+use tokio::net::TcpStream;
+use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async};
 
 use crate::cli::CliError;
 
@@ -79,6 +81,26 @@ impl SharedClient {
         Ok(response.body)
     }
 
+    pub(crate) async fn connect_console_stream(
+        &self,
+    ) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, CliError> {
+        let ticket: serde_json::Value = self
+            .post_json("/v1/console/stream-ticket", &serde_json::json!({}))
+            .await?;
+        let ticket = ticket["ticket"]
+            .as_str()
+            .filter(|ticket| !ticket.is_empty())
+            .ok_or_else(|| CliError::internal("agent returned no console stream ticket"))?;
+        let url = format!(
+            "ws://127.0.0.1:48001/v1/console/stream?ticket={}",
+            encode_query_component(ticket)
+        );
+        let (socket, _) = connect_async(url).await.map_err(|error| {
+            CliError::internal(format!("could not open local console stream: {error}"))
+        })?;
+        Ok(socket)
+    }
+
     async fn request_raw(
         &self,
         method: Method,
@@ -129,6 +151,18 @@ impl SharedClient {
 
         Ok(response)
     }
+}
+
+fn encode_query_component(value: &str) -> String {
+    let mut encoded = String::new();
+    for byte in value.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~') {
+            encoded.push(byte as char);
+        } else {
+            encoded.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    encoded
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]

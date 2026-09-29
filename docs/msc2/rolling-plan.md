@@ -177,8 +177,8 @@ remains separate. No release publication or CI gate is implied.
 
 ### P17.13 — Complete status, metrics, sessions, and console reading
 
-- **Status:** PLANNED
-- **Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/cli/transport.rs`, `crates/msc-agent/src/routes/`
+- **Status:** IMPLEMENTED — awaiting Cameron verification
+- **Files:** `crates/msc-agent/Cargo.toml`, `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/cli/transport.rs`
 - **What:** Surface performance, host resources, player session log, and bounded console history; add cancellable live console follow if the stream contract supports it. Label unavailable edition-specific data honestly. Distinguish agent-service status from server status.
 - **Verify:** `cargo check -p msc-agent`
 - **Batch:** D (P17.11–P17.15) — core administration

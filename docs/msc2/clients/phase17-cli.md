@@ -121,7 +121,7 @@ For each user task, terminal output must identify the target and result; `--json
 
 | Method and route | Task or internal purpose | CLI disposition | Permission | Context / limit |
 |---|---|---|---|---|
-| GET `/v1/catalog/gamerules` | Return verified built-in gamerules for an exact Minecraft release | Owner review: no CLI command found | `none` | active server / capability |
+| GET `/v1/catalog/gamerules` | Return verified built-in gamerules for an exact Minecraft release | Approved API-only exception (D-041); use `msc command` for a raw gamerule | `none` | active server / capability |
 | POST `/v1/servers/create` | Create a new server | Existing: `msc server create` | `fleet` | host |
 | POST `/v1/servers/import` | Scan, import, or rescan existing servers | Existing: `msc server import` | `fleet` | host |
 | POST `/v1/servers/export` | Stage all configured servers as a transfer file | Existing: `msc server export` | `fleet` | host |
@@ -253,7 +253,7 @@ For each user task, terminal output must identify the target and result; `--json
 | GET `/v1/guides/router-catalog` | List router guides and troubleshooting topics | Existing: `msc help router-catalog` | `none` | host |
 | GET `/v1/guides/router/search` | Search and match router guides | Existing: `msc help router-search` | `none` | host |
 | GET `/v1/guides/router/{guideId}` | Compose and resolve one router guide | Existing: `msc help router-guide` | `none` | host; selected server needed for resolved fields |
-| POST `/v1/guides/router/troubleshooting/analyze` | Analyze router troubleshooting symptoms | Owner review: no CLI command found | `none` | host |
+| POST `/v1/guides/router/troubleshooting/analyze` | Analyze router troubleshooting symptoms | Approved API-only exception (D-041); router guide catalog/search/reading remain in `msc help` | `none` | host |
 | POST `/v1/worlds/update` | Save the current live world into the active slot | Existing: `msc world save-current` | `worlds` | active server / capability |
 | POST `/v1/worlds/delete` | Delete a non-active world slot | Existing: `msc world delete` | `worlds` | active server / capability |
 | POST `/v1/worlds/duplicate` | Duplicate a world slot under a fresh id | Existing: `msc world duplicate` | `worlds` | active server / capability |
@@ -280,22 +280,19 @@ For each user task, terminal output must identify the target and result; `--json
 | PUT `/v1/staged-uploads/{id}/chunks` | Append one bounded chunk to a modpack or world archive upload | Internal — upload staging | `none` | transport only |
 | GET `/v1/staged-downloads/{id}` | Download bytes from a previously prepared staged export | Internal — download staging | `worlds` | transport only |
 
-### Owner decisions still open
+### Approved API-only exceptions (D-041)
 
-The route audit found 14 user-facing tasks without a CLI command. These are
-open product decisions, not approved exclusions. My recommendation is to keep
-them visible as gaps and decide whether to add commands or approve an explicit
-desktop-only boundary before the Phase 17 gate closes.
+Cameron approved two bounded exceptions on 2026-09-29. Built-in gamerule
+lookup remains available through the API and desktop app; CLI users can send a
+gamerule through the sole raw path, `msc command`. Router symptom analysis
+remains available through the API and desktop app; the CLI keeps router guide
+catalog, search, and reading through `msc help`. No other user-facing route
+remains without a CLI task or an explicit internal classification.
 
-| Group | Routes without a CLI task | Recommendation |
-|---|---|---|
-| Server setup and inspection | `GET/POST /v1/config/ram`, `POST /v1/servers/bedrock-transport`, `/v1/servers/playit`, `/v1/servers/xbox-broadcast`, `GET /v1/components` | Add task commands. RAM, Bedrock transport, and per-server connectivity switches affect normal server setup; component status explains what is installed. |
-| Player and pack maintenance | `POST /v1/players/skin-override`, `/v1/players/hidden`, `/v1/players/identify`, `POST /v1/session-log/clear`, `/v1/resourcepacks/toggle`, `/v1/broadcast/credentials/clear` | Add focused commands for player records and cross-play pack behavior. Decide whether session-history and saved-account clearing belong in the CLI's maintenance surface. |
-| Reference and network guidance | `GET /v1/catalog/gamerules`, `POST /v1/guides/router/troubleshooting/analyze` | Decide whether these belong in the terminal workflow. Gamerule discovery and router symptom analysis could be useful over SSH, while the current CLI can already send a raw game command and read router guides. |
-
-No exception is recorded until Cameron approves it. P17.24 acceptance can be
-prepared now, but the Phase 17 inventory gate stays open for these decisions
-and any resulting implementation.
+P17.25 and P17.26 add commands for the server setup and player/pack maintenance
+rows. The Geyser resource-pack toggle command reaches the existing route, which
+currently reports that toggling is unsupported until the Bedrock client-pack
+store is implemented. This is documented behavior, not a successful toggle.
 
 ### Router-only surfaces and contract gaps
 
@@ -318,8 +315,8 @@ the same task command locally or through SSH as the installing account, for
 example `msc status --json`. Remote host management stays in the Tauri
 desktop; this change does not affect desktop pairing or credentials.
 
-The CLI now covers the planned local authentication, service control, server/player/world/backup tasks, supported catalogs, files, help, and operation recovery. Fourteen API tasks remain without CLI commands; the grouped rows below need Cameron's decision before the inventory gate closes. There is no API for changing OS service state, by design; P17.8 uses local platform service managers. CurseForge modpacks have archive inspection/import and manual-file recovery, but no modpack search route; Phase 17 does not promise such browsing. `GET /v1/worlds/convert/formats` is available through `msc world convert-formats`.
+The CLI now covers the planned local authentication, service control, server/player/world/backup tasks, supported catalogs, files, help, and operation recovery. P17.25–P17.27 close the route inventory with two owner-approved API-only exceptions. There is no API for changing OS service state, by design; P17.8 uses local platform service managers. CurseForge modpacks have archive inspection/import and manual-file recovery, but no modpack search route; Phase 17 does not promise such browsing. `GET /v1/worlds/convert/formats` is available through `msc world convert-formats`.
 
 ### Step ownership for the route audit
 
-P17.11 access administration; P17.12 server list/detail/selection/export; P17.13 performance, sessions, and console follow; P17.14–P17.15 player tasks; P17.16 world/backup gaps; P17.17 world packs; P17.18 host/network settings; P17.19 catalog inspection and installed add-ons; P17.20 modpack recovery; P17.21 operations/host reset; P17.22 files/help. P17.23 checked the shipped CLI against every inventory row. The 14 owner-review rows remain open pending a command or explicit approved exception.
+P17.11 access administration; P17.12 server list/detail/selection/export; P17.13 performance, sessions, and console follow; P17.14–P17.15 player tasks; P17.16 world/backup gaps; P17.17 world packs; P17.18 host/network settings; P17.19 catalog inspection and installed add-ons; P17.20 modpack recovery; P17.21 operations/host reset; P17.22 files/help. P17.23 checked the shipped CLI against every inventory row. P17.25–P17.26 add the approved commands; D-041 records the two API-only exceptions.

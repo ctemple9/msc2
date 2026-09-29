@@ -1,6 +1,6 @@
 # MSC 2 — Decision Register
 
-**Revision:** 1.24 · **Date:** 2026-09-28
+**Revision:** 1.25 · **Date:** 2026-09-29
 **Owner:** Cameron Temple
 
 **Purpose:** the authoritative record of *what was decided, by whom, and why*. The product and engineering documents describe the destination; this document explains how it was chosen, what was rejected, and when a decision should be reopened.
@@ -68,6 +68,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 | D-038 | Retire the served browser client | **Approved** | 2026-09-28 |
 | D-039 | Archive automated CI and keep beta publication build-only | **Approved** | 2026-09-28 |
 | D-040 | Host-local CLI access and service control | **Approved** | 2026-09-29 |
+| D-041 | CLI task coverage and two intentional API-only tasks | **Approved** | 2026-09-29 |
 
 ---
 
@@ -1214,6 +1215,20 @@ The CLI exposes the agent's supported Minecraft-management tasks, with readable 
 
 ---
 
+## D-041 — CLI task coverage and two intentional API-only tasks
+
+**Status:** **Approved** · **Origin:** Cameron's Phase 17 direction · **Approved by:** Cameron Temple · **Date:** 2026-09-29
+
+**Decision.** The local CLI covers user-facing API tasks except built-in gamerule-catalog lookup (`GET /v1/catalog/gamerules`) and router symptom analysis (`POST /v1/guides/router/troubleshooting/analyze`). Those two tasks remain available through the API and desktop app. The CLI retains `msc command` as the sole raw Minecraft command path, so users may issue a gamerule through that path. Router guide catalog, search, and reading remain available through `msc help`; only the symptom-analysis action is omitted.
+
+**Rationale.** Cameron approved the proposed server-setup and player/pack-maintenance commands while choosing not to add these two task-specific surfaces to the terminal workflow. The exceptions are explicit and bounded to their named routes.
+
+**Consequences.** The Phase 17 route inventory marks both rows as approved API-only exceptions. The CLI still must provide useful local/SSH operation, JSON results, permissions, and edition/provider limits for every other user-facing API task. This decision does not change desktop remote pairing, the raw `msc command` contract, the agent API, or build-only beta publication (D-039).
+
+**Revisit if:** Cameron asks for either task in the supported CLI.
+
+---
+
 ## D-038 — Retire the served browser client
 
 **Status:** **Approved** · **Origin:** Owner decision recorded for P16.24 ·
@@ -1305,10 +1320,11 @@ Recorded because each produced a confident wrong answer, and each is the kind of
 
 | Rev | Date | Change |
 |---|---|---|
-| 1.21 | 2026-09-23 | Amended D-007 and D-025 with Cameron's approved macOS Bedrock boundary: the installing-user agent controls a narrowly scoped root VZ/relay helper over authenticated local IPC. |
-| 1.22 | 2026-09-28 | Recorded D-037: Cameron selected Apache-2.0 for MSC 2 original code, with third-party runtime materials remaining under their own terms. |
-| 1.23 | 2026-09-28 | Added D-038: retired the served browser client; narrowed D-003, D-010, D-012, D-023, and D-026 to the supported desktop and CLI clients. |
+| 1.25 | 2026-09-29 | Added D-041: recorded CLI task coverage and the two approved API-only exceptions. |
 | 1.24 | 2026-09-28 | Added D-039: archived CI and narrowed beta publication to builds, asset completeness, checksums, and signed metadata. |
+| 1.23 | 2026-09-28 | Added D-038: retired the served browser client; narrowed D-003, D-010, D-012, D-023, and D-026 to the supported desktop and CLI clients. |
+| 1.22 | 2026-09-28 | Recorded D-037: Cameron selected Apache-2.0 for MSC 2 original code, with third-party runtime materials remaining under their own terms. |
+| 1.21 | 2026-09-23 | Amended D-007 and D-025 with Cameron's approved macOS Bedrock boundary: the installing-user agent controls a narrowly scoped root VZ/relay helper over authenticated local IPC. |
 | 1.20 | 2026-09-21 | Recorded Cameron's approval of D-030's world-profile ownership boundary. |
 | 1.19 | 2026-09-21 | Recorded the proposed Phase 15 world-pack and modpack-identity contract and its D-030 approval gate. |
 | 1.18 | 2026-09-11 | Simplified the guided SSH trust flow: first connection remembers the remote identity without displaying its fingerprint; changed identities remain blocked until explicitly trusted, without showing key values. |

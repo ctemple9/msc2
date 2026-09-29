@@ -47,11 +47,17 @@ details; do not infer one platform's result from another.
    through that forward without credentials. Confirm it is refused. Confirm
    the CLI has no host, URL, port, or token option that uses the forward.
 7. **Representative tasks:** As the installing account, inspect the server
-   list and status, players, worlds, backups, installed add-ons, and one help
-   topic. Where that installation supports the selected server edition, try
-   one edition-specific read command. Confirm active-server context, edition
-   limits, and permission refusals are clear. Do not perform a destructive
-   action solely for this checklist.
+   list and status, players, worlds, backups, installed add-ons/components, and
+   one help topic. Where supported, exercise active-server RAM read/write, a
+   registered-server Bedrock transport or connectivity switch, player profile
+   maintenance, session-history clearing, and Xbox credential clearing on a
+   disposable host. Confirm active-server context, edition limits, permission
+   refusals, restart requirements, and JSON output are clear. The resource-pack
+   toggle may report unsupported until its backing store exists; record that
+   refusal accurately. Do not perform destructive actions solely for this
+   checklist. D-041's gamerule-catalog and router symptom-analysis exceptions
+   remain available through the API/desktop; `msc command` and router guide
+   reading remain supported CLI paths.
 8. **Catalog and provider behavior:** Search and inspect a supported catalog
    item, then stop before install unless using a disposable server. Record a
    missing-key or provider-refusal response. Confirm the CLI preserves the
@@ -69,7 +75,8 @@ details; do not infer one platform's result from another.
 Record each item as `Pass`, `Fail`, or `Not applicable`, with the package
 version and a short observation. For failures, include the command or manual
 action and the visible result. Do not mark the Phase 17 gate passed while any
-platform result or open route-inventory decision remains unreviewed.
+platform result is missing or any user-facing route lacks a CLI task or an
+owner-approved exception.
 
 | OS / install type | Check numbers | Result | Package version and notes | Cameron / date |
 |---|---|---|---|---|
@@ -80,6 +87,8 @@ platform result or open route-inventory decision remains unreviewed.
 | Linux desktop | 1–9 | Not run |  |  |
 | Linux headless | 1–9 | Not run |  |  |
 
-The Phase 17 gate also requires Cameron's decision on the open route rows in
-[`phase17-cli.md`](phase17-cli.md), followed by an independent review. No
-test suite, CI gate, release tag, or publication run is part of this sheet.
+The route inventory is closed by P17.25–P17.27 and D-041; two bounded
+API-only exceptions remain documented in [`phase17-cli.md`](phase17-cli.md).
+The Phase 17 gate still requires Cameron's physical results and an independent
+review. No test suite, CI gate, release tag, or publication run is part of this
+sheet.

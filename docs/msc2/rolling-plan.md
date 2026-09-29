@@ -765,3 +765,39 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   Named biome legends remain gated; upgrades and custom IDs remain open.
 - **Batch:** solo — enforce registry provenance boundary
 - **Commit:** P18.2k: guard bds biome registry version
+
+### P18.2l — Capture one consistent running-BDS map snapshot
+
+- **Status:** Awaiting Cameron verification
+- **Files:** `crates/msc-agent/src/backup_operations.rs`,
+  `crates/msc-agent/src/main.rs`,
+  `crates/msc-agent/src/routes/lifecycle.rs`,
+  `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/cli/mod.rs`,
+  `docs/msc2/api-contract/openapi.json`, `tools/world-map-proof/README.md`,
+  `docs/msc2/rolling-plan.md`
+- **What:** Add a proof-only, Worlds-authorized `msc world map-snapshot`
+  operation for the currently running, MSC-managed BDS server. Reuse its
+  console boundary to send `save hold`, require `save query` readiness, copy
+  only the configured active world into an owner-private temporary directory,
+  then dispatch `save resume` before reporting the path and measured copy size
+  and hold time. Refuse symlinks, special files, an unsafe level name, more
+  than 2 GiB, or a copy lasting over 30 seconds. A timeout or copy error
+  leaves no published map artifact and reports whether resume was dispatched.
+  Cameron checks that the server is writable again. This deliberately does
+  not change MSC's existing best-effort backup contract. Disable Clap's
+  automatic help subcommand, which collides with MSC's existing `help` command
+  in debug builds and otherwise blocks the new CLI proof command.
+- **Verify:** Start a disposable Bedrock world through MSC and make a visible
+  block change. After loading the new development agent, run
+  `cd /Users/camerontemple/msc2-world-map && target/debug/msc --json world map-snapshot`.
+  The completed operation must report `worldPath`, `bytesCopied`, and
+  `holdMillis`; BDS stays running and writable. Run
+  `tools/world-map-proof/target/release/msc-world-map-proof <worldPath>
+  /private/tmp/msc-bedrock-samples/resource_pack <new-private-output> <4x4-origin>`
+  and open that output in the proof viewer to find the changed block.
+  This advances fresh Bedrock terrain in the eventual Worlds-tab 3D view;
+  it does not show live player movement. If the snapshot cannot be opened or
+  the server cannot resume, stop here. If it passes, the next proof is
+  versioned tile replacement in the open viewer, then measure refresh cost.
+- **Batch:** solo — prove the BDS hold/copy/resume boundary before auto refresh
+- **Commit:** P18.2l: capture running bds map snapshot

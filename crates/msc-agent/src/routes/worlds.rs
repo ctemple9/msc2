@@ -115,6 +115,7 @@ pub(crate) const STAGING_TTL_SECONDS: u64 = 30 * 60;
 pub fn router(state: WorldsRoutesState) -> Router {
     Router::new()
         .route("/worlds", get(list))
+        .route("/worlds/map-proof/snapshot", post(snapshot_map_proof))
         .route("/catalog/gamerules", get(gamerule_catalog))
         .route("/worlds/create", post(create))
         .route("/worlds/rename", post(rename))
@@ -2300,6 +2301,94 @@ pub async fn list(State(state): State<WorldsRoutesState>) -> Response {
     };
     let running = lifecycle.status_snapshot().running;
     Json(slots_response(&server, running)).into_response()
+}
+
+/// Temporary Phase 18 proof endpoint. The private path is returned only to
+/// a Worlds-authorized operator so the standalone exporter can inspect it.
+pub async fn snapshot_map_proof(
+    State(state): State<WorldsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+) -> Response {
+    let lifecycle = state.lifecycle.clone();
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
+        return response;
+    }
+    if let Some(response) = require_runtime(&lifecycle) {
+        return response;
+    }
+    let server = match active_server_or_response(&lifecycle) {
+        Ok(server) => server,
+        Err(response) => return response,
+    };
+    if server.server_type != ServerType::Bedrock || !lifecycle.status_snapshot().running {
+        return error_response(
+            StatusCode::CONFLICT,
+            "conflict",
+            "An MSC-managed BDS server must be running for this snapshot proof.",
+        );
+    }
+    let operation_id = match lifecycle.operations().begin_lifecycle(
+        "world-map-proof-snapshot",
+        Some(server.id),
+        "Capturing a consistent BDS map snapshot.",
+    ) {
+        Ok(id) => id,
+        Err(error) => return crate::routes::operations::operation_error_response(error),
+    };
+    let should_cancel = lifecycle.operations().cancellation_check(&operation_id);
+    let task_lifecycle = lifecycle.clone();
+    let task_operation_id = operation_id.clone();
+    tokio::spawn(async move {
+        let snapshot_lifecycle = task_lifecycle.clone();
+        let server_dir = PathBuf::from(server.server_dir);
+        let result = tokio::task::spawn_blocking(move || {
+            crate::backup_operations::snapshot_bedrock_world(
+                snapshot_lifecycle,
+                &server_dir,
+                should_cancel,
+            )
+        })
+        .await;
+        match result {
+            Ok(Ok(snapshot)) => {
+                let mut details = BTreeMap::new();
+                details.insert("worldPath".to_string(), snapshot.path.display().to_string());
+                details.insert("bytesCopied".to_string(), snapshot.bytes.to_string());
+                details.insert("holdMillis".to_string(), snapshot.hold_millis.to_string());
+                let _ = task_lifecycle.operations().succeed(
+                    &task_operation_id,
+                    "BDS map snapshot ready for offline export.",
+                    details,
+                );
+            }
+            Ok(Err(error)) => {
+                let _ =
+                    task_lifecycle
+                        .operations()
+                        .fail(&task_operation_id, "snapshot_failed", error);
+            }
+            Err(_) => {
+                let _ = task_lifecycle.operations().fail(
+                    &task_operation_id,
+                    "snapshot_failed",
+                    "BDS map snapshot task panicked; save resume was attempted.".to_string(),
+                );
+            }
+        }
+    });
+    let response = Json(serde_json::json!({
+        "result": "snapshot_started",
+        "operationId": operation_id.as_str(),
+    }))
+    .into_response();
+    audit(
+        &lifecycle,
+        &credential,
+        "POST",
+        "/v1/worlds/map-proof/snapshot",
+        response.status(),
+    );
+    response
 }
 
 pub async fn create(

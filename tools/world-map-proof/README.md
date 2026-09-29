@@ -208,11 +208,9 @@ their shape, transparency and texture behavior need a separate representative
 Bedrock fixture before any coverage claim. The tool currently emits fallback
 checker texture for missing assets and counts affected faces.
 
-No running-world snapshot, live terrain refresh, authenticated MSC route,
-in-window Worlds navigation or player movement is present. If Cameron's visual
-check passes, the next proof is a representative area containing stairs and
-glass plus actual biome tint, followed by safe running-world reads. The later
-user-facing slice brings the viewer into MSC
+P18.2l adds a running-BDS snapshot operation, awaiting Cameron's physical
+verification below. Live tile replacement, in-window Worlds navigation and
+player movement are still absent. The later user-facing slice brings the viewer into MSC
 with the Vantage-style bottom toolbar and biome panel Cameron requested.
 Repeated reads of this offline copy varied by three buried grass-block counts;
 the exported face counts stayed stable. Resolve that reader inconsistency
@@ -224,3 +222,31 @@ stand upright, logs appear under leaf canopies, and the large sky holes are
 filled by real lower terrain. `summary.txt` in the private output reports
 geometry counts. The local export took 2.24 seconds and peaked at 57 MB RSS;
 first-visible viewer time and viewer CPU/memory use are still unmeasured.
+
+## Running BDS snapshot proof (P18.2l)
+
+Start a disposable Bedrock world through MSC and place or remove one easily
+recognized block. Load this worktree's development agent, then run from the
+worktree root:
+
+```sh
+target/debug/msc --json world map-snapshot
+```
+
+The operation waits for BDS `save query` to confirm the world is ready before
+copying. Its JSON result contains `worldPath`, `bytesCopied` and `holdMillis`.
+The world copy is in an owner-private directory under the host's temporary
+directory, never in Git or the normal backup list. The command refuses a
+world over 2 GiB or a copy that takes more than 30 seconds, and releases the
+save hold on errors while the same server run is available. Do not use a
+failed or incomplete copy for a map.
+
+Pass the returned `worldPath` as the exporter's first argument, with the
+resource pack, a new private output directory, and a 4×4 chunk origin that
+contains the changed block. For block coordinates `(x,z)`, use an origin of
+`(floor(x/16)-1,floor(z/16)-1)` to put it near the center of the 4×4 area.
+Then launch the proof viewer with
+`MSC_WORLD_MAP_PROOF_OUTPUT` set to that output. Confirm the change appears
+and BDS continues accepting world writes. This is a *saved terrain* refresh
+proof; walking players require a separate position feed. A completed snapshot
+is a temporary private copy and should be removed after inspection.

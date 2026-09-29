@@ -53,6 +53,39 @@
     }
   },
   "paths": {
+    "/v1/worlds/map-proof/snapshot": {
+      "post": {
+        "summary": "Capture one consistent active BDS world copy for the Phase 18 map proof",
+        "operationId": "startBedrockMapProofSnapshot",
+        "x-permission-category": "worlds",
+        "x-notes": "Temporary Phase 18 proof route. Requires the MSC-managed BDS server to be running. Sends save hold/query/resume through the agent console; a confirmed query is mandatory before copying. Operation result contains a private host path, size, and hold duration for local export. This does not publish tiles or player positions.",
+        "responses": {
+          "200": {
+            "description": "Snapshot operation started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["result", "operationId"],
+                  "properties": {
+                    "result": { "type": "string", "enum": ["snapshot_started"] },
+                    "operationId": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Worlds permission required",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorDTO" } } }
+          },
+          "409": {
+            "description": "No running BDS server or another operation holds this server",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorDTO" } } }
+          }
+        }
+      }
+    },
     "/v1/catalog/gamerules": {
       "get": {
         "summary": "Return verified built-in gamerules for an exact Minecraft release",

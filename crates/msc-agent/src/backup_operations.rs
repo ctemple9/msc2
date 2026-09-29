@@ -40,9 +40,11 @@
 //! exclusivity.
 
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::fs::{self, File};
+use std::io::{self, Read, Write};
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use msc_application::backups::{self, BackupConsole, BackupError};
 use msc_application::operations::LifecycleOperationError;
@@ -50,6 +52,7 @@ use msc_domain::app_config_schema::ConfigServer;
 use msc_domain::operation::OperationId;
 use msc_infrastructure::fs::StdFileSystem;
 use msc_infrastructure::world_store;
+use uuid::Uuid;
 
 use crate::routes::lifecycle::{BackupBoundary, LifecycleRoutesState};
 
@@ -187,6 +190,199 @@ pub fn start_backup(
 // the manual route only) since [`start_backup`] is now the only caller,
 // shared by both triggers.
 // =====================================================================
+
+const MAP_SNAPSHOT_MAX_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+const MAP_SNAPSHOT_COPY_LIMIT: Duration = Duration::from_secs(30);
+
+pub(crate) struct WorldMapSnapshot {
+    pub(crate) path: PathBuf,
+    pub(crate) bytes: u64,
+    pub(crate) hold_millis: u128,
+}
+
+struct ResumeHeldSave<'a> {
+    console: &'a LiveBackupConsole,
+    boundary: BackupBoundary,
+    active: bool,
+}
+
+impl ResumeHeldSave<'_> {
+    fn resume(&mut self) -> bool {
+        if !self.console.lifecycle.backup_run_matches(&self.boundary) {
+            return false;
+        }
+        let sent = self.console.send("save resume");
+        if sent {
+            self.active = false;
+        }
+        sent
+    }
+}
+
+impl Drop for ResumeHeldSave<'_> {
+    fn drop(&mut self) {
+        // A stopped or replaced server must not receive the prior run's resume.
+        if self.active {
+            let _ = self.resume();
+        }
+    }
+}
+
+fn copy_snapshot_tree(
+    source: &Path,
+    destination: &Path,
+    bytes: &mut u64,
+    deadline: Instant,
+    should_cancel: &impl Fn() -> bool,
+) -> io::Result<()> {
+    if should_cancel() || Instant::now() >= deadline {
+        return Err(io::Error::new(
+            io::ErrorKind::TimedOut,
+            "snapshot copy stopped",
+        ));
+    }
+    let metadata = fs::symlink_metadata(source)?;
+    if metadata.file_type().is_symlink() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "world contains a symlink",
+        ));
+    }
+    if metadata.is_dir() {
+        fs::create_dir(destination)?;
+        for entry in fs::read_dir(source)? {
+            let entry = entry?;
+            copy_snapshot_tree(
+                &entry.path(),
+                &destination.join(entry.file_name()),
+                bytes,
+                deadline,
+                should_cancel,
+            )?;
+        }
+    } else if metadata.is_file() {
+        let mut input = File::open(source)?;
+        let mut output = File::create(destination)?;
+        let mut buffer = [0u8; 1024 * 1024];
+        loop {
+            if should_cancel() || Instant::now() >= deadline {
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "snapshot copy stopped",
+                ));
+            }
+            let count = input.read(&mut buffer)?;
+            if count == 0 {
+                break;
+            }
+            *bytes += count as u64;
+            if *bytes > MAP_SNAPSHOT_MAX_BYTES {
+                return Err(io::Error::new(
+                    io::ErrorKind::FileTooLarge,
+                    "snapshot exceeds 2 GiB proof limit",
+                ));
+            }
+            output.write_all(&buffer[..count])?;
+        }
+    } else {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "world contains a special file",
+        ));
+    }
+    Ok(())
+}
+
+/// Captures one proof-only world copy while the same MSC-managed BDS run has
+/// confirmed that its files are ready. The normal backup path intentionally
+/// retains its MSC 1 best-effort semantics; map publication requires a
+/// stronger readiness gate and never consumes backup retention slots.
+pub(crate) fn snapshot_bedrock_world(
+    lifecycle: LifecycleRoutesState,
+    server_dir: &Path,
+    should_cancel: impl Fn() -> bool,
+) -> Result<WorldMapSnapshot, String> {
+    let configured =
+        msc_application::worlds::read_configured_level_name(&StdFileSystem, server_dir)
+            .ok_or("BDS server.properties has no level-name")?;
+    if configured.is_empty()
+        || configured == "."
+        || configured == ".."
+        || configured.contains('/')
+        || configured.contains('\\')
+    {
+        return Err("BDS level-name is not a single safe folder name".to_string());
+    }
+    let world = server_dir.join("worlds").join(&configured);
+    if !world.join("level.dat").is_file() || !world.join("db").is_dir() {
+        return Err("configured BDS world has no level.dat or db directory".to_string());
+    }
+    let destination = std::env::temp_dir().join(format!("msc-world-map-proof-{}", Uuid::new_v4()));
+    fs::create_dir(&destination).map_err(|error| error.to_string())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&destination, fs::Permissions::from_mode(0o700))
+            .map_err(|error| error.to_string())?;
+    }
+    let started = Instant::now();
+    let console = LiveBackupConsole::new(lifecycle);
+    let boundary = match console.lifecycle.send_backup_command("save hold") {
+        Some(boundary) => boundary,
+        None => {
+            let _ = fs::remove_dir_all(&destination);
+            return Err("could not send save hold to the active BDS run".to_string());
+        }
+    };
+    let mut held = ResumeHeldSave {
+        console: &console,
+        boundary,
+        active: true,
+    };
+    let (ready, _) = backups::wait_for_bedrock_save_ready(&console);
+    if !ready {
+        let _ = fs::remove_dir_all(&destination);
+        let resumed = held.resume();
+        return Err(format!(
+            "BDS did not confirm ready to be copied; save resume dispatched: {resumed}"
+        ));
+    }
+    if should_cancel() {
+        let _ = fs::remove_dir_all(&destination);
+        let resumed = held.resume();
+        return Err(format!(
+            "snapshot cancelled; save resume dispatched: {resumed}"
+        ));
+    }
+    let mut bytes = 0;
+    let copied = copy_snapshot_tree(
+        &world,
+        &destination.join("world"),
+        &mut bytes,
+        Instant::now() + MAP_SNAPSHOT_COPY_LIMIT,
+        &should_cancel,
+    );
+    let hold_millis = started.elapsed().as_millis();
+    let resume_sent = held.resume();
+    drop(held);
+    if let Err(error) = copied {
+        let _ = fs::remove_dir_all(&destination);
+        return Err(format!(
+            "BDS snapshot copy failed: {error}; save resume dispatched: {resume_sent}"
+        ));
+    }
+    if !resume_sent {
+        let _ = fs::remove_dir_all(&destination);
+        return Err(
+            "snapshot copied, but save resume was not dispatched to the same BDS run".to_string(),
+        );
+    }
+    Ok(WorldMapSnapshot {
+        path: destination.join("world"),
+        bytes,
+        hold_millis,
+    })
+}
 
 struct LiveBackupConsole {
     lifecycle: LifecycleRoutesState,

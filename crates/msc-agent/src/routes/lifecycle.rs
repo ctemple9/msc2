@@ -1421,6 +1421,10 @@ impl LifecycleRoutesState {
         })
     }
 
+    pub(crate) fn backup_run_matches(&self, boundary: &BackupBoundary) -> bool {
+        self.current_backup_run().as_ref() == Some(&boundary.run)
+    }
+
     pub fn bedrock_online_players(&self) -> Vec<msc_domain::bedrock::BedrockPlayer> {
         if !self.bedrock_runtime_is_busy() {
             return Vec::new();

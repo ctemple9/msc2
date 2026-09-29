@@ -1099,6 +1099,11 @@ pub enum PlayerWhitelistCommand {
 pub enum WorldCommand {
     /// List world slots for the active server.
     List,
+    /// Capture one consistent BDS world copy for the Phase 18 map proof.
+    MapSnapshot {
+        #[arg(long)]
+        no_wait: bool,
+    },
     /// Save the active live world into its current slot.
     SaveCurrent,
     /// Show one slot's profile and identity fields.
@@ -3730,6 +3735,19 @@ async fn run_settings(common: CommonArgs, command: SettingsCommand) -> Result<()
 async fn run_world(common: CommonArgs, command: WorldCommand) -> Result<(), CliError> {
     let client = ApiClient::connect_local().await?;
     match command {
+        WorldCommand::MapSnapshot { no_wait } => {
+            let result: serde_json::Value = client
+                .post_json("/v1/worlds/map-proof/snapshot", &serde_json::json!({}))
+                .await?;
+            finish_operation(
+                &client,
+                common.json,
+                no_wait,
+                result["operationId"].as_str().map(str::to_owned),
+                "BDS map snapshot",
+            )
+            .await
+        }
         WorldCommand::List => {
             let slots: WorldSlotsResponseDto = client.get_json("/v1/worlds").await?;
             if common.json {

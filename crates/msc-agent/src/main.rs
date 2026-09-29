@@ -28,6 +28,7 @@ const CLI_LOCAL_ACCESS_HELP: &str = "Local access:\n  Run msc on the agent host,
 #[command(
     name = "msc",
     about = "MSC 2 service and CLI",
+    disable_help_subcommand = true,
     after_help = CLI_LOCAL_ACCESS_HELP
 )]
 struct App {

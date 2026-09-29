@@ -133,6 +133,8 @@ pub enum Command {
     Metrics { server: Option<String> },
     /// Read recent player join and leave events.
     Sessions { server: Option<String> },
+    /// Clear the active server's join/leave history.
+    ClearSessions,
     /// Show the agent's host and capabilities.
     Capabilities,
     /// Inspect this authorization or administer delegated API tokens.
@@ -409,6 +411,10 @@ pub enum BroadcastCommand {
         #[arg(long)]
         password_stdin: bool,
     },
+    ClearCredentials {
+        #[arg(long)]
+        confirm: bool,
+    },
 }
 
 #[derive(Debug, Clone, Subcommand)]
@@ -436,6 +442,10 @@ pub enum ResourcePackCommand {
         pack_id: Option<String>,
         #[arg(long)]
         require: bool,
+    },
+    Toggle {
+        pack_id: String,
+        enabled: bool,
     },
 }
 
@@ -962,6 +972,26 @@ pub enum PlayerCommand {
         #[command(subcommand)]
         command: PlayerDataCommand,
     },
+    SkinOverride {
+        profile_id: String,
+        #[arg(long)]
+        lookup_identifier: Option<String>,
+        #[arg(long)]
+        server: Option<String>,
+    },
+    Hide {
+        profile_id: String,
+        #[arg(long, action = clap::ArgAction::Set)]
+        hidden: bool,
+        #[arg(long)]
+        server: Option<String>,
+    },
+    Identify {
+        profile_id: String,
+        gamertag: String,
+        #[arg(long)]
+        server: Option<String>,
+    },
     /// Send a private message to a player.
     Message {
         player: String,
@@ -1412,6 +1442,13 @@ pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
         Command::Access { command } => run_access(common, command).await,
         Command::Config { command } => run_config(common, command).await,
         Command::Components => run_components(common).await,
+        Command::ClearSessions => {
+            let client = ApiClient::connect_local().await?;
+            let value: serde_json::Value = client
+                .post_json("/v1/session-log/clear", &serde_json::json!({}))
+                .await?;
+            output_value(common.json, &value)
+        }
         Command::Network { command } => run_network(common, command).await,
         Command::Playit { command } => run_playit(common, command).await,
         Command::Broadcast { command } => run_broadcast(common, command).await,
@@ -1863,6 +1900,43 @@ async fn run_player(common: CommonArgs, command: PlayerCommand) -> Result<(), Cl
             }
         }
         PlayerCommand::Data { command } => run_player_data(&client, common, command).await?,
+        PlayerCommand::SkinOverride {
+            profile_id,
+            lookup_identifier,
+            server,
+        } => {
+            select_player_server(&client, server.as_deref()).await?;
+            let value: serde_json::Value = client.post_json("/v1/players/skin-override", &serde_json::json!({"profileId":profile_id,"lookupIdentifier":lookup_identifier})).await?;
+            output_value(common.json, &value)?;
+        }
+        PlayerCommand::Hide {
+            profile_id,
+            hidden,
+            server,
+        } => {
+            select_player_server(&client, server.as_deref()).await?;
+            let value: serde_json::Value = client
+                .post_json(
+                    "/v1/players/hidden",
+                    &serde_json::json!({"profileId":profile_id,"hidden":hidden}),
+                )
+                .await?;
+            output_value(common.json, &value)?;
+        }
+        PlayerCommand::Identify {
+            profile_id,
+            gamertag,
+            server,
+        } => {
+            select_player_server(&client, server.as_deref()).await?;
+            let value: serde_json::Value = client
+                .post_json(
+                    "/v1/players/identify",
+                    &serde_json::json!({"profileId":profile_id,"gamertag":gamertag}),
+                )
+                .await?;
+            output_value(common.json, &value)?;
+        }
         PlayerCommand::Message {
             player,
             message,
@@ -3493,6 +3567,17 @@ async fn run_broadcast(common: CommonArgs, command: BroadcastCommand) -> Result<
                 Ok(())
             }
         }
+        BroadcastCommand::ClearCredentials { confirm } => {
+            if !confirm {
+                return Err(CliError::usage(
+                    "clearing Xbox Broadcast credentials requires --confirm",
+                ));
+            }
+            let value: serde_json::Value = client
+                .post_json("/v1/broadcast/credentials/clear", &serde_json::json!({}))
+                .await?;
+            output_value(common.json, &value)
+        }
     }
 }
 
@@ -3578,6 +3663,15 @@ async fn run_resource_pack(
                 println!("{}", result.message);
                 Ok(())
             }
+        }
+        ResourcePackCommand::Toggle { pack_id, enabled } => {
+            let value: serde_json::Value = client
+                .post_json(
+                    "/v1/resourcepacks/toggle",
+                    &serde_json::json!({"packId":pack_id,"enabled":enabled}),
+                )
+                .await?;
+            output_value(common.json, &value)
         }
     }
 }

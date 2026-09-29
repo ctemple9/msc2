@@ -82,7 +82,7 @@ stop, or replace the service.
 
 `msc start agent`, `msc stop agent`, and `msc status agent` control the installed local service while the API is down. Installation enables startup at boot. A routine stop holds until explicit start or the next boot; only an explicit disable changes future startup. Minecraft server start/stop are separate operations. Desktop and headless packages own the command on PATH.
 
-Catalog installs follow search → inspect compatible versions and dependencies → confirm → install. CurseForge modpacks begin with a local `.zip`; the agent downloads permitted manifest files and reports author-blocked files for manual supply. `msc command` is the sole raw Minecraft command path. RAM commands act on the active server; inspect `msc status` or `msc server list` first. `msc components` lists installed server components. Server-level Playit, Xbox Broadcast, and Bedrock transport commands take a server name or ID explicitly. All task commands keep human-readable output and `--json` for scripting. Destructive tasks require explicit confirmation. The inventory below reflects the CLI source after P17.22; rows marked for owner review remain open and are not approved exceptions.
+Catalog installs follow search → inspect compatible versions and dependencies → confirm → install. CurseForge modpacks begin with a local `.zip`; the agent downloads permitted manifest files and reports author-blocked files for manual supply. `msc command` is the sole raw Minecraft command path. Player profile maintenance takes profile IDs from `msc player profiles`; pass `--server` to select a registered target before the route acts on active-server context. Xbox credential clearing requires `--confirm`, and account secrets remain stdin-only. The Geyser pack toggle route is currently unsupported by the agent. RAM commands act on the active server; inspect `msc status` or `msc server list` first. `msc components` lists installed server components. Server-level Playit, Xbox Broadcast, and Bedrock transport commands take a server name or ID explicitly. All task commands keep human-readable output and `--json` for scripting. Destructive tasks require explicit confirmation. The inventory below reflects the CLI source after P17.22; rows marked for owner review remain open and are not approved exceptions.
 
 ## Task-first examples
 
@@ -179,14 +179,14 @@ For each user task, terminal output must identify the target and result; `--json
 | POST `/v1/broadcast/restart` | Restart Xbox broadcast as a cancellable managed operation | Existing: `msc broadcast restart` | `broadcast` | host |
 | GET `/v1/broadcast/credentials` | Get the host-wide MCXboxBroadcast account status | Existing: `msc broadcast credentials` | `undocumented` | host |
 | POST `/v1/broadcast/credentials` | Update the host-wide MCXboxBroadcast Microsoft account credentials | Existing: `msc broadcast credentials` | `broadcast` | host |
-| POST `/v1/broadcast/credentials/clear` | Clear saved MCXboxBroadcast credentials | Owner review: no CLI command found | `broadcast` | host |
+| POST `/v1/broadcast/credentials/clear` | Clear saved MCXboxBroadcast credentials | Existing: `msc broadcast clear-credentials --confirm` | `broadcast` | host |
 | POST `/v1/servers/xbox-broadcast` | Enable or disable Xbox Broadcast for one registered server | Existing: `msc server xbox-broadcast <server> <enabled>` | `broadcast` | host; Bedrock server ID |
 | GET `/v1/broadcast/jar-status` | Get MCXboxBroadcast JAR install status | Existing: `msc broadcast download-jar` reports status before/after the operation | `none` | host |
 | POST `/v1/broadcast/download-jar` | Download the MCXboxBroadcast JAR as a cancellable managed operation | Existing: `msc broadcast download-jar` | `broadcast` | host |
 | GET `/v1/resourcepacks` | List resource packs | Existing: `msc resource-pack list` | `none` | active server / capability; Java |
 | POST `/v1/resourcepacks/activate` | Activate (or clear) the local Java resource pack | Existing: `msc resource-pack activate` | `addons` | active server / capability; Java |
 | POST `/v1/resourcepacks/seturl` | Set a custom resource-pack URL directly in server.properties | Existing: `msc resource-pack set-url` | `addons` | active server / capability; Java |
-| POST `/v1/resourcepacks/toggle` | Enable/disable a Geyser resource pack | Owner review: no CLI command found | `addons` | active server / capability; Java |
+| POST `/v1/resourcepacks/toggle` | Enable/disable a Geyser resource pack | Existing: `msc resource-pack toggle <pack-id> <enabled>`; current route reports unsupported until the Bedrock client-pack store exists | `addons` | active server / capability |
 | POST `/v1/resourcepacks/remove` | Remove a resource pack from disk | Existing: `msc resource-pack remove` | `addons` | active server / capability; Java |
 | GET `/v1/watchdog/status` | Get watchdog enabled status | Existing: `msc config watchdog` | `none` | active server / capability |
 | POST `/v1/watchdog/enable` | Enable the watchdog | Existing: `msc config watchdog-enable` | `settings` | active server / capability |
@@ -199,9 +199,9 @@ For each user task, terminal output must identify the target and result; `--json
 | POST `/v1/allowlist` | Add or remove a Bedrock allowlist entry | Existing: `msc bedrock allowlist` | `players` | active server / capability; Bedrock |
 | GET `/v1/players` | List currently-online players | `msc player online` | `none` | active server / capability |
 | POST `/v1/players/action` | Send a typed player message, kick, ban/pardon, operator, or Java whitelist action | `msc player message/kick/ban/pardon/op/deop/whitelist` | `players` | active server / capability; running server required; Bedrock runtime required for live actions; Java only for whitelist |
-| POST `/v1/players/skin-override` | Set or clear a manual skin lookup override for a player | Owner review: no CLI command found | `players` | active server / capability |
-| POST `/v1/players/hidden` | Hide or unhide a player profile | Owner review: no CLI command found | `players` | active server / capability |
-| POST `/v1/players/identify` | Assign a gamertag to an unresolved Bedrock profile | Owner review: no CLI command found | `players` | active server / capability; Bedrock |
+| POST `/v1/players/skin-override` | Set or clear a manual skin lookup override for a player | Existing: `msc player skin-override <profile-id> [--lookup-identifier value]` | `players` | active server / capability |
+| POST `/v1/players/hidden` | Hide or unhide a player profile | Existing: `msc player hide <profile-id> --hidden true|false` | `players` | active server / capability |
+| POST `/v1/players/identify` | Assign a gamertag to an unresolved Bedrock profile | Existing: `msc player identify <profile-id> <gamertag>` | `players` | active server / capability; Bedrock |
 | GET `/v1/players/profiles` | List all-time player profiles with stats | `msc player profiles` | `none` | active server / capability |
 | POST `/v1/players/delete` | Delete a player's data | `msc player data delete` | `players` | active server / capability; explicit `--confirm`; Bedrock server must be stopped |
 | POST `/v1/players/migrate-offline` | Migrate player data to its offline UUID | `msc player data migrate-offline` | `players` | active server / capability; Java only; explicit `--confirm` |
@@ -217,7 +217,7 @@ For each user task, terminal output must identify the target and result; `--json
 | GET `/v1/performance` | Latest performance snapshot (TPS, players, CPU, RAM, world size) | Existing: `msc metrics` | `none` | active server / capability |
 | POST `/v1/active-server` | Select which registered server is active | Existing: `msc server use` | `serverControl` | host |
 | GET `/v1/session-log` | Join/leave event history for the active server | Existing: `msc sessions` | `none` | active server / capability |
-| POST `/v1/session-log/clear` | Clear join/leave event history for the active server | Owner review: no CLI command found | `players` | active server / capability |
+| POST `/v1/session-log/clear` | Clear join/leave event history for the active server | Existing: `msc clear-sessions` | `players` | active server / capability |
 | GET `/v1/console/tail` | Last N console lines; hideAuto defaults to true and prevents automatic output from being sent to the client | Existing: `msc console tail` | `none` | active server / capability |
 | POST `/v1/console/stream-ticket` | Create a short-lived console WebSocket ticket | Internal — desktop WebSocket ticket | `none` | active server / capability |
 | GET `/v1/components` | Installed system components (Paper/Geyser/Floodgate/flavor jar) and update status | Existing: `msc components` | `none` | active server / capability |

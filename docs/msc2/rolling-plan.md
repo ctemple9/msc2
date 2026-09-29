@@ -300,7 +300,8 @@ exceptions and the resulting inventory in the decision register and gate.
 
 ### P17.26 — Complete player and pack maintenance commands
 
-- **Status:** PLANNED
+- **Status:** IMPLEMENTED — awaiting Cameron verification
+- **Commit:** P17.26: add player and pack maintenance commands
 - **Files:** `crates/msc-agent/src/cli/mod.rs`, `docs/msc2/clients/phase17-cli.md`, `docs/msc2/rolling-plan.md`
 - **What:** Add task commands for player skin overrides, profile hiding, unresolved Bedrock-player identification, session-history clearing, Geyser resource-pack toggles, and clearing Xbox Broadcast credentials. Preserve existing role and edition checks, operation/confirmation behavior, and JSON results; use server IDs where required and never put account secrets in arguments.
 - **Verify:** `cargo check -p msc-agent`

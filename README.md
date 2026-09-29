@@ -88,12 +88,25 @@ That means you can run a world for a group where one person plays Java on a
 computer, someone else plays Bedrock on an Xbox, and someone else joins from a
 Switch. 
 
+### Manages players
+
+MSC 2 shows who is online and lets you see returning players' profiles,
+including their last visit, stats, and inventory when the server provides
+that information. You can message players, kick or ban them, manage operator
+access, and control who can join with a whitelist or allowlist.
+
+You can also duplicate or delete saved player data. For Java players, MSC 2
+can move that data to an offline or specified player ID when an account or
+server setup changes. The available actions depend on the server edition;
+Bedrock player data must be changed while the server is stopped.
+
 ### Keeps your worlds safe
 
 MSC 2 treats worlds as something you manage, not just folders on a disk. You
-can create, import, duplicate, rename, activate, export, repair, and remove
-worlds. It can also convert worlds between Java and Bedrock where supported
-with Chunker, in app.
+can keep multiple worlds for a server and switch which one is active. Create,
+import, duplicate, rename, export, repair, or remove a world from the app. Each
+world keeps its own gameplay and generation settings when you switch. MSC 2
+can also convert worlds between Java and Bedrock where supported with Chunker.
 
 Backups can run manually, on a schedule, or before risky changes. MSC 2 does
 not call a backup successful until it has finished writing and passed its
@@ -156,7 +169,7 @@ MSC 2 has one part that runs your servers and several ways to control it.
 - **The desktop app** gives you a graphical interface on the same computer or
   another computer.
 - **The CLI** gives you a scriptable terminal interface when you want
-  automation or prefer the command line.
+  automation or prefer the command line. Limited functions for now.
 
 The server keeps running when you close the desktop app or sign out. The app
 is a control panel; it is not the thing keeping Minecraft alive.

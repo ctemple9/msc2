@@ -148,6 +148,9 @@ blocks and ID `188` in 398,332. The private regenerated tile is at
 records `lastOpenedWithVersion` `[1,26,31,1,0]` and storage version `10`.
 Neither field resolves a numeric biome ID to a name. The bounded color
 mapping remains provisional until a version-aware registry is established.
+The source and exact-version gap are recorded in
+`docs/msc2/bedrock-biome-registry.md`. The exporter labels its current mapping
+as provisional in `summary.txt`.
 
 Surface biome IDs `27` and `155` occur in 1,922 and 2,174 columns. This
 bounded proof assumes their legacy mapping to birch forest and its mutated

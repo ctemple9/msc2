@@ -798,6 +798,10 @@ pub fn render(
         )?;
     }
     writeln!(summary, "fallback blocks: {:?}", textures.fallback_blocks)?;
+    writeln!(
+        summary,
+        "biome ID mapping: provisional; no exact-version registry supplied"
+    )?;
     writeln!(summary, "surface biome IDs by column: {biome_counts:?}")?;
     writeln!(
         summary,

@@ -472,7 +472,9 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2a — Correct the visible BDS terrain proof
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Visual verification failed — Cameron's 2026-09-29 screenshots
+  showed grass fringe below dirt, upside-looking plants, holes through the
+  terrain, and trees without visible logs; P18.2b follows
 - **Files:** `tools/world-map-proof/src/render.rs`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
 - **What:** Respond to Cameron's P18.2 screenshots. Apply the Bedrock resource
@@ -491,3 +493,24 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Verify:** `cd /Users/camerontemple/msc2-world-map/tools/world-map-proof/viewer && MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-world-map-output npm run dev` — reload the viewer and compare with Cameron's P18.2 screenshot: grass/foliage should no longer be grey, buried-face spikes should be reduced, and shore water should be more continuous. Orbit and zoom to find remaining holes. This advances the visible Bedrock exploration promise; the next candidate is actual biome tint and full surface fidelity with a representative stairs/glass area before live-world reads.
 - **Batch:** solo — correct the failed visual proof
 - **Commit:** P18.2a: correct the visible bds terrain proof
+
+### P18.2b — Restore Bedrock block depth and texture orientation
+
+- **Status:** Awaiting Cameron verification
+- **Files:** `tools/world-map-proof/src/render.rs`,
+  `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Address Cameron's second visual check. Read every block in the
+  bounded 4×4 area instead of keeping only the top block of each column;
+  emit exposed faces of solid blocks, tree logs, foliage, plants, and water.
+  Flip decoded texture rows for Vantage's WebGL texture array so grass-side
+  fringe and plant artwork appear upright. Keep this an offline proof.
+- **Result:** The regenerated private tile has 67,266 solid faces, 1,596 water
+  faces, 53 texture layers, zero texture fallback faces, 25 log blocks and
+  zero missing-shape blocks. Export took 2.24 seconds with a 57 MB peak RSS
+  on the local copy. These counts show that logs and below-canopy geometry
+  reach the tile; Cameron's visual check is still needed to confirm appearance.
+  Exact biome tint, complex block behavior, safe running-world snapshots,
+  in-window controls and live player movement remain open.
+- **Verify:** `cd /Users/camerontemple/msc2-world-map/tools/world-map-proof/viewer && MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-world-map-output npm run dev` — reload the viewer and orbit above and below the same terrain. Confirm the grass-side green fringe sits at the *top* of dirt sides, plants stand upright, logs are visible beneath leaves, and the large sky holes from P18.2a are filled by actual lower blocks. This advances the visible Bedrock exploration promise. If it passes, the next candidate proof is a representative area containing stairs and glass plus actual biome tint; if it fails, correct the observed geometry or texture defect first.
+- **Batch:** solo — correct the failed visual proof
+- **Commit:** P18.2b: restore bds block depth and texture orientation

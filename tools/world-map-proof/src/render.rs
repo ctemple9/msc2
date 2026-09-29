@@ -1,21 +1,61 @@
 use bedrock_block_model::{
-    BlockFace, BlockStateQuery, BlockStateValue, ObjTextureResolver, model_shape_for_block_state,
+    BlockFace, BlockStateQuery, BlockStateValue, ModelShape, ObjTextureResolver,
+    is_full_opaque_block, model_shape_for_block_state,
 };
-use bedrock_world::{BedrockWorld, BlockState, ChunkPos, Dimension, NbtTag};
+use bedrock_world::{BedrockWorld, BlockState, ChunkPos, Dimension, NbtTag, SubChunkFormat};
 use image::{DynamicImage, GenericImageView, imageops::FilterType};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
 const SIDE: usize = 64;
+const MIN_Y: i32 = -64;
+const MAX_Y: i32 = 320;
 
-#[derive(Clone, Default)]
-struct Column {
-    solid: Option<(i32, BlockState)>,
-    water: Option<i32>,
-    plant: Option<(i32, BlockState)>,
+struct Grid {
+    blocks: Vec<u16>,
+    states: Vec<BlockState>,
+}
+
+impl Grid {
+    fn new() -> Self {
+        Self {
+            blocks: vec![0; SIDE * SIDE * (MAX_Y - MIN_Y) as usize],
+            states: vec![BlockState {
+                name: "minecraft:air".into(),
+                states: BTreeMap::new(),
+                version: None,
+            }],
+        }
+    }
+
+    fn index(x: usize, y: i32, z: usize) -> usize {
+        (y - MIN_Y) as usize * SIDE * SIDE + z * SIDE + x
+    }
+
+    fn get(&self, x: i32, y: i32, z: i32) -> u16 {
+        if !(0..SIDE as i32).contains(&x)
+            || !(MIN_Y..MAX_Y).contains(&y)
+            || !(0..SIDE as i32).contains(&z)
+        {
+            return 0;
+        }
+        self.blocks[Self::index(x as usize, y, z as usize)]
+    }
+
+    fn state_id(&mut self, state: &BlockState) -> u16 {
+        if state.name.ends_with(":air") {
+            return 0;
+        }
+        if let Some(index) = self.states.iter().position(|old| old == state) {
+            return index as u16;
+        }
+        let index = self.states.len() as u16;
+        self.states.push(state.clone());
+        index
+    }
 }
 
 #[derive(Default)]
@@ -153,7 +193,12 @@ impl Textures {
         let rgba =
             DynamicImage::ImageRgba8(frame.resize_exact(16, 16, FilterType::Nearest).to_rgba8())
                 .to_rgba8();
-        self.pixels.extend(rgba.as_raw());
+        // Image decoders return the top row first; WebGL texture arrays consume
+        // the bottom row first. This placed Bedrock grass-side fringe below dirt.
+        for row in (0..16).rev() {
+            let start = row * 16 * 4;
+            self.pixels.extend(&rgba.as_raw()[start..start + 16 * 4]);
+        }
         self.layers.insert(texture.source_path, index);
         index
     }
@@ -200,15 +245,6 @@ fn query(state: &BlockState) -> BlockStateQuery {
     result
 }
 
-fn is_plant(name: &str) -> bool {
-    name.contains("short_grass")
-        || name.contains("tall_grass")
-        || name.contains("flower")
-        || name.contains("seagrass")
-        || name.contains("fern")
-        || name.contains("sapling")
-}
-
 fn face(
     mesh: &mut Mesh,
     textures: &mut Textures,
@@ -253,79 +289,8 @@ fn face(
     );
 }
 
-fn block_mesh(
-    mesh: &mut Mesh,
-    textures: &mut Textures,
-    state: &BlockState,
-    x: f32,
-    y: f32,
-    z: f32,
-    neighbors: [Option<i32>; 4],
-) -> bool {
-    let shape = model_shape_for_block_state(&query(state));
-    let Some(shape) = shape else {
-        return false;
-    };
-    if shape.is_empty() {
-        return false;
-    }
-    for cuboid in shape.cuboids {
-        for side in [
-            BlockFace::Up,
-            BlockFace::Down,
-            BlockFace::North,
-            BlockFace::South,
-            BlockFace::East,
-            BlockFace::West,
-        ] {
-            if side == BlockFace::Down {
-                continue;
-            }
-            let adjacent = match side {
-                BlockFace::North => neighbors[0],
-                BlockFace::South => neighbors[1],
-                BlockFace::East => neighbors[2],
-                BlockFace::West => neighbors[3],
-                _ => None,
-            };
-            if adjacent.is_some_and(|height| height >= y as i32) {
-                continue;
-            }
-            face(
-                mesh,
-                textures,
-                &state.name,
-                [x, y, z],
-                cuboid.min,
-                cuboid.max,
-                side,
-            );
-        }
-    }
-    for plane in shape.planes {
-        let corners = plane.corners.map(|p| [x + p[0], y + p[1], z + p[2]]);
-        let layer = textures.layer(&state.name, plane.normal);
-        let tint = textures.tint(&state.name, plane.normal);
-        mesh.quad(
-            corners,
-            plane.normal,
-            plane
-                .uv
-                .unwrap_or([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]),
-            layer,
-            tint,
-        );
-    }
-    true
-}
-
-pub fn render(
-    world: &BedrockWorld,
-    anchor: (i32, i32),
-    pack: &Path,
-    output: &Path,
-) -> Result<(), Box<dyn Error>> {
-    let mut columns = vec![Column::default(); SIDE * SIDE];
+fn read_grid(world: &BedrockWorld, anchor: (i32, i32)) -> Result<Grid, Box<dyn Error>> {
+    let mut grid = Grid::new();
     for cz in 0..4 {
         for cx in 0..4 {
             let pos = ChunkPos {
@@ -338,133 +303,206 @@ pub fn render(
                 let Some(subchunk) = chunk.get_subchunk(sy)? else {
                     continue;
                 };
+                let SubChunkFormat::Paletted { ref storages, .. } = subchunk.format else {
+                    continue;
+                };
+                let mut local_ids = HashMap::<usize, u16>::new();
+                for storage in storages {
+                    for state in &storage.states {
+                        local_ids.insert(state as *const BlockState as usize, grid.state_id(state));
+                    }
+                }
                 for ly in 0..16u8 {
                     for lz in 0..16u8 {
                         for lx in 0..16u8 {
                             let Some(state) = subchunk.visible_block_state_at(lx, ly, lz) else {
                                 continue;
                             };
-                            if state.name.ends_with(":air") {
+                            let Some(&id) = local_ids.get(&(state as *const BlockState as usize))
+                            else {
                                 continue;
-                            }
+                            };
                             let x = cx as usize * 16 + lx as usize;
                             let z = cz as usize * 16 + lz as usize;
                             let y = i32::from(sy) * 16 + i32::from(ly);
-                            let column = &mut columns[z * SIDE + x];
-                            if state.name.contains("water") {
-                                column.water = Some(y);
-                            } else if is_plant(&state.name) {
-                                column.plant = Some((y, state.clone()));
-                            } else {
-                                column.solid = Some((y, state.clone()));
-                            }
+                            grid.blocks[Grid::index(x, y, z)] = id;
                         }
                     }
                 }
             }
         }
     }
+    Ok(grid)
+}
+
+fn neighbor(x: i32, y: i32, z: i32, side: BlockFace) -> (i32, i32, i32) {
+    match side {
+        BlockFace::Up => (x, y + 1, z),
+        BlockFace::Down => (x, y - 1, z),
+        BlockFace::North => (x, y, z - 1),
+        BlockFace::South => (x, y, z + 1),
+        BlockFace::East => (x + 1, y, z),
+        BlockFace::West => (x - 1, y, z),
+        _ => (x, y, z),
+    }
+}
+
+fn is_water(name: &str) -> bool {
+    name == "minecraft:water" || name == "minecraft:flowing_water"
+}
+fn is_leaf(name: &str) -> bool {
+    name.contains("leaves") || name.contains("leaf")
+}
+
+fn face_hidden(grid: &Grid, id: u16, x: i32, y: i32, z: i32, side: BlockFace) -> bool {
+    let (nx, ny, nz) = neighbor(x, y, z, side);
+    let other = grid.get(nx, ny, nz);
+    if other == 0 {
+        return false;
+    }
+    let other_name = &grid.states[other as usize].name;
+    let name = &grid.states[id as usize].name;
+    is_full_opaque_block(other_name)
+        || is_water(name) && is_water(other_name)
+        || is_leaf(name) && is_leaf(other_name)
+}
+
+fn on_boundary(min: [f32; 3], max: [f32; 3], side: BlockFace) -> bool {
+    match side {
+        BlockFace::Up => max[1] >= 0.999,
+        BlockFace::Down => min[1] <= 0.001,
+        BlockFace::North => min[2] <= 0.001,
+        BlockFace::South => max[2] >= 0.999,
+        BlockFace::East => max[0] >= 0.999,
+        BlockFace::West => min[0] <= 0.001,
+        _ => false,
+    }
+}
+
+fn emit_plane(
+    mesh: &mut Mesh,
+    textures: &mut Textures,
+    name: &str,
+    origin: [f32; 3],
+    corners: [[f32; 3]; 4],
+    normal: [i32; 3],
+    uv: [[f32; 2]; 4],
+) {
+    let points = corners.map(|p| [origin[0] + p[0], origin[1] + p[1], origin[2] + p[2]]);
+    let layer = textures.layer(name, normal);
+    let tint = textures.tint(name, normal);
+    mesh.quad(points, normal, uv, layer, tint);
+    // Cross plants need to be visible from either side of their plane.
+    let back = [points[0], points[3], points[2], points[1]];
+    mesh.quad(
+        back,
+        [-normal[0], -normal[1], -normal[2]],
+        [uv[0], uv[3], uv[2], uv[1]],
+        layer,
+        tint,
+    );
+}
+
+pub fn render(
+    world: &BedrockWorld,
+    anchor: (i32, i32),
+    pack: &Path,
+    output: &Path,
+) -> Result<(), Box<dyn Error>> {
+    let grid = read_grid(world, anchor)?;
+    let shapes: Vec<Option<ModelShape>> = grid
+        .states
+        .iter()
+        .map(|state| model_shape_for_block_state(&query(state)))
+        .collect();
     let mut solid = Mesh::default();
     let mut fluid = Mesh::default();
     let mut textures = Textures::new(pack);
     let mut missing_shapes = BTreeMap::<String, usize>::new();
-    for z in 0..SIDE {
-        for x in 0..SIDE {
-            let column = &columns[z * SIDE + x];
-            let adjacent = [
-                z.checked_sub(1)
-                    .and_then(|nz| columns[nz * SIDE + x].solid.as_ref().map(|(y, _)| *y)),
-                (z + 1 < SIDE)
-                    .then(|| columns[(z + 1) * SIDE + x].solid.as_ref().map(|(y, _)| *y))
-                    .flatten(),
-                (x + 1 < SIDE)
-                    .then(|| columns[z * SIDE + x + 1].solid.as_ref().map(|(y, _)| *y))
-                    .flatten(),
-                x.checked_sub(1)
-                    .and_then(|nx| columns[z * SIDE + nx].solid.as_ref().map(|(y, _)| *y)),
-            ];
-            let wx = (anchor.0 * 16 + x as i32) as f32;
-            let wz = (anchor.1 * 16 + z as i32) as f32;
-            if let Some((y, state)) = &column.solid
-                && !block_mesh(
-                    &mut solid,
-                    &mut textures,
-                    state,
-                    wx,
-                    *y as f32,
-                    wz,
-                    adjacent,
-                )
-            {
-                *missing_shapes.entry(state.name.clone()).or_default() += 1;
-            }
-            if let Some((y, state)) = &column.plant
-                && !block_mesh(
-                    &mut solid,
-                    &mut textures,
-                    state,
-                    wx,
-                    *y as f32,
-                    wz,
-                    adjacent,
-                )
-            {
-                *missing_shapes.entry(state.name.clone()).or_default() += 1;
-            }
-            if let Some(y) = column.water
-                && column.solid.as_ref().is_none_or(|(sy, _)| y > *sy)
-            {
-                let water_origin = [wx, y as f32, wz];
-                face(
-                    &mut fluid,
-                    &mut textures,
-                    "minecraft:water",
-                    water_origin,
-                    [0.0, 0.0, 0.0],
-                    [1.0, 0.9, 1.0],
-                    BlockFace::Up,
-                );
-                for (side, next) in [
-                    (
+    let mut drawn_logs = 0usize;
+    for y in MIN_Y..MAX_Y {
+        for z in 0..SIDE as i32 {
+            for x in 0..SIDE as i32 {
+                let id = grid.get(x, y, z);
+                if id == 0 {
+                    continue;
+                }
+                let state = &grid.states[id as usize];
+                let origin = [
+                    (anchor.0 * 16 + x) as f32,
+                    y as f32,
+                    (anchor.1 * 16 + z) as f32,
+                ];
+                if is_water(&state.name) {
+                    for side in [
+                        BlockFace::Up,
                         BlockFace::North,
-                        z.checked_sub(1).map(|nz| &columns[nz * SIDE + x]),
-                    ),
-                    (
                         BlockFace::South,
-                        (z + 1 < SIDE).then(|| &columns[(z + 1) * SIDE + x]),
-                    ),
-                    (
                         BlockFace::East,
-                        (x + 1 < SIDE).then(|| &columns[z * SIDE + x + 1]),
-                    ),
-                    (
                         BlockFace::West,
-                        x.checked_sub(1).map(|nx| &columns[z * SIDE + nx]),
-                    ),
-                ] {
-                    let neighbor_water = next.and_then(|c| c.water);
-                    if neighbor_water.is_some_and(|height| height >= y) {
-                        continue;
+                    ] {
+                        if face_hidden(&grid, id, x, y, z, side) {
+                            continue;
+                        }
+                        face(
+                            &mut fluid,
+                            &mut textures,
+                            &state.name,
+                            origin,
+                            [0.0, 0.0, 0.0],
+                            [1.0, 0.9, 1.0],
+                            side,
+                        );
                     }
-                    let neighbor_solid =
-                        next.and_then(|c| c.solid.as_ref().map(|(height, _)| *height));
-                    let own_solid = column.solid.as_ref().map(|(height, _)| *height);
-                    let floor = [neighbor_water, neighbor_solid, own_solid]
-                        .into_iter()
-                        .flatten()
-                        .max()
-                        .unwrap_or(y - 1);
-                    if floor >= y {
-                        continue;
+                    continue;
+                }
+                let Some(shape) = &shapes[id as usize] else {
+                    *missing_shapes.entry(state.name.clone()).or_default() += 1;
+                    continue;
+                };
+                if shape.is_empty() {
+                    *missing_shapes.entry(state.name.clone()).or_default() += 1;
+                    continue;
+                }
+                if state.name.contains("_log") || state.name.ends_with(":log") {
+                    drawn_logs += 1;
+                }
+                for cuboid in &shape.cuboids {
+                    for side in [
+                        BlockFace::Up,
+                        BlockFace::Down,
+                        BlockFace::North,
+                        BlockFace::South,
+                        BlockFace::East,
+                        BlockFace::West,
+                    ] {
+                        if on_boundary(cuboid.min, cuboid.max, side)
+                            && face_hidden(&grid, id, x, y, z, side)
+                        {
+                            continue;
+                        }
+                        face(
+                            &mut solid,
+                            &mut textures,
+                            &state.name,
+                            origin,
+                            cuboid.min,
+                            cuboid.max,
+                            side,
+                        );
                     }
-                    face(
-                        &mut fluid,
+                }
+                for plane in &shape.planes {
+                    emit_plane(
+                        &mut solid,
                         &mut textures,
-                        "minecraft:water",
-                        water_origin,
-                        [0.0, (floor + 1 - y) as f32, 0.0],
-                        [1.0, 0.9, 1.0],
-                        side,
+                        &state.name,
+                        origin,
+                        plane.corners,
+                        plane.normal,
+                        plane
+                            .uv
+                            .unwrap_or([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]),
                     );
                 }
             }
@@ -489,19 +527,21 @@ pub fn render(
     )?;
     writeln!(
         summary,
-        "solid faces: {}, water faces: {}, textures: {}, fallback faces: {}",
+        "solid faces: {}, water faces: {}, textures: {}, fallback faces: {}, log blocks: {}",
         solid.indices.len() / 6,
         fluid.indices.len() / 6,
         textures.layers.len(),
-        textures.fallback
+        textures.fallback,
+        drawn_logs
     )?;
     writeln!(summary, "missing shape blocks: {missing_shapes:?}")?;
     println!(
-        "render: {} solid faces, {} water faces, {} textures, {} fallback faces",
+        "render: {} solid faces, {} water faces, {} textures, {} fallback faces, {} log blocks",
         solid.indices.len() / 6,
         fluid.indices.len() / 6,
         textures.layers.len(),
-        textures.fallback
+        textures.fallback,
+        drawn_logs
     );
     println!("missing shape blocks: {missing_shapes:?}");
     Ok(())

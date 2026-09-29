@@ -51,6 +51,20 @@ their existing privilege boundary. P17.7 supplies the CLI client for this
 exchange; a local or SSH shell running as the installing user will use the
 same socket.
 
+### macOS exchange (P17.5)
+
+The macOS LaunchDaemon also runs as the installing user. It binds the same
+`local-cli.sock` name inside that account's MSC data directory, restricts the
+directory to mode 0700 and the socket to 0600, and removes a stale socket only
+when it is a socket owned by that account. For each connection, macOS
+`getpeereid` supplies the kernel-attached peer UID; the agent compares it with
+its effective UID before issuing the same five-minute in-memory API
+credential. A local terminal or SSH login as the installing user works, while
+another account and root are refused. This listener does not read or use the
+desktop bootstrap key, signed-code requirement, or bootstrap socket. Its data
+directory stays in the account's application-support area, outside
+user-selected folders that require macOS privacy consent.
+
 `msc start agent`, `msc stop agent`, and `msc status agent` control the installed local service while the API is down. Installation enables startup at boot. A routine stop holds until explicit start or the next boot; only an explicit disable changes future startup. Minecraft server start/stop are separate operations. Desktop and headless packages own the command on PATH.
 
 Catalog installs follow search → inspect compatible versions and dependencies → confirm → install. CurseForge modpacks begin with a local `.zip`; the agent downloads permitted manifest files and reports author-blocked files for manual supply. `msc command` is the sole raw Minecraft command path. All task commands keep human-readable output and `--json` for scripting. Destructive tasks require explicit confirmation. The route inventory below is completed in P17.2.

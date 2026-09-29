@@ -110,7 +110,7 @@ remains separate. No release publication or CI gate is implied.
 
 ### P17.5 — Implement macOS local authentication
 
-- **Status:** PLANNED
+- **Status:** IMPLEMENTED — awaiting Cameron verification
 - **Files:** `crates/msc-agent/src/auth/`, `crates/msc-platform-macos/src/`, `packaging/macos/`
 - **What:** Verify the local or SSH-shell OS peer identity without a GUI login. Keep CLI access distinct from the desktop's signed-package bootstrap key and preserve service-account and macOS consent boundaries.
 - **Verify:** `cargo check -p msc-agent -p msc-platform-macos --target x86_64-apple-darwin`

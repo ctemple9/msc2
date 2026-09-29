@@ -158,7 +158,7 @@ async fn run_service_with_shutdown(
     }
     #[cfg(target_os = "macos")]
     auth::spawn_local_bootstrap(auth_state.clone());
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     auth::start_local_cli(auth_state.clone())
         .await
         .map_err(cli::CliError::internal)?;

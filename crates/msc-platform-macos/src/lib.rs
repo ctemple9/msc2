@@ -4,6 +4,8 @@
 //! (`msc2-engineering.md` §6's remaining macOS item) stays Phase 10.
 
 #[cfg(target_os = "macos")]
+pub mod local_cli;
+#[cfg(target_os = "macos")]
 pub mod power;
 #[cfg(target_os = "macos")]
 pub mod process;

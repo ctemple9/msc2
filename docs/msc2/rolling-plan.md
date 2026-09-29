@@ -185,8 +185,8 @@ remains separate. No release publication or CI gate is implied.
 
 ### P17.14 — Add player inspection and moderation
 
-- **Status:** PLANNED
-- **Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/routes/players.rs`
+- **Status:** IMPLEMENTED — awaiting Cameron verification
+- **Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/routes/players.rs`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/clients/phase17-cli.md`
 - **What:** Show online and known players, then expose message, kick, ban/pardon, operator, Java whitelist, and Bedrock allowlist tasks using existing permissions and capabilities. Leave other Minecraft commands to raw `msc command`.
 - **Verify:** `cargo check -p msc-agent`
 - **Batch:** D (P17.11–P17.15) — core administration

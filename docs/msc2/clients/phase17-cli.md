@@ -165,11 +165,12 @@ For each user task, terminal output must identify the target and result; `--json
 | POST `/v1/stop` | Stop the active server | Existing: `msc server stop` | `serverControl` | active server / capability |
 | GET `/v1/allowlist` | Get the Bedrock allowlist | Existing: `msc bedrock allowlist` | `none` | active server / capability; Bedrock |
 | POST `/v1/allowlist` | Add or remove a Bedrock allowlist entry | Existing: `msc bedrock allowlist` | `players` | active server / capability; Bedrock |
-| GET `/v1/players` | List currently-online players | Missing: P17 task command | `none` | active server / capability |
+| GET `/v1/players` | List currently-online players | `msc player online` | `none` | active server / capability |
+| POST `/v1/players/action` | Send a typed player message, kick, ban/pardon, operator, or Java whitelist action | `msc player message/kick/ban/pardon/op/deop/whitelist` | `players` | active server / capability; running server required; Bedrock runtime required for live actions; Java only for whitelist |
 | POST `/v1/players/skin-override` | Set or clear a manual skin lookup override for a player | Missing: P17 task command | `players` | active server / capability |
 | POST `/v1/players/hidden` | Hide or unhide a player profile | Missing: P17 task command | `players` | active server / capability |
 | POST `/v1/players/identify` | Assign a gamertag to an unresolved Bedrock profile | Missing: P17 task command | `players` | active server / capability; Bedrock |
-| GET `/v1/players/profiles` | List all-time player profiles with stats | Missing: P17 task command | `none` | active server / capability |
+| GET `/v1/players/profiles` | List all-time player profiles with stats | `msc player profiles` | `none` | active server / capability |
 | POST `/v1/players/delete` | Delete a player's data | Missing: P17 task command | `players` | active server / capability |
 | POST `/v1/players/migrate-offline` | Migrate player data to its offline UUID | Missing: P17 task command | `players` | active server / capability |
 | POST `/v1/players/migrate` | Migrate player data to a custom UUID | Missing: P17 task command | `players` | active server / capability |

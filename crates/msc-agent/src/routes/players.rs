@@ -35,11 +35,154 @@ pub fn router(state: LifecycleRoutesState) -> Router {
     Router::new()
         .route("/players", get(players))
         .route("/players/profiles", get(profiles))
+        .route("/players/action", post(player_action))
         .route("/players/{profile_id}/skin", get(skin))
         .route("/players/hidden", post(mutate_hidden))
         .route("/players/skin-override", post(mutate_skin_override))
         .route("/players/identify", post(mutate_identify))
         .with_state(state)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct PlayerActionRequestDto {
+    action: String,
+    player: String,
+    message: Option<String>,
+    reason: Option<String>,
+    expected_active_server_id: Option<String>,
+}
+
+pub async fn player_action(
+    State(state): State<LifecycleRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    body: Result<Json<PlayerActionRequestDto>, JsonRejection>,
+) -> Response {
+    if let Some(response) =
+        require_permission(&credential, msc_api::dto::PermissionCategoryDto::Players)
+    {
+        return response;
+    }
+    let Json(request) = match body {
+        Ok(body) => body,
+        Err(_) => {
+            return invalid_body(
+                "invalid_body",
+                "Request body must be a player action object.",
+            );
+        }
+    };
+    let player = request.player.trim();
+    if player.is_empty() || player.chars().any(char::is_control) {
+        return invalid_body(
+            "invalid_player",
+            "Player name must be present and cannot contain control characters.",
+        );
+    }
+    let Some(server) = state.active_config_server() else {
+        return error_response(
+            StatusCode::CONFLICT,
+            "no_active_server",
+            "No server is currently active.",
+        );
+    };
+    if !state.status_snapshot().running {
+        return error_response(
+            StatusCode::CONFLICT,
+            "server_not_running",
+            "Player commands require a running server.",
+        );
+    }
+    let action = request.action.trim().to_ascii_lowercase();
+    if request
+        .message
+        .as_deref()
+        .into_iter()
+        .chain(request.reason.as_deref())
+        .any(|value| value.chars().any(char::is_control))
+    {
+        return invalid_body(
+            "invalid_player_action",
+            "Player message and reason cannot contain control characters.",
+        );
+    }
+    let player_argument = quote_minecraft_argument(player);
+    let command = match action.as_str() {
+        "message" => {
+            let message = request.message.unwrap_or_default();
+            let message = message.trim();
+            if message.is_empty() {
+                return invalid_body("missing_message", "A message is required.");
+            }
+            format!("tell {player_argument} {message}")
+        }
+        "kick" | "ban" => {
+            let reason = request.reason.unwrap_or_default();
+            let reason = reason.trim();
+            if reason.is_empty() {
+                format!("{action} {player_argument}")
+            } else {
+                format!("{action} {player_argument} {reason}")
+            }
+        }
+        "pardon" | "op" | "deop" => format!("{action} {player_argument}"),
+        "whitelist-add" | "whitelist-remove" if server.server_type == ServerType::Java => {
+            let operation = if action == "whitelist-add" {
+                "add"
+            } else {
+                "remove"
+            };
+            format!("whitelist {operation} {player_argument}")
+        }
+        "whitelist-add" | "whitelist-remove" => {
+            return error_response(
+                StatusCode::NOT_IMPLEMENTED,
+                "unsupported_for_edition",
+                "Java whitelist commands are not available for Bedrock; use the Bedrock allowlist command.",
+            );
+        }
+        _ => {
+            return invalid_body(
+                "invalid_player_action",
+                "Supported actions are message, kick, ban, pardon, op, deop, whitelist-add, and whitelist-remove.",
+            );
+        }
+    };
+    if request
+        .expected_active_server_id
+        .as_deref()
+        .is_some_and(|id| id != server.id)
+    {
+        return error_response(
+            StatusCode::CONFLICT,
+            "active_server_changed",
+            "The requested player action targets a server that is no longer active.",
+        );
+    }
+    let expected = Some(server.id.clone());
+    match state.with_expected_active_server(expected.as_deref(), || {
+        if server.server_type == ServerType::Bedrock {
+            if state.bedrock_runtime_state().state != "available" {
+                return error_response(StatusCode::CONFLICT, "capability_unavailable", "The Bedrock runtime cannot send player commands right now.");
+            }
+            match state.send_bedrock_command(&command) {
+                Ok(active_server_id) => Json(serde_json::json!({"success": true, "action": action, "player": player, "activeServerId": active_server_id, "runtime": state.bedrock_runtime_state()})).into_response(),
+                Err(error) => crate::routes::lifecycle::lifecycle_route_error_response(error),
+            }
+        } else {
+            match state.send_command(&command) {
+                Ok(active_server_id) => Json(serde_json::json!({"success": true, "action": action, "player": player, "activeServerId": active_server_id})).into_response(),
+                Err(error) => crate::routes::lifecycle::lifecycle_error_response(error),
+            }
+        }
+    }) {
+        Ok(response) => response,
+        Err(()) => error_response(StatusCode::CONFLICT, "active_server_changed", "The active server changed before the player action was sent."),
+    }
+}
+
+fn quote_minecraft_argument(value: &str) -> String {
+    format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -191,6 +191,11 @@ pub enum Command {
         #[command(subcommand)]
         command: BedrockCommand,
     },
+    /// Inspect players and perform supported moderation actions.
+    Player {
+        #[command(subcommand)]
+        command: PlayerCommand,
+    },
     /// List, mutate, or convert world slots on the active server.
     World {
         #[command(subcommand)]
@@ -761,6 +766,80 @@ pub enum BedrockAllowlistCommand {
 }
 
 #[derive(Debug, Clone, Subcommand)]
+pub enum PlayerCommand {
+    /// List players currently online.
+    Online {
+        #[arg(long)]
+        server: Option<String>,
+    },
+    /// List known player profiles without reading saved stats or inventory.
+    Profiles {
+        #[arg(long)]
+        server: Option<String>,
+    },
+    /// Send a private message to a player.
+    Message {
+        player: String,
+        message: String,
+        #[arg(long)]
+        server: Option<String>,
+    },
+    /// Disconnect a player, optionally with a reason.
+    Kick {
+        player: String,
+        #[arg(long)]
+        reason: Option<String>,
+        #[arg(long)]
+        server: Option<String>,
+    },
+    /// Ban a player, optionally with a reason.
+    Ban {
+        player: String,
+        #[arg(long)]
+        reason: Option<String>,
+        #[arg(long)]
+        server: Option<String>,
+    },
+    /// Remove a player's ban.
+    Pardon {
+        player: String,
+        #[arg(long)]
+        server: Option<String>,
+    },
+    /// Grant operator permission.
+    Op {
+        player: String,
+        #[arg(long)]
+        server: Option<String>,
+    },
+    /// Remove operator permission.
+    Deop {
+        player: String,
+        #[arg(long)]
+        server: Option<String>,
+    },
+    /// Change the Java whitelist.
+    Whitelist {
+        #[command(subcommand)]
+        command: PlayerWhitelistCommand,
+    },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum PlayerWhitelistCommand {
+    Add {
+        player: String,
+        #[arg(long)]
+        server: Option<String>,
+    },
+    Remove {
+        player: String,
+        #[arg(long)]
+        server: Option<String>,
+    },
+}
+
+#[derive(Debug, Clone, Subcommand)]
 pub enum WorldCommand {
     /// List world slots for the active server.
     List,
@@ -1077,6 +1156,7 @@ pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
         Command::Console { command } => run_console(common, command).await,
         Command::Settings { command } => run_settings(common, command).await,
         Command::Bedrock { command } => run_bedrock(common, command).await,
+        Command::Player { command } => run_player(common, command).await,
         Command::World { command } => run_world(common, command).await,
         Command::Backup { command } => run_backup(common, command).await,
         Command::Version { command } => run_version(common, command).await,
@@ -1129,6 +1209,231 @@ async fn run_bedrock(common: CommonArgs, command: BedrockCommand) -> Result<(), 
                 print_bedrock_json(&common, &result)?;
             }
         },
+    }
+    Ok(())
+}
+
+async fn run_player(common: CommonArgs, command: PlayerCommand) -> Result<(), CliError> {
+    let client = ApiClient::connect_local().await?;
+    match command {
+        PlayerCommand::Online { server } => {
+            select_player_server(&client, server.as_deref()).await?;
+            let value: serde_json::Value = client.get_json("/v1/players").await?;
+            if common.json {
+                print_json(&value)?;
+            } else if let Some(players) = value["players"].as_array() {
+                println!(
+                    "players online: {}",
+                    value["count"].as_u64().unwrap_or(players.len() as u64)
+                );
+                for player in players {
+                    println!("- {}", player["name"].as_str().unwrap_or("unknown"));
+                }
+                if let Some(note) = value["note"].as_str() {
+                    println!("note: {note}");
+                }
+            }
+        }
+        PlayerCommand::Profiles { server } => {
+            select_player_server(&client, server.as_deref()).await?;
+            let value: serde_json::Value = client.get_json("/v1/players/profiles").await?;
+            if common.json {
+                let profiles = value["profiles"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .map(|profile| {
+                        serde_json::json!({
+                            "id": profile["id"],
+                            "username": profile["username"],
+                            "isOnline": profile["isOnline"],
+                            "isOp": profile["isOp"],
+                            "lastSeen": profile["lastSeen"],
+                            "isBedrockPlayer": profile["isBedrockPlayer"],
+                            "isHidden": profile["isHidden"],
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                print_json(
+                    &serde_json::json!({"profiles": profiles, "isLoadingStats": value["isLoadingStats"]}),
+                )?;
+            } else if let Some(profiles) = value["profiles"].as_array() {
+                for profile in profiles {
+                    println!(
+                        "{}  {}{}{}",
+                        profile["username"].as_str().unwrap_or("unknown"),
+                        profile["id"].as_str().unwrap_or("?"),
+                        if profile["isOnline"].as_bool() == Some(true) {
+                            " [online]"
+                        } else {
+                            ""
+                        },
+                        if profile["isOp"].as_bool() == Some(true) {
+                            " [operator]"
+                        } else {
+                            ""
+                        }
+                    );
+                }
+                if profiles.is_empty() {
+                    println!("No known player profiles.");
+                }
+            }
+        }
+        PlayerCommand::Message {
+            player,
+            message,
+            server,
+        } => {
+            player_action(
+                &client,
+                common,
+                server.as_deref(),
+                "message",
+                &player,
+                Some(&message),
+                None,
+            )
+            .await?
+        }
+        PlayerCommand::Kick {
+            player,
+            reason,
+            server,
+        } => {
+            player_action(
+                &client,
+                common,
+                server.as_deref(),
+                "kick",
+                &player,
+                None,
+                reason.as_deref(),
+            )
+            .await?
+        }
+        PlayerCommand::Ban {
+            player,
+            reason,
+            server,
+        } => {
+            player_action(
+                &client,
+                common,
+                server.as_deref(),
+                "ban",
+                &player,
+                None,
+                reason.as_deref(),
+            )
+            .await?
+        }
+        PlayerCommand::Pardon { player, server } => {
+            player_action(
+                &client,
+                common,
+                server.as_deref(),
+                "pardon",
+                &player,
+                None,
+                None,
+            )
+            .await?
+        }
+        PlayerCommand::Op { player, server } => {
+            player_action(
+                &client,
+                common,
+                server.as_deref(),
+                "op",
+                &player,
+                None,
+                None,
+            )
+            .await?
+        }
+        PlayerCommand::Deop { player, server } => {
+            player_action(
+                &client,
+                common,
+                server.as_deref(),
+                "deop",
+                &player,
+                None,
+                None,
+            )
+            .await?
+        }
+        PlayerCommand::Whitelist { command } => match command {
+            PlayerWhitelistCommand::Add { player, server } => {
+                player_action(
+                    &client,
+                    common,
+                    server.as_deref(),
+                    "whitelist-add",
+                    &player,
+                    None,
+                    None,
+                )
+                .await?
+            }
+            PlayerWhitelistCommand::Remove { player, server } => {
+                player_action(
+                    &client,
+                    common,
+                    server.as_deref(),
+                    "whitelist-remove",
+                    &player,
+                    None,
+                    None,
+                )
+                .await?
+            }
+        },
+    }
+    Ok(())
+}
+
+async fn select_player_server(
+    client: &ApiClient,
+    selector: Option<&str>,
+) -> Result<ServerDto, CliError> {
+    if let Some(selector) = selector {
+        return ensure_active_server(client, Some(selector)).await;
+    }
+    let status: RemoteApiStatus = client.get_json("/v1/status").await?;
+    let id = status
+        .active_server_id
+        .ok_or_else(|| CliError::usage("no active server; pass --server"))?;
+    resolve_server(client, &id).await
+}
+
+async fn player_action(
+    client: &ApiClient,
+    common: CommonArgs,
+    server: Option<&str>,
+    action: &str,
+    player: &str,
+    message: Option<&str>,
+    reason: Option<&str>,
+) -> Result<(), CliError> {
+    let selected = select_player_server(client, server).await?;
+    let result: serde_json::Value = client
+        .post_json(
+            "/v1/players/action",
+            &serde_json::json!({
+                "action": action,
+                "player": player,
+                "message": message,
+                "reason": reason,
+                "expectedActiveServerId": selected.id,
+            }),
+        )
+        .await?;
+    if common.json {
+        print_json(&result)?;
+    } else {
+        println!("{} {} on {}", action, player, selected.name);
     }
     Ok(())
 }

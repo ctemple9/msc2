@@ -3532,6 +3532,38 @@
         "x-permission-category": "none"
       }
     },
+    "/v1/players/action": {
+      "post": {
+        "summary": "Perform a supported player moderation action",
+        "description": "Dispatches a typed message, kick, ban, pardon, operator, deoperator, or Java whitelist action against the currently active server. Player names are quoted for the Minecraft command parser; line breaks are rejected. Bedrock actions require an available runtime, and Bedrock allowlist edits remain on POST /v1/allowlist.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["action", "player"],
+                "properties": {
+                  "action": {"type": "string", "enum": ["message", "kick", "ban", "pardon", "op", "deop", "whitelist-add", "whitelist-remove"]},
+                  "player": {"type": "string", "minLength": 1},
+                  "message": {"type": "string"},
+                  "reason": {"type": "string"},
+                  "expectedActiveServerId": {"type": "string"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Player action sent", "content": {"application/json": {"schema": {"type": "object", "required": ["success", "action", "player"], "properties": {"success": {"type": "boolean"}, "action": {"type": "string"}, "player": {"type": "string"}, "activeServerId": {"type": ["string", "null"]}, "runtime": {"$ref": "#/components/schemas/BedrockRuntimeStateDTO"}}}}}},
+          "400": {"description": "Invalid action, player, or message", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDTO"}}}},
+          "403": {"description": "The credential lacks the players permission", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDTO"}}}},
+          "409": {"description": "No active server, server stopped, active server changed, or Bedrock runtime unavailable", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDTO"}}}},
+          "501": {"description": "Java whitelist action requested for Bedrock", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorDTO"}}}}
+        },
+        "x-permission-category": "players"
+      }
+    },
     "/v1/players/skin-override": {
       "post": {
         "summary": "Set or clear a manual skin lookup override for a player",

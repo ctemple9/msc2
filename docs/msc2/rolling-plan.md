@@ -210,7 +210,8 @@ remains separate. No release publication or CI gate is implied.
 
 ### P17.17 — Manage packs attached to worlds
 
-- **Status:** PLANNED
+- **Status:** IMPLEMENTED — awaiting Cameron verification
+- **Commit:** P17.17: add world pack management commands
 - **Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/components.rs`
 - **What:** Inspect installed Java data packs and Bedrock behavior packs by slot; expose supported enable/disable/remove actions. For provider installs, show search, detail, version compatibility, dependencies, and target world before confirmation. Keep packs world-scoped.
 - **Verify:** `cargo check -p msc-agent`

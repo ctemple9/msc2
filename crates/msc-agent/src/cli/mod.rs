@@ -908,6 +908,11 @@ pub enum WorldCommand {
         #[arg(long)]
         no_wait: bool,
     },
+    /// Inspect and manage packs attached to a specific world slot.
+    Pack {
+        #[command(subcommand)]
+        command: WorldPackCommand,
+    },
     /// Create a new slot archived from the current live world.
     Create {
         name: String,
@@ -1018,6 +1023,32 @@ pub enum WorldCommand {
         #[arg(long)]
         no_wait: bool,
     },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum WorldPackCommand {
+    /// List the packs recorded on one world slot.
+    List { slot_id: String },
+    /// Search the provider catalog for the selected world's edition.
+    Search { slot_id: String, query: String },
+    /// Inspect compatible versions, files, and dependencies before installation.
+    Inspect { slot_id: String, project_id: String },
+    /// Install a reviewed provider version or file into this exact world slot.
+    Install {
+        slot_id: String,
+        project_id: String,
+        version_or_file_id: String,
+        #[arg(long, required = true)]
+        confirm: bool,
+        #[arg(long)]
+        no_wait: bool,
+    },
+    /// Enable one installed Bedrock behavior pack.
+    Enable { slot_id: String, pack_id: String },
+    /// Disable one installed Bedrock behavior pack.
+    Disable { slot_id: String, pack_id: String },
+    /// Remove one installed Bedrock behavior pack from the world.
+    Remove { slot_id: String, pack_id: String },
 }
 
 #[derive(Debug, Clone, Subcommand)]
@@ -2989,6 +3020,7 @@ async fn run_world(common: CommonArgs, command: WorldCommand) -> Result<(), CliE
             )
             .await
         }
+        WorldCommand::Pack { command } => run_world_pack(&client, common, command).await,
         WorldCommand::Create { name, seed } => {
             let body = WorldCreateRequestDto {
                 name,
@@ -3218,6 +3250,208 @@ async fn run_world(common: CommonArgs, command: WorldCommand) -> Result<(), CliE
             )
             .await
         }
+    }
+}
+
+async fn run_world_pack(
+    client: &ApiClient,
+    common: CommonArgs,
+    command: WorldPackCommand,
+) -> Result<(), CliError> {
+    match command {
+        WorldPackCommand::List { slot_id } => {
+            let result: serde_json::Value = client
+                .get_json(&format!("/v1/worlds/{slot_id}/profile"))
+                .await?;
+            let packs = result["profile"]["packs"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default();
+            print_target_world(&result["slot"], &slot_id, common.json)?;
+            if common.json {
+                print_json(&serde_json::json!({"world": result["slot"], "packs": packs}))?;
+            } else if packs.is_empty() {
+                println!("No provider-managed packs are recorded for this world.");
+            } else {
+                for pack in packs {
+                    println!(
+                        "{}  {} [{}] {}",
+                        pack["id"].as_str().unwrap_or("?"),
+                        pack["name"].as_str().unwrap_or("unknown"),
+                        pack["kind"].as_str().unwrap_or("unknown"),
+                        if pack["enabled"].as_bool() == Some(true) {
+                            "enabled"
+                        } else {
+                            "disabled"
+                        }
+                    );
+                }
+            }
+            Ok(())
+        }
+        WorldPackCommand::Search { slot_id, query } => {
+            let world: serde_json::Value = client
+                .get_json(&format!("/v1/worlds/{slot_id}/profile"))
+                .await?;
+            let status: RemoteApiStatus = client.get_json("/v1/status").await?;
+            let versions: VersionsResponseDto = client.get_json("/v1/versions").await?;
+            let game_version = versions.current_version.unwrap_or_default();
+            let route = if status.server_type.as_deref() == Some("bedrock") {
+                "behaviorpacks"
+            } else {
+                "datapacks"
+            };
+            let path = format!(
+                "/v1/catalog/{route}?q={}&gameVersion={}",
+                encode_uri_component(&query),
+                encode_uri_component(&game_version)
+            );
+            let results: serde_json::Value = client.get_json(&path).await?;
+            if common.json {
+                print_json(&serde_json::json!({"targetWorld": world["slot"], "catalog": results}))
+            } else {
+                print_target_world(&world["slot"], &slot_id, false)?;
+                print_catalog_value(false, &results)
+            }
+        }
+        WorldPackCommand::Inspect {
+            slot_id,
+            project_id,
+        } => {
+            let world: serde_json::Value = client
+                .get_json(&format!("/v1/worlds/{slot_id}/profile"))
+                .await?;
+            let status: RemoteApiStatus = client.get_json("/v1/status").await?;
+            let path = if status.server_type.as_deref() == Some("bedrock") {
+                format!(
+                    "/v1/catalog/behaviorpacks/{}",
+                    encode_uri_component(&project_id)
+                )
+            } else {
+                format!("/v1/catalog/projects/{}", encode_uri_component(&project_id))
+            };
+            let detail: serde_json::Value = client.get_json(&path).await?;
+            let compatible = if status.server_type.as_deref() == Some("bedrock") {
+                serde_json::json!({"files": detail["files"]})
+            } else {
+                client
+                    .get_json(&format!(
+                        "/v1/catalog/projects/{}/versions",
+                        encode_uri_component(&project_id)
+                    ))
+                    .await?
+            };
+            if common.json {
+                print_json(
+                    &serde_json::json!({"targetWorld": world["slot"], "project": detail, "compatibleVersionsOrFiles": compatible}),
+                )?;
+            } else {
+                print_target_world(&world["slot"], &slot_id, false)?;
+                println!("project: {}", detail["title"].as_str().unwrap_or("unknown"));
+                println!(
+                    "compatibility and dependencies: {}",
+                    serde_json::to_string_pretty(&compatible).unwrap_or_default()
+                );
+            }
+            Ok(())
+        }
+        WorldPackCommand::Install {
+            slot_id,
+            project_id,
+            version_or_file_id,
+            confirm: _,
+            no_wait,
+        } => {
+            let world: serde_json::Value = client
+                .get_json(&format!("/v1/worlds/{slot_id}/profile"))
+                .await?;
+            let status: RemoteApiStatus = client.get_json("/v1/status").await?;
+            print_target_world(&world["slot"], &slot_id, common.json)?;
+            if !common.json {
+                println!(
+                    "confirming install of project {project_id} version/file {version_or_file_id}"
+                );
+            }
+            if status.server_type.as_deref() == Some("bedrock") {
+                let file_id = version_or_file_id.parse::<i64>().map_err(|_| CliError::usage("Bedrock installation requires the numeric file ID shown by world pack inspect"))?;
+                let result: serde_json::Value = client
+                    .post_json(
+                        &format!("/v1/worlds/{slot_id}/behaviorpacks/install"),
+                        &serde_json::json!({"projectId": project_id, "fileId": file_id}),
+                    )
+                    .await?;
+                finish_operation(
+                    client,
+                    common.json,
+                    no_wait,
+                    result["operationId"].as_str().map(str::to_owned),
+                    "Bedrock behavior-pack install",
+                )
+                .await
+            } else {
+                let result: serde_json::Value = client.post_json(&format!("/v1/worlds/{slot_id}/datapacks/install"), &serde_json::json!({"projectId": project_id, "versionId": version_or_file_id})).await?;
+                if common.json {
+                    print_json(&serde_json::json!({"targetWorld": world["slot"], "result": result}))
+                } else {
+                    println!("Java data pack installed in world {slot_id}.");
+                    Ok(())
+                }
+            }
+        }
+        WorldPackCommand::Enable { slot_id, pack_id } => {
+            mutate_world_pack(client, common, slot_id, pack_id, "enable").await
+        }
+        WorldPackCommand::Disable { slot_id, pack_id } => {
+            mutate_world_pack(client, common, slot_id, pack_id, "disable").await
+        }
+        WorldPackCommand::Remove { slot_id, pack_id } => {
+            mutate_world_pack(client, common, slot_id, pack_id, "remove").await
+        }
+    }
+}
+
+async fn mutate_world_pack(
+    client: &ApiClient,
+    common: CommonArgs,
+    slot_id: String,
+    pack_id: String,
+    action: &str,
+) -> Result<(), CliError> {
+    let mut world: serde_json::Value = client
+        .get_json(&format!("/v1/worlds/{slot_id}/profile"))
+        .await?;
+    let packs = world["profile"]["packs"]
+        .as_array_mut()
+        .ok_or_else(|| CliError::internal("world profile did not include pack records"))?;
+    let Some(index) = packs.iter().position(|pack| pack["id"] == pack_id) else {
+        return Err(CliError::usage(format!(
+            "pack {pack_id:?} is not installed in world {slot_id:?}"
+        )));
+    };
+    if packs[index]["kind"] != "bedrock_behavior_pack" {
+        return Err(CliError::usage(
+            "enable, disable, and remove are currently supported for Bedrock behavior packs; Java data packs can be inspected and installed",
+        ));
+    }
+    match action {
+        "enable" => packs[index]["enabled"] = serde_json::Value::Bool(true),
+        "disable" => packs[index]["enabled"] = serde_json::Value::Bool(false),
+        "remove" => {
+            packs.remove(index);
+        }
+        _ => unreachable!(),
+    }
+    let result: serde_json::Value = client
+        .post_json(
+            &format!("/v1/worlds/{slot_id}/profile"),
+            &serde_json::json!({"changes": {"packs": packs}}),
+        )
+        .await?;
+    if common.json {
+        print_json(&result)
+    } else {
+        println!("World pack {action} complete.");
+        Ok(())
     }
 }
 
@@ -4106,6 +4340,51 @@ fn print_catalog_results(response: &CatalogSearchResponseDto) {
     }
 }
 
+fn print_target_world(
+    slot: &serde_json::Value,
+    fallback_id: &str,
+    json_mode: bool,
+) -> Result<(), CliError> {
+    if !json_mode {
+        println!(
+            "target world: {} ({})",
+            slot["name"].as_str().unwrap_or("unknown"),
+            slot["id"].as_str().unwrap_or(fallback_id)
+        );
+    }
+    Ok(())
+}
+
+fn print_catalog_value(json_mode: bool, value: &serde_json::Value) -> Result<(), CliError> {
+    if json_mode {
+        print_json(value)
+    } else {
+        if let Some(results) = value["results"].as_array() {
+            if results.is_empty() {
+                println!("No compatible packs found.");
+            }
+            for item in results {
+                println!(
+                    "{}  {}",
+                    item["projectId"]
+                        .as_str()
+                        .or_else(|| item["slug"].as_str())
+                        .unwrap_or("?"),
+                    item["title"].as_str().unwrap_or("Untitled")
+                );
+                if let Some(description) = item["description"].as_str() {
+                    println!("  {description}");
+                }
+            }
+        } else {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(value).unwrap_or_default()
+            );
+        }
+        Ok(())
+    }
+}
 fn print_modpack_inspection(result: &ModpackInspectionResultDto) {
     println!("format: {}", result.format);
     if let Some(name) = &result.pack_name {

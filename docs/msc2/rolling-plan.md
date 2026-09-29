@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 16 execution is underway. Cameron reports P16.1–P16.28 verified; P16.29 remains open. The v0.1.17 tag points to an unpublished failed candidate. D-039 archives automated CI and makes beta publication build-only; P16.30 implements that change and awaits Cameron's verification. Exact-artifact physical acceptance remains pending.
-> **Next move:** Cameron verifies P16.30. A later release tag can use the simplified workflow, after which Cameron records exact-artifact results for P16.29. Phase 16 remains in progress until its full exit gate is satisfied and reviewed.
+> ## STATUS: Phase 16 execution is underway. Cameron reports P16.1–P16.28 verified; P16.29 remains open. The v0.1.17 tag points to an unpublished failed candidate. D-039 archives automated CI and makes beta publication build-only; P16.30 and P16.31 await Cameron's verification. Exact-artifact physical acceptance remains pending.
+> **Next move:** Cameron verifies P16.30 and P16.31. A later release tag can use the simplified workflow, after which Cameron records exact-artifact results for P16.29. Phase 16 remains in progress until its full exit gate is satisfied and reviewed.
 
 ## How this document works
 
@@ -288,6 +288,14 @@ Status: Implemented — Cameron verification pending
 Files: .github/archive, .github/workflows/release.yml, tools/release/archive, docs/msc2/msc2-decisions.md, docs/msc2/msc2-port-plan.md, docs/msc2/dependency-security.md, docs/msc2/release/phase16-acceptance.md, tools/release/check-phase16-evidence.py, docs/msc2/rolling-plan.md
 What: Preserve the former CI and release workflows outside the active workflow directory. Keep existing test source available for optional manual use. Build and publish the nine beta artifacts without automated tests, lint, smoke checks, Linux installation exercises, or same-commit CI waiting. Retain version matching, asset completeness, SHA-256 sums, and signed update metadata. Record the owner-approved release-process change without marking Phase 16 complete.
 Verify: Run `git ls-files .github/workflows .github/archive` and confirm only `release.yml` is active, then inspect `.github/workflows/release.yml` for the build, nine-asset, checksum, signing, and publish steps.
+Batch: solo
+
+#### P16.31 — Record owner test and workflow policy
+
+Status: Implemented — Cameron verification pending
+Files: docs/msc2/testing-and-release-workflow-policy.md, AGENTS.md, CLAUDE.md, docs/msc2/rolling-plan.md
+What: Record Cameron's assessment that agent-created tests and workflow gates have imposed excessive delays and brittle failures. Allow agents to add only essential, robust tests with a recorded reason; prohibit default test runs and automatic release test gates; and require failure review before another release attempt. Keep both agent instruction files identical.
+Verify: Run `cmp AGENTS.md CLAUDE.md && rg -n 'essential|robust|release|approval' docs/msc2/testing-and-release-workflow-policy.md AGENTS.md` and review the policy wording.
 Batch: solo
 
 ## Public-release and codebase review — 2026-09-28

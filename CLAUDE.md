@@ -18,6 +18,7 @@ MSC 2 is a cross-platform Minecraft server manager: a **Rust agent** that runs a
 | `docs/msc2/msc2-product.md` | What MSC 2 is, in plain language |
 | `docs/msc2/msc2-port-plan.md` | The phases and their **exit gates** |
 | `docs/msc2/rolling-plan.md` | **Current state.** Which phase, which step, what's done |
+| `docs/msc2/testing-and-release-workflow-policy.md` | **Owner policy.** Why the existing test/workflow approach failed and how to keep tests essential, robust, and outside beta publication |
 | `docs/msc2/antiAIslop.md` | **Design law.** Anti-AI-slop guiding principle — **required reading before any design, styling, or frontend work** |
 
 `docs/msc2/audit/` holds the MSC 1 analysis — including two per-file inventory CSVs used during extraction.
@@ -45,7 +46,7 @@ Every prompt names one of these. Do only the named mode.
 |---|---|
 | **PLAN** | Write the step list into `rolling-plan.md`. No code. Stop. **Every step must carry all five fields: Status, Files, What, Verify, Batch.** A step without a `Batch:` value is incomplete — a later batch run has no way to know where to stop. |
 | **EXECUTE** | One step. Work, verify, commit, stop. |
-| **BATCH EXECUTE** | A named range of steps. Same rules per step, run in order. **Run each step's own Verify yourself before moving on. If one fails, STOP** — do not work around it. Never batch past the range given. |
+| **BATCH EXECUTE** | A named range of steps. Same rules per step, run in order. Run each permitted non-test `Verify:` before moving on. If a step requires a test command Cameron has not specifically authorized, stop and hand that verification to him. If verification fails, STOP. Never batch past the range given. |
 | **REVIEW** | Check the phase gate. Report only, fix nothing. |
 | **CROSS-CHECK** | Audit another agent's work against MSC 1 source. Report only. |
 
@@ -87,17 +88,19 @@ Rules:
 9. **If something contradicts the vision, stop and say so.** Don't build around it quietly.
 10. **No AI names in repo-visible identifiers.** Do not create filenames, directory names, branch names, tags, artifact names, or other repo-visible identifiers containing assistant/vendor/product names such as Codex, Claude, ChatGPT, or OpenAI. The required instruction filename `CLAUDE.md` is the only filename exception unless Cameron explicitly approves another one.
 11. **No signs of AI slop.** The MSC 2 redesign must not look vibe-coded, generic, or like any other app — every visual decision is deliberate and specific to MSC. Before any design, styling, or frontend work, read `docs/msc2/antiAIslop.md` and hold every screen to its checklist. Owner-approved guiding principle; as binding as the rest of this list.
-12. **Never run tests.** Do not run any test command, including `cargo nextest`, `cargo test`, Vitest, Playwright, Xcode tests, or equivalent, unless Cameron explicitly instructs you to run that specific test.
-13. **Do not create tests.** Never add a new test unless Cameron explicitly requests it or gives approval after you explain why it is necessary.
+12. **Never run tests without a specific owner instruction.** Do not run `cargo nextest`, `cargo test`, Vitest, Playwright, Xcode tests, smoke suites, or equivalents unless Cameron explicitly requests that specific command. A `Verify:` line is not permission.
+13. **Create only essential tests.** You may add a test without prior approval when it protects a concrete behavior or risk that existing coverage misses. Record why it is essential, how it avoids brittle timing/environment assumptions, and its expected runtime. Do not add tests for coverage counts, incidental structure, formatting, or speculative cases.
+14. **Keep beta publication build-only.** Do not add CI, test, lint, smoke, formatting, or static-check gates to the release workflow without Cameron's explicit approval. Do not recreate an active CI workflow without that approval. Preserve the complete artifact set, checksums, and signed update metadata.
+15. **Do not debug by repeated release runs.** Inspect all available failures, identify the cause, and check workflow and packaging assumptions before another run. Never move a release tag as a routine retry. Explain cost and uncertainty before initiating another long attempt.
 
 ## Conventions
 
 - Rust: `cargo fmt` and `cargo clippy` clean before any commit
-- Tests are run only when Cameron explicitly requests a specific test command.
-- **No test verification by default.** Do not run a test as part of implementation or verification. Use inspection, formatting checks, type-checks, builds, static validators, or Cameron's own manual verification instead. A step's declared Verify command does not override Cameron's explicit approval requirement.
+- Tests are run only when Cameron explicitly requests a specific test command. Test design must follow `docs/msc2/testing-and-release-workflow-policy.md`: essential behavior, controlled inputs, clear failure, low runtime, and no redundant coverage. Creating an essential test does not authorize running it.
+- **No test verification by default.** Use inspection, a relevant type-check or build, or Cameron's own manual verification. Do not turn a non-test check into a mandatory release gate without approval.
 - Commit messages: `P<phase>.<step>: <what changed>` — imperative, lowercase
 - **One commit per step. Never two.** That single commit contains the work *and* the `rolling-plan.md` status update. Do not add a follow-up commit to record the hash — you cannot know a hash before committing, and the step number in the message is already the link (`git log --grep="P0.1"`). Leave the `Commit:` field as the message subject, not a hash.
-- No `Co-Authored-By` or other AI attribution trailers. Enforced by `.githooks/commit-msg` and by CI, not by memory. Enable the hook once per clone: `git config core.hooksPath .githooks`
+- No `Co-Authored-By` or other AI attribution trailers. Enforced locally by `.githooks/commit-msg`. Enable the hook once per clone: `git config core.hooksPath .githooks`
 - Comments explain **why**, not what
 
 ## Current state

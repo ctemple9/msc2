@@ -107,9 +107,35 @@ tools/world-map-proof/target/release/msc-world-map-proof \
 To inspect the full glass blocks, run the viewer with
 `MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-gold-proof/output`. This tile
 contains 208 full glass blocks. Its 42 texture fallback faces are all from
-`minecraft:sticky_piston_arm_collision`, not glass. Visual correctness still
-needs Cameron's check; this area does not prove stained glass or distinct
+`minecraft:sticky_piston_arm_collision`, not glass. Cameron confirmed the full
+glass looks good; this area does not prove stained glass or distinct
 biome climate tint.
+
+### Ice mountain biome tint proof (P18.2h)
+
+Cameron's ice mountain at `(-516, 188, -225)` falls inside a complete 4×4
+tile starting at chunk `(-35, -17)`. Its private generated files are at
+`/private/tmp/msc-bds-ice-proof/output`:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+tools/world-map-proof/target/release/msc-world-map-proof \
+  /private/tmp/msc-bds-base-proof/world \
+  /private/tmp/msc-bedrock-samples/resource_pack \
+  /private/tmp/msc-bds-ice-proof/output -35,-17
+```
+
+Run the viewer with
+`MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-ice-proof/output`.
+The local Bedrock biome definitions give frozen peaks temperature `-0.7`,
+grove `-0.2`, and stony peaks `1.0`. Their downfall values are `0.9`, `0.8`,
+and `0.3`. This bounded proof provisionally maps biome IDs `183`, `185`, and
+`189` to those names, then samples the supplied grass and foliage colormaps.
+Frozen temperatures clamp to `0` for colormap lookup, so frozen peaks and
+grove yield the same cold grass tint here. IDs `4`, `188`, and the unresolved
+`4294967295` remain on representative tints. Biome ID mapping varies with
+Bedrock versions and this exporter samples only one biome height per column;
+general biome fidelity still needs version-aware mapping and 3D sampling.
 
 Surface biome IDs `27` and `155` occur in 1,922 and 2,174 columns. This
 bounded proof assumes their legacy mapping to birch forest and its mutated

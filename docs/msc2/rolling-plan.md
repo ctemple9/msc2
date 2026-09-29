@@ -622,7 +622,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2g — Inspect full glass at the BDS gold farm
 
-- **Status:** Awaiting Cameron visual verification
+- **Status:** Done — Cameron confirmed full glass looks good, 2026-09-29
 - **Files:** `tools/world-map-proof/src/render.rs`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
 - **What:** Export a separate complete 4×4 tile around Cameron's gold farm
@@ -633,8 +633,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   full glass blocks. It has 103,160 solid faces, 382 water faces, 159 texture
   layers and no missing shapes. Its 42 fallback faces all belong to
   `minecraft:sticky_piston_arm_collision`; they do not indicate missing glass
-  textures. This establishes export coverage, while transparency, faces and
-  adjacency need Cameron's visual check. The `4294967295` biome value in 311
+  textures. Cameron confirmed the full glass looks good. The `4294967295` biome value in 311
   columns is unresolved and should not be treated as a mapped climate.
 - **Verify:** From `tools/world-map-proof/viewer`, run
   `MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-gold-proof/output npm run dev`.
@@ -646,3 +645,34 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   the next proof should sample the ice mountain for a different biome tint.
 - **Batch:** solo — one visual proof before expanding climate mapping
 - **Commit:** P18.2g: export bds gold farm glass proof
+
+### P18.2h — Inspect Bedrock ice mountain biome tint
+
+- **Status:** Awaiting Cameron visual verification
+- **Files:** `tools/world-map-proof/src/render.rs`,
+  `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Export a complete 4×4 tile around Cameron's ice mountain at
+  `(-516, 188, -225)` using the same offline BDS copy. For this bounded proof,
+  map surface biome IDs `183`, `185`, and `189` to frozen peaks, grove, and
+  stony peaks using the saved world's Bedrock biome definitions for climate
+  values. Clamp freezing temperatures before sampling the supplied grass and
+  foliage colormaps. Keep unmapped IDs on the existing representative tint
+  and identify them in the summary.
+- **Result:** Tile origin `(-35, -17)` contains all 16 chunks, 182,193 solid
+  faces, 2,576 water faces, 79 texture layers, and no texture or shape
+  fallbacks. It contains 493 surface columns with ID `183`, 109 with `185`,
+  and 1,751 with `189`; the mapped grass colors are `[128, 180, 150]` for
+  freezing biomes and `[154, 189, 74]` for stony peaks. Nine columns have
+  unresolved ID `4294967295`; IDs `4` and `188` still use the representative
+  tint. The numeric ID mapping is provisional until version-aware Bedrock
+  registry handling is proven. Visual biome boundaries await Cameron.
+- **Verify:** From `tools/world-map-proof/viewer`, run
+  `MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-ice-proof/output npm run dev`.
+  Look around `(-516, 188, -225)` for actual ice/snow geometry and compare
+  grass/foliage near the frozen and stony areas; the latter should have a
+  distinct warmer tint. Inspect `summary.txt` for source biome counts and
+  mapped colors. This advances the Bedrock 3D world's biome-color promise.
+  Next proof: version-aware biome ID mapping and 3D biome sampling, or a
+  focused visual correction if this tile shows a defect.
+- **Batch:** solo — distinct climate proof
+- **Commit:** P18.2h: render bds ice mountain biome tint

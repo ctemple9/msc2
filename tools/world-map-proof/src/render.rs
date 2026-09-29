@@ -131,10 +131,29 @@ struct Textures {
     foliage_tint: [u8; 3],
     birch_grass_tint: [u8; 3],
     birch_foliage_tint: [u8; 3],
+    mountain_tints: BTreeMap<u32, ([u8; 3], [u8; 3])>,
 }
 
 impl Textures {
     fn new(pack: &Path) -> Self {
+        let grass_map = pack.join("textures/colormap/grass.png");
+        let foliage_map = pack.join("textures/colormap/foliage.png");
+        let mountain_tints = [
+            (183, -0.7, 0.9), // Frozen peaks
+            (185, -0.2, 0.8), // Grove
+            (189, 1.0, 0.3),  // Stony peaks
+        ]
+        .into_iter()
+        .map(|(id, temperature, downfall)| {
+            (
+                id,
+                (
+                    climate_tint(&grass_map, temperature, downfall, [121, 182, 91]),
+                    climate_tint(&foliage_map, temperature, downfall, [110, 160, 80]),
+                ),
+            )
+        })
+        .collect();
         let mut pixels = Vec::with_capacity(16 * 16 * 4);
         for z in 0..16 {
             for x in 0..16 {
@@ -169,6 +188,7 @@ impl Textures {
                 0.6,
                 [110, 160, 80],
             ),
+            mountain_tints,
         }
     }
 
@@ -180,13 +200,17 @@ impl Textures {
             || name.contains("tall_grass")
             || name.contains("fern")
         {
-            if birch {
+            if let Some((grass, _)) = self.mountain_tints.get(&biome_id) {
+                *grass
+            } else if birch {
                 self.birch_grass_tint
             } else {
                 self.grass_tint
             }
         } else if name.contains("leaves") || name.contains("leaf") || name.contains("vine") {
-            if birch {
+            if let Some((_, foliage)) = self.mountain_tints.get(&biome_id) {
+                *foliage
+            } else if birch {
                 self.birch_foliage_tint
             } else {
                 self.foliage_tint
@@ -252,6 +276,8 @@ fn colormap_tint(path: &Path, fallback: [u8; 3]) -> [u8; 3] {
 }
 
 fn climate_tint(path: &Path, temperature: f32, downfall: f32, fallback: [u8; 3]) -> [u8; 3] {
+    let temperature = temperature.clamp(0.0, 1.0);
+    let downfall = downfall.clamp(0.0, 1.0);
     let x = ((1.0 - temperature) * 255.0).round() as u32;
     let y = ((1.0 - downfall * temperature) * 255.0).round() as u32;
     sample_colormap(path, x, y, fallback)
@@ -736,6 +762,11 @@ pub fn render(
     writeln!(summary, "surface biome IDs by column: {biome_counts:?}")?;
     writeln!(
         summary,
+        "mapped mountain grass/foliage tints: {:?}",
+        textures.mountain_tints
+    )?;
+    writeln!(
+        summary,
         "birch grass tint: {:?}, foliage tint: {:?}",
         textures.birch_grass_tint, textures.birch_foliage_tint
     )?;
@@ -750,6 +781,10 @@ pub fn render(
     println!("missing shape blocks: {missing_shapes:?}");
     println!("fallback blocks: {:?}", textures.fallback_blocks);
     println!("surface biome IDs by column: {biome_counts:?}");
+    println!(
+        "mapped mountain grass/foliage tints: {:?}",
+        textures.mountain_tints
+    );
     println!(
         "birch grass tint: {:?}, foliage tint: {:?}",
         textures.birch_grass_tint, textures.birch_foliage_tint

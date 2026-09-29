@@ -30,7 +30,7 @@ Each implementation step is planned, read, executed, verified by Cameron, review
 | 13 | Full-screen terminal client | retired by D-034 |
 | 14 | Operational refinements | complete |
 | 15 | Maintenance follow-ups | complete |
-| 16 | Release safety and codebase readiness | in progress |
+| 16 | Release safety and codebase readiness | complete |
 
 ## Active Phase 16 acceptance
 

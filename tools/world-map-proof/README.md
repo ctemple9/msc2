@@ -134,8 +134,20 @@ and `0.3`. This bounded proof provisionally maps biome IDs `183`, `185`, and
 Frozen temperatures clamp to `0` for colormap lookup, so frozen peaks and
 grove yield the same cold grass tint here. IDs `4`, `188`, and the unresolved
 `4294967295` remain on representative tints. Biome ID mapping varies with
-Bedrock versions and this exporter samples only one biome height per column;
-general biome fidelity still needs version-aware mapping and 3D sampling.
+Bedrock versions. Cameron confirmed the visible mountain result.
+
+### Block-height biome sampling (P18.2i)
+
+The exporter now reads each chunk's decoded 3D biome storages once and
+applies the biome ID at each rendered block's Y position. Legacy 2D biome
+data is repeated vertically. The ice mountain's surface ID counts remain
+the same, while block-height sampling finds ID `190` deep in 324,336 non-air
+blocks and ID `188` in 398,332. The private regenerated tile is at
+`/private/tmp/msc-bds-ice-3d-biome-proof/output`; run the viewer with
+`MSC_WORLD_MAP_PROOF_OUTPUT` set to that directory. Its `summary.txt` also
+records `lastOpenedWithVersion` `[1,26,31,1,0]` and storage version `10`.
+Neither field resolves a numeric biome ID to a name. The bounded color
+mapping remains provisional until a version-aware registry is established.
 
 Surface biome IDs `27` and `155` occur in 1,922 and 2,174 columns. This
 bounded proof assumes their legacy mapping to birch forest and its mutated
@@ -145,9 +157,9 @@ sample the supplied grass and foliage colormaps at the same colors. The
 result demonstrates reading the saved IDs and applying their climate-based
 tint to the generated geometry; this area cannot prove a visible boundary
 between different climate colors. Other biome IDs still use the earlier
-representative tint. IDs are sampled at each column's recorded surface
-height, not at each block's height. General biome mapping and 3D biome layers
-remain future work.
+representative tint. That earlier export sampled each column's surface
+height; P18.2i samples each rendered block's height. General version-aware
+biome ID mapping remains future work.
 
 ## What this proves and what it leaves open
 

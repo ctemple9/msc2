@@ -18,6 +18,7 @@ struct Grid {
     blocks: Vec<u16>,
     states: Vec<BlockState>,
     biomes: Vec<u32>,
+    biomes_3d: Vec<u32>,
 }
 
 impl Grid {
@@ -30,6 +31,7 @@ impl Grid {
                 version: None,
             }],
             biomes: vec![u32::MAX; SIDE * SIDE],
+            biomes_3d: vec![u32::MAX; SIDE * SIDE * (MAX_Y - MIN_Y) as usize],
         }
     }
 
@@ -497,6 +499,25 @@ fn read_grid(world: &BedrockWorld, anchor: (i32, i32)) -> Result<Grid, Box<dyn E
                 dimension: Dimension::Overworld,
             };
             let chunk = world.get_chunk_blocking(pos)?;
+            if let Some(storages) = world.get_biome_storages_blocking(pos)? {
+                for storage in storages {
+                    let (start, end) = match storage.y {
+                        Some(y) => (y.max(MIN_Y), (y + 16).min(MAX_Y)),
+                        None => (MIN_Y, MAX_Y),
+                    };
+                    for y in start..end {
+                        let ly = storage.y.map_or(0, |section_y| (y - section_y) as u8);
+                        for lz in 0..16u8 {
+                            for lx in 0..16u8 {
+                                let x = cx as usize * 16 + lx as usize;
+                                let z = cz as usize * 16 + lz as usize;
+                                grid.biomes_3d[Grid::index(x, y, z)] =
+                                    storage.biome_id_at(lx, ly, lz).unwrap_or(u32::MAX);
+                            }
+                        }
+                    }
+                }
+            }
             for lz in 0..16u8 {
                 for lx in 0..16u8 {
                     let x = cx as usize * 16 + usize::from(lx);
@@ -505,9 +526,11 @@ fn read_grid(world: &BedrockWorld, anchor: (i32, i32)) -> Result<Grid, Box<dyn E
                         .get_height_at_blocking(pos, lx, lz)?
                         .map(i32::from)
                         .unwrap_or(87);
-                    grid.biomes[z * SIDE + x] = world
-                        .get_biome_id_blocking(pos, lx, lz, y)?
-                        .unwrap_or(u32::MAX);
+                    grid.biomes[z * SIDE + x] = if (MIN_Y..MAX_Y).contains(&y) {
+                        grid.biomes_3d[Grid::index(x, y, z)]
+                    } else {
+                        u32::MAX
+                    };
                 }
             }
             for sy in -4i8..=19i8 {
@@ -633,6 +656,7 @@ pub fn render(
     let mut missing_shapes = BTreeMap::<String, usize>::new();
     let mut drawn_logs = 0usize;
     let mut biome_counts = BTreeMap::<u32, usize>::new();
+    let mut rendered_block_biome_counts = BTreeMap::<u32, usize>::new();
     for &id in &grid.biomes {
         *biome_counts.entry(id).or_default() += 1;
     }
@@ -644,7 +668,8 @@ pub fn render(
                     continue;
                 }
                 let state = &grid.states[id as usize];
-                let biome_id = grid.biomes[z as usize * SIDE + x as usize];
+                let biome_id = grid.biomes_3d[Grid::index(x as usize, y, z as usize)];
+                *rendered_block_biome_counts.entry(biome_id).or_default() += 1;
                 let origin = [
                     (anchor.0 * 16 + x) as f32,
                     y as f32,
@@ -758,8 +783,26 @@ pub fn render(
         drawn_logs
     )?;
     writeln!(summary, "missing shape blocks: {missing_shapes:?}")?;
+    if let Ok(document) = world.read_level_dat_blocking()
+        && let NbtTag::Compound(root) = document.root
+    {
+        writeln!(
+            summary,
+            "save lastOpenedWithVersion: {:?}",
+            root.get("lastOpenedWithVersion")
+        )?;
+        writeln!(
+            summary,
+            "save StorageVersion: {:?}",
+            root.get("StorageVersion")
+        )?;
+    }
     writeln!(summary, "fallback blocks: {:?}", textures.fallback_blocks)?;
     writeln!(summary, "surface biome IDs by column: {biome_counts:?}")?;
+    writeln!(
+        summary,
+        "biome IDs by non-air block: {rendered_block_biome_counts:?}"
+    )?;
     writeln!(
         summary,
         "mapped mountain grass/foliage tints: {:?}",
@@ -781,6 +824,7 @@ pub fn render(
     println!("missing shape blocks: {missing_shapes:?}");
     println!("fallback blocks: {:?}", textures.fallback_blocks);
     println!("surface biome IDs by column: {biome_counts:?}");
+    println!("biome IDs by non-air block: {rendered_block_biome_counts:?}");
     println!(
         "mapped mountain grass/foliage tints: {:?}",
         textures.mountain_tints

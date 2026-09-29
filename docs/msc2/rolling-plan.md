@@ -648,7 +648,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2h — Inspect Bedrock ice mountain biome tint
 
-- **Status:** Awaiting Cameron visual verification
+- **Status:** Done — Cameron confirmed the ice mountain looks good, 2026-09-29
 - **Files:** `tools/world-map-proof/src/render.rs`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
 - **What:** Export a complete 4×4 tile around Cameron's ice mountain at
@@ -665,7 +665,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   freezing biomes and `[154, 189, 74]` for stony peaks. Nine columns have
   unresolved ID `4294967295`; IDs `4` and `188` still use the representative
   tint. The numeric ID mapping is provisional until version-aware Bedrock
-  registry handling is proven. Visual biome boundaries await Cameron.
+  registry handling is proven. Cameron confirmed the visible mountain result.
 - **Verify:** From `tools/world-map-proof/viewer`, run
   `MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-ice-proof/output npm run dev`.
   Look around `(-516, 188, -225)` for actual ice/snow geometry and compare
@@ -676,3 +676,32 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   focused visual correction if this tile shows a defect.
 - **Batch:** solo — distinct climate proof
 - **Commit:** P18.2h: render bds ice mountain biome tint
+
+### P18.2i — Read Bedrock biome at rendered block height
+
+- **Status:** Awaiting Cameron verification
+- **Files:** `tools/world-map-proof/src/render.rs`,
+  `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Use the BDS reader's decoded 3D biome storages to assign a biome
+  ID to each block position rather than repeating the column's surface ID
+  throughout its depth. Preserve 2D save compatibility by repeating legacy
+  column values vertically. Report save version, surface ID counts, and IDs
+  at non-air block positions for the same complete ice-mountain tile.
+- **Result:** The regenerated tile still has 182,193 solid faces, 2,576 water
+  faces, 79 textures and no fallback or missing-shape blocks. Surface IDs are
+  unchanged, but block-height sampling finds ID `190` in 324,336 non-air
+  blocks, plus ID `188` in 398,332. The earlier surface-only approach would
+  have hidden `190` and assigned mountain surface IDs throughout cave depth.
+  The save reports `lastOpenedWithVersion` `[1,26,31,1,0]` and storage version
+  `10`. Those fields are evidence of the save format, not an ID-to-name
+  registry. The bounded tint mapping remains provisional.
+- **Verify:** Read
+  `/private/tmp/msc-bds-ice-3d-biome-proof/output/summary.txt` and compare
+  surface versus non-air-block ID counts. Open with
+  `MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-ice-3d-biome-proof/output npm run dev`
+  from `tools/world-map-proof/viewer`; inspect the mountain surface and cut
+  sides for sudden tint or geometry regressions. This advances the Bedrock
+  biome fidelity promise at depth. Next proof: establish a version-aware
+  numeric biome ID registry before treating these names as generally valid.
+- **Batch:** solo — height sampling proof before broader ID mapping
+- **Commit:** P18.2i: sample bds biomes at block height

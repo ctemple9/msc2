@@ -338,31 +338,90 @@ feed; last-known positions read from saved player data can be stale. The viewer
 and player UI are reusable concepts, but MSC still needs to integrate server
 access, authentication, and the feed into its own API and desktop window.
 
-**Edition scope:** Modded Java and Bedrock servers are both targets; Bedrock
-players may connect from consoles without installing a client-side map mod.
-Terrain rendering and live player tracking are separate data paths. Bedrock
-needs a LevelDB chunk-to-geometry reader/adapter; the existing community
+**Edition scope clarified by the owner 2026-09-29:** The end-state targets
+standard and modded Java servers, plus Bedrock Dedicated Server (BDS),
+including players connecting from consoles. Players in the supported world
+must appear as 3D models regardless of whether they joined from Java or
+Bedrock. Bedrock players do not install a client-side map mod. Terrain
+rendering and live player tracking are separate data paths. Bedrock needs a
+LevelDB chunk-to-geometry reader/adapter; the existing community
 `bedrock-render` work is a top-down tile renderer, not Vantage-style 3D
 geometry. A Bedrock server-side position feed is also needed for live players.
-Support for custom mod/add-on block models, historical world formats, and all
-dimensions is not yet promised. Any Bedrock snapshot use of experimental
-server APIs needs a compatibility proof before it becomes a dependency.
+Custom mod/add-on block-model fidelity, historical world formats, and the
+first-release dimension set need explicit acceptance criteria. Missing custom
+models must not prevent the map or player overlay from opening. Any Bedrock
+snapshot use of experimental server APIs needs a compatibility proof before
+it becomes a dependency.
+
+**Rough proof-point guide — deliberately not a full phase plan:**
+
+1. **Render Bedrock geometry in the intended viewer.** Read a real BDS save
+   and display a small textured 3D area, including representative shapes such
+   as stairs, foliage, glass, and water. This checks the chunk parser, block
+   model resolver, texture source, and viewer tile format together.
+2. **Read a running world safely.** Confirm BDS and modded Java terrain can be
+   refreshed as saved chunks change, with acceptable CPU and memory use.
+3. **Show live players across server types.** Supply current positions for
+   standard Java, modded Java, and BDS; render 3D models that walk and turn;
+   verify the roster, click-to-fly, follow, and console-connected players.
+4. **Put the proven viewer in MSC.** Open it from the selected active world,
+   fill the Worlds tab, return cleanly, stream terrain through the authenticated
+   agent, and provide the agreed terrain and player controls.
+5. **Measure real-world coverage.** Check representative vanilla, modded, and
+   BDS worlds; document block-model fallbacks, dimensions, freshness, and
+   resource costs before setting release acceptance limits.
+
+Each checkpoint should produce a concrete result and a stop/go decision. The
+next checkpoint is chosen from that result, so implementation can stop or
+change direction if a core assumption fails.
+
+**UX check required in every Phase 18 verification:** Recheck the result
+against the agreed path: Worlds → active world → 3D opens inside the MSC window
+and fills the Worlds tab; the viewer supports the agreed terrain exploration;
+online Java and BDS players appear as moving 3D models; roster selection flies
+to a player and follow keeps the camera with them; exit returns to Worlds.
+Every step's `Verify:` must say which visible promise it advances and what
+observable result supports that claim. An early technical checkpoint may prove
+a named dependency rather than show the complete flow, but it must identify
+the next checkpoint that will demonstrate the missing experience. A passing
+parser or build check alone is not a UX pass. If a result hides a supported
+player, presents stale coordinates as live, opens outside MSC, or drops a
+target server type, stop and revise the step, add the required dependency, or
+reject that approach before continuing.
 
 This phase is proposed follow-on work, not the current phase. The first step
 must settle reuse boundaries, a thin end-to-end vertical slice, and measurable
 support limits before implementation scope is committed.
+
+### P18.0 — Prepare isolated world-map worktree
+
+- **Status:** Done — Cameron verified, 2026-09-29
+- **Files:** `docs/msc2/rolling-plan.md`
+- **What:** Create branch `feature/world-map-3d` and linked worktree
+  `/Users/camerontemple/msc2-world-map` from `main` at
+  `1a82357e300e3a8f70d3fae5cf19219d45c536c9`. Keep the experiment's planning
+  changes and later implementation commits on this branch.
+- **Verify:** `git worktree list --porcelain`
+- **Batch:** setup — isolate the experiment before feasibility work
+- **Commit:** P18.0: prepare isolated world map worktree
 
 ### P18.1 — Scope the 3D world viewer vertical slice
 
 - **Status:** Proposed — product direction recorded; implementation scope open
 - **Files:** `docs/msc2/rolling-plan.md`, `docs/msc2/msc2-engineering.md`
 - **What:** Compare embedding Vantage's MIT viewer/protocol with an MSC-owned
-  integration; define Java terrain access for vanilla and modded saves, live
-  player position feeds, and the Bedrock LevelDB-to-geometry path. Specify the
-  full-tab Worlds navigation, terrain controls, player roster/fly-to/follow,
-  data freshness, authentication boundary, resource budget, and an MVP support
-  matrix. Identify whether a shared geometry format is practical and what the
-  Bedrock parser can safely supply. Do not promise that the existing raster
-  renderer provides 3D geometry or that saved player records are live.
-- **Verify:** `rg -n 'Proposed Phase 18|P18.1|Bedrock|live player|click-to-fly' docs/msc2/rolling-plan.md docs/msc2/msc2-engineering.md`
+  integration; define terrain access for standard and modded Java saves, live
+  player position feeds, and the Bedrock LevelDB-to-geometry path for BDS.
+  Specify the full-tab Worlds navigation, terrain controls, player roster,
+  click-to-fly/follow, data freshness, authentication boundary, resource
+  budget, and acceptance criteria for vanilla, modded, and console-connected
+  Bedrock players. Identify whether a shared geometry format is practical,
+  what custom block assets can be resolved, and what the Bedrock parser can
+  safely supply. Define a user-experience check for every later checkpoint:
+  name the visible promise advanced, the observable proof, and the next
+  checkpoint for any gap. Do not promise that the existing raster renderer
+  provides 3D geometry or that saved player records are live.
+- **Verify:** `rg -n 'UX check required|observable result|stale coordinates as live|Proposed Phase 18|P18.1|Bedrock|live player|click-to-fly' docs/msc2/rolling-plan.md docs/msc2/msc2-engineering.md`
+  plus a review that each checkpoint has a named UX outcome or dependency and
+  a next proof.
 - **Batch:** solo — scope and feasibility before implementation

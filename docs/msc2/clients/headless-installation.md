@@ -3,7 +3,7 @@
 **Status:** Current headless installation contract. Browser management is not
 supported. Published v0.1.16 desktop-agent bytes predate D-038 and may contain
 historical browser assets; v0.1.17 was tagged but never published. v0.1.18 is
-the first browser-free release candidate. The Phase 16 exact-artifact
+the first published browser-free prerelease. The Phase 16 exact-artifact
 acceptance record (P16.29) remains open pending Cameron's physical results.
 
 This document defines the command-install shape for the standalone MSC 2

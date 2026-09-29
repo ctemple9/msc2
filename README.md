@@ -17,7 +17,7 @@ everything first.
 
 ## Current release and support
 
-The newest published build is [MSC 2 v0.1.16](https://github.com/ctemple9/msc2/releases/tag/v0.1.16),
+The newest published build is [MSC 2 v0.1.18](https://github.com/ctemple9/msc2/releases/tag/v0.1.18),
 an unsigned prerelease. There is no stable release yet. Download the
 platform-specific installer or archive from that release page and verify its
 entry in `SHA256SUMS` before installing. The Phase 16 acceptance record
@@ -31,7 +31,7 @@ release acceptance gate.
 
 The published v0.1.16 bytes predate the approved browser-client retirement
 and may contain historical browser assets. v0.1.17 was tagged but never
-published. The browser-free v0.1.18 candidate is being prepared; MSC no
+published. v0.1.18 is the first published browser-free release; MSC no
 longer supports browser management or promises a browser installation type.
 
 The Linux minimum is Debian 12 (Bookworm), or another distribution with
@@ -58,7 +58,7 @@ the project has not set a numeric version window such as N-3. Keep clients and
 agents current.
 
 Security fixes are currently promised only for the latest stable release, as
-described in [SECURITY.md](SECURITY.md). Since v0.1.16 is a prerelease and no
+described in [SECURITY.md](SECURITY.md). Since v0.1.18 is a prerelease and no
 stable release has been published, no release currently qualifies for that
 security-support policy.
 
@@ -185,26 +185,26 @@ app already includes the MSC 2 agent; you do not need to download both.
   environment. Manage it from another computer with the desktop app or CLI.
 ### macOS desktop — Intel and Apple Silicon Macs
 
-Download the matching macOS disk image from the [v0.1.16 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.16), open it, and drag MSC 2 into your Applications folder. Intel Macs include the local Bedrock runtime. Apple Silicon Macs include the app and Java runtime support, but no local Bedrock VM; Bedrock servers can still be managed on a compatible remote host.
+Download the matching macOS disk image from the [v0.1.18 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.18), open it, and drag MSC 2 into your Applications folder. Intel Macs include the local Bedrock runtime. Apple Silicon Macs include the app and Java runtime support, but no local Bedrock VM; Bedrock servers can still be managed on a compatible remote host.
 
 ### Windows desktop — 64-bit Windows
 
-Download the Windows `.msi` installer from the [v0.1.16 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.16) and follow the installation prompts.
+Download the Windows `.msi` installer from the [v0.1.18 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.18) and follow the installation prompts.
 
 ### Debian or Ubuntu desktop
 
-Download the Linux `.deb` package from the [v0.1.16 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.16), then install it with:
+Download the Linux `.deb` package from the [v0.1.18 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.18), then install it with:
 
 ~~~sh
-sudo apt install ./msc2-0.1.16-linux-x86_64.deb
+sudo apt install ./msc2-0.1.18-linux-x86_64.deb
 ~~~
 
 ### Fedora or other RPM-based Linux
 
-Download the Linux `.rpm` package from the [v0.1.16 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.16), then install it with:
+Download the Linux `.rpm` package from the [v0.1.18 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.18), then install it with:
 
 ~~~sh
-sudo dnf install ./msc2-0.1.16-linux-x86_64.rpm
+sudo dnf install ./msc2-0.1.18-linux-x86_64.rpm
 ~~~
 
 ### Headless agent — macOS, Windows, and Linux
@@ -232,7 +232,7 @@ Signed releases can be checked and staged locally from the agent binary:
 
 ~~~sh
 msc update check
-msc update install --release-id 0.1.16
+msc update install --release-id 0.1.18
 ~~~
 
 The install command asks for a second confirmation. Pass `--yes` for

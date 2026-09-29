@@ -201,7 +201,8 @@ remains separate. No release publication or CI gate is implied.
 
 ### P17.16 — Complete world and backup maintenance
 
-- **Status:** PLANNED
+- **Status:** IMPLEMENTED — awaiting Cameron verification
+- **Commit:** P17.16: complete world maintenance commands
 - **Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/backups.rs`
 - **What:** Add profile inspection, save-current, repair, safe live-world rename, supported conversion formats, and Chunker acquisition to the existing world/backup commands. Preserve mandatory safety backups, stopped-server guards, confirmation tokens, and operation progress; do not duplicate existing verbs.
 - **Verify:** `cargo check -p msc-agent`

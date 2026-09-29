@@ -889,6 +889,25 @@ pub enum PlayerWhitelistCommand {
 pub enum WorldCommand {
     /// List world slots for the active server.
     List,
+    /// Save the active live world into its current slot.
+    SaveCurrent,
+    /// Show one slot's profile and identity fields.
+    Profile { slot_id: String },
+    /// Repair the active Bedrock world while the server is stopped.
+    Repair {
+        slot_id: String,
+        #[arg(long)]
+        no_wait: bool,
+    },
+    /// Rename the active world's live folder, respecting the server's stopped/running rules.
+    RenameActive { name: String },
+    /// Show Chunker's installed state and supported conversion formats.
+    ConvertFormats,
+    /// Download or update Chunker for world conversion.
+    AcquireChunker {
+        #[arg(long)]
+        no_wait: bool,
+    },
     /// Create a new slot archived from the current live world.
     Create {
         name: String,
@@ -2883,6 +2902,92 @@ async fn run_world(common: CommonArgs, command: WorldCommand) -> Result<(), CliE
                 print_world_slots(&slots);
             }
             Ok(())
+        }
+        WorldCommand::SaveCurrent => {
+            let result: WorldMutationResultDto = client
+                .post_json("/v1/worlds/update", &serde_json::json!({}))
+                .await?;
+            print_world_mutation_result(common.json, &result)
+        }
+        WorldCommand::Profile { slot_id } => {
+            let result: serde_json::Value = client
+                .get_json(&format!("/v1/worlds/{slot_id}/profile"))
+                .await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                println!(
+                    "world: {}",
+                    result["slot"]["name"].as_str().unwrap_or(&slot_id)
+                );
+                println!(
+                    "profile: {}",
+                    serde_json::to_string_pretty(&result["profile"]).unwrap_or_default()
+                );
+            }
+            Ok(())
+        }
+        WorldCommand::Repair { slot_id, no_wait } => {
+            let result: serde_json::Value = client
+                .post_json("/v1/worlds/repair", &serde_json::json!({"slotId": slot_id}))
+                .await?;
+            finish_operation(
+                &client,
+                common.json,
+                no_wait,
+                result["operationId"].as_str().map(str::to_owned),
+                "Bedrock world repair",
+            )
+            .await
+        }
+        WorldCommand::RenameActive { name } => {
+            let result: serde_json::Value = client
+                .post_json(
+                    "/v1/worlds/rename-active-world",
+                    &serde_json::json!({"name": name}),
+                )
+                .await?;
+            if common.json {
+                print_json(&result)
+            } else {
+                println!("Active world renamed.");
+                Ok(())
+            }
+        }
+        WorldCommand::ConvertFormats => {
+            let result: serde_json::Value = client.get_json("/v1/worlds/convert/formats").await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                println!(
+                    "Chunker installed: {}",
+                    result["installed"].as_bool().unwrap_or(false)
+                );
+                println!(
+                    "Java available: {}",
+                    result["javaAvailable"].as_bool().unwrap_or(false)
+                );
+                if let Some(version) = result["version"].as_str() {
+                    println!("Chunker version: {version}");
+                }
+                for format in result["formats"].as_array().into_iter().flatten() {
+                    println!("- {}", format.as_str().unwrap_or("unknown"));
+                }
+            }
+            Ok(())
+        }
+        WorldCommand::AcquireChunker { no_wait } => {
+            let result: serde_json::Value = client
+                .post_json("/v1/worlds/convert/chunker", &serde_json::json!({}))
+                .await?;
+            finish_operation(
+                &client,
+                common.json,
+                no_wait,
+                result["operationId"].as_str().map(str::to_owned),
+                "Chunker download",
+            )
+            .await
         }
         WorldCommand::Create { name, seed } => {
             let body = WorldCreateRequestDto {

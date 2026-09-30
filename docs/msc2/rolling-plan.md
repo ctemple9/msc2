@@ -1129,7 +1129,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3i — Size the proof canvas to its visible viewport
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Done — Cameron confirmed Fly and Follow are centered, 2026-09-30
 - **Files:** `tools/world-map-proof/viewer/style.css`,
   `docs/msc2/rolling-plan.md`
 - **What:** The Vantage renderer calls `setSize(..., false)` and uses the device
@@ -1142,7 +1142,38 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Verify:** Reload the proof viewer on the same Retina display. Click
   **Follow** and confirm the player appears near the center and stays there
   while moving. Click **Fly** and confirm it approaches the player. Pan or
-  orbit manually and confirm Follow releases. Do not proceed to Java feed
-  work until Cameron confirms this visual behavior.
+  orbit manually and confirm Follow releases. Cameron confirmed both Fly and
+  Follow work.
 - **Batch:** solo — correct proof viewer canvas sizing
 - **Commit:** P18.3i: size proof canvas to viewport
+
+### P18.3j — Prove modded Java player samples on ATM10 Lite
+
+- **Status:** Planned
+- **Files:** `tools/world-map-proof/java-player-feed/scripts/server.js`,
+  `tools/world-map-proof/install_java_player_feed.py`,
+  `tools/world-map-proof/remove_java_player_feed.py`,
+  `tools/world-map-proof/watch_java_player_feed.py`,
+  `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Add a separate, removable KubeJS server script that writes a
+  complete current player roster to the Java server log about once per second.
+  Each sample includes name, UUID, dimension, XYZ, yaw, pitch, game tick, and
+  sample time; empty rosters and a stopped or stale feed are observable. The
+  installer must refuse a running server, preserve the exact prior state, and
+  avoid edits to ATM10 Lite's existing KubeJS scripts or world data. Prove the
+  1.21.1 NeoForge/KubeJS runtime on the selected modded server before claiming
+  broader Java support. Keep the probe output local in MSC's authenticated
+  console; do not add player positions to terrain exports.
+- **Verify:** With ATM10 Lite stopped in MSC, install the isolated probe and
+  start the server. Follow its authenticated MSC console and join with a Java
+  client. Walk, turn, and change dimension if convenient; verify fresh JSON
+  rosters update XYZ/yaw/pitch/dimension about once per second and become empty
+  after disconnect. Confirm the server remains healthy, then remove the probe
+  while stopped and confirm the original KubeJS files are unchanged. This
+  advances live-player proof for one modded Java runtime; it does not establish
+  vanilla Java support or terrain fidelity for modded blocks. Next prove the
+  vanilla Java feed path and compare the feed contract before adding Java
+  players to the viewer.
+- **Batch:** solo — establish the modded Java live-position path before
+  vanilla Java or viewer integration
+- **Commit:** P18.3j: prove modded java player samples

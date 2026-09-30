@@ -1285,3 +1285,25 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   probe. This console-feedback route has not yet been live verified.
 - **Batch:** solo — establish the vanilla datapack and console-feedback path
 - **Commit:** P18.3o: prove vanilla player samples
+
+### P18.3p — Prove live player samples on Purpur
+
+- **Status:** Awaiting Cameron verification
+- **Files:** `tools/world-map-proof/purpur-player-feed/`,
+  `tools/world-map-proof/install_purpur_player_feed.py`,
+  `tools/world-map-proof/remove_purpur_player_feed.py`,
+  `tools/world-map-proof/watch_java_player_feed.py`,
+  `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Build a temporary plugin against the API bundled with the selected
+  Purpur jar. The currently managed instance is Minecraft 1.21.11 in the
+  `pupur` directory; the helper detects the selected bundle and compiles
+  against its API. Install and remove only while stopped, preserving existing
+  plugins and world data.
+- **Verify:** Follow **Purpur live player feed proof (P18.3p)** in
+  `tools/world-map-proof/README.md`. Start through MSC, join with a matching
+  client, move and turn, then disconnect. Confirm fresh samples and an empty
+  roster in the authenticated watcher, stop Purpur, and remove the plugin.
+  Compilation has been checked on the existing 1.21.11 bundle; live behavior
+  and any newly created Purpur version remain to be verified.
+- **Batch:** solo — establish Purpur player-feed compatibility
+- **Commit:** P18.3p: prove purpur player samples

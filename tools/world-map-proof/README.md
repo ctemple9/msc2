@@ -146,6 +146,51 @@ and removes only this proof datapack and its install record. This proves the
 selected Vanilla version and console-feedback route; it does not prove another
 version or Java terrain rendering.
 
+## Purpur live player feed proof (P18.3p)
+
+Purpur uses the same Bukkit plugin API family as Paper, but this proof compiles
+against the API bundled in the selected Purpur server jar. The available
+managed fixture is **Minecraft 1.21.11 / Purpur** in the directory named
+`pupur` (spelling as installed). Its installer reads the server bundle's API
+and Java version and compiles the temporary plugin without replacing server
+files. It emits the same complete player roster as the other Java plugins,
+including empty rosters after disconnect. The selected 1.21.11 bundle has
+compile validation; a different bundle is compiled from its own API at install
+time but still needs its own live proof.
+
+Stop **Pupur** in MSC before installing:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+python3 tools/world-map-proof/install_purpur_player_feed.py \
+  --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/pupur" \
+  --server-stopped
+```
+
+Start it through MSC and watch the authenticated console:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+python3 tools/world-map-proof/watch_java_player_feed.py --server Pupur
+```
+
+Join with a client matching the server's Minecraft version, move and turn, and
+confirm fresh positions/look; disconnect and confirm an empty roster. Stop
+Pupur in MSC and remove the plugin:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+python3 tools/world-map-proof/remove_purpur_player_feed.py \
+  --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/pupur" \
+  --server-stopped
+```
+
+Both helpers require the server to be stopped and check that no Java process
+is using its directory. Removal rebuilds the expected plugin and only removes
+it if the bytes still match. This proves the selected Purpur build's player
+feed and shared sample contract; it does not prove another build or Java
+terrain rendering.
+
 ## Paper live player feed proof (P18.3l)
 
 This temporary plugin targets the managed **Paper 26.2 build 121** server. The

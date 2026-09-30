@@ -1,5 +1,54 @@
 # P18.2 — offline BDS terrain proof
 
+## Paper live player feed proof (P18.3l)
+
+This temporary plugin targets the managed **Paper 26.2 build 121** server. The
+installer compiles it against that server's own Paper API jar using Java 25,
+then adds only `plugins/msc-map-player-feed-proof.jar`. It writes one complete
+roster to Paper's local console every 20 ticks, including an empty roster when
+nobody is online. The sample fields match the ATM10 Lite probe: `sequence`,
+`tick`, `sampledAtMs`, and each player's UUID, name, dimension, XYZ, yaw, and
+pitch. Names and coordinates are private; do not publish watcher output.
+
+Stop **Paper** in MSC before installing the plugin:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+python3 tools/world-map-proof/install_paper_player_feed.py \
+  --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/paper" \
+  --server-stopped
+```
+
+The installer refuses to overwrite an existing file and checks that no Java
+process is using this server directory. Start Paper through MSC. From a second
+terminal, watch its authenticated console:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+python3 tools/world-map-proof/watch_java_player_feed.py --server Paper
+```
+
+Join with a **Minecraft 26.2** Java client, walk and turn, and confirm fresh
+samples track XYZ and yaw/pitch. If convenient, change dimension and confirm
+that field changes too. Disconnect and confirm the next sample has
+`"players": []`. The watcher reports `fresh: false` if samples stop. This
+proves the selected Paper version and the shared console sample format; it
+does not prove other Paper versions or Java terrain rendering.
+
+After the proof, stop Paper in MSC and remove the plugin:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+python3 tools/world-map-proof/remove_paper_player_feed.py \
+  --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/paper" \
+  --server-stopped
+```
+
+Removal recompiles the expected jar and refuses to delete an altered file. It
+does not change the world, other plugins, or Paper's configuration. The probe
+uses the [Paper plugin descriptor](https://docs.papermc.io/paper/dev/plugin-yml/)
+and a [main-thread repeating task](https://docs.papermc.io/paper/dev/scheduler/).
+
 ## Modded Java live player feed proof (P18.3j)
 
 This probe checks live positions on the managed **All The Mods 10 LITE** server
@@ -52,8 +101,8 @@ python3 tools/world-map-proof/remove_java_player_feed.py \
 Removal checks the script still matches the installed proof file and removes
 only that file. The installer and remover both refuse to run while a Java
 process is using this server directory. This proof establishes only the
-selected NeoForge/KubeJS combination; vanilla Java still needs its own feed
-proof, and this does not establish modded terrain fidelity or player rendering.
+selected NeoForge/KubeJS combination; Paper has a separate probe above, and
+this does not establish modded terrain fidelity or player rendering.
 
 ## Bedrock live player feed proof (P18.3a)
 

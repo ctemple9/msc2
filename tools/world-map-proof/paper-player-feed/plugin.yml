@@ -1,0 +1,5 @@
+name: MscMapPlayerFeedProof
+version: 0.1.0
+main: dev.msc.mapproof.PaperPlayerFeedProof
+api-version: '26.2'
+description: Temporary local player-position proof for MSC

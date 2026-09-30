@@ -1200,7 +1200,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3l — Prove live player samples on Paper
 
-- **Status:** Planned — awaiting Cameron review
+- **Status:** Awaiting Cameron verification
 - **Files:** `tools/world-map-proof/paper-player-feed/`,
   `tools/world-map-proof/install_paper_player_feed.py`,
   `tools/world-map-proof/remove_paper_player_feed.py`,

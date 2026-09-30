@@ -1149,7 +1149,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3j — Prove modded Java player samples on ATM10 Lite
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Complete — live movement, rotation, and disconnect verified on
+  ATM10 Lite; temporary KubeJS probe removed
 - **Files:** `tools/world-map-proof/java-player-feed/scripts/server.js`,
   `tools/world-map-proof/install_java_player_feed.py`,
   `tools/world-map-proof/remove_java_player_feed.py`,
@@ -1173,9 +1174,10 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   after disconnect. Confirm the server remains healthy, then remove the probe
   while stopped and confirm the original KubeJS files are unchanged. This
   advances live-player proof for one modded Java runtime; it does not establish
-  Paper or vanilla Java support or terrain fidelity for modded blocks. Next
-  prove the Paper feed path and compare the feed contract before adding Java
-  players to the viewer.
+  terrain fidelity for modded blocks.
+- **Evidence:** The ATM10 Lite server log has player samples with 9 distinct
+  XYZ positions and 8 distinct yaw/pitch pairs, followed by an empty roster.
+  The temporary probe is absent from the stopped server.
 - **Batch:** solo — establish the modded Java live-position path before
   Paper or viewer integration
 - **Commit:** P18.3j: prove modded java player samples
@@ -1200,7 +1202,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3l — Prove live player samples on Paper
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Complete — live movement, rotation, and disconnect verified on
+  Paper; temporary plugin removed
 - **Files:** `tools/world-map-proof/paper-player-feed/`,
   `tools/world-map-proof/install_paper_player_feed.py`,
   `tools/world-map-proof/remove_paper_player_feed.py`,
@@ -1218,12 +1221,16 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   an empty roster. Confirm the existing world and plugins are unchanged after
   stopping Paper and removing the probe. Compare the sample contract with
   ATM10 Lite before adding Java players to the viewer.
+- **Evidence:** The Paper server log has player samples with 29 distinct XYZ
+  positions and 26 distinct yaw/pitch pairs, followed by an empty roster. The
+  temporary plugin is absent from the stopped server.
 - **Batch:** solo — establish the Paper live-position path
 - **Commit:** P18.3l: prove paper player samples
 
 ### P18.3m — Prove live player samples on Fabric
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Complete — live movement, rotation, and disconnect verified on
+  the selected Fabric server; temporary mod removed
 - **Files:** `tools/world-map-proof/fabric-player-feed/`,
   `tools/world-map-proof/install_fabric_player_feed.py`,
   `tools/world-map-proof/remove_fabric_player_feed.py`,
@@ -1240,13 +1247,17 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   Stop Fabric and remove only the probe and any Fabric API jar installed by the
   probe. This proves the selected Fabric Loader/API combination, not other
   Fabric versions or terrain rendering.
+- **Evidence:** The Fabric server log has player samples with 82 distinct XYZ
+  positions and 76 distinct yaw/pitch pairs, followed by an empty roster. The
+  temporary mod is absent from the stopped server.
 - **Batch:** solo — prove Fabric player samples before testing the other Java
   server flavors
 - **Commit:** P18.3m: prove fabric player samples
 
 ### P18.3n — Prove live player samples on Forge
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Complete — live movement, rotation, and disconnect verified on
+  Forge 66.0.8; temporary mod removed
 - **Files:** `tools/world-map-proof/forge-player-feed/`,
   `tools/world-map-proof/install_forge_player_feed.py`,
   `tools/world-map-proof/remove_forge_player_feed.py`,
@@ -1264,7 +1275,10 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Implementation note:** The first probe used the NeoForge-style dependency
   key `type="required"`; Forge 66.0.8 requires `mandatory=true`. The failed
   jar was removed by its recorded checksum and the corrected probe reinstalled.
-  Startup and live-feed verification are still pending.
+  The corrected mod emitted live samples.
+- **Evidence:** The Forge server log has player samples with 4 distinct XYZ
+  positions and 3 distinct yaw/pitch pairs, followed by an empty roster. The
+  temporary mod is absent from the stopped server.
 - **Batch:** solo — establish Forge player-feed compatibility
 - **Commit:** P18.3n: prove forge player samples
 

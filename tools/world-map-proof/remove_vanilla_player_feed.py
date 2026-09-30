@@ -8,9 +8,7 @@ from pathlib import Path
 import subprocess
 
 from install_java_player_feed import running_server_pids
-from install_vanilla_player_feed import (
-    PACK_NAME, STATE_NAME, build_pack, server_layout,
-)
+from install_vanilla_player_feed import PACK_NAME, STATE_NAME, server_layout
 
 
 def main() -> int:
@@ -38,8 +36,7 @@ def main() -> int:
         if pack.is_symlink() or not pack.is_file():
             parser.error(f"proof datapack is missing or unsafe: {pack}")
         digest = hashlib.sha256(pack.read_bytes()).hexdigest()
-        expected_digest = hashlib.sha256(build_pack()).hexdigest()
-        if digest != state.get("sha256") or digest != expected_digest:
+        if digest != state.get("sha256"):
             parser.error("datapack changed since installation; refusing to remove it")
         pack.unlink()
         state_path.unlink()

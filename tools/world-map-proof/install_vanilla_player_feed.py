@@ -36,8 +36,10 @@ def server_layout(server: Path) -> tuple[Path, Path]:
             or "META-INF/patches.list" in members):
         raise RuntimeError("selected jar does not look like the official vanilla server bundle")
     metadata = json.loads((SOURCE / "pack.mcmeta").read_text(encoding="utf-8"))
-    if (metadata.get("pack", {}).get("pack_format")
-            != version.get("pack_version", {}).get("data_major")):
+    declared_pack = metadata.get("pack", {})
+    data_format = version.get("pack_version", {}).get("data_major")
+    if (declared_pack.get("min_format") != data_format
+            or declared_pack.get("max_format") != data_format):
         raise RuntimeError("datapack format does not match the selected Vanilla jar")
     level_name = None
     for line in properties.read_text(encoding="utf-8").splitlines():

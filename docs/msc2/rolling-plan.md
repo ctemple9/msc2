@@ -1287,6 +1287,10 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   positions/look and then an empty roster. Confirm datapack command feedback
   reaches the watcher in the expected form, stop the server, and remove the
   probe. This console-feedback route has not yet been live verified.
+- **Implementation note:** Minecraft 26.3 requires data pack `min_format` and
+  `max_format`; its startup log rejected the first pack's legacy `pack_format`
+  metadata. Update the pack, remove the installed copy by its recorded checksum,
+  then reinstall and repeat the live check.
 - **Batch:** solo — establish the vanilla datapack and console-feedback path
 - **Commit:** P18.3o: prove vanilla player samples
 

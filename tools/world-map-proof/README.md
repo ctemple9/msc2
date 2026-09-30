@@ -102,7 +102,8 @@ Java terrain rendering.
 Vanilla has no plugin or mod API, so this proof uses a temporary datapack and a
 dedicated watcher that turns vanilla command-feedback records into the shared
 player-sample envelope. It targets the managed **official Minecraft 26.3**
-server and pack format 121. The datapack reads player UUID, position, and
+server and data pack format 121, declared with `min_format` and `max_format`.
+The datapack reads player UUID, position, and
 rotation once per second across the Overworld, Nether, and End. It does not
 broadcast the values to in-game chat or change server properties or terrain.
 The watcher needs access to MSC's authenticated server console. Player names
@@ -141,8 +142,8 @@ python3 tools/world-map-proof/remove_vanilla_player_feed.py \
 ```
 
 The helpers refuse to run while a Java process uses the selected server.
-Removal checks both the recorded install hash and the current source pack hash,
-and removes only this proof datapack and its install record. This proves the
+Removal checks the recorded install hash and removes only this proof datapack
+and its install record. This proves the
 selected Vanilla version and console-feedback route; it does not prove another
 version or Java terrain rendering.
 

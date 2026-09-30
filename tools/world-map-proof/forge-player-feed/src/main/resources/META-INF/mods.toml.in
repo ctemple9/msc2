@@ -10,14 +10,14 @@ description='''Temporary server-side player sampling for the MSC map proof.'''
 
 [[dependencies.msc_map_player_feed_proof]]
 modId="forge"
-type="required"
+mandatory=true
 versionRange="[66.0.8,)"
 ordering="NONE"
 side="SERVER"
 
 [[dependencies.msc_map_player_feed_proof]]
 modId="minecraft"
-type="required"
+mandatory=true
 versionRange="[26.3]"
 ordering="NONE"
 side="SERVER"

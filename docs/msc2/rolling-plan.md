@@ -1261,6 +1261,10 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   `tools/world-map-proof/README.md`. Join with a Minecraft 26.3 client, move,
   turn, and disconnect; confirm the authenticated watcher reports fresh
   positions/look and then an empty roster. Stop Forge and remove the probe.
+- **Implementation note:** The first probe used the NeoForge-style dependency
+  key `type="required"`; Forge 66.0.8 requires `mandatory=true`. The failed
+  jar was removed by its recorded checksum and the corrected probe reinstalled.
+  Startup and live-feed verification are still pending.
 - **Batch:** solo — establish Forge player-feed compatibility
 - **Commit:** P18.3n: prove forge player samples
 

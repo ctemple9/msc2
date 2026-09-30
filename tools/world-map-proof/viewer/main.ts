@@ -23,7 +23,8 @@ status.value = 'Initial saved terrain loaded';
 const players = new PlayerLayer({ scene: viewer.scene, camera: viewer.camera });
 let displayedRoster = '';
 let followingId: string | null = null;
-let previousFrame = 0;
+let savedHeightAt: typeof viewer.controls.heightAt = null;
+let hasHeightOverride = false;
 type Feed = {
   fresh: boolean;
   status: string;
@@ -34,6 +35,31 @@ type Feed = {
   }>;
 };
 let lastSequence = '';
+function centerOf(position: typeof viewer.controls.position) {
+  const centered = position.clone();
+  centered.y += 0.9;
+  return centered;
+}
+function holdCameraAtPlayerHeight() {
+  if (!hasHeightOverride) {
+    savedHeightAt = viewer.controls.heightAt;
+    hasHeightOverride = true;
+  }
+  // MapControls otherwise moves the pivot back toward terrain height on each
+  // update, which can push an elevated player away from the viewport center.
+  viewer.controls.heightAt = null;
+}
+function restoreTerrainHeight() {
+  if (!hasHeightOverride) return;
+  viewer.controls.heightAt = savedHeightAt;
+  savedHeightAt = null;
+  hasHeightOverride = false;
+}
+function stopFollowing() {
+  followingId = null;
+  players.setFollowed(null);
+  restoreTerrainHeight();
+}
 function renderRoster(current: PlayerSnapshot['players']) {
   playerCount.value = String(current.length);
   rosterEmpty.hidden = current.length > 0;
@@ -61,12 +87,13 @@ function renderRoster(current: PlayerSnapshot['players']) {
     fly.textContent = 'Fly';
     fly.setAttribute('aria-label', `Fly to ${player.name}`);
     fly.addEventListener('click', () => {
-      followingId = null;
-      players.setFollowed(null);
+      stopFollowing();
       const position = players.positionOf(player.uuid);
       if (!position) return;
+      const target = centerOf(position);
+      holdCameraAtPlayerHeight();
       viewer.controls.animateTo({
-        position,
+        position: target,
         ...(viewer.controls.distance > 260 ? { distance: 140 } : {}),
       });
       viewer.invalidate();
@@ -76,7 +103,23 @@ function renderRoster(current: PlayerSnapshot['players']) {
     follow.type = 'button';
     follow.dataset.follow = player.uuid;
     follow.addEventListener('click', () => {
-      followingId = followingId === player.uuid ? null : player.uuid;
+      if (followingId === player.uuid) {
+        stopFollowing();
+      } else {
+        stopFollowing();
+        followingId = player.uuid;
+        const target = players.positionOf(followingId);
+        if (target) {
+          const centered = centerOf(target);
+          holdCameraAtPlayerHeight();
+          viewer.controls.setView({
+            position: centered,
+            distance: viewer.controls.distance,
+            rotation: viewer.controls.rotation,
+            angle: viewer.controls.angle,
+          });
+        }
+      }
       players.setFollowed(followingId);
       renderRoster(players.players.filter((entry) => entry.dimension === 'minecraft:overworld'));
     });
@@ -88,9 +131,11 @@ function renderRoster(current: PlayerSnapshot['players']) {
 }
 roster.addEventListener('pointerdown', (event) => event.stopPropagation());
 viewer.controls.addEventListener('start', () => {
-  if (followingId === null) return;
-  followingId = null;
-  players.setFollowed(null);
+  if (followingId === null) {
+    restoreTerrainHeight();
+    return;
+  }
+  stopFollowing();
   renderRoster(players.players.filter((entry) => entry.dimension === 'minecraft:overworld'));
 });
 async function refreshPlayers() {
@@ -102,8 +147,7 @@ async function refreshPlayers() {
       players.setSnapshot({ source: 'host', updated: 0, players: [] }, performance.now());
       playerStatus.value = `Player feed unavailable · ${feed.status}`;
       lastSequence = '';
-      followingId = null;
-      players.setFollowed(null);
+      stopFollowing();
       renderRoster([]);
       viewer.invalidate();
       return;
@@ -137,8 +181,7 @@ async function refreshPlayers() {
     players.setSnapshot({ source: 'host', updated: 0, players: [] }, performance.now());
     playerStatus.value = 'Player feed unavailable · agent connection lost';
     lastSequence = '';
-    followingId = null;
-    players.setFollowed(null);
+    stopFollowing();
     renderRoster([]);
   }
   viewer.invalidate();
@@ -146,23 +189,14 @@ async function refreshPlayers() {
 void refreshPlayers();
 setInterval(() => void refreshPlayers(), 1000);
 function animatePlayers(now: number) {
-  const elapsed = previousFrame ? Math.min(100, now - previousFrame) : 16;
-  previousFrame = now;
   let changed = players.update(now);
   if (followingId) {
     const target = players.positionOf(followingId);
     if (!target) {
-      followingId = null;
-      players.setFollowed(null);
+      stopFollowing();
       renderRoster(players.players.filter((entry) => entry.dimension === 'minecraft:overworld'));
     } else {
-      const position = viewer.controls.position.clone().lerp(target, 1 - Math.exp(-elapsed / 180));
-      viewer.controls.setView({
-        position,
-        distance: viewer.controls.distance,
-        rotation: viewer.controls.rotation,
-        angle: viewer.controls.angle,
-      });
+      viewer.controls.position.copy(centerOf(target));
       changed = true;
     }
   }

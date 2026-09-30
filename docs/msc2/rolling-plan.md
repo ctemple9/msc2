@@ -1056,3 +1056,26 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   across server types before integrating the full shell.
 - **Batch:** solo — validate BDS roster and camera interaction
 - **Commit:** P18.3e: add live bedrock player fly and follow
+
+### P18.3f — Center the live-player camera actions
+
+- **Status:** Awaiting Cameron verification
+- **Files:** `tools/world-map-proof/viewer/main.ts`,
+  `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Correct the camera targeting reported during P18.3e verification:
+  Fly and Follow could move the view while leaving the live model near the
+  viewport edge. Center the model's vertical midpoint, let Follow update the
+  map pivot without resetting camera controls every frame, and suspend the
+  terrain-height pivot while targeting a player. Restore ordinary terrain
+  camera behavior when the user navigates away, stops following, or the player
+  feed becomes unavailable.
+- **Verify:** With one live Bedrock player visible, click **Fly** and confirm
+  the player model is centered in the viewport. Click **Follow**, move and jump
+  in game, and confirm the model stays centered while the terrain moves under
+  it. Orbit or pan manually and confirm follow releases and ordinary terrain
+  framing resumes. Toggle follow off, then disconnect or stop the feed and
+  confirm the roster clears. This advances click-to-fly and follow toward the
+  agreed in-app UX; it does not prove Java feeds or final Worlds-tab
+  integration. Choose the next proof from this visual result.
+- **Batch:** solo — correct live Bedrock camera framing
+- **Commit:** P18.3f: center live player camera actions

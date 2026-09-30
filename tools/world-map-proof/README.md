@@ -452,8 +452,11 @@ printed `revision` in the viewer and select **Replace terrain**.
 
 The **Players** roster lists current Bedrock players in the map's dimension.
 Select **Fly** to move the camera to a player. Select **Follow** to keep the
-camera centered as they move; select **Following** again or begin orbiting the
-map to release the camera. A player who leaves or whose feed becomes stale is
-removed from the roster and follow ends. This proof roster covers the active
-BDS feed only; it does not establish Java players, skins, or the final MSC
-Worlds-tab layout.
+camera centered on their model as they move; select **Following** again or
+begin navigating the map to release the camera. While locked to a player, the
+camera uses that model's height instead of the terrain-following pivot, so
+elevation does not push the player toward the edge of the view. Normal terrain
+camera behavior returns when the lock ends. A player who leaves or whose feed
+becomes stale is removed from the roster and follow ends. This proof roster
+covers the active BDS feed only; it does not establish Java players, skins, or
+the final MSC Worlds-tab layout.

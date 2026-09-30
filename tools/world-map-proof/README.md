@@ -99,43 +99,52 @@ Java terrain rendering.
 
 ## Vanilla live player feed proof (P18.3o)
 
-Vanilla has no plugin or mod API, so this proof uses a temporary datapack and a
-dedicated watcher that turns vanilla command-feedback records into the shared
-player-sample envelope. It targets the managed **official Minecraft 26.3**
-server and data pack format 121, declared with `min_format` and `max_format`.
-The datapack reads player UUID, position, and
-rotation once per second across the Overworld, Nether, and End. It does not
-broadcast the values to in-game chat or change server properties or terrain.
-The watcher needs access to MSC's authenticated server console. Player names
-and coordinates are private; do not post output publicly.
+Vanilla has no plugin or mod API. Its datapacks can run commands, but Vanilla
+does not expose the output of commands inside a function through the server
+console. The temporary datapack attempt confirmed that the pack can be loaded
+and its function called, but could not provide a live position feed. This proof
+therefore uses Vanilla's built-in RCON interface, temporarily enabled with a
+random secret and bound to `127.0.0.1`. The helper also binds the game server to
+loopback while RCON is enabled, so only a client on this Mac can connect during
+the check. It targets the managed official Minecraft 26.3 server. The watcher
+reads UUID, position, and rotation across the Overworld, Nether, and End and
+prints the shared sample envelope. Player names and coordinates are private;
+do not post output publicly.
 
-If the managed Vanilla server has never been started, start it once in MSC so
-its selected `Vanilla/` world directory is created, then stop it. With Vanilla
-stopped, install the datapack:
+With Vanilla stopped, temporarily enable loopback RCON:
 
 ```sh
 cd /Users/camerontemple/msc2-world-map
-python3 tools/world-map-proof/install_vanilla_player_feed.py \
+python3 tools/world-map-proof/enable_vanilla_rcon_player_feed.py \
   --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/vanilla" \
   --server-stopped
 ```
 
-Start Vanilla through MSC. In another terminal, watch the authenticated
-console feedback:
+Start Vanilla through MSC. Join from this Mac at `127.0.0.1:25565`. In another
+terminal, poll the local RCON endpoint:
 
 ```sh
 cd /Users/camerontemple/msc2-world-map
-python3 tools/world-map-proof/watch_vanilla_player_feed.py --server Vanilla
+python3 tools/world-map-proof/watch_vanilla_rcon_player_feed.py \
+  --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/vanilla"
 ```
 
 Join with a **Minecraft 26.3** Java client, move and turn, and confirm fresh
 samples track XYZ and yaw/pitch. Disconnect and confirm an empty `players`
-array. This route depends on Vanilla exposing datapack command feedback in
-MSC's console with the expected English text; confirm that live before relying
-on it. Stop Vanilla in MSC and remove the datapack:
+array. If the earlier temporary datapack is still enabled, disable it through
+MSC's console, then stop Vanilla:
+
+```text
+datapack disable "file/msc-map-player-feed-proof.zip"
+```
+
+With Vanilla stopped, restore its original bind and RCON settings:
 
 ```sh
 cd /Users/camerontemple/msc2-world-map
+python3 tools/world-map-proof/disable_vanilla_rcon_player_feed.py \
+  --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/vanilla" \
+  --server-stopped
 python3 tools/world-map-proof/remove_vanilla_player_feed.py \
   --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/vanilla" \
   --server-stopped
@@ -143,9 +152,11 @@ python3 tools/world-map-proof/remove_vanilla_player_feed.py \
 
 The helpers refuse to run while a Java process uses the selected server.
 Removal checks the recorded install hash and removes only this proof datapack
-and its install record. This proves the
-selected Vanilla version and console-feedback route; it does not prove another
-version or Java terrain rendering.
+and its install record. On Vanilla 26.3, live RCON samples tracked one player's
+XYZ and rotation, filtered to the correct dimension, then reported an empty
+roster after disconnect. The original server settings were restored and the
+datapack removed. This proves the selected Vanilla version and RCON route; it
+does not prove another version or Java terrain rendering.
 
 ## Purpur live player feed proof (P18.3p)
 

@@ -1270,28 +1270,42 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3o — Prove live player samples on Vanilla
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Complete — live movement, rotation, and disconnect verified on
+  Vanilla 26.3; temporary settings and datapack removed
 - **Files:** `tools/world-map-proof/vanilla-player-feed/`,
   `tools/world-map-proof/install_vanilla_player_feed.py`,
   `tools/world-map-proof/remove_vanilla_player_feed.py`,
   `tools/world-map-proof/watch_vanilla_player_feed.py`,
+  `tools/world-map-proof/enable_vanilla_rcon_player_feed.py`,
+  `tools/world-map-proof/disable_vanilla_rcon_player_feed.py`,
+  `tools/world-map-proof/watch_vanilla_rcon_player_feed.py`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
-- **What:** Use a temporary Vanilla datapack to sample UUID, position, and
-  rotation across the three standard dimensions, then normalize its command
-  feedback through an authenticated console watcher. Target the managed
-  official Minecraft 26.3 bundle and pack format 121. Install and remove only
-  while the server is stopped; preserve the world and server configuration.
+- **What:** Use temporary loopback-only RCON on the managed official Minecraft
+  26.3 bundle to sample player UUID, position, and rotation across the three
+  standard dimensions. Vanilla suppresses the output of commands inside a
+  datapack function, so the initial datapack console-feedback route could not
+  produce live samples. The RCON helper saves and restores only the original
+  `server-ip`, `enable-rcon`, `rcon.port`, and `rcon.password` values; it binds
+  the game server and RCON to `127.0.0.1` during the proof. Install and remove
+  only while the server is stopped; preserve the world and other settings.
 - **Verify:** Follow **Vanilla live player feed proof (P18.3o)** in
-  `tools/world-map-proof/README.md`. Start the selected Vanilla server through
-  MSC, join with a 26.3 client, move, turn, and disconnect. Confirm fresh
-  positions/look and then an empty roster. Confirm datapack command feedback
-  reaches the watcher in the expected form, stop the server, and remove the
-  probe. This console-feedback route has not yet been live verified.
+  `tools/world-map-proof/README.md`. Stop Vanilla, enable the local-only RCON
+  probe, start through MSC, and connect with a 26.3 client from the same Mac.
+  Move, turn, and disconnect; confirm fresh positions/look and then an empty
+  roster. Stop Vanilla, restore the original server properties, and remove the
+  earlier datapack by its recorded checksum.
+- **Evidence:** Loopback RCON returned one Overworld player with a stable UUID;
+  four consecutive samples showed changing XYZ, yaw, and pitch. After Cameron
+  disconnected, the roster became empty. A dimension-filtered query returned
+  the player only in the Overworld. Vanilla was stopped through MSC, original
+  server properties restored, and the old datapack removed by its checksum.
 - **Implementation note:** Minecraft 26.3 requires data pack `min_format` and
   `max_format`; its startup log rejected the first pack's legacy `pack_format`
-  metadata. Update the pack, remove the installed copy by its recorded checksum,
-  then reinstall and repeat the live check.
-- **Batch:** solo — establish the vanilla datapack and console-feedback path
+  metadata. After correcting the metadata, the server listed the pack as
+  available; it had to be enabled explicitly. The function then ran, but its
+  internal command output did not appear in the console, so the watcher could
+  not consume it. The datapack was removed after the RCON proof.
+- **Batch:** solo — establish the vanilla position-feed path
 - **Commit:** P18.3o: prove vanilla player samples
 
 ### P18.3p — Prove live player samples on Purpur

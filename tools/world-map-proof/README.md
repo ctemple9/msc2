@@ -24,7 +24,18 @@ python3 tools/world-map-proof/install_bedrock_player_feed.py \
 The installer copies the pack into that server's `behavior_packs`, adds its
 pack ID to the active world's `world_behavior_packs.json`, and preserves any
 existing pack list as `.before-msc-map-proof`. It refuses duplicate installs.
-Restart BDS in MSC, then in another terminal run:
+Restart BDS in MSC, then in another terminal run the polling watcher. It uses
+the authenticated `msc console tail` endpoint and works with the currently
+installed agent:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+python3 tools/world-map-proof/watch_bedrock_player_feed.py --poll \
+  --server theboyslatest
+```
+
+After a development agent containing P18.3b is loaded, the streaming path can
+also be checked with:
 
 ```sh
 cd /Users/camerontemple/msc2-world-map

@@ -963,3 +963,24 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   consuming this feed in MSC and animating a model with stale-state handling.
 - **Batch:** solo — prove BDS player positions before MSC viewer integration
 - **Commit:** P18.3a: probe live bds player positions
+
+### P18.3b — Restore authenticated BDS player-feed observation
+
+- **Status:** Awaiting Cameron verification
+- **Files:** `crates/msc-agent/src/auth.rs`,
+  `tools/world-map-proof/watch_bedrock_player_feed.py`,
+  `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
+- **What:** P18.3a's pack installed, but `msc console follow` obtained a stream
+  ticket and then received 401 on WebSocket upgrade. Accept the console stream
+  path both before and after Axum's `/v1` nesting in the ticket gate. Provide
+  a polling watcher over the already authenticated console-tail route so the
+  current installed agent can expose the pack samples without a service reload.
+- **Verify:** Start the BDS server with the P18.3a pack and run
+  `cd /Users/camerontemple/msc2-world-map && python3 tools/world-map-proof/watch_bedrock_player_feed.py --poll --server theboyslatest`.
+  Join from a console client; current XYZ and yaw should change as the player
+  moves and turns, and the next roster should be empty after disconnect.
+  Once the corrected agent is loaded, `msc console follow` should also connect
+  without 401. This unblocks observation of current Bedrock players toward
+  moving 3D models; it does not itself draw models or verify Java players.
+- **Batch:** solo — unblock the BDS player feed proof before model integration
+- **Commit:** P18.3b: restore console ticket path and poll fallback

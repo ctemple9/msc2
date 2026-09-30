@@ -1042,7 +1042,8 @@ fn bearer_token(headers: &HeaderMap) -> Option<&str> {
 }
 
 fn console_stream_ticket(uri: &axum::http::Uri) -> Option<&str> {
-    if uri.path() != "/v1/console/stream" {
+    // Axum's nested router may pass the inner path to route middleware.
+    if uri.path() != "/v1/console/stream" && uri.path() != "/console/stream" {
         return None;
     }
     uri.query()?.split('&').find_map(|part| {

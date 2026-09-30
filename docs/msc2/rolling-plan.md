@@ -1380,29 +1380,32 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Status:** Planned — Cameron directed completion of rendering proofs before
   embedding the viewer in MSC
 - **What:** Use one read-only Java Anvil terrain pipeline and the existing
-  standalone 3D viewer. Prove the actual selected worlds for ATM10 Lite
-  (Minecraft 1.21.1), Pupur (1.21.11), Paper (26.2), Fabric (26.2), NeoForge
-  without KubeJS (26.2), Vanilla (26.3), and Forge (26.3). Minecraft 26.1
-  moved the Overworld region files from the world root into
+  standalone 3D viewer. Test distinct Minecraft data versions, save layouts,
+  and block asset sets rather than treating each server flavor as a separate
+  renderer. Minecraft 26.1 moved the Overworld region files from the world root into
   `dimensions/minecraft/overworld/`; the proof must discover both layouts.
   Resolve vanilla and available mod/resource-pack block assets without
   modifying a running save. Count and visibly mark missing block models and
   textures rather than silently substituting a plausible block.
-- **Verify:** For each of the seven selected servers, export a real 4×4-chunk
-  Overworld area from a stopped world or consistent read-only copy and open it
-  in the standalone viewer. Record Minecraft version, data version, save
-  layout, region/chunk coverage, texture/model exact and fallback counts,
-  export time and memory, and a visual check against the game. Inspect a
-  representative mod-built area in ATM10 Lite, including blocks whose assets
-  come from mods; a nearly vanilla spawn does not establish modded rendering.
+- **Verify:** Run full 4×4-chunk exports and visual comparisons on
+  representative worlds: Vanilla 26.3 for the new layout, a 26.2 world for
+  version coverage, Pupur 1.21.11 for the older layout and version boundary,
+  and a genuinely mod-built ATM10 Lite 1.21.1 area for mod models and
+  textures. Record Minecraft/data version, layout, chunk coverage,
+  exact/fallback model and texture counts, export time, and memory. A nearly
+  vanilla ATM10 spawn does not establish modded rendering. Give the other
+  selected server flavors a short export smoke check for discovery, coverage,
+  and fallback counts; expand to a full visual comparison only if the save
+  layout, block palette, or assets introduce a distinct case.
   Prove saved-terrain refresh on at least one 1.21.x and one 26.x world while
   the server remains usable. Check Nether, End, and custom dimensions
   separately before claiming their support. Accept the standalone renderer
-  only when every selected Overworld shows correct terrain with explicit
-  fallbacks and no unexplained missing chunks or geometry holes.
+  when representative views are correct and every selected server's smoke
+  check has explicit fallbacks and no unexplained missing chunks.
 - **Order:** Establish the two save layouts with Vanilla 26.3 and Pupur
-  1.21.11, then exercise the demanding modded asset case on ATM10 Lite. Run
-  the same export and visual proof on Fabric, Forge, NeoForge, and Paper.
+  1.21.11, cover the 26.2 data version, then exercise modded assets on ATM10
+  Lite. Run short checks on Fabric, Forge, NeoForge, and Paper where they were
+  not used as the 26.2 representative.
   Choose implementation checkpoints after reviewing each result; this matrix
   is the acceptance gate before the first MSC Worlds-tab integration.
 - **Batch:** solo — finish Java and Bedrock rendering evidence before MSC UI

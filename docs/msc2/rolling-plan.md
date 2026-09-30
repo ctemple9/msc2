@@ -1220,3 +1220,26 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   ATM10 Lite before adding Java players to the viewer.
 - **Batch:** solo — establish the Paper live-position path
 - **Commit:** P18.3l: prove paper player samples
+
+### P18.3m — Prove live player samples on Fabric
+
+- **Status:** Awaiting Cameron verification
+- **Files:** `tools/world-map-proof/fabric-player-feed/`,
+  `tools/world-map-proof/install_fabric_player_feed.py`,
+  `tools/world-map-proof/remove_fabric_player_feed.py`,
+  `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Add a temporary Fabric server mod that uses Fabric API's end-tick
+  event to emit a complete roster every 20 ticks. Keep the sample schema aligned
+  with Paper and KubeJS, install only into a stopped Minecraft 26.2 Fabric
+  server, and checksum any official Fabric API dependency the installer adds.
+  Preserve pre-existing mods and make removal refuse changed proof artifacts.
+- **Verify:** Follow **Fabric live player feed proof (P18.3m)** in
+  `tools/world-map-proof/README.md`. Start the selected Fabric server through
+  MSC; join with a Minecraft 26.2 Java client; walk and turn; confirm fresh
+  samples update XYZ and yaw/pitch, and disconnect to confirm an empty roster.
+  Stop Fabric and remove only the probe and any Fabric API jar installed by the
+  probe. This proves the selected Fabric Loader/API combination, not other
+  Fabric versions or terrain rendering.
+- **Batch:** solo — prove Fabric player samples before testing the other Java
+  server flavors
+- **Commit:** P18.3m: prove fabric player samples

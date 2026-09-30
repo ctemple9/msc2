@@ -1,5 +1,58 @@
 # P18.2 — offline BDS terrain proof
 
+## Fabric live player feed proof (P18.3m)
+
+This temporary Fabric mod targets the managed **Fabric 26.2 / Loader 0.19.5**
+server. It emits one complete roster to the server console every 20 server
+ticks, including an empty roster when nobody is online. Samples contain the
+same sequence, tick, sample time, UUID, name, dimension, XYZ, yaw, and pitch
+fields as the Paper and KubeJS probes. Player names and coordinates are
+private; do not post watcher output publicly.
+
+The mod uses Fabric API's end-of-server-tick event. If the selected server
+doesn't already have a Fabric API build for Minecraft 26.2, the installer adds
+the official Fabric API `0.161.0+26.2` aggregate jar and records its checksum
+so removal can delete only that exact proof dependency. Existing mods and
+world data are not edited.
+
+Stop **Fabric** in MSC before installing:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+python3 tools/world-map-proof/install_fabric_player_feed.py \
+  --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/fabric" \
+  --server-stopped
+```
+
+Start Fabric through MSC. From another terminal, watch its authenticated MSC
+console:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+python3 tools/world-map-proof/watch_java_player_feed.py --server Fabric
+```
+
+Join with a **Minecraft 26.2** Java client, walk and turn, and confirm fresh
+samples track XYZ and yaw/pitch. If convenient, change dimension and confirm
+that field changes too. Disconnect and confirm the next sample has
+`"players": []`. The watcher reports `fresh: false` if samples stop. This
+proves the selected Fabric Loader/API combination and the shared console
+sample format; it does not prove another Fabric version or Java terrain
+rendering.
+
+After the proof, stop Fabric in MSC and remove the temporary files:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+python3 tools/world-map-proof/remove_fabric_player_feed.py \
+  --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/fabric" \
+  --server-stopped
+```
+
+The remover refuses to delete changed files. It removes the Fabric API jar
+only when this installer added it; pre-existing Fabric API and other mods are
+left in place.
+
 ## Paper live player feed proof (P18.3l)
 
 This temporary plugin targets the managed **Paper 26.2 build 121** server. The

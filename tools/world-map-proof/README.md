@@ -1,5 +1,57 @@
 # P18.2 — offline BDS terrain proof
 
+## Bedrock live player feed proof (P18.3a)
+
+The `bedrock-player-feed` behavior pack uses stable `@minecraft/server`
+functions to sample active players every 20 game ticks (normally about one
+second). It logs one JSON roster with name, session-scoped entity ID,
+dimension, XYZ, pitch, yaw, game tick, and wall-clock sample time. An empty
+roster is an explicit sample. This pack has no client component, so the proof
+can include a console-connected player. It does not require the Beta APIs
+experiment, network APIs, or a client map mod. This is a **server console
+proof**, not yet an authenticated MSC player-position endpoint.
+
+To try it on the imported `theboyslatest` server, **stop that server in MSC**
+first. Then run:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+python3 tools/world-map-proof/install_bedrock_player_feed.py \
+  --server-dir "$HOME/Library/Application Support/MSC 2/servers/bedrock/theboyslatest" \
+  --server-stopped
+```
+
+The installer copies the pack into that server's `behavior_packs`, adds its
+pack ID to the active world's `world_behavior_packs.json`, and preserves any
+existing pack list as `.before-msc-map-proof`. It refuses duplicate installs.
+Restart BDS in MSC, then in another terminal run:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+MSC2_DATA_DIR="$HOME/Library/Application Support/MSC 2" \
+  target/debug/msc console follow --server theboyslatest \
+  | python3 tools/world-map-proof/watch_bedrock_player_feed.py
+```
+
+The watcher prints `fresh: true` with the latest full roster; if samples stop
+for five seconds while the console stream remains open, it prints
+`fresh: false`. Join from a Bedrock or console client, walk and turn, change
+dimension if convenient, then disconnect. Confirm XYZ/yaw change and the
+player disappears from the next roster. Do not share full output publicly:
+names and coordinates are private. The watcher reports sequence gaps, and a
+pack error appears as `MSC_MAP_PLAYERS_ERROR` in the server log.
+
+This proof does not yet join the script's session ID with MSC's XUID roster,
+authenticate a position API, animate a 3D model, or prove Java players.
+Those are separate checkpoints; the script entity ID is not assumed to be a
+permanent account identifier. If the pack does not load or its warnings do not
+reach MSC's console, record that failure before building the bridge.
+
+Sources: [Microsoft's stable World API](https://learn.microsoft.com/en-us/minecraft/creator/scriptapi/minecraft/server/world?view=minecraft-bedrock-stable),
+[Entity location and rotation](https://learn.microsoft.com/en-us/minecraft/creator/scriptapi/minecraft/server/entity?view=minecraft-bedrock-stable),
+[BDS pack folders](https://learn.microsoft.com/en-us/minecraft/creator/documents/bedrockserver/getting-started?view=minecraft-bedrock-stable),
+and [script logging](https://learn.microsoft.com/en-us/minecraft/creator/documents/scripting/debugging-scripts?view=minecraft-bedrock-stable).
+
 ## Changed tile export proof (P18.2r)
 
 The exporter can compare two **consistent, private offline snapshots** by

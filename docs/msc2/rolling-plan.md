@@ -911,7 +911,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2r — Export only changed Bedrock tiles
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Done — Cameron verified unchanged and changed tile selection,
+  visible block change, and continuing BDS writes, 2026-09-29
 - **Files:** `tools/world-map-proof/src/main.rs`,
   `tools/world-map-proof/export_changed_tiles.py`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
@@ -934,3 +935,31 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   view. It does not establish live player motion or whole-world streaming.
 - **Batch:** solo — prove selective tile rebuild before automatic refresh
 - **Commit:** P18.2r: export only changed bedrock tiles
+
+### P18.3a — Prove current BDS player samples, including console clients
+
+- **Status:** Awaiting Cameron verification
+- **Files:** `tools/world-map-proof/bedrock-player-feed/manifest.json`,
+  `tools/world-map-proof/bedrock-player-feed/scripts/main.js`,
+  `tools/world-map-proof/install_bedrock_player_feed.py`,
+  `tools/world-map-proof/watch_bedrock_player_feed.py`,
+  `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Package a minimal stable Bedrock behavior pack that emits a complete
+  current player roster once per second to the server log. Each sample carries
+  dimension, XYZ, pitch, yaw, game tick, and sample time; empty rosters and
+  missing updates are explicit. Install into one stopped BDS world with a pack
+  list backup, then inspect the stream through MSC's existing authenticated
+  console. This isolates the biggest Bedrock player-feed uncertainty without
+  presenting saved coordinates as live or changing the product UI yet.
+- **Verify:** Follow the stop, install, restart, and `msc console follow`
+  commands in `tools/world-map-proof/README.md`. Join with a console-connected
+  Bedrock client, walk and turn, and verify fresh samples change XYZ and yaw
+  about once per second; the player must disappear from the sampled roster
+  after disconnect. Confirm no Beta APIs experiment or client-side map mod was
+  required. This advances the visible promise of moving Bedrock player models
+  in the Worlds-tab 3D map by proving their current server-side positions. If
+  the feed fails to load or omits console players, stop and investigate before
+  building the authenticated player bridge or 3D overlay. The next proof is
+  consuming this feed in MSC and animating a model with stale-state handling.
+- **Batch:** solo — prove BDS player positions before MSC viewer integration
+- **Commit:** P18.3a: probe live bds player positions

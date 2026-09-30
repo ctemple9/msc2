@@ -40,6 +40,18 @@ function centerOf(position: typeof viewer.controls.position) {
   centered.y += 0.9;
   return centered;
 }
+function cameraStateFor(target: typeof viewer.controls.position, distanceLimit?: number) {
+  // Player roster actions are map navigation even if the viewer was left in
+  // free-flight mode, where controls.position means the camera eye, not its
+  // look-at pivot.
+  if (viewer.controls.mode !== 'map') viewer.controls.setMode('map');
+  const towardTarget = target.clone().sub(viewer.camera.position);
+  const eyeDistance = Math.max(towardTarget.length(), 0.001);
+  const distance = distanceLimit ?? viewer.controls.distance;
+  const rotation = Math.atan2(towardTarget.x, -towardTarget.z);
+  const angle = Math.acos(Math.max(-1, Math.min(1, towardTarget.y / eyeDistance)));
+  return { position: target, distance, rotation, angle };
+}
 function holdCameraAtPlayerHeight() {
   if (!hasHeightOverride) {
     savedHeightAt = viewer.controls.heightAt;
@@ -92,10 +104,8 @@ function renderRoster(current: PlayerSnapshot['players']) {
       if (!position) return;
       const target = centerOf(position);
       holdCameraAtPlayerHeight();
-      viewer.controls.animateTo({
-        position: target,
-        ...(viewer.controls.distance > 260 ? { distance: 140 } : {}),
-      });
+      const state = cameraStateFor(target, viewer.controls.distance > 260 ? 140 : undefined);
+      viewer.controls.animateTo(state);
       viewer.invalidate();
       renderRoster(players.players.filter((entry) => entry.dimension === 'minecraft:overworld'));
     });
@@ -112,12 +122,7 @@ function renderRoster(current: PlayerSnapshot['players']) {
         if (target) {
           const centered = centerOf(target);
           holdCameraAtPlayerHeight();
-          viewer.controls.setView({
-            position: centered,
-            distance: viewer.controls.distance,
-            rotation: viewer.controls.rotation,
-            angle: viewer.controls.angle,
-          });
+          viewer.controls.setView(cameraStateFor(centered));
         }
       }
       players.setFollowed(followingId);

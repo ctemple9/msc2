@@ -1059,7 +1059,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3f — Center the live-player camera actions
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Superseded after Cameron reported no visible change; the player
+  remained at the bottom-right of the viewport.
 - **Files:** `tools/world-map-proof/viewer/main.ts`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
 - **What:** Correct the camera targeting reported during P18.3e verification:
@@ -1079,3 +1080,27 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   integration. Choose the next proof from this visual result.
 - **Batch:** solo — correct live Bedrock camera framing
 - **Commit:** P18.3f: center live player camera actions
+
+### P18.3g — Aim roster navigation at the rendered player
+
+- **Status:** Awaiting Cameron verification
+- **Files:** `tools/world-map-proof/viewer/main.ts`,
+  `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
+- **What:** P18.3f did not change the visible framing. Reconcile Vantage's two
+  camera modes before roster navigation: in map mode `controls.position` is
+  the look-at pivot, while in free-flight mode it is the camera eye. Switch
+  Fly/Follow to map navigation and calculate the view direction from the
+  current camera eye to the rendered model midpoint. Preserve the chosen zoom,
+  track the model's interpolated position, and suspend terrain-height
+  adjustment while locked.
+- **Verify:** Rebuild/restart the proof viewer and confirm the new camera
+  actions center on the model rather than the former bottom-right point. Click
+  **Fly**, then **Follow** and walk/jump; the model should remain at viewport
+  center while terrain moves. Pan manually and confirm follow releases and
+  terrain framing resumes. This advances the visible click-to-fly/follow UX.
+  If centering still fails, capture the viewer with the roster visible and
+  record the camera mode and player's feed coordinates before choosing another
+  camera change. Do not move to Java integration until this BDS interaction is
+  visually verified.
+- **Batch:** solo — correct and recheck live Bedrock camera targeting
+- **Commit:** P18.3g: aim player camera actions at rendered model

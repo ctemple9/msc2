@@ -405,3 +405,38 @@ to the proof's 2 GiB and 30-second limits, even though the exporter renders
 only 4×4 chunks. Confirm MSC still reports the server running and BDS accepts
 block changes after each sample. The output measures one developed tile; it is
 not a full-world streaming benchmark or an automatic refresh loop.
+
+### Live Bedrock player overlay (P18.3c)
+
+Build and load this worktree's development agent before using the new route.
+Leave the Bedrock player behavior pack installed in the active world and start
+that world through MSC. From this worktree, inspect the authenticated feed:
+
+```sh
+cargo build -p msc-agent --bin msc
+MSC2_DATA_DIR="$HOME/Library/Application Support/MSC 2" \
+  target/debug/msc --json world map-players
+```
+
+The result reports `fresh: true` only while the active BDS server's pack has
+sent a sample in the last five seconds. It carries current XYZ, yaw, pitch,
+dimension, and names. When the feed is absent or stale, `players` is empty.
+The server must run under this newly built development agent; building the CLI
+alone does not update an already running agent.
+
+Open the existing private base tile in the proof viewer:
+
+```sh
+cd tools/world-map-proof/viewer
+MSC2_DATA_DIR="$HOME/Library/Application Support/MSC 2" \
+MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-base-proof/output npm run dev
+```
+
+The local Vite proof server calls the authorized CLI on behalf of the browser;
+the browser never receives an agent token. Visit the local address Vite prints.
+Join the Bedrock server near the exported base at `(-50, 87, 65)`, walk and
+turn, and compare the 3D model with your client. The label should show one
+live Bedrock player. Leave the server or stop the agent and confirm the model
+disappears and the label reports an unavailable feed within roughly five
+seconds. This is a single-tile development proof; it does not yet provide the
+full Worlds-tab shell, roster, skins, all dimensions, or Java player feeds.

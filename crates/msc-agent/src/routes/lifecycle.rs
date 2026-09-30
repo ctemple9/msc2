@@ -52,6 +52,7 @@ use msc_infrastructure::process::{
     OutputLineFramer, OutputStream, ProcessEvent, ProcessId, ProcessSpawnRequest, ProcessSupervisor,
 };
 use msc_infrastructure::secret_store::SecretStore;
+use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;
 
 #[path = "lifecycle/recovery.rs"]
@@ -155,6 +156,7 @@ struct LifecycleRoutesInner {
     java_run_generation: AtomicU64,
     bedrock_run_generation: AtomicU64,
     bedrock_online_players: Mutex<BTreeMap<String, msc_domain::bedrock::BedrockPlayer>>,
+    map_players: Mutex<Option<MapPlayerSample>>,
     pump_tasks: Mutex<Vec<JoinHandle<()>>>,
     auth_state: Option<AuthState>,
     audit_log: &'static AuditLog<'static>,
@@ -166,6 +168,45 @@ struct LifecycleRoutesInner {
     console_correlation: Mutex<ConsoleCorrelation>,
     time_observation: Mutex<TimeObservation>,
     time_query_lock: tokio::sync::Mutex<()>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct MapPlayer {
+    pub id: String,
+    pub name: String,
+    pub dimension: String,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    pub pitch: f64,
+    pub yaw: f64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MapPlayerWireSample {
+    sequence: u64,
+    sampled_at_ms: u64,
+    players: Vec<MapPlayer>,
+}
+
+struct MapPlayerSample {
+    server_id: String,
+    generation: u64,
+    received: Instant,
+    wire: MapPlayerWireSample,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct MapPlayersResponse {
+    pub source: &'static str,
+    pub fresh: bool,
+    pub status: &'static str,
+    pub sampled_at_ms: Option<u64>,
+    pub sequence: Option<u64>,
+    pub players: Vec<MapPlayer>,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -746,6 +787,7 @@ impl LifecycleRoutesState {
                 java_run_generation: AtomicU64::new(0),
                 bedrock_run_generation: AtomicU64::new(0),
                 bedrock_online_players: Mutex::new(BTreeMap::new()),
+                map_players: Mutex::new(None),
                 pump_tasks: Mutex::new(Vec::new()),
                 auth_state,
                 audit_log,
@@ -1492,6 +1534,84 @@ impl LifecycleRoutesState {
         }
     }
 
+    fn record_map_player_line(&self, line: &str) {
+        let Some((_, payload)) = line.split_once("MSC_MAP_PLAYERS_V1 ") else {
+            return;
+        };
+        if payload.len() > 64 * 1024 {
+            return;
+        }
+        let Some(server_id) = self.active_bedrock_server().map(|server| server.id) else {
+            return;
+        };
+        let Ok(wire) = serde_json::from_str::<MapPlayerWireSample>(payload.trim()) else {
+            return;
+        };
+        if wire.players.len() > 100
+            || wire.players.iter().any(|player| {
+                player.id.len() > 128
+                    || player.name.len() > 128
+                    || player.dimension.len() > 128
+                    || [player.x, player.y, player.z, player.pitch, player.yaw]
+                        .iter()
+                        .any(|value| !value.is_finite())
+            })
+        {
+            return;
+        }
+        let generation = self.inner.bedrock_run_generation.load(Ordering::Relaxed);
+        let mut current = self.inner.map_players.lock().unwrap();
+        if current.as_ref().is_some_and(|sample| {
+            sample.server_id == server_id
+                && sample.generation == generation
+                && wire.sequence <= sample.wire.sequence
+        }) {
+            return;
+        }
+        *current = Some(MapPlayerSample {
+            server_id,
+            generation,
+            received: Instant::now(),
+            wire,
+        });
+    }
+
+    pub(crate) fn map_players(&self) -> MapPlayersResponse {
+        self.drain_bedrock_events();
+        let unavailable = |status| MapPlayersResponse {
+            source: "bds-behavior-pack",
+            fresh: false,
+            status,
+            sampled_at_ms: None,
+            sequence: None,
+            players: Vec::new(),
+        };
+        let Some(server_id) = self.active_bedrock_server().map(|server| server.id) else {
+            return unavailable("no-active-bedrock-server");
+        };
+        if !self.status_snapshot().running {
+            return unavailable("server-stopped");
+        }
+        let current = self.inner.map_players.lock().unwrap();
+        let Some(sample) = current.as_ref() else {
+            return unavailable("awaiting-feed");
+        };
+        if sample.server_id != server_id
+            || sample.generation != self.inner.bedrock_run_generation.load(Ordering::Relaxed)
+            || sample.received.elapsed() > Duration::from_secs(5)
+        {
+            return unavailable("feed-stale");
+        }
+        MapPlayersResponse {
+            source: "bds-behavior-pack",
+            fresh: true,
+            status: "live",
+            sampled_at_ms: Some(sample.wire.sampled_at_ms),
+            sequence: Some(sample.wire.sequence),
+            players: sample.wire.players.clone(),
+        }
+    }
+
     /// Appends output from a managed helper. P14.6 will supply the helper
     /// origin at each producer boundary so routine output uses the separate
     /// diagnostic retention budget without hiding actionable status.
@@ -1625,6 +1745,7 @@ impl LifecycleRoutesState {
         let changing_active_server = previous_server_id.as_deref() != Some(server_id.as_str());
         if changing_active_server {
             self.clear_time_observation();
+            *self.inner.map_players.lock().unwrap() = None;
         }
         if changing_active_server
             && (self.status_snapshot().running
@@ -2390,6 +2511,7 @@ impl LifecycleRoutesState {
             .progress(&operation_id, 1, 2, "Bedrock process spawned.");
         *self.inner.active_lifecycle_operation.lock().unwrap() = Some(operation_id.clone());
         self.inner.bedrock_online_players.lock().unwrap().clear();
+        *self.inner.map_players.lock().unwrap() = None;
         self.spawn_bedrock_pump();
         self.start_playit_if_allowed(&active);
         Ok(LifecycleActionResult {
@@ -2462,6 +2584,7 @@ impl LifecycleRoutesState {
             match event {
                 BedrockRuntimeEvent::ConsoleLine(line) => {
                     self.record_bedrock_player_line(&line);
+                    self.record_map_player_line(&line);
                     let origin = self.console_line_origin(&line);
                     let internal_time_query = self.record_time_query_line(&line, origin);
                     if !internal_time_query && !Self::is_hidden_time_query_line(&line) {
@@ -2521,6 +2644,7 @@ impl LifecycleRoutesState {
                 }
                 BedrockRuntimeEvent::Terminated { reason } => {
                     self.inner.bedrock_online_players.lock().unwrap().clear();
+                    *self.inner.map_players.lock().unwrap() = None;
                     match reason {
                         BedrockTerminationReason::Clean => {
                             self.clear_console_correlation();

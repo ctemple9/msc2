@@ -1,11 +1,12 @@
-import { VantageViewer } from '@thoughts-on-things/vantage-mc/three';
+import { PlayerLayer, VantageViewer, type PlayerSnapshot } from '@thoughts-on-things/vantage-mc/three';
 import './style.css';
 
 const container = document.querySelector<HTMLDivElement>('#viewer');
 const revisionInput = document.querySelector<HTMLInputElement>('#revision');
 const replaceButton = document.querySelector<HTMLButtonElement>('#replace');
 const status = document.querySelector<HTMLOutputElement>('#revision-status');
-if (!container || !revisionInput || !replaceButton || !status) {
+const playerStatus = document.querySelector<HTMLOutputElement>('#player-status');
+if (!container || !revisionInput || !replaceButton || !status || !playerStatus) {
   throw new Error('Proof viewer controls missing');
 }
 
@@ -14,6 +15,62 @@ const viewer = await VantageViewer.mount(container, {
   textures: '/terrain.vtexarr',
 });
 status.value = 'Initial saved terrain loaded';
+const players = new PlayerLayer({ scene: viewer.scene, camera: viewer.camera });
+type Feed = {
+  fresh: boolean;
+  status: string;
+  sampledAtMs?: number;
+  players: Array<{
+    id: string; name: string; dimension: string;
+    x: number; y: number; z: number; yaw: number; pitch: number;
+  }>;
+};
+let lastSequence = '';
+async function refreshPlayers() {
+  try {
+    const response = await fetch('/live-players.json', { cache: 'no-store' });
+    if (!response.ok) throw new Error('agent unavailable');
+    const feed = await response.json() as Feed;
+    if (!feed.fresh) {
+      players.setSnapshot({ source: 'host', updated: 0, players: [] }, performance.now());
+      playerStatus.value = `Player feed unavailable · ${feed.status}`;
+      lastSequence = '';
+      viewer.invalidate();
+      return;
+    }
+    const next: PlayerSnapshot = {
+      source: 'host',
+      updated: feed.sampledAtMs ?? 0,
+      players: feed.players.map((player) => ({
+        uuid: player.id,
+        name: player.name,
+        x: player.x, y: player.y, z: player.z,
+        yaw: player.yaw, pitch: player.pitch,
+        dimension: player.dimension,
+        foreign: player.dimension !== 'minecraft:overworld',
+        stale: false,
+      })),
+    };
+    const signature = JSON.stringify(next);
+    if (signature !== lastSequence) {
+      players.setSnapshot(next, performance.now());
+      lastSequence = signature;
+    }
+    playerStatus.value = `${next.players.length} live Bedrock player${next.players.length === 1 ? '' : 's'}`;
+  } catch {
+    players.setSnapshot({ source: 'host', updated: 0, players: [] }, performance.now());
+    playerStatus.value = 'Player feed unavailable · agent connection lost';
+    lastSequence = '';
+  }
+  viewer.invalidate();
+}
+void refreshPlayers();
+setInterval(() => void refreshPlayers(), 1000);
+function animatePlayers(now: number) {
+  if (players.update(now)) viewer.invalidate();
+  requestAnimationFrame(animatePlayers);
+}
+requestAnimationFrame(animatePlayers);
 
 replaceButton.addEventListener('click', async () => {
   const revision = revisionInput.value.trim();

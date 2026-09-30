@@ -984,3 +984,29 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   moving 3D models; it does not itself draw models or verify Java players.
 - **Batch:** solo — unblock the BDS player feed proof before model integration
 - **Commit:** P18.3b: restore console ticket path and poll fallback
+
+### P18.3c — Draw a fresh Bedrock player in the proof viewer
+
+- **Status:** Awaiting Cameron verification
+- **Files:** `crates/msc-agent/src/routes/lifecycle.rs`,
+  `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/cli/mod.rs`,
+  `tools/world-map-proof/viewer/main.ts`,
+  `tools/world-map-proof/viewer/vite.config.ts`,
+  `tools/world-map-proof/viewer/index.html`,
+  `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Accept the installed BDS pack's current player samples into
+  memory for the selected server run. Expose a Worlds-permission authenticated
+  endpoint and CLI command. Clear the roster when the server changes/stops or
+  the feed is over five seconds old. Poll the authorized CLI from the local
+  proof viewer and interpolate one or more 3D player models over the saved
+  Bedrock terrain. Keep player positions out of the exported terrain files.
+- **Verify:** Follow **Live Bedrock player overlay (P18.3c)** in
+  `tools/world-map-proof/README.md`. Near the exported base, a Bedrock player
+  walking and turning should move and turn a 3D model in the viewer; leaving
+  or stopping the feed should remove the model and show an unavailable status.
+  This advances the agreed live-moving-player UX promise for BDS. It does not
+  prove Java, console clients specifically, roster click-to-fly/follow, or the
+  final Worlds-tab shell. Next choose a proof for the missing player interaction
+  or Java feed based on Cameron's visual result.
+- **Batch:** solo — first authenticated live model bridge
+- **Commit:** P18.3c: draw fresh bedrock players in proof viewer

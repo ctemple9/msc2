@@ -116,6 +116,7 @@ pub fn router(state: WorldsRoutesState) -> Router {
     Router::new()
         .route("/worlds", get(list))
         .route("/worlds/map-proof/snapshot", post(snapshot_map_proof))
+        .route("/worlds/map-proof/players", get(map_proof_players))
         .route("/catalog/gamerules", get(gamerule_catalog))
         .route("/worlds/create", post(create))
         .route("/worlds/rename", post(rename))
@@ -2389,6 +2390,16 @@ pub async fn snapshot_map_proof(
         response.status(),
     );
     response
+}
+
+pub async fn map_proof_players(
+    State(state): State<WorldsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
+        return response;
+    }
+    Json(state.lifecycle.map_players()).into_response()
 }
 
 pub async fn create(

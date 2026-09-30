@@ -868,3 +868,23 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   automatic refresh load, or full-world tile streaming.
 - **Batch:** solo — measure one local refresh before cadence decisions
 - **Commit:** P18.2o: measure saved terrain refresh cost
+
+### P18.2p — Repeat refresh measurements on the mature BDS world
+
+- **Status:** Awaiting Cameron verification
+- **Files:** `tools/world-map-proof/measure_refresh_series.py`,
+  `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Collect 2–5 owner-triggered snapshot and export measurements on
+  one 4×4 developed area, stopping after any failure. Report per-sample values
+  and minimum, median, and maximum rather than treating one quick capture as
+  a safe automatic interval. Cameron is importing the mature Bedrock world;
+  this tool does not change server selection or automate the captures.
+- **Verify:** With the mature `theboyslatest` world imported and running through
+  MSC, use the three-sample command in `tools/world-map-proof/README.md` for
+  the base at 4×4 origin `(-6, 2)`. Press Enter separately for each capture,
+  confirm BDS remains running and writable after each, and record the printed
+  timing range. This measures variation for one developed Bedrock tile toward
+  the Worlds-tab 3D map. It does not yet measure whole-world streaming or
+  player motion, and the 2 GiB or 30-second snapshot limits may stop the proof.
+- **Batch:** solo — characterize developed-world cost before cadence choice
+- **Commit:** P18.2p: collect manual bds refresh series

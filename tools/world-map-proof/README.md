@@ -292,3 +292,25 @@ terrain**. Its status shows the additional browser load time. Confirm the new
 block appears and BDS remains writable. These numbers measure a manual local
 refresh; they exclude the time between placing the block and starting the
 command, and do not establish a safe automatic polling interval by themselves.
+
+### Repeat on the mature running BDS world (P18.2p)
+
+After Cameron imports the mature `theboyslatest` world into MSC and starts it,
+capture three samples around the developed base at `(-50, 87, 65)`. The 4×4
+origin for that base is `(-6, 2)`:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+python3 tools/world-map-proof/measure_refresh_series.py \
+  --resource-pack /private/tmp/msc-bedrock-samples/resource_pack \
+  --output-root /private/tmp/msc-bds-base-proof/output \
+  --chunk-x -6 --chunk-z 2 --samples 3
+```
+
+The script waits for Enter before each capture, prints each result, then reports
+minimum, median, and maximum snapshot, hold, export, and ready times. It stops
+on the first failure. Each capture copies the entire selected world, subject
+to the proof's 2 GiB and 30-second limits, even though the exporter renders
+only 4×4 chunks. Confirm MSC still reports the server running and BDS accepts
+block changes after each sample. The output measures one developed tile; it is
+not a full-world streaming benchmark or an automatic refresh loop.

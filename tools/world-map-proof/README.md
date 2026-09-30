@@ -434,9 +434,18 @@ MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-base-proof/output npm run dev
 
 The local Vite proof server calls the authorized CLI on behalf of the browser;
 the browser never receives an agent token. Visit the local address Vite prints.
+Keep that Vite process running: it now uses one CLI session for live updates
+and renews its credential before expiry, instead of authorizing every second.
 Join the Bedrock server near the exported base at `(-50, 87, 65)`, walk and
 turn, and compare the 3D model with your client. The label should show one
 live Bedrock player. Leave the server or stop the agent and confirm the model
 disappears and the label reports an unavailable feed within roughly five
 seconds. This is a single-tile development proof; it does not yet provide the
 full Worlds-tab shell, roster, skins, all dimensions, or Java player feeds.
+
+If blocks placed after the initial export are missing, the player feed is
+working independently of the saved terrain. From the worktree root, create a
+new base-area revision with `measure_refresh.py --resource-pack
+/private/tmp/msc-bedrock-samples/resource_pack --output-root
+/private/tmp/msc-bds-base-proof/output --chunk-x -6 --chunk-z 2`. Enter the
+printed `revision` in the viewer and select **Replace terrain**.

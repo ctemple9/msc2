@@ -1010,3 +1010,26 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   or Java feed based on Cameron's visual result.
 - **Batch:** solo — first authenticated live model bridge
 - **Commit:** P18.3c: draw fresh bedrock players in proof viewer
+
+### P18.3d — Keep the proof player poll within CLI authorization limits
+
+- **Status:** Awaiting Cameron verification
+- **Files:** `crates/msc-agent/src/cli/mod.rs`,
+  `tools/world-map-proof/viewer/vite.config.ts`,
+  `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Cameron observed the accurate moving BDS model, but the proof
+  viewer's one-second CLI process loop minted a fresh five-minute credential
+  each time. The agent caps live CLI credentials at 128, so it refused a later
+  terrain snapshot. Keep one polling CLI process, renew its credential before
+  expiry, and let the local viewer serve only a fresh cached result. Retain
+  explicit stale status if the CLI or agent goes away.
+- **Verify:** Restart the local proof viewer with the new CLI binary. Confirm
+  the BDS model keeps moving, then run the `measure_refresh.py` command in
+  **Live Bedrock player overlay (P18.3c)** while the viewer remains open.
+  It should return a revision without a CLI credential-limit error; entering
+  that revision and selecting **Replace terrain** should reveal newly placed
+  blocks while the player continues moving. This preserves the live-player UX
+  and the saved-terrain refresh path together. Next prove roster click-to-fly
+  and follow, then expand the live feed to Java.
+- **Batch:** solo — correct the proof bridge resource use
+- **Commit:** P18.3d: reuse local cli authorization for player polling

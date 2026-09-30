@@ -1105,7 +1105,11 @@ pub enum WorldCommand {
         no_wait: bool,
     },
     /// Read fresh BDS player positions for the Phase 18 map proof.
-    MapPlayers,
+    MapPlayers {
+        /// Keep polling with one local CLI credential, renewing before expiry.
+        #[arg(long)]
+        follow: bool,
+    },
     /// Save the active live world into its current slot.
     SaveCurrent,
     /// Show one slot's profile and identity fields.
@@ -3750,10 +3754,24 @@ async fn run_world(common: CommonArgs, command: WorldCommand) -> Result<(), CliE
             )
             .await
         }
-        WorldCommand::MapPlayers => {
-            let players: serde_json::Value =
-                client.get_json("/v1/worlds/map-proof/players").await?;
-            print_json(&players)
+        WorldCommand::MapPlayers { follow } => {
+            let mut client = client;
+            let mut authorized_at = std::time::Instant::now();
+            loop {
+                if authorized_at.elapsed() > std::time::Duration::from_secs(240) {
+                    client = ApiClient::connect_local().await?;
+                    authorized_at = std::time::Instant::now();
+                }
+                let players: serde_json::Value =
+                    client.get_json("/v1/worlds/map-proof/players").await?;
+                print_json(&players)?;
+                if !follow {
+                    break Ok(());
+                }
+                std::io::Write::flush(&mut std::io::stdout())
+                    .map_err(|error| CliError::internal(error.to_string()))?;
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
         }
         WorldCommand::List => {
             let slots: WorldSlotsResponseDto = client.get_json("/v1/worlds").await?;

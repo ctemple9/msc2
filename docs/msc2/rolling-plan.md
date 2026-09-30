@@ -1374,3 +1374,36 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   checksum-checked removal helper removed the proof mod.
 - **Batch:** solo — verify NeoForge's native mod event path without KubeJS
 - **Commit:** P18.3q: prove neoforge player samples without kubejs
+
+### P18.4 — Prove Java terrain rendering before MSC integration
+
+- **Status:** Planned — Cameron directed completion of rendering proofs before
+  embedding the viewer in MSC
+- **What:** Use one read-only Java Anvil terrain pipeline and the existing
+  standalone 3D viewer. Prove the actual selected worlds for ATM10 Lite
+  (Minecraft 1.21.1), Pupur (1.21.11), Paper (26.2), Fabric (26.2), NeoForge
+  without KubeJS (26.2), Vanilla (26.3), and Forge (26.3). Minecraft 26.1
+  moved the Overworld region files from the world root into
+  `dimensions/minecraft/overworld/`; the proof must discover both layouts.
+  Resolve vanilla and available mod/resource-pack block assets without
+  modifying a running save. Count and visibly mark missing block models and
+  textures rather than silently substituting a plausible block.
+- **Verify:** For each of the seven selected servers, export a real 4×4-chunk
+  Overworld area from a stopped world or consistent read-only copy and open it
+  in the standalone viewer. Record Minecraft version, data version, save
+  layout, region/chunk coverage, texture/model exact and fallback counts,
+  export time and memory, and a visual check against the game. Inspect a
+  representative mod-built area in ATM10 Lite, including blocks whose assets
+  come from mods; a nearly vanilla spawn does not establish modded rendering.
+  Prove saved-terrain refresh on at least one 1.21.x and one 26.x world while
+  the server remains usable. Check Nether, End, and custom dimensions
+  separately before claiming their support. Accept the standalone renderer
+  only when every selected Overworld shows correct terrain with explicit
+  fallbacks and no unexplained missing chunks or geometry holes.
+- **Order:** Establish the two save layouts with Vanilla 26.3 and Pupur
+  1.21.11, then exercise the demanding modded asset case on ATM10 Lite. Run
+  the same export and visual proof on Fabric, Forge, NeoForge, and Paper.
+  Choose implementation checkpoints after reviewing each result; this matrix
+  is the acceptance gate before the first MSC Worlds-tab integration.
+- **Batch:** solo — finish Java and Bedrock rendering evidence before MSC UI
+  integration

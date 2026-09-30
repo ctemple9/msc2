@@ -1307,3 +1307,25 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   and any newly created Purpur version remain to be verified.
 - **Batch:** solo — establish Purpur player-feed compatibility
 - **Commit:** P18.3p: prove purpur player samples
+
+### P18.3q — Prove live player samples on NeoForge without KubeJS
+
+- **Status:** Awaiting Cameron verification
+- **Files:** `tools/world-map-proof/neoforge-player-feed/`,
+  `tools/world-map-proof/install_neoforge_player_feed.py`,
+  `tools/world-map-proof/remove_neoforge_player_feed.py`,
+  `tools/world-map-proof/watch_java_player_feed.py`,
+  `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Add a temporary NeoForge mod to the managed **Minecraft 26.2 /
+  NeoForge 26.2.0.88** instance named `Neoforge`, which has no KubeJS. Compile
+  against that server's installed NeoForge and patched Minecraft APIs, emit
+  the shared roster once per second, and install/remove only while the server
+  is stopped. Preserve world data and existing mods.
+- **Verify:** Follow **NeoForge without KubeJS live player feed proof
+  (P18.3q)** in `tools/world-map-proof/README.md`. Join with a 26.2 client,
+  move and turn, then disconnect. Confirm fresh positions/look and an empty
+  roster through the authenticated watcher. Stop NeoForge and remove the
+  probe. This checks the selected NeoForge build, not all NeoForge versions or
+  terrain rendering.
+- **Batch:** solo — verify NeoForge's native mod event path without KubeJS
+- **Commit:** P18.3q: prove neoforge player samples without kubejs

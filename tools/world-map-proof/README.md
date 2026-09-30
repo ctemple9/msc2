@@ -191,6 +191,49 @@ it if the bytes still match. This proves the selected Purpur build's player
 feed and shared sample contract; it does not prove another build or Java
 terrain rendering.
 
+## NeoForge without KubeJS live player feed proof (P18.3q)
+
+This temporary NeoForge mod targets the managed **Minecraft 26.2 / NeoForge
+26.2.0.88** server named **Neoforge**, which has no KubeJS dependency. The
+installer detects its NeoForge and Minecraft versions from the launch files,
+compiles against the server's installed API and patched Minecraft jars using
+Java 25, then adds one jar to `mods/`. It uses NeoForge's server-tick event to
+emit the shared complete roster once per second, including an empty roster
+after disconnect. The watcher reads MSC's authenticated server console.
+Player names and coordinates are private; do not post watcher output publicly.
+
+Stop **Neoforge** in MSC before installing:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+python3 tools/world-map-proof/install_neoforge_player_feed.py \
+  --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/neoforge" \
+  --server-stopped
+```
+
+Start Neoforge through MSC, then watch from another terminal:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+python3 tools/world-map-proof/watch_java_player_feed.py --server Neoforge
+```
+
+Join with a **Minecraft 26.2** Java client, move and turn, and confirm fresh
+positions/look; disconnect and confirm an empty roster. After stopping
+Neoforge in MSC, remove the probe:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+python3 tools/world-map-proof/remove_neoforge_player_feed.py \
+  --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/neoforge" \
+  --server-stopped
+```
+
+Both helpers require a stopped server and refuse to change files if a Java
+process is using the selected directory. Removal checks the installed jar
+checksum. This proves the selected NeoForge build without KubeJS; it does not
+prove other NeoForge versions or Java terrain rendering.
+
 ## Paper live player feed proof (P18.3l)
 
 This temporary plugin targets the managed **Paper 26.2 build 121** server. The

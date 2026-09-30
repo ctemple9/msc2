@@ -1,5 +1,33 @@
 # P18.2 — offline BDS terrain proof
 
+## Changed tile export proof (P18.2r)
+
+The exporter can compare two **consistent, private offline snapshots** by
+their raw Bedrock terrain, biome, and subchunk records. It checks a bounded
+grid of 4×4-chunk tiles and exports a tile from the newer snapshot only when
+one of its 16 chunks changed. Player/entity records are excluded, so player
+movement alone does not mark terrain dirty. Keep both snapshot paths from
+separate `msc --json world map-snapshot` results; do not compare a live BDS
+LevelDB directory. Use a new output directory for each comparison:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+python3 tools/world-map-proof/export_changed_tiles.py \
+  --before '/path/from/first/snapshot/result/worldPath' \
+  --after '/path/from/second/snapshot/result/worldPath' \
+  --resource-pack /private/tmp/msc-bedrock-samples/resource_pack \
+  --output-root /private/tmp/msc-bds-changed-tiles-proof \
+  --chunk-x -6 --chunk-z 2 --tiles-x 2 --tiles-z 2
+```
+
+The JSON report lists changed tile origins, output directories, comparison
+time, and total ready time. With no terrain changes, `changedTiles` and
+`exported` should both be empty. A block edit in the first 4×4 area should
+export `tile_-6_2` alone. This proof still copies the full BDS save for each
+snapshot and rebuilds an entire dirty 4×4 tile. It does not yet stream multiple
+tiles into the viewer or set an automatic refresh cadence. Keep all snapshot
+and generated paths outside Git.
+
 This isolated tool reads an **offline copy** of a BDS LevelDB world and writes
 one 4×4-chunk Vantage tile plus a texture array. The Vantage Three.js engine
 opens it in a local proof viewer. It does not touch the installed server save,

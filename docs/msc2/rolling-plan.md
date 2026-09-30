@@ -908,3 +908,29 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   measurements; it does not change the snapshot or rendering path.
 - **Batch:** solo — correct import feedback found during mature BDS setup
 - **Commit:** P18.2q: label import progress by server type
+
+### P18.2r — Export only changed Bedrock tiles
+
+- **Status:** Awaiting Cameron verification
+- **Files:** `tools/world-map-proof/src/main.rs`,
+  `tools/world-map-proof/export_changed_tiles.py`,
+  `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Compare the terrain, biome, and subchunk records of two consistent
+  BDS snapshots across a bounded grid of 4×4-chunk tiles. Export only tiles
+  containing changed chunks. Ignore entity and player records so player motion
+  does not trigger a terrain rebuild. The dirty tile is still rebuilt in full;
+  full-save snapshot copying and multi-tile viewer loading remain separate
+  work. Do not read a running LevelDB save directly.
+- **Verify:** Capture two snapshots of the running mature Bedrock world through
+  `MSC2_DATA_DIR="$HOME/Library/Application Support/MSC 2" target/debug/msc --json world map-snapshot`,
+  recording each result's `worldPath`. First make no terrain edit, then run the
+  command in `tools/world-map-proof/README.md` with a fresh output directory;
+  it should export no tiles. Capture a third snapshot after changing one block
+  within the base tile beginning at `(-6, 2)`, and run the same command using
+  the second and third paths and a new output directory. It should export
+  `tile_-6_2` and skip its unchanged neighboring tiles. Confirm BDS remains
+  writable and the block appears when that tile is viewed. This makes saved
+  terrain refresh work proportional to dirty tiles toward the Worlds-tab 3D
+  view. It does not establish live player motion or whole-world streaming.
+- **Batch:** solo — prove selective tile rebuild before automatic refresh
+- **Commit:** P18.2r: export only changed bedrock tiles

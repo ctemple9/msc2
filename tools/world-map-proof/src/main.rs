@@ -1,5 +1,6 @@
 use bedrock_world::{
-    BedrockWorld, ChunkPos, Dimension, NbtTag, OpenOptions, SubChunkFormat, WorldScanOptions,
+    BedrockWorld, ChunkKey, ChunkPos, ChunkRecordTag, Dimension, NbtTag, OpenOptions,
+    SubChunkFormat, WorldScanOptions,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::env;
@@ -93,8 +94,97 @@ fn family(name: &str) -> &'static str {
     }
 }
 
+fn chunk_terrain_changed(
+    before: &BedrockWorld,
+    after: &BedrockWorld,
+    pos: ChunkPos,
+) -> Result<bool, Box<dyn Error>> {
+    let tags = [
+        ChunkRecordTag::Data3D,
+        ChunkRecordTag::Data2D,
+        ChunkRecordTag::Data2DLegacy,
+        ChunkRecordTag::LegacyTerrain,
+        ChunkRecordTag::BlockExtraData,
+        ChunkRecordTag::BiomeState,
+        ChunkRecordTag::Version,
+        ChunkRecordTag::VersionOld,
+        ChunkRecordTag::LegacyVersion,
+    ];
+    for tag in tags {
+        let key = ChunkKey::new(pos, tag).encode_inline();
+        if before.storage().get(key.as_ref())? != after.storage().get(key.as_ref())? {
+            return Ok(true);
+        }
+    }
+    for y in -4i8..=19 {
+        let key = ChunkKey::subchunk(pos, y).encode_inline();
+        if before.storage().get(key.as_ref())? != after.storage().get(key.as_ref())? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn compare_tiles(args: &[String]) -> Result<(), Box<dyn Error>> {
+    let before_path = args.get(2).ok_or("compare requires previous world path")?;
+    let after_path = args.get(3).ok_or("compare requires current world path")?;
+    let origin = args
+        .get(4)
+        .ok_or("compare requires first tile chunk-x,chunk-z")?;
+    let (x, z) = origin.split_once(',').ok_or("tile origin must be x,z")?;
+    let (x, z) = (x.parse::<i32>()?, z.parse::<i32>()?);
+    let width = args
+        .get(5)
+        .ok_or("compare requires tile width")?
+        .parse::<u32>()?;
+    let depth = args
+        .get(6)
+        .ok_or("compare requires tile depth")?
+        .parse::<u32>()?;
+    if width == 0 || depth == 0 || width > 8 || depth > 8 {
+        return Err("tile grid must be 1..8 by 1..8".into());
+    }
+    let before = BedrockWorld::open_blocking(Path::new(before_path), OpenOptions::default())?;
+    let after = BedrockWorld::open_blocking(Path::new(after_path), OpenOptions::default())?;
+    let mut changed = Vec::new();
+    let mut checked_chunks = 0usize;
+    for tile_x in 0..width {
+        for tile_z in 0..depth {
+            let start_x = x
+                .checked_add(i32::try_from(tile_x)? * 4)
+                .ok_or("tile x overflow")?;
+            let start_z = z
+                .checked_add(i32::try_from(tile_z)? * 4)
+                .ok_or("tile z overflow")?;
+            let mut dirty = false;
+            for dx in 0..4 {
+                for dz in 0..4 {
+                    let pos = ChunkPos {
+                        x: start_x.checked_add(dx).ok_or("chunk x overflow")?,
+                        z: start_z.checked_add(dz).ok_or("chunk z overflow")?,
+                        dimension: Dimension::Overworld,
+                    };
+                    checked_chunks += 1;
+                    dirty |= chunk_terrain_changed(&before, &after, pos)?;
+                }
+            }
+            if dirty {
+                changed.push([start_x, start_z]);
+            }
+        }
+    }
+    println!(
+        "{}",
+        serde_json::json!({ "checkedChunks": checked_chunks, "changedTiles": changed })
+    );
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().collect();
+    if args.get(1).is_some_and(|arg| arg == "compare") {
+        return compare_tiles(&args);
+    }
     let path = args.get(1).ok_or("usage: msc-world-map-proof <offline world copy> <Bedrock resource pack> <private output directory> [chunk-x,chunk-z] [biome-registry.json]")?;
     let world = BedrockWorld::open_blocking(Path::new(&path), OpenOptions::default())?;
     let positions: BTreeSet<_> = world

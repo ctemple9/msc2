@@ -1108,7 +1108,10 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3h — Correct the player camera pitch direction
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Superseded after Cameron's screenshots showed the player still
+  pinned near the lower-right corner. A camera projection readout then showed
+  the player at normalized screen center (0, 0), revealing a canvas sizing
+  issue rather than another camera direction error.
 - **Files:** `tools/world-map-proof/viewer/main.ts`,
   `docs/msc2/rolling-plan.md`
 - **What:** Fix the vertical sign in the conversion from camera-to-player
@@ -1123,3 +1126,23 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   camera behavior is visually verified.
 - **Batch:** solo — correct camera pitch sign
 - **Commit:** P18.3h: correct player camera pitch direction
+
+### P18.3i — Size the proof canvas to its visible viewport
+
+- **Status:** Awaiting Cameron verification
+- **Files:** `tools/world-map-proof/viewer/style.css`,
+  `docs/msc2/rolling-plan.md`
+- **What:** The Vantage renderer calls `setSize(..., false)` and uses the device
+  pixel ratio for its drawing buffer. Without an explicit CSS size, the canvas
+  retains that larger intrinsic size and the viewer clips it. Cameron's live
+  screenshot showed the camera projecting the player to (0, 0), while the
+  visible model sat at the lower-right edge. Set the canvas CSS width and
+  height to the viewer dimensions so its buffer scales into the viewport.
+  Remove the temporary camera readout used to isolate the mismatch.
+- **Verify:** Reload the proof viewer on the same Retina display. Click
+  **Follow** and confirm the player appears near the center and stays there
+  while moving. Click **Fly** and confirm it approaches the player. Pan or
+  orbit manually and confirm Follow releases. Do not proceed to Java feed
+  work until Cameron confirms this visual behavior.
+- **Batch:** solo — correct proof viewer canvas sizing
+- **Commit:** P18.3i: size proof canvas to viewport

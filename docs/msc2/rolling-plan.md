@@ -1083,7 +1083,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3g — Aim roster navigation at the rendered player
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Superseded after Cameron's screenshot showed the view aimed upward
+  into the roof; camera pitch used the wrong vertical sign.
 - **Files:** `tools/world-map-proof/viewer/main.ts`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
 - **What:** P18.3f did not change the visible framing. Reconcile Vantage's two
@@ -1104,3 +1105,21 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   visually verified.
 - **Batch:** solo — correct and recheck live Bedrock camera targeting
 - **Commit:** P18.3g: aim player camera actions at rendered model
+
+### P18.3h — Correct the player camera pitch direction
+
+- **Status:** Awaiting Cameron verification
+- **Files:** `tools/world-map-proof/viewer/main.ts`,
+  `docs/msc2/rolling-plan.md`
+- **What:** Fix the vertical sign in the conversion from camera-to-player
+  direction to Vantage's map angle. The prior conversion aimed upward and
+  placed the camera inside the roof. Keep the current view aimed down toward
+  the player, then center the model midpoint for Fly/Follow.
+- **Verify:** Rebuild/restart the proof viewer. Click **Fly** and confirm the
+  camera moves toward the player from above and centers the model without
+  entering the roof. Click **Follow**, walk/jump, and confirm the model stays
+  centered. Pan manually and confirm follow releases. This directly advances
+  the requested click-to-fly/follow UX; defer Java feed work until the BDS
+  camera behavior is visually verified.
+- **Batch:** solo — correct camera pitch sign
+- **Commit:** P18.3h: correct player camera pitch direction

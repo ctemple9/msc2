@@ -49,7 +49,9 @@ function cameraStateFor(target: typeof viewer.controls.position, distanceLimit?:
   const eyeDistance = Math.max(towardTarget.length(), 0.001);
   const distance = distanceLimit ?? viewer.controls.distance;
   const rotation = Math.atan2(towardTarget.x, -towardTarget.z);
-  const angle = Math.acos(Math.max(-1, Math.min(1, towardTarget.y / eyeDistance)));
+  // MapControls' angle is measured from straight down: a player below the
+  // camera has a negative eye-to-target Y delta, so negate it here.
+  const angle = Math.acos(Math.max(-1, Math.min(1, -towardTarget.y / eyeDistance)));
   return { position: target, distance, rotation, angle };
 }
 function holdCameraAtPlayerHeight() {

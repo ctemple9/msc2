@@ -4,3 +4,21 @@ aside { position: fixed; left: 16px; bottom: 16px; padding: 8px 10px; background
 #revision-control { position: fixed; right: 16px; bottom: 16px; display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: #10151a; }
 #revision-control input { width: 90px; }
 #revision-control output { max-width: 280px; }
+#player-roster { position: fixed; top: 16px; left: 16px; width: min(330px, calc(100vw - 32px)); padding: 12px; background: #10151a; }
+#player-roster header, .player-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+#player-roster h1 { margin: 0; font-size: 13px; font-weight: 600; }
+#player-count, #roster-empty { color: #aab4bd; }
+#roster-empty { margin: 10px 0 2px; }
+#player-list { list-style: none; margin: 8px 0 0; padding: 0; }
+.player-row { padding-top: 8px; }
+.player-actions { display: flex; gap: 6px; }
+button { border: 1px solid #59636b; background: #20272d; color: #e3e6e8; padding: 5px 8px; font: inherit; cursor: pointer; }
+button:hover:not(:disabled) { background: #303a42; }
+button:disabled { color: #78838c; cursor: default; }
+button.following { border-color: #59a1ff; color: #9cc8ff; }
+@media (max-width: 600px) {
+  #revision-control { right: 8px; bottom: 8px; left: 8px; flex-wrap: wrap; }
+  #revision-control output { flex-basis: 100%; max-width: none; }
+  aside { left: 8px; bottom: 68px; }
+  #player-roster { top: 8px; left: 8px; width: min(300px, calc(100vw - 40px)); }
+}

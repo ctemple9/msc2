@@ -6,7 +6,12 @@ const revisionInput = document.querySelector<HTMLInputElement>('#revision');
 const replaceButton = document.querySelector<HTMLButtonElement>('#replace');
 const status = document.querySelector<HTMLOutputElement>('#revision-status');
 const playerStatus = document.querySelector<HTMLOutputElement>('#player-status');
-if (!container || !revisionInput || !replaceButton || !status || !playerStatus) {
+const roster = document.querySelector<HTMLElement>('#player-roster');
+const playerCount = document.querySelector<HTMLOutputElement>('#player-count');
+const rosterEmpty = document.querySelector<HTMLParagraphElement>('#roster-empty');
+const playerList = document.querySelector<HTMLUListElement>('#player-list');
+if (!container || !revisionInput || !replaceButton || !status || !playerStatus
+  || !roster || !playerCount || !rosterEmpty || !playerList) {
   throw new Error('Proof viewer controls missing');
 }
 
@@ -16,6 +21,9 @@ const viewer = await VantageViewer.mount(container, {
 });
 status.value = 'Initial saved terrain loaded';
 const players = new PlayerLayer({ scene: viewer.scene, camera: viewer.camera });
+let displayedRoster = '';
+let followingId: string | null = null;
+let previousFrame = 0;
 type Feed = {
   fresh: boolean;
   status: string;
@@ -26,6 +34,65 @@ type Feed = {
   }>;
 };
 let lastSequence = '';
+function renderRoster(current: PlayerSnapshot['players']) {
+  playerCount.value = String(current.length);
+  rosterEmpty.hidden = current.length > 0;
+  const signature = current.map((player) => `${player.uuid}\0${player.name}`).join('\n');
+  if (signature === displayedRoster) {
+    playerList.querySelectorAll<HTMLButtonElement>('[data-follow]').forEach((button) => {
+      const active = button.dataset.follow === followingId;
+      button.textContent = active ? 'Following' : 'Follow';
+      button.classList.toggle('following', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
+    return;
+  }
+  displayedRoster = signature;
+  playerList.replaceChildren();
+  for (const player of current) {
+    const item = document.createElement('li');
+    item.className = 'player-row';
+    const name = document.createElement('span');
+    name.textContent = player.name;
+    const actions = document.createElement('span');
+    actions.className = 'player-actions';
+    const fly = document.createElement('button');
+    fly.type = 'button';
+    fly.textContent = 'Fly';
+    fly.setAttribute('aria-label', `Fly to ${player.name}`);
+    fly.addEventListener('click', () => {
+      followingId = null;
+      players.setFollowed(null);
+      const position = players.positionOf(player.uuid);
+      if (!position) return;
+      viewer.controls.animateTo({
+        position,
+        ...(viewer.controls.distance > 260 ? { distance: 140 } : {}),
+      });
+      viewer.invalidate();
+      renderRoster(players.players.filter((entry) => entry.dimension === 'minecraft:overworld'));
+    });
+    const follow = document.createElement('button');
+    follow.type = 'button';
+    follow.dataset.follow = player.uuid;
+    follow.addEventListener('click', () => {
+      followingId = followingId === player.uuid ? null : player.uuid;
+      players.setFollowed(followingId);
+      renderRoster(players.players.filter((entry) => entry.dimension === 'minecraft:overworld'));
+    });
+    actions.append(fly, follow);
+    item.append(name, actions);
+    playerList.append(item);
+  }
+  renderRoster(current);
+}
+roster.addEventListener('pointerdown', (event) => event.stopPropagation());
+viewer.controls.addEventListener('start', () => {
+  if (followingId === null) return;
+  followingId = null;
+  players.setFollowed(null);
+  renderRoster(players.players.filter((entry) => entry.dimension === 'minecraft:overworld'));
+});
 async function refreshPlayers() {
   try {
     const response = await fetch('/live-players.json', { cache: 'no-store' });
@@ -35,6 +102,9 @@ async function refreshPlayers() {
       players.setSnapshot({ source: 'host', updated: 0, players: [] }, performance.now());
       playerStatus.value = `Player feed unavailable · ${feed.status}`;
       lastSequence = '';
+      followingId = null;
+      players.setFollowed(null);
+      renderRoster([]);
       viewer.invalidate();
       return;
     }
@@ -56,18 +126,47 @@ async function refreshPlayers() {
       players.setSnapshot(next, performance.now());
       lastSequence = signature;
     }
+    const localPlayers = next.players.filter((player) => !player.foreign);
+    if (followingId && !localPlayers.some((player) => player.uuid === followingId)) {
+      followingId = null;
+      players.setFollowed(null);
+    }
     playerStatus.value = `${next.players.length} live Bedrock player${next.players.length === 1 ? '' : 's'}`;
+    renderRoster(localPlayers);
   } catch {
     players.setSnapshot({ source: 'host', updated: 0, players: [] }, performance.now());
     playerStatus.value = 'Player feed unavailable · agent connection lost';
     lastSequence = '';
+    followingId = null;
+    players.setFollowed(null);
+    renderRoster([]);
   }
   viewer.invalidate();
 }
 void refreshPlayers();
 setInterval(() => void refreshPlayers(), 1000);
 function animatePlayers(now: number) {
-  if (players.update(now)) viewer.invalidate();
+  const elapsed = previousFrame ? Math.min(100, now - previousFrame) : 16;
+  previousFrame = now;
+  let changed = players.update(now);
+  if (followingId) {
+    const target = players.positionOf(followingId);
+    if (!target) {
+      followingId = null;
+      players.setFollowed(null);
+      renderRoster(players.players.filter((entry) => entry.dimension === 'minecraft:overworld'));
+    } else {
+      const position = viewer.controls.position.clone().lerp(target, 1 - Math.exp(-elapsed / 180));
+      viewer.controls.setView({
+        position,
+        distance: viewer.controls.distance,
+        rotation: viewer.controls.rotation,
+        angle: viewer.controls.angle,
+      });
+      changed = true;
+    }
+  }
+  if (changed) viewer.invalidate();
   requestAnimationFrame(animatePlayers);
 }
 requestAnimationFrame(animatePlayers);

@@ -449,3 +449,11 @@ new base-area revision with `measure_refresh.py --resource-pack
 /private/tmp/msc-bedrock-samples/resource_pack --output-root
 /private/tmp/msc-bds-base-proof/output --chunk-x -6 --chunk-z 2`. Enter the
 printed `revision` in the viewer and select **Replace terrain**.
+
+The **Players** roster lists current Bedrock players in the map's dimension.
+Select **Fly** to move the camera to a player. Select **Follow** to keep the
+camera centered as they move; select **Following** again or begin orbiting the
+map to release the camera. A player who leaves or whose feed becomes stale is
+removed from the roster and follow ends. This proof roster covers the active
+BDS feed only; it does not establish Java players, skins, or the final MSC
+Worlds-tab layout.

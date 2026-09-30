@@ -4,6 +4,11 @@
   <body>
     <div id="viewer"></div>
     <aside>Saved BDS terrain · drag to orbit · scroll to zoom<br><output id="player-status" aria-live="polite">Connecting to live player feed…</output></aside>
+    <section id="player-roster" aria-label="Live players">
+      <header><h1>Players</h1><output id="player-count">0</output></header>
+      <p id="roster-empty">Waiting for live players</p>
+      <ul id="player-list"></ul>
+    </section>
     <form id="revision-control" onsubmit="return false">
       <label for="revision">Saved terrain revision</label>
       <input id="revision" autocomplete="off" placeholder="after" />

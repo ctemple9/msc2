@@ -1033,3 +1033,26 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   and follow, then expand the live feed to Java.
 - **Batch:** solo — correct the proof bridge resource use
 - **Commit:** P18.3d: reuse local cli authorization for player polling
+
+### P18.3e — Add live-player fly and follow controls
+
+- **Status:** Awaiting Cameron verification
+- **Files:** `tools/world-map-proof/viewer/main.ts`,
+  `tools/world-map-proof/viewer/index.html`,
+  `tools/world-map-proof/viewer/style.css`,
+  `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Add a compact live Bedrock roster to the existing terrain proof.
+  Each player has a Fly action that moves the camera to their current model
+  and a Follow toggle that tracks their interpolated position. Manual camera
+  navigation releases follow. Leaving the roster, disconnecting, or losing
+  feed freshness clears the player and ends follow. Keep the roster in the
+  proof viewer only; this does not imply the full MSC Worlds-tab shell.
+- **Verify:** With a live Bedrock player near the exported base, click **Fly**
+  and confirm the camera moves to the visible model. Click **Follow**, move in
+  game, and confirm the camera tracks; orbit manually and confirm follow ends.
+  Disconnect and confirm the roster clears and the camera releases. This
+  advances player roster selection, click-to-fly, and follow from the agreed
+  UX. Next prove Java player feeds and whether the same roster behavior works
+  across server types before integrating the full shell.
+- **Batch:** solo — validate BDS roster and camera interaction
+- **Commit:** P18.3e: add live bedrock player fly and follow

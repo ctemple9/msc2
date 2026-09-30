@@ -1263,3 +1263,25 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   positions/look and then an empty roster. Stop Forge and remove the probe.
 - **Batch:** solo — establish Forge player-feed compatibility
 - **Commit:** P18.3n: prove forge player samples
+
+### P18.3o — Prove live player samples on Vanilla
+
+- **Status:** Awaiting Cameron verification
+- **Files:** `tools/world-map-proof/vanilla-player-feed/`,
+  `tools/world-map-proof/install_vanilla_player_feed.py`,
+  `tools/world-map-proof/remove_vanilla_player_feed.py`,
+  `tools/world-map-proof/watch_vanilla_player_feed.py`,
+  `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Use a temporary Vanilla datapack to sample UUID, position, and
+  rotation across the three standard dimensions, then normalize its command
+  feedback through an authenticated console watcher. Target the managed
+  official Minecraft 26.3 bundle and pack format 121. Install and remove only
+  while the server is stopped; preserve the world and server configuration.
+- **Verify:** Follow **Vanilla live player feed proof (P18.3o)** in
+  `tools/world-map-proof/README.md`. Start the selected Vanilla server through
+  MSC, join with a 26.3 client, move, turn, and disconnect. Confirm fresh
+  positions/look and then an empty roster. Confirm datapack command feedback
+  reaches the watcher in the expected form, stop the server, and remove the
+  probe. This console-feedback route has not yet been live verified.
+- **Batch:** solo — establish the vanilla datapack and console-feedback path
+- **Commit:** P18.3o: prove vanilla player samples

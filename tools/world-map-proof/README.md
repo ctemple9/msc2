@@ -97,6 +97,55 @@ Removal also checks the installed jar checksum. This proves the selected Forge
 build and shared sample contract; it does not prove another Forge version or
 Java terrain rendering.
 
+## Vanilla live player feed proof (P18.3o)
+
+Vanilla has no plugin or mod API, so this proof uses a temporary datapack and a
+dedicated watcher that turns vanilla command-feedback records into the shared
+player-sample envelope. It targets the managed **official Minecraft 26.3**
+server and pack format 121. The datapack reads player UUID, position, and
+rotation once per second across the Overworld, Nether, and End. It does not
+broadcast the values to in-game chat or change server properties or terrain.
+The watcher needs access to MSC's authenticated server console. Player names
+and coordinates are private; do not post output publicly.
+
+If the managed Vanilla server has never been started, start it once in MSC so
+its selected `Vanilla/` world directory is created, then stop it. With Vanilla
+stopped, install the datapack:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+python3 tools/world-map-proof/install_vanilla_player_feed.py \
+  --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/vanilla" \
+  --server-stopped
+```
+
+Start Vanilla through MSC. In another terminal, watch the authenticated
+console feedback:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+python3 tools/world-map-proof/watch_vanilla_player_feed.py --server Vanilla
+```
+
+Join with a **Minecraft 26.3** Java client, move and turn, and confirm fresh
+samples track XYZ and yaw/pitch. Disconnect and confirm an empty `players`
+array. This route depends on Vanilla exposing datapack command feedback in
+MSC's console with the expected English text; confirm that live before relying
+on it. Stop Vanilla in MSC and remove the datapack:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+python3 tools/world-map-proof/remove_vanilla_player_feed.py \
+  --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/vanilla" \
+  --server-stopped
+```
+
+The helpers refuse to run while a Java process uses the selected server.
+Removal checks both the recorded install hash and the current source pack hash,
+and removes only this proof datapack and its install record. This proves the
+selected Vanilla version and console-feedback route; it does not prove another
+version or Java terrain rendering.
+
 ## Paper live player feed proof (P18.3l)
 
 This temporary plugin targets the managed **Paper 26.2 build 121** server. The

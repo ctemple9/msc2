@@ -23,6 +23,7 @@ replaceButton.addEventListener('click', async () => {
   }
   replaceButton.disabled = true;
   status.value = `Loading saved terrain ${revision}…`;
+  const started = performance.now();
   try {
     // Fetch both files before replacing the scene. An incomplete export leaves
     // the visible tile intact and can be retried with the same name.
@@ -49,7 +50,7 @@ replaceButton.addEventListener('click', async () => {
     await viewer.load({ tile, textures });
     controls.setView(view);
     viewer.invalidate();
-    status.value = `Showing saved terrain ${revision}`;
+    status.value = `Showing saved terrain ${revision} · load ${Math.round(performance.now() - started)} ms`;
   } catch (error) {
     status.value = `Could not load ${revision}: ${String(error)}`;
     console.error(error);

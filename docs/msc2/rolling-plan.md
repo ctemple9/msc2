@@ -846,3 +846,25 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   proofs. If the new revision cannot load, the existing view remains visible.
 - **Batch:** solo — prove in-place tile replacement before timing refresh
 - **Commit:** P18.2n: replace saved terrain in open viewer
+
+### P18.2o — Measure one saved-terrain refresh
+
+- **Status:** Awaiting Cameron verification
+- **Files:** `tools/world-map-proof/measure_refresh.py`,
+  `tools/world-map-proof/viewer/main.ts`,
+  `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Time a single manual BDS snapshot and 4×4 tile export, publish the
+  result under a unique revision, and show browser load time when the open
+  viewer replaces it. Report server save hold separately from total ready
+  time. The tool does not schedule captures or infer a safe cadence from one
+  measurement.
+- **Verify:** Make a visible change near the diamond pillar and run the
+  `measure_refresh.py` command in `tools/world-map-proof/README.md` while BDS
+  and the proof viewer remain open. Enter its printed revision in the viewer
+  and select **Replace terrain**. Record `snapshotMs`, `holdMillis`,
+  `exportMs`, `readyMs`, and browser load time; confirm the block change appears
+  and the server remains writable. This quantifies one saved-terrain update
+  toward the Worlds-tab 3D promise. It does not measure player movement,
+  automatic refresh load, or full-world tile streaming.
+- **Batch:** solo — measure one local refresh before cadence decisions
+- **Commit:** P18.2o: measure saved terrain refresh cost

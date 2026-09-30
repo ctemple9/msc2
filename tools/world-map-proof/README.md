@@ -271,3 +271,24 @@ and select **Replace terrain**. Both new files load before the viewer swaps
 the tile; the camera position is restored. Export to a new revision name for
 each subsequent capture rather than overwriting the current tile. This is a
 manual saved-terrain refresh proof, with no live players or automatic polling.
+
+### Measure one manual refresh (P18.2o)
+
+Keep the proof viewer open, make another visible block change near the pillar,
+then run from the worktree root:
+
+```sh
+python3 tools/world-map-proof/measure_refresh.py \
+  --resource-pack /private/tmp/msc-bedrock-samples/resource_pack \
+  --output-root /private/tmp/msc-bds-live-proof/output \
+  --chunk-x -2 --chunk-z -1
+```
+
+The command captures a new BDS snapshot and exports it to a unique revision.
+It prints `snapshotMs` (CLI request through confirmed operation completion),
+`holdMillis` (BDS save hold), `exportMs`, and `readyMs` (snapshot plus export).
+In the still-open viewer, enter the printed `revision` and select **Replace
+terrain**. Its status shows the additional browser load time. Confirm the new
+block appears and BDS remains writable. These numbers measure a manual local
+refresh; they exclude the time between placing the block and starting the
+command, and do not establish a safe automatic polling interval by themselves.

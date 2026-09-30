@@ -1,5 +1,60 @@
 # P18.2 — offline BDS terrain proof
 
+## Modded Java live player feed proof (P18.3j)
+
+This probe checks live positions on the managed **All The Mods 10 LITE** server
+(Minecraft 1.21.1, NeoForge, KubeJS 2101.7.2). It is one separate file in
+`kubejs/server_scripts`; it does not edit existing KubeJS scripts, world data,
+or terrain exports. Every 20 server ticks it writes one complete roster to the
+server log, including an empty roster when nobody is online. Samples contain
+UUID, name, dimension, XYZ, yaw, pitch, tick, and sample time. Player names and
+coordinates are private; do not post the watcher output publicly.
+KubeJS lists `ServerEvents.tick`, but its detailed event page is unwritten, so
+the startup and console proof also checks this event against the installed
+runtime: [event list](https://kubejs.com/wiki/events),
+[tick event](https://kubejs.com/wiki/events/ServerEvents/tick).
+
+Stop **All The Mods 10 LITE** in MSC, then install the probe:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+python3 tools/world-map-proof/install_java_player_feed.py \
+  --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/all_the_mods_10_lite" \
+  --server-stopped
+```
+
+The installer refuses to overwrite the probe file and checks for a Java
+process whose working directory is this server. Start the server in MSC, then
+watch its authenticated MSC console from another terminal:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+python3 tools/world-map-proof/watch_java_player_feed.py \
+  --server "All The Mods 10 LITE"
+```
+
+Join with a Java client, walk and turn, and check that fresh samples update
+XYZ and yaw/pitch about once per second. If convenient, cross a dimension
+boundary and check the dimension field. Disconnect and confirm the next sample
+has an empty `players` array. If no new sample arrives for five seconds, the
+watcher reports `fresh: false`; it keeps one authenticated MSC console stream
+open, not a connection to the server log file.
+
+To remove the probe, stop the server in MSC and run:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+python3 tools/world-map-proof/remove_java_player_feed.py \
+  --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/all_the_mods_10_lite" \
+  --server-stopped
+```
+
+Removal checks the script still matches the installed proof file and removes
+only that file. The installer and remover both refuse to run while a Java
+process is using this server directory. This proof establishes only the
+selected NeoForge/KubeJS combination; vanilla Java still needs its own feed
+proof, and this does not establish modded terrain fidelity or player rendering.
+
 ## Bedrock live player feed proof (P18.3a)
 
 The `bedrock-player-feed` behavior pack uses stable `@minecraft/server`

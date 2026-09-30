@@ -1149,7 +1149,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3j — Prove modded Java player samples on ATM10 Lite
 
-- **Status:** Planned
+- **Status:** Awaiting Cameron verification
 - **Files:** `tools/world-map-proof/java-player-feed/scripts/server.js`,
   `tools/world-map-proof/install_java_player_feed.py`,
   `tools/world-map-proof/remove_java_player_feed.py`,
@@ -1164,9 +1164,11 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   1.21.1 NeoForge/KubeJS runtime on the selected modded server before claiming
   broader Java support. Keep the probe output local in MSC's authenticated
   console; do not add player positions to terrain exports.
-- **Verify:** With ATM10 Lite stopped in MSC, install the isolated probe and
-  start the server. Follow its authenticated MSC console and join with a Java
-  client. Walk, turn, and change dimension if convenient; verify fresh JSON
+- **Verify:** Follow **Modded Java live player feed proof (P18.3j)** in
+  `tools/world-map-proof/README.md`. With ATM10 Lite stopped in MSC, install
+  the isolated probe and start the server. Follow its authenticated console
+  and join with a Java client. Walk, turn, and change dimension if convenient;
+  verify fresh JSON
   rosters update XYZ/yaw/pitch/dimension about once per second and become empty
   after disconnect. Confirm the server remains healthy, then remove the probe
   while stopped and confirm the original KubeJS files are unchanged. This

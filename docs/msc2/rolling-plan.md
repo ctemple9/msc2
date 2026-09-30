@@ -1336,7 +1336,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3q — Prove live player samples on NeoForge without KubeJS
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Complete — live movement, rotation, and disconnect verified on
+  Minecraft 26.2 / NeoForge 26.2.0.88 without KubeJS; temporary mod removed
 - **Files:** `tools/world-map-proof/neoforge-player-feed/`,
   `tools/world-map-proof/install_neoforge_player_feed.py`,
   `tools/world-map-proof/remove_neoforge_player_feed.py`,
@@ -1353,5 +1354,9 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   roster through the authenticated watcher. Stop NeoForge and remove the
   probe. This checks the selected NeoForge build, not all NeoForge versions or
   terrain rendering.
+- **Evidence:** The server log recorded 23 player samples with one stable UUID,
+  17 distinct XYZ positions, and 15 distinct yaw/pitch pairs. The next sample
+  after Cameron left had an empty roster. MSC stopped the server, and the
+  checksum-checked removal helper removed the proof mod.
 - **Batch:** solo — verify NeoForge's native mod event path without KubeJS
 - **Commit:** P18.3q: prove neoforge player samples without kubejs

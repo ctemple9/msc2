@@ -245,8 +245,11 @@ python3 tools/world-map-proof/remove_neoforge_player_feed.py \
 
 Both helpers require a stopped server and refuse to change files if a Java
 process is using the selected directory. Removal checks the installed jar
-checksum. This proves the selected NeoForge build without KubeJS; it does not
-prove other NeoForge versions or Java terrain rendering.
+checksum. Minecraft 26.2 / NeoForge 26.2.0.88 produced changing XYZ and view
+angles with a stable player UUID, followed by an empty roster immediately
+after disconnect. The proof mod was removed after stopping the server. This
+proves the selected NeoForge build without KubeJS; it does not prove other
+NeoForge versions or Java terrain rendering.
 
 ## Paper live player feed proof (P18.3l)
 

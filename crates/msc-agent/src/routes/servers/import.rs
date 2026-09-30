@@ -59,7 +59,7 @@ pub async fn import(
 
 pub(super) fn rescan_import(state: &LifecycleRoutesState) -> Response {
     let servers_root = state.servers_root();
-    let operation_id = match state.begin_import_operation(&servers_root.to_string_lossy()) {
+    let operation_id = match state.begin_import_operation(&servers_root.to_string_lossy(), None) {
         Ok(operation_id) => operation_id,
         Err(error) => return crate::routes::operations::operation_error_response(error),
     };
@@ -308,7 +308,7 @@ pub(super) fn import_raw(
     let operation_target = match &source {
         RawImportSource::Folder(path) | RawImportSource::Zip(path) => path.to_string_lossy(),
     };
-    let operation_id = match state.begin_import_operation(&operation_target) {
+    let operation_id = match state.begin_import_operation(&operation_target, server_type) {
         Ok(operation_id) => operation_id,
         Err(error) => return crate::routes::operations::operation_error_response(error),
     };
@@ -904,7 +904,7 @@ pub(super) fn import_transfer(
         );
     }
 
-    let operation_id = match state.begin_import_operation(source_path) {
+    let operation_id = match state.begin_import_operation(source_path, None) {
         Ok(operation_id) => operation_id,
         Err(error) => return crate::routes::operations::operation_error_response(error),
     };

@@ -874,11 +874,17 @@ impl LifecycleRoutesState {
     pub fn begin_import_operation(
         &self,
         source_path: &str,
+        server_type: Option<ServerType>,
     ) -> Result<OperationId, msc_application::operations::LifecycleOperationError> {
+        let status_line = match server_type {
+            Some(ServerType::Java) => "Importing Java server.",
+            Some(ServerType::Bedrock) => "Importing Bedrock server.",
+            None => "Importing server.",
+        };
         self.inner.operations.begin_lifecycle(
             "paper-import",
             Some(source_path.to_string()),
-            "Importing Paper server.",
+            status_line,
         )
     }
 

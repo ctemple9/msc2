@@ -2411,7 +2411,9 @@ mod tests {
         let state = route_state();
         let source = temp_dir("cancelled-raw-import-source");
         write_paper_source(&source);
-        let operation_id = state.begin_import_operation("cancelled-source").unwrap();
+        let operation_id = state
+            .begin_import_operation("cancelled-source", None)
+            .unwrap();
         state
             .operations()
             .request_cancel(&operation_id, "Cancelling…")

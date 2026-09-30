@@ -888,3 +888,23 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   player motion, and the 2 GiB or 30-second snapshot limits may stop the proof.
 - **Batch:** solo — characterize developed-world cost before cadence choice
 - **Commit:** P18.2p: collect manual bds refresh series
+
+### P18.2q — Correct import progress server type
+
+- **Status:** Awaiting Cameron verification
+- **Files:** `crates/msc-agent/src/routes/lifecycle.rs`,
+  `crates/msc-agent/src/routes/servers/import.rs`,
+  `crates/msc-agent/src/routes/servers.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Cameron's mature Bedrock import exposed a progress line that said
+  “Importing Paper server” while the review correctly identified Bedrock.
+  Start normal imports with a Java or Bedrock progress label from the selected
+  type. Use a neutral label for recovery rescans and transfer packages, whose
+  contents may span server types. Existing in-flight operations retain their
+  original status line; the correction applies to later imports.
+- **Verify:** After loading the updated agent, start a new Bedrock folder import
+  through MSC. Its in-progress line says “Importing Bedrock server.” A Java
+  folder import says “Importing Java server.” This keeps the import feedback
+  accurate while preparing the mature world used for the Worlds-tab 3D map
+  measurements; it does not change the snapshot or rendering path.
+- **Batch:** solo — correct import feedback found during mature BDS setup
+- **Commit:** P18.2q: label import progress by server type

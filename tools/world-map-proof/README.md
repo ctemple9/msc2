@@ -199,9 +199,11 @@ python3 tools/world-map-proof/remove_purpur_player_feed.py \
 
 Both helpers require the server to be stopped and check that no Java process
 is using its directory. Removal rebuilds the expected plugin and only removes
-it if the bytes still match. This proves the selected Purpur build's player
-feed and shared sample contract; it does not prove another build or Java
-terrain rendering.
+it if the bytes still match. Purpur 1.21.11 produced changing XYZ and view
+angles with a stable player UUID, followed by an empty roster immediately
+after disconnect. The proof plugin was removed after stopping the server.
+This proves the selected Purpur build's player feed and shared sample
+contract; it does not prove another build or Java terrain rendering.
 
 ## NeoForge without KubeJS live player feed proof (P18.3q)
 

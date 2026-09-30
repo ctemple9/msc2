@@ -1310,7 +1310,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3p — Prove live player samples on Purpur
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Complete — live movement, rotation, and disconnect verified on
+  Purpur 1.21.11; temporary plugin removed
 - **Files:** `tools/world-map-proof/purpur-player-feed/`,
   `tools/world-map-proof/install_purpur_player_feed.py`,
   `tools/world-map-proof/remove_purpur_player_feed.py`,
@@ -1325,8 +1326,11 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   `tools/world-map-proof/README.md`. Start through MSC, join with a matching
   client, move and turn, then disconnect. Confirm fresh samples and an empty
   roster in the authenticated watcher, stop Purpur, and remove the plugin.
-  Compilation has been checked on the existing 1.21.11 bundle; live behavior
-  and any newly created Purpur version remain to be verified.
+- **Evidence:** The server log recorded 32 player samples with one stable UUID,
+  10 distinct XYZ positions, and 9 distinct yaw/pitch pairs. The next sample
+  after Cameron left had an empty roster. MSC stopped the server, and the
+  checksum-checked removal helper removed the proof plugin. A different
+  Purpur version still needs its own live check.
 - **Batch:** solo — establish Purpur player-feed compatibility
 - **Commit:** P18.3p: prove purpur player samples
 

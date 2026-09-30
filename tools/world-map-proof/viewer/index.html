@@ -4,6 +4,12 @@
   <body>
     <div id="viewer"></div>
     <aside>Offline BDS terrain proof · drag to orbit · scroll to zoom · no live players</aside>
+    <form id="revision-control" onsubmit="return false">
+      <label for="revision">Saved terrain revision</label>
+      <input id="revision" autocomplete="off" placeholder="after" />
+      <button id="replace" type="button">Replace terrain</button>
+      <output id="revision-status" aria-live="polite">Loading initial terrain…</output>
+    </form>
     <script type="module" src="/main.ts"></script>
   </body>
 </html>

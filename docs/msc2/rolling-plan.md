@@ -822,3 +822,27 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   it does not yet provide automatic refresh or live player movement.
 - **Batch:** solo — repair live snapshot safety before further refresh work
 - **Commit:** P18.2m: repair bds snapshot copy stack overflow
+
+### P18.2n — Replace saved terrain in the open proof viewer
+
+- **Status:** Awaiting Cameron verification
+- **Files:** `tools/world-map-proof/viewer/main.ts`,
+  `tools/world-map-proof/viewer/index.html`,
+  `tools/world-map-proof/viewer/style.css`,
+  `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Let the standalone proof viewer load a second, versioned BDS tile
+  export on demand without reopening the page. Fetch the terrain and texture
+  files before replacing the scene, and restore the viewer camera afterward.
+  This keeps the proof explicitly labeled as saved terrain, not live players.
+- **Verify:** While viewing the first diamond pillar export, change blocks near
+  `-5, 88, 0` on the running BDS server. Capture a new `msc world map-snapshot`
+  and export its `worldPath` to
+  `/private/tmp/msc-bds-live-proof/output/revisions/after` with origin `-2,-1`
+  as described in `tools/world-map-proof/README.md`. Enter `after` in the open
+  viewer and select **Replace terrain**. The change appears without a page
+  reload, the camera stays near the pillar, and BDS remains writable. This
+  advances fresh Bedrock terrain within the future Worlds-tab 3D view;
+  automatic refresh, full-world streaming, and live players remain separate
+  proofs. If the new revision cannot load, the existing view remains visible.
+- **Batch:** solo — prove in-place tile replacement before timing refresh
+- **Commit:** P18.2n: replace saved terrain in open viewer

@@ -1,3 +1,6 @@
 html, body, #viewer { margin: 0; width: 100%; height: 100%; overflow: hidden; }
 body { background: #10151a; color: #e3e6e8; font: 13px system-ui, sans-serif; }
 aside { position: fixed; left: 16px; bottom: 16px; padding: 8px 10px; background: #10151a; }
+#revision-control { position: fixed; right: 16px; bottom: 16px; display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: #10151a; }
+#revision-control input { width: 90px; }
+#revision-control output { max-width: 280px; }

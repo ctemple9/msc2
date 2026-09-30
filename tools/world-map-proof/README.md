@@ -250,3 +250,24 @@ Then launch the proof viewer with
 and BDS continues accepting world writes. This is a *saved terrain* refresh
 proof; walking players require a separate position feed. A completed snapshot
 is a temporary private copy and should be removed after inspection.
+
+### Replace saved terrain without reopening the proof viewer (P18.2n)
+
+Keep the viewer open on the first export, with
+`MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-live-proof/output`. Make a
+second visible block change in BDS and capture another `msc world
+map-snapshot`. Export its returned `worldPath` to a new revision directory:
+
+```sh
+tools/world-map-proof/target/release/msc-world-map-proof \
+  '<new-worldPath>' \
+  /private/tmp/msc-bedrock-samples/resource_pack \
+  /private/tmp/msc-bds-live-proof/output/revisions/after \
+  -2,-1
+```
+
+In the still-open proof viewer, enter `after` under **Saved terrain revision**
+and select **Replace terrain**. Both new files load before the viewer swaps
+the tile; the camera position is restored. Export to a new revision name for
+each subsequent capture rather than overwriting the current tile. This is a
+manual saved-terrain refresh proof, with no live players or automatic polling.

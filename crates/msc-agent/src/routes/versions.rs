@@ -541,6 +541,8 @@ fn pre_downgrade_backup(
     should_cancel: &dyn Fn() -> bool,
 ) -> bool {
     let now = iso8601_now();
+    let raw_level_name =
+        crate::backup_operations::configured_java_level_name(server_type, server_dir);
     let association = BackupAssociation {
         slot_id: None,
         slot_name: None,
@@ -550,7 +552,7 @@ fn pre_downgrade_backup(
         &StdFileSystem,
         server_dir,
         server_type,
-        None,
+        raw_level_name.as_deref(),
         &association,
         None,
         None,

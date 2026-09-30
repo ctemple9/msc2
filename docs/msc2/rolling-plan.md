@@ -1173,9 +1173,50 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   after disconnect. Confirm the server remains healthy, then remove the probe
   while stopped and confirm the original KubeJS files are unchanged. This
   advances live-player proof for one modded Java runtime; it does not establish
-  vanilla Java support or terrain fidelity for modded blocks. Next prove the
-  vanilla Java feed path and compare the feed contract before adding Java
+  Paper or vanilla Java support or terrain fidelity for modded blocks. Next
+  prove the Paper feed path and compare the feed contract before adding Java
   players to the viewer.
 - **Batch:** solo — establish the modded Java live-position path before
-  vanilla Java or viewer integration
+  Paper or viewer integration
 - **Commit:** P18.3j: prove modded java player samples
+
+### P18.3k — Use the configured Paper world for downgrade backups
+
+- **Status:** Awaiting Cameron verification
+- **Files:** `crates/msc-agent/src/routes/versions.rs`,
+  `docs/msc2/rolling-plan.md`
+- **What:** The Paper server has `level-name=Paper` and a real `Paper/` world,
+  but the downgrade backup route passed no level name and searched for the
+  default `world/` folder. Read the configured Java level name through the
+  existing backup helper before creating the required safety archive. Keep the
+  downgrade blocked if that archive still cannot be created.
+- **Verify:** Rebuild and reload the local agent, then retry the Paper version
+  change while the server is stopped. Confirm the pre-downgrade backup is
+  created for `Paper/` and the version change progresses past the backup step.
+  The current world was last opened on 26.2; use a separate world or restored
+  backup before starting that world under an older Minecraft version.
+- **Batch:** solo — fix Paper downgrade backup world selection
+- **Commit:** P18.3k: use configured world for downgrade backup
+
+### P18.3l — Prove live player samples on Paper
+
+- **Status:** Planned — awaiting Cameron review
+- **Files:** `tools/world-map-proof/paper-player-feed/`,
+  `tools/world-map-proof/install_paper_player_feed.py`,
+  `tools/world-map-proof/remove_paper_player_feed.py`,
+  `tools/world-map-proof/watch_java_player_feed.py`,
+  `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Use the managed Paper server for the next Java player-feed proof.
+  Build a removable Paper plugin that emits the same local player-sample
+  envelope as the ATM10 Lite probe, using Paper's API for UUID, name,
+  dimension, position, yaw, pitch, tick, and sample time. Reuse the
+  authenticated console watcher. Keep world data and other plugins intact;
+  install and remove the probe only while Paper is stopped. Check the API and
+  Java toolchain against the installed Paper version before implementation.
+- **Verify:** Start Paper through MSC with the probe installed, join, move,
+  turn, and disconnect. Confirm fresh samples track the player and then show
+  an empty roster. Confirm the existing world and plugins are unchanged after
+  stopping Paper and removing the probe. Compare the sample contract with
+  ATM10 Lite before adding Java players to the viewer.
+- **Batch:** solo — establish the Paper live-position path
+- **Commit:** P18.3l: prove paper player samples

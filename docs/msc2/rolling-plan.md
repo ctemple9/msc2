@@ -1243,3 +1243,23 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Batch:** solo — prove Fabric player samples before testing the other Java
   server flavors
 - **Commit:** P18.3m: prove fabric player samples
+
+### P18.3n — Prove live player samples on Forge
+
+- **Status:** Awaiting Cameron verification
+- **Files:** `tools/world-map-proof/forge-player-feed/`,
+  `tools/world-map-proof/install_forge_player_feed.py`,
+  `tools/world-map-proof/remove_forge_player_feed.py`,
+  `tools/world-map-proof/watch_java_player_feed.py`,
+  `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
+- **What:** Add a temporary server-side Forge mod using Forge's post-server
+  tick event. Compile it against the managed Minecraft 26.3 / Forge 66.0.8
+  runtime, emit the shared player roster once per second, and safely install
+  and remove it only while Forge is stopped. Preserve the world and existing
+  mods.
+- **Verify:** Follow **Forge live player feed proof (P18.3n)** in
+  `tools/world-map-proof/README.md`. Join with a Minecraft 26.3 client, move,
+  turn, and disconnect; confirm the authenticated watcher reports fresh
+  positions/look and then an empty roster. Stop Forge and remove the probe.
+- **Batch:** solo — establish Forge player-feed compatibility
+- **Commit:** P18.3n: prove forge player samples

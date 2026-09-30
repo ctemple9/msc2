@@ -53,6 +53,50 @@ The remover refuses to delete changed files. It removes the Fabric API jar
 only when this installer added it; pre-existing Fabric API and other mods are
 left in place.
 
+## Forge live player feed proof (P18.3n)
+
+This temporary Forge mod targets the managed **Minecraft 26.3 / Forge 66.0.8**
+server. The installer compiles it against that server's own Forge and Minecraft
+libraries with Java 25, then adds one jar to `mods/`. It emits a complete
+roster every 20 server ticks using the same `MSC_MAP_PLAYERS_V1` envelope read
+by the authenticated Java watcher, including UUID, name, dimension, XYZ,
+yaw/pitch, tick, and sample time. Empty rosters are emitted after disconnect.
+Do not post watcher output publicly; names and coordinates are private.
+
+Stop **Forge** in MSC before installing:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+python3 tools/world-map-proof/install_forge_player_feed.py \
+  --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/forge" \
+  --server-stopped
+```
+
+Start Forge through MSC. From another terminal, watch its authenticated
+console:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+python3 tools/world-map-proof/watch_java_player_feed.py --server Forge
+```
+
+Join with a **Minecraft 26.3** Java client, move and turn, and confirm fresh
+samples track XYZ and yaw/pitch. Disconnect and confirm the next sample has
+`"players": []`. Stop Forge in MSC and remove the probe:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+python3 tools/world-map-proof/remove_forge_player_feed.py \
+  --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/forge" \
+  --server-stopped
+```
+
+Both helpers require the server to be stopped, refuse to overwrite existing
+files, and check that no Java process is using the selected server directory.
+Removal also checks the installed jar checksum. This proves the selected Forge
+build and shared sample contract; it does not prove another Forge version or
+Java terrain rendering.
+
 ## Paper live player feed proof (P18.3l)
 
 This temporary plugin targets the managed **Paper 26.2 build 121** server. The

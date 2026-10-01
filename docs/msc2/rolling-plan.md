@@ -1690,6 +1690,14 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 **P18.10b field verification (2026-10-01):** Cameron confirmed the roster and model update as described, Fly and Follow work, and disconnect clears the player.
 
+### P18.10c — Verify the embedded map on Purpur 1.21.11
+
+- **Status:** Awaiting Cameron verification — checkpoint opened 2026-10-01
+- **Files:** `docs/msc2/rolling-plan.md`
+- **What:** Exercise the embedded refresh and Java console player-query paths on the already-proven Purpur 1.21.11 world. This covers the legacy root `region/` layout and a pre-26.x server version in MSC, beyond Vanilla 26.3. Check a visible terrain update and live roster/model movement while Purpur remains usable. This is a runtime-compatibility smoke check; it does not repeat full offline asset auditing or claim modded block-model fidelity.
+- **Verify:** In MSC, stop Vanilla if it is still running, select and start the existing Purpur 1.21.11 server, open its Overworld map, join using Minecraft 1.21.11, and confirm the player appears and moves in the roster/model. Place a distinctive block, refresh terrain, confirm the block appears and gameplay still works, then disconnect and confirm the marker clears. If saved Nether or End terrain is present, check that the map opens that dimension. This advances the visible promise that the supported legacy Java save layout refreshes and tracks live players inside MSC; report any missing chunks, stale player state, or renderer/refresh error as a blocker before expanding to other Java flavors.
+- **Batch:** C (P18.10) — Java runtime compatibility
+
 ### P18.10 — Connect saved-terrain refresh and live player controls
 
 - **Status:** Planned — owner direction, 2026-09-30

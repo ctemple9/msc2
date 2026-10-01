@@ -1443,6 +1443,24 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   when the scratch converter left the state empty. The converter now restores
   omitted defaults for logs and other observed vanilla states. A corrected
   Vanilla tile at `/private/tmp/msc-java-terrain-proof/vanilla-26.3-defaults-fix`
-  exported with 16/16 chunks. Cameron's visual recheck is pending.
+  exported with 16/16 chunks. Cameron's latest response indicates the corrected
+  view looks good.
 - **Batch:** solo — finish Java and Bedrock rendering evidence before MSC UI
   integration
+
+### P18.5 — Shape the standalone viewer controls before MSC integration
+
+- **Status:** Scoped — implement in the standalone proof viewer next, while
+  keeping Java live snapshot and refresh proof as a separate gate before MSC
+  integration.
+- **What:** Use Vantage's dark, translucent map UI as a visual reference. Add a
+  compact bottom toolbar for 2D/3D view, creative-style free flight (WASD,
+  Space up, Shift down), coordinates, zoom, camera capture, and Home to world
+  spawn. Put the player list in a right-side panel where the demo shows biomes.
+  Keep player Fly/Follow actions. Defer lighting, quality, and biome controls.
+- **Verify:** In the standalone viewer, switch modes without moving the map
+  target, fly in all six directions, return to spawn, read accurate cursor or
+  camera coordinates, zoom, save a camera image, and use Fly/Follow from the
+  player panel. Check desktop and narrow layouts. Home needs the selected
+  world's actual spawn coordinates from its save metadata, not an assumed
+  origin.

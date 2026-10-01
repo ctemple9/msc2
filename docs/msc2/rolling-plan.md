@@ -1605,11 +1605,20 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.9e — Make desktop Fly camera controls usable
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Status:** Needs correction — Cameron observed a steep camera jump on desktop mouse movement, 2026-10-01
 - **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `clients/desktop-web/src-tauri/capabilities/default.json`, `docs/msc2/rolling-plan.md`
 - **What:** Enter Fly with a near-level pitch instead of carrying the steep map angle into first-person movement. In the macOS desktop webview, use Tauri window cursor control when browser pointer lock is unavailable, so a click on the map enables continuous mouse look; Escape, window blur, leaving Fly, and closing the map restore the cursor. Browser pointer lock remains the viewer's normal path.
 - **Verify:** Restart `npx tauri dev` and open a saved Java map in MSC. Select Fly: the view should start nearly level. Click the terrain, move the mouse beyond the former window edge, and confirm the camera keeps turning while WASD/Space/Shift still move. Press Escape and confirm the pointer returns. Repeat after switching 2D/3D and closing the map. Check the browser proof viewer still uses its usual pointer lock.
 - **Commit:** P18.9e: fix desktop fly camera and mouse look
+- **Batch:** B (P18.9) — desktop map controls
+
+### P18.9f — Correct desktop mouse-look deltas
+
+- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** The initial desktop fallback treated the cursor's absolute distance from the map center as movement on every event. That fed the repositioning jump into pitch and could point the camera straight at the sky. Use consecutive real pointer positions as deltas, ignore repositioning events, and recenter only near the map edge. Show a visible mouse-look indicator while captured. Keep the Fly entry pitch near level.
+- **Verify:** Restart `npx tauri dev`, open a saved Java map, and select Fly. Confirm the initial view is near level. Click terrain: the mouse-look indicator appears. Turn slowly in all directions and continue past the map edge; the camera should turn smoothly without jumping to the sky. Press Escape and confirm the indicator clears and ordinary drag works again.
+- **Commit:** P18.9f: correct desktop mouse look deltas
 - **Batch:** B (P18.9) — desktop map controls
 
 ### P18.10 — Connect saved-terrain refresh and live player controls

@@ -30,8 +30,9 @@
   let messageTimer: ReturnType<typeof setTimeout> | undefined;
   let desktopLook = false;
   let lookClick: { x: number; y: number } | undefined;
+  let lastPointer: { x: number; y: number } | undefined;
   let warping = false;
-  let ignoreWarp = false;
+  let skipWarpMove = false;
 
   $: selected = dimensions.find((dimension) => dimension.id === selectedDimension);
 
@@ -183,9 +184,12 @@
     if (!desktopLook) return;
     desktopLook = false;
     lookClick = undefined;
+    lastPointer = undefined;
     warping = false;
-    ignoreWarp = false;
-    void getCurrentWindow().setCursorVisible(true).catch(() => {});
+    skipWarpMove = false;
+    void getCurrentWindow()
+      .setCursorVisible(true)
+      .catch(() => {});
   }
 
   async function centerDesktopPointer(): Promise<void> {
@@ -193,7 +197,8 @@
     warping = true;
     const rect = canvas.getBoundingClientRect();
     try {
-      ignoreWarp = true;
+      lastPointer = undefined;
+      skipWarpMove = false;
       await getCurrentWindow().setCursorPosition(
         new LogicalPosition(rect.left + rect.width / 2, rect.top + rect.height / 2),
       );
@@ -202,6 +207,7 @@
       say('Mouse capture is unavailable in this desktop window. Drag to look.');
     } finally {
       warping = false;
+      if (desktopLook) skipWarpMove = true;
     }
   }
 
@@ -214,15 +220,14 @@
     // Allow that request to complete first, then use window cursor control if needed.
     setTimeout(async () => {
       if (!viewer?.isFlying || viewer.controls.isPointerLocked || desktopLook) return;
-      desktopLook = true;
       try {
         await getCurrentWindow().setCursorVisible(false);
-        if (!desktopLook) {
+        if (!viewer?.isFlying) {
           await getCurrentWindow().setCursorVisible(true);
           return;
         }
+        desktopLook = true;
         await centerDesktopPointer();
-        if (desktopLook) say('Mouse look active · Esc releases pointer');
       } catch {
         releaseDesktopLook();
         say('Mouse capture is unavailable in this desktop window. Drag to look.');
@@ -232,27 +237,33 @@
 
   function moveDesktopLook(event: PointerEvent): void {
     if (!desktopLook || !viewer?.isFlying || viewer.controls.isPointerLocked) return;
-    const rect = canvas.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    if (
-      ignoreWarp &&
-      Math.abs(event.clientX - centerX) < 2 &&
-      Math.abs(event.clientY - centerY) < 2
-    ) {
-      ignoreWarp = false;
+    if (warping) return;
+    if (skipWarpMove) {
+      skipWarpMove = false;
+      lastPointer = { x: event.clientX, y: event.clientY };
       return;
     }
-    if (warping) return;
-    const dx = event.clientX - centerX;
-    const dy = event.clientY - centerY;
-    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+    if (!lastPointer) {
+      lastPointer = { x: event.clientX, y: event.clientY };
+      return;
+    }
+    const dx = event.clientX - lastPointer.x;
+    const dy = event.clientY - lastPointer.y;
+    lastPointer = { x: event.clientX, y: event.clientY };
     const controls = viewer.controls;
     const sensitivity = 1.5 / Math.max(canvas.clientHeight, 1);
     controls.rotation += dx * sensitivity;
     controls.angle = Math.max(0.02, Math.min(Math.PI - 0.02, controls.angle - dy * sensitivity));
     viewer.invalidate();
-    void centerDesktopPointer();
+    const rect = canvas.getBoundingClientRect();
+    if (
+      event.clientX < rect.left + 48 ||
+      event.clientX > rect.right - 48 ||
+      event.clientY < rect.top + 48 ||
+      event.clientY > rect.bottom - 48
+    ) {
+      void centerDesktopPointer();
+    }
   }
 
   function goHome(): void {
@@ -344,6 +355,9 @@
       <strong>Players</strong>
       <p>Live positions will appear here when the player feed is connected.</p>
     </aside>
+    {#if desktopLook}
+      <div class="look-indicator" role="status">Mouse look active · Esc releases pointer</div>
+    {/if}
     <div class="map-caption" role="status">{status}{message ? ` · ${message}` : ''}</div>
     <nav
       class="map-toolbar"
@@ -552,6 +566,19 @@
     color: #aeb4bb;
     font-size: 11px;
     border-radius: 5px;
+  }
+  .look-indicator {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 8px 12px;
+    background: #141417;
+    color: #f1f1f2;
+    border: 1px solid #3a3a40;
+    border-radius: 5px;
+    font-size: 11px;
+    pointer-events: none;
   }
   .map-toolbar {
     position: absolute;

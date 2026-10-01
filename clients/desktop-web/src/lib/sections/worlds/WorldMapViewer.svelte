@@ -543,7 +543,7 @@
       <strong>{worldName}</strong>
       <span class="saved">Saved terrain</span>
     </div>
-    {#if serverType === 'java' && dimensions.length > 0}
+    {#if dimensions.length > 0}
       <div class="map-actions">
         <button
           type="button"
@@ -551,6 +551,7 @@
           disabled={!viewer || refreshing}
           onclick={refreshTerrain}>{refreshing ? 'Refreshing…' : 'Refresh terrain'}</button
         >
+        {#if serverType === 'java'}
         <label class="dimension-picker">
           <span>Dimension</span>
           <select
@@ -566,6 +567,7 @@
             {/each}
           </select>
         </label>
+        {/if}
       </div>
     {/if}
   </header>

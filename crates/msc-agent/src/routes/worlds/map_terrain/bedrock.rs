@@ -1,4 +1,4 @@
-//! A saved Bedrock tile, exported from a consistent BDS copy on first load.
+//! Saved Bedrock tiles exported from a consistent BDS copy.
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::{Component, Path, PathBuf};
@@ -24,7 +24,27 @@ const MAX_EXTRACTED: u64 = 384 * 1024 * 1024;
 const MAX_EXPORT_TIME: Duration = Duration::from_secs(600);
 
 #[derive(Clone, Default)]
-pub(crate) struct BedrockStore(Arc<Mutex<Option<BedrockTile>>>);
+pub(crate) struct BedrockStore(Arc<Mutex<BedrockState>>);
+
+#[derive(Default)]
+struct BedrockState {
+    tile: Option<BedrockTile>,
+    pending: Option<BedrockSnapshot>,
+}
+
+struct BedrockSnapshot {
+    server_id: String,
+    world: PathBuf,
+    snapshot: crate::backup_operations::WorldMapSnapshot,
+}
+
+impl Drop for BedrockSnapshot {
+    fn drop(&mut self) {
+        if let Some(parent) = self.snapshot.path.parent() {
+            let _ = fs::remove_dir_all(parent);
+        }
+    }
+}
 
 struct BedrockTile {
     server_id: String,
@@ -117,6 +137,26 @@ pub(super) async fn artifact(
 }
 
 impl BedrockStore {
+    pub(crate) fn use_snapshot(
+        &self,
+        server_id: String,
+        world: PathBuf,
+        snapshot: crate::backup_operations::WorldMapSnapshot,
+    ) -> Result<(), String> {
+        let pending = BedrockSnapshot {
+            server_id,
+            world,
+            snapshot,
+        };
+        let mut current = self
+            .0
+            .lock()
+            .map_err(|_| "The Bedrock map cache is unavailable.")?;
+        current.tile = None;
+        current.pending = Some(pending);
+        Ok(())
+    }
+
     fn read(
         &self,
         lifecycle: &crate::routes::lifecycle::LifecycleRoutesState,
@@ -130,10 +170,18 @@ impl BedrockStore {
             .lock()
             .map_err(|_| "The Bedrock map cache is unavailable.")?;
         let reuse = current
+            .tile
             .as_ref()
             .is_some_and(|tile| tile.server_id == server_id && tile.world == world);
         if !reuse {
-            *current = None;
+            current.tile = None;
+            if current
+                .pending
+                .as_ref()
+                .is_some_and(|pending| pending.server_id != server_id || pending.world != world)
+            {
+                current.pending = None;
+            }
             let pack = resource_pack()?;
             let binary = std::env::var_os("MSC2_BEDROCK_MAP_BIN")
                 .map(PathBuf::from)
@@ -159,7 +207,7 @@ impl BedrockStore {
                 fs::set_permissions(&output, fs::Permissions::from_mode(0o700))
                     .map_err(|error| format!("Could not protect the Bedrock map: {error}"))?;
             }
-            let snapshot = if lifecycle.status_snapshot().running {
+            let snapshot = if current.pending.is_none() && lifecycle.status_snapshot().running {
                 match crate::backup_operations::snapshot_bedrock_world(
                     lifecycle.clone(),
                     server_dir,
@@ -174,9 +222,12 @@ impl BedrockStore {
             } else {
                 None
             };
-            let source = snapshot
+            let source = current
+                .pending
                 .as_ref()
-                .map_or(world, |snapshot| snapshot.path.as_path());
+                .map(|pending| pending.snapshot.path.as_path())
+                .or_else(|| snapshot.as_ref().map(|snapshot| snapshot.path.as_path()))
+                .unwrap_or(world);
             let rendered = Command::new(binary)
                 .arg("grid")
                 .arg(source)
@@ -209,13 +260,15 @@ impl BedrockStore {
                 let _ = fs::remove_dir_all(&output);
                 return Err("The saved Bedrock tile could not be exported. Check the world and resource pack.".into());
             }
-            *current = Some(BedrockTile {
+            current.pending = None;
+            current.tile = Some(BedrockTile {
                 server_id: server_id.to_owned(),
                 world: world.to_owned(),
                 output,
             });
         }
         let path = current
+            .tile
             .as_ref()
             .ok_or("The Bedrock tile is unavailable.")?
             .output

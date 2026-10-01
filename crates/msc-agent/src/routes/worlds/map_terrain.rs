@@ -177,7 +177,7 @@ pub(super) async fn artifact(
     }
 }
 
-fn is_direct_child(parent: &Path, child: &Path) -> bool {
+pub(super) fn is_direct_child(parent: &Path, child: &Path) -> bool {
     let Ok(parent_meta) = std::fs::symlink_metadata(parent) else {
         return false;
     };

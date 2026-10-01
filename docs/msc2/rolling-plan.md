@@ -1725,6 +1725,15 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Commit:** P18.10f: show neighboring Bedrock tiles in MSC
 - **Batch:** C (P18.10) — Bedrock map integration
 
+### P18.10g — Refresh saved Bedrock terrain inside MSC
+
+- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Files:** `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/worlds/map_terrain.rs`, `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`, `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/rolling-plan.md`
+- **What:** Enable Refresh terrain for a running BDS world. The operation takes a consistent save hold/resume snapshot, records bytes and hold time, and selects that snapshot for the next Bedrock tile export. The map reloads after the operation succeeds; BDS resumes writes before success is reported. The cached render and prior unused snapshot are retired. Rendering still rebuilds the bounded tile grid in full; dirty-tile selection is not yet used by the embedded map.
+- **Verify:** In the consolidated Bedrock runtime check, change a block in a loaded tile, use Refresh terrain, confirm the block appears and BDS still accepts edits. Stop BDS and confirm Refresh terrain gives a clear stopped-server error.
+- **Commit:** P18.10g: refresh saved Bedrock terrain in MSC
+- **Batch:** C (P18.10) — Bedrock map integration
+
 ### P18.10 — Connect saved-terrain refresh and live player controls
 
 - **Status:** Planned — owner direction, 2026-09-30

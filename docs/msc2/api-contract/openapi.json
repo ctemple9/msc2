@@ -119,10 +119,10 @@
     },
     "/v1/worlds/map/refresh": {
       "post": {
-        "summary": "Capture current Java terrain for the selected active world",
+        "summary": "Capture current terrain for the selected active world",
         "operationId": "refreshWorldMapTerrain",
         "x-permission-category": "worlds",
-        "x-notes": "Starts a bounded, consistent Java world snapshot while the server remains writable. On success, the private renderer switches to the copied world and the client may reload its selected dimension. Operation details report bytes copied and save hold duration, never the private snapshot path.",
+        "x-notes": "Starts a bounded, consistent Java or Bedrock world snapshot while the server remains writable. On success, the private renderer switches to the copied world and the client may reload its selected dimension. Operation details report bytes copied and save hold duration, never the private snapshot path.",
         "responses": {
           "200": {
             "description": "Refresh operation started",
@@ -140,8 +140,7 @@
             }
           },
           "403": { "description": "Worlds permission required" },
-          "409": { "description": "No running active Java world or another operation holds this server" },
-          "501": { "description": "Bedrock terrain renderer not integrated" }
+          "409": { "description": "No running active world or another operation holds this server" }
         }
       }
     },

@@ -2419,8 +2419,7 @@ pub async fn snapshot_map_proof(
     response
 }
 
-/// Capture a consistent Java save and make it the source for subsequent map
-/// artifacts. The operation finishes only after save-on has been dispatched.
+/// Capture a consistent save and make it the source for subsequent map artifacts.
 pub async fn refresh_map(
     State(state): State<WorldsRoutesState>,
     Extension(credential): Extension<AuthenticatedCredential>,
@@ -2436,19 +2435,111 @@ pub async fn refresh_map(
         Ok(server) => server,
         Err(response) => return response,
     };
-    if server.server_type == ServerType::Bedrock {
-        return error_response(
-            StatusCode::NOT_IMPLEMENTED,
-            "renderer_unavailable",
-            "Bedrock terrain rendering is not integrated yet.",
-        );
-    }
     if !lifecycle.status_snapshot().running {
         return error_response(
             StatusCode::CONFLICT,
             "server_stopped",
-            "Start the active Java server before refreshing its terrain.",
+            "Start the active server before refreshing its terrain.",
         );
+    }
+    if server.server_type == ServerType::Bedrock {
+        let server_dir = PathBuf::from(&server.server_dir);
+        let Some(level_name) =
+            msc_application::worlds::read_configured_level_name(&StdFileSystem, &server_dir)
+                .filter(|name| is_safe_level_folder(name))
+        else {
+            return error_response(
+                StatusCode::CONFLICT,
+                "map_unavailable",
+                "The active server has no safe configured Bedrock world folder.",
+            );
+        };
+        let worlds = server_dir.join("worlds");
+        let source_world = worlds.join(level_name);
+        if !map_terrain::is_direct_child(&server_dir, &worlds)
+            || !map_terrain::is_direct_child(&worlds, &source_world)
+            || !source_world.join("level.dat").is_file()
+            || !source_world.join("db").is_dir()
+        {
+            return error_response(
+                StatusCode::CONFLICT,
+                "map_unavailable",
+                "The active Bedrock world has no safely accessible saved terrain.",
+            );
+        }
+        let operation_id = match lifecycle.operations().begin_lifecycle(
+            "world-map-refresh",
+            Some(server.id.clone()),
+            "Capturing current Bedrock terrain.",
+        ) {
+            Ok(id) => id,
+            Err(error) => return crate::routes::operations::operation_error_response(error),
+        };
+        let should_cancel = lifecycle.operations().cancellation_check(&operation_id);
+        let task_lifecycle = lifecycle.clone();
+        let task_operation_id = operation_id.clone();
+        let store = state.bedrock_map.clone();
+        tokio::spawn(async move {
+            let snapshot_lifecycle = task_lifecycle.clone();
+            let result = tokio::task::spawn_blocking(move || {
+                crate::backup_operations::snapshot_bedrock_world(
+                    snapshot_lifecycle,
+                    &server_dir,
+                    should_cancel,
+                )
+            })
+            .await;
+            match result {
+                Ok(Ok(snapshot)) => {
+                    let mut details = BTreeMap::new();
+                    details.insert("bytesCopied".to_string(), snapshot.bytes.to_string());
+                    details.insert("holdMillis".to_string(), snapshot.hold_millis.to_string());
+                    if store
+                        .use_snapshot(server.id, source_world, snapshot)
+                        .is_ok()
+                    {
+                        let _ = task_lifecycle.operations().succeed(
+                            &task_operation_id,
+                            "Current Bedrock terrain is ready.",
+                            details,
+                        );
+                    } else {
+                        let _ = task_lifecycle.operations().fail(
+                            &task_operation_id,
+                            "renderer_unavailable",
+                            "The saved terrain snapshot could not be selected.".to_string(),
+                        );
+                    }
+                }
+                Ok(Err(error)) => {
+                    let _ = task_lifecycle.operations().fail(
+                        &task_operation_id,
+                        "snapshot_failed",
+                        error,
+                    );
+                }
+                Err(_) => {
+                    let _ = task_lifecycle.operations().fail(
+                        &task_operation_id,
+                        "snapshot_failed",
+                        "Bedrock map snapshot task panicked; save restoration was attempted."
+                            .to_string(),
+                    );
+                }
+            }
+        });
+        let response = Json(
+            serde_json::json!({"result": "refresh_started", "operationId": operation_id.as_str()}),
+        )
+        .into_response();
+        audit(
+            &lifecycle,
+            &credential,
+            "POST",
+            "/v1/worlds/map/refresh",
+            response.status(),
+        );
+        return response;
     }
     let server_dir = PathBuf::from(&server.server_dir);
     let Some(level_name) =

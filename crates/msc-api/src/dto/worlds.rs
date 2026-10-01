@@ -4,6 +4,29 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorldMapDimensionsResponseDto {
+    pub server_id: String,
+    pub server_type: String,
+    pub server_running: bool,
+    pub dimensions: Vec<WorldMapDimensionDto>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorldMapDimensionDto {
+    pub id: String,
+    pub display_name: String,
+    /// `ready`, `no_saved_terrain`, or `not_indexed`.
+    pub state: String,
+    /// Number of Anvil region files. Bedrock reports zero because its
+    /// LevelDB chunk records are not counted by this directory index.
+    pub region_file_count: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
 /// A slot-local profile is intentionally a nested object rather than another
 /// group of world-looking fields on `SettingsResponseDto`. The profile is
 /// attached to a slot when persistence/readback lands in P12.24; this step

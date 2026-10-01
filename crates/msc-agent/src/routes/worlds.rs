@@ -61,12 +61,13 @@ use msc_api::dto::{
     WorldConvertFormatsResponseDto, WorldConvertRequestDto, WorldConvertResultDto,
     WorldCreateRequestDto, WorldDeleteRequestDto, WorldDuplicateRequestDto, WorldExportRequestDto,
     WorldExportResultDto, WorldGameplayDto, WorldGenerationDto, WorldIdentityDto,
-    WorldImportRequestDto, WorldMutationResultDto, WorldPackDependencyDto, WorldPackRecordDto,
-    WorldPackSourceDto, WorldProfileDto, WorldProfileFieldMetadataDto,
-    WorldRenameActiveWorldRequestDto, WorldRenameRequestDto, WorldRepairRequestDto,
-    WorldRepairResultDto, WorldReplaceActiveRequestDto, WorldReplaceActiveResultDto,
-    WorldReplaceRequestDto, WorldSafetyDto, WorldSlotDto, WorldSlotWithProfileDto,
-    WorldSlotsResponseDto, WorldThumbnailUploadRequestDto,
+    WorldImportRequestDto, WorldMapDimensionDto, WorldMapDimensionsResponseDto,
+    WorldMutationResultDto, WorldPackDependencyDto, WorldPackRecordDto, WorldPackSourceDto,
+    WorldProfileDto, WorldProfileFieldMetadataDto, WorldRenameActiveWorldRequestDto,
+    WorldRenameRequestDto, WorldRepairRequestDto, WorldRepairResultDto,
+    WorldReplaceActiveRequestDto, WorldReplaceActiveResultDto, WorldReplaceRequestDto,
+    WorldSafetyDto, WorldSlotDto, WorldSlotWithProfileDto, WorldSlotsResponseDto,
+    WorldThumbnailUploadRequestDto,
 };
 #[cfg(test)]
 use msc_api::dto::{
@@ -115,6 +116,7 @@ pub(crate) const STAGING_TTL_SECONDS: u64 = 30 * 60;
 pub fn router(state: WorldsRoutesState) -> Router {
     Router::new()
         .route("/worlds", get(list))
+        .route("/worlds/map/dimensions", get(map_dimensions))
         .route("/worlds/map-proof/snapshot", post(snapshot_map_proof))
         .route("/worlds/map-proof/players", get(map_proof_players))
         .route("/catalog/gamerules", get(gamerule_catalog))
@@ -2414,6 +2416,336 @@ pub async fn map_proof_players(
         return response;
     }
     Json(state.lifecycle.map_players()).into_response()
+}
+
+/// Returns dimension names and save-directory availability for the selected
+/// world. The response deliberately contains no host paths and does not read
+/// chunk data; terrain snapshots remain a separate, consistency-gated flow.
+pub async fn map_dimensions(
+    State(state): State<WorldsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
+        return response;
+    }
+    let lifecycle = &state.lifecycle;
+    let server = match active_server_or_response(lifecycle) {
+        Ok(server) => server,
+        Err(response) => return response,
+    };
+    let server_dir = PathBuf::from(&server.server_dir);
+    let level_name = if server.server_type == ServerType::Bedrock {
+        msc_application::worlds::read_configured_level_name(&StdFileSystem, &server_dir)
+    } else {
+        msc_application::worlds::read_java_level_name(&StdFileSystem, &server_dir)
+    };
+    let Some(level_name) = level_name.filter(|name| is_safe_level_folder(name)) else {
+        return error_response(
+            StatusCode::CONFLICT,
+            "map_unavailable",
+            "The active server has no safe configured world folder.",
+        );
+    };
+    let world_dir = server_dir.join(level_name);
+    let world_metadata = match std::fs::symlink_metadata(&world_dir) {
+        Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => Some(metadata),
+        Ok(_) => {
+            return error_response(
+                StatusCode::CONFLICT,
+                "map_unavailable",
+                "The active world folder is not a regular directory.",
+            );
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(_) => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "map_unavailable",
+                "The active world folder could not be inspected.",
+            );
+        }
+    };
+    let dimensions = if server.server_type == ServerType::Bedrock {
+        bedrock_map_dimensions(world_metadata.is_some())
+    } else {
+        match java_map_dimensions(world_dir.as_path(), world_metadata.is_some()) {
+            Ok(dimensions) => dimensions,
+            Err(_) => {
+                return error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "map_unavailable",
+                    "The active world's dimension folders could not be inspected safely.",
+                );
+            }
+        }
+    };
+    let response = Json(WorldMapDimensionsResponseDto {
+        server_id: server.id,
+        server_type: if server.server_type == ServerType::Bedrock {
+            "bedrock".to_string()
+        } else {
+            "java".to_string()
+        },
+        server_running: lifecycle.status_snapshot().running,
+        dimensions,
+    })
+    .into_response();
+    audit(
+        lifecycle,
+        &credential,
+        "GET",
+        "/v1/worlds/map/dimensions",
+        response.status(),
+    );
+    response
+}
+
+fn is_safe_level_folder(name: &str) -> bool {
+    !name.is_empty()
+        && name != "."
+        && name != ".."
+        && !name.contains('/')
+        && !name.contains('\\')
+        && !name.contains(':')
+        && !name.chars().any(char::is_control)
+}
+
+fn dimension_state(region_file_count: u32) -> String {
+    if region_file_count == 0 {
+        "no_saved_terrain".to_string()
+    } else {
+        "ready".to_string()
+    }
+}
+
+fn count_region_files(region_dir: &Path) -> Result<u32, std::io::Error> {
+    match std::fs::symlink_metadata(region_dir) {
+        Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {}
+        Ok(_) => return Ok(0),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+        Err(error) => return Err(error),
+    };
+    let mut count = 0u32;
+    let mut entries_seen = 0usize;
+    for entry in std::fs::read_dir(region_dir)? {
+        entries_seen += 1;
+        if entries_seen > 131_072 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "region directory scan exceeded its entry limit",
+            ));
+        }
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        if file_type.is_file()
+            && entry
+                .path()
+                .extension()
+                .is_some_and(|extension| extension == "mca")
+        {
+            count = count.saturating_add(1);
+            if count > 65_536 {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "region file count exceeded its limit",
+                ));
+            }
+        }
+    }
+    Ok(count)
+}
+
+fn count_region_files_beneath(
+    world_dir: &Path,
+    relative_region_dir: &Path,
+) -> Result<u32, std::io::Error> {
+    let mut current = world_dir.to_path_buf();
+    for segment in relative_region_dir.components() {
+        let std::path::Component::Normal(segment) = segment else {
+            return Ok(0);
+        };
+        current.push(segment);
+        match std::fs::symlink_metadata(&current) {
+            Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {}
+            Ok(_) => return Ok(0),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+            Err(error) => return Err(error),
+        }
+    }
+    count_region_files(&current)
+}
+
+fn java_map_dimensions(
+    world_dir: &Path,
+    world_exists: bool,
+) -> Result<Vec<WorldMapDimensionDto>, std::io::Error> {
+    let candidates = [
+        (
+            "minecraft:overworld",
+            "Overworld",
+            ["region", "dimensions/minecraft/overworld/region"],
+        ),
+        (
+            "minecraft:the_nether",
+            "The Nether",
+            ["DIM-1/region", "dimensions/minecraft/the_nether/region"],
+        ),
+        (
+            "minecraft:the_end",
+            "The End",
+            ["DIM1/region", "dimensions/minecraft/the_end/region"],
+        ),
+    ];
+    let mut dimensions = BTreeMap::new();
+    for (id, display_name, paths) in candidates {
+        let count = paths
+            .iter()
+            .map(|path| count_region_files_beneath(world_dir, Path::new(path)))
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .max()
+            .unwrap_or_default();
+        dimensions.insert(
+            id.to_string(),
+            WorldMapDimensionDto {
+                id: id.to_string(),
+                display_name: display_name.to_string(),
+                state: dimension_state(count),
+                region_file_count: count,
+                reason: (!world_exists)
+                    .then(|| "World terrain has not been created yet.".to_string()),
+            },
+        );
+    }
+
+    if world_exists {
+        let dimensions_root = world_dir.join("dimensions");
+        match std::fs::symlink_metadata(&dimensions_root) {
+            Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {
+                let mut budget = 0usize;
+                for namespace_entry in std::fs::read_dir(&dimensions_root)? {
+                    budget += 1;
+                    if budget > 4096 {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            "dimension folder scan exceeded its entry limit",
+                        ));
+                    }
+                    let namespace_entry = namespace_entry?;
+                    let namespace_type = namespace_entry.file_type()?;
+                    let namespace = namespace_entry.file_name().to_string_lossy().into_owned();
+                    if !namespace_type.is_dir() || !valid_dimension_segment(&namespace) {
+                        continue;
+                    }
+                    collect_java_dimensions(
+                        &namespace,
+                        Path::new(""),
+                        &namespace_entry.path(),
+                        0,
+                        &mut budget,
+                        &mut dimensions,
+                    )?;
+                }
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(dimensions.into_values().collect())
+}
+
+fn valid_dimension_segment(segment: &str) -> bool {
+    !segment.is_empty()
+        && segment != "."
+        && segment != ".."
+        && segment
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.'))
+}
+
+fn collect_java_dimensions(
+    namespace: &str,
+    relative: &Path,
+    current: &Path,
+    depth: usize,
+    budget: &mut usize,
+    dimensions: &mut BTreeMap<String, WorldMapDimensionDto>,
+) -> Result<(), std::io::Error> {
+    if depth > 8 {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "dimension folder nesting exceeded its limit",
+        ));
+    }
+    let mut child_dimensions = Vec::new();
+    let mut has_payload = false;
+    for entry in std::fs::read_dir(current)? {
+        *budget += 1;
+        if *budget > 4096 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "dimension folder scan exceeded its entry limit",
+            ));
+        }
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        if !file_type.is_dir() || file_type.is_symlink() {
+            continue;
+        }
+        let segment = entry.file_name().to_string_lossy().into_owned();
+        if !valid_dimension_segment(&segment) {
+            continue;
+        }
+        if matches!(segment.as_str(), "region" | "entities" | "poi" | "data") {
+            has_payload = true;
+        } else {
+            child_dimensions.push((segment, entry.path()));
+        }
+    }
+
+    if !relative.as_os_str().is_empty() && (has_payload || child_dimensions.is_empty()) {
+        let id_path = relative.to_string_lossy().replace('\\', "/");
+        let id = format!("{namespace}:{id_path}");
+        let count = count_region_files(&current.join("region"))?;
+        dimensions
+            .entry(id.clone())
+            .or_insert_with(|| WorldMapDimensionDto {
+                id: id.clone(),
+                display_name: id.clone(),
+                state: dimension_state(count),
+                region_file_count: count,
+                reason: None,
+            });
+    }
+
+    for (segment, path) in child_dimensions {
+        let mut next = relative.to_path_buf();
+        next.push(segment);
+        collect_java_dimensions(namespace, &next, &path, depth + 1, budget, dimensions)?;
+    }
+    Ok(())
+}
+
+fn bedrock_map_dimensions(world_exists: bool) -> Vec<WorldMapDimensionDto> {
+    [
+        ("minecraft:overworld", "Overworld"),
+        ("minecraft:the_nether", "The Nether"),
+        ("minecraft:the_end", "The End"),
+    ]
+    .into_iter()
+    .map(|(id, display_name)| WorldMapDimensionDto {
+        id: id.to_string(),
+        display_name: display_name.to_string(),
+        state: "not_indexed".to_string(),
+        region_file_count: 0,
+        reason: Some(if world_exists {
+            "Bedrock dimensions are stored as LevelDB chunk records and are not indexed by this directory catalog.".to_string()
+        } else {
+            "World terrain has not been created yet; Bedrock chunk records are not indexed by this directory catalog.".to_string()
+        }),
+    })
+    .collect()
 }
 
 pub async fn create(

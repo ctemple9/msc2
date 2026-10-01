@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 072788d243268256cb01ae9646ff44acfad9cb84ff5667c456db5aae5769d365
+// Contract SHA-256: 9b94c67b48fe2aa2179e4907f382ae49fa5c56002f500b92bd9ed7b51fe60e1f
 
 export interface paths {
   '/v1/active-server': {
@@ -588,6 +588,51 @@ export interface paths {
           };
         };
         /** @description update_failed */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/broadcast/credentials/clear': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Clear saved MCXboxBroadcast credentials */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Credentials cleared */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['BroadcastSimpleResultDTO'];
+          };
+        };
+        /** @description credential_store_failed or internal_error */
         500: {
           headers: {
             [name: string]: unknown;
@@ -3170,6 +3215,110 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/players/action': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Perform a supported player moderation action
+     * @description Dispatches a typed message, kick, ban, pardon, operator, deoperator, or Java whitelist action against the currently active server. Player names are quoted for the Minecraft command parser; line breaks are rejected. Bedrock actions require an available runtime, and Bedrock allowlist edits remain on POST /v1/allowlist.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': {
+            /** @enum {string} */
+            action:
+              | 'message'
+              | 'kick'
+              | 'ban'
+              | 'pardon'
+              | 'op'
+              | 'deop'
+              | 'whitelist-add'
+              | 'whitelist-remove';
+            expectedActiveServerId?: string;
+            message?: string;
+            player: string;
+            reason?: string;
+          } & {
+            [key: string]: unknown;
+          };
+        };
+      };
+      responses: {
+        /** @description Player action sent */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              action: string;
+              activeServerId?: string | null;
+              player: string;
+              runtime?: components['schemas']['BedrockRuntimeStateDTO'];
+              success: boolean;
+            } & {
+              [key: string]: unknown;
+            };
+          };
+        };
+        /** @description Invalid action, player, or message */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description The credential lacks the players permission */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description No active server, server stopped, active server changed, or Bedrock runtime unavailable */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Java whitelist action requested for Bedrock */
+        501: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/players/delete': {
     parameters: {
       query?: never;
@@ -4768,6 +4917,82 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/servers/playit': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Enable or disable Playit for one registered server */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['ServerPlayitRequestDTO'];
+        };
+      };
+      responses: {
+        /** @description Per-server Playit setting saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ServerPlayitResultDTO'];
+          };
+        };
+        /** @description invalid_json / missing_server_id */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description server_not_found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description configuration_save_failed */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/servers/rename': {
     parameters: {
       query?: never;
@@ -4894,6 +5119,82 @@ export interface paths {
     };
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/servers/xbox-broadcast': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Enable or disable Xbox Broadcast for one registered server */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['ServerXboxBroadcastRequestDTO'];
+        };
+      };
+      responses: {
+        /** @description Per-server Xbox Broadcast setting saved */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ServerXboxBroadcastResultDTO'];
+          };
+        };
+        /** @description invalid_json / missing_server_id */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description server_not_found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description configuration_save_failed */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
     delete?: never;
     options?: never;
     head?: never;
@@ -6052,6 +6353,40 @@ export interface paths {
     put?: never;
     /** Import a staged world ZIP as a new slot */
     post: operations['importWorldSlot'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/worlds/map-proof/snapshot': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Capture one consistent active BDS world copy for the Phase 18 map proof */
+    post: operations['startBedrockMapProofSnapshot'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/worlds/map/dimensions': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List dimensions discovered for the selected active world */
+    get: operations['getWorldMapDimensions'];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -7536,6 +7871,8 @@ export interface components {
       [key: string]: unknown;
     };
     PlayerDeleteRequestDTO: {
+      /** @description When supplied, refuse the mutation if a different server is active. */
+      expectedActiveServerId?: string;
       profileId: string;
     } & {
       [key: string]: unknown;
@@ -7561,6 +7898,8 @@ export interface components {
       [key: string]: unknown;
     };
     PlayerMigrateRequestDTO: {
+      /** @description When supplied, refuse the mutation if a different server is active. */
+      expectedActiveServerId?: string;
       profileId: string;
       targetUuid: string;
     } & {
@@ -8278,6 +8617,20 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    ServerPlayitRequestDTO: {
+      enabled: boolean;
+      serverId: string;
+    } & {
+      [key: string]: unknown;
+    };
+    ServerPlayitResultDTO: {
+      enabled: boolean;
+      message: string;
+      serverId: string | null;
+      success: boolean;
+    } & {
+      [key: string]: unknown;
+    };
     ServerRenameRequestDTO: {
       name: string;
       serverId: string;
@@ -8308,6 +8661,20 @@ export interface components {
       serverCount: number;
       sizeBytes: number;
       stagedDownloadId: string;
+    } & {
+      [key: string]: unknown;
+    };
+    ServerXboxBroadcastRequestDTO: {
+      enabled: boolean;
+      serverId: string;
+    } & {
+      [key: string]: unknown;
+    };
+    ServerXboxBroadcastResultDTO: {
+      enabled: boolean;
+      message: string;
+      serverId: string | null;
+      success: boolean;
     } & {
       [key: string]: unknown;
     };
@@ -8723,6 +9090,25 @@ export interface components {
       backupId?: string;
       name: string;
       stagedUploadId?: string;
+    } & {
+      [key: string]: unknown;
+    };
+    WorldMapDimensionDTO: {
+      displayName: string;
+      id: string;
+      reason?: string;
+      regionFileCount: number;
+      /** @enum {string} */
+      state: 'ready' | 'no_saved_terrain' | 'not_indexed';
+    } & {
+      [key: string]: unknown;
+    };
+    WorldMapDimensionsResponseDTO: {
+      dimensions: components['schemas']['WorldMapDimensionDTO'][];
+      serverId: string;
+      serverRunning: boolean;
+      /** @enum {string} */
+      serverType: 'java' | 'bedrock';
     } & {
       [key: string]: unknown;
     };
@@ -10733,6 +11119,97 @@ export interface operations {
         };
       };
       /** @description internal error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
+  startBedrockMapProofSnapshot: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Snapshot operation started */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            operationId: string;
+            /** @enum {string} */
+            result: 'snapshot_started';
+          } & {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Worlds permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description No running BDS server or another operation holds this server */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
+  getWorldMapDimensions: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Discovered dimensions for the selected active world */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['WorldMapDimensionsResponseDTO'];
+        };
+      };
+      /** @description Worlds permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description No selected active world or configured world folder */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description World dimension folders could not be inspected safely */
       500: {
         headers: {
           [name: string]: unknown;

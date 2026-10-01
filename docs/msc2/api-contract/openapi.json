@@ -53,6 +53,38 @@
     }
   },
   "paths": {
+    "/v1/worlds/map/dimensions": {
+      "get": {
+        "summary": "List dimensions discovered for the selected active world",
+        "operationId": "getWorldMapDimensions",
+        "x-permission-category": "worlds",
+        "x-notes": "Returns dimension IDs and save-directory availability, never host paths. Java region folders are counted from both supported save layouts and namespaced dimensions are discovered. Bedrock's LevelDB chunk records are explicitly reported as not indexed by this filesystem-only catalog.",
+        "responses": {
+          "200": {
+            "description": "Discovered dimensions for the selected active world",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorldMapDimensionsResponseDTO"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Worlds permission required",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorDTO" } } }
+          },
+          "409": {
+            "description": "No selected active world or configured world folder",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorDTO" } } }
+          },
+          "500": {
+            "description": "World dimension folders could not be inspected safely",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorDTO" } } }
+          }
+        }
+      }
+    },
     "/v1/worlds/map-proof/snapshot": {
       "post": {
         "summary": "Capture one consistent active BDS world copy for the Phase 18 map proof",
@@ -8225,6 +8257,33 @@
           "slot",
           "changes"
         ]
+      },
+      "WorldMapDimensionsResponseDTO": {
+        "type": "object",
+        "properties": {
+          "serverId": { "type": "string" },
+          "serverType": { "type": "string", "enum": ["java", "bedrock"] },
+          "serverRunning": { "type": "boolean" },
+          "dimensions": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/WorldMapDimensionDTO" }
+          }
+        },
+        "required": ["serverId", "serverType", "serverRunning", "dimensions"]
+      },
+      "WorldMapDimensionDTO": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "displayName": { "type": "string" },
+          "state": {
+            "type": "string",
+            "enum": ["ready", "no_saved_terrain", "not_indexed"]
+          },
+          "regionFileCount": { "type": "integer", "minimum": 0 },
+          "reason": { "type": "string" }
+        },
+        "required": ["id", "displayName", "state", "regionFileCount"]
       },
       "WorldSlotsResponseDTO": {
         "type": "object",

@@ -1104,6 +1104,8 @@ pub enum WorldCommand {
         #[arg(long)]
         no_wait: bool,
     },
+    /// List dimension IDs and saved-terrain availability for the active world.
+    MapDimensions,
     /// Read fresh BDS player positions for the Phase 18 map proof.
     MapPlayers {
         /// Keep polling with one local CLI credential, renewing before expiry.
@@ -3741,6 +3743,11 @@ async fn run_settings(common: CommonArgs, command: SettingsCommand) -> Result<()
 async fn run_world(common: CommonArgs, command: WorldCommand) -> Result<(), CliError> {
     let client = ApiClient::connect_local().await?;
     match command {
+        WorldCommand::MapDimensions => {
+            let dimensions: serde_json::Value =
+                client.get_json("/v1/worlds/map/dimensions").await?;
+            print_json(&dimensions)
+        }
         WorldCommand::MapSnapshot { no_wait } => {
             let result: serde_json::Value = client
                 .post_json("/v1/worlds/map-proof/snapshot", &serde_json::json!({}))

@@ -1528,28 +1528,34 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.8 — Integrate the map resource API with the Worlds tab
 
-- **Status:** Planned — owner direction, 2026-09-30
-- **Files:** `crates/msc-agent/src/`, `docs/msc2/api-contract/`, `clients/desktop-web/src/`, `docs/msc2/rolling-plan.md`
-- **What:** Replace the proof-only map access with an authenticated, bounded
-  Worlds capability for the selected server and active world. The agent owns
-  save snapshots, dimension discovery, tile/texture reads, and capability
-  explanations; the client sends server/world identifiers rather than paths.
-  Reuse the proven Java safe-snapshot flow and Bedrock snapshot flow behind
-  explicit runtime capabilities. Discover Java dimensions from saved region
-  data, including namespaced custom dimensions, and return a stable dimension
-  ID, display name, and availability state. An empty dimension remains listed
-  as having no saved terrain; this preserves generic custom-dimension support
-  without requiring ATM10 terrain to exist now. Keep player samples separate
-  from terrain snapshots and do not expose player data through tile files.
-- **Verify:** Cameron opens map capability for a selected Java world and BDS
-  world through the authenticated desktop API. Confirm each response is scoped
-  to the selected server/world, standard dimensions are listed, saved custom
-  dimensions are identified by namespace, empty dimensions explain that no
-  chunks are saved, and arbitrary filesystem paths cannot be requested. This
-  advances the in-app map entry promise; the observable result is a bounded,
-  authenticated resource response for each supported runtime. If the API or
-  transport cannot carry Vantage's authenticated reads, stop to adjust the
-  bridge before embedding the viewer.
+- **Status:** Awaiting Cameron verification
+- **Files:** `crates/msc-agent/src/`, `crates/msc-api/src/dto/worlds.rs`, `docs/msc2/api-contract/`, `clients/desktop-web/src/lib/api/generated.ts`, `docs/msc2/rolling-plan.md`
+- **What:** Add the authenticated `GET /v1/worlds/map/dimensions` Worlds
+  endpoint and CLI inspection command for the selected active server's
+  configured world. Return path-free dimension IDs, display names, region-file
+  counts, and availability explanations. Java discovery recognizes the
+  standard dimensions in both legacy and current save layouts, and lists
+  namespaced custom dimension folders even when they have no saved region
+  chunks. The current Bedrock filesystem catalog reports `not_indexed`, since
+  Bedrock chunks live in LevelDB records rather than region files. This step
+  establishes the authenticated discovery contract only; consistent snapshots
+  and tile/texture transport are part of P18.9's embedded map bridge. The
+  generated TypeScript contract was regenerated too, which also syncs three
+  existing OpenAPI routes missing from the previously generated file.
+- **Implementation:** The route requires Worlds permission, reads only the
+  active server's configured level directory, rejects unsafe level names and
+  symlinked world roots, bounds custom-dimension and region-directory scans,
+  and never returns host paths. Java dimension availability is based on `.mca`
+  region files; Bedrock availability is explicit rather than inferred from
+  directory presence. No chunk bytes or player samples are exposed here.
+- **Verify:** Build with `cargo build -p msc-agent --bin msc`, then run
+  `MSC2_DATA_DIR="$HOME/Library/Application Support/MSC 2" target/debug/msc --json world map-dimensions`
+  against a configured Java world and a Bedrock world. Confirm the Java
+  standard dimensions and saved or empty namespaced dimensions, and confirm
+  Bedrock dimensions say `not_indexed`; responses must contain no filesystem
+  paths. This is Cameron's authenticated contract verification. Snapshot and
+  tile reads remain for P18.9.
+- **Commit:** P18.8: add authenticated world dimension catalog
 - **Batch:** A (P18.8) — authenticated map resource boundary
 
 ### P18.9 — Embed saved terrain and dimension selection in Worlds

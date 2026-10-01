@@ -1594,6 +1594,15 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Commit:** P18.9c: stage terrain renderer with desktop agent
 - **Batch:** B (P18.9) — desktop renderer handoff
 
+### P18.9d — Render Java 26.x saved dimensions in MSC
+
+- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Files:** `crates/msc-agent/Cargo.toml`, `Cargo.lock`, `crates/msc-agent/src/routes/worlds/map_terrain.rs`, `crates/msc-agent/src/routes/worlds/map_terrain/java_terrain_compat.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Vantage 0.15.1 expects the old Java save layout and old block palette names. For saved Overworld, Nether, and End regions in the 26.x layout, the agent now prepares a private, bounded compatibility copy with legacy region paths and palette entries before starting Vantage. The server's world files are read only. The renderer copy is static for its session; consistent live refresh remains P18.10.
+- **Verify:** Stop Vanilla in MSC, restart `npx tauri dev`, repair/restart the agent, then start Vanilla again and open Worlds → Vanilla → View Map. The saved Overworld terrain should render instead of a sky-only view. Inspect a tree log and deepslate face for the 26.3 default orientation. The server should remain writable.
+- **Commit:** P18.9d: render Java 26.x dimensions in MSC
+- **Batch:** B (P18.9) — Java save compatibility
+
 ### P18.10 — Connect saved-terrain refresh and live player controls
 
 - **Status:** Planned — owner direction, 2026-09-30

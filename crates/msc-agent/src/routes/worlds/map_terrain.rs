@@ -1,4 +1,5 @@
 //! Authenticated, bounded access to one private Vantage Java renderer.
+mod java_terrain_compat;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -300,6 +301,14 @@ impl Renderer {
         drop(listener);
         let cache = std::env::temp_dir().join(format!("msc-map-renderer-{}", Uuid::new_v4()));
         std::fs::create_dir(&cache).map_err(|_| ())?;
+        let render_world = match java_terrain_compat::prepare(world, dimension, &cache) {
+            Ok(path) => path,
+            Err(error) => {
+                eprintln!("Java terrain compatibility preparation failed: {error}");
+                let _ = std::fs::remove_dir_all(&cache);
+                return Err(());
+            }
+        };
         let token = format!(
             "{}{}{}",
             Uuid::new_v4().simple(),
@@ -308,9 +317,9 @@ impl Renderer {
         );
         let child = Command::new(binary)
             .arg("server")
-            .arg(world)
+            .arg(render_world)
             .args(["--dimension", dimension, "--out"])
-            .arg(&cache)
+            .arg(cache.join("render"))
             .args([
                 "--host",
                 "127.0.0.1",

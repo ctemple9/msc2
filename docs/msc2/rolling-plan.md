@@ -1482,7 +1482,9 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.6 — Prove live Java saved-terrain refresh
 
-- **Status:** Snapshot endpoint implementation compiles; live proof pending.
+- **Status:** Overworld live snapshot and changed-tile proof accepted on Purpur
+  1.21.11 and Vanilla 26.3. Nether, End, and custom dimensions remain separate
+  scope; no integrated MSC map is claimed yet.
 - **What:** Extend the proof-only `world map-snapshot` path to an MSC-managed
   Java server. Send `save-off`, force `save-all flush`, require its completion
   line from the same server run, copy the world under the existing time/size
@@ -1495,3 +1497,17 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   timeout. A missing flush acknowledgement is a failed capture, not a usable
   snapshot. Inspect Nether/End and custom dimensions separately before
   promising them in the integrated map.
+- **Purpur 1.21.11 live evidence (2026-09-30):** MSC-managed `Pupur` remained
+  running across two strict snapshots (13,047,634 and 14,733,720 bytes copied;
+  save-off durations 203 and 1,210 ms). Cameron placed a block at X35/Y67/Z36.
+  The offline comparison selected chunk (2,2), which contains that coordinate,
+  and two neighboring changed chunks. Comparison took 58 ms; the changed tile
+  was ready in 928 ms at `/private/tmp/msc-java-live-proof/purpur-change`.
+- **Vanilla 26.3 live evidence (2026-09-30):** The same endpoint read the
+  `dimensions/minecraft/overworld/region/` layout and kept Vanilla running.
+  Two snapshots copied 23,142,809 and 23,357,209 bytes with save-off durations
+  of 265 and 783 ms. A block change at X32/Z32 was within selected chunk (2,2).
+  That chunk and five others changed; comparison took 217 ms, and the tile was
+  ready in 3,254 ms at `/private/tmp/msc-java-live-proof/vanilla-change`.
+  Cameron confirmed the new block appears in the viewer and Vanilla continues
+  accepting block changes.

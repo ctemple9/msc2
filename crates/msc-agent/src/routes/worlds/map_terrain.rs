@@ -32,7 +32,22 @@ pub(super) struct RendererStore(Arc<RendererState>);
 #[derive(Default)]
 struct RendererState {
     current: Mutex<Option<Renderer>>,
+    snapshot: Mutex<Option<SavedSnapshot>>,
     sweeping: AtomicBool,
+}
+
+struct SavedSnapshot {
+    server_id: String,
+    source_world: PathBuf,
+    path: PathBuf,
+}
+
+impl Drop for SavedSnapshot {
+    fn drop(&mut self) {
+        if let Some(parent) = self.path.parent() {
+            let _ = std::fs::remove_dir_all(parent);
+        }
+    }
 }
 
 struct Renderer {
@@ -212,6 +227,25 @@ fn artifact_type(path: &str) -> Option<&'static str> {
 }
 
 impl RendererStore {
+    pub(super) fn use_snapshot(
+        &self,
+        server_id: String,
+        source_world: PathBuf,
+        snapshot: crate::backup_operations::WorldMapSnapshot,
+    ) -> Result<(), ()> {
+        let next = SavedSnapshot {
+            server_id,
+            source_world,
+            path: snapshot.path,
+        };
+        let mut renderer = self.0.current.lock().map_err(|_| ())?;
+        let mut saved = self.0.snapshot.lock().map_err(|_| ())?;
+        // Stop the renderer before deleting the previous snapshot it reads.
+        *renderer = None;
+        *saved = Some(next);
+        Ok(())
+    }
+
     fn fetch(
         &self,
         server_id: &str,
@@ -221,15 +255,25 @@ impl RendererStore {
     ) -> Result<(u16, Vec<u8>), ()> {
         let (port, token) = {
             let mut guard = self.0.current.lock().map_err(|_| ())?;
+            let mut saved = self.0.snapshot.lock().map_err(|_| ())?;
+            if saved.as_ref().is_some_and(|snapshot| {
+                snapshot.server_id != server_id || snapshot.source_world != world
+            }) {
+                *guard = None;
+                *saved = None;
+            }
+            let render_world = saved
+                .as_ref()
+                .map_or(world, |snapshot| snapshot.path.as_path());
             let reuse = guard.as_mut().is_some_and(|renderer| {
                 renderer.server_id == server_id
-                    && renderer.world == world
+                    && renderer.world == render_world
                     && renderer.dimension == dimension
                     && renderer.last_use.elapsed() < IDLE
                     && renderer.child.try_wait().ok().flatten().is_none()
             });
             if !reuse {
-                *guard = Some(Renderer::launch(server_id, world, dimension)?);
+                *guard = Some(Renderer::launch(server_id, render_world, dimension)?);
             }
             let renderer = guard.as_mut().ok_or(())?;
             renderer.last_use = Instant::now();

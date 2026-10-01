@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 022e258e3fddec7c068c0f1c534af9b255fe2d933ef3ccd23a6171610f3b74a0
+// Contract SHA-256: 4d10f3e2a124af4876c5e6a5efd712b831d73eedf0fd383cad29c645b8dd71d7
 
 export interface paths {
   '/v1/active-server': {
@@ -6393,6 +6393,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/worlds/map/refresh': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Capture current Java terrain for the selected active world */
+    post: operations['refreshWorldMapTerrain'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/worlds/map/terrain': {
     parameters: {
       query?: never;
@@ -11234,6 +11251,53 @@ export interface operations {
         content: {
           'application/json': components['schemas']['ErrorDTO'];
         };
+      };
+    };
+  };
+  refreshWorldMapTerrain: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Refresh operation started */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            operationId: string;
+            /** @enum {string} */
+            result: 'refresh_started';
+          } & {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Worlds permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description No running active Java world or another operation holds this server */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Bedrock terrain renderer not integrated */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
     };
   };

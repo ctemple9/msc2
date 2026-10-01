@@ -5,6 +5,7 @@
   import type { WorldSource } from '@thoughts-on-things/vantage-mc/core';
   import type { VantageViewer } from '@thoughts-on-things/vantage-mc/three';
   import type { Schema, ScreenApi } from '../shared/types';
+  import { pollOperation } from './model';
 
   export let api: ScreenApi | undefined;
   export let serverId: string;
@@ -17,6 +18,7 @@
   let serverType = '';
   let status = 'Checking saved terrain…';
   let busy = true;
+  let refreshing = false;
   let canvas: HTMLDivElement;
   let viewer: VantageViewer | undefined;
   let alive = true;
@@ -171,7 +173,7 @@
         viewer.controls.mode === 'fly' ? viewer.camera.position : viewer.controls.position;
       coords = `XYZ ${Math.floor(point.x)}, ${Math.floor(point.y)}, ${Math.floor(point.z)}`;
       flying = viewer.isFlying;
-      topDown = !flying && viewer.tilt <= 0.08;
+      topDown = !flying && viewer.tilt <= 0.001;
     }
     frameId = requestAnimationFrame(updateToolbar);
   }
@@ -302,6 +304,28 @@
     viewer.invalidate();
   }
 
+  async function refreshTerrain(): Promise<void> {
+    if (!api || refreshing || !viewer || !selectedDimension) return;
+    const dimension = selectedDimension;
+    refreshing = true;
+    say('Capturing current terrain…');
+    try {
+      const started = await api.post<{ operationId: string }>('/v1/worlds/map/refresh', {});
+      const operation = await pollOperation(api, started.operationId);
+      if (!alive || dimension !== selectedDimension) return;
+      if (operation?.state !== 'succeeded') {
+        say(operation?.error?.message ?? 'Terrain refresh failed.');
+        return;
+      }
+      await loadDimension(dimension);
+      if (alive) say('Current terrain loaded');
+    } catch (error) {
+      if (alive) say(error instanceof Error ? error.message : 'Terrain refresh failed.');
+    } finally {
+      if (alive) refreshing = false;
+    }
+  }
+
   function capture(): void {
     if (!viewer) return;
     const link = document.createElement('a');
@@ -344,19 +368,29 @@
       <span class="saved">Saved terrain</span>
     </div>
     {#if serverType === 'java' && dimensions.length > 0}
-      <label class="dimension-picker">
-        <span>Dimension</span>
-        <select
-          value={selectedDimension}
-          onchange={(event) => void loadDimension(event.currentTarget.value)}
+      <div class="map-actions">
+        <button
+          type="button"
+          class="refresh"
+          disabled={!viewer || refreshing}
+          onclick={refreshTerrain}>{refreshing ? 'Refreshing…' : 'Refresh terrain'}</button
         >
-          {#each dimensions as dimension (dimension.id)}
-            <option value={dimension.id}
-              >{dimension.displayName}{dimension.state === 'ready' ? '' : ' · unavailable'}</option
-            >
-          {/each}
-        </select>
-      </label>
+        <label class="dimension-picker">
+          <span>Dimension</span>
+          <select
+            value={selectedDimension}
+            onchange={(event) => void loadDimension(event.currentTarget.value)}
+          >
+            {#each dimensions as dimension (dimension.id)}
+              <option value={dimension.id}
+                >{dimension.displayName}{dimension.state === 'ready'
+                  ? ''
+                  : ' · unavailable'}</option
+              >
+            {/each}
+          </select>
+        </label>
+      </div>
     {/if}
   </header>
 
@@ -397,7 +431,19 @@
         aria-pressed={topDown && !flying}
         onclick={() => {
           leaveFly();
-          viewer?.flatten();
+          if (viewer) {
+            // Cancel any pending camera tilt and use a vertical view now.
+            // The animated flatten path could still show block side faces
+            // after the toolbar had already switched to 2D.
+            const controls = viewer.controls;
+            controls.setView({
+              position: controls.position.clone(),
+              distance: controls.distance,
+              angle: 0,
+              rotation: 0,
+            });
+            viewer.invalidate();
+          }
         }}>2D</button
       >
       <button
@@ -506,6 +552,26 @@
     gap: 8px;
     color: #aeb4bb;
     font-size: 11px;
+  }
+  .map-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .refresh {
+    padding: 7px 10px;
+    color: #d7dce1;
+    background: #242428;
+    border: 1px solid #48484e;
+    border-radius: 5px;
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .refresh:disabled {
+    opacity: 0.45;
+    cursor: default;
   }
   .dimension-picker select {
     max-width: 215px;

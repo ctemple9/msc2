@@ -1578,25 +1578,11 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.9 — Embed saved terrain and dimension selection in Worlds
 
-- **Status:** Planned — owner direction, 2026-09-30
-- **Files:** `clients/desktop-web/src/`, `clients/desktop-web/src-tauri/`, `docs/msc2/rolling-plan.md`
-- **What:** Open the map inside MSC's Worlds tab for the selected active world
-  and return to the same selection on exit. Embed the existing Vantage terrain
-  view through the authenticated bridge and load the selected dimension's
-  saved terrain. Add a dimension picker for Overworld, Nether, End, and any
-  saved custom dimensions; keep dimensions with no saved chunks visible with
-  a clear unavailable state. Retain the owner-selected controls: 2D/3D, free
-  flight with WASD/Space/Shift, XYZ coordinates, zoom, camera capture, and Home
-  to the world's spawn. Use a player panel in the Vantage reference's location.
-  Defer lighting and quality controls. Preserve the selected flavor's proven
-  textures and visible fallbacks for missing models or assets.
-- **Verify:** Cameron opens a Java and BDS world from Worlds, switches between
-  available dimensions, uses each toolbar action, and exits to the same world
-  selection. Confirm Nether and End match the accepted standalone previews;
-  an empty custom dimension is named and explains why it cannot render yet.
-  This advances the in-window terrain exploration promise. If a runtime lacks
-  a dimension or terrain capability, show that reason in the map instead of a
-  misleading blank surface.
+- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Files:** `clients/desktop-web/package.json`, `clients/desktop-web/package-lock.json`, `clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte`, `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** The selected active world opens an in-window Vantage map through the Worlds-authorized terrain bridge. Dimension choices include saved Java dimensions and clearly mark empty ones. The viewer has 2D/3D, free flight, XYZ, zoom, Home to spawn, and screenshot controls. The right-side player panel names its pending live-feed capability instead of inventing players; Bedrock names its proof-only status. Exiting restores the world list and its selection. The Java view uses Vantage's installed-host assets and native visible fallback behavior.
+- **Verify:** Restart `npx tauri dev` and repair/restart the MSC agent so it loads the P18.9b route and bundled Vantage binary. In Worlds, select the active Java slot and choose View Map. Open Overworld, Nether, and End where saved; check an empty dimension's explanation, 2D/3D, Fly with WASD/Space/Shift, XYZ, zoom, Home, screenshot, and return to the same selected slot. Open an active Bedrock slot and confirm it explains that in-app terrain is pending. This advances in-window saved Java terrain; Bedrock geometry and live players remain P18.10 integration work.
+- **Commit:** P18.9: embed saved terrain in Worlds
 - **Batch:** B (P18.9) — in-window saved terrain
 
 ### P18.10 — Connect saved-terrain refresh and live player controls

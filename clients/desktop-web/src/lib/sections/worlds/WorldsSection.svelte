@@ -37,6 +37,7 @@
   import Sheet from '../../components/base/Sheet.svelte';
   import Toggle from '../../components/base/Toggle.svelte';
   import WorldSlotCard from './WorldSlotCard.svelte';
+  import WorldMapViewer from './WorldMapViewer.svelte';
   import WorldSettingsForm from './WorldSettingsForm.svelte';
   import BackupsPanel from './BackupsPanel.svelte';
   import WorldPackBrowserSheet from './WorldPackBrowserSheet.svelte';
@@ -79,6 +80,7 @@
   let profiles: Record<string, WorldSlotWithProfile> = {};
 
   let selectedSlotId: string | undefined;
+  let mapOpen = false;
   let confirming: { slotId: string; kind: 'activate' | 'delete' | 'duplicate' } | undefined;
   let confirmingBackupDeleteId: string | undefined;
   let confirmingPackDeleteId: string | undefined;
@@ -547,6 +549,11 @@
   }
 </script>
 
+{#if mapOpen && selectedSlot?.isActive}
+  {#key `${serverId}:${selectedSlot.id}`}
+    <WorldMapViewer {api} {serverId} worldName={selectedSlot.name} onClose={() => (mapOpen = false)} />
+  {/key}
+{:else}
 <div class="worlds">
   <section class="zone">
     <div class="section-header">
@@ -554,6 +561,9 @@
         <span class="msc2-type-overline">World Slots</span>
       </div>
       <div class="header-actions">
+        {#if selectedSlot?.isActive}
+          <Button size="sm" variant="secondary" onclick={() => (mapOpen = true)}>View Map</Button>
+        {/if}
         {#if isBedrock}
           <Button
             size="sm"
@@ -826,6 +836,7 @@
     onImportLegacy={(backup) => void importLegacyBackup(backup)}
   />
 </div>
+{/if}
 
 {#if showPackBrowser && selectedSlot}
   <WorldPackBrowserSheet

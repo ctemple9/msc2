@@ -1569,10 +1569,11 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.9b — Add authenticated Vantage terrain bridge
 
-- **Status:** Planned — required prerequisite for embedding the renderer
-- **Files:** `crates/msc-agent/src/`, `crates/msc-application/src/`, `crates/msc-agent/tests/`, `docs/msc2/rolling-plan.md`
-- **What:** Use MSC's Worlds authorization to launch the bundled Vantage renderer for the selected Java world and dimension, and proxy only bounded terrain/texture resources over the authenticated local API. Keep filesystem paths and the Vantage process private to the agent; validate world roots and dimension IDs, enforce lifecycle cleanup, and report unsupported or empty dimensions as explicit availability results. Leave Bedrock on its existing proof-only renderer until a BDS geometry implementation is integrated.
-- **Verify:** Build the agent and exercise the authenticated route against saved Java world data; confirm an authorized client can retrieve a terrain manifest and bounded tile/texture resources, an unauthorized caller is denied, and the agent never returns host paths or accepts arbitrary filesystem paths. This establishes the secure renderer boundary that P18.9's in-window map requires; it is not the UI or live-refresh proof.
+- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Files:** `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/worlds/map_terrain.rs`, `crates/msc-agent/Cargo.toml`, `Cargo.lock`, `docs/msc2/api-contract/openapi.json`, `clients/desktop-web/src/lib/api/generated.ts`, `docs/msc2/rolling-plan.md`
+- **What:** The Worlds-authorized `GET /v1/worlds/map/terrain` route launches one private Vantage renderer for the active Java world and a cataloged dimension. It proxies only bounded manifest, texture, and tile artifacts, validates the world root and artifact path, and retires the renderer after idle time or dimension changes. It returns explicit unavailable results for unsupported Bedrock and empty dimensions. Java client assets must be installed on the host for Vantage's default asset discovery.
+- **Verify:** Start the updated agent with a selected Java server that has saved terrain and the bundled Vantage executable. Request `GET /v1/worlds/map/terrain?dimension=minecraft%3Aoverworld&path=manifest.json` using a Worlds-authorized credential and confirm a manifest. Fetch a tile named by that manifest and `terrain.vtexarr`; an unauthenticated request must fail, and `path=../level.dat` must return 400. Confirm the responses contain no host paths. This is the secure renderer boundary for P18.9's in-window map, not the UI or live-refresh proof.
+- **Commit:** P18.9b: add authenticated Vantage terrain bridge
 - **Batch:** B (P18.9) — Java map renderer bridge
 
 ### P18.9 — Embed saved terrain and dimension selection in Worlds

@@ -100,6 +100,8 @@ use crate::routes::lifecycle::{
     reconciliation_degraded_response, require_permission,
 };
 
+mod map_terrain;
+
 /// A bounded ceiling for one staged world upload — generous enough for a
 /// large modpack world (tens of GB is unusual for a single Minecraft
 /// world save) while still bounded, per `phase6-api.md` §4's own
@@ -117,6 +119,7 @@ pub fn router(state: WorldsRoutesState) -> Router {
     Router::new()
         .route("/worlds", get(list))
         .route("/worlds/map/dimensions", get(map_dimensions))
+        .route("/worlds/map/terrain", get(map_terrain::artifact))
         .route("/worlds/map-proof/snapshot", post(snapshot_map_proof))
         .route("/worlds/map-proof/players", get(map_proof_players))
         .route("/catalog/gamerules", get(gamerule_catalog))
@@ -301,6 +304,7 @@ pub struct WorldsRoutesState {
     pub lifecycle: LifecycleRoutesState,
     pub(crate) staging: StagingStore,
     pub(crate) chunker_download_in_progress: std::sync::Arc<AtomicBool>,
+    map_renderer: map_terrain::RendererStore,
 }
 
 impl WorldsRoutesState {
@@ -310,6 +314,7 @@ impl WorldsRoutesState {
             lifecycle,
             staging: StagingStore::default(),
             chunker_download_in_progress: std::sync::Arc::new(AtomicBool::new(false)),
+            map_renderer: map_terrain::RendererStore::default(),
         }
     }
 
@@ -318,6 +323,7 @@ impl WorldsRoutesState {
             lifecycle,
             staging,
             chunker_download_in_progress: std::sync::Arc::new(AtomicBool::new(false)),
+            map_renderer: map_terrain::RendererStore::default(),
         }
     }
 }

@@ -85,6 +85,27 @@
         }
       }
     },
+    "/v1/worlds/map/terrain": {
+      "get": {
+        "summary": "Fetch a bounded saved Java terrain artifact for an active world dimension",
+        "operationId": "getWorldMapTerrainArtifact",
+        "x-permission-category": "worlds",
+        "x-notes": "The agent privately launches one bundled Vantage renderer for the selected active Java world and a cataloged dimension. Only manifest.json, terrain.vtexarr, and exact tiles/t.X.Z.vtile or tiles/lN.X.Z.vlr paths are allowed. Responses never include host paths or the renderer bearer token. Bedrock remains proof-only.",
+        "parameters": [
+          { "name": "dimension", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "path", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Terrain manifest, texture array, or tile bytes", "content": { "application/octet-stream": { "schema": { "type": "string", "format": "binary" } }, "application/json": { "schema": { "type": "object" } } } },
+          "400": { "description": "Artifact path is invalid" },
+          "403": { "description": "Worlds permission required" },
+          "404": { "description": "Dimension unknown or tile unavailable" },
+          "409": { "description": "No active world or no saved terrain for the dimension" },
+          "501": { "description": "Bedrock renderer not integrated" },
+          "502": { "description": "Private Java renderer unavailable" }
+        }
+      }
+    },
     "/v1/worlds/map-proof/snapshot": {
       "post": {
         "summary": "Capture one consistent active BDS world copy for the Phase 18 map proof",

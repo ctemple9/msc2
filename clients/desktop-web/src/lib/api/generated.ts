@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 9b94c67b48fe2aa2179e4907f382ae49fa5c56002f500b92bd9ed7b51fe60e1f
+// Contract SHA-256: 022e258e3fddec7c068c0f1c534af9b255fe2d933ef3ccd23a6171610f3b74a0
 
 export interface paths {
   '/v1/active-server': {
@@ -6393,6 +6393,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/worlds/map/terrain': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Fetch a bounded saved Java terrain artifact for an active world dimension */
+    get: operations['getWorldMapTerrainArtifact'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/worlds/rename': {
     parameters: {
       query?: never;
@@ -11217,6 +11234,72 @@ export interface operations {
         content: {
           'application/json': components['schemas']['ErrorDTO'];
         };
+      };
+    };
+  };
+  getWorldMapTerrainArtifact: {
+    parameters: {
+      query: {
+        dimension: string;
+        path: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Terrain manifest, texture array, or tile bytes */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': Record<string, never>;
+          'application/octet-stream': string;
+        };
+      };
+      /** @description Artifact path is invalid */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Worlds permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Dimension unknown or tile unavailable */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description No active world or no saved terrain for the dimension */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Bedrock renderer not integrated */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Private Java renderer unavailable */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
     };
   };

@@ -289,7 +289,10 @@ impl Textures {
         let index = output.join("texture-index.json");
         self.write(&output.join("terrain.vtexarr.tmp"))?;
         fs::rename(output.join("terrain.vtexarr.tmp"), atlas)?;
-        fs::write(output.join("texture-index.json.tmp"), serde_json::to_vec(&self.layers)?)?;
+        fs::write(
+            output.join("texture-index.json.tmp"),
+            serde_json::to_vec(&self.layers)?,
+        )?;
         fs::rename(output.join("texture-index.json.tmp"), index)?;
         Ok(())
     }
@@ -514,14 +517,18 @@ fn face(
     );
 }
 
-fn read_grid(world: &BedrockWorld, anchor: (i32, i32)) -> Result<Grid, Box<dyn Error>> {
+fn read_grid(
+    world: &BedrockWorld,
+    anchor: (i32, i32),
+    dimension: Dimension,
+) -> Result<Grid, Box<dyn Error>> {
     let mut grid = Grid::new();
     for cz in 0..4 {
         for cx in 0..4 {
             let pos = ChunkPos {
                 x: anchor.0 + cx,
                 z: anchor.1 + cz,
-                dimension: Dimension::Overworld,
+                dimension,
             };
             let chunk = world.get_chunk_blocking(pos)?;
             if let Some(storages) = world.get_biome_storages_blocking(pos)? {
@@ -701,15 +708,18 @@ pub fn render_grid(
         tiles.push(serde_json::json!({"x": x.div_euclid(4), "z": z.div_euclid(4), "path": path, "bytes": bytes}));
     }
     textures.write(&output.join("terrain.vtexarr"))?;
-    fs::write(output.join("manifest.json"), serde_json::to_vec(&serde_json::json!({
-        "format": 1,
-        "tileChunks": 4,
-        "tileBlocks": 64,
-        "textures": "terrain.vtexarr",
-        "biomes": [],
-        "tiles": tiles,
-        "spawn": spawn.map(|(x, y, z)| serde_json::json!({"x": x, "y": y, "z": z})),
-    }))?)?;
+    fs::write(
+        output.join("manifest.json"),
+        serde_json::to_vec(&serde_json::json!({
+            "format": 1,
+            "tileChunks": 4,
+            "tileBlocks": 64,
+            "textures": "terrain.vtexarr",
+            "biomes": [],
+            "tiles": tiles,
+            "spawn": spawn.map(|(x, y, z)| serde_json::json!({"x": x, "y": y, "z": z})),
+        }))?,
+    )?;
     Ok(())
 }
 
@@ -718,21 +728,55 @@ pub fn create_catalog(
     pack: &Path,
     output: &Path,
     spawn: Option<(i32, i32, i32)>,
+    dimension_id: &str,
 ) -> Result<(), Box<dyn Error>> {
     fs::create_dir_all(output.join("tiles"))?;
     Textures::new(pack).write_shared(output)?;
-    let tiles: Vec<_> = anchors.iter().map(|&(x, z)| serde_json::json!({
-        "x": x.div_euclid(4), "z": z.div_euclid(4),
-        "path": format!("tiles/t.{}.{}.vtile", x.div_euclid(4), z.div_euclid(4)),
-        "bytes": 0,
-    })).collect();
-    fs::write(output.join("manifest.json"), serde_json::to_vec(&serde_json::json!({
-        "format": 1, "tileChunks": 4, "tileBlocks": 64,
-        "textures": "terrain.vtexarr", "textureLayers": 1,
-        "rendering": true, "dynamic": true,
-        "biomes": [], "tiles": tiles,
-        "spawn": spawn.map(|(x, y, z)| serde_json::json!({"x": x, "y": y, "z": z})),
-    }))?)?;
+    let tiles: Vec<_> = anchors
+        .iter()
+        .map(|&(x, z)| {
+            serde_json::json!({
+                "x": x.div_euclid(4), "z": z.div_euclid(4),
+                "path": format!("tiles/t.{}.{}.vtile", x.div_euclid(4), z.div_euclid(4)),
+                "bytes": 0,
+            })
+        })
+        .collect();
+    fs::write(
+        output.join("manifest.json"),
+        serde_json::to_vec(&serde_json::json!({
+            "format": 1, "tileChunks": 4, "tileBlocks": 64,
+            "textures": "terrain.vtexarr", "textureLayers": 1,
+            "rendering": true, "dynamic": true,
+            "biomes": [], "tiles": tiles,
+            "dimension": {
+                "id": dimension_id,
+                "slug": dimension_id.trim_start_matches("minecraft:"),
+                "label": match dimension_id {
+                    "minecraft:the_nether" => "The Nether",
+                    "minecraft:the_end" => "The End",
+                    _ => "Overworld",
+                },
+                "kind": match dimension_id {
+                    "minecraft:the_nether" => "nether",
+                    "minecraft:the_end" => "end",
+                    _ => "overworld",
+                },
+            },
+            "atmosphere": match dimension_id {
+                "minecraft:the_nether" => serde_json::json!({
+                    "skyTop": [42, 9, 9], "skyHorizon": [79, 24, 19],
+                    "fog": [79, 24, 19], "ambient": 0.28, "daylight": 0.0,
+                }),
+                "minecraft:the_end" => serde_json::json!({
+                    "skyTop": [17, 15, 23], "skyHorizon": [31, 27, 38],
+                    "fog": [42, 37, 50], "ambient": 0.35, "daylight": 0.0,
+                }),
+                _ => serde_json::Value::Null,
+            },
+            "spawn": spawn.map(|(x, y, z)| serde_json::json!({"x": x, "y": y, "z": z})),
+        }))?,
+    )?;
     Ok(())
 }
 
@@ -741,13 +785,27 @@ pub fn render_catalog_tile(
     anchor: (i32, i32),
     pack: &Path,
     output: &Path,
+    dimension: Dimension,
 ) -> Result<(), Box<dyn Error>> {
     let mut textures = Textures::restore(pack, output)?;
     let working = output.join("working-tile");
-    if working.exists() { fs::remove_dir_all(&working)?; }
-    render_tile(world, anchor, &working, "provisional", &mut textures)?;
+    if working.exists() {
+        fs::remove_dir_all(&working)?;
+    }
+    render_tile_in_dimension(
+        world,
+        anchor,
+        &working,
+        "provisional",
+        &mut textures,
+        dimension,
+    )?;
     textures.write_shared(output)?;
-    let tile = output.join(format!("tiles/t.{}.{}.vtile", anchor.0.div_euclid(4), anchor.1.div_euclid(4)));
+    let tile = output.join(format!(
+        "tiles/t.{}.{}.vtile",
+        anchor.0.div_euclid(4),
+        anchor.1.div_euclid(4)
+    ));
     fs::rename(working.join("terrain.vtile"), tile)?;
     fs::remove_dir_all(working)?;
     Ok(())
@@ -760,7 +818,25 @@ fn render_tile(
     registry_status: &str,
     textures: &mut Textures,
 ) -> Result<(), Box<dyn Error>> {
-    let grid = read_grid(world, anchor)?;
+    render_tile_in_dimension(
+        world,
+        anchor,
+        output,
+        registry_status,
+        textures,
+        Dimension::Overworld,
+    )
+}
+
+fn render_tile_in_dimension(
+    world: &BedrockWorld,
+    anchor: (i32, i32),
+    output: &Path,
+    registry_status: &str,
+    textures: &mut Textures,
+    dimension: Dimension,
+) -> Result<(), Box<dyn Error>> {
+    let grid = read_grid(world, anchor, dimension)?;
     let shapes: Vec<Option<ModelShape>> = grid.states.iter().map(shape_with_lantern_uv).collect();
     let mut solid = Mesh::default();
     let mut fluid = Mesh::default();
@@ -880,8 +956,8 @@ fn render_tile(
     let mut summary = fs::File::create(output.join("summary.txt"))?;
     writeln!(
         summary,
-        "4x4 BDS Overworld chunks at {}, {}",
-        anchor.0, anchor.1
+        "4x4 BDS {:?} chunks at {}, {}",
+        dimension, anchor.0, anchor.1
     )?;
     writeln!(
         summary,

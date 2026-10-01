@@ -138,7 +138,7 @@
       spawn = worldSpawn && [worldSpawn.x, worldSpawn.y, worldSpawn.z].every(Number.isFinite)
         ? worldSpawn : undefined;
       status = serverType === 'bedrock'
-        ? 'Saved Overworld terrain · tiles load as you move'
+        ? `Saved ${entry.displayName} terrain · tiles load as you move`
         : `Saved ${entry.displayName} terrain`;
     } catch (error) {
       if (alive && generation === loadGeneration) {
@@ -551,7 +551,6 @@
           disabled={!viewer || refreshing}
           onclick={refreshTerrain}>{refreshing ? 'Refreshing…' : 'Refresh terrain'}</button
         >
-        {#if serverType === 'java'}
         <label class="dimension-picker">
           <span>Dimension</span>
           <select
@@ -567,7 +566,6 @@
             {/each}
           </select>
         </label>
-        {/if}
       </div>
     {/if}
   </header>

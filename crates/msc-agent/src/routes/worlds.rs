@@ -2971,17 +2971,10 @@ fn bedrock_map_dimensions(world: &Path) -> Vec<WorldMapDimensionDto> {
     .map(|(id, display_name)| WorldMapDimensionDto {
         id: id.to_string(),
         display_name: display_name.to_string(),
-        state: if id == "minecraft:overworld" && ready {
-            "ready"
-        } else {
-            "not_indexed"
-        }
-        .to_string(),
+        state: if ready { "ready" } else { "no_saved_terrain" }.to_string(),
         region_file_count: 0,
-        reason: Some(if id != "minecraft:overworld" {
-            "Bedrock Nether and End terrain are not available in the embedded map yet.".to_string()
-        } else if ready {
-            "The initial map covers one saved 4×4 chunk area.".to_string()
+        reason: Some(if ready {
+            "Saved tiles load on demand when this dimension contains generated chunks.".to_string()
         } else {
             "This Bedrock world has no saved level.dat and LevelDB terrain yet.".to_string()
         }),

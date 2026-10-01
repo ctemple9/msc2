@@ -1743,6 +1743,15 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Commit:** P18.10h: page saved Bedrock tiles across the world
 - **Batch:** C (P18.10) — Bedrock map integration
 
+### P18.10i — Show saved Bedrock Nether and End terrain
+
+- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Files:** `tools/world-map-proof/src/main.rs`, `tools/world-map-proof/src/render.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`, `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/rolling-plan.md`
+- **What:** Add dimension-specific saved chunk catalogs and on-demand tiles for the Bedrock Nether and End. MSC shows the same dimension selector used by Java. A consistent saved world copy is shared across dimension catalogs, while each dimension keeps separate tiles and textures. Nether and End get their own atmosphere and do not use the Overworld spawn. A dimension with no generated chunks reports an export error when selected.
+- **Verify:** In the consolidated Bedrock runtime check, generate and save Nether and End chunks, select each dimension in MSC, and confirm its terrain, atmosphere, tile paging, and dimension-specific coordinates. Refresh terrain after changing a block in each dimension and confirm BDS still accepts edits. Also select a dimension with no generated chunks and confirm the error is clear. No separate runtime check is requested now.
+- **Commit:** P18.10i: show saved Bedrock Nether and End terrain
+- **Batch:** C (P18.10) — Bedrock map integration
+
 ### P18.10 — Connect saved-terrain refresh and live player controls
 
 - **Status:** Planned — owner direction, 2026-09-30

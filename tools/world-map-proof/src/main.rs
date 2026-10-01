@@ -10,6 +10,15 @@ use std::path::Path;
 
 mod render;
 
+fn map_dimension(id: &str) -> Result<Dimension, Box<dyn Error>> {
+    match id {
+        "minecraft:overworld" => Ok(Dimension::Overworld),
+        "minecraft:the_nether" => Ok(Dimension::Nether),
+        "minecraft:the_end" => Ok(Dimension::End),
+        _ => Err("unsupported Bedrock dimension".into()),
+    }
+}
+
 fn validated_biome_registry(world: &BedrockWorld, path: &Path) -> Result<String, Box<dyn Error>> {
     let document = world.read_level_dat_blocking()?;
     let NbtTag::Compound(root) = document.root else {
@@ -189,33 +198,57 @@ fn main() -> Result<(), Box<dyn Error>> {
     if args.get(1).is_some_and(|arg| arg == "compare") {
         return compare_tiles(&args);
     }
-    if args.get(1).is_some_and(|arg| arg == "catalog" || arg == "tile") {
+    if args
+        .get(1)
+        .is_some_and(|arg| arg == "catalog" || arg == "tile")
+    {
         let path = Path::new(args.get(2).ok_or("saved world path required")?);
         let pack = Path::new(args.get(3).ok_or("resource pack path required")?);
         let output = Path::new(args.get(4).ok_or("output directory required")?);
+        let dimension_id = args
+            .get(5)
+            .map(String::as_str)
+            .unwrap_or("minecraft:overworld");
+        let dimension = map_dimension(dimension_id)?;
         let world = BedrockWorld::open_blocking(path, OpenOptions::default())?;
         if args[1] == "tile" {
-            let x = args.get(5).ok_or("tile chunk x required")?.parse::<i32>()?;
-            let z = args.get(6).ok_or("tile chunk z required")?.parse::<i32>()?;
+            let x = args.get(6).ok_or("tile chunk x required")?.parse::<i32>()?;
+            let z = args.get(7).ok_or("tile chunk z required")?.parse::<i32>()?;
             if x.rem_euclid(4) != 0 || z.rem_euclid(4) != 0 {
                 return Err("tile origin must align to four chunks".into());
             }
-            return render::render_catalog_tile(&world, (x, z), pack, output);
+            return render::render_catalog_tile(&world, (x, z), pack, output, dimension);
         }
         let anchors: BTreeSet<_> = world
             .list_render_chunk_positions_blocking(WorldScanOptions::default())?
             .into_iter()
-            .filter(|p| p.dimension == Dimension::Overworld)
+            .filter(|p| p.dimension == dimension)
             .map(|p| (p.x.div_euclid(4) * 4, p.z.div_euclid(4) * 4))
             .collect();
-        if anchors.is_empty() { return Err("no saved Overworld chunks".into()); }
-        let spawn = world.read_level_dat_blocking().ok().and_then(|document| {
-            let NbtTag::Compound(root) = document.root else { return None; };
-            let (Some(NbtTag::Int(x)), Some(NbtTag::Int(y)), Some(NbtTag::Int(z))) =
-                (root.get("SpawnX"), root.get("SpawnY"), root.get("SpawnZ")) else { return None; };
-            Some((*x, *y, *z))
-        });
-        return render::create_catalog(&anchors.into_iter().collect::<Vec<_>>(), pack, output, spawn);
+        if anchors.is_empty() {
+            return Err(format!("no saved {dimension_id} chunks").into());
+        }
+        let spawn = (dimension == Dimension::Overworld)
+            .then(|| world.read_level_dat_blocking().ok())
+            .flatten()
+            .and_then(|document| {
+                let NbtTag::Compound(root) = document.root else {
+                    return None;
+                };
+                let (Some(NbtTag::Int(x)), Some(NbtTag::Int(y)), Some(NbtTag::Int(z))) =
+                    (root.get("SpawnX"), root.get("SpawnY"), root.get("SpawnZ"))
+                else {
+                    return None;
+                };
+                Some((*x, *y, *z))
+            });
+        return render::create_catalog(
+            &anchors.into_iter().collect::<Vec<_>>(),
+            pack,
+            output,
+            spawn,
+            dimension_id,
+        );
     }
     if args.get(1).is_some_and(|arg| arg == "grid") {
         let path = Path::new(args.get(2).ok_or("grid requires saved world path")?);
@@ -229,20 +262,35 @@ fn main() -> Result<(), Box<dyn Error>> {
             .map(|p| (p.x, p.z))
             .collect();
         let spawn = world.read_level_dat_blocking().ok().and_then(|document| {
-            let NbtTag::Compound(root) = document.root else { return None; };
+            let NbtTag::Compound(root) = document.root else {
+                return None;
+            };
             let (Some(NbtTag::Int(x)), Some(NbtTag::Int(y)), Some(NbtTag::Int(z))) =
-                (root.get("SpawnX"), root.get("SpawnY"), root.get("SpawnZ")) else { return None; };
+                (root.get("SpawnX"), root.get("SpawnY"), root.get("SpawnZ"))
+            else {
+                return None;
+            };
             Some((*x, *y, *z))
         });
-        let center = spawn.map(|(x, _, z)| (x.div_euclid(64), z.div_euclid(64)))
-            .filter(|&(x, z)| (0..4).any(|dx| (0..4).any(|dz| positions.contains(&(x * 4 + dx, z * 4 + dz)))))
-            .or_else(|| positions.iter().next().map(|&(x, z)| (x.div_euclid(4), z.div_euclid(4))))
+        let center = spawn
+            .map(|(x, _, z)| (x.div_euclid(64), z.div_euclid(64)))
+            .filter(|&(x, z)| {
+                (0..4).any(|dx| (0..4).any(|dz| positions.contains(&(x * 4 + dx, z * 4 + dz))))
+            })
+            .or_else(|| {
+                positions
+                    .iter()
+                    .next()
+                    .map(|&(x, z)| (x.div_euclid(4), z.div_euclid(4)))
+            })
             .ok_or("no saved Overworld chunks")?;
         let mut anchors = Vec::new();
         for tx in center.0 - 1..=center.0 + 1 {
             for tz in center.1 - 1..=center.1 + 1 {
                 let anchor = (tx * 4, tz * 4);
-                if (0..4).any(|dx| (0..4).any(|dz| positions.contains(&(anchor.0 + dx, anchor.1 + dz)))) {
+                if (0..4)
+                    .any(|dx| (0..4).any(|dz| positions.contains(&(anchor.0 + dx, anchor.1 + dz))))
+                {
                     anchors.push(anchor);
                 }
             }

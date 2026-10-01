@@ -1,5 +1,5 @@
 //! Saved Bedrock tiles exported from a consistent BDS copy.
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::{Component, Path, PathBuf};
@@ -29,8 +29,8 @@ pub(crate) struct BedrockStore(Arc<Mutex<BedrockState>>);
 
 #[derive(Default)]
 struct BedrockState {
-    tile: Option<BedrockTile>,
-    pending: Option<BedrockSnapshot>,
+    tiles: BTreeMap<String, BedrockTile>,
+    snapshot: Option<BedrockSnapshot>,
 }
 
 struct BedrockSnapshot {
@@ -48,11 +48,8 @@ impl Drop for BedrockSnapshot {
 }
 
 struct BedrockTile {
-    server_id: String,
-    world: PathBuf,
     output: PathBuf,
     tiles: BTreeSet<String>,
-    source_snapshot: Option<BedrockSnapshot>,
 }
 
 impl Drop for BedrockTile {
@@ -67,11 +64,14 @@ pub(super) async fn artifact(
     query: &ArtifactQuery,
     content_type: &'static str,
 ) -> Response {
-    if query.dimension != "minecraft:overworld" {
+    if !matches!(
+        query.dimension.as_str(),
+        "minecraft:overworld" | "minecraft:the_nether" | "minecraft:the_end"
+    ) {
         return error_response(
             StatusCode::CONFLICT,
             "dimension_unavailable",
-            "Only saved Bedrock Overworld terrain is available in this map.",
+            "This Bedrock dimension is not supported by the saved terrain map.",
         );
     }
     if !matches!(query.path.as_str(), "manifest.json" | "terrain.vtexarr")
@@ -114,8 +114,16 @@ pub(super) async fn artifact(
     let lifecycle = state.lifecycle.clone();
     let server_id = server.id.clone();
     let artifact = query.path.clone();
+    let dimension = query.dimension.clone();
     match tokio::task::spawn_blocking(move || {
-        store.read(&lifecycle, &server_dir, &server_id, &world, &artifact)
+        store.read(
+            &lifecycle,
+            &server_dir,
+            &server_id,
+            &world,
+            &dimension,
+            &artifact,
+        )
     })
     .await
     {
@@ -155,8 +163,8 @@ impl BedrockStore {
             .0
             .lock()
             .map_err(|_| "The Bedrock map cache is unavailable.")?;
-        current.tile = None;
-        current.pending = Some(pending);
+        current.tiles.clear();
+        current.snapshot = Some(pending);
         Ok(())
     }
 
@@ -166,25 +174,22 @@ impl BedrockStore {
         server_dir: &Path,
         server_id: &str,
         world: &Path,
+        dimension: &str,
         artifact: &str,
     ) -> Result<Vec<u8>, String> {
         let mut current = self
             .0
             .lock()
             .map_err(|_| "The Bedrock map cache is unavailable.")?;
-        let reuse = current
-            .tile
+        if current
+            .snapshot
             .as_ref()
-            .is_some_and(|tile| tile.server_id == server_id && tile.world == world);
-        if !reuse {
-            current.tile = None;
-            if current
-                .pending
-                .as_ref()
-                .is_some_and(|pending| pending.server_id != server_id || pending.world != world)
-            {
-                current.pending = None;
-            }
+            .is_some_and(|saved| saved.server_id != server_id || saved.world != world)
+        {
+            current.tiles.clear();
+            current.snapshot = None;
+        }
+        if !current.tiles.contains_key(dimension) {
             let pack = resource_pack()?;
             let binary = exporter_binary()?;
             let output = std::env::temp_dir().join(format!("msc-bedrock-tile-{}", Uuid::new_v4()));
@@ -196,7 +201,7 @@ impl BedrockStore {
                 fs::set_permissions(&output, fs::Permissions::from_mode(0o700))
                     .map_err(|error| format!("Could not protect the Bedrock map: {error}"))?;
             }
-            let snapshot = if current.pending.is_none() {
+            if current.snapshot.is_none() {
                 let copied = if lifecycle.status_snapshot().running {
                     crate::backup_operations::snapshot_bedrock_world(
                         lifecycle.clone(),
@@ -207,30 +212,30 @@ impl BedrockStore {
                     crate::backup_operations::snapshot_stopped_bedrock_world(server_dir)
                 };
                 match copied {
-                    Ok(snapshot) => Some(BedrockSnapshot {
-                        server_id: server_id.to_owned(),
-                        world: world.to_owned(),
-                        snapshot,
-                    }),
+                    Ok(snapshot) => {
+                        current.snapshot = Some(BedrockSnapshot {
+                            server_id: server_id.to_owned(),
+                            world: world.to_owned(),
+                            snapshot,
+                        })
+                    }
                     Err(error) => {
                         let _ = fs::remove_dir_all(&output);
                         return Err(error);
                     }
                 }
-            } else {
-                None
-            };
+            }
             let source = current
-                .pending
+                .snapshot
                 .as_ref()
-                .map(|pending| pending.snapshot.path.as_path())
-                .or_else(|| snapshot.as_ref().map(|saved| saved.snapshot.path.as_path()))
+                .map(|saved| saved.snapshot.path.as_path())
                 .unwrap_or(world);
             let rendered = Command::new(binary)
                 .arg("catalog")
                 .arg(source)
                 .arg(&pack)
                 .arg(&output)
+                .arg(dimension)
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
@@ -251,7 +256,7 @@ impl BedrockStore {
                 });
             if !rendered.is_ok_and(|success| success) {
                 let _ = fs::remove_dir_all(&output);
-                return Err("The saved Bedrock catalog could not be exported. Check the world and resource pack.".into());
+                return Err("The saved Bedrock catalog could not be exported. This dimension may have no generated chunks; also check the world and resource pack.".into());
             }
             let manifest: serde_json::Value = serde_json::from_slice(
                 &fs::read(output.join("manifest.json")).map_err(|error| error.to_string())?,
@@ -263,18 +268,13 @@ impl BedrockStore {
                 .iter()
                 .filter_map(|tile| tile["path"].as_str().map(str::to_owned))
                 .collect();
-            let source_snapshot = current.pending.take().or(snapshot);
-            current.tile = Some(BedrockTile {
-                server_id: server_id.to_owned(),
-                world: world.to_owned(),
-                output,
-                tiles,
-                source_snapshot,
-            });
+            current
+                .tiles
+                .insert(dimension.to_owned(), BedrockTile { output, tiles });
         }
         let tile = current
-            .tile
-            .as_ref()
+            .tiles
+            .get(dimension)
             .ok_or("The Bedrock tile is unavailable.")?;
         let path = tile.output.join(artifact);
         if artifact.starts_with("tiles/") {
@@ -299,8 +299,8 @@ impl BedrockStore {
                     .map_err(|_| "Invalid Bedrock tile z")?
                     .checked_mul(4)
                     .ok_or("Bedrock tile z exceeds world bounds")?;
-                let source = tile
-                    .source_snapshot
+                let source = current
+                    .snapshot
                     .as_ref()
                     .map_or(world, |saved| saved.snapshot.path.as_path());
                 let binary = exporter_binary()?;
@@ -311,6 +311,7 @@ impl BedrockStore {
                         .arg(source)
                         .arg(pack)
                         .arg(&tile.output)
+                        .arg(dimension)
                         .arg(x.to_string())
                         .arg(z.to_string()),
                 ) {

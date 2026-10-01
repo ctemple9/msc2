@@ -1670,14 +1670,14 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10a — Refresh embedded Java terrain from a consistent save
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Status:** Done — Cameron confirmed refresh and stopped-server behavior, 2026-10-01
 - **Files:** `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/worlds/map_terrain.rs`, `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `clients/desktop-web/src/lib/api/generated.ts`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/rolling-plan.md`
 - **What:** Add a Worlds-authorized Refresh terrain action for the running active Java server. Reuse the bounded save-off/flush/copy/save-on snapshot operation, retain its private copy as the renderer source, retire the previous renderer, and reload the selected dimension after the operation succeeds. Report copy bytes and save hold duration without exposing the snapshot path. Set the 2D camera pitch and heading immediately to a true top-down view instead of marking an in-progress tilt as 2D. This first refresh reloads the dimension; changed-tile selection and live player feeds remain later P18.10 work.
 - **Verify:** Restart MSC and its agent, open a running Java world map, place a distinctive block in game, and choose Refresh terrain. Confirm the new block appears, the server still accepts block changes, and another Refresh updates again. Check that an attempted refresh while the server is stopped gives a clear error. Select 2D and confirm block side faces disappear; switch to 3D and back.
 - **Commit:** P18.10a: refresh embedded Java terrain from a consistent save
 - **Batch:** C (P18.10) — live refresh and players
 
-**P18.10a field observation (2026-10-01):** Cameron placed blocks, used Refresh terrain, and saw the new blocks after roughly 30 seconds. The changed terrain path works for that Vanilla world; repeat refresh, stopped-server error, and writeability during refresh remain unverified.
+**P18.10a field verification (2026-10-01):** Cameron confirmed a second Refresh terrain updated the map, the Vanilla server continued accepting block changes, and trying refresh with Vanilla stopped showed an error. This verifies the embedded Java refresh path on Vanilla; other runtime coverage remains open.
 
 ### P18.10b — Show current players in the embedded map
 

@@ -35,6 +35,13 @@ libraries and certificate data that are not independently tracked as source.
 
 ## Downloaded server software and integrations
 
+The Java terrain renderer is distributed as the Vantage 0.15.1 command-line
+binary from [thoughts-on-things/vantage-mc](https://github.com/thoughts-on-things/vantage-mc/releases/tag/v0.15.1).
+Vantage is licensed under the MIT License. The upstream license text is
+included with the binary as `VANTAGE-LICENSE.txt`. MSC stages the platform
+binary from that pinned release after checking the archive SHA-256. Minecraft
+server or client files, assets, and textures are not bundled with Vantage.
+
 MSC 2 can download or interact with software maintained by other projects,
 including Paper, Purpur, Fabric, NeoForge, MinecraftForge, Geyser, Floodgate,
 Chunker, Xboxbroadcast, Adoptium Temurin, and the Minecraft Java and Bedrock

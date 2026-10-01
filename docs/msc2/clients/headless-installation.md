@@ -61,6 +61,10 @@ the name `HEADLESS-INSTALL.md`. The macOS and Windows archives also contain
 archive also contains the Bedrock sidecar and its appliance resources. The
 Apple Silicon archive has no
 Bedrock sidecar; that is a platform capability boundary, not an installation failure.
+All desktop and headless Java map packages also include the pinned Vantage
+0.15.1 renderer binary and `VANTAGE-LICENSE.txt` beside the MSC agent. The
+renderer does not include Minecraft assets; a later map launch uses assets
+from the selected Java installation.
 
 The Linux archive additionally contains `install.sh`, `uninstall.sh`, and the
 systemd input definitions used by its service installer. macOS archives
@@ -74,9 +78,9 @@ The installers use these stable locations:
 
 | Host | Installed executable | PATH entry owned by MSC | Upgrade behavior |
 |---|---|---|---|
-| Linux archive | `/usr/lib/msc2/msc` | `/usr/local/bin/msc` symlink | Replace the MSC-owned target while preserving the symlink. |
-| macOS archive | `/usr/local/lib/msc2/<architecture>/<version>/msc` | `/usr/local/bin/msc` symlink | Install the new version beside the old one, then move the MSC-owned symlink. |
-| Windows archive | `%ProgramFiles%\\MSC2\\bin\\msc.exe` | `%ProgramFiles%\\MSC2\\bin` in the machine PATH | Replace only the MSC-owned executable in the owned directory. |
+| Linux archive | `/usr/lib/msc2/msc` and `/usr/lib/msc2/vantage` | `/usr/local/bin/msc` symlink | Replace the MSC-owned targets while preserving the symlink. |
+| macOS archive | `/usr/local/lib/msc2/<architecture>/<version>/msc` and sibling `vantage` | `/usr/local/bin/msc` symlink | Install the new version beside the old one, then move the MSC-owned symlink. |
+| Windows archive | `%ProgramFiles%\\MSC2\\bin\\msc.exe` and sibling `vantage.exe` | `%ProgramFiles%\\MSC2\\bin` in the machine PATH | Replace only the MSC-owned executables in the owned directory. |
 | Linux desktop `.deb`/`.rpm` | Package resource under `/usr/lib` | Package-owned `/usr/local/bin/msc` symlink | Package scripts update and remove only a link targeting this desktop package. |
 | macOS desktop DMG | Agent staged when the desktop installs its local service | `/usr/local/bin/msc` symlink installed with the local service | Service repair updates the link; service removal removes only its matching link. |
 | Windows desktop MSI | `agent\\msc.exe` inside the MSI installation | MSI-owned machine PATH entry for the agent directory | MSI removes its PATH entry on uninstall. |

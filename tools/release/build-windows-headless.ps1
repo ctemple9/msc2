@@ -36,6 +36,11 @@ try {
     New-Item -ItemType Directory -Force -Path $platformDirectory, $packageRoot | Out-Null
     Copy-Item $sourceBinary (Join-Path $platformDirectory 'msc.exe')
     Copy-Item $sourceBinary (Join-Path $packageRoot 'msc.exe')
+    $vantageStager = Join-Path $workspaceRoot 'tools/release/stage-vantage.py'
+    & python $vantageStager --platform windows-x86_64 --output-dir $packageRoot
+    if ($LASTEXITCODE -ne 0) {
+        Fail 'could not stage the pinned Vantage Windows renderer'
+    }
     Set-Content -LiteralPath (Join-Path $packageRoot 'MSC2-VERSION') -Value $version
     Copy-Item (Join-Path $workspaceRoot 'packaging/windows/install.ps1') (Join-Path $packageRoot 'install.ps1')
     Copy-Item (Join-Path $workspaceRoot 'packaging/windows/uninstall.ps1') (Join-Path $packageRoot 'uninstall.ps1')

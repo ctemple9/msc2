@@ -36,6 +36,8 @@ ARCHIVE="$OUTPUT_ROOT/msc2-headless-${VERSION}-linux-x86_64.tar.gz"
 mkdir -p "$PLATFORM_DIR" "$PACKAGE_ROOT/systemd"
 install -m 0755 "$SOURCE_BINARY" "$PLATFORM_DIR/msc"
 install -m 0755 "$SOURCE_BINARY" "$PACKAGE_ROOT/msc"
+python3 "$WORKSPACE_ROOT/tools/release/stage-vantage.py" \
+  --platform linux-x86_64 --output-dir "$PACKAGE_ROOT"
 install -m 0755 "$WORKSPACE_ROOT/packaging/linux/install.sh" "$PACKAGE_ROOT/install.sh"
 install -m 0755 "$WORKSPACE_ROOT/packaging/linux/uninstall.sh" "$PACKAGE_ROOT/uninstall.sh"
 install -m 0644 "$WORKSPACE_ROOT/docs/msc2/clients/headless-installation.md" \

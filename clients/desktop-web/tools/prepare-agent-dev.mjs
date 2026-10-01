@@ -18,6 +18,7 @@ const cargoProfileArguments = profile === 'release' ? ['--release'] : [];
 const source = join(workspaceRoot, 'target', profile, agentName);
 const destinationRoot = join(clientRoot, 'src-tauri', 'target');
 const packageAgentDirectory = join(destinationRoot, 'package', 'agent');
+const vantageName = process.platform === 'win32' ? 'vantage.exe' : 'vantage';
 
 const applianceChecksums = {
   'vmlinuz-kata': '85ac495fce6bb6ee01206c8e022b65acad45ca3fcc2729ba377af33943c8b05e',
@@ -44,6 +45,7 @@ const destination =
 stageFile(source, destination);
 stageFile(source, join(packageAgentDirectory, agentName));
 console.log(`staged ${profile} msc-agent ${version} at ${destination}`);
+stageVantage();
 
 if (process.platform === 'darwin' && process.arch === 'x64') {
   stageMacosSidecar();
@@ -120,6 +122,40 @@ function stageMacosSidecar() {
   console.log(`staged Intel BedrockSidecar and appliance resources at ${devSidecarDirectory}`);
 }
 
+function stageVantage() {
+  const vantagePlatform = {
+    'darwin:x64': 'macos-x86_64',
+    'darwin:arm64': 'macos-aarch64',
+    'linux:x64': 'linux-x86_64',
+    'linux:arm64': 'linux-aarch64',
+    'win32:x64': 'windows-x86_64',
+  }[`${process.platform}:${process.arch}`];
+  if (!vantagePlatform) {
+    fail(`Vantage has no pinned release binary for ${process.platform}/${process.arch}`);
+  }
+
+  const python = process.platform === 'win32' ? 'python' : 'python3';
+  const stager = join(workspaceRoot, 'tools', 'release', 'stage-vantage.py');
+  const staged = spawnSync(
+    python,
+    [stager, '--platform', vantagePlatform, '--output-dir', packageAgentDirectory],
+    { cwd: workspaceRoot, stdio: 'inherit' },
+  );
+  if (staged.status !== 0) {
+    fail(`could not stage the pinned Vantage ${vantagePlatform} renderer`);
+  }
+
+  const sourceVantage = join(packageAgentDirectory, vantageName);
+  const sourceLicense = join(packageAgentDirectory, 'VANTAGE-LICENSE.txt');
+  const runtimeDirectory =
+    process.platform === 'darwin'
+      ? join(destinationRoot, 'Resources', 'agent')
+      : join(destinationRoot, profile, 'agent');
+  stageFile(sourceVantage, join(runtimeDirectory, vantageName));
+  stageFile(sourceLicense, join(runtimeDirectory, 'VANTAGE-LICENSE.txt'));
+  console.log(`staged Vantage ${vantagePlatform} beside the ${profile} agent`);
+}
+
 function verifySidecarEntitlement(sidecarPath) {
   const verification = spawnSync('codesign', ['-d', '--entitlements', ':-', sidecarPath], {
     encoding: 'utf8',
@@ -140,6 +176,9 @@ function stageFile(sourcePath, destinationPath) {
   mkdirSync(dirname(destinationPath), { recursive: true });
   cpSync(sourcePath, destinationPath);
   if (process.platform !== 'win32' && destinationPath.endsWith('/msc')) {
+    chmodSync(destinationPath, 0o755);
+  }
+  if (process.platform !== 'win32' && destinationPath.endsWith('/vantage')) {
     chmodSync(destinationPath, 0o755);
   }
   if (process.platform !== 'win32' && destinationPath.endsWith('/BedrockSidecar')) {

@@ -1558,6 +1558,23 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Commit:** P18.8: add authenticated world dimension catalog
 - **Batch:** A (P18.8) — authenticated map resource boundary
 
+### P18.9a — Bundle the Vantage Java terrain renderer
+
+- **Status:** Awaiting Cameron verification — owner approved bundling Vantage on 2026-10-01
+- **Files:** `tools/release/stage-vantage.py`, `clients/desktop-web/tools/prepare-agent-dev.mjs`, `clients/desktop-web/src-tauri/target/package/agent/`, `tools/release/build-*-headless.*`, `packaging/`, `docs/msc2/clients/headless-installation.md`, `THIRD-PARTY-NOTICES.md`, `docs/msc2/rolling-plan.md`
+- **What:** Pin Vantage 0.15.1 platform executables by upstream release URL and archive SHA-256. Stage the matching macOS, Windows, or Linux binary into desktop resource bundles and headless archives; install it beside the agent; remove it with the MSC-owned agent installation. Document the MIT notice and renderer paths. Do not bundle Minecraft data or assets. This is the renderer-delivery prerequisite; P18.9b will add the authenticated agent bridge before P18.9 embeds it in Worlds.
+- **Verify:** On Intel macOS, run `python3 tools/release/stage-vantage.py --platform macos-x86_64 --output-dir /private/tmp/msc-vantage-check`, then `/private/tmp/msc-vantage-check/vantage --version`; on Apple Silicon, use `macos-aarch64` instead. Confirm Vantage 0.15.1. Run `node --check clients/desktop-web/tools/prepare-agent-dev.mjs`, `bash -n tools/release/build-linux-headless.sh tools/release/build-macos-headless.sh packaging/linux/install.sh packaging/linux/uninstall.sh packaging/macos/install.sh packaging/macos/uninstall.sh`, parse the changed PowerShell scripts with `pwsh`, and run `git diff --check`. This confirms the renderer can be staged for packaging and establishes the next necessary P18.9b bridge step; it does not yet deliver a visible Worlds map.
+- **Commit:** P18.9a: bundle Vantage terrain renderer
+- **Batch:** B (P18.9) — Java map renderer delivery
+
+### P18.9b — Add authenticated Vantage terrain bridge
+
+- **Status:** Planned — required prerequisite for embedding the renderer
+- **Files:** `crates/msc-agent/src/`, `crates/msc-application/src/`, `crates/msc-agent/tests/`, `docs/msc2/rolling-plan.md`
+- **What:** Use MSC's Worlds authorization to launch the bundled Vantage renderer for the selected Java world and dimension, and proxy only bounded terrain/texture resources over the authenticated local API. Keep filesystem paths and the Vantage process private to the agent; validate world roots and dimension IDs, enforce lifecycle cleanup, and report unsupported or empty dimensions as explicit availability results. Leave Bedrock on its existing proof-only renderer until a BDS geometry implementation is integrated.
+- **Verify:** Build the agent and exercise the authenticated route against saved Java world data; confirm an authorized client can retrieve a terrain manifest and bounded tile/texture resources, an unauthorized caller is denied, and the agent never returns host paths or accepts arbitrary filesystem paths. This establishes the secure renderer boundary that P18.9's in-window map requires; it is not the UI or live-refresh proof.
+- **Batch:** B (P18.9) — Java map renderer bridge
+
 ### P18.9 — Embed saved terrain and dimension selection in Worlds
 
 - **Status:** Planned — owner direction, 2026-09-30

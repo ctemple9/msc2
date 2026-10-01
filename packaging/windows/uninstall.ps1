@@ -34,6 +34,8 @@ if ($Scope -eq 'Machine') {
 }
 
 $installedBinary = Join-Path $installDirectory 'msc.exe'
+$installedVantage = Join-Path $installDirectory 'vantage.exe'
+$installedVantageLicense = Join-Path $installDirectory 'VANTAGE-LICENSE.txt'
 $ownershipMarker = Join-Path $installDirectory '.msc2-owned'
 if (-not (Test-Path -LiteralPath $ownershipMarker -PathType Leaf)) {
     if (Test-Path -LiteralPath $installedBinary) {
@@ -68,7 +70,7 @@ if ($remainingEntries.Count -ne $entries.Count) {
     $pathChange = 'The MSC-owned PATH entry was not present.'
 }
 
-Remove-Item -LiteralPath $installedBinary, $ownershipMarker -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $installedBinary, $installedVantage, $installedVantageLicense, $ownershipMarker -Force -ErrorAction SilentlyContinue
 if (Test-Path -LiteralPath $installDirectory -PathType Container) {
     $remaining = Get-ChildItem -LiteralPath $installDirectory -Force
     if (-not $remaining) {

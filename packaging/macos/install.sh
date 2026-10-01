@@ -50,8 +50,12 @@ esac
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd)"
 SOURCE_BINARY="$SCRIPT_DIR/msc"
+SOURCE_VANTAGE="$SCRIPT_DIR/vantage"
+SOURCE_VANTAGE_LICENSE="$SCRIPT_DIR/VANTAGE-LICENSE.txt"
 VERSION_FILE="$SCRIPT_DIR/MSC2-VERSION"
 [[ -x "$SOURCE_BINARY" ]] || fail "package binary is missing: $SOURCE_BINARY"
+[[ -x "$SOURCE_VANTAGE" ]] || fail "Vantage renderer is missing: $SOURCE_VANTAGE"
+[[ -f "$SOURCE_VANTAGE_LICENSE" ]] || fail "Vantage license is missing: $SOURCE_VANTAGE_LICENSE"
 [[ -f "$VERSION_FILE" ]] || fail "package version file is missing: $VERSION_FILE"
 VERSION="$(sed -n '1p' "$VERSION_FILE")"
 [[ -n "$VERSION" && "$VERSION" != */* && "$VERSION" != *$'\n'* && "$VERSION" != *$'\r'* ]] || \
@@ -76,6 +80,8 @@ AGENT_PLIST="/Library/LaunchDaemons/com.ctemple.msc2.agent.plist"
 ARCH_ROOT="$INSTALL_BASE/$ARCHITECTURE"
 VERSION_ROOT="$ARCH_ROOT/$VERSION"
 INSTALL_BINARY="$VERSION_ROOT/msc"
+VANTAGE_BINARY="$VERSION_ROOT/vantage"
+VANTAGE_LICENSE="$VERSION_ROOT/VANTAGE-LICENSE.txt"
 OWNERSHIP_MARKER="$VERSION_ROOT/.msc2-owned"
 
 if [[ -L "$PATH_DIR" || ( -e "$PATH_DIR" && ! -d "$PATH_DIR" ) ]]; then
@@ -107,6 +113,8 @@ fi
 
 install -d -m 0755 "$PATH_DIR" "$VERSION_ROOT"
 install -m 0755 "$SOURCE_BINARY" "$INSTALL_BINARY"
+install -m 0755 "$SOURCE_VANTAGE" "$VANTAGE_BINARY"
+install -m 0644 "$SOURCE_VANTAGE_LICENSE" "$VANTAGE_LICENSE"
 if [[ -f "$SCRIPT_DIR/BEDROCK-HELPER-PLIST.in" ]]; then
   install -m 0644 "$SCRIPT_DIR/BEDROCK-HELPER-PLIST.in" "$VERSION_ROOT/BEDROCK-HELPER-PLIST.in"
 fi

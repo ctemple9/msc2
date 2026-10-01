@@ -35,10 +35,19 @@ if ($Scope -eq 'Machine') {
 }
 
 $sourceBinary = Join-Path $PSScriptRoot 'msc.exe'
+$sourceVantage = Join-Path $PSScriptRoot 'vantage.exe'
+$sourceVantageLicense = Join-Path $PSScriptRoot 'VANTAGE-LICENSE.txt'
 $installedBinary = Join-Path $installDirectory 'msc.exe'
+$installedVantage = Join-Path $installDirectory 'vantage.exe'
 $ownershipMarker = Join-Path $installDirectory '.msc2-owned'
 if (-not (Test-Path -LiteralPath $sourceBinary -PathType Leaf)) {
     Fail "package binary is missing: $sourceBinary"
+}
+if (-not (Test-Path -LiteralPath $sourceVantage -PathType Leaf)) {
+    Fail "Vantage renderer is missing: $sourceVantage"
+}
+if (-not (Test-Path -LiteralPath $sourceVantageLicense -PathType Leaf)) {
+    Fail "Vantage license is missing: $sourceVantageLicense"
 }
 
 $serviceName = 'com.ctemple.msc2.agent'
@@ -74,6 +83,8 @@ if ($servicePresent -and (Test-Path -LiteralPath $installedBinary -PathType Leaf
 
 New-Item -ItemType Directory -Force -Path $installDirectory | Out-Null
 Copy-Item -LiteralPath $sourceBinary -Destination $installedBinary -Force
+Copy-Item -LiteralPath $sourceVantage -Destination $installedVantage -Force
+Copy-Item -LiteralPath $sourceVantageLicense -Destination (Join-Path $installDirectory 'VANTAGE-LICENSE.txt') -Force
 [IO.File]::WriteAllText($ownershipMarker, ("msc2-headless-archive" + [Environment]::NewLine))
 
 $dataDirectory = Join-Path $env:ProgramData 'MSC2'

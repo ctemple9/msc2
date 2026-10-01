@@ -51,6 +51,12 @@ rm -rf "$PACKAGE_ROOT"
 mkdir -p "$PLATFORM_DIR" "$PACKAGE_ROOT"
 install -m 0755 "$SOURCE_BINARY" "$PLATFORM_DIR/msc"
 install -m 0755 "$SOURCE_BINARY" "$PACKAGE_ROOT/msc"
+VANTAGE_PLATFORM="macos-aarch64"
+if [[ "$PLATFORM_LABEL" == "macos-x86_64" ]]; then
+  VANTAGE_PLATFORM="macos-x86_64"
+fi
+python3 "$WORKSPACE_ROOT/tools/release/stage-vantage.py" \
+  --platform "$VANTAGE_PLATFORM" --output-dir "$PACKAGE_ROOT"
 printf '%s\n' "$VERSION" > "$PACKAGE_ROOT/MSC2-VERSION"
 install -m 0755 "$WORKSPACE_ROOT/packaging/macos/install.sh" "$PACKAGE_ROOT/install.sh"
 install -m 0755 "$WORKSPACE_ROOT/packaging/macos/uninstall.sh" "$PACKAGE_ROOT/uninstall.sh"

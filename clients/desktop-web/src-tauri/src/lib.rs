@@ -968,9 +968,7 @@ fn agent_install_request() -> Result<ServiceInstallRequest, String> {
     #[cfg(target_os = "macos")]
     ensure_local_bootstrap_key()?;
     #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-    let desktop_requirement = {
-        desktop_code_requirement()?
-    };
+    let desktop_requirement = { desktop_code_requirement()? };
     let request = ServiceInstallRequest::new(
         AGENT_SERVICE_NAME,
         binary_path,
@@ -1239,7 +1237,25 @@ fn stage_packaged_agent_once() -> Result<PathBuf, String> {
             source.display()
         ));
     }
-    stage_packaged_agent(&source, &agent_data_directory()?)
+    #[cfg(target_os = "linux")]
+    let renderer = std::env::current_exe()
+        .map_err(|error| format!("Could not locate the desktop application: {error}"))?
+        .parent()
+        .ok_or_else(|| "The desktop application has no containing directory.".to_string())?
+        .join("agent/vantage");
+    #[cfg(not(target_os = "linux"))]
+    let renderer = source.with_file_name(if cfg!(target_os = "windows") {
+        "vantage.exe"
+    } else {
+        "vantage"
+    });
+    if !renderer.is_file() {
+        return Err(format!(
+            "The terrain renderer is missing from the desktop package at {}. Reinstall this desktop app before repairing the agent.",
+            renderer.display()
+        ));
+    }
+    stage_packaged_agent(&source, &renderer, &agent_data_directory()?)
 }
 
 #[cfg(any(not(target_os = "linux"), debug_assertions))]
@@ -1248,42 +1264,74 @@ fn refresh_staged_packaged_agent_path() -> Result<PathBuf, String> {
 }
 
 #[cfg(any(not(target_os = "linux"), debug_assertions))]
-fn stage_packaged_agent(source: &Path, data_directory: &Path) -> Result<PathBuf, String> {
+fn stage_packaged_agent(
+    source: &Path,
+    renderer: &Path,
+    data_directory: &Path,
+) -> Result<PathBuf, String> {
     let source_bytes = std::fs::read(source)
         .map_err(|error| format!("Could not read the packaged agent: {error}"))?;
-    let digest = hex_lower(&Sha256::digest(&source_bytes));
+    let renderer_bytes = std::fs::read(renderer)
+        .map_err(|error| format!("Could not read the packaged terrain renderer: {error}"))?;
+    let mut hasher = Sha256::new();
+    hasher.update(&source_bytes);
+    hasher.update(&renderer_bytes);
+    let digest = hex_lower(&hasher.finalize());
     let file_name = source
         .file_name()
         .ok_or_else(|| "The packaged agent path has no file name.".to_string())?;
     let build_directory = data_directory.join("agent/builds").join(digest);
     let destination = build_directory.join(file_name);
-
-    if destination.is_file() {
-        verify_staged_agent(&destination, &source_bytes)?;
-        return Ok(destination);
-    }
+    let renderer_destination = build_directory.join(
+        renderer
+            .file_name()
+            .ok_or_else(|| "The packaged terrain renderer path has no file name.".to_string())?,
+    );
 
     std::fs::create_dir_all(&build_directory)
         .map_err(|error| format!("Could not create the packaged agent directory: {error}"))?;
+    stage_packaged_executable(source, &destination, &source_bytes)?;
+    stage_packaged_executable(renderer, &renderer_destination, &renderer_bytes)?;
+    Ok(destination)
+}
+
+#[cfg(any(not(target_os = "linux"), debug_assertions))]
+fn stage_packaged_executable(
+    source: &Path,
+    destination: &Path,
+    source_bytes: &[u8],
+) -> Result<(), String> {
+    if destination.is_file() {
+        return verify_staged_agent(destination, source_bytes);
+    }
+    let file_name = destination
+        .file_name()
+        .ok_or_else(|| "The packaged executable path has no file name.".to_string())?;
+    let build_directory = destination
+        .parent()
+        .ok_or_else(|| "The packaged executable has no build directory.".to_string())?;
     let temporary = build_directory.join(format!(
         ".{}.{}.stage",
         file_name.to_string_lossy(),
         std::process::id()
     ));
     std::fs::copy(source, &temporary)
-        .map_err(|error| format!("Could not stage the packaged agent: {error}"))?;
-    match std::fs::rename(&temporary, &destination) {
+        .map_err(|error| format!("Could not stage {}: {error}", source.display()))?;
+    match std::fs::rename(&temporary, destination) {
         Ok(()) => {}
         Err(_) if destination.is_file() => {
             let _ = std::fs::remove_file(&temporary);
-            verify_staged_agent(&destination, &source_bytes)?;
+            verify_staged_agent(destination, source_bytes)?;
         }
         Err(error) => {
-            return Err(format!("Could not finalize the packaged agent: {error}"));
+            return Err(format!(
+                "Could not finalize {}: {error}",
+                destination.display()
+            ));
         }
     }
-    verify_staged_agent(&destination, &source_bytes)?;
-    Ok(destination)
+    verify_staged_agent(destination, source_bytes)?;
+    Ok(())
 }
 
 #[cfg(any(not(target_os = "linux"), debug_assertions))]
@@ -1349,7 +1397,9 @@ finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer) }
     let output = std::process::Command::new("powershell.exe")
         .args(["-NoProfile", "-Command", script])
         .output()
-        .map_err(|error| format!("Could not open the Windows service credential prompt: {error}"))?;
+        .map_err(|error| {
+            format!("Could not open the Windows service credential prompt: {error}")
+        })?;
     if !output.status.success() {
         return Err("The Windows service credential prompt was cancelled or failed.".into());
     }
@@ -1817,5 +1867,4 @@ mod tests {
         assert!(approved_external_url("http://192.168.1.10:48001").is_err());
         assert!(approved_external_url("file:///etc/passwd").is_err());
     }
-
 }

@@ -1585,6 +1585,15 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Commit:** P18.9: embed saved terrain in Worlds
 - **Batch:** B (P18.9) — in-window saved terrain
 
+### P18.9c — Stage the terrain renderer with desktop agent repairs
+
+- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Files:** `clients/desktop-web/src-tauri/src/lib.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Desktop Agent repair now copies the bundled Vantage executable beside `msc` in the versioned agent build directory. The build digest includes both executables, so replacing either creates a new staged build. A missing renderer in the desktop package produces a specific repair error.
+- **Verify:** Restart `npx tauri dev`, use MSC's Agent repair/restart control, and reopen the Vanilla Overworld map in Worlds. The saved terrain should appear instead of the renderer unavailable message. The running server does not need to be stopped.
+- **Commit:** P18.9c: stage terrain renderer with desktop agent
+- **Batch:** B (P18.9) — desktop renderer handoff
+
 ### P18.10 — Connect saved-terrain refresh and live player controls
 
 - **Status:** Planned — owner direction, 2026-09-30

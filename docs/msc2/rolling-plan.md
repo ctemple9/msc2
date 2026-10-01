@@ -1429,5 +1429,13 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   Nether ceiling presentation and custom dimensions are not yet accepted.
   The private reports and tiles are under `/private/tmp/msc-java-terrain-proof`.
   Cameron's visual review of the ATM10 tile is pending.
+- **Offline change-selection evidence (2026-09-30):** A Paper 26.2 region
+  compared against itself skipped export after checking all 16 chunks (54 ms).
+  In an offline scratch copy, changing a grass palette entry in chunk (0, 0)
+  to diamond block selected exactly that chunk and exported its 4×4 tile
+  (56 ms comparison, 780 ms to ready). This establishes the local comparison
+  and export path only. It does not establish a safe live Java snapshot,
+  server availability during capture, or visual acceptance. Cameron deferred
+  the ATM10 visual review until later.
 - **Batch:** solo — finish Java and Bedrock rendering evidence before MSC UI
   integration

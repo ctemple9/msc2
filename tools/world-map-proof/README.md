@@ -894,3 +894,23 @@ Change the output directory to `vanilla-26.3`, `paper-26.2`, or
 Bedrock player-feed middleware, so the player indicator can be unavailable
 while the Java terrain itself loads. The static exports do not establish safe
 live Java snapshotting or automatic refresh.
+
+For two **offline, consistent copies** of the same Java region, the changed-tile
+helper compares the 16 selected chunks' rendered NBT fields. It ignores tick
+metadata that cannot change the mesh. A changed tile is exported into a new
+directory; an unchanged tile is skipped. For example:
+
+```sh
+PYTHONPATH=/private/tmp/msc-java-pydeps python3 \
+  tools/world-map-proof/export_changed_java_tile.py \
+  --before-region /private/tmp/before/r.0.0.mca \
+  --after-region /private/tmp/after/r.0.0.mca \
+  --chunk-x 0 --chunk-z 0 \
+  --assets "$HOME/.cache/vantage/assets/minecraft-26.2-client/assets/minecraft" \
+  --vantage /private/tmp/msc-vantage-bin/vantage \
+  --output-dir /private/tmp/msc-java-changed-tile
+```
+
+The helper does not make snapshots. Do not point it at a server's live region
+file: a safe Java snapshot boundary and live saved-terrain refresh still need
+proof. Modded regions use the staged assets and `--flatten-mod-namespaces`.

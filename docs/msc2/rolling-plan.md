@@ -1378,8 +1378,9 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 ### P18.4 — Prove Java terrain rendering before MSC integration
 
 - **Status:** Representative Java Overworld, Nether, and End rendering accepted
-  across the old and new save layouts. ATM10 custom dimensions have no saved
-  region chunks yet; custom-dimension rendering remains unproven.
+  across the old and new save layouts. Include discovery/rendering of saved
+  custom dimensions in the planned map; validate the ATM10 case later when its
+  dimension terrain has been generated.
 - **What:** Use one read-only Java Anvil terrain pipeline and the existing
   standalone 3D viewer. Test distinct Minecraft data versions, save layouts,
   and block asset sets rather than treating each server flavor as a separate
@@ -1399,10 +1400,12 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   and fallback counts; expand to a full visual comparison only if the save
   layout, block palette, or assets introduce a distinct case.
   Prove saved-terrain refresh on at least one 1.21.x and one 26.x world while
-  the server remains usable. Check Nether, End, and custom dimensions
-  separately before claiming their support. Accept the standalone renderer
-  when representative views are correct and every selected server's smoke
-  check has explicit fallbacks and no unexplained missing chunks.
+  the server remains usable. Check Nether and End separately. Discover and
+  render saved custom dimensions when present, recording missing assets or
+  unsupported chunk data; validate ATM10 custom terrain when it exists. Accept
+  the standalone renderer when representative views are correct and every
+  selected server's smoke check has explicit fallbacks and no unexplained
+  missing chunks.
 - **Order:** Establish the two save layouts with Vanilla 26.3 and Pupur
   1.21.11, cover the 26.2 data version, then exercise modded assets on ATM10
   Lite. Run short checks on Fabric, Forge, NeoForge, and Paper where they were
@@ -1482,8 +1485,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 - **Status:** Overworld live snapshot and changed-tile proof accepted on Purpur
   1.21.11 and Vanilla 26.3. Nether and End terrain visuals are accepted in both
-  save layouts; live refresh in those dimensions and modded custom dimensions
-  have not been proven.
+  save layouts. Custom-dimension refresh is unproven and will be checked after
+  ATM10 generates terrain there.
 - **What:** Extend the proof-only `world map-snapshot` path to an MSC-managed
   Java server. Send `save-off`, force `save-all flush`, require its completion
   line from the same server run, copy the world under the existing time/size

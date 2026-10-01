@@ -1377,9 +1377,9 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.4 — Prove Java terrain rendering before MSC integration
 
-- **Status:** In progress — all seven selected Java Overworld saves now have
-  complete 4×4 offline exports; visual comparison and live Java saved-terrain
-  refresh remain before MSC integration
+- **Status:** Representative Java Overworld rendering and live saved-terrain
+  refresh accepted; Nether ceiling presentation and custom dimensions remain
+  outside the accepted scope before MSC integration.
 - **What:** Use one read-only Java Anvil terrain pipeline and the existing
   standalone 3D viewer. Test distinct Minecraft data versions, save layouts,
   and block asset sets rather than treating each server flavor as a separate
@@ -1428,7 +1428,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   textures. Paper Nether and End tiles exported 16/16 chunks separately;
   Nether ceiling presentation and custom dimensions are not yet accepted.
   The private reports and tiles are under `/private/tmp/msc-java-terrain-proof`.
-  Cameron's visual review of the ATM10 tile is pending.
+  Cameron subsequently accepted the ATM10 tile and the other Java previews.
 - **Offline change-selection evidence (2026-09-30):** A Paper 26.2 region
   compared against itself skipped export after checking all 16 chunks (54 ms).
   In an offline scratch copy, changing a grass palette entry in chunk (0, 0)
@@ -1450,9 +1450,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.5 — Shape the standalone viewer controls before MSC integration
 
-- **Status:** Implemented in the standalone proof viewer; visual interaction
-  review remains. Java live snapshot and refresh proof remains a separate gate
-  before MSC integration.
+- **Status:** Implemented and accepted in the standalone proof viewer.
 - **What:** Use Vantage's dark, translucent map UI as a visual reference. Add a
   compact bottom toolbar for 2D/3D view, creative-style free flight (WASD,
   Space up, Shift down), coordinates, zoom, camera capture, and Home to world

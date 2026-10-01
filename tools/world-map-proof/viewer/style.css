@@ -29,6 +29,7 @@ button.following, button.active { border-color: #74aaff; background: rgba(37, 91
 .tool-group { display: flex; gap: 4px; }
 #map-toolbar button { min-width: 38px; min-height: 35px; }
 #map-coordinates { padding: 0 9px; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #c7d9ec; min-width: 162px; text-align: center; }
+#map-coordinates.outside-tile { color: #ffc18a; }
 #toolbar-message { bottom: 75px; left: 50%; transform: translateX(-50%); padding: 8px 12px; color: #d9eaff; }
 #toolbar-message:empty { display: none; }
 #revision-control { right: 18px; bottom: 18px; display: flex; align-items: center; gap: 7px; padding: 8px; }

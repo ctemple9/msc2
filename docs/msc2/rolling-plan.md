@@ -1470,3 +1470,12 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   metadata. Home uses spawn when it is in the loaded 4×4 tile; otherwise it
   returns to the loaded tile's starting view and explains why. The standalone
   proof viewer still renders only one tile at a time.
+- **Follow-up (2026-09-30):** Cameron confirmed the new controls work. His
+  underground Vanilla screenshot showed sideways deepslate and sky-colored
+  openings. The deepslate was stored in 26.3's compact string palette form,
+  which also omitted the default `axis=y`; the converter now handles both
+  string and compound forms. A corrected 16/16 tile is at
+  `/private/tmp/msc-java-terrain-proof/vanilla-26.3-compact-defaults-fix`.
+  The screenshot camera was at Z −71, outside the selected tile's Z range
+  −160..−97; the standalone viewer now labels that condition beside the
+  coordinates. This proof tile has no neighboring chunks to close its edges.

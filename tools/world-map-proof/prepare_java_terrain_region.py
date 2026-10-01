@@ -93,9 +93,28 @@ def decode(compression: int, payload: bytes) -> bytes:
     raise ValueError(f"unsupported Anvil compression type {compression}")
 
 
+def omitted_default_properties(name: str) -> Compound | None:
+    if not name.startswith("minecraft:"):
+        return None
+    block = name.split(":", 1)[1]
+    if block.endswith(("_log", "_wood", "_stem", "_hyphae")) or block == "deepslate":
+        return Compound({"axis": String("y")})
+    if block == "grass_block":
+        return Compound({"snowy": String("false")})
+    if block in ("tall_grass", "tall_seagrass"):
+        return Compound({"half": String("lower")})
+    if block.endswith("_amethyst_bud"):
+        return Compound({"facing": String("up")})
+    return None
+
+
 def legacy_palette_entry(entry, flatten_mod_namespaces: bool = False) -> Compound:
     if isinstance(entry, String):
-        return Compound({"Name": String(str(entry))})
+        result = Compound({"Name": String(str(entry))})
+        defaults = omitted_default_properties(str(entry))
+        if defaults is not None:
+            result["Properties"] = defaults
+        return result
     if not isinstance(entry, Compound):
         raise ValueError(f"unexpected block palette entry {type(entry).__name__}")
     if "Name" in entry:
@@ -114,19 +133,12 @@ def legacy_palette_entry(entry, flatten_mod_namespaces: bool = False) -> Compoun
         if not isinstance(properties, Compound):
             raise ValueError("new block palette properties are malformed")
         result["Properties"] = properties
-    elif str(name).startswith("minecraft:"):
-        # 26.3 omits default-valued properties. Vantage cannot infer them and
-        # otherwise chooses the first blockstate variant, which can rotate a
-        # vertical trunk (or deepslate) sideways.
-        block = str(name).split(":", 1)[1]
-        if block.endswith(("_log", "_wood", "_stem", "_hyphae")) or block == "deepslate":
-            result["Properties"] = Compound({"axis": String("y")})
-        elif block == "grass_block":
-            result["Properties"] = Compound({"snowy": String("false")})
-        elif block in ("tall_grass", "tall_seagrass"):
-            result["Properties"] = Compound({"half": String("lower")})
-        elif block.endswith("_amethyst_bud"):
-            result["Properties"] = Compound({"facing": String("up")})
+    else:
+        # 26.3 omits default-valued properties in both compact string entries
+        # and compounds. Vantage otherwise chooses the first variant.
+        defaults = omitted_default_properties(str(name))
+        if defaults is not None:
+            result["Properties"] = defaults
     return result
 
 

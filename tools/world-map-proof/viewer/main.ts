@@ -40,6 +40,7 @@ const startingView = {
 };
 let homeView = startingView;
 let homeIsSpawn = false;
+let tileOrigin: [number, number] | null = null;
 void fetch('/viewer-world.json', { cache: 'no-store' }).then(async (response) => {
   if (!response.ok) return;
   const metadata = await response.json() as {
@@ -48,6 +49,7 @@ void fetch('/viewer-world.json', { cache: 'no-store' }).then(async (response) =>
   };
   const spawn = metadata.spawn;
   const origin = metadata.chunkOrigin;
+  if (origin && origin.length === 2 && origin.every(Number.isFinite)) tileOrigin = origin;
   if (!spawn || !origin || ![spawn.x, spawn.y, spawn.z].every(Number.isFinite)) return;
   if (spawn.x < origin[0] * 16 || spawn.x >= (origin[0] + 4) * 16
       || spawn.z < origin[1] * 16 || spawn.z >= (origin[1] + 4) * 16) return;
@@ -105,7 +107,11 @@ cameraButton.addEventListener('click', () => {
 function updateToolbar() {
   const controls = viewer.controls;
   const point = controls.mode === 'fly' ? viewer.camera.position : controls.position;
-  coordinates.value = `XYZ ${Math.floor(point.x)}, ${Math.floor(point.y)}, ${Math.floor(point.z)}`;
+  const outsideTile = tileOrigin && (point.x < tileOrigin[0] * 16
+    || point.x >= (tileOrigin[0] + 4) * 16 || point.z < tileOrigin[1] * 16
+    || point.z >= (tileOrigin[1] + 4) * 16);
+  coordinates.value = `XYZ ${Math.floor(point.x)}, ${Math.floor(point.y)}, ${Math.floor(point.z)}${outsideTile ? ' · outside tile' : ''}`;
+  coordinates.classList.toggle('outside-tile', Boolean(outsideTile));
   viewFly.classList.toggle('active', controls.mode === 'fly');
   view3d.classList.toggle('active', controls.mode === 'map' && controls.angle > 0.08);
   view2d.classList.toggle('active', controls.mode === 'map' && controls.angle <= 0.08);

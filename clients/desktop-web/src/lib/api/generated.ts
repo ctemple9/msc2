@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 4d10f3e2a124af4876c5e6a5efd712b831d73eedf0fd383cad29c645b8dd71d7
+// Contract SHA-256: 09f88082359e2a39759b9a80346a23a820038d144c4fb0510d05ac1fadf9dc98
 
 export interface paths {
   '/v1/active-server': {
@@ -6393,6 +6393,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/worlds/map/players': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read fresh player positions for the selected active server */
+    get: operations['getWorldMapPlayers'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/worlds/map/refresh': {
     parameters: {
       query?: never;
@@ -9146,6 +9163,29 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    WorldMapPlayerDTO: {
+      dimension: string;
+      id: string;
+      name: string;
+      pitch: number;
+      x: number;
+      y: number;
+      yaw: number;
+      z: number;
+    } & {
+      [key: string]: unknown;
+    };
+    WorldMapPlayersResponseDTO: {
+      fresh: boolean;
+      players: components['schemas']['WorldMapPlayerDTO'][];
+      sampledAtMs: number | null;
+      sequence: number | null;
+      serverId: string | null;
+      source: string;
+      status: string;
+    } & {
+      [key: string]: unknown;
+    };
     WorldMutationResultDTO: {
       message: string;
       success: boolean;
@@ -11251,6 +11291,33 @@ export interface operations {
         content: {
           'application/json': components['schemas']['ErrorDTO'];
         };
+      };
+    };
+  };
+  getWorldMapPlayers: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Current player feed state */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['WorldMapPlayersResponseDTO'];
+        };
+      };
+      /** @description Worlds permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
     };
   };

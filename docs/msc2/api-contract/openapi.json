@@ -53,6 +53,18 @@
     }
   },
   "paths": {
+    "/v1/worlds/map/players": {
+      "get": {
+        "summary": "Read fresh player positions for the selected active server",
+        "operationId": "getWorldMapPlayers",
+        "x-permission-category": "worlds",
+        "x-notes": "Returns positions only from fresh server-side samples: a behavior-pack/Java feed or managed Java console queries while the map is open. An absent, incomplete, or stale sample returns fresh false and an empty roster; saved player data is never presented as live.",
+        "responses": {
+          "200": { "description": "Current player feed state", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WorldMapPlayersResponseDTO" } } } },
+          "403": { "description": "Worlds permission required" }
+        }
+      }
+    },
     "/v1/worlds/map/dimensions": {
       "get": {
         "summary": "List dimensions discovered for the selected active world",
@@ -8306,6 +8318,26 @@
           "slot",
           "changes"
         ]
+      },
+      "WorldMapPlayerDTO": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }, "name": { "type": "string" }, "dimension": { "type": "string" },
+          "x": { "type": "number" }, "y": { "type": "number" }, "z": { "type": "number" },
+          "yaw": { "type": "number" }, "pitch": { "type": "number" }
+        },
+        "required": ["id", "name", "dimension", "x", "y", "z", "yaw", "pitch"]
+      },
+      "WorldMapPlayersResponseDTO": {
+        "type": "object",
+        "properties": {
+          "serverId": { "type": "string", "nullable": true },
+          "source": { "type": "string" }, "fresh": { "type": "boolean" },
+          "status": { "type": "string" }, "sampledAtMs": { "type": "integer", "nullable": true },
+          "sequence": { "type": "integer", "nullable": true },
+          "players": { "type": "array", "items": { "$ref": "#/components/schemas/WorldMapPlayerDTO" } }
+        },
+        "required": ["serverId", "source", "fresh", "status", "sampledAtMs", "sequence", "players"]
       },
       "WorldMapDimensionsResponseDTO": {
         "type": "object",

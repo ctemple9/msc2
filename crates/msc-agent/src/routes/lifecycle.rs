@@ -55,6 +55,8 @@ use msc_infrastructure::secret_store::SecretStore;
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;
 
+#[path = "lifecycle/map_player_query.rs"]
+mod map_player_query;
 #[path = "lifecycle/recovery.rs"]
 mod recovery;
 pub use recovery::ReconciliationStatus;
@@ -157,6 +159,7 @@ struct LifecycleRoutesInner {
     bedrock_run_generation: AtomicU64,
     bedrock_online_players: Mutex<BTreeMap<String, msc_domain::bedrock::BedrockPlayer>>,
     map_players: Mutex<Option<MapPlayerSample>>,
+    java_map_query: Mutex<map_player_query::JavaMapQueryController>,
     pump_tasks: Mutex<Vec<JoinHandle<()>>>,
     auth_state: Option<AuthState>,
     audit_log: &'static AuditLog<'static>,
@@ -195,12 +198,14 @@ struct MapPlayerSample {
     server_id: String,
     generation: u64,
     received: Instant,
+    source: &'static str,
     wire: MapPlayerWireSample,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct MapPlayersResponse {
+    pub server_id: Option<String>,
     pub source: &'static str,
     pub fresh: bool,
     pub status: &'static str,
@@ -788,6 +793,7 @@ impl LifecycleRoutesState {
                 bedrock_run_generation: AtomicU64::new(0),
                 bedrock_online_players: Mutex::new(BTreeMap::new()),
                 map_players: Mutex::new(None),
+                java_map_query: Mutex::new(map_player_query::JavaMapQueryController::default()),
                 pump_tasks: Mutex::new(Vec::new()),
                 auth_state,
                 audit_log,
@@ -1572,38 +1578,222 @@ impl LifecycleRoutesState {
             server_id,
             generation,
             received: Instant::now(),
+            source: "bds-behavior-pack",
             wire,
         });
     }
 
+    fn record_java_map_player_line(&self, line: &str) {
+        let Some((_, payload)) = line.split_once("MSC_MAP_PLAYERS_V1 ") else {
+            return;
+        };
+        if payload.len() > 64 * 1024 {
+            return;
+        }
+        let Some(server_id) = self.active_server_id() else {
+            return;
+        };
+        let Ok(wire) = serde_json::from_str::<MapPlayerWireSample>(payload.trim()) else {
+            return;
+        };
+        if wire.players.len() > 100
+            || wire.players.iter().any(|player| {
+                player.id.len() > 128
+                    || player.name.len() > 128
+                    || player.dimension.len() > 128
+                    || [player.x, player.y, player.z, player.pitch, player.yaw]
+                        .iter()
+                        .any(|value| !value.is_finite())
+            })
+        {
+            return;
+        }
+        let generation = self.inner.java_run_generation.load(Ordering::Relaxed);
+        let mut current = self.inner.map_players.lock().unwrap();
+        if current.as_ref().is_some_and(|sample| {
+            sample.server_id == server_id
+                && sample.generation == generation
+                && sample.source == "java-server-feed"
+                && wire.sequence <= sample.wire.sequence
+        }) {
+            return;
+        }
+        *current = Some(MapPlayerSample {
+            server_id,
+            generation,
+            received: Instant::now(),
+            source: "java-server-feed",
+            wire,
+        });
+    }
+
+    fn record_java_map_query_line(&self, line: &str) -> bool {
+        use map_player_query::{EntityField, entity_field, online_names};
+        let mut controller = self.inner.java_map_query.lock().unwrap();
+        let Some(query) = controller.pending.as_mut() else {
+            return false;
+        };
+        if query.started.elapsed() > Duration::from_secs(3) {
+            controller.pending = None;
+            return false;
+        }
+        if let Some((name, field)) = entity_field(line) {
+            if !query.records.contains_key(&name) && query.records.len() >= 100 {
+                return false;
+            }
+            let record = query.records.entry(name).or_default();
+            match field {
+                EntityField::Position(value) => record.pos = Some(value),
+                EntityField::Rotation(value) => record.rotation = Some(value),
+                EntityField::Dimension(value) => record.dimension = Some(value),
+            }
+            return true;
+        }
+        let Some(names) = online_names(line) else {
+            return false;
+        };
+        let Some(query) = controller.pending.take() else {
+            return false;
+        };
+        let mut players = Vec::new();
+        for name in names {
+            let Some(record) = query.records.get(&name) else {
+                return false;
+            };
+            let Some(player) = map_player_query::JavaMapRecord {
+                pos: record.pos,
+                rotation: record.rotation,
+                dimension: record.dimension.clone(),
+            }
+            .into_player(name) else {
+                return false;
+            };
+            players.push(player);
+        }
+        controller.sequence += 1;
+        let sequence = controller.sequence;
+        drop(controller);
+        let mut current = self.inner.map_players.lock().unwrap();
+        if current.as_ref().is_some_and(|sample| {
+            sample.source == "java-server-feed"
+                && sample.received.elapsed() < Duration::from_secs(5)
+        }) {
+            return false;
+        }
+        *current = Some(MapPlayerSample {
+            server_id: query.server_id,
+            generation: query.generation,
+            received: Instant::now(),
+            source: "java-console-query",
+            wire: MapPlayerWireSample {
+                sequence,
+                sampled_at_ms: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis() as u64,
+                players,
+            },
+        });
+        false
+    }
+
+    fn poll_java_map_players(&self, server_id: &str) {
+        if self
+            .inner
+            .map_players
+            .lock()
+            .unwrap()
+            .as_ref()
+            .is_some_and(|sample| {
+                sample.source == "java-server-feed"
+                    && sample.received.elapsed() < Duration::from_secs(5)
+            })
+        {
+            return;
+        }
+        let mut controller = self.inner.java_map_query.lock().unwrap();
+        if controller
+            .pending
+            .as_ref()
+            .is_some_and(|query| query.started.elapsed() < Duration::from_secs(3))
+            || controller
+                .last_requested
+                .is_some_and(|last| last.elapsed() < Duration::from_secs(1))
+        {
+            return;
+        }
+        let now = Instant::now();
+        controller.last_requested = Some(now);
+        controller.pending = Some(map_player_query::JavaMapQuery {
+            server_id: server_id.to_string(),
+            generation: self.inner.java_run_generation.load(Ordering::Relaxed),
+            started: now,
+            records: BTreeMap::new(),
+        });
+        drop(controller);
+        let lifecycle = self.inner.lifecycle.lock().unwrap();
+        for command in [
+            "execute as @a run data get entity @s Pos",
+            "execute as @a run data get entity @s Rotation",
+            "execute as @a run data get entity @s Dimension",
+            "list",
+        ] {
+            if lifecycle.send_command(command).is_err() {
+                self.inner.java_map_query.lock().unwrap().pending = None;
+                return;
+            }
+        }
+        drop(lifecycle);
+        self.register_controller_command("list");
+    }
+
     pub(crate) fn map_players(&self) -> MapPlayersResponse {
-        self.drain_bedrock_events();
+        let server_type = self.active_config_server().map(|server| server.server_type);
+        if server_type == Some(ServerType::Bedrock) {
+            self.drain_bedrock_events();
+        }
+        let source = if server_type == Some(ServerType::Bedrock) {
+            "bds-behavior-pack"
+        } else {
+            "java-server-feed"
+        };
+        let active_server_id = self.active_server_id();
         let unavailable = |status| MapPlayersResponse {
-            source: "bds-behavior-pack",
+            server_id: active_server_id.clone(),
+            source,
             fresh: false,
             status,
             sampled_at_ms: None,
             sequence: None,
             players: Vec::new(),
         };
-        let Some(server_id) = self.active_bedrock_server().map(|server| server.id) else {
-            return unavailable("no-active-bedrock-server");
+        let Some(server_id) = active_server_id.clone() else {
+            return unavailable("no-active-server");
         };
         if !self.status_snapshot().running {
             return unavailable("server-stopped");
+        }
+        if server_type == Some(ServerType::Java) {
+            self.poll_java_map_players(&server_id);
         }
         let current = self.inner.map_players.lock().unwrap();
         let Some(sample) = current.as_ref() else {
             return unavailable("awaiting-feed");
         };
+        let generation = if server_type == Some(ServerType::Bedrock) {
+            self.inner.bedrock_run_generation.load(Ordering::Relaxed)
+        } else {
+            self.inner.java_run_generation.load(Ordering::Relaxed)
+        };
         if sample.server_id != server_id
-            || sample.generation != self.inner.bedrock_run_generation.load(Ordering::Relaxed)
+            || sample.generation != generation
             || sample.received.elapsed() > Duration::from_secs(5)
         {
             return unavailable("feed-stale");
         }
         MapPlayersResponse {
-            source: "bds-behavior-pack",
+            server_id: Some(server_id),
+            source: sample.source,
             fresh: true,
             status: "live",
             sampled_at_ms: Some(sample.wire.sampled_at_ms),
@@ -1746,6 +1936,8 @@ impl LifecycleRoutesState {
         if changing_active_server {
             self.clear_time_observation();
             *self.inner.map_players.lock().unwrap() = None;
+            *self.inner.java_map_query.lock().unwrap() =
+                map_player_query::JavaMapQueryController::default();
         }
         if changing_active_server
             && (self.status_snapshot().running
@@ -1900,6 +2092,9 @@ impl LifecycleRoutesState {
         self.inner
             .java_run_generation
             .fetch_add(1, Ordering::Relaxed);
+        *self.inner.map_players.lock().unwrap() = None;
+        *self.inner.java_map_query.lock().unwrap() =
+            map_player_query::JavaMapQueryController::default();
         let _ = self
             .inner
             .operations
@@ -2803,12 +2998,12 @@ impl LifecycleRoutesState {
             }
             for line in framer.push_event(&event) {
                 let now = iso8601_now();
+                self.push_process_line(&event, &line);
                 let output_events = {
                     let mut lifecycle = self.inner.lifecycle.lock().unwrap();
                     if lifecycle.active_process() != Some(pid) {
                         break;
                     }
-                    self.push_process_line(&event, &line);
                     lifecycle
                         .ingest_console_line(&line, &now)
                         .unwrap_or_default()
@@ -2889,7 +3084,13 @@ impl LifecycleRoutesState {
             } => "stderr",
             ProcessEvent::Output { .. } | ProcessEvent::Exited(_) => "stdout",
         };
-        let origin = self.console_line_origin(text);
+        self.record_java_map_player_line(text);
+        let query_reply = self.record_java_map_query_line(text);
+        let origin = if query_reply {
+            ConsoleLineOrigin::Controller
+        } else {
+            self.console_line_origin(text)
+        };
         let internal_time_query = self.record_time_query_line(text, origin);
         if !internal_time_query && !Self::is_hidden_time_query_line(text) {
             self.inner.console.push(ConsoleLine::with_origin(

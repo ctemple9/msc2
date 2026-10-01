@@ -3,7 +3,11 @@
   import { isTauri } from '@tauri-apps/api/core';
   import { getCurrentWindow, LogicalPosition } from '@tauri-apps/api/window';
   import type { WorldSource } from '@thoughts-on-things/vantage-mc/core';
-  import type { VantageViewer } from '@thoughts-on-things/vantage-mc/three';
+  import type {
+    PlayerLayer,
+    PlayerSnapshot,
+    VantageViewer,
+  } from '@thoughts-on-things/vantage-mc/three';
   import type { Schema, ScreenApi } from '../shared/types';
   import { pollOperation } from './model';
 
@@ -13,6 +17,8 @@
   export let onClose: () => void;
 
   type Dimension = Schema['WorldMapDimensionDTO'];
+  type LiveFeed = Schema['WorldMapPlayersResponseDTO'];
+  type LivePlayer = Schema['WorldMapPlayerDTO'];
   let dimensions: Dimension[] = [];
   let selectedDimension = '';
   let serverType = '';
@@ -36,6 +42,16 @@
   let warping = false;
   let ignoreWarpUntil = 0;
   let resyncPointer = false;
+  let playerLayer: PlayerLayer | undefined;
+  let livePlayers: LivePlayer[] = [];
+  let playerFeedStatus = 'Connecting to live player feed…';
+  let followedId: string | undefined;
+  let changingPlayerDimension = false;
+  let playerPoll: ReturnType<typeof setInterval> | undefined;
+  let playerRequest = 0;
+  let lastAppliedPlayerRequest = 0;
+  let playerRequestsInFlight = 0;
+  let savedHeightAt: VantageViewer['controls']['heightAt'] | undefined;
 
   $: selected = dimensions.find((dimension) => dimension.id === selectedDimension);
 
@@ -46,7 +62,10 @@
   }
 
   function disposeViewer(): void {
+    stopFollowing();
     releaseDesktopLook();
+    playerLayer?.dispose();
+    playerLayer = undefined;
     viewer?.dispose();
     viewer = undefined;
   }
@@ -100,13 +119,19 @@
         manifest,
         fetch: read,
       };
-      const { VantageViewer: Viewer } = await import('@thoughts-on-things/vantage-mc/three');
+      const { VantageViewer: Viewer, PlayerLayer: Layer } =
+        await import('@thoughts-on-things/vantage-mc/three');
       if (!alive || generation !== loadGeneration) return;
       opening = new Viewer(canvas, { players: { enabled: false }, urlState: false });
       await opening.load({ world: source });
       if (!alive || generation !== loadGeneration) return;
       viewer = opening;
       opening = undefined;
+      playerLayer = new Layer({ scene: viewer.scene, camera: viewer.camera });
+      applyPlayers();
+      viewer.controls.addEventListener('start', () => {
+        if (followedId) stopFollowing();
+      });
       spawn =
         manifest.spawn &&
         [manifest.spawn.x, manifest.spawn.y, manifest.spawn.z].every(Number.isFinite)
@@ -169,6 +194,19 @@
   function updateToolbar(): void {
     if (!alive) return;
     if (viewer) {
+      const moved = playerLayer?.update(performance.now());
+      if (followedId && playerLayer) {
+        const position = playerLayer.positionOf(followedId);
+        if (position) {
+          position.y += 0.9;
+          if (viewer.controls.position.distanceToSquared(position) > 0.000001) {
+            viewer.controls.position.copy(position);
+            viewer.invalidate();
+          }
+        }
+      } else if (moved) {
+        viewer.invalidate();
+      }
       const point =
         viewer.controls.mode === 'fly' ? viewer.camera.position : viewer.controls.position;
       coords = `XYZ ${Math.floor(point.x)}, ${Math.floor(point.y)}, ${Math.floor(point.z)}`;
@@ -183,8 +221,145 @@
     viewer?.setFlyMode(false);
   }
 
+  function stopFollowing(): void {
+    followedId = undefined;
+    playerLayer?.setFollowed(null);
+    if (viewer && savedHeightAt !== undefined) {
+      viewer.controls.heightAt = savedHeightAt;
+      savedHeightAt = undefined;
+    }
+    viewer?.invalidate();
+  }
+
+  function holdPlayerHeight(): void {
+    if (!viewer || savedHeightAt !== undefined) return;
+    savedHeightAt = viewer.controls.heightAt;
+    viewer.controls.heightAt = null;
+  }
+
+  function applyPlayers(): void {
+    if (!playerLayer) return;
+    const snapshot: PlayerSnapshot = {
+      source: 'host',
+      updated: Date.now(),
+      players: livePlayers.map((player) => ({
+        uuid: player.id,
+        name: player.name,
+        dimension: player.dimension,
+        x: player.x,
+        y: player.y,
+        z: player.z,
+        yaw: player.yaw,
+        pitch: player.pitch,
+        foreign: player.dimension !== selectedDimension,
+        stale: false,
+      })),
+    };
+    playerLayer.setSnapshot(snapshot, performance.now());
+    viewer?.invalidate();
+  }
+
+  async function refreshPlayers(): Promise<void> {
+    if (!api || playerRequestsInFlight >= 2) return;
+    const request = ++playerRequest;
+    playerRequestsInFlight += 1;
+    try {
+      const feed = await api.get<LiveFeed>('/v1/worlds/map/players');
+      if (!alive || request <= lastAppliedPlayerRequest) return;
+      lastAppliedPlayerRequest = request;
+      if (feed.serverId !== serverId) {
+        livePlayers = [];
+        playerFeedStatus = 'Select this server to see live players';
+        stopFollowing();
+        applyPlayers();
+        return;
+      }
+      if (!feed.fresh) {
+        livePlayers = [];
+        playerFeedStatus =
+          feed.status === 'server-stopped' ? 'Server stopped' : 'Live positions unavailable';
+        stopFollowing();
+      } else {
+        livePlayers = feed.players;
+        playerFeedStatus = `${feed.players.length} live player${feed.players.length === 1 ? '' : 's'}`;
+        const followed = feed.players.find((player) => player.id === followedId);
+        if (followedId && !followed) stopFollowing();
+        if (followed && followed.dimension !== selectedDimension && !changingPlayerDimension) {
+          const target = dimensions.find((entry) => entry.id === followed.dimension);
+          if (target?.state === 'ready') {
+            changingPlayerDimension = true;
+            void loadDimension(target.id)
+              .then(() => {
+                if (alive) void followPlayer(followed.id);
+              })
+              .finally(() => (changingPlayerDimension = false));
+          } else {
+            stopFollowing();
+            say('That player entered a dimension without saved terrain');
+          }
+        }
+      }
+      applyPlayers();
+    } catch {
+      if (!alive || request <= lastAppliedPlayerRequest) return;
+      lastAppliedPlayerRequest = request;
+      livePlayers = [];
+      playerFeedStatus = 'Live player feed unavailable';
+      stopFollowing();
+      applyPlayers();
+    } finally {
+      playerRequestsInFlight -= 1;
+    }
+  }
+
+  async function focusPlayer(player: LivePlayer, follow: boolean): Promise<void> {
+    if (player.dimension !== selectedDimension) {
+      const target = dimensions.find((entry) => entry.id === player.dimension);
+      if (target?.state !== 'ready') {
+        say('That dimension has no saved terrain yet');
+        return;
+      }
+      await loadDimension(target.id);
+    }
+    if (
+      !livePlayers.some((entry) => entry.id === player.id && entry.dimension === selectedDimension)
+    )
+      return;
+    if (!viewer || !playerLayer) return;
+    leaveFly();
+    stopFollowing();
+    const target =
+      playerLayer.positionOf(player.id) ??
+      viewer.controls.position.clone().set(player.x, player.y, player.z);
+    target.y += 0.9;
+    const toward = target.clone().sub(viewer.camera.position);
+    const distance = Math.max(toward.length(), 0.001);
+    const state = {
+      position: target,
+      distance: viewer.controls.distance > 260 ? 140 : viewer.controls.distance,
+      rotation: Math.atan2(toward.x, -toward.z),
+      angle: Math.acos(Math.max(-1, Math.min(1, -toward.y / distance))),
+    };
+    viewer.controls.setMode('map');
+    if (follow) {
+      holdPlayerHeight();
+      followedId = player.id;
+      playerLayer.setFollowed(player.id);
+      viewer.controls.setView(state);
+    } else {
+      viewer.controls.animateTo(state);
+    }
+    viewer.invalidate();
+  }
+
+  async function followPlayer(id: string): Promise<void> {
+    const player = livePlayers.find((entry) => entry.id === id);
+    if (player) await focusPlayer(player, true);
+  }
+
   function toggleFly(): void {
     if (!viewer) return;
+    stopFollowing();
     const controls = viewer.controls;
     const focus = controls.position.clone();
     const groundY = controls.heightAt?.(focus.x, focus.z) ?? focus.y;
@@ -296,6 +471,7 @@
 
   function goHome(): void {
     if (!viewer || !spawn) return;
+    stopFollowing();
     leaveFly();
     viewer.controls.animateTo({
       position: viewer.controls.position.clone().set(spawn.x + 0.5, spawn.y, spawn.z + 0.5),
@@ -345,12 +521,16 @@
     window.addEventListener('keydown', onKey, true);
     window.addEventListener('blur', releaseDesktopLook);
     void loadDimensions();
+    void refreshPlayers();
+    playerPoll = setInterval(() => void refreshPlayers(), 1000);
     frameId = requestAnimationFrame(updateToolbar);
     return () => {
       alive = false;
+      ++playerRequest;
       ++loadGeneration;
       cancelAnimationFrame(frameId);
       if (messageTimer) clearTimeout(messageTimer);
+      if (playerPoll) clearInterval(playerPoll);
       window.removeEventListener('pointermove', onMove, true);
       window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('blur', releaseDesktopLook);
@@ -412,8 +592,41 @@
       </div>
     {/if}
     <aside class="players-panel">
-      <strong>Players</strong>
-      <p>Live positions will appear here when the player feed is connected.</p>
+      <div class="players-heading"><strong>Players</strong><span>{livePlayers.length}</span></div>
+      {#if livePlayers.length === 0}
+        <p>{playerFeedStatus}</p>
+      {:else}
+        <ul>
+          {#each livePlayers as player (player.id)}
+            <li>
+              <div class="player-name">
+                <span>{player.name}</span>
+                {#if player.dimension !== selectedDimension}<small
+                    >{dimensions.find((entry) => entry.id === player.dimension)?.displayName ??
+                      player.dimension}</small
+                  >{/if}
+              </div>
+              <div class="player-actions">
+                <button
+                  type="button"
+                  disabled={!viewer}
+                  aria-label={`Fly to ${player.name}`}
+                  onclick={() => void focusPlayer(player, false)}>Fly</button
+                >
+                <button
+                  type="button"
+                  disabled={!viewer}
+                  aria-label={`${followedId === player.id ? 'Stop following' : 'Follow'} ${player.name}`}
+                  aria-pressed={followedId === player.id}
+                  onclick={() =>
+                    followedId === player.id ? stopFollowing() : void focusPlayer(player, true)}
+                  >{followedId === player.id ? 'Following' : 'Follow'}</button
+                >
+              </div>
+            </li>
+          {/each}
+        </ul>
+      {/if}
     </aside>
     {#if desktopLook}
       <div class="look-indicator" role="status">Mouse look active · Esc releases pointer</div>
@@ -430,6 +643,7 @@
         disabled={!viewer}
         aria-pressed={topDown && !flying}
         onclick={() => {
+          stopFollowing();
           leaveFly();
           if (viewer) {
             // Cancel any pending camera tilt and use a vertical view now.
@@ -452,6 +666,7 @@
         disabled={!viewer}
         aria-pressed={!topDown && !flying}
         onclick={() => {
+          stopFollowing();
           leaveFly();
           viewer?.setTilt(0.42);
         }}>3D</button
@@ -637,11 +852,60 @@
     text-transform: uppercase;
     letter-spacing: 0.08em;
   }
+  .players-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .players-heading span {
+    color: #aeb4bb;
+    font-size: 11px;
+  }
   .players-panel p {
     margin: 8px 0 0;
     color: #aeb4bb;
     font-size: 11px;
     line-height: 1.4;
+  }
+  .players-panel ul {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+    max-height: 45vh;
+    overflow-y: auto;
+  }
+  .players-panel li {
+    padding: 8px 0;
+    border-top: 1px solid #3a3a40;
+  }
+  .player-name {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 12px;
+  }
+  .player-name small {
+    color: #aeb4bb;
+    font-size: 10px;
+  }
+  .player-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .player-actions button {
+    background: #242428;
+    border: 1px solid #48484e;
+    border-radius: 4px;
+    color: #f1f1f2;
+    font: inherit;
+    font-size: 11px;
+    padding: 4px 7px;
+    cursor: pointer;
+  }
+  .player-actions button[aria-pressed='true'] {
+    background: #244b71;
+    border-color: #568fc5;
   }
   .map-caption {
     position: absolute;

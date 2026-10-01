@@ -1661,7 +1661,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.9k — Size the embedded map canvas to its viewport
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Status:** Done — Cameron confirmed the camera is fixed, 2026-10-01
 - **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/rolling-plan.md`
 - **What:** Apply the P18.3i Retina canvas fix to MSC's embedded viewer. Vantage sizes its drawing buffer using device pixel ratio but leaves the canvas CSS size unchanged. The resulting oversized canvas is clipped by the map panel, making the camera's true center appear near the lower-right corner even while the toolbar reports the correct world focus. Keep the canvas at the panel's CSS width and height so the full camera image is visible.
 - **Verify:** Reload MSC's world map on the Retina display, select 2D, and center the view on the diamond blocks at X 33, Z 30. Zoom out without panning; the blocks should remain at the viewport center. In Fly mode, aim at a block edge and press W to confirm that travel follows the visible view. Check the browser proof viewer for comparison.
@@ -1675,6 +1675,17 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **What:** Add a Worlds-authorized Refresh terrain action for the running active Java server. Reuse the bounded save-off/flush/copy/save-on snapshot operation, retain its private copy as the renderer source, retire the previous renderer, and reload the selected dimension after the operation succeeds. Report copy bytes and save hold duration without exposing the snapshot path. Set the 2D camera pitch and heading immediately to a true top-down view instead of marking an in-progress tilt as 2D. This first refresh reloads the dimension; changed-tile selection and live player feeds remain later P18.10 work.
 - **Verify:** Restart MSC and its agent, open a running Java world map, place a distinctive block in game, and choose Refresh terrain. Confirm the new block appears, the server still accepts block changes, and another Refresh updates again. Check that an attempted refresh while the server is stopped gives a clear error. Select 2D and confirm block side faces disappear; switch to 3D and back.
 - **Commit:** P18.10a: refresh embedded Java terrain from a consistent save
+- **Batch:** C (P18.10) — live refresh and players
+
+**P18.10a field observation (2026-10-01):** Cameron placed blocks, used Refresh terrain, and saw the new blocks after roughly 30 seconds. The changed terrain path works for that Vanilla world; repeat refresh, stopped-server error, and writeability during refresh remain unverified.
+
+### P18.10b — Show current players in the embedded map
+
+- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Files:** `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/lifecycle/map_player_query.rs`, `crates/msc-agent/src/routes/worlds.rs`, `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `clients/desktop-web/src/lib/api/generated.ts`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/rolling-plan.md`
+- **What:** Expose a Worlds-authorized, server-scoped live player endpoint. Reuse the already ingested BDS behavior-pack samples and accept structured Java samples where a server feed exists. When no Java feed is present, request current Position, Rotation, and Dimension through the managed server console while the map is open, then publish a complete sample only after the matching online roster arrives. Expire samples after five seconds and discard partial replies. Poll from the embedded viewer, draw current-dimension models, list connected players, and provide Fly and Follow actions. A followed player changing to a saved dimension switches maps; disconnect or stale feed releases Follow. The query fallback uses the player's current name as the model identity within that server run; it does not claim a UUID.
+- **Verify:** Restart the development agent and MSC, open Vanilla's Overworld map, and join the server. The Players panel should show the connected player and a model at the live coordinates. Walk and turn; both should update. Fly to and Follow the player, then disconnect; the panel/model should clear within about five seconds. Switch dimensions with a player if saved terrain exists and confirm Follow moves to that dimension. On BDS, the roster should show fresh behavior-pack samples; Bedrock terrain inside MSC remains a separate integration step.
+- **Commit:** P18.10b: connect live players to embedded map
 - **Batch:** C (P18.10) — live refresh and players
 
 ### P18.10 — Connect saved-terrain refresh and live player controls

@@ -121,6 +121,7 @@ pub fn router(state: WorldsRoutesState) -> Router {
         .route("/worlds/map/dimensions", get(map_dimensions))
         .route("/worlds/map/terrain", get(map_terrain::artifact))
         .route("/worlds/map/refresh", post(refresh_map))
+        .route("/worlds/map/players", get(map_players))
         .route("/worlds/map-proof/snapshot", post(snapshot_map_proof))
         .route("/worlds/map-proof/players", get(map_proof_players))
         .route("/catalog/gamerules", get(gamerule_catalog))
@@ -2533,6 +2534,16 @@ pub async fn refresh_map(
 }
 
 pub async fn map_proof_players(
+    State(state): State<WorldsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
+        return response;
+    }
+    Json(state.lifecycle.map_players()).into_response()
+}
+
+pub async fn map_players(
     State(state): State<WorldsRoutesState>,
     Extension(credential): Extension<AuthenticatedCredential>,
 ) -> Response {

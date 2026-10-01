@@ -1621,6 +1621,15 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Commit:** P18.9f: correct desktop mouse look deltas
 - **Batch:** B (P18.9) — desktop map controls
 
+### P18.9g — Align MSC Fly heading with the browser viewer
+
+- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Remove MSC's extra downward Fly entry pitch. Start the desktop camera level so its forward heading and the direction in the center of the view agree, as they do in the browser proof viewer.
+- **Verify:** In the running MSC app, reopen a saved map, select Fly, and check that the horizon starts level. Face a distant landmark, press W, and confirm it stays centered while getting closer. Turn with mouse look and repeat. The app and browser proof should now start Fly with the same level heading.
+- **Commit:** P18.9g: align MSC Fly heading with browser viewer
+- **Batch:** B (P18.9) — desktop map controls
+
 ### P18.10 — Connect saved-terrain refresh and live player controls
 
 - **Status:** Planned — owner direction, 2026-09-30

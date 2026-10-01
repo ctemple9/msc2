@@ -392,7 +392,9 @@
         onclick={() => {
           viewer?.toggleFly();
           if (viewer?.isFlying) {
-            viewer.controls.angle = Math.PI / 2 - 0.2;
+            // Match the browser proof's level Fly view. The old downward offset
+            // made W (which follows the viewer's horizontal heading) feel skewed.
+            viewer.controls.angle = Math.PI / 2;
             viewer.invalidate();
             say('Click the map to look · WASD move · Space up · Shift down');
           } else releaseDesktopLook();

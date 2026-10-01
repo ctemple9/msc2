@@ -268,6 +268,31 @@ impl Textures {
         fs::write(path, out)?;
         Ok(())
     }
+
+    fn restore(pack: &Path, output: &Path) -> Result<Self, Box<dyn Error>> {
+        let mut textures = Self::new(pack);
+        textures.layers = serde_json::from_slice(&fs::read(output.join("texture-index.json"))?)?;
+        let atlas = fs::read(output.join("terrain.vtexarr"))?;
+        if atlas.len() < 20 || &atlas[..4] != b"VTA1" {
+            return Err("Bedrock texture array is invalid".into());
+        }
+        let count = u32::from_le_bytes(atlas[16..20].try_into()?) as usize;
+        if count < textures.layers.len() + 1 || atlas.len() != 20 + count * 1024 {
+            return Err("Bedrock texture array and index disagree".into());
+        }
+        textures.pixels = atlas[20..20 + (textures.layers.len() + 1) * 1024].to_vec();
+        Ok(textures)
+    }
+
+    fn write_shared(&self, output: &Path) -> Result<(), Box<dyn Error>> {
+        let atlas = output.join("terrain.vtexarr");
+        let index = output.join("texture-index.json");
+        self.write(&output.join("terrain.vtexarr.tmp"))?;
+        fs::rename(output.join("terrain.vtexarr.tmp"), atlas)?;
+        fs::write(output.join("texture-index.json.tmp"), serde_json::to_vec(&self.layers)?)?;
+        fs::rename(output.join("texture-index.json.tmp"), index)?;
+        Ok(())
+    }
 }
 
 // Bedrock textures are greyscale masks for grass/foliage. The proof uses the
@@ -685,6 +710,46 @@ pub fn render_grid(
         "tiles": tiles,
         "spawn": spawn.map(|(x, y, z)| serde_json::json!({"x": x, "y": y, "z": z})),
     }))?)?;
+    Ok(())
+}
+
+pub fn create_catalog(
+    anchors: &[(i32, i32)],
+    pack: &Path,
+    output: &Path,
+    spawn: Option<(i32, i32, i32)>,
+) -> Result<(), Box<dyn Error>> {
+    fs::create_dir_all(output.join("tiles"))?;
+    Textures::new(pack).write_shared(output)?;
+    let tiles: Vec<_> = anchors.iter().map(|&(x, z)| serde_json::json!({
+        "x": x.div_euclid(4), "z": z.div_euclid(4),
+        "path": format!("tiles/t.{}.{}.vtile", x.div_euclid(4), z.div_euclid(4)),
+        "bytes": 0,
+    })).collect();
+    fs::write(output.join("manifest.json"), serde_json::to_vec(&serde_json::json!({
+        "format": 1, "tileChunks": 4, "tileBlocks": 64,
+        "textures": "terrain.vtexarr", "textureLayers": 1,
+        "rendering": true, "dynamic": true,
+        "biomes": [], "tiles": tiles,
+        "spawn": spawn.map(|(x, y, z)| serde_json::json!({"x": x, "y": y, "z": z})),
+    }))?)?;
+    Ok(())
+}
+
+pub fn render_catalog_tile(
+    world: &BedrockWorld,
+    anchor: (i32, i32),
+    pack: &Path,
+    output: &Path,
+) -> Result<(), Box<dyn Error>> {
+    let mut textures = Textures::restore(pack, output)?;
+    let working = output.join("working-tile");
+    if working.exists() { fs::remove_dir_all(&working)?; }
+    render_tile(world, anchor, &working, "provisional", &mut textures)?;
+    textures.write_shared(output)?;
+    let tile = output.join(format!("tiles/t.{}.{}.vtile", anchor.0.div_euclid(4), anchor.1.div_euclid(4)));
+    fs::rename(working.join("terrain.vtile"), tile)?;
+    fs::remove_dir_all(working)?;
     Ok(())
 }
 

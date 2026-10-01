@@ -138,7 +138,7 @@
       spawn = worldSpawn && [worldSpawn.x, worldSpawn.y, worldSpawn.z].every(Number.isFinite)
         ? worldSpawn : undefined;
       status = serverType === 'bedrock'
-        ? 'Saved Overworld terrain · nearby tiles'
+        ? 'Saved Overworld terrain · tiles load as you move'
         : `Saved ${entry.displayName} terrain`;
     } catch (error) {
       if (alive && generation === loadGeneration) {

@@ -1734,6 +1734,15 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Commit:** P18.10g: refresh saved Bedrock terrain in MSC
 - **Batch:** C (P18.10) — Bedrock map integration
 
+### P18.10h — Page through all saved Bedrock Overworld tiles
+
+- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Files:** `tools/world-map-proof/src/main.rs`, `tools/world-map-proof/src/render.rs`, `crates/msc-agent/src/backup_operations.rs`, `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`, `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/rolling-plan.md`
+- **What:** Catalog every saved Bedrock Overworld 4×4-chunk tile from one consistent world copy. Vantage requests tile paths as the camera moves; the agent renders only requested tiles and uses an append-only shared texture array so earlier tiles keep the same texture indices. A stopped world is also copied first, ensuring later tile requests do not read a LevelDB save after BDS starts. Refresh replaces the snapshot and catalog. The existing 2 GiB/30-second world-copy limit and per-artifact size limit still apply; Nether/End terrain and low-detail whole-world previews remain separate.
+- **Verify:** In the consolidated Bedrock runtime check, open a saved BDS Overworld, move farther than the former 3×3 tile boundary, and confirm newly reached terrain loads without a fixed edge or mismatched textures. Revisit an earlier tile, then edit a block and refresh; confirm the edit appears and BDS remains writable. A large world above the existing snapshot limit should report the copy error clearly.
+- **Commit:** P18.10h: page saved Bedrock tiles across the world
+- **Batch:** C (P18.10) — Bedrock map integration
+
 ### P18.10 — Connect saved-terrain refresh and live player controls
 
 - **Status:** Planned — owner direction, 2026-09-30

@@ -70,7 +70,7 @@
         "summary": "List dimensions discovered for the selected active world",
         "operationId": "getWorldMapDimensions",
         "x-permission-category": "worlds",
-        "x-notes": "Returns dimension IDs and saved-terrain availability, never host paths. Java region folders are counted from both supported save layouts and namespaced dimensions are discovered. A Bedrock world with level.dat and a LevelDB directory exposes a bounded Overworld tile grid; Bedrock Nether and End terrain remain unavailable.",
+        "x-notes": "Returns dimension IDs and saved-terrain availability, never host paths. Java region folders are counted from both supported save layouts and namespaced dimensions are discovered. A Bedrock world with level.dat and a LevelDB directory exposes saved Overworld tiles on demand; Bedrock Nether and End terrain remain unavailable.",
         "responses": {
           "200": {
             "description": "Discovered dimensions for the selected active world",
@@ -102,7 +102,7 @@
         "summary": "Fetch a bounded saved terrain artifact for an active world dimension",
         "operationId": "getWorldMapTerrainArtifact",
         "x-permission-category": "worlds",
-        "x-notes": "For Java, the agent privately launches bundled Vantage and permits manifest.json, terrain.vtexarr, and exact tiles/t.X.Z.vtile or tiles/lN.X.Z.vlr paths. For Bedrock Overworld, it exports a consistent saved copy as up to nine neighboring 4x4-chunk tiles around spawn, with one shared texture array and a manifest. Bedrock permits only manifest.json, terrain.vtexarr, and exact tiles/t.X.Z.vtile paths. Responses never include host paths or renderer tokens. Bedrock Nether and End terrain remain unavailable.",
+        "x-notes": "For Java, the agent privately launches bundled Vantage and permits manifest.json, terrain.vtexarr, and exact tiles/t.X.Z.vtile or tiles/lN.X.Z.vlr paths. For Bedrock Overworld, it catalogs all saved 4x4-chunk tiles from one consistent world copy and renders a listed tile on demand. The texture array grows as tiles are rendered. Bedrock permits only manifest.json, terrain.vtexarr, and exact tiles/t.X.Z.vtile paths. Responses never include host paths or renderer tokens. Bedrock Nether and End terrain remain unavailable.",
         "parameters": [
           { "name": "dimension", "in": "query", "required": true, "schema": { "type": "string" } },
           { "name": "path", "in": "query", "required": true, "schema": { "type": "string" } }

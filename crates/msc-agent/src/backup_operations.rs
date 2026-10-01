@@ -397,6 +397,51 @@ pub(crate) fn snapshot_bedrock_world(
     })
 }
 
+pub(crate) fn snapshot_stopped_bedrock_world(
+    server_dir: &Path,
+) -> Result<WorldMapSnapshot, String> {
+    let configured =
+        msc_application::worlds::read_configured_level_name(&StdFileSystem, server_dir)
+            .ok_or("BDS server.properties has no level-name")?;
+    if configured.is_empty()
+        || configured == "."
+        || configured == ".."
+        || configured.contains('/')
+        || configured.contains('\\')
+    {
+        return Err("BDS level-name is not a single safe folder name".to_string());
+    }
+    let world = server_dir.join("worlds").join(configured);
+    if !world.join("level.dat").is_file() || !world.join("db").is_dir() {
+        return Err("configured BDS world has no level.dat or db directory".to_string());
+    }
+    let destination = std::env::temp_dir().join(format!("msc-world-map-{}", Uuid::new_v4()));
+    fs::create_dir(&destination).map_err(|error| error.to_string())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&destination, fs::Permissions::from_mode(0o700))
+            .map_err(|error| error.to_string())?;
+    }
+    let mut bytes = 0;
+    if let Err(error) = copy_snapshot_tree(
+        &world,
+        &destination.join("world"),
+        &mut bytes,
+        Instant::now() + MAP_SNAPSHOT_COPY_LIMIT,
+        &|| false,
+        0,
+    ) {
+        let _ = fs::remove_dir_all(&destination);
+        return Err(format!("BDS stopped-world map copy failed: {error}"));
+    }
+    Ok(WorldMapSnapshot {
+        path: destination.join("world"),
+        bytes,
+        hold_millis: 0,
+    })
+}
+
 /// Captures a Java world only after a forced disk flush has been confirmed
 /// behind save-off on the same MSC-managed run. A missing acknowledgement
 /// fails closed; the guard still sends save-on before the operation ends.

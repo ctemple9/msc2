@@ -1,4 +1,5 @@
 //! Saved Bedrock tiles exported from a consistent BDS copy.
+use std::collections::BTreeSet;
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::{Component, Path, PathBuf};
@@ -50,6 +51,8 @@ struct BedrockTile {
     server_id: String,
     world: PathBuf,
     output: PathBuf,
+    tiles: BTreeSet<String>,
+    source_snapshot: Option<BedrockSnapshot>,
 }
 
 impl Drop for BedrockTile {
@@ -183,21 +186,7 @@ impl BedrockStore {
                 current.pending = None;
             }
             let pack = resource_pack()?;
-            let binary = std::env::var_os("MSC2_BEDROCK_MAP_BIN")
-                .map(PathBuf::from)
-                .or_else(|| {
-                    std::env::current_exe().ok()?.parent().map(|path| {
-                        path.join(if cfg!(windows) {
-                            "bedrock-map.exe"
-                        } else {
-                            "bedrock-map"
-                        })
-                    })
-                })
-                .ok_or("The Bedrock terrain exporter could not be located.")?;
-            if !binary.is_file() {
-                return Err("The Bedrock terrain exporter is missing beside the MSC agent.".into());
-            }
+            let binary = exporter_binary()?;
             let output = std::env::temp_dir().join(format!("msc-bedrock-tile-{}", Uuid::new_v4()));
             fs::create_dir(&output)
                 .map_err(|error| format!("Could not prepare the Bedrock map: {error}"))?;
@@ -207,13 +196,22 @@ impl BedrockStore {
                 fs::set_permissions(&output, fs::Permissions::from_mode(0o700))
                     .map_err(|error| format!("Could not protect the Bedrock map: {error}"))?;
             }
-            let snapshot = if current.pending.is_none() && lifecycle.status_snapshot().running {
-                match crate::backup_operations::snapshot_bedrock_world(
-                    lifecycle.clone(),
-                    server_dir,
-                    || false,
-                ) {
-                    Ok(snapshot) => Some(snapshot),
+            let snapshot = if current.pending.is_none() {
+                let copied = if lifecycle.status_snapshot().running {
+                    crate::backup_operations::snapshot_bedrock_world(
+                        lifecycle.clone(),
+                        server_dir,
+                        || false,
+                    )
+                } else {
+                    crate::backup_operations::snapshot_stopped_bedrock_world(server_dir)
+                };
+                match copied {
+                    Ok(snapshot) => Some(BedrockSnapshot {
+                        server_id: server_id.to_owned(),
+                        world: world.to_owned(),
+                        snapshot,
+                    }),
                     Err(error) => {
                         let _ = fs::remove_dir_all(&output);
                         return Err(error);
@@ -226,10 +224,10 @@ impl BedrockStore {
                 .pending
                 .as_ref()
                 .map(|pending| pending.snapshot.path.as_path())
-                .or_else(|| snapshot.as_ref().map(|snapshot| snapshot.path.as_path()))
+                .or_else(|| snapshot.as_ref().map(|saved| saved.snapshot.path.as_path()))
                 .unwrap_or(world);
             let rendered = Command::new(binary)
-                .arg("grid")
+                .arg("catalog")
                 .arg(source)
                 .arg(&pack)
                 .arg(&output)
@@ -251,28 +249,75 @@ impl BedrockStore {
                         std::thread::sleep(Duration::from_millis(100));
                     }
                 });
-            if let Some(snapshot) = snapshot
-                && let Some(parent) = snapshot.path.parent()
-            {
-                let _ = fs::remove_dir_all(parent);
-            }
             if !rendered.is_ok_and(|success| success) {
                 let _ = fs::remove_dir_all(&output);
-                return Err("The saved Bedrock tile could not be exported. Check the world and resource pack.".into());
+                return Err("The saved Bedrock catalog could not be exported. Check the world and resource pack.".into());
             }
-            current.pending = None;
+            let manifest: serde_json::Value = serde_json::from_slice(
+                &fs::read(output.join("manifest.json")).map_err(|error| error.to_string())?,
+            )
+            .map_err(|error| format!("The Bedrock tile catalog is invalid: {error}"))?;
+            let tiles = manifest["tiles"]
+                .as_array()
+                .ok_or("The Bedrock tile catalog has no tile list.")?
+                .iter()
+                .filter_map(|tile| tile["path"].as_str().map(str::to_owned))
+                .collect();
+            let source_snapshot = current.pending.take().or(snapshot);
             current.tile = Some(BedrockTile {
                 server_id: server_id.to_owned(),
                 world: world.to_owned(),
                 output,
+                tiles,
+                source_snapshot,
             });
         }
-        let path = current
+        let tile = current
             .tile
             .as_ref()
-            .ok_or("The Bedrock tile is unavailable.")?
-            .output
-            .join(artifact);
+            .ok_or("The Bedrock tile is unavailable.")?;
+        let path = tile.output.join(artifact);
+        if artifact.starts_with("tiles/") {
+            if !tile.tiles.contains(artifact) {
+                return Err("This Bedrock tile has no saved chunks.".into());
+            }
+            if !path.is_file() {
+                let name = artifact
+                    .strip_prefix("tiles/t.")
+                    .ok_or("Invalid Bedrock tile path")?;
+                let parts: Vec<_> = name.split('.').collect();
+                let [x, z, "vtile"] = parts.as_slice() else {
+                    return Err("Invalid Bedrock tile path".into());
+                };
+                let x = x
+                    .parse::<i32>()
+                    .map_err(|_| "Invalid Bedrock tile x")?
+                    .checked_mul(4)
+                    .ok_or("Bedrock tile x exceeds world bounds")?;
+                let z = z
+                    .parse::<i32>()
+                    .map_err(|_| "Invalid Bedrock tile z")?
+                    .checked_mul(4)
+                    .ok_or("Bedrock tile z exceeds world bounds")?;
+                let source = tile
+                    .source_snapshot
+                    .as_ref()
+                    .map_or(world, |saved| saved.snapshot.path.as_path());
+                let binary = exporter_binary()?;
+                let pack = resource_pack()?;
+                if !run_exporter(
+                    Command::new(binary)
+                        .arg("tile")
+                        .arg(source)
+                        .arg(pack)
+                        .arg(&tile.output)
+                        .arg(x.to_string())
+                        .arg(z.to_string()),
+                ) {
+                    return Err("The saved Bedrock tile could not be exported.".into());
+                }
+            }
+        }
         let metadata =
             fs::metadata(&path).map_err(|_| "The Bedrock tile artifact is unavailable.")?;
         if metadata.len() > MAX_ARTIFACT as u64 {
@@ -280,6 +325,48 @@ impl BedrockStore {
         }
         fs::read(path).map_err(|error| format!("Could not read the Bedrock tile: {error}"))
     }
+}
+
+fn exporter_binary() -> Result<PathBuf, String> {
+    let binary = std::env::var_os("MSC2_BEDROCK_MAP_BIN")
+        .map(PathBuf::from)
+        .or_else(|| {
+            std::env::current_exe().ok()?.parent().map(|path| {
+                path.join(if cfg!(windows) {
+                    "bedrock-map.exe"
+                } else {
+                    "bedrock-map"
+                })
+            })
+        })
+        .ok_or("The Bedrock terrain exporter could not be located.")?;
+    if !binary.is_file() {
+        return Err("The Bedrock terrain exporter is missing beside the MSC agent.".into());
+    }
+    Ok(binary)
+}
+
+fn run_exporter(command: &mut Command) -> bool {
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .and_then(|mut child| {
+            let started = Instant::now();
+            loop {
+                if let Some(status) = child.try_wait()? {
+                    break Ok(status.success());
+                }
+                if started.elapsed() >= MAX_EXPORT_TIME {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    break Ok(false);
+                }
+                std::thread::sleep(Duration::from_millis(100));
+            }
+        })
+        .unwrap_or(false)
 }
 
 fn resource_pack() -> Result<PathBuf, String> {

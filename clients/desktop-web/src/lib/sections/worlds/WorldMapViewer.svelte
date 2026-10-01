@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { isTauri } from '@tauri-apps/api/core';
+  import { getCurrentWindow, LogicalPosition } from '@tauri-apps/api/window';
   import type { WorldSource } from '@thoughts-on-things/vantage-mc/core';
   import type { VantageViewer } from '@thoughts-on-things/vantage-mc/three';
   import type { Schema, ScreenApi } from '../shared/types';
@@ -26,6 +28,10 @@
   let spawn: { x: number; y: number; z: number } | undefined;
   let message = '';
   let messageTimer: ReturnType<typeof setTimeout> | undefined;
+  let desktopLook = false;
+  let lookClick: { x: number; y: number } | undefined;
+  let warping = false;
+  let ignoreWarp = false;
 
   $: selected = dimensions.find((dimension) => dimension.id === selectedDimension);
 
@@ -36,6 +42,7 @@
   }
 
   function disposeViewer(): void {
+    releaseDesktopLook();
     viewer?.dispose();
     viewer = undefined;
   }
@@ -168,7 +175,84 @@
   }
 
   function leaveFly(): void {
+    releaseDesktopLook();
     viewer?.setFlyMode(false);
+  }
+
+  function releaseDesktopLook(): void {
+    if (!desktopLook) return;
+    desktopLook = false;
+    lookClick = undefined;
+    warping = false;
+    ignoreWarp = false;
+    void getCurrentWindow().setCursorVisible(true).catch(() => {});
+  }
+
+  async function centerDesktopPointer(): Promise<void> {
+    if (!desktopLook || warping) return;
+    warping = true;
+    const rect = canvas.getBoundingClientRect();
+    try {
+      ignoreWarp = true;
+      await getCurrentWindow().setCursorPosition(
+        new LogicalPosition(rect.left + rect.width / 2, rect.top + rect.height / 2),
+      );
+    } catch {
+      releaseDesktopLook();
+      say('Mouse capture is unavailable in this desktop window. Drag to look.');
+    } finally {
+      warping = false;
+    }
+  }
+
+  function beginDesktopLook(event: PointerEvent): void {
+    if (!isTauri() || !viewer?.isFlying || desktopLook || event.button !== 0) return;
+    if (!lookClick || Math.hypot(event.clientX - lookClick.x, event.clientY - lookClick.y) > 3)
+      return;
+    lookClick = undefined;
+    // WebKit in the desktop window does not grant the browser's pointer lock.
+    // Allow that request to complete first, then use window cursor control if needed.
+    setTimeout(async () => {
+      if (!viewer?.isFlying || viewer.controls.isPointerLocked || desktopLook) return;
+      desktopLook = true;
+      try {
+        await getCurrentWindow().setCursorVisible(false);
+        if (!desktopLook) {
+          await getCurrentWindow().setCursorVisible(true);
+          return;
+        }
+        await centerDesktopPointer();
+        if (desktopLook) say('Mouse look active · Esc releases pointer');
+      } catch {
+        releaseDesktopLook();
+        say('Mouse capture is unavailable in this desktop window. Drag to look.');
+      }
+    }, 80);
+  }
+
+  function moveDesktopLook(event: PointerEvent): void {
+    if (!desktopLook || !viewer?.isFlying || viewer.controls.isPointerLocked) return;
+    const rect = canvas.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    if (
+      ignoreWarp &&
+      Math.abs(event.clientX - centerX) < 2 &&
+      Math.abs(event.clientY - centerY) < 2
+    ) {
+      ignoreWarp = false;
+      return;
+    }
+    if (warping) return;
+    const dx = event.clientX - centerX;
+    const dy = event.clientY - centerY;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+    const controls = viewer.controls;
+    const sensitivity = 1.5 / Math.max(canvas.clientHeight, 1);
+    controls.rotation += dx * sensitivity;
+    controls.angle = Math.max(0.02, Math.min(Math.PI - 0.02, controls.angle - dy * sensitivity));
+    viewer.invalidate();
+    void centerDesktopPointer();
   }
 
   function goHome(): void {
@@ -192,6 +276,13 @@
 
   onMount(() => {
     alive = true;
+    const onMove = (event: PointerEvent) => moveDesktopLook(event);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') releaseDesktopLook();
+    };
+    window.addEventListener('pointermove', onMove, true);
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('blur', releaseDesktopLook);
     void loadDimensions();
     frameId = requestAnimationFrame(updateToolbar);
     return () => {
@@ -199,6 +290,9 @@
       ++loadGeneration;
       cancelAnimationFrame(frameId);
       if (messageTimer) clearTimeout(messageTimer);
+      window.removeEventListener('pointermove', onMove, true);
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('blur', releaseDesktopLook);
       disposeViewer();
     };
   });
@@ -230,7 +324,16 @@
   </header>
 
   <div class="map-stage">
-    <div bind:this={canvas} class="map-canvas"></div>
+    <div
+      bind:this={canvas}
+      class="map-canvas"
+      role="application"
+      aria-label="World map camera"
+      onpointerdown={(event) => {
+        lookClick = { x: event.clientX, y: event.clientY };
+      }}
+      onpointerup={beginDesktopLook}
+    ></div>
     {#if !viewer}
       <div class="map-state" role="status">
         <strong>{busy ? 'Preparing map' : (selected?.displayName ?? 'Map unavailable')}</strong>
@@ -274,7 +377,11 @@
         aria-pressed={flying}
         onclick={() => {
           viewer?.toggleFly();
-          if (viewer?.isFlying) say('Click the map to look · WASD move · Space up · Shift down');
+          if (viewer?.isFlying) {
+            viewer.controls.angle = Math.PI / 2 - 0.2;
+            viewer.invalidate();
+            say('Click the map to look · WASD move · Space up · Shift down');
+          } else releaseDesktopLook();
         }}>Fly</button
       >
       <output class="coordinates">{coords}</output>

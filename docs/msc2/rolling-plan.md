@@ -1603,6 +1603,15 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Commit:** P18.9d: render Java 26.x dimensions in MSC
 - **Batch:** B (P18.9) — Java save compatibility
 
+### P18.9e — Make desktop Fly camera controls usable
+
+- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `clients/desktop-web/src-tauri/capabilities/default.json`, `docs/msc2/rolling-plan.md`
+- **What:** Enter Fly with a near-level pitch instead of carrying the steep map angle into first-person movement. In the macOS desktop webview, use Tauri window cursor control when browser pointer lock is unavailable, so a click on the map enables continuous mouse look; Escape, window blur, leaving Fly, and closing the map restore the cursor. Browser pointer lock remains the viewer's normal path.
+- **Verify:** Restart `npx tauri dev` and open a saved Java map in MSC. Select Fly: the view should start nearly level. Click the terrain, move the mouse beyond the former window edge, and confirm the camera keeps turning while WASD/Space/Shift still move. Press Escape and confirm the pointer returns. Repeat after switching 2D/3D and closing the map. Check the browser proof viewer still uses its usual pointer lock.
+- **Commit:** P18.9e: fix desktop fly camera and mouse look
+- **Batch:** B (P18.9) — desktop map controls
+
 ### P18.10 — Connect saved-terrain refresh and live player controls
 
 - **Status:** Planned — owner direction, 2026-09-30

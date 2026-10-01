@@ -1716,6 +1716,15 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Commit:** P18.10e: open saved Bedrock terrain in MSC
 - **Batch:** C (P18.10) — Bedrock map integration
 
+### P18.10f — Show neighboring Bedrock terrain tiles inside MSC
+
+- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Files:** `tools/world-map-proof/src/main.rs`, `tools/world-map-proof/src/render.rs`, `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`, `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/rolling-plan.md`
+- **What:** Export up to nine populated 4×4-chunk tiles in a 3×3 grid around Bedrock world spawn from one saved BDS snapshot. The tiles use one shared texture array, and the agent serves a bounded manifest and only its numbered tile paths. The MSC viewer loads that manifest through Vantage's tiled world source, so panning across neighboring tiles no longer stops at the original 4×4 area. This remains a bounded saved-area view, not full-world paging; refresh and Nether/End terrain remain separate steps.
+- **Verify:** In the consolidated Bedrock runtime check, open a BDS Overworld with saved chunks around spawn in MSC, pan or Fly across a former 4×4 tile edge, and confirm adjacent saved terrain loads with consistent textures and coordinates. The first export can take longer because it prepares several tiles. Check that a request for an unlisted tile returns a clear error and BDS remains writable. Do not run this as another per-flavor check now.
+- **Commit:** P18.10f: show neighboring Bedrock tiles in MSC
+- **Batch:** C (P18.10) — Bedrock map integration
+
 ### P18.10 — Connect saved-terrain refresh and live player controls
 
 - **Status:** Planned — owner direction, 2026-09-30

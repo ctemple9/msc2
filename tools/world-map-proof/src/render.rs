@@ -649,11 +649,56 @@ pub fn render(
     output: &Path,
     registry_status: &str,
 ) -> Result<(), Box<dyn Error>> {
+    let mut textures = Textures::new(pack);
+    render_tile(world, anchor, output, registry_status, &mut textures)?;
+    textures.write(&output.join("terrain.vtexarr"))?;
+    Ok(())
+}
+
+pub fn render_grid(
+    world: &BedrockWorld,
+    anchors: &[(i32, i32)],
+    pack: &Path,
+    output: &Path,
+    spawn: Option<(i32, i32, i32)>,
+) -> Result<(), Box<dyn Error>> {
+    fs::create_dir_all(output.join("tiles"))?;
+    let mut textures = Textures::new(pack);
+    let mut tiles = Vec::new();
+    for &(x, z) in anchors {
+        let tile_dir = output.join(format!("tile_{x}_{z}"));
+        render_tile(world, (x, z), &tile_dir, "provisional", &mut textures)?;
+        let path = format!("tiles/t.{}.{}.vtile", x.div_euclid(4), z.div_euclid(4));
+        let source = tile_dir.join("terrain.vtile");
+        let bytes = fs::metadata(&source)?.len();
+        fs::rename(source, output.join(&path))?;
+        fs::remove_dir_all(tile_dir)?;
+        tiles.push(serde_json::json!({"x": x.div_euclid(4), "z": z.div_euclid(4), "path": path, "bytes": bytes}));
+    }
+    textures.write(&output.join("terrain.vtexarr"))?;
+    fs::write(output.join("manifest.json"), serde_json::to_vec(&serde_json::json!({
+        "format": 1,
+        "tileChunks": 4,
+        "tileBlocks": 64,
+        "textures": "terrain.vtexarr",
+        "biomes": [],
+        "tiles": tiles,
+        "spawn": spawn.map(|(x, y, z)| serde_json::json!({"x": x, "y": y, "z": z})),
+    }))?)?;
+    Ok(())
+}
+
+fn render_tile(
+    world: &BedrockWorld,
+    anchor: (i32, i32),
+    output: &Path,
+    registry_status: &str,
+    textures: &mut Textures,
+) -> Result<(), Box<dyn Error>> {
     let grid = read_grid(world, anchor)?;
     let shapes: Vec<Option<ModelShape>> = grid.states.iter().map(shape_with_lantern_uv).collect();
     let mut solid = Mesh::default();
     let mut fluid = Mesh::default();
-    let mut textures = Textures::new(pack);
     let mut missing_shapes = BTreeMap::<String, usize>::new();
     let mut drawn_logs = 0usize;
     let mut biome_counts = BTreeMap::<u32, usize>::new();
@@ -689,7 +734,7 @@ pub fn render(
                         }
                         face(
                             &mut fluid,
-                            &mut textures,
+                            textures,
                             &state.name,
                             origin,
                             [0.0, 0.0, 0.0],
@@ -729,7 +774,7 @@ pub fn render(
                         }
                         face(
                             &mut solid,
-                            &mut textures,
+                            textures,
                             &state.name,
                             origin,
                             cuboid.min,
@@ -743,7 +788,7 @@ pub fn render(
                 for plane in &shape.planes {
                     emit_plane(
                         &mut solid,
-                        &mut textures,
+                        textures,
                         &state.name,
                         origin,
                         plane.corners,
@@ -767,7 +812,6 @@ pub fn render(
     tile.extend(4u16.to_le_bytes());
     tile.extend(b"none");
     fs::write(output.join("terrain.vtile"), tile)?;
-    textures.write(&output.join("terrain.vtexarr"))?;
     let mut summary = fs::File::create(output.join("summary.txt"))?;
     writeln!(
         summary,

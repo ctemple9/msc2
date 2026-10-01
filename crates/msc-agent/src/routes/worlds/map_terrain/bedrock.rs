@@ -21,7 +21,7 @@ const SAMPLES_URL: &str = "https://github.com/Mojang/bedrock-samples/releases/do
 const SAMPLES_SHA256: &str = "c0b6151f5f9a0c31ebe3c909dfc82d97f12473ed2c6e039aa7e22d667042026c";
 const MAX_DOWNLOAD: u64 = 180 * 1024 * 1024;
 const MAX_EXTRACTED: u64 = 384 * 1024 * 1024;
-const MAX_EXPORT_TIME: Duration = Duration::from_secs(180);
+const MAX_EXPORT_TIME: Duration = Duration::from_secs(600);
 
 #[derive(Clone, Default)]
 pub(crate) struct BedrockStore(Arc<Mutex<Option<BedrockTile>>>);
@@ -51,10 +51,12 @@ pub(super) async fn artifact(
             "Only saved Bedrock Overworld terrain is available in this map.",
         );
     }
-    if !matches!(
-        query.path.as_str(),
-        "terrain.vtile" | "terrain.vtexarr" | "viewer-world.json"
-    ) {
+    if !matches!(query.path.as_str(), "manifest.json" | "terrain.vtexarr")
+        && !matches!(query.path.strip_prefix("tiles/t."), Some(name) if {
+            let parts: Vec<_> = name.split('.').collect();
+            matches!(parts.as_slice(), [x, z, "vtile"] if x.parse::<i32>().is_ok() && z.parse::<i32>().is_ok())
+        })
+    {
         return error_response(
             StatusCode::BAD_REQUEST,
             "invalid_artifact",
@@ -176,6 +178,7 @@ impl BedrockStore {
                 .as_ref()
                 .map_or(world, |snapshot| snapshot.path.as_path());
             let rendered = Command::new(binary)
+                .arg("grid")
                 .arg(source)
                 .arg(&pack)
                 .arg(&output)

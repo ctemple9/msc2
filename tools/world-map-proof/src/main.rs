@@ -189,6 +189,38 @@ fn main() -> Result<(), Box<dyn Error>> {
     if args.get(1).is_some_and(|arg| arg == "compare") {
         return compare_tiles(&args);
     }
+    if args.get(1).is_some_and(|arg| arg == "grid") {
+        let path = Path::new(args.get(2).ok_or("grid requires saved world path")?);
+        let pack = Path::new(args.get(3).ok_or("grid requires resource pack path")?);
+        let output = Path::new(args.get(4).ok_or("grid requires output directory")?);
+        let world = BedrockWorld::open_blocking(path, OpenOptions::default())?;
+        let positions: BTreeSet<_> = world
+            .list_render_chunk_positions_blocking(WorldScanOptions::default())?
+            .into_iter()
+            .filter(|p| p.dimension == Dimension::Overworld)
+            .map(|p| (p.x, p.z))
+            .collect();
+        let spawn = world.read_level_dat_blocking().ok().and_then(|document| {
+            let NbtTag::Compound(root) = document.root else { return None; };
+            let (Some(NbtTag::Int(x)), Some(NbtTag::Int(y)), Some(NbtTag::Int(z))) =
+                (root.get("SpawnX"), root.get("SpawnY"), root.get("SpawnZ")) else { return None; };
+            Some((*x, *y, *z))
+        });
+        let center = spawn.map(|(x, _, z)| (x.div_euclid(64), z.div_euclid(64)))
+            .filter(|&(x, z)| (0..4).any(|dx| (0..4).any(|dz| positions.contains(&(x * 4 + dx, z * 4 + dz)))))
+            .or_else(|| positions.iter().next().map(|&(x, z)| (x.div_euclid(4), z.div_euclid(4))))
+            .ok_or("no saved Overworld chunks")?;
+        let mut anchors = Vec::new();
+        for tx in center.0 - 1..=center.0 + 1 {
+            for tz in center.1 - 1..=center.1 + 1 {
+                let anchor = (tx * 4, tz * 4);
+                if (0..4).any(|dx| (0..4).any(|dz| positions.contains(&(anchor.0 + dx, anchor.1 + dz)))) {
+                    anchors.push(anchor);
+                }
+            }
+        }
+        return render::render_grid(&world, &anchors, pack, output, spawn);
+    }
     let path = args.get(1).ok_or("usage: msc-world-map-proof <offline world copy> <Bedrock resource pack> <private output directory> [chunk-x,chunk-z] [biome-registry.json]")?;
     let world = BedrockWorld::open_blocking(Path::new(&path), OpenOptions::default())?;
     let positions: BTreeSet<_> = world

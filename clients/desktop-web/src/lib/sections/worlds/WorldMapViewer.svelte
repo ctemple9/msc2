@@ -112,33 +112,20 @@
         }
         return asBuffer(bytes);
       };
-      const manifest = serverType === 'bedrock'
-        ? undefined
-        : JSON.parse(new TextDecoder().decode(await read('manifest.json'))) as {
-            spawn?: { x: number; y: number; z: number };
-          };
-      const bedrockMetadata = serverType === 'bedrock'
-        ? JSON.parse(new TextDecoder().decode(await read('viewer-world.json'))) as {
-            spawn?: { x: number; y: number; z: number } | null;
-            chunkOrigin?: [number, number];
-          }
-        : undefined;
+      const manifest = JSON.parse(new TextDecoder().decode(await read('manifest.json'))) as {
+        spawn?: { x: number; y: number; z: number };
+      };
       if (!alive || generation !== loadGeneration) return;
       const { VantageViewer: Viewer, PlayerLayer: Layer } =
         await import('@thoughts-on-things/vantage-mc/three');
       if (!alive || generation !== loadGeneration) return;
       opening = new Viewer(canvas, { players: { enabled: false }, urlState: false });
-      if (serverType === 'bedrock') {
-        const [tile, textures] = await Promise.all([read('terrain.vtile'), read('terrain.vtexarr')]);
-        await opening.load({ tile, textures });
-      } else {
-        const source: WorldSource = {
-          label: `${worldName} · ${entry.displayName}`,
-          manifest: manifest!,
-          fetch: read,
-        };
-        await opening.load({ world: source });
-      }
+      const source: WorldSource = {
+        label: `${worldName} · ${entry.displayName}`,
+        manifest,
+        fetch: read,
+      };
+      await opening.load({ world: source });
       if (!alive || generation !== loadGeneration) return;
       viewer = opening;
       opening = undefined;
@@ -147,16 +134,11 @@
       viewer.controls.addEventListener('start', () => {
         if (followedId) stopFollowing();
       });
-      const worldSpawn = manifest?.spawn ?? bedrockMetadata?.spawn;
-      const origin = bedrockMetadata?.chunkOrigin;
-      const spawnInTile = !origin || (worldSpawn &&
-        worldSpawn.x >= origin[0] * 16 && worldSpawn.x < (origin[0] + 4) * 16 &&
-        worldSpawn.z >= origin[1] * 16 && worldSpawn.z < (origin[1] + 4) * 16);
-      spawn = worldSpawn && spawnInTile &&
-        [worldSpawn.x, worldSpawn.y, worldSpawn.z].every(Number.isFinite)
-          ? worldSpawn : undefined;
+      const worldSpawn = manifest.spawn;
+      spawn = worldSpawn && [worldSpawn.x, worldSpawn.y, worldSpawn.z].every(Number.isFinite)
+        ? worldSpawn : undefined;
       status = serverType === 'bedrock'
-        ? 'Saved Overworld terrain · initial 4×4 chunk area'
+        ? 'Saved Overworld terrain · nearby tiles'
         : `Saved ${entry.displayName} terrain`;
     } catch (error) {
       if (alive && generation === loadGeneration) {

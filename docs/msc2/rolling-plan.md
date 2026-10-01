@@ -1648,6 +1648,15 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Commit:** P18.9i: start streamed-world Fly near terrain
 - **Batch:** B (P18.9) — desktop map controls
 
+### P18.9j — Correct macOS Fly pointer recentering
+
+- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `clients/desktop-web/src-tauri/capabilities/default.json`, `docs/msc2/rolling-plan.md`
+- **What:** Tauri's macOS cursor API measures from the content area, so the previous Fly fallback added the title-bar inset a second time. Center the cursor in content coordinates and discard the first movement event after a warp before resuming relative mouse look. Remove the unused window geometry permissions. Tile geometry and Fly movement both already use the same world X/Z axes.
+- **Verify:** Restart the desktop app, open a Java map, enter Fly, and click to capture the pointer. Aim along a straight block edge, then press W with the mouse still: movement should follow the view without lateral turning. Turn the camera and repeat. Confirm Space and Shift change only height.
+- **Commit:** P18.9j: correct macOS Fly pointer recentering
+- **Batch:** B (P18.9) — desktop map controls
+
 ### P18.10 — Connect saved-terrain refresh and live player controls
 
 - **Status:** Planned — owner direction, 2026-09-30

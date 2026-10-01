@@ -33,6 +33,7 @@
   let lastPointer: { x: number; y: number } | undefined;
   let warping = false;
   let ignoreWarpUntil = 0;
+  let resyncPointer = false;
 
   $: selected = dimensions.find((dimension) => dimension.id === selectedDimension);
 
@@ -208,6 +209,7 @@
     lastPointer = undefined;
     warping = false;
     ignoreWarpUntil = 0;
+    resyncPointer = false;
     void getCurrentWindow()
       .setCursorVisible(true)
       .catch(() => {});
@@ -219,19 +221,14 @@
     const rect = canvas.getBoundingClientRect();
     try {
       const windowHandle = getCurrentWindow();
-      const [inner, outer, scale] = await Promise.all([
-        windowHandle.innerPosition(),
-        windowHandle.outerPosition(),
-        windowHandle.scaleFactor(),
-      ]);
       const center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-      // Pointer events are relative to the WebView; Tauri's cursor position is
-      // relative to the decorated window, including the macOS title bar.
-      const windowX = center.x + (inner.x - outer.x) / scale;
-      const windowY = center.y + (inner.y - outer.y) / scale;
+      // macOS Tauri measures cursor positions from the content area already.
+      // Adding the title-bar inset here moves the cursor away from the map
+      // center and lets the warp appear as an unintended camera turn.
       lastPointer = center;
       ignoreWarpUntil = performance.now() + 120;
-      await windowHandle.setCursorPosition(new LogicalPosition(windowX, windowY));
+      resyncPointer = true;
+      await windowHandle.setCursorPosition(new LogicalPosition(center.x, center.y));
     } catch {
       releaseDesktopLook();
       say('Mouse capture is unavailable in this desktop window. Drag to look.');
@@ -267,6 +264,11 @@
   function moveDesktopLook(event: PointerEvent): void {
     if (!desktopLook || !viewer?.isFlying || viewer.controls.isPointerLocked) return;
     if (warping || performance.now() < ignoreWarpUntil) return;
+    if (resyncPointer) {
+      lastPointer = { x: event.clientX, y: event.clientY };
+      resyncPointer = false;
+      return;
+    }
     if (!lastPointer) {
       lastPointer = { x: event.clientX, y: event.clientY };
       return;

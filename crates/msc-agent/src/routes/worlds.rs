@@ -2494,21 +2494,42 @@ pub async fn refresh_map(
                     let mut details = BTreeMap::new();
                     details.insert("bytesCopied".to_string(), snapshot.bytes.to_string());
                     details.insert("holdMillis".to_string(), snapshot.hold_millis.to_string());
-                    if store
-                        .use_snapshot(server.id, source_world, snapshot)
-                        .is_ok()
+                    match tokio::task::spawn_blocking(move || {
+                        store.use_snapshot(server.id, source_world, snapshot)
+                    })
+                    .await
                     {
-                        let _ = task_lifecycle.operations().succeed(
-                            &task_operation_id,
-                            "Current Bedrock terrain is ready.",
-                            details,
-                        );
-                    } else {
-                        let _ = task_lifecycle.operations().fail(
-                            &task_operation_id,
-                            "renderer_unavailable",
-                            "The saved terrain snapshot could not be selected.".to_string(),
-                        );
+                        Ok(Ok(stats)) => {
+                            details
+                                .insert("tilesReused".to_string(), stats.reused_tiles.to_string());
+                            details.insert(
+                                "tilesChanged".to_string(),
+                                stats.changed_tiles.to_string(),
+                            );
+                            details.insert(
+                                "tilesRemoved".to_string(),
+                                stats.removed_tiles.to_string(),
+                            );
+                            let _ = task_lifecycle.operations().succeed(
+                                &task_operation_id,
+                                "Current Bedrock terrain is ready.",
+                                details,
+                            );
+                        }
+                        Ok(Err(error)) => {
+                            let _ = task_lifecycle.operations().fail(
+                                &task_operation_id,
+                                "renderer_unavailable",
+                                error,
+                            );
+                        }
+                        Err(_) => {
+                            let _ = task_lifecycle.operations().fail(
+                                &task_operation_id,
+                                "renderer_unavailable",
+                                "The Bedrock tile comparison stopped unexpectedly.".to_string(),
+                            );
+                        }
                     }
                 }
                 Ok(Err(error)) => {

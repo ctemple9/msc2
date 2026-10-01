@@ -122,7 +122,7 @@
         "summary": "Capture current terrain for the selected active world",
         "operationId": "refreshWorldMapTerrain",
         "x-permission-category": "worlds",
-        "x-notes": "Starts a bounded, consistent Java or Bedrock world snapshot while the server remains writable. On success, the private renderer switches to the copied world and the client may reload its selected dimension. Operation details report bytes copied and save hold duration, never the private snapshot path.",
+        "x-notes": "Starts a bounded, consistent Java or Bedrock world snapshot while the server remains writable. On success, the private renderer switches to the copied world and the client may reload its selected dimension. Bedrock compares previously rendered tiles across the old and new copies, retains unchanged tile files and texture indices, and renders changed tiles on demand. Operation details report bytes copied, save hold duration, and Bedrock reused/changed/removed tile counts, never the private snapshot path.",
         "responses": {
           "200": {
             "description": "Refresh operation started",

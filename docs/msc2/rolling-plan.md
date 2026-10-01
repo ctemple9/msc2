@@ -1752,6 +1752,15 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Commit:** P18.10i: show saved Bedrock Nether and End terrain
 - **Batch:** C (P18.10) — Bedrock map integration
 
+### P18.10j — Reuse unchanged Bedrock tiles on refresh
+
+- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Files:** `tools/world-map-proof/src/main.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/rolling-plan.md`
+- **What:** After a consistent BDS snapshot, catalog each cached dimension and compare only its previously rendered 4×4 tiles against the new copy. Keep unchanged tile files and their shared texture index; leave changed or newly generated tiles for on-demand rendering. Retire removed tiles. Preserve the prior snapshot and cache if catalog or comparison fails. Refresh operation details record reused, changed, and removed tile counts. The save copy itself remains a full bounded snapshot.
+- **Verify:** In the consolidated Bedrock runtime check, open two distant saved tiles, change a block in one, and refresh. Confirm the changed tile updates, the unchanged tile still displays, both dimensions remain selectable, and BDS accepts new edits. Check the refresh operation details for reused and changed counts. Repeat without edits and confirm already rendered tiles are reused.
+- **Commit:** P18.10j: reuse unchanged Bedrock tiles on refresh
+- **Batch:** C (P18.10) — Bedrock map integration
+
 ### P18.10 — Connect saved-terrain refresh and live player controls
 
 - **Status:** Planned — owner direction, 2026-09-30

@@ -189,6 +189,94 @@ fn compare_tiles(args: &[String]) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn catalog_paths(path: &Path) -> Result<BTreeSet<String>, Box<dyn Error>> {
+    let manifest: serde_json::Value = serde_json::from_slice(&fs::read(path)?)?;
+    let tiles = manifest["tiles"].as_array().ok_or("catalog has no tiles")?;
+    tiles
+        .iter()
+        .map(|tile| {
+            let path = tile["path"].as_str().ok_or("catalog tile has no path")?;
+            tile_origin(path)?;
+            Ok(path.to_owned())
+        })
+        .collect()
+}
+
+fn tile_origin(path: &str) -> Result<(i32, i32), Box<dyn Error>> {
+    let name = path
+        .strip_prefix("tiles/t.")
+        .and_then(|name| name.strip_suffix(".vtile"))
+        .ok_or("invalid catalog tile path")?;
+    let (x, z) = name
+        .split_once('.')
+        .ok_or("invalid catalog tile coordinates")?;
+    let x = x.parse::<i32>()?.checked_mul(4).ok_or("tile x overflow")?;
+    let z = z.parse::<i32>()?.checked_mul(4).ok_or("tile z overflow")?;
+    Ok((x, z))
+}
+
+fn diff_catalogs(args: &[String]) -> Result<(), Box<dyn Error>> {
+    let before = BedrockWorld::open_blocking(
+        Path::new(args.get(2).ok_or("diff requires previous world")?),
+        OpenOptions::default(),
+    )?;
+    let after = BedrockWorld::open_blocking(
+        Path::new(args.get(3).ok_or("diff requires current world")?),
+        OpenOptions::default(),
+    )?;
+    let dimension = map_dimension(args.get(4).ok_or("diff requires dimension")?)?;
+    let old_manifest = Path::new(args.get(5).ok_or("diff requires previous catalog")?);
+    let old = catalog_paths(old_manifest)?;
+    let new = catalog_paths(Path::new(
+        args.get(6).ok_or("diff requires current catalog")?,
+    ))?;
+    let mut unchanged = Vec::new();
+    let mut changed = 0usize;
+    for path in &new {
+        if !old.contains(path) {
+            changed += 1;
+            continue;
+        }
+        if !old_manifest
+            .parent()
+            .ok_or("previous catalog has no directory")?
+            .join(path)
+            .is_file()
+        {
+            continue;
+        }
+        let (x, z) = tile_origin(path)?;
+        let mut dirty = false;
+        for dx in 0..4 {
+            for dz in 0..4 {
+                dirty |= chunk_terrain_changed(
+                    &before,
+                    &after,
+                    ChunkPos {
+                        x: x.checked_add(dx).ok_or("chunk x overflow")?,
+                        z: z.checked_add(dz).ok_or("chunk z overflow")?,
+                        dimension,
+                    },
+                )?;
+            }
+        }
+        if dirty {
+            changed += 1;
+        } else {
+            unchanged.push(path);
+        }
+    }
+    fs::write(
+        Path::new(args.get(7).ok_or("diff requires output path")?),
+        serde_json::to_vec(&serde_json::json!({
+            "unchangedTiles": unchanged,
+            "changedTiles": changed,
+            "removedTiles": old.difference(&new).count(),
+        }))?,
+    )?;
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().collect();
     if args.get(1).is_some_and(|arg| arg == "--version") {
@@ -197,6 +285,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
     if args.get(1).is_some_and(|arg| arg == "compare") {
         return compare_tiles(&args);
+    }
+    if args.get(1).is_some_and(|arg| arg == "diff-catalogs") {
+        return diff_catalogs(&args);
     }
     if args
         .get(1)
@@ -225,9 +316,6 @@ fn main() -> Result<(), Box<dyn Error>> {
             .filter(|p| p.dimension == dimension)
             .map(|p| (p.x.div_euclid(4) * 4, p.z.div_euclid(4) * 4))
             .collect();
-        if anchors.is_empty() {
-            return Err(format!("no saved {dimension_id} chunks").into());
-        }
         let spawn = (dimension == Dimension::Overworld)
             .then(|| world.read_level_dat_blocking().ok())
             .flatten()

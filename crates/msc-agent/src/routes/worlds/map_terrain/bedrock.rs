@@ -52,6 +52,12 @@ struct BedrockTile {
     tiles: BTreeSet<String>,
 }
 
+pub(crate) struct RefreshStats {
+    pub reused_tiles: usize,
+    pub changed_tiles: usize,
+    pub removed_tiles: usize,
+}
+
 impl Drop for BedrockTile {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.output);
@@ -153,7 +159,7 @@ impl BedrockStore {
         server_id: String,
         world: PathBuf,
         snapshot: crate::backup_operations::WorldMapSnapshot,
-    ) -> Result<(), String> {
+    ) -> Result<RefreshStats, String> {
         let pending = BedrockSnapshot {
             server_id,
             world,
@@ -163,9 +169,125 @@ impl BedrockStore {
             .0
             .lock()
             .map_err(|_| "The Bedrock map cache is unavailable.")?;
-        current.tiles.clear();
+        let mut next_tiles = BTreeMap::new();
+        let mut stats = RefreshStats {
+            reused_tiles: 0,
+            changed_tiles: 0,
+            removed_tiles: 0,
+        };
+        if let Some(previous) = current
+            .snapshot
+            .as_ref()
+            .filter(|old| old.server_id == pending.server_id && old.world == pending.world)
+            && !current.tiles.is_empty()
+        {
+            let binary = exporter_binary()?;
+            let pack = resource_pack()?;
+            for (dimension, old) in &current.tiles {
+                let output =
+                    std::env::temp_dir().join(format!("msc-bedrock-tile-{}", Uuid::new_v4()));
+                fs::create_dir(&output).map_err(|error| {
+                    format!("Could not prepare refreshed Bedrock tiles: {error}")
+                })?;
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    fs::set_permissions(&output, fs::Permissions::from_mode(0o700)).map_err(
+                        |error| format!("Could not protect refreshed Bedrock tiles: {error}"),
+                    )?;
+                }
+                let mut next = BedrockTile {
+                    output,
+                    tiles: BTreeSet::new(),
+                };
+                if !run_exporter(
+                    Command::new(&binary)
+                        .arg("catalog")
+                        .arg(&pending.snapshot.path)
+                        .arg(&pack)
+                        .arg(&next.output)
+                        .arg(dimension),
+                ) {
+                    return Err(format!(
+                        "The refreshed {dimension} catalog could not be exported."
+                    ));
+                }
+                let manifest: serde_json::Value = serde_json::from_slice(
+                    &fs::read(next.output.join("manifest.json"))
+                        .map_err(|error| error.to_string())?,
+                )
+                .map_err(|error| format!("The refreshed Bedrock catalog is invalid: {error}"))?;
+                let tiles = manifest["tiles"]
+                    .as_array()
+                    .ok_or("The refreshed Bedrock catalog has no tile list.")?
+                    .iter()
+                    .map(|tile| {
+                        tile["path"]
+                            .as_str()
+                            .filter(|path| valid_tile_path(path))
+                            .map(str::to_owned)
+                            .ok_or("The refreshed Bedrock catalog has an invalid tile path.")
+                    })
+                    .collect::<Result<BTreeSet<_>, _>>()?;
+                let diff_path = next.output.join("diff.json");
+                if !run_exporter(
+                    Command::new(&binary)
+                        .arg("diff-catalogs")
+                        .arg(&previous.snapshot.path)
+                        .arg(&pending.snapshot.path)
+                        .arg(dimension)
+                        .arg(old.output.join("manifest.json"))
+                        .arg(next.output.join("manifest.json"))
+                        .arg(&diff_path),
+                ) {
+                    return Err(format!(
+                        "The refreshed {dimension} chunks could not be compared."
+                    ));
+                }
+                let diff: serde_json::Value = serde_json::from_slice(
+                    &fs::read(&diff_path).map_err(|error| error.to_string())?,
+                )
+                .map_err(|error| format!("The Bedrock tile comparison is invalid: {error}"))?;
+                let unchanged = diff["unchangedTiles"]
+                    .as_array()
+                    .ok_or("The Bedrock tile comparison has no unchanged tile list.")?;
+                for path in unchanged {
+                    let path = path
+                        .as_str()
+                        .filter(|path| {
+                            valid_tile_path(path)
+                                && old.tiles.contains(*path)
+                                && tiles.contains(*path)
+                        })
+                        .ok_or("The Bedrock tile comparison named an invalid tile.")?;
+                    let old_file = old.output.join(path);
+                    if old_file.is_file() {
+                        fs::copy(old_file, next.output.join(path)).map_err(|error| {
+                            format!("Could not keep an unchanged Bedrock tile: {error}")
+                        })?;
+                        stats.reused_tiles += 1;
+                    }
+                }
+                for name in ["terrain.vtexarr", "texture-index.json"] {
+                    fs::copy(old.output.join(name), next.output.join(name))
+                        .map_err(|error| format!("Could not keep Bedrock textures: {error}"))?;
+                }
+                stats.changed_tiles += diff["changedTiles"]
+                    .as_u64()
+                    .ok_or("The Bedrock tile comparison has no changed count.")?
+                    as usize;
+                stats.removed_tiles += diff["removedTiles"]
+                    .as_u64()
+                    .ok_or("The Bedrock tile comparison has no removed count.")?
+                    as usize;
+                let _ = fs::remove_file(diff_path);
+                next.tiles = tiles;
+                next_tiles.insert(dimension.to_owned(), next);
+            }
+        }
+        current.tiles = next_tiles;
         current.snapshot = Some(pending);
-        Ok(())
+        Ok(stats)
     }
 
     fn read(
@@ -276,6 +398,11 @@ impl BedrockStore {
             .tiles
             .get(dimension)
             .ok_or("The Bedrock tile is unavailable.")?;
+        if tile.tiles.is_empty() {
+            return Err(format!(
+                "No saved terrain has been generated in {dimension}."
+            ));
+        }
         let path = tile.output.join(artifact);
         if artifact.starts_with("tiles/") {
             if !tile.tiles.contains(artifact) {
@@ -326,6 +453,19 @@ impl BedrockStore {
         }
         fs::read(path).map_err(|error| format!("Could not read the Bedrock tile: {error}"))
     }
+}
+
+fn valid_tile_path(path: &str) -> bool {
+    let Some(name) = path
+        .strip_prefix("tiles/t.")
+        .and_then(|name| name.strip_suffix(".vtile"))
+    else {
+        return false;
+    };
+    let Some((x, z)) = name.split_once('.') else {
+        return false;
+    };
+    x.parse::<i32>().is_ok() && z.parse::<i32>().is_ok()
 }
 
 fn exporter_binary() -> Result<PathBuf, String> {

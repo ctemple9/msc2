@@ -1659,6 +1659,15 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 **Open camera observation (2026-10-01):** Cameron remains unhappy with Fly camera behavior. He also saw right-facing block sides while 2D was selected; P18.10a changes the 2D button to set exact top-down pitch immediately, pending his visual check.
 
+### P18.9k — Size the embedded map canvas to its viewport
+
+- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Apply the P18.3i Retina canvas fix to MSC's embedded viewer. Vantage sizes its drawing buffer using device pixel ratio but leaves the canvas CSS size unchanged. The resulting oversized canvas is clipped by the map panel, making the camera's true center appear near the lower-right corner even while the toolbar reports the correct world focus. Keep the canvas at the panel's CSS width and height so the full camera image is visible.
+- **Verify:** Reload MSC's world map on the Retina display, select 2D, and center the view on the diamond blocks at X 33, Z 30. Zoom out without panning; the blocks should remain at the viewport center. In Fly mode, aim at a block edge and press W to confirm that travel follows the visible view. Check the browser proof viewer for comparison.
+- **Commit:** P18.9k: size embedded map canvas to viewport
+- **Batch:** B (P18.9) — desktop map controls
+
 ### P18.10a — Refresh embedded Java terrain from a consistent save
 
 - **Status:** Awaiting Cameron verification — implemented 2026-10-01

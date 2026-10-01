@@ -1525,3 +1525,94 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   `allthemodium:the_other`, plus `irons_spellbooks:pocket_dimension`); none
   contains saved `.mca` region chunks yet. A custom-dimension rendering claim
   needs one of those dimensions to be generated and saved first.
+
+### P18.8 — Integrate the map resource API with the Worlds tab
+
+- **Status:** Planned — owner direction, 2026-09-30
+- **Files:** `crates/msc-agent/src/`, `docs/msc2/api-contract/`, `clients/desktop-web/src/`, `docs/msc2/rolling-plan.md`
+- **What:** Replace the proof-only map access with an authenticated, bounded
+  Worlds capability for the selected server and active world. The agent owns
+  save snapshots, dimension discovery, tile/texture reads, and capability
+  explanations; the client sends server/world identifiers rather than paths.
+  Reuse the proven Java safe-snapshot flow and Bedrock snapshot flow behind
+  explicit runtime capabilities. Discover Java dimensions from saved region
+  data, including namespaced custom dimensions, and return a stable dimension
+  ID, display name, and availability state. An empty dimension remains listed
+  as having no saved terrain; this preserves generic custom-dimension support
+  without requiring ATM10 terrain to exist now. Keep player samples separate
+  from terrain snapshots and do not expose player data through tile files.
+- **Verify:** Cameron opens map capability for a selected Java world and BDS
+  world through the authenticated desktop API. Confirm each response is scoped
+  to the selected server/world, standard dimensions are listed, saved custom
+  dimensions are identified by namespace, empty dimensions explain that no
+  chunks are saved, and arbitrary filesystem paths cannot be requested. This
+  advances the in-app map entry promise; the observable result is a bounded,
+  authenticated resource response for each supported runtime. If the API or
+  transport cannot carry Vantage's authenticated reads, stop to adjust the
+  bridge before embedding the viewer.
+- **Batch:** A (P18.8) — authenticated map resource boundary
+
+### P18.9 — Embed saved terrain and dimension selection in Worlds
+
+- **Status:** Planned — owner direction, 2026-09-30
+- **Files:** `clients/desktop-web/src/`, `clients/desktop-web/src-tauri/`, `docs/msc2/rolling-plan.md`
+- **What:** Open the map inside MSC's Worlds tab for the selected active world
+  and return to the same selection on exit. Embed the existing Vantage terrain
+  view through the authenticated bridge and load the selected dimension's
+  saved terrain. Add a dimension picker for Overworld, Nether, End, and any
+  saved custom dimensions; keep dimensions with no saved chunks visible with
+  a clear unavailable state. Retain the owner-selected controls: 2D/3D, free
+  flight with WASD/Space/Shift, XYZ coordinates, zoom, camera capture, and Home
+  to the world's spawn. Use a player panel in the Vantage reference's location.
+  Defer lighting and quality controls. Preserve the selected flavor's proven
+  textures and visible fallbacks for missing models or assets.
+- **Verify:** Cameron opens a Java and BDS world from Worlds, switches between
+  available dimensions, uses each toolbar action, and exits to the same world
+  selection. Confirm Nether and End match the accepted standalone previews;
+  an empty custom dimension is named and explains why it cannot render yet.
+  This advances the in-window terrain exploration promise. If a runtime lacks
+  a dimension or terrain capability, show that reason in the map instead of a
+  misleading blank surface.
+- **Batch:** B (P18.9) — in-window saved terrain
+
+### P18.10 — Connect saved-terrain refresh and live player controls
+
+- **Status:** Planned — owner direction, 2026-09-30
+- **Files:** `crates/msc-agent/src/`, `clients/desktop-web/src/`, `docs/msc2/rolling-plan.md`
+- **What:** Replace proof-only refresh and player-feed calls with the Worlds
+  capability. Refresh the selected dimension from a consistent snapshot while
+  keeping the game writable, and update only affected tiles when possible.
+  Connect the proven Java and BDS live player feeds to the map's roster and
+  models, keeping terrain-save time distinct from player-sample time. Keep
+  Fly and Follow dimension-aware, stop following on stale or missing samples,
+  and never label stored player coordinates as live.
+- **Verify:** Cameron makes one visible terrain change on a Java server and
+  BDS server and confirms it appears after refresh while both servers continue
+  accepting gameplay. Walk, turn, change dimension, and disconnect a player on
+  each runtime; confirm the roster/model follows current samples, dimension
+  transitions fly to the correct terrain, and disconnect clears or marks the
+  player stale. This advances fresh terrain and live-player promises together;
+  record snapshot hold, bytes copied, refresh latency, and player sample age.
+- **Batch:** C (P18.10) — live refresh and players
+
+### P18.11 — Close the integrated map acceptance record
+
+- **Status:** Planned — owner direction, 2026-09-30
+- **Files:** `docs/msc2/rolling-plan.md`, `docs/msc2/msc2-engineering.md`, `docs/msc2/msc2-port-plan.md`
+- **What:** Review the integrated map against the selected runtime matrix and
+  the Worlds-tab UX promise. Record Java and BDS terrain coverage, supported
+  dimensions, capability gaps, model/texture fallbacks, freshness, refresh
+  cost, and resource bounds. Keep ATM10 custom-dimension discovery/rendering
+  in the supported design; defer only its visual proof until that world has
+  saved chunks in a custom dimension. State clearly that a dimension with no
+  saved terrain is discoverable but cannot yet display terrain. Update the
+  proposed Phase 18 exit gate from observed results without claiming universal
+  mod compatibility or an unmeasured resource target.
+- **Verify:** Cameron reviews the complete evidence record and confirms the
+  selected Java/BDS worlds open inside MSC, the controls and clean exit work,
+  terrain updates while servers remain usable, and live roster/Fly/Follow work
+  with fresh samples. Confirm the record names unsupported states and empty
+  custom dimensions explicitly. This advances the final integrated Worlds-map
+  promise; a remaining gap stays visible as a named limitation with a next
+  proof checkpoint.
+- **Batch:** D (P18.11) — acceptance record and gate proposal

@@ -1099,7 +1099,7 @@ pub enum PlayerWhitelistCommand {
 pub enum WorldCommand {
     /// List world slots for the active server.
     List,
-    /// Capture one consistent BDS world copy for the Phase 18 map proof.
+    /// Capture one consistent Java or BDS world copy for the Phase 18 map proof.
     MapSnapshot {
         #[arg(long)]
         no_wait: bool,
@@ -3750,7 +3750,7 @@ async fn run_world(common: CommonArgs, command: WorldCommand) -> Result<(), CliE
                 common.json,
                 no_wait,
                 result["operationId"].as_str().map(str::to_owned),
-                "BDS map snapshot",
+                "world map snapshot",
             )
             .await
         }

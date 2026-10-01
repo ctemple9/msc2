@@ -1479,3 +1479,19 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   The screenshot camera was at Z −71, outside the selected tile's Z range
   −160..−97; the standalone viewer now labels that condition beside the
   coordinates. This proof tile has no neighboring chunks to close its edges.
+
+### P18.6 — Prove live Java saved-terrain refresh
+
+- **Status:** Snapshot endpoint implementation compiles; live proof pending.
+- **What:** Extend the proof-only `world map-snapshot` path to an MSC-managed
+  Java server. Send `save-off`, force `save-all flush`, require its completion
+  line from the same server run, copy the world under the existing time/size
+  limits, and send `save-on` even when capture fails. The normal backup policy
+  remains unchanged. Feed two safe snapshots to Java changed-tile selection.
+- **Verify:** On a 1.21.x and a 26.x Java server, capture before and after a
+  visible block change, select and export only the affected tile, and confirm
+  the viewer updates while the server keeps accepting gameplay. Record the
+  save-off duration, bytes copied, comparison time, export time, and any
+  timeout. A missing flush acknowledgement is a failed capture, not a usable
+  snapshot. Inspect Nether/End and custom dimensions separately before
+  promising them in the integrated map.

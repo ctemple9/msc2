@@ -204,6 +204,7 @@ pub(crate) struct WorldMapSnapshot {
 struct ResumeHeldSave<'a> {
     console: &'a LiveBackupConsole,
     boundary: BackupBoundary,
+    command: &'static str,
     active: bool,
 }
 
@@ -212,7 +213,7 @@ impl ResumeHeldSave<'_> {
         if !self.console.lifecycle.backup_run_matches(&self.boundary) {
             return false;
         }
-        let sent = self.console.send("save resume");
+        let sent = self.console.send(self.command);
         if sent {
             self.active = false;
         }
@@ -347,6 +348,7 @@ pub(crate) fn snapshot_bedrock_world(
     let mut held = ResumeHeldSave {
         console: &console,
         boundary,
+        command: "save resume",
         active: true,
     };
     let (ready, _) = backups::wait_for_bedrock_save_ready(&console);
@@ -386,6 +388,100 @@ pub(crate) fn snapshot_bedrock_world(
         let _ = fs::remove_dir_all(&destination);
         return Err(
             "snapshot copied, but save resume was not dispatched to the same BDS run".to_string(),
+        );
+    }
+    Ok(WorldMapSnapshot {
+        path: destination.join("world"),
+        bytes,
+        hold_millis,
+    })
+}
+
+/// Captures a Java world only after a forced disk flush has been confirmed
+/// behind save-off on the same MSC-managed run. A missing acknowledgement
+/// fails closed; the guard still sends save-on before the operation ends.
+pub(crate) fn snapshot_java_world(
+    lifecycle: LifecycleRoutesState,
+    server_dir: &Path,
+    should_cancel: impl Fn() -> bool,
+) -> Result<WorldMapSnapshot, String> {
+    let configured = msc_application::worlds::read_java_level_name(&StdFileSystem, server_dir)
+        .ok_or("Java server.properties has no level-name")?;
+    if configured.is_empty()
+        || configured == "."
+        || configured == ".."
+        || configured.contains('/')
+        || configured.contains('\\')
+    {
+        return Err("Java level-name is not a single safe folder name".to_string());
+    }
+    let world = server_dir.join(&configured);
+    if !world.join("level.dat").is_file() {
+        return Err("configured Java world has no level.dat".to_string());
+    }
+    let destination = std::env::temp_dir().join(format!("msc-world-map-proof-{}", Uuid::new_v4()));
+    fs::create_dir(&destination).map_err(|error| error.to_string())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&destination, fs::Permissions::from_mode(0o700))
+            .map_err(|error| error.to_string())?;
+    }
+    let started = Instant::now();
+    let console = LiveBackupConsole::new(lifecycle);
+    let boundary = match console.lifecycle.send_backup_command("save-off") {
+        Some(boundary) => boundary,
+        None => {
+            let _ = fs::remove_dir_all(&destination);
+            return Err("could not send save-off to the active Java run".to_string());
+        }
+    };
+    let mut held = ResumeHeldSave {
+        console: &console,
+        boundary,
+        command: "save-on",
+        active: true,
+    };
+    if !console.send("save-all flush") {
+        let resumed = held.resume();
+        let _ = fs::remove_dir_all(&destination);
+        return Err(format!(
+            "could not send Java save-all flush; save-on dispatched: {resumed}"
+        ));
+    }
+    let saved = console.wait_for_line(&|line| {
+        let lower = line.to_ascii_lowercase();
+        lower.contains("saved the game") || lower.contains("saved the world")
+    });
+    if !saved || should_cancel() {
+        let resumed = held.resume();
+        let _ = fs::remove_dir_all(&destination);
+        return Err(format!(
+            "Java flush was not confirmed or snapshot cancelled; save-on dispatched: {resumed}"
+        ));
+    }
+    let mut bytes = 0;
+    let copied = copy_snapshot_tree(
+        &world,
+        &destination.join("world"),
+        &mut bytes,
+        Instant::now() + MAP_SNAPSHOT_COPY_LIMIT,
+        &should_cancel,
+        0,
+    );
+    let hold_millis = started.elapsed().as_millis();
+    let resume_sent = held.resume();
+    drop(held);
+    if let Err(error) = copied {
+        let _ = fs::remove_dir_all(&destination);
+        return Err(format!(
+            "Java snapshot copy failed: {error}; save-on dispatched: {resume_sent}"
+        ));
+    }
+    if !resume_sent {
+        let _ = fs::remove_dir_all(&destination);
+        return Err(
+            "snapshot copied, but save-on was not dispatched to the same Java run".to_string(),
         );
     }
     Ok(WorldMapSnapshot {

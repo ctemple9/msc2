@@ -2321,17 +2321,23 @@ pub async fn snapshot_map_proof(
         Ok(server) => server,
         Err(response) => return response,
     };
-    if server.server_type != ServerType::Bedrock || !lifecycle.status_snapshot().running {
+    if !lifecycle.status_snapshot().running {
         return error_response(
             StatusCode::CONFLICT,
             "conflict",
-            "An MSC-managed BDS server must be running for this snapshot proof.",
+            "An MSC-managed server must be running for this snapshot proof.",
         );
     }
+    let server_type = server.server_type;
+    let kind = if server_type == ServerType::Bedrock {
+        "BDS"
+    } else {
+        "Java"
+    };
     let operation_id = match lifecycle.operations().begin_lifecycle(
         "world-map-proof-snapshot",
         Some(server.id),
-        "Capturing a consistent BDS map snapshot.",
+        &format!("Capturing a consistent {kind} map snapshot."),
     ) {
         Ok(id) => id,
         Err(error) => return crate::routes::operations::operation_error_response(error),
@@ -2343,11 +2349,19 @@ pub async fn snapshot_map_proof(
         let snapshot_lifecycle = task_lifecycle.clone();
         let server_dir = PathBuf::from(server.server_dir);
         let result = tokio::task::spawn_blocking(move || {
-            crate::backup_operations::snapshot_bedrock_world(
-                snapshot_lifecycle,
-                &server_dir,
-                should_cancel,
-            )
+            if server_type == ServerType::Bedrock {
+                crate::backup_operations::snapshot_bedrock_world(
+                    snapshot_lifecycle,
+                    &server_dir,
+                    should_cancel,
+                )
+            } else {
+                crate::backup_operations::snapshot_java_world(
+                    snapshot_lifecycle,
+                    &server_dir,
+                    should_cancel,
+                )
+            }
         })
         .await;
         match result {
@@ -2358,7 +2372,7 @@ pub async fn snapshot_map_proof(
                 details.insert("holdMillis".to_string(), snapshot.hold_millis.to_string());
                 let _ = task_lifecycle.operations().succeed(
                     &task_operation_id,
-                    "BDS map snapshot ready for offline export.",
+                    &format!("{kind} map snapshot ready for offline export."),
                     details,
                 );
             }
@@ -2372,7 +2386,7 @@ pub async fn snapshot_map_proof(
                 let _ = task_lifecycle.operations().fail(
                     &task_operation_id,
                     "snapshot_failed",
-                    "BDS map snapshot task panicked; save resume was attempted.".to_string(),
+                    format!("{kind} map snapshot task panicked; save restoration was attempted."),
                 );
             }
         }

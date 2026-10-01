@@ -1623,11 +1623,20 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.9g — Align MSC Fly heading with the browser viewer
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Status:** Needs correction — Cameron's movement screenshots showed W still drifting sideways, 2026-10-01
 - **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/rolling-plan.md`
 - **What:** Remove MSC's extra downward Fly entry pitch. Start the desktop camera level so its forward heading and the direction in the center of the view agree, as they do in the browser proof viewer.
 - **Verify:** In the running MSC app, reopen a saved map, select Fly, and check that the horizon starts level. Face a distant landmark, press W, and confirm it stays centered while getting closer. Turn with mouse look and repeat. The app and browser proof should now start Fly with the same level heading.
 - **Commit:** P18.9g: align MSC Fly heading with browser viewer
+- **Batch:** B (P18.9) — desktop map controls
+
+### P18.9h — Correct desktop cursor coordinates for Fly look
+
+- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `clients/desktop-web/src-tauri/capabilities/default.json`, `docs/msc2/rolling-plan.md`
+- **What:** The desktop mouse fallback centered the cursor using WebView coordinates even though Tauri expects decorated-window coordinates. Add the native content inset before cursor warps and ignore the synthetic movement while the warp completes. Grant the three window position/scale reads needed for the conversion. Revert the attempted camera-vector W movement, which made Y descend and did not resolve lateral drift.
+- **Verify:** Restart the desktop app so the capability change loads. In MSC Fly mode, click to capture the pointer and aim at a distinctive tree or block near the screen center. Press W repeatedly; the target should grow without the view drifting diagonally. Turn with the mouse, repeat, and check that Space/Shift are the only keys changing Y. Compare the level view with the browser proof.
+- **Commit:** P18.9h: correct desktop Fly cursor coordinates
 - **Batch:** B (P18.9) — desktop map controls
 
 ### P18.10 — Connect saved-terrain refresh and live player controls

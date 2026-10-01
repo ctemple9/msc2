@@ -32,7 +32,7 @@
   let lookClick: { x: number; y: number } | undefined;
   let lastPointer: { x: number; y: number } | undefined;
   let warping = false;
-  let skipWarpMove = false;
+  let ignoreWarpUntil = 0;
 
   $: selected = dimensions.find((dimension) => dimension.id === selectedDimension);
 
@@ -186,7 +186,7 @@
     lookClick = undefined;
     lastPointer = undefined;
     warping = false;
-    skipWarpMove = false;
+    ignoreWarpUntil = 0;
     void getCurrentWindow()
       .setCursorVisible(true)
       .catch(() => {});
@@ -197,17 +197,25 @@
     warping = true;
     const rect = canvas.getBoundingClientRect();
     try {
-      lastPointer = undefined;
-      skipWarpMove = false;
-      await getCurrentWindow().setCursorPosition(
-        new LogicalPosition(rect.left + rect.width / 2, rect.top + rect.height / 2),
-      );
+      const windowHandle = getCurrentWindow();
+      const [inner, outer, scale] = await Promise.all([
+        windowHandle.innerPosition(),
+        windowHandle.outerPosition(),
+        windowHandle.scaleFactor(),
+      ]);
+      const center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      // Pointer events are relative to the WebView; Tauri's cursor position is
+      // relative to the decorated window, including the macOS title bar.
+      const windowX = center.x + (inner.x - outer.x) / scale;
+      const windowY = center.y + (inner.y - outer.y) / scale;
+      lastPointer = center;
+      ignoreWarpUntil = performance.now() + 120;
+      await windowHandle.setCursorPosition(new LogicalPosition(windowX, windowY));
     } catch {
       releaseDesktopLook();
       say('Mouse capture is unavailable in this desktop window. Drag to look.');
     } finally {
       warping = false;
-      if (desktopLook) skipWarpMove = true;
     }
   }
 
@@ -237,12 +245,7 @@
 
   function moveDesktopLook(event: PointerEvent): void {
     if (!desktopLook || !viewer?.isFlying || viewer.controls.isPointerLocked) return;
-    if (warping) return;
-    if (skipWarpMove) {
-      skipWarpMove = false;
-      lastPointer = { x: event.clientX, y: event.clientY };
-      return;
-    }
+    if (warping || performance.now() < ignoreWarpUntil) return;
     if (!lastPointer) {
       lastPointer = { x: event.clientX, y: event.clientY };
       return;

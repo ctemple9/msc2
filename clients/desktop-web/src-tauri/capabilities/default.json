@@ -5,6 +5,9 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:window:allow-inner-position",
+    "core:window:allow-outer-position",
+    "core:window:allow-scale-factor",
     "core:window:allow-set-cursor-position",
     "core:window:allow-set-cursor-visible",
     "dialog:default",

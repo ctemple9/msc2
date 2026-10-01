@@ -303,5 +303,23 @@ fn main() -> Result<(), Box<dyn Error>> {
         Path::new(output),
         &registry_status,
     )?;
+    let world_spawn = world.read_level_dat_blocking().ok().and_then(|document| {
+        let NbtTag::Compound(root) = document.root else {
+            return None;
+        };
+        let (Some(NbtTag::Int(x)), Some(NbtTag::Int(y)), Some(NbtTag::Int(z))) =
+            (root.get("SpawnX"), root.get("SpawnY"), root.get("SpawnZ"))
+        else {
+            return None;
+        };
+        Some(serde_json::json!({ "x": x, "y": y, "z": z }))
+    });
+    fs::write(
+        Path::new(output).join("viewer-world.json"),
+        serde_json::to_vec(&serde_json::json!({
+            "chunkOrigin": [anchor.0, anchor.1],
+            "spawn": world_spawn,
+        }))?,
+    )?;
     Ok(())
 }

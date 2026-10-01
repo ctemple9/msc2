@@ -307,6 +307,7 @@ pub struct WorldsRoutesState {
     pub(crate) staging: StagingStore,
     pub(crate) chunker_download_in_progress: std::sync::Arc<AtomicBool>,
     map_renderer: map_terrain::RendererStore,
+    bedrock_map: map_terrain::bedrock::BedrockStore,
 }
 
 impl WorldsRoutesState {
@@ -317,6 +318,7 @@ impl WorldsRoutesState {
             staging: StagingStore::default(),
             chunker_download_in_progress: std::sync::Arc::new(AtomicBool::new(false)),
             map_renderer: map_terrain::RendererStore::default(),
+            bedrock_map: map_terrain::bedrock::BedrockStore::default(),
         }
     }
 
@@ -326,6 +328,7 @@ impl WorldsRoutesState {
             staging,
             chunker_download_in_progress: std::sync::Arc::new(AtomicBool::new(false)),
             map_renderer: map_terrain::RendererStore::default(),
+            bedrock_map: map_terrain::bedrock::BedrockStore::default(),
         }
     }
 }
@@ -2581,7 +2584,11 @@ pub async fn map_dimensions(
             "The active server has no safe configured world folder.",
         );
     };
-    let world_dir = server_dir.join(level_name);
+    let world_dir = if server.server_type == ServerType::Bedrock {
+        server_dir.join("worlds").join(level_name)
+    } else {
+        server_dir.join(level_name)
+    };
     let world_metadata = match std::fs::symlink_metadata(&world_dir) {
         Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => Some(metadata),
         Ok(_) => {
@@ -2601,7 +2608,7 @@ pub async fn map_dimensions(
         }
     };
     let dimensions = if server.server_type == ServerType::Bedrock {
-        bedrock_map_dimensions(world_metadata.is_some())
+        bedrock_map_dimensions(&world_dir)
     } else {
         match java_map_dimensions(world_dir.as_path(), world_metadata.is_some()) {
             Ok(dimensions) => dimensions,
@@ -2862,7 +2869,8 @@ fn collect_java_dimensions(
     Ok(())
 }
 
-fn bedrock_map_dimensions(world_exists: bool) -> Vec<WorldMapDimensionDto> {
+fn bedrock_map_dimensions(world: &Path) -> Vec<WorldMapDimensionDto> {
+    let ready = world.join("level.dat").is_file() && world.join("db").is_dir();
     [
         ("minecraft:overworld", "Overworld"),
         ("minecraft:the_nether", "The Nether"),
@@ -2872,12 +2880,19 @@ fn bedrock_map_dimensions(world_exists: bool) -> Vec<WorldMapDimensionDto> {
     .map(|(id, display_name)| WorldMapDimensionDto {
         id: id.to_string(),
         display_name: display_name.to_string(),
-        state: "not_indexed".to_string(),
-        region_file_count: 0,
-        reason: Some(if world_exists {
-            "Bedrock dimensions are stored as LevelDB chunk records and are not indexed by this directory catalog.".to_string()
+        state: if id == "minecraft:overworld" && ready {
+            "ready"
         } else {
-            "World terrain has not been created yet; Bedrock chunk records are not indexed by this directory catalog.".to_string()
+            "not_indexed"
+        }
+        .to_string(),
+        region_file_count: 0,
+        reason: Some(if id != "minecraft:overworld" {
+            "Bedrock Nether and End terrain are not available in the embedded map yet.".to_string()
+        } else if ready {
+            "The initial map covers one saved 4×4 chunk area.".to_string()
+        } else {
+            "This Bedrock world has no saved level.dat and LevelDB terrain yet.".to_string()
         }),
     })
     .collect()

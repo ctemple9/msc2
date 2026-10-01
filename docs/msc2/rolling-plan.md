@@ -1707,6 +1707,15 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Commit:** P18.10d: package Bedrock terrain exporter with agent
 - **Batch:** C (P18.10) — Bedrock map integration
 
+### P18.10e — Open a saved Bedrock Overworld tile inside MSC
+
+- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Files:** `tools/world-map-proof/src/main.rs`, `crates/msc-agent/Cargo.toml`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/worlds/map_terrain.rs`, `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`, `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/rolling-plan.md`
+- **What:** The Worlds-authorized terrain route exports one saved 4×4-chunk Bedrock Overworld area using the packaged exporter and returns only its bounded tile, texture, and spawn metadata artifacts. A running BDS world is copied behind `save hold`/`save resume` before export; a stopped world is read from its saved files. The embedded viewer loads that single tile with the same map controls and live player layer. Home reaches spawn when it lies in that tile. MSC obtains Mojang's pinned Bedrock sample textures on first use, verifies the archive SHA-256, extracts only texture files into private app data, and permits a local `MSC2_BEDROCK_RESOURCE_PACK` override. No Minecraft images enter the MSC package or repository. Nether/End terrain, wider tile coverage, and embedded Bedrock terrain refresh remain open; this step does not claim them.
+- **Verify:** During the consolidated Bedrock runtime check, run `npx tauri dev`, repair/restart the agent, then open an existing BDS world in Worlds. The first Overworld load may download textures; confirm one textured saved area appears, 2D/3D/Fly controls operate, and the running server still accepts changes. A missing network or mismatched asset archive must produce a clear map error, not a fabricated tile. Defer this physical check until Cameron's chosen batch.
+- **Commit:** P18.10e: open saved Bedrock terrain in MSC
+- **Batch:** C (P18.10) — Bedrock map integration
+
 ### P18.10 — Connect saved-terrain refresh and live player controls
 
 - **Status:** Planned — owner direction, 2026-09-30

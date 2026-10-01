@@ -70,7 +70,7 @@
         "summary": "List dimensions discovered for the selected active world",
         "operationId": "getWorldMapDimensions",
         "x-permission-category": "worlds",
-        "x-notes": "Returns dimension IDs and save-directory availability, never host paths. Java region folders are counted from both supported save layouts and namespaced dimensions are discovered. Bedrock's LevelDB chunk records are explicitly reported as not indexed by this filesystem-only catalog.",
+        "x-notes": "Returns dimension IDs and saved-terrain availability, never host paths. Java region folders are counted from both supported save layouts and namespaced dimensions are discovered. A Bedrock world with level.dat and a LevelDB directory exposes one initial Overworld tile; Bedrock Nether and End terrain remain unavailable.",
         "responses": {
           "200": {
             "description": "Discovered dimensions for the selected active world",
@@ -99,10 +99,10 @@
     },
     "/v1/worlds/map/terrain": {
       "get": {
-        "summary": "Fetch a bounded saved Java terrain artifact for an active world dimension",
+        "summary": "Fetch a bounded saved terrain artifact for an active world dimension",
         "operationId": "getWorldMapTerrainArtifact",
         "x-permission-category": "worlds",
-        "x-notes": "The agent privately launches one bundled Vantage renderer for the selected active Java world and a cataloged dimension. Only manifest.json, terrain.vtexarr, and exact tiles/t.X.Z.vtile or tiles/lN.X.Z.vlr paths are allowed. Responses never include host paths or the renderer bearer token. Bedrock remains proof-only.",
+        "x-notes": "For Java, the agent privately launches bundled Vantage and permits manifest.json, terrain.vtexarr, and exact tiles/t.X.Z.vtile or tiles/lN.X.Z.vlr paths. For Bedrock Overworld, it exports a consistent saved copy as one tile and permits only terrain.vtile, terrain.vtexarr, and viewer-world.json. Responses never include host paths or renderer tokens. Bedrock Nether and End terrain remain unavailable.",
         "parameters": [
           { "name": "dimension", "in": "query", "required": true, "schema": { "type": "string" } },
           { "name": "path", "in": "query", "required": true, "schema": { "type": "string" } }

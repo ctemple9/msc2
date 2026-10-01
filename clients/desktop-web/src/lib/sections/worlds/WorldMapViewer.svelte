@@ -99,7 +99,9 @@
       return;
     }
     busy = true;
-    status = `Loading ${entry.displayName}…`;
+    status = serverType === 'bedrock'
+      ? 'Preparing saved Bedrock terrain and verified textures…'
+      : `Loading ${entry.displayName}…`;
     let opening: VantageViewer | undefined;
     try {
       const read = async (path: string, signal?: AbortSignal): Promise<ArrayBuffer> => {
@@ -110,20 +112,33 @@
         }
         return asBuffer(bytes);
       };
-      const manifest = JSON.parse(new TextDecoder().decode(await read('manifest.json'))) as {
-        spawn?: { x: number; y: number; z: number };
-      };
+      const manifest = serverType === 'bedrock'
+        ? undefined
+        : JSON.parse(new TextDecoder().decode(await read('manifest.json'))) as {
+            spawn?: { x: number; y: number; z: number };
+          };
+      const bedrockMetadata = serverType === 'bedrock'
+        ? JSON.parse(new TextDecoder().decode(await read('viewer-world.json'))) as {
+            spawn?: { x: number; y: number; z: number } | null;
+            chunkOrigin?: [number, number];
+          }
+        : undefined;
       if (!alive || generation !== loadGeneration) return;
-      const source: WorldSource = {
-        label: `${worldName} · ${entry.displayName}`,
-        manifest,
-        fetch: read,
-      };
       const { VantageViewer: Viewer, PlayerLayer: Layer } =
         await import('@thoughts-on-things/vantage-mc/three');
       if (!alive || generation !== loadGeneration) return;
       opening = new Viewer(canvas, { players: { enabled: false }, urlState: false });
-      await opening.load({ world: source });
+      if (serverType === 'bedrock') {
+        const [tile, textures] = await Promise.all([read('terrain.vtile'), read('terrain.vtexarr')]);
+        await opening.load({ tile, textures });
+      } else {
+        const source: WorldSource = {
+          label: `${worldName} · ${entry.displayName}`,
+          manifest: manifest!,
+          fetch: read,
+        };
+        await opening.load({ world: source });
+      }
       if (!alive || generation !== loadGeneration) return;
       viewer = opening;
       opening = undefined;
@@ -132,12 +147,17 @@
       viewer.controls.addEventListener('start', () => {
         if (followedId) stopFollowing();
       });
-      spawn =
-        manifest.spawn &&
-        [manifest.spawn.x, manifest.spawn.y, manifest.spawn.z].every(Number.isFinite)
-          ? manifest.spawn
-          : undefined;
-      status = `Saved ${entry.displayName} terrain`;
+      const worldSpawn = manifest?.spawn ?? bedrockMetadata?.spawn;
+      const origin = bedrockMetadata?.chunkOrigin;
+      const spawnInTile = !origin || (worldSpawn &&
+        worldSpawn.x >= origin[0] * 16 && worldSpawn.x < (origin[0] + 4) * 16 &&
+        worldSpawn.z >= origin[1] * 16 && worldSpawn.z < (origin[1] + 4) * 16);
+      spawn = worldSpawn && spawnInTile &&
+        [worldSpawn.x, worldSpawn.y, worldSpawn.z].every(Number.isFinite)
+          ? worldSpawn : undefined;
+      status = serverType === 'bedrock'
+        ? 'Saved Overworld terrain · initial 4×4 chunk area'
+        : `Saved ${entry.displayName} terrain`;
     } catch (error) {
       if (alive && generation === loadGeneration) {
         status = error instanceof Error ? error.message : 'Saved terrain could not be loaded.';
@@ -166,12 +186,6 @@
       }
       serverType = catalog.serverType;
       dimensions = catalog.dimensions;
-      if (serverType === 'bedrock') {
-        status =
-          'Bedrock terrain is available in the proof viewer; integration into MSC is still in progress.';
-        busy = false;
-        return;
-      }
       const preferred =
         dimensions.find(
           (dimension) => dimension.id === 'minecraft:overworld' && dimension.state === 'ready',

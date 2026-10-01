@@ -1,4 +1,5 @@
 //! Authenticated, bounded access to one private Vantage Java renderer.
+pub(super) mod bedrock;
 mod java_terrain_compat;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -95,11 +96,7 @@ pub(super) async fn artifact(
         Err(response) => return response,
     };
     if server.server_type == ServerType::Bedrock {
-        return error_response(
-            StatusCode::NOT_IMPLEMENTED,
-            "renderer_unavailable",
-            "Bedrock terrain rendering is not integrated yet.",
-        );
+        return bedrock::artifact(&state, &server, &query, content_type).await;
     }
     let server_dir = PathBuf::from(&server.server_dir);
     let Some(level_name) =
@@ -200,6 +197,8 @@ fn is_direct_child(parent: &Path, child: &Path) -> bool {
 fn artifact_type(path: &str) -> Option<&'static str> {
     match path {
         "manifest.json" => return Some("application/json"),
+        "viewer-world.json" => return Some("application/json"),
+        "terrain.vtile" => return Some("application/octet-stream"),
         "terrain.vtexarr" => return Some("application/octet-stream"),
         _ => {}
     }

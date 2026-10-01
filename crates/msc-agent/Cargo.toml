@@ -30,10 +30,10 @@ image = { version = "0.25", default-features = false, features = ["gif", "jpeg",
 ureq = "3"
 fastnbt = "2"
 flate2 = "1"
+zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["test-util"] }
-zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 

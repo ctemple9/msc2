@@ -1377,9 +1377,9 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.4 — Prove Java terrain rendering before MSC integration
 
-- **Status:** Representative Java Overworld rendering and live saved-terrain
-  refresh accepted; Nether ceiling presentation and custom dimensions remain
-  outside the accepted scope before MSC integration.
+- **Status:** Representative Java Overworld, Nether, and End rendering accepted
+  across the old and new save layouts. ATM10 custom dimensions have no saved
+  region chunks yet; custom-dimension rendering remains unproven.
 - **What:** Use one read-only Java Anvil terrain pipeline and the existing
   standalone 3D viewer. Test distinct Minecraft data versions, save layouts,
   and block asset sets rather than treating each server flavor as a separate
@@ -1426,7 +1426,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   checker placeholder for their unsupported entity renderer. Fabric, Forge,
   and NeoForge smoke exports also had 16/16 chunks and no unresolved models or
   textures. Paper Nether and End tiles exported 16/16 chunks separately;
-  Nether ceiling presentation and custom dimensions are not yet accepted.
+  their visuals were later accepted alongside the Purpur 1.21.11 previews.
   The private reports and tiles are under `/private/tmp/msc-java-terrain-proof`.
   Cameron subsequently accepted the ATM10 tile and the other Java previews.
 - **Offline change-selection evidence (2026-09-30):** A Paper 26.2 region
@@ -1481,8 +1481,9 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 ### P18.6 — Prove live Java saved-terrain refresh
 
 - **Status:** Overworld live snapshot and changed-tile proof accepted on Purpur
-  1.21.11 and Vanilla 26.3. Nether, End, and custom dimensions remain separate
-  scope; no integrated MSC map is claimed yet.
+  1.21.11 and Vanilla 26.3. Nether and End terrain visuals are accepted in both
+  save layouts; live refresh in those dimensions and modded custom dimensions
+  have not been proven.
 - **What:** Extend the proof-only `world map-snapshot` path to an MSC-managed
   Java server. Send `save-off`, force `save-all flush`, require its completion
   line from the same server run, copy the world under the existing time/size
@@ -1509,3 +1510,15 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   ready in 3,254 ms at `/private/tmp/msc-java-live-proof/vanilla-change`.
   Cameron confirmed the new block appears in the viewer and Vanilla continues
   accepting block changes.
+- **Dimension sample preparation (2026-09-30):** Purpur already had saved
+  Nether and End chunks, so no in-game travel was needed. I assembled the
+  best fully populated 4×4 tile across region boundaries in scratch copies;
+  both exports have 16/16 chunks and use the 1.21.11 assets. They are at
+  `/private/tmp/msc-java-terrain-proof/pupur-1.21.11-the_nether-full` and
+  `/private/tmp/msc-java-terrain-proof/pupur-1.21.11-the_end-full`.
+  Cameron accepted both Purpur 1.21.11 dimension previews and both existing
+  Paper 26.2 dimension previews. ATM10 has five custom dimension directories
+  (`ae2:spatial_storage`, `allthemodium:mining`, `allthemodium:the_beyond`,
+  `allthemodium:the_other`, plus `irons_spellbooks:pocket_dimension`); none
+  contains saved `.mca` region chunks yet. A custom-dimension rendering claim
+  needs one of those dimensions to be generated and saved first.

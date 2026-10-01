@@ -1450,9 +1450,9 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.5 — Shape the standalone viewer controls before MSC integration
 
-- **Status:** Scoped — implement in the standalone proof viewer next, while
-  keeping Java live snapshot and refresh proof as a separate gate before MSC
-  integration.
+- **Status:** Implemented in the standalone proof viewer; visual interaction
+  review remains. Java live snapshot and refresh proof remains a separate gate
+  before MSC integration.
 - **What:** Use Vantage's dark, translucent map UI as a visual reference. Add a
   compact bottom toolbar for 2D/3D view, creative-style free flight (WASD,
   Space up, Shift down), coordinates, zoom, camera capture, and Home to world
@@ -1464,3 +1464,9 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   player panel. Check desktop and narrow layouts. Home needs the selected
   world's actual spawn coordinates from its save metadata, not an assumed
   origin.
+- **Implementation:** Added a dark bottom toolbar, a right-side player list,
+  Vantage's existing top-down/tilted/free-flight controls, coordinate display,
+  zoom buttons, and PNG capture. Java proof preparation now writes spawn
+  metadata. Home uses spawn when it is in the loaded 4×4 tile; otherwise it
+  returns to the loaded tile's starting view and explains why. The standalone
+  proof viewer still renders only one tile at a time.

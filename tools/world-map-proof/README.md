@@ -891,6 +891,12 @@ cd /Users/camerontemple/msc2-world-map/tools/world-map-proof/viewer
 MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-java-terrain-proof/atm10-1.21.1 npm run dev
 ```
 
+The standalone viewer has 2D and 3D map views, free flight (click the map to
+look; WASD move; Space up; Shift down), coordinates, zoom, PNG capture, and
+Home. Java preparation writes `viewer-world.json` with world spawn. Home goes
+to spawn when that position is inside the loaded 4×4 tile, otherwise to the
+tile's starting view; whole-world navigation awaits streamed tiles.
+
 Change the output directory to `vanilla-26.3`, `paper-26.2`, or
 `pupur-1.21.11` for the other full tiles. This viewer currently retains the
 Bedrock player-feed middleware, so the player indicator can be unavailable

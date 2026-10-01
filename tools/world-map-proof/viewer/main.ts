@@ -10,8 +10,19 @@ const roster = document.querySelector<HTMLElement>('#player-roster');
 const playerCount = document.querySelector<HTMLOutputElement>('#player-count');
 const rosterEmpty = document.querySelector<HTMLParagraphElement>('#roster-empty');
 const playerList = document.querySelector<HTMLUListElement>('#player-list');
+const view2d = document.querySelector<HTMLButtonElement>('#view-2d');
+const view3d = document.querySelector<HTMLButtonElement>('#view-3d');
+const viewFly = document.querySelector<HTMLButtonElement>('#view-fly');
+const coordinates = document.querySelector<HTMLOutputElement>('#map-coordinates');
+const zoomOut = document.querySelector<HTMLButtonElement>('#zoom-out');
+const zoomIn = document.querySelector<HTMLButtonElement>('#zoom-in');
+const homeButton = document.querySelector<HTMLButtonElement>('#map-home');
+const cameraButton = document.querySelector<HTMLButtonElement>('#map-camera');
+const toolbarMessage = document.querySelector<HTMLOutputElement>('#toolbar-message');
 if (!container || !revisionInput || !replaceButton || !status || !playerStatus
-  || !roster || !playerCount || !rosterEmpty || !playerList) {
+  || !roster || !playerCount || !rosterEmpty || !playerList || !view2d || !view3d
+  || !viewFly || !coordinates || !zoomOut || !zoomIn || !homeButton || !cameraButton
+  || !toolbarMessage) {
   throw new Error('Proof viewer controls missing');
 }
 
@@ -20,6 +31,90 @@ const viewer = await VantageViewer.mount(container, {
   textures: '/terrain.vtexarr',
 });
 status.value = 'Initial saved terrain loaded';
+const startingView = {
+  position: viewer.controls.position.clone(),
+  distance: viewer.controls.distance,
+  rotation: viewer.controls.rotation,
+  angle: viewer.controls.angle,
+  floorY: viewer.controls.floorY,
+};
+let homeView = startingView;
+let homeIsSpawn = false;
+void fetch('/viewer-world.json', { cache: 'no-store' }).then(async (response) => {
+  if (!response.ok) return;
+  const metadata = await response.json() as {
+    spawn?: { x: number; y: number; z: number } | null;
+    chunkOrigin?: [number, number];
+  };
+  const spawn = metadata.spawn;
+  const origin = metadata.chunkOrigin;
+  if (!spawn || !origin || ![spawn.x, spawn.y, spawn.z].every(Number.isFinite)) return;
+  if (spawn.x < origin[0] * 16 || spawn.x >= (origin[0] + 4) * 16
+      || spawn.z < origin[1] * 16 || spawn.z >= (origin[1] + 4) * 16) return;
+  const position = startingView.position.clone().set(spawn.x + 0.5, spawn.y, spawn.z + 0.5);
+  homeView = { ...startingView, position, floorY: spawn.y };
+  homeIsSpawn = true;
+  homeButton.title = 'Return to world spawn';
+}).catch(() => { /* Older proof tiles have no spawn metadata. */ });
+homeButton.title = 'Return to the loaded tile (spawn outside this tile)';
+const navigation = document.querySelector<HTMLElement>('#map-toolbar');
+navigation?.addEventListener('pointerdown', (event) => event.stopPropagation());
+function notifyToolbar(message: string) {
+  toolbarMessage.value = message;
+  window.setTimeout(() => {
+    if (toolbarMessage.value === message) toolbarMessage.value = '';
+  }, 3500);
+}
+function leaveFly() {
+  if (viewer.controls.mode === 'fly') viewer.setFlyMode(false);
+}
+view2d.addEventListener('click', () => {
+  stopFollowing();
+  leaveFly();
+  viewer.flatten();
+  viewer.invalidate();
+});
+view3d.addEventListener('click', () => {
+  stopFollowing();
+  leaveFly();
+  viewer.setTilt(0.42);
+  viewer.invalidate();
+});
+viewFly.addEventListener('click', () => {
+  stopFollowing();
+  viewer.toggleFly();
+  viewer.invalidate();
+  if (viewer.isFlying) notifyToolbar('Click the map to look around · WASD move · Space up · Shift down');
+});
+zoomOut.addEventListener('click', () => { viewer.controls.zoom(-1); viewer.invalidate(); });
+zoomIn.addEventListener('click', () => { viewer.controls.zoom(1); viewer.invalidate(); });
+homeButton.addEventListener('click', () => {
+  stopFollowing();
+  leaveFly();
+  viewer.controls.animateTo(homeView);
+  viewer.invalidate();
+  if (!homeIsSpawn) notifyToolbar('Spawn is outside this loaded tile; returned to the tile view');
+});
+cameraButton.addEventListener('click', () => {
+  const link = document.createElement('a');
+  link.href = viewer.screenshot();
+  link.download = `msc-world-${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
+  link.click();
+  notifyToolbar('Screenshot saved');
+});
+function updateToolbar() {
+  const controls = viewer.controls;
+  const point = controls.mode === 'fly' ? viewer.camera.position : controls.position;
+  coordinates.value = `XYZ ${Math.floor(point.x)}, ${Math.floor(point.y)}, ${Math.floor(point.z)}`;
+  viewFly.classList.toggle('active', controls.mode === 'fly');
+  view3d.classList.toggle('active', controls.mode === 'map' && controls.angle > 0.08);
+  view2d.classList.toggle('active', controls.mode === 'map' && controls.angle <= 0.08);
+  viewFly.setAttribute('aria-pressed', String(controls.mode === 'fly'));
+  view3d.setAttribute('aria-pressed', String(controls.mode === 'map' && controls.angle > 0.08));
+  view2d.setAttribute('aria-pressed', String(controls.mode === 'map' && controls.angle <= 0.08));
+  requestAnimationFrame(updateToolbar);
+}
+requestAnimationFrame(updateToolbar);
 const players = new PlayerLayer({ scene: viewer.scene, camera: viewer.camera });
 let displayedRoster = '';
 let followingId: string | null = null;
@@ -182,7 +277,7 @@ async function refreshPlayers() {
       followingId = null;
       players.setFollowed(null);
     }
-    playerStatus.value = `${next.players.length} live Bedrock player${next.players.length === 1 ? '' : 's'}`;
+    playerStatus.value = `${next.players.length} live player${next.players.length === 1 ? '' : 's'}`;
     renderRoster(localPlayers);
   } catch {
     players.setSnapshot({ source: 'host', updated: 0, players: [] }, performance.now());

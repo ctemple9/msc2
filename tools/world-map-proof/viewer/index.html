@@ -1,14 +1,32 @@
 <!doctype html>
 <html lang="en">
-  <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>MSC BDS terrain proof</title></head>
+  <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>MSC World Viewer</title></head>
   <body>
     <div id="viewer"></div>
-    <aside>Saved BDS terrain · drag to orbit · scroll to zoom<br><output id="player-status" aria-live="polite">Connecting to live player feed…</output></aside>
+    <div id="viewer-brand">MSC <span>WORLD VIEWER</span></div>
+    <aside id="viewer-status">Saved terrain · drag to pan · right-drag to orbit<br><output id="player-status" aria-live="polite">Connecting to live player feed…</output></aside>
     <section id="player-roster" aria-label="Live players">
       <header><h1>Players</h1><output id="player-count">0</output></header>
       <p id="roster-empty">Waiting for live players</p>
       <ul id="player-list"></ul>
     </section>
+    <nav id="map-toolbar" aria-label="Map controls">
+      <div class="tool-group" role="group" aria-label="View mode">
+        <button id="view-2d" type="button" title="Top-down view">2D</button>
+        <button id="view-3d" type="button" title="Tilted view">3D</button>
+        <button id="view-fly" type="button" title="Fly: WASD, Space up, Shift down">Fly</button>
+      </div>
+      <output id="map-coordinates" aria-label="Map coordinates">XYZ —</output>
+      <div class="tool-group" role="group" aria-label="Zoom">
+        <button id="zoom-out" type="button" title="Zoom out">−</button>
+        <button id="zoom-in" type="button" title="Zoom in">+</button>
+      </div>
+      <div class="tool-group" role="group" aria-label="Map actions">
+        <button id="map-home" type="button" title="Return to spawn or loaded tile">Home</button>
+        <button id="map-camera" type="button" title="Save screenshot">Camera</button>
+      </div>
+    </nav>
+    <output id="toolbar-message" aria-live="polite"></output>
     <form id="revision-control" onsubmit="return false">
       <label for="revision">Saved terrain revision</label>
       <input id="revision" autocomplete="off" placeholder="after" />

@@ -14,7 +14,7 @@ import re
 import struct
 import zlib
 
-from nbtlib import File
+from nbtlib import File, load
 from nbtlib.tag import Compound, List, String
 
 
@@ -50,6 +50,19 @@ def overworld_region(world: Path, chunk_x: int, chunk_z: int) -> tuple[Path, str
         if path.is_file():
             return path, layout
     raise ValueError(f"no Overworld region {region_name} in either Java save layout")
+
+
+def world_spawn(world: Path) -> dict[str, int] | None:
+    data = load(world / "level.dat")["Data"]
+    modern = data.get("spawn")
+    if modern is not None and "pos" in modern and len(modern["pos"]) == 3:
+        if str(modern.get("dimension", "minecraft:overworld")) != "minecraft:overworld":
+            return None
+        return dict(zip(("x", "y", "z"), (int(value) for value in modern["pos"])))
+    if all(key in data for key in ("SpawnX", "SpawnY", "SpawnZ")):
+        return {axis: int(data[key]) for axis, key in
+                (("x", "SpawnX"), ("y", "SpawnY"), ("z", "SpawnZ"))}
+    return None
 
 
 def chunk_payload(region: bytes, local_x: int, local_z: int) -> tuple[int, bytes] | None:
@@ -240,6 +253,9 @@ def main() -> int:
                                        (args.chunk_x + AREA - 1) % 32,
                                        (args.chunk_z + AREA - 1) % 32]})
         (output_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+        (output_dir / "viewer-world.json").write_text(json.dumps({
+            "chunkOrigin": summary["chunkOrigin"], "spawn": world_spawn(world),
+        }, indent=2) + "\n")
         print(json.dumps({key: value for key, value in summary.items()
                           if key not in ("blockIds", "blockStates")}, indent=2))
     except (OSError, ValueError, KeyError, zlib.error) as error:

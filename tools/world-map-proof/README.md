@@ -922,3 +922,20 @@ PYTHONPATH=/private/tmp/msc-java-pydeps python3 \
 The helper does not make snapshots. Do not point it at a server's live region
 file: a safe Java snapshot boundary and live saved-terrain refresh still need
 proof. Modded regions use the staged assets and `--flatten-mod-namespaces`.
+
+The proof-only `world map-snapshot` endpoint now has a Java capture path. With
+an MSC-managed Java server running and its updated agent installed, run:
+
+```sh
+MSC2_DATA_DIR="$HOME/Library/Application Support/MSC 2" \
+  target/debug/msc --json world map-snapshot
+```
+
+The result's `worldPath` is a private offline copy. Java capture sends
+`save-off`, forces `save-all flush`, requires a completion line from that same
+server run, copies the world, then sends `save-on`. It fails rather than using
+an unconfirmed copy. The command supports either root `region/` (1.21.x) or
+`dimensions/minecraft/overworld/region/` (26.x) inside `worldPath`. Pass the
+matching region file from two snapshots to `export_changed_java_tile.py`.
+This protocol still requires live acceptance on both save layouts before it
+is used for the integrated map.

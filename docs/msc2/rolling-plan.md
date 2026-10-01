@@ -1639,6 +1639,15 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Commit:** P18.9h: correct desktop Fly cursor coordinates
 - **Batch:** B (P18.9) — desktop map controls
 
+### P18.9i — Enter Fly near terrain from a streamed-world overview
+
+- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** The browser proof frames a small tile near terrain, while MSC opens a streamed world from a high overview. Entering Fly preserved that distant overview eye, producing the steep aerial angle Cameron showed (MSC Y 386 versus proof Y 107). When the eye is more than 32 blocks above terrain at the current map focus, place it two blocks above that terrain and start with a level pitch. Keep close views where they are.
+- **Verify:** Open a saved Java world in MSC, select Fly from the initial overview, and confirm the camera starts near ground instead of hundreds of blocks above it. Face a block near the center, move with W, then turn with mouse look and use Space/Shift. Check that switching to Fly from an already close map view stays nearby.
+- **Commit:** P18.9i: start streamed-world Fly near terrain
+- **Batch:** B (P18.9) — desktop map controls
+
 ### P18.10 — Connect saved-terrain refresh and live player controls
 
 - **Status:** Planned — owner direction, 2026-09-30

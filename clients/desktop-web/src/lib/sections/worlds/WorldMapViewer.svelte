@@ -180,6 +180,27 @@
     viewer?.setFlyMode(false);
   }
 
+  function toggleFly(): void {
+    if (!viewer) return;
+    const controls = viewer.controls;
+    const focus = controls.position.clone();
+    const groundY = controls.heightAt?.(focus.x, focus.z) ?? focus.y;
+    viewer.toggleFly();
+    if (!viewer.isFlying) {
+      releaseDesktopLook();
+      return;
+    }
+    // A streamed world opens in a high overview. Keeping that eye position
+    // when entering Fly starts hundreds of blocks above the terrain, unlike
+    // the close-up proof tile. Begin near the map focus at player eye height.
+    if (controls.position.y - groundY > 32) {
+      controls.position.set(focus.x, groundY + 2, focus.z);
+    }
+    controls.angle = Math.PI / 2;
+    viewer.invalidate();
+    say('Click the map to look · WASD move · Space up · Shift down');
+  }
+
   function releaseDesktopLook(): void {
     if (!desktopLook) return;
     desktopLook = false;
@@ -392,16 +413,7 @@
         class:chosen={flying}
         disabled={!viewer}
         aria-pressed={flying}
-        onclick={() => {
-          viewer?.toggleFly();
-          if (viewer?.isFlying) {
-            // Match the browser proof's level Fly view. The old downward offset
-            // made W (which follows the viewer's horizontal heading) feel skewed.
-            viewer.controls.angle = Math.PI / 2;
-            viewer.invalidate();
-            say('Click the map to look · WASD move · Space up · Shift down');
-          } else releaseDesktopLook();
-        }}>Fly</button
+        onclick={toggleFly}>Fly</button
       >
       <output class="coordinates">{coords}</output>
       <button

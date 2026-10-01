@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_ROOT="/usr/lib/msc2"
 INSTALL_BIN="$INSTALL_ROOT/msc"
 VANTAGE_BIN="$INSTALL_ROOT/vantage"
+BEDROCK_MAP_BIN="$INSTALL_ROOT/bedrock-map"
 INSTALL_MODE_MARKER="$INSTALL_ROOT/.msc2-installation-mode"
 PATH_DIR="/usr/local/bin"
 PATH_LINK="$PATH_DIR/msc"
@@ -86,6 +87,7 @@ DATA_DIR="${DATA_DIR_OVERRIDE:-$INSTALLING_HOME/.local/share/msc2}"
 for required in \
   "$SCRIPT_DIR/msc" \
   "$SCRIPT_DIR/vantage" \
+  "$SCRIPT_DIR/bedrock-map" \
   "$SCRIPT_DIR/VANTAGE-LICENSE.txt" \
   "$SCRIPT_DIR/systemd/com.ctemple.msc2.agent.service.in" \
   "$SCRIPT_DIR/systemd/msc2-credential-helper.socket.in" \
@@ -168,6 +170,7 @@ fi
 install -d -m 0755 -o root -g root "$INSTALL_ROOT"
 install -m 0755 -o root -g root "$SCRIPT_DIR/msc" "$INSTALL_BIN"
 install -m 0755 -o root -g root "$SCRIPT_DIR/vantage" "$VANTAGE_BIN"
+install -m 0755 -o root -g root "$SCRIPT_DIR/bedrock-map" "$BEDROCK_MAP_BIN"
 install -m 0644 -o root -g root "$SCRIPT_DIR/VANTAGE-LICENSE.txt" "$INSTALL_ROOT/VANTAGE-LICENSE.txt"
 printf 'standalone-archive\n' > "$INSTALL_MODE_MARKER"
 chown root:root "$INSTALL_MODE_MARKER"

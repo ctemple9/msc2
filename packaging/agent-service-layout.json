@@ -13,9 +13,11 @@
       "manager": "launchd LaunchDaemon",
       "agentPath": "MSC 2.app/Contents/Resources/agent/msc",
       "worldMapRendererPath": "MSC 2.app/Contents/Resources/agent/vantage",
+      "bedrockMapRendererPath": "MSC 2.app/Contents/Resources/agent/bedrock-map",
       "sidecarPath": "MSC 2.app/Contents/Resources/agent/sidecar",
       "headlessAgentPath": "agent/msc",
       "headlessWorldMapRendererPath": "agent/vantage",
+      "headlessBedrockMapRendererPath": "agent/bedrock-map",
       "headlessSidecarPath": "agent/sidecar",
       "bedrock": {
         "backend": "intel-vm-sidecar",
@@ -45,6 +47,7 @@
       "manager": "Windows Service",
       "agentPath": "agent/msc.exe",
       "worldMapRendererPath": "agent/vantage.exe",
+      "bedrockMapRendererPath": "agent/bedrock-map.exe",
       "sidecarPath": null,
       "bedrock": {
         "backend": "native",
@@ -64,6 +67,7 @@
       "credentialStorePath": "/var/lib/msc2/credentials",
       "agentPath": "../lib/MSC 2/agent/msc",
       "worldMapRendererPath": "../lib/MSC 2/agent/vantage",
+      "bedrockMapRendererPath": "../lib/MSC 2/agent/bedrock-map",
       "developmentAgentPath": "../lib/MSC 2/agent/dev-builds/<sha256>/msc",
       "developmentAgentSource": "~/.local/share/msc2/agent/builds/<sha256>/msc",
       "sidecarPath": null,

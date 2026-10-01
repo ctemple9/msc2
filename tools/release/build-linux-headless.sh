@@ -26,6 +26,8 @@ VERSION="$(awk -F'"' '/^[[:space:]]*version[[:space:]]*=/ { print $2; exit }' "$
 
 cd "$WORKSPACE_ROOT"
 cargo build --release --locked --no-default-features --target "$RUST_TARGET" -p msc-agent
+cargo build --release --locked --target "$RUST_TARGET" \
+  --manifest-path "$WORKSPACE_ROOT/tools/world-map-proof/Cargo.toml"
 
 SOURCE_BINARY="$WORKSPACE_ROOT/target/$RUST_TARGET/release/msc"
 [[ -x "$SOURCE_BINARY" ]] || fail "release binary is missing: $SOURCE_BINARY"
@@ -36,6 +38,8 @@ ARCHIVE="$OUTPUT_ROOT/msc2-headless-${VERSION}-linux-x86_64.tar.gz"
 mkdir -p "$PLATFORM_DIR" "$PACKAGE_ROOT/systemd"
 install -m 0755 "$SOURCE_BINARY" "$PLATFORM_DIR/msc"
 install -m 0755 "$SOURCE_BINARY" "$PACKAGE_ROOT/msc"
+install -m 0755 "$WORKSPACE_ROOT/tools/world-map-proof/target/$RUST_TARGET/release/msc-world-map-proof" \
+  "$PACKAGE_ROOT/bedrock-map"
 python3 "$WORKSPACE_ROOT/tools/release/stage-vantage.py" \
   --platform linux-x86_64 --output-dir "$PACKAGE_ROOT"
 install -m 0755 "$WORKSPACE_ROOT/packaging/linux/install.sh" "$PACKAGE_ROOT/install.sh"

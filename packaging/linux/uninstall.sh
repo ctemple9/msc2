@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_ROOT="/usr/lib/msc2"
 INSTALL_BIN="$INSTALL_ROOT/msc"
 VANTAGE_BIN="$INSTALL_ROOT/vantage"
+BEDROCK_MAP_BIN="$INSTALL_ROOT/bedrock-map"
 INSTALL_MODE_MARKER="$INSTALL_ROOT/.msc2-installation-mode"
 PATH_LINK="/usr/local/bin/msc"
 UNIT_DIR="/etc/systemd/system"
@@ -56,6 +57,7 @@ rm -f \
   "$TMPFILES_DIR/$TMPFILES_UNIT" \
   "$INSTALL_BIN" \
   "$VANTAGE_BIN" \
+  "$BEDROCK_MAP_BIN" \
   "$INSTALL_ROOT/VANTAGE-LICENSE.txt" \
   "$INSTALL_MODE_MARKER"
 

@@ -182,6 +182,10 @@ fn compare_tiles(args: &[String]) -> Result<(), Box<dyn Error>> {
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().collect();
+    if args.get(1).is_some_and(|arg| arg == "--version") {
+        println!("msc-bedrock-map {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
     if args.get(1).is_some_and(|arg| arg == "compare") {
         return compare_tiles(&args);
     }

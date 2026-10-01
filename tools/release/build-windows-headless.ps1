@@ -24,6 +24,10 @@ if ([string]::IsNullOrWhiteSpace($version)) {
 Push-Location $workspaceRoot
 try {
     cargo build --release --no-default-features --target $rustTarget -p msc-agent
+    cargo build --release --locked --target $rustTarget --manifest-path (Join-Path $workspaceRoot 'tools/world-map-proof/Cargo.toml')
+    if ($LASTEXITCODE -ne 0) {
+        Fail 'could not build the Bedrock terrain exporter'
+    }
     if (-not (Test-Path -Path $sourceBinary -PathType Leaf)) {
         Fail "release binary is missing: $sourceBinary"
     }
@@ -36,6 +40,11 @@ try {
     New-Item -ItemType Directory -Force -Path $platformDirectory, $packageRoot | Out-Null
     Copy-Item $sourceBinary (Join-Path $platformDirectory 'msc.exe')
     Copy-Item $sourceBinary (Join-Path $packageRoot 'msc.exe')
+    $bedrockMap = Join-Path $workspaceRoot "tools/world-map-proof/target/$rustTarget/release/msc-world-map-proof.exe"
+    if (-not (Test-Path -LiteralPath $bedrockMap -PathType Leaf)) {
+        Fail "Bedrock terrain exporter is missing: $bedrockMap"
+    }
+    Copy-Item $bedrockMap (Join-Path $packageRoot 'bedrock-map.exe')
     $vantageStager = Join-Path $workspaceRoot 'tools/release/stage-vantage.py'
     & python $vantageStager --platform windows-x86_64 --output-dir $packageRoot
     if ($LASTEXITCODE -ne 0) {

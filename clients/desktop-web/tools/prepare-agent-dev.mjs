@@ -19,6 +19,7 @@ const source = join(workspaceRoot, 'target', profile, agentName);
 const destinationRoot = join(clientRoot, 'src-tauri', 'target');
 const packageAgentDirectory = join(destinationRoot, 'package', 'agent');
 const vantageName = process.platform === 'win32' ? 'vantage.exe' : 'vantage';
+const bedrockMapName = process.platform === 'win32' ? 'bedrock-map.exe' : 'bedrock-map';
 
 const applianceChecksums = {
   'vmlinuz-kata': '85ac495fce6bb6ee01206c8e022b65acad45ca3fcc2729ba377af33943c8b05e',
@@ -46,6 +47,7 @@ stageFile(source, destination);
 stageFile(source, join(packageAgentDirectory, agentName));
 console.log(`staged ${profile} msc-agent ${version} at ${destination}`);
 stageVantage();
+stageBedrockMap();
 
 if (process.platform === 'darwin' && process.arch === 'x64') {
   stageMacosSidecar();
@@ -156,6 +158,32 @@ function stageVantage() {
   console.log(`staged Vantage ${vantagePlatform} beside the ${profile} agent`);
 }
 
+function stageBedrockMap() {
+  const manifest = join(workspaceRoot, 'tools', 'world-map-proof', 'Cargo.toml');
+  const built = spawnSync(
+    'cargo',
+    ['build', '--locked', '--manifest-path', manifest, ...cargoProfileArguments],
+    { cwd: workspaceRoot, stdio: 'inherit' },
+  );
+  if (built.status !== 0) fail('could not build the Bedrock terrain exporter');
+  const binary = join(
+    workspaceRoot,
+    'tools',
+    'world-map-proof',
+    'target',
+    profile,
+    process.platform === 'win32' ? 'msc-world-map-proof.exe' : 'msc-world-map-proof',
+  );
+  if (!existsSync(binary)) fail(`Bedrock terrain exporter is missing: ${binary}`);
+  const runtimeDirectory =
+    process.platform === 'darwin'
+      ? join(destinationRoot, 'Resources', 'agent')
+      : join(destinationRoot, profile, 'agent');
+  stageFile(binary, join(packageAgentDirectory, bedrockMapName));
+  stageFile(binary, join(runtimeDirectory, bedrockMapName));
+  console.log(`staged Bedrock terrain exporter beside the ${profile} agent`);
+}
+
 function verifySidecarEntitlement(sidecarPath) {
   const verification = spawnSync('codesign', ['-d', '--entitlements', ':-', sidecarPath], {
     encoding: 'utf8',
@@ -179,6 +207,9 @@ function stageFile(sourcePath, destinationPath) {
     chmodSync(destinationPath, 0o755);
   }
   if (process.platform !== 'win32' && destinationPath.endsWith('/vantage')) {
+    chmodSync(destinationPath, 0o755);
+  }
+  if (process.platform !== 'win32' && destinationPath.endsWith('/bedrock-map')) {
     chmodSync(destinationPath, 0o755);
   }
   if (process.platform !== 'win32' && destinationPath.endsWith('/BedrockSidecar')) {

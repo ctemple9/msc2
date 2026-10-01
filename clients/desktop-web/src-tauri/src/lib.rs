@@ -1255,7 +1255,21 @@ fn stage_packaged_agent_once() -> Result<PathBuf, String> {
             renderer.display()
         ));
     }
-    stage_packaged_agent(&source, &renderer, &agent_data_directory()?)
+    #[cfg(target_os = "linux")]
+    let bedrock_map = renderer.with_file_name("bedrock-map");
+    #[cfg(not(target_os = "linux"))]
+    let bedrock_map = source.with_file_name(if cfg!(target_os = "windows") {
+        "bedrock-map.exe"
+    } else {
+        "bedrock-map"
+    });
+    if !bedrock_map.is_file() {
+        return Err(format!(
+            "The Bedrock terrain exporter is missing from the desktop package at {}. Reinstall this desktop app before repairing the agent.",
+            bedrock_map.display()
+        ));
+    }
+    stage_packaged_agent(&source, &renderer, &bedrock_map, &agent_data_directory()?)
 }
 
 #[cfg(any(not(target_os = "linux"), debug_assertions))]
@@ -1267,15 +1281,20 @@ fn refresh_staged_packaged_agent_path() -> Result<PathBuf, String> {
 fn stage_packaged_agent(
     source: &Path,
     renderer: &Path,
+    bedrock_map: &Path,
     data_directory: &Path,
 ) -> Result<PathBuf, String> {
     let source_bytes = std::fs::read(source)
         .map_err(|error| format!("Could not read the packaged agent: {error}"))?;
     let renderer_bytes = std::fs::read(renderer)
         .map_err(|error| format!("Could not read the packaged terrain renderer: {error}"))?;
+    let bedrock_map_bytes = std::fs::read(bedrock_map).map_err(|error| {
+        format!("Could not read the packaged Bedrock terrain exporter: {error}")
+    })?;
     let mut hasher = Sha256::new();
     hasher.update(&source_bytes);
     hasher.update(&renderer_bytes);
+    hasher.update(&bedrock_map_bytes);
     let digest = hex_lower(&hasher.finalize());
     let file_name = source
         .file_name()
@@ -1287,11 +1306,16 @@ fn stage_packaged_agent(
             .file_name()
             .ok_or_else(|| "The packaged terrain renderer path has no file name.".to_string())?,
     );
+    let bedrock_map_destination =
+        build_directory.join(bedrock_map.file_name().ok_or_else(|| {
+            "The packaged Bedrock terrain exporter path has no file name.".to_string()
+        })?);
 
     std::fs::create_dir_all(&build_directory)
         .map_err(|error| format!("Could not create the packaged agent directory: {error}"))?;
     stage_packaged_executable(source, &destination, &source_bytes)?;
     stage_packaged_executable(renderer, &renderer_destination, &renderer_bytes)?;
+    stage_packaged_executable(bedrock_map, &bedrock_map_destination, &bedrock_map_bytes)?;
     Ok(destination)
 }
 

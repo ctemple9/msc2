@@ -1698,6 +1698,15 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Verify:** In MSC, stop Vanilla if it is still running, select and start the existing Purpur 1.21.11 server, open its Overworld map, join using Minecraft 1.21.11, and confirm the player appears and moves in the roster/model. Place a distinctive block, refresh terrain, confirm the block appears and gameplay still works, then disconnect and confirm the marker clears. If saved Nether or End terrain is present, check that the map opens that dimension. This advances the visible promise that the supported legacy Java save layout refreshes and tracks live players inside MSC; report any missing chunks, stale player state, or renderer/refresh error as a blocker before expanding to other Java flavors.
 - **Batch:** C (P18.10) — Java runtime compatibility
 
+### P18.10d — Deliver the Bedrock terrain exporter with MSC
+
+- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Files:** `tools/world-map-proof/src/main.rs`, `clients/desktop-web/tools/prepare-agent-dev.mjs`, `clients/desktop-web/src-tauri/src/lib.rs`, `packaging/agent-service-layout.json`, `packaging/{linux,macos,windows}/`, `tools/release/build-{linux,macos,windows}-headless.*`, `docs/msc2/rolling-plan.md`
+- **What:** Build the proven Bedrock tile exporter as `bedrock-map` alongside the desktop agent and in headless archives. Agent repair copies it into the versioned agent directory, and the build digest changes when the exporter changes. Headless installers install and remove the same binary. The exporter identifies its version with `--version`. Bedrock resource-pack textures remain a separate asset-discovery prerequisite; Minecraft image assets are not bundled here. This step delivers the executable but does not yet expose Bedrock terrain in the Worlds map.
+- **Verify:** On the development Mac, run the staged `bedrock-map --version` executable and confirm its version. Review the staged desktop and headless package paths. Keep Bedrock map runtime checks in the consolidated batch rather than asking Cameron to repeat them by server flavor.
+- **Commit:** P18.10d: package Bedrock terrain exporter with agent
+- **Batch:** C (P18.10) — Bedrock map integration
+
 ### P18.10 — Connect saved-terrain refresh and live player controls
 
 - **Status:** Planned — owner direction, 2026-09-30

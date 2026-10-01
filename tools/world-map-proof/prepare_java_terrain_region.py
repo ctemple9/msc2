@@ -101,6 +101,19 @@ def legacy_palette_entry(entry, flatten_mod_namespaces: bool = False) -> Compoun
         if not isinstance(properties, Compound):
             raise ValueError("new block palette properties are malformed")
         result["Properties"] = properties
+    elif str(name).startswith("minecraft:"):
+        # 26.3 omits default-valued properties. Vantage cannot infer them and
+        # otherwise chooses the first blockstate variant, which can rotate a
+        # vertical trunk (or deepslate) sideways.
+        block = str(name).split(":", 1)[1]
+        if block.endswith(("_log", "_wood", "_stem", "_hyphae")) or block == "deepslate":
+            result["Properties"] = Compound({"axis": String("y")})
+        elif block == "grass_block":
+            result["Properties"] = Compound({"snowy": String("false")})
+        elif block in ("tall_grass", "tall_seagrass"):
+            result["Properties"] = Compound({"half": String("lower")})
+        elif block.endswith("_amethyst_bud"):
+            result["Properties"] = Compound({"facing": String("up")})
     return result
 
 

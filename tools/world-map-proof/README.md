@@ -823,7 +823,9 @@ Use the Vantage 0.15.1 CLI and matching Minecraft client assets. The helper
 copies only one selected 4×4-chunk area to `/private/tmp`; it reads the stopped
 server's Anvil region and never writes to a world. Minecraft 26.3 stores block
 palette names under `id` (and sometimes an empty key), so the helper converts
-those names to the older `Name`/`Properties` form in the scratch copy. Vantage
+those names to the older `Name`/`Properties` form in the scratch copy and
+restores omitted default properties for observed vanilla states such as
+upright logs. Vantage
 0.15.1 reads 1.21.1 through 26.2 directly but treats unconverted 26.3 chunks
 as air. The helper requires pinned `nbtlib`:
 

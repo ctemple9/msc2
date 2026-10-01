@@ -1437,5 +1437,12 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   and export path only. It does not establish a safe live Java snapshot,
   server availability during capture, or visual acceptance. Cameron deferred
   the ATM10 visual review until later.
+- **Visual review follow-up (2026-09-30):** Cameron accepted the other Java
+  previews but reported sideways tree logs in Vanilla 26.3. The new 26.3
+  palette omits default `axis=y`; Vantage picked the first horizontal variant
+  when the scratch converter left the state empty. The converter now restores
+  omitted defaults for logs and other observed vanilla states. A corrected
+  Vanilla tile at `/private/tmp/msc-java-terrain-proof/vanilla-26.3-defaults-fix`
+  exported with 16/16 chunks. Cameron's visual recheck is pending.
 - **Batch:** solo — finish Java and Bedrock rendering evidence before MSC UI
   integration

@@ -1377,8 +1377,9 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.4 — Prove Java terrain rendering before MSC integration
 
-- **Status:** Planned — Cameron directed completion of rendering proofs before
-  embedding the viewer in MSC
+- **Status:** In progress — all seven selected Java Overworld saves now have
+  complete 4×4 offline exports; visual comparison and live Java saved-terrain
+  refresh remain before MSC integration
 - **What:** Use one read-only Java Anvil terrain pipeline and the existing
   standalone 3D viewer. Test distinct Minecraft data versions, save layouts,
   and block asset sets rather than treating each server flavor as a separate
@@ -1408,5 +1409,25 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
   not used as the 26.2 representative.
   Choose implementation checkpoints after reviewing each result; this matrix
   is the acceptance gate before the first MSC Worlds-tab integration.
+- **Evidence so far (2026-09-30):** A read-only Anvil helper selected 16/16
+  chunks in each server and emitted scratch regions. Purpur 1.21.11 uses root
+  `region/` (DataVersion 4671); Paper, Fabric, and NeoForge 26.2 use the new
+  Overworld layout (4903); Vanilla and Forge 26.3 use the new layout (5023).
+  Vantage 0.15.1 misreads 26.3's new `id` palette entries as air; normalizing
+  them in the scratch region restored 28,927 non-air blocks in a sampled chunk
+  and produced complete Vanilla and Forge exports. None of the server saves
+  were modified. The four full tile exports had 16 loaded/0 missing and ran
+  in 0.07–0.13 s with 22–35 MB maximum resident set size on this Mac.
+  Distinct saved-state audit: Purpur 49 modeled/0 missing textures; Paper 88/0;
+  Vanilla 80/0 with 3 states having no JSON geometry; ATM10 Lite 159 modeled
+  exactly, 14 states with missing textures, 0 unresolved models. ATM10's tile
+  contains 64 Croptopia crop blocks plus mod ores; 13 Xycraft ore states refer
+  to an absent `cloudfx` sprite (851 saved blocks), and 2 Lootr chests use a
+  checker placeholder for their unsupported entity renderer. Fabric, Forge,
+  and NeoForge smoke exports also had 16/16 chunks and no unresolved models or
+  textures. Paper Nether and End tiles exported 16/16 chunks separately;
+  Nether ceiling presentation and custom dimensions are not yet accepted.
+  The private reports and tiles are under `/private/tmp/msc-java-terrain-proof`.
+  Cameron's visual review of the ATM10 tile is pending.
 - **Batch:** solo — finish Java and Bedrock rendering evidence before MSC UI
   integration

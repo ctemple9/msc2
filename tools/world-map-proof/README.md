@@ -816,3 +816,81 @@ terrain camera behavior returns when the lock ends. A player who leaves or
 whose feed becomes stale is removed from the roster and follow ends. This proof
 roster covers the active BDS feed only; it does not establish Java players,
 skins, or the final MSC Worlds-tab layout.
+
+## Java terrain proof (P18.4)
+
+Use the Vantage 0.15.1 CLI and matching Minecraft client assets. The helper
+copies only one selected 4×4-chunk area to `/private/tmp`; it reads the stopped
+server's Anvil region and never writes to a world. Minecraft 26.3 stores block
+palette names under `id` (and sometimes an empty key), so the helper converts
+those names to the older `Name`/`Properties` form in the scratch copy. Vantage
+0.15.1 reads 1.21.1 through 26.2 directly but treats unconverted 26.3 chunks
+as air. The helper requires pinned `nbtlib`:
+
+```sh
+cd /Users/camerontemple/msc2-world-map
+python3 -m pip install --target /private/tmp/msc-java-pydeps \
+  -r tools/world-map-proof/requirements-java-terrain.txt
+PYTHONPATH=/private/tmp/msc-java-pydeps python3 \
+  tools/world-map-proof/prepare_java_terrain_region.py \
+  --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/vanilla" \
+  --chunk-x 6 --chunk-z -10 \
+  --output-dir /private/tmp/msc-java-terrain-proof/vanilla-26.3
+/private/tmp/msc-vantage-bin/vantage meshtex \
+  /private/tmp/msc-java-terrain-proof/vanilla-26.3/r.0.-1.mca \
+  /private/tmp/msc-java-terrain-proof/vanilla-26.3/terrain.vtile \
+  "$HOME/.cache/vantage/assets/minecraft-26.3-client/assets/minecraft" \
+  6 22 9 25 --light smooth --biome-blend on
+```
+
+Vantage's `meshtex` range uses region-local coordinates. The summary records
+both global chunk origin and local range. `summary.json` also lists actual
+block-state counts; `audit_java_terrain_assets.py` runs Vantage's own resolver
+for each distinct saved state and records exact, missing-model, missing-texture,
+no-geometry, and fluid/air counts. Those are saved block/state counts, not
+visible-face counts. A block entity may intentionally have no JSON geometry.
+
+The modded proof uses ATM10 Lite client jars to stage their blockstates, models,
+and textures. Vantage 0.15.1 strips resource namespaces, so the scratch region
+and asset stage rename mod IDs and references together. `lootr:lootr_chest`
+uses a client-side entity renderer and is explicitly shown as a missing-texture
+checker in this proof. Xycraft's `cloudfx` sprite is absent from the installed
+client jars; affected faces also use the checker. This preserves a visible,
+counted limitation instead of inventing a plausible texture:
+
+```sh
+PYTHONPATH=/private/tmp/msc-java-pydeps python3 \
+  tools/world-map-proof/prepare_java_terrain_region.py \
+  --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/all_the_mods_10_lite" \
+  --chunk-x 0 --chunk-z 0 --flatten-mod-namespaces \
+  --output-dir /private/tmp/msc-java-terrain-proof/atm10-1.21.1
+python3 tools/world-map-proof/stage_java_mod_assets.py \
+  --vanilla-assets "$HOME/.cache/vantage/assets/minecraft-1.21.1-client/assets/minecraft" \
+  --client-mods "$HOME/Library/Application Support/PrismLauncher/instances/All The Mods 10 LITE-1.1.0/minecraft/mods" \
+  --region-summary /private/tmp/msc-java-terrain-proof/atm10-1.21.1/summary.json \
+  --output-dir /private/tmp/msc-java-terrain-proof/atm10-1.21.1/assets/minecraft \
+  --extra-namespace xycraft_core --placeholder-block lootr:lootr_chest
+/private/tmp/msc-vantage-bin/vantage meshtex \
+  /private/tmp/msc-java-terrain-proof/atm10-1.21.1/r.0.0.mca \
+  /private/tmp/msc-java-terrain-proof/atm10-1.21.1/terrain.vtile \
+  /private/tmp/msc-java-terrain-proof/atm10-1.21.1/assets/minecraft \
+  0 0 3 3 --light smooth --biome-blend on
+python3 tools/world-map-proof/audit_java_terrain_assets.py \
+  --summary /private/tmp/msc-java-terrain-proof/atm10-1.21.1/summary.json \
+  --assets /private/tmp/msc-java-terrain-proof/atm10-1.21.1/assets/minecraft \
+  --vantage /private/tmp/msc-vantage-bin/vantage \
+  --output /private/tmp/msc-java-terrain-proof/atm10-1.21.1/state-audit.json
+```
+
+Open any generated case in the existing proof viewer:
+
+```sh
+cd /Users/camerontemple/msc2-world-map/tools/world-map-proof/viewer
+MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-java-terrain-proof/atm10-1.21.1 npm run dev
+```
+
+Change the output directory to `vanilla-26.3`, `paper-26.2`, or
+`pupur-1.21.11` for the other full tiles. This viewer currently retains the
+Bedrock player-feed middleware, so the player indicator can be unavailable
+while the Java terrain itself loads. The static exports do not establish safe
+live Java snapshotting or automatic refresh.

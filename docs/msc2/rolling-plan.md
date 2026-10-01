@@ -1681,12 +1681,14 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10b — Show current players in the embedded map
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Status:** Done — Cameron confirmed end-to-end behavior, 2026-10-01
 - **Files:** `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/lifecycle/map_player_query.rs`, `crates/msc-agent/src/routes/worlds.rs`, `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `clients/desktop-web/src/lib/api/generated.ts`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/rolling-plan.md`
 - **What:** Expose a Worlds-authorized, server-scoped live player endpoint. Reuse the already ingested BDS behavior-pack samples and accept structured Java samples where a server feed exists. When no Java feed is present, request current Position, Rotation, and Dimension through the managed server console while the map is open, then publish a complete sample only after the matching online roster arrives. Expire samples after five seconds and discard partial replies. Poll from the embedded viewer, draw current-dimension models, list connected players, and provide Fly and Follow actions. A followed player changing to a saved dimension switches maps; disconnect or stale feed releases Follow. The query fallback uses the player's current name as the model identity within that server run; it does not claim a UUID.
 - **Verify:** Restart the development agent and MSC, open Vanilla's Overworld map, and join the server. The Players panel should show the connected player and a model at the live coordinates. Walk and turn; both should update. Fly to and Follow the player, then disconnect; the panel/model should clear within about five seconds. Switch dimensions with a player if saved terrain exists and confirm Follow moves to that dimension. On BDS, the roster should show fresh behavior-pack samples; Bedrock terrain inside MSC remains a separate integration step.
 - **Commit:** P18.10b: connect live players to embedded map
 - **Batch:** C (P18.10) — live refresh and players
+
+**P18.10b field verification (2026-10-01):** Cameron confirmed the roster and model update as described, Fly and Follow work, and disconnect clears the player.
 
 ### P18.10 — Connect saved-terrain refresh and live player controls
 

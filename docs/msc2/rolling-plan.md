@@ -1821,6 +1821,16 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Verify:** Restart the Tauri development session and repair service, then reopen the Bedrock base. Confirm panes, roofs and stairs have their textures and measure tile arrival against the export timings. Native-shell changes require restart; existing viewers retain their previous material/cache state. Integrated acceptance remains open.
 - **Batch:** C (P18.10) — Bedrock map integration
 
+### P18.10q — Keep backup polling from starving map and health requests
+
+- **Status:** Awaiting Cameron verification — implemented 2026-10-02
+- **Files:** `crates/msc-agent/src/routes/backups.rs`, `clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte`, `docs/msc2/rolling-plan.md`
+- **Diagnosis:** Owner reports map progress pausing at 22/30 tiles, stale players and a temporary disconnect. Captured the running agent (PID 96407, matching the disconnected screenshot) at approximately 675% CPU. A three-second health request timed out. A process sample found 14 runtime threads in backup-list scans; the list synchronously validates/decompresses every ZIP on Tokio HTTP workers. Worlds polling starts another list every eight seconds even while its cards are hidden behind the map. This is direct evidence of request-worker starvation, not a proved tile-count limit or agent crash.
+- **What:** Move backup listing/validation into `spawn_blocking` under one global semaphore permit, held inside the blocking job so cancellation does not allow overlapping scans. Preserve archive-safety validation. Suppress hidden Worlds/card/backup polling while the map is open and prevent overlapping refresh batches; wait for all batch requests to settle before releasing that guard. The map retains its own player polling and terrain refresh.
+- **Evidence:** Agent compilation and Svelte checks passed (existing warnings only). The process sample is at `/tmp/msc-map-agent-sample.txt`. No test suite was run. The running owner agent has not yet loaded this fix; recovery observations from that process are not acceptance of the corrected build.
+- **Verify:** Restart the development session and repair service. Open the Bedrock map, let it stream past the previous counts, and check that player updates and agent health remain responsive during terrain refresh. Reopen the Worlds cards afterward and confirm backups are still listed and validated.
+- **Batch:** C (P18.10) — Bedrock map integration
+
 ### P18.10 — Connect saved-terrain refresh and live player controls
 
 - **Status:** Planned — owner direction, 2026-09-30

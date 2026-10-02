@@ -163,6 +163,10 @@ fn audit(
     });
 }
 
+// Archive validation decompresses ZIP entries. Keep at most one list scan
+// running, and keep it off Tokio's HTTP/player/health worker threads.
+static BACKUP_LIST_SCAN: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(1);
+
 pub async fn list(State(state): State<BackupsRoutesState>) -> Response {
     let Some(server) = state.lifecycle.active_config_server() else {
         return Json(BackupsResponseDto {
@@ -171,7 +175,31 @@ pub async fn list(State(state): State<BackupsRoutesState>) -> Response {
         })
         .into_response();
     };
-    let entries = backups::list_backups(&StdFileSystem, Path::new(&server.server_dir));
+    let permit = match BACKUP_LIST_SCAN.acquire().await {
+        Ok(permit) => permit,
+        Err(_) => {
+            return error_response(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "backup_list_unavailable",
+                "The backup list is unavailable.",
+            );
+        }
+    };
+    let entries = match tokio::task::spawn_blocking(move || {
+        let _permit = permit;
+        backups::list_backups(&StdFileSystem, Path::new(&server.server_dir))
+    })
+    .await
+    {
+        Ok(entries) => entries,
+        Err(_) => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "backup_list_failed",
+                "The backup list could not be read.",
+            );
+        }
+    };
     Json(BackupsResponseDto {
         backups: entries.iter().map(to_item_dto).collect(),
         runtime: runtime_for(&state.lifecycle),

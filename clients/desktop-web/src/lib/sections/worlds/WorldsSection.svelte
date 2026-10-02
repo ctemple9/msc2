@@ -210,9 +210,22 @@
   async function loadBackupConfig(): Promise<void> {
     backupConfig = await call(api, backupConfig, backupPaths.config);
   }
+  let loadingAll = false;
   async function loadAll(): Promise<void> {
-    await Promise.all([loadWorlds(), loadBackups(), loadServers(), loadBackupConfig()]);
-    await loadProfiles();
+    // The map owns its live feed. Hidden world cards and ZIP validation must
+    // not keep polling while terrain is streaming, or overlap a slow scan.
+    if (mapOpen || loadingAll) return;
+    loadingAll = true;
+    try {
+      const results = await Promise.allSettled([
+        loadWorlds(), loadBackups(), loadServers(), loadBackupConfig(),
+      ]);
+      const failure = results.find((result) => result.status === 'rejected');
+      if (failure?.status === 'rejected') throw failure.reason;
+      await loadProfiles();
+    } finally {
+      loadingAll = false;
+    }
   }
 
   function flash(message: string): void {

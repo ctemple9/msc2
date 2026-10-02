@@ -135,3 +135,53 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Verify:** `npm --prefix clients/desktop-web run check`
 **Batch:** P12.198 only.
 **Commit:** `P12.198: match selected server row styling to the list`
+
+## Phase 19 — Complete local uninstall (owner-requested 2026-10-02)
+
+**Planning state:** Ready for Cameron's read. Implementation has not started.
+
+**Owner-approved intent:** Add **Uninstall MSC 2…** beside Reset in app settings and a local `msc uninstall --danger` command. Permanently remove this computer's MSC 2 agent services, managed servers/worlds/backups, MSC-owned helpers and runtimes, host/client data and credentials, caches/logs, installed command, and desktop app. Never contact or uninstall a saved remote agent. Running this flow on a remote computer means running its local MSC desktop or CLI there. Preserve MSC 1, source checkouts, separately installed Java/Tailscale/Docker, unrelated files, and OS-owned package caches.
+
+**Confirmation contract:** Both interfaces must show the actual computer, server root(s), installation(s), and exact deletion list before execution. Desktop: review sheet, acknowledgement of permanent world/backup loss, exact typed `UNINSTALL MSC 2`, then a final destructive confirmation dialog. CLI: `--danger` enables the destructive flow but does not bypass review; print the same inventory and require the exact phrase interactively. `--confirm "UNINSTALL MSC 2"` is the explicit non-interactive equivalent, used only after a separate `--dry-run` inventory review; refuse redirected input without it. `--dry-run` performs no writes, elevation, service changes, or cleanup. A native command must enforce the confirmation independently of UI state. Local cleanup must still work while the selected desktop host is remote and while the local agent is missing/offline; no HTTP uninstall route.
+
+**Downloaded installers:** MSC cannot prove ownership of every renamed/moved installer or its original download location. Include verified MSC release installers in known download/update locations and let the operator explicitly select additional installers. Show every selected file before confirmation, validate its package/bundle identity or signed release checksum, and remove only those files. No filename-only recursive disk search. Never promise that an unknown original DMG has been found. A mounted disk image needs explicit unmount handling; if another application holds it open, report the remaining file instead of claiming full removal. Do not delete MSI/OS package-manager caches directly.
+
+**Completion contract:** Gracefully stop Minecraft and MSC-managed helpers before removing services/data. If shutdown or service removal fails, stop and report what remains. Remove the app through its OS installation mechanism: verified macOS bundle removal, Windows registered MSI uninstall, Linux owning package removal (or a verified standalone AppImage). Use a narrowly scoped detached continuation where the running app/command cannot remove itself. The continuation must validate its inventory again, propagate failures, and leave a readable result outside the deleted MSC trees; let the owner choose whether to retain that report. “Scheduled” is not “Uninstalled.” Reject unsupported/dev installations rather than deleting a source checkout. Clean up continuation files when finished.
+
+### P19.1 — Inventory local installations and define the deletion boundary
+
+**Status:** Planned; awaiting Cameron's read.
+**Files:** `crates/msc-infrastructure/src/uninstall.rs` (new), `crates/msc-infrastructure/src/lib.rs`, `crates/msc-infrastructure/tests/uninstall.rs` (new only for essential boundary cases), `docs/msc2/clients/local-uninstall.md` (new), this plan.
+**What:** Build one serializable local inventory for CLI and desktop, with canonical paths, ownership evidence, missing/unavailable states, and exclusions. Discover service definitions and their actual MSC2_DATA_DIR/MSC2_APP_CONFIG_PATH/MSC2_AGENT_SERVERS_ROOT overrides rather than guessing from the current shell. Cover desktop and headless data layouts (macOS MSC 2 vs MSC2; Windows roaming/local data; Linux desktop and system headless roots), registered server roots and external managed server/backups with explicit ownership boundaries, client WebView state, credential stores, helper installs, old marked headless versions, command links/PATH entries, application/package identity, and verified installer files. Inventory is read-only; corrupt configuration or ambiguous ownership blocks affected deletion and is visible. Reject root/home/shared-parent targets, MSC 1 paths, symlink escapes, traversal, and unsupported developer checkout removal. Record essential controlled tests for path escapes, ambiguous ownership, and remote exclusion; do not run them without a specific owner instruction. Avoid brittle timing or real-machine installation fixtures.
+**Verify:** `cargo check -p msc-infrastructure`
+**Batch:** P19.1 only.
+**Commit:** `P19.1: inventory local msc installations for uninstall`
+
+### P19.2 — Remove services, data, credentials, and OS installation locally
+
+**Status:** Planned; blocked on P19.1 verification.
+**Files:** `crates/msc-infrastructure/src/uninstall.rs`, platform-specific uninstall modules under `crates/msc-platform-macos/src/`, `crates/msc-platform-windows/src/`, `crates/msc-platform-linux/src/`, existing service/secret-store adapters where necessary, essential controlled boundary tests if current coverage misses a concrete risk, `docs/msc2/clients/local-uninstall.md`, this plan.
+**What:** Execute the inventory through existing platform privilege boundaries, with no remote service API. Authenticate to the local agent if available, request graceful server/helper shutdown and verify it; handle an offline/stopped installation through its inspected service definition without guessing process ownership. Stop/unregister all verified MSC-owned service/helper definitions, remove approved data and credential records, remove verified links/PATH entries, uninstall the desktop/package and marked headless artifacts, then delete the approved installer files. Distinguish Windows MSI uninstall from raw file deletion; use Linux package ownership and macOS bundle identifier checks. Secure detached continuation state against tampering; revalidate filesystem boundaries/ownership immediately before deletion. Never execute a user-writable elevated cleanup script blindly. Provide partial-failure/result reporting and retry inventory for leftovers, preserving failures rather than suppressing them. Do not launch the real uninstaller while implementing or verifying this step.
+**Verify:** `cargo check -p msc-platform-macos -p msc-platform-windows -p msc-platform-linux`
+**Batch:** P19.2 only.
+**Commit:** `P19.2: implement complete local uninstall execution`
+
+### P19.3 — Expose the confirmed uninstall command
+
+**Status:** Planned; blocked on P19.2 verification.
+**Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/cli/uninstall.rs` (new), CLI documentation/help, `docs/msc2/clients/local-uninstall.md`, this plan.
+**What:** Add `msc uninstall --danger`, `--dry-run`, exact `--confirm` for explicit automation, and validated additional-installer selection. Share inventory/execution with desktop rather than duplicating deletion logic. Ignore/refuse remote target overrides and obtain all destructive targets locally. Print warnings and inventory before the typed interactive confirmation. Return nonzero on blocked/partial cleanup and distinguish a detached scheduled action from actual completion. Keep ordinary `msc service uninstall` and host-reset behavior unchanged. Review CLI parsing/help through non-destructive checks; do not run a destructive invocation on the developer machine.
+**Verify:** `cargo check -p msc-agent`
+**Batch:** P19.3 only.
+**Commit:** `P19.3: add confirmed local uninstall command`
+
+### P19.4 — Add Uninstall MSC 2 to app settings
+
+**Status:** Planned; blocked on P19.3 verification.
+**Files:** `clients/desktop-web/src/lib/sections/app-settings/AppSettingsSheet.svelte`, `clients/desktop-web/src/lib/sections/app-settings/UninstallSheet.svelte` (new), `clients/desktop-web/src/App.svelte`, platform adapter types/implementation, `clients/desktop-web/src-tauri/src/lib.rs` and a native uninstall module if needed, `docs/msc2/clients/local-uninstall.md`, this plan.
+**What:** Read antiAIslop.md before frontend work. Add a separate destructive Uninstall action beside Reset. Show native local inventory independent of selected remote host; support verified additional-installer selection. Require the loss acknowledgement, typed phrase, and final dialog before invoking native execution. Enforce typed confirmation and inventory identity natively, disable duplicate submissions, and show OS elevation and failures clearly. Clear all local saved remote credentials/connections without contacting those agents. Exit only after native handoff is established; communicate scheduled continuation and its result location accurately. Existing Reset remains unchanged. Preserve unrelated owner edits and commit only this step's work.
+**Verify:** `npm --prefix clients/desktop-web run check && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml`
+**Batch:** P19.4 only.
+**Commit:** `P19.4: add confirmed complete uninstall to settings`
+
+**Phase 19 acceptance gate:** Cameron verifies both entry points on disposable installed MSC 2 environments for macOS, Windows MSI, and Linux desktop/headless packaging. Observe server shutdown, service/helper removal, data/credential/cache cleanup, OS package deregistration, self-removal, verified installer deletion, and readable partial-failure results. Check cancellation at each confirmation, no-write dry run, stale/tampered inventory rejection, missing/offline agent behavior, protected symlink/root paths, and that saved remote agents plus MSC 1 remain unchanged. Developer source trees are never used for destructive acceptance. The other agent independently reviews the deletion boundary and phase gate. No release workflow gates or release runs are added by this work.

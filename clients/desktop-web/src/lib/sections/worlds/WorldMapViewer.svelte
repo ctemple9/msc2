@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import Select from '../../components/base/Select.svelte';
   import { isTauri } from '@tauri-apps/api/core';
   import { getCurrentWindow, LogicalPosition } from '@tauri-apps/api/window';
   import type { WorldSource } from '@thoughts-on-things/vantage-mc/core';
@@ -600,21 +601,19 @@
           disabled={!viewer || refreshing}
           onclick={refreshTerrain}>{refreshing ? 'Refreshing…' : 'Refresh terrain'}</button
         >
-        <label class="dimension-picker">
+        <div class="dimension-picker">
           <span>Dimension</span>
-          <select
+          <Select
+            ariaLabel="Dimension"
+            width="215px"
             value={selectedDimension}
-            onchange={(event) => void loadDimension(event.currentTarget.value)}
-          >
-            {#each dimensions as dimension (dimension.id)}
-              <option value={dimension.id}
-                >{dimension.displayName}{dimension.state === 'ready'
-                  ? ''
-                  : ' · unavailable'}</option
-              >
-            {/each}
-          </select>
-        </label>
+            options={dimensions.map((dimension) => ({
+              value: dimension.id,
+              label: `${dimension.displayName}${dimension.state === 'ready' ? '' : ' · unavailable'}`,
+            }))}
+            onchange={(value) => void loadDimension(value)}
+          />
+        </div>
       </div>
     {/if}
   </header>
@@ -862,15 +861,6 @@
   .refresh:disabled {
     opacity: 0.45;
     cursor: default;
-  }
-  .dimension-picker select {
-    max-width: 215px;
-    padding: 7px 10px;
-    color: #f1f1f2;
-    background: #242428;
-    border: 1px solid #48484e;
-    border-radius: 5px;
-    font: inherit;
   }
   .map-stage {
     position: relative;

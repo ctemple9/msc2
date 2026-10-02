@@ -1870,6 +1870,14 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Verify:** When convenient, visit the affected area in the game and refresh saved terrain after BDS saves it. If the in-game area is complete but a refreshed snapshot still lacks those keys, investigate the BDS save boundary using that observed state. Owner verification can be deferred.
 - **Batch:** C (P18.10) — Nether source coverage diagnosis
 
+### P18.10v — Match the map dimension selector to Settings
+
+- **Status:** Implemented — awaiting owner observation, 2026-10-02
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Replace the map's raw native select with the shared Settings Select component: dark theme field, rounded border and neutral downward chevron. Preserve dimension selection and unavailable labels; supply an accessible Dimension label.
+- **Verify:** Open the map and confirm the selector matches Settings and switches dimensions. No tests run.
+- **Batch:** C (P18.10) — map styling
+
 ### P18.10 — Connect saved-terrain refresh and live player controls
 
 - **Status:** Planned — owner direction, 2026-09-30

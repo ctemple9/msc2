@@ -1745,9 +1745,10 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10i — Show saved Bedrock Nether and End terrain
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. Cameron reports the End is good after checking it; further Nether gap checks are deferred.
 - **Files:** `tools/world-map-proof/src/main.rs`, `tools/world-map-proof/src/render.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`, `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/rolling-plan.md`
 - **What:** Add dimension-specific saved chunk catalogs and on-demand tiles for the Bedrock Nether and End. MSC shows the same dimension selector used by Java. A consistent saved world copy is shared across dimension catalogs, while each dimension keeps separate tiles and textures. Nether and End get their own atmosphere and do not use the Overworld spawn. A dimension with no generated chunks reports an export error when selected.
+- **Owner result:** Cameron confirmed the End check passed on 2026-10-02. This records his reported map check, not separate execution of every scenario below. Nether missing saved chunks remain documented in P18.10u for later troubleshooting.
 - **Verify:** In the consolidated Bedrock runtime check, generate and save Nether and End chunks, select each dimension in MSC, and confirm its terrain, atmosphere, tile paging, and dimension-specific coordinates. Refresh terrain after changing a block in each dimension and confirm BDS still accepts edits. Also select a dimension with no generated chunks and confirm the error is clear. No separate runtime check is requested now.
 - **Commit:** P18.10i: show saved Bedrock Nether and End terrain
 - **Batch:** C (P18.10) — Bedrock map integration
@@ -1862,7 +1863,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10u — Trace the remaining Nether chunk holes
 
-- **Status:** Investigation complete; source coverage unresolved — 2026-10-02. No claim that the holes are fixed.
+- **Status:** Done — Cameron direction, 2026-10-02; further Nether troubleshooting deferred. Missing source coverage remains unresolved, and the holes are not claimed fixed.
 - **Files:** `docs/msc2/rolling-plan.md`
 - **What:** Trace the owner's current Nether Fly view at X170/Y206/Z-234 through exported geometry, chunk reads, the snapshot database and live immutable database files. Correct the earlier inference that these specific holes were caused by client residency or fog. Do not fill absent saved chunks with fabricated terrain.
 - **Evidence:** The detailed tile at chunk anchor (8,-16) exists and renders nine populated chunks, but seven of its sixteen chunks return no records: (9,-15), (9,-14), (10,-14), (11,-14), (8,-13), (10,-13), (11,-13). The populated neighbors have bedrock at Y127. Both prefix scans and direct subchunk lookups agree; full catalog scanning also excludes (9,-15). An independent Python reader decoded every data block in all 73 physical LevelDB tables and found no key for chunk (9,-15), including across dimensions. The snapshot's only WAL is 64 bytes and contains no matching coordinate key. All 73 immutable tables match their live-world counterparts byte-for-byte (SHA-256); none are missing or changed. This establishes absent saved source records for the inspected hole, rather than an exporter lookup or snapshot-copy omission. Temporary exporter diagnostics were removed. No tests run, world data modified, or server lifecycle changes made.

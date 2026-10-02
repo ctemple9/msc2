@@ -400,27 +400,6 @@
             </div>
             <p class="small-detail">{status?.detail ?? 'Checking the local agent service…'}</p>
           {/if}
-          {#if status && status.state !== 'not-installed'}
-            <details class="service-details">
-              <summary>Service details &amp; pairing another desktop</summary>
-              <div class="expanded">
-                <p class="small-detail">
-                  {status.serviceName}{#if status.pid}
-                    · Service process: {status.pid}{/if}
-                </p>
-                <p class="detail">
-                  Run this on this computer, then enter the one-use code in the other desktop app.
-                </p>
-                <div class="command-row">
-                  <code>{pairingCommand}</code><Button
-                    size="sm"
-                    onclick={() => void copyCommand(pairingCommand)}
-                    >{copiedCommand === pairingCommand ? 'Copied' : 'Copy'}</Button
-                  >
-                </div>
-              </div>
-            </details>
-          {/if}
         {:else}
           <p class="detail">
             Use the local agent when your Minecraft servers should run on this computer.

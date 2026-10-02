@@ -93,3 +93,15 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Commit:** `P16.35: prepare v0.1.19 release`
 
 **Release preparation checks:** Locked Cargo metadata resolved for the agent and desktop packages; all release version fields agree at 0.1.19. Frontend production build and Windows staging PowerShell syntax inspection passed. Existing workflow signing-key variable/secret names are configured. No tests were run.
+
+
+### P12.195 — Remove local service details disclosure
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, this plan.
+**What:** Remove the local “Service details & pairing another desktop” disclosure and its contents from the Agents screen at Cameron's request. Retain the local Install/Start/Stop/Repair controls and remote host/pairing workflows. Preserve Cameron's uncommitted heading edit without including it in this step's commit. No tests added or run; no Rust changed.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.195 only.
+**Commit:** `P12.195: remove local service details disclosure`
+
+**Agent checks:** Frontend type-check passed with zero errors and 10 existing warnings; `git diff --check` passed. Tests were not run.

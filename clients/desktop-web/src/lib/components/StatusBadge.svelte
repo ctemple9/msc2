@@ -3,7 +3,7 @@
   export let tone: 'positive' | 'neutral' | 'warning' | 'danger' = 'neutral';
 </script>
 
-<span class="status-badge {tone}" role="status"><span aria-hidden="true"></span>{status}</span>
+<span class="status-badge {tone}" role="status">{status}</span>
 
 <style>
   .status-badge {
@@ -17,13 +17,6 @@
     background: rgba(232, 238, 242, 0.08);
     font-size: 0.76rem;
     font-weight: 700;
-  }
-
-  .status-badge span {
-    width: 0.42rem;
-    height: 0.42rem;
-    border-radius: 50%;
-    background: currentColor;
   }
 
   .positive {

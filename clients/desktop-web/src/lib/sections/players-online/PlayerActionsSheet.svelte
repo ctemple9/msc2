@@ -234,7 +234,6 @@
 
 <Sheet title={`Player actions · ${player.name}`} size="sm" {onClose}>
   <div class="context">
-    <span class="online-dot" aria-hidden="true"></span>
     <span>{online ? 'Online now' : 'Player left the server'}</span>
     <span class="edition"
       >{isBedrock ? 'Bedrock' : 'Java'}{minecraftVersion ? ` · ${minecraftVersion}` : ''}</span
@@ -349,12 +348,6 @@
     color: var(--msc2-text-secondary);
     font-size: 11px;
     margin-bottom: 14px;
-  }
-  .online-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--msc2-status-ok);
   }
   .edition {
     margin-left: auto;

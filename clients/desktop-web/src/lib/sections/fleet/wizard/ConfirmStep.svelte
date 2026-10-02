@@ -11,11 +11,7 @@
   // AddOnsStep already established -- Create/Done replace Continue on
   // AddServerWizard's own footer rather than this component growing its own.
   //
-  // Success state reuses StatusDot (docs/msc2/antiAIslop.md tell #12's own
-  // "correct usage" example -- a defined state, always labeled) with its
-  // decorative dot hidden, instead of the oracle's large accent-colored
-  // checkmark circle, which is exactly the icon-in-a-tinted-box tell (#6)
-  // applied to a status readout.
+  // Success uses a text-only status label rather than decorative imagery.
   //
   // P12.18h adds the Import path's own summary/hint branch alongside the
   // Fresh one this step already had -- same component, same "parent owns
@@ -94,7 +90,7 @@
   {#if createSucceeded}
     <div class="success">
       <div class="success-label">
-        <StatusDot tone="ok" showDot={false} label="{displayName || draft.serverName} created" />
+        <StatusDot tone="ok" label="{displayName || draft.serverName} created" />
       </div>
       <p class="hint">
         {#if isExistingImport}

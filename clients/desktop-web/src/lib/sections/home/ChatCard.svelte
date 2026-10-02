@@ -51,7 +51,6 @@
           </p>
         {:else}
           <p class="line event">
-            <span class="event-dot" class:leave={message.kind === 'leave'}></span>
             <span class="player">{message.player}</span>
             <span class="muted"> {message.text}</span>
           </p>
@@ -123,15 +122,5 @@
     align-items: center;
     gap: 5px;
     font-size: 10px;
-  }
-  .event-dot {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: var(--msc2-status-ok);
-    flex-shrink: 0;
-  }
-  .event-dot.leave {
-    background: var(--msc2-neutral-muted);
   }
 </style>

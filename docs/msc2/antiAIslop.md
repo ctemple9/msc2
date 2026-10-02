@@ -151,15 +151,14 @@ Synthesized from the Sources below and de-duplicated. For each: **the sign**
   deserves emphasis and let only that carry accent. No per-card rails. (Simplest
   correct fix for the mismatched-corner artifact: remove the border entirely.)
 
-**12. Meaningless status dots.**
-- *Sign:* Colored circles sprinkled on nav items, headers, labels with no defined
-  meaning.
-- *Why:* Extracted from developer-tool UIs, stripped of the context that gave
-  them meaning.
-- *Fix:* A status dot must map to a **defined state** and be paired with a **text
-  label**. Used that way it's correct and useful; used as decoration it's slop.
-  (MSC's health dots — OK / Warn / Error, always labeled — are the *correct*
-  usage; keep them, don't multiply them.)
+**12. Signal/status dots.**
+- *Sign:* Circles used to indicate connection, service health, player presence,
+  or other states, even when paired with a label.
+- *Fix:* **No signal/status dots anywhere in MSC.** State is expressed in text.
+  Keep the meaning visible (Connected / Stopped / Online / Left); do not replace
+  dots with another decorative status shape.
+- *Owner amendment:* Cameron Temple, 2026-10-02, explicitly removed the earlier
+  allowance for labeled health dots while approving the agent-home redesign.
 
 ### Motion
 
@@ -184,7 +183,7 @@ reviewed against. These use MSC's real tokens (see `MSCStyles.swift`).
    complementary (white-opacity text steps), **~10% accent** — the per-server
    `bannerColor` plus the status ramp (`#4DC778` ok, `#FF9140` warn, red error,
    `#59A1FF` bedrock). Accent is spent *only* on: running state, active tab,
-   primary action, a live-stat fill, a defined status dot. Nothing else is
+   primary action, a live-stat fill, or a meaningful status label. Nothing else is
    colored.
 
 2. **Depth from tiers, not effects.** No glassmorphism, no specular highlights,
@@ -192,9 +191,9 @@ reviewed against. These use MSC's real tokens (see `MSCStyles.swift`).
    value-step; add a border only where contrast alone can't carry it.
 
 3. **No decorative color-carriers.** No side rails / accent bars on cards. No
-   colored-icon-in-tinted-box. Status is shown through **dot + text label**
-   only. Informational icons are neutral or absent; colored icons are reserved
-   for actions.
+   colored-icon-in-tinted-box. Status is shown through **text labels**, without
+   signal/status dots. Informational icons are neutral or absent; colored icons
+   are reserved for actions.
 
 4. **Flat containment.** One card depth — never cards-in-cards. Group with
    whitespace and type weight. A card = an actionable/bounded object.
@@ -224,7 +223,7 @@ Run this against every screen before it is considered done. Any "yes" is a
 defect to fix, not a preference to debate.
 
 - [ ] Does any element carry accent color that isn't running-state, active tab,
-      primary action, a live stat, or a defined+labeled status?
+      primary action, a live stat, or a meaningful status label?
 - [ ] Any glass / blur / specular / gradient fill / glow used decoratively?
 - [ ] Any card with a colored side rail or accent bar?
 - [ ] Any colored icon on an *informational* (non-action) element? Any emoji?
@@ -233,6 +232,7 @@ defect to fix, not a preference to debate.
 - [ ] Any serif type? Any weight other than regular/medium?
 - [ ] Is there a single, glanceable first-read — or does everything weigh the
       same?
+- [ ] Any signal/status dot, including labeled connection or player-presence dots?
 - [ ] Any animation that doesn't communicate a state or spatial change?
 - [ ] Any “Learn more” hyperlink Cameron has not explicitly approved, or any
       link whose destination is missing, unfinished, or nonfunctional?

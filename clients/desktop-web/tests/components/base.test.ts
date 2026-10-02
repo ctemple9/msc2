@@ -147,7 +147,7 @@ describe('EmptyState — centered, muted, no decoration', () => {
   });
 });
 
-describe('StatusDot — always dot + labeled text', () => {
+describe('StatusDot — text-only status label', () => {
   it('requires a label prop', () => {
     expect(statusDotSource).toContain('export let label: string;');
   });

@@ -68,7 +68,7 @@
     },
     {
       id: 'agent-setup',
-      label: 'Local agent',
+      label: 'Agent home',
       segment: 'local-agent',
       scope: 'host',
       load: () => import('./lib/sections/setup/AgentSetupSection.svelte'),
@@ -280,10 +280,6 @@
 
   async function removeCurrentRemoteHost(): Promise<void> {
     await hostOrchestrator.removeCurrentRemoteHost();
-  }
-
-  async function disconnectCurrentRemoteHost(): Promise<void> {
-    await hostOrchestrator.disconnectCurrentRemoteHost();
   }
 
   function openReset(): void {
@@ -945,7 +941,7 @@
     const context = currentNavigationContext();
     if (!context) return;
     if (window.location.pathname === '/') {
-      await selectSection('home', true, generation);
+      await selectSection('agent-setup', true, generation);
       return;
     }
     const resolution = router.resolve(window.location.pathname, context);
@@ -1027,18 +1023,21 @@
           active={loaded.id === activeSection}
           {permissions}
           readiness={agentReadiness}
-          onAgentRetry={() => void initializeClient()}
+          onAgentRetry={() => initializeClient()}
+          {servers}
+          serverRunning={status.running}
+          onOpenServer={async (id: string) => {
+            if (id !== selectedServerId) await selectServer(id);
+            if (id === selectedServerId) await selectSection('home');
+          }}
           onPairAgain={(code: string) => pairAgain(code)}
           onConnectHost={(input: RemoteHostConnectionInput) => connectRemoteHost(input)}
           onSelectRoute={(id: HostId, route: HostRoute) => selectHostRoute(id, route)}
           onRemoveHost={isDesktopShell && hostId !== localAgentHostId
             ? removeCurrentRemoteHost
             : undefined}
-          onDisconnectHost={isDesktopShell && hostId !== localAgentHostId
-            ? disconnectCurrentRemoteHost
-            : undefined}
-          onSwitchHost={(id: string) => void switchHost(id)}
-          onRemoveSavedHost={(id: string) => void removeRemoteHost(id)}
+          onSwitchHost={(id: string) => switchHost(id)}
+          onRemoveSavedHost={(id: string) => removeRemoteHost(id)}
           onServerSelected={(id: string) => {
             if (id !== selectedServerId) loadedSections = [];
             selectedServerId = id;

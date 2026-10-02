@@ -95,7 +95,7 @@
               />
             {/if}
             <span class="name">{profileDisplayName(profile)}</span>
-            {#if profile.isOnline}<span class="online-dot" aria-hidden="true"></span>{/if}
+            {#if profile.isOnline}<span class="online-label">Online</span>{/if}
           </button>
         {/each}
       </div>
@@ -200,14 +200,9 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .online-dot {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--msc2-status-ok);
+  .online-label {
+    font-size: 11px;
+    color: var(--msc2-text-secondary);
   }
   .hint {
     margin: 10px 0 0;

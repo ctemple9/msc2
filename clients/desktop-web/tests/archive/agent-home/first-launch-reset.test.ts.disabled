@@ -6,6 +6,15 @@ import setupSource from '../../src/lib/sections/setup/AgentSetupSection.svelte?r
 import orchestrationSource from '../../src/lib/hosts/orchestration.ts?raw';
 
 describe('first-launch reset recovery', () => {
+  it('offers a continuation action for each local service recovery state', () => {
+    expect(setupSource).toContain('Install and Continue');
+    expect(setupSource).toContain("status?.state === 'not-installed'");
+    expect(setupSource).toContain('Start agent');
+    expect(setupSource).toContain("readiness === 'incompatible'");
+    expect(setupSource).toContain('Repair service');
+    expect(setupSource).toContain('Closing this window is safe.');
+  });
+
   it('pairs a reset remote host with a new host identity', () => {
     expect(setupSource).toContain('To replace this client’s credential');
     expect(setupSource).toContain('msc pairing create');

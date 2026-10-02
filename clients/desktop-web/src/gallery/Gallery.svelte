@@ -29,7 +29,7 @@
   </p>
 
   <section>
-    <h2 class="msc2-type-overline">Card + status dot</h2>
+    <h2 class="msc2-type-overline">Card + status label</h2>
     <div class="row">
       <Card>
         <div class="card-head">

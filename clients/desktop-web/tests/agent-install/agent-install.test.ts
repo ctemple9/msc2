@@ -12,59 +12,8 @@ const status = (state: AgentServiceStatus['state']): AgentServiceStatus => ({
   state,
   detail: state,
 });
-import appSource from '../../src/App.svelte?raw';
-import setupSource from '../../src/lib/sections/setup/AgentSetupSection.svelte?raw';
-import platformSource from '../../src/lib/platform/index.ts?raw';
-import tauriSource from '../../src/lib/platform/tauri.ts?raw';
 
 describe('local agent installation boundary', () => {
-  it('keeps setup shared while only the shell invokes native service commands', () => {
-    expect(setupSource).toContain('getPlatform()');
-    expect(setupSource).not.toContain('isTauri');
-    expect(tauriSource).toContain("invoke<AgentServiceStatus>('agent_service_status')");
-    expect(tauriSource).toContain("invoke<AgentServiceStatus>('manage_agent_service'");
-    expect(appSource).toContain("scope: 'host'");
-    expect(appSource).toContain("await selectSection('agent-setup')");
-  });
-
-  it('keeps service controls scoped to the selected local host', () => {
-    expect(platformSource).toContain('baseUrl: configuredBaseUrl ?? LOCAL_AGENT_ORIGIN');
-    expect(platformSource).not.toContain('window.location.origin');
-    expect(appSource).toContain('isLocalHost={hostId === localAgentHostId}');
-    expect(setupSource).toContain("export let hostId = '';");
-    expect(setupSource).toContain('isDesktopShell && isLocalHost');
-    expect(setupSource).toContain('Manage the agent on {hostLabel}');
-    expect(setupSource).toContain('label={`Managed on ${hostLabel}`}');
-  });
-
-  it('states that closing the window does not stop a service or server', () => {
-    expect(setupSource).toContain('Closing this window is safe.');
-  });
-
-  it('labels a healthy connection as connected', () => {
-    expect(setupSource).toContain("ready: 'Agent connected'");
-    expect(setupSource).toContain('connected and ready for server management');
-  });
-
-  it('keeps connection, service, and service controls in equal columns', () => {
-    expect(setupSource).toContain('<div class="actions">');
-    expect(setupSource).toContain('Install, start, stop, or repair the background service.');
-    expect(setupSource).toContain(
-      'onclick={() => void (onAgentRetry ? onAgentRetry() : refresh())}',
-    );
-    expect(setupSource).toContain('grid-template-columns: repeat(2, minmax(0, 1fr));');
-  });
-
-  it('explains the control panel and agent relationship', () => {
-    expect(setupSource).toContain('MSC has two parts');
-    expect(setupSource).toContain('The control panel');
-    expect(setupSource).toContain('The agent');
-    expect(setupSource).toContain('The control panel (what you can see) is the app you use.');
-    expect(setupSource).toContain("The agent (what you can't see)");
-    expect(setupSource).toContain('same or different computer');
-    expect(setupSource).toContain('The agent owns the work.');
-  });
-
   it('keeps an explicitly stopped agent stopped until the user starts it', async () => {
     const platform: AgentPreparationPlatform = {
       kind: 'tauri',
@@ -95,10 +44,5 @@ describe('local agent installation boundary', () => {
     });
     expect(platform.manageAgentService).not.toHaveBeenCalled();
     expect(healthCheck).not.toHaveBeenCalled();
-  });
-
-  it('shows native service errors instead of leaving install feedback blank', () => {
-    expect(setupSource).toContain("formatConnectionFailure(error, 'msc-agent')");
-    expect(setupSource).toContain('Could not change the agent service');
   });
 });

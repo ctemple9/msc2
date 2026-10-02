@@ -424,8 +424,11 @@
       <div class="step-track" aria-label={`Setup step ${setupPage + 1} of 7`}>
         {#each Array(7) as _, index}
           {#if index > 0}<span class="track-line" class:done={index <= setupPage}></span>{/if}
-          <span class="track-dot" class:done={index < setupPage} class:current={index === setupPage}
-          ></span>
+          <span
+            class="track-step"
+            class:done={index < setupPage}
+            class:current={index === setupPage}>{index + 1}</span
+          >
         {/each}
       </div>
       <p class="msc2-type-overline">
@@ -883,21 +886,19 @@
     gap: 5px;
     margin-bottom: 6px;
   }
-  .track-dot {
-    width: 6px;
-    height: 6px;
+  .track-step {
+    min-width: 12px;
+    text-align: center;
     flex: 0 0 auto;
-    border-radius: 50%;
-    background: var(--msc2-neutral-muted);
-    transition: all 150ms ease;
+    font-size: 11px;
+    color: var(--msc2-text-tertiary);
   }
-  .track-dot.done {
-    background: rgba(255, 255, 255, 0.65);
+  .track-step.done,
+  .track-step.current {
+    color: var(--msc2-text-primary);
   }
-  .track-dot.current {
-    width: 8px;
-    height: 8px;
-    background: var(--msc2-text-primary);
+  .track-step.current {
+    font-weight: 500;
   }
   .track-line {
     flex: 1;
@@ -1284,7 +1285,7 @@
     .setup-page {
       animation: none;
     }
-    .track-dot,
+    .track-step,
     .track-line {
       transition: none;
     }

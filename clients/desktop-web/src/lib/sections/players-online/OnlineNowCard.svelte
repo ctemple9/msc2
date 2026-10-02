@@ -1,7 +1,7 @@
 <script lang="ts">
   // Ports DetailsPlayersTabView's onlineNowCard: two columns, live roster on
-  // the left, every distinct name seen this session on the right (a dot
-  // shows which of those are still online).
+  // the left, every distinct name seen this session on the right. Text labels
+  // distinguish players who are still online from those who have left.
   import Card from '../../components/base/Card.svelte';
   import Button from '../../components/base/Button.svelte';
   import Icon from '../../components/base/Icon.svelte';
@@ -38,7 +38,6 @@
         <ul class="list">
           {#each players as player (player.uuid ?? player.name)}
             <li class="row">
-              <span class="dot online" aria-hidden="true"></span>
               {#if actionsAvailable}
                 <button type="button" class="name player-action" onclick={() => onPlayer?.(player)}
                   >{player.displayName || player.name}</button
@@ -70,8 +69,8 @@
         <ul class="list">
           {#each seenThisSession as name (name)}
             <li class="row">
-              <span class="dot" class:online={onlineNames.has(name)} aria-hidden="true"></span>
               <span class="name" class:muted={!onlineNames.has(name)}>{name}</span>
+              <span class="presence">{onlineNames.has(name) ? 'Online' : 'Left'}</span>
             </li>
           {/each}
         </ul>
@@ -140,15 +139,10 @@
     align-items: center;
     gap: 8px;
   }
-  .dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    flex: none;
-    background: rgba(255, 255, 255, 0.25);
-  }
-  .dot.online {
-    background: var(--msc2-status-ok);
+  .presence {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--msc2-text-secondary);
   }
   .name {
     font-size: 12px;

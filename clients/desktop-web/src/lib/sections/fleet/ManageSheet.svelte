@@ -209,7 +209,6 @@
             <StatusDot
               tone={summary?.connection === 'connected' ? 'ok' : 'warn'}
               label={host.displayName}
-              showDot={false}
             />
             <span class="host-count">{summary?.serverCount ?? 0} servers</span>
             {#if host.id !== activeHostId}

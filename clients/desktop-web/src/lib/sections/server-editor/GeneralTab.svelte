@@ -543,7 +543,6 @@
                 : eulaAccepted
                   ? 'Accepted'
                   : 'Not confirmed here yet'}
-              showDot={false}
             />
             <span class="hint">Minecraft End User License Agreement</span>
           </div>

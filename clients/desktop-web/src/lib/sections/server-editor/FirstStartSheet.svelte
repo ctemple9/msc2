@@ -606,7 +606,6 @@
           <StatusDot
             tone={transportTone(transport.playit)}
             label={transportLabel(transport.playit)}
-            showDot={false}
           />
           {#if phase === 'transport-setup' && (transport.playit === 'waiting' || transport.playit === 'failed')}
             <Button variant="secondary" size="sm" onclick={openPlayitSetup}
@@ -619,7 +618,6 @@
           <StatusDot
             tone={transportTone(transport.broadcast)}
             label={transportLabel(transport.broadcast)}
-            showDot={false}
           />
           {#if phase === 'transport-setup' && transport.broadcast === 'waiting'}
             <Button

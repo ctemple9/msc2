@@ -72,21 +72,12 @@
   };
 
   const pairingCommand = 'msc pairing create --client-kind desktop';
-  const linuxServiceName = '<agent-service-name>';
-  const commonServiceCommands = [
-    `msc service status --service-name ${linuxServiceName}`,
-    `msc service start --service-name ${linuxServiceName}`,
-    `msc service stop --service-name ${linuxServiceName}`,
-  ];
-  const linuxServiceNotes = [
-    {
-      label: 'Find the agent service name',
-      command: "systemctl list-unit-files --type=service | grep -i 'msc.*agent'",
-      note: 'Use the unit name shown by this command without its trailing .service suffix in place of <agent-service-name> below.',
-    },
-    { label: 'Check status', command: commonServiceCommands[0] },
-    { label: 'Start', command: commonServiceCommands[1] },
-    { label: 'Stop', command: commonServiceCommands[2] },
+  const agentCommands = [
+    { label: 'Check agent status', command: 'msc status agent' },
+    { label: 'Start agent', command: 'msc start agent' },
+    { label: 'Stop agent', command: 'msc stop agent' },
+    { label: 'Start agent at boot', command: 'msc enable agent' },
+    { label: 'Disable agent startup at boot', command: 'msc disable agent' },
   ];
 
   let nowMs = Date.now();
@@ -551,13 +542,14 @@
           onConnect={connectRemoteHost}
         />{/key}
       <details class="service-details">
-        <summary>Remote service commands</summary>
+        <summary>Commands on your server computer</summary>
         <div class="expanded">
           <p class="detail">
-            Start, stop, or repair a remote agent on its own computer. Find the installed service
-            name before using these commands.
+            Run these commands in a terminal on your server computer, or through SSH as the account
+            that installed MSC. They work on macOS, Windows, and Linux without finding the service
+            name, even when the agent is stopped.
           </p>
-          {#each linuxServiceNotes as item (item.command)}
+          {#each agentCommands as item (item.command)}
             <div class="extra-note">
               <h3>{item.label}</h3>
               <div class="command-row">
@@ -567,9 +559,15 @@
                   >{copiedCommand === item.command ? 'Copied' : 'Copy'}</Button
                 >
               </div>
-              {#if item.note}<p class="small-detail">{item.note}</p>{/if}
             </div>
           {/each}
+          <p class="small-detail extra-note">
+            These control the background agent. Minecraft server controls are separate: use <code
+              >msc server start</code
+            >
+            or <code>msc server stop</code> for Minecraft. Stopping the agent keeps its boot setting;
+            use disable to prevent startup at the next boot.
+          </p>
         </div>
       </details>
     </section>

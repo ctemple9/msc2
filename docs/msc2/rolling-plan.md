@@ -200,3 +200,12 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Verify:** `npm --prefix clients/desktop-web run check`
 **Batch:** P12.199 only.
 **Commit:** `P12.199: show remote host actions as separate buttons`
+
+### P12.200 — Update server-computer instructions for the Phase 17 CLI
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, this plan.
+**What:** Rename Remote service commands to Commands on your server computer. Replace Linux service-name discovery and lower-level service commands with msc status/start/stop/enable/disable agent. Explain local terminal or SSH use as the installing account, support across all three platforms while the agent is stopped, separate Minecraft server controls, and the distinction between stopping and disabling boot startup. Remove the unsupported repair wording; preserve desktop pairing. Keep owner heading and lockfile edits outside this commit. No tests added or run; no Rust changed.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.200 only.
+**Commit:** `P12.200: update agent instructions for the local cli`

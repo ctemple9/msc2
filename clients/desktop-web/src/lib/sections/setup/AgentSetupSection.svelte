@@ -299,10 +299,10 @@
 <div class="agent-home">
   <header class="home-heading">
     <p class="msc2-type-overline">MSC 2</p>
-    <h1>Your server home.</h1>
+    <h1>Agents</h1>
     <p>
       {readiness === 'ready'
-        ? 'Manage Minecraft here. Your agent takes care of the work.'
+        ? 'Manage the MSC Agent here.'
         : 'First, choose where your Minecraft servers will run.'}
     </p>
   </header>
@@ -477,7 +477,7 @@
     </section>
 
     <section class="how-msc-works" aria-label="How MSC works">
-      <h2>One app. An agent where you play.</h2>
+      <h2>How does MSC work?</h2>
       <ol class="architecture">
         <li>
           <h3>You use the control panel</h3>

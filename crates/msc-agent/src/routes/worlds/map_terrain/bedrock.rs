@@ -432,7 +432,9 @@ impl BedrockStore {
                     .map_or(world, |saved| saved.snapshot.path.as_path());
                 let binary = exporter_binary()?;
                 let pack = resource_pack()?;
-                if !run_exporter(
+                let started = Instant::now();
+                eprintln!("[world-map] Rendering Bedrock {dimension} tile {x},{z}");
+                let rendered = run_exporter(
                     Command::new(binary)
                         .arg("tile")
                         .arg(source)
@@ -441,8 +443,14 @@ impl BedrockStore {
                         .arg(dimension)
                         .arg(x.to_string())
                         .arg(z.to_string()),
-                ) {
-                    return Err("The saved Bedrock tile could not be exported.".into());
+                );
+                eprintln!(
+                    "[world-map] Bedrock {dimension} tile {x},{z}: {} after {:.2}s",
+                    if rendered { "ready" } else { "failed" },
+                    started.elapsed().as_secs_f64()
+                );
+                if !rendered {
+                    return Err("The saved Bedrock tile could not be exported. See the agent log for the exporter error.".into());
                 }
             }
         }
@@ -491,7 +499,9 @@ fn run_exporter(command: &mut Command) -> bool {
     command
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        // Keep exporter failures in the agent log rather than hiding them
+        // behind a generic HTTP error and the viewer's retry loop.
+        .stderr(Stdio::inherit())
         .spawn()
         .and_then(|mut child| {
             let started = Instant::now();

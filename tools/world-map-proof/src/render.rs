@@ -100,28 +100,6 @@ impl Mesh {
             .extend([start, start + 1, start + 2, start, start + 2, start + 3]);
     }
 
-    fn write(&self, out: &mut Vec<u8>) {
-        out.extend((self.positions.len() as u32 / 3).to_le_bytes());
-        out.extend((self.indices.len() as u32).to_le_bytes());
-        for value in &self.positions {
-            out.extend(value.to_le_bytes());
-        }
-        for value in &self.uv {
-            out.extend(value.to_le_bytes());
-        }
-        for value in &self.layer {
-            out.extend(value.to_le_bytes());
-        }
-        out.extend(&self.colors);
-        out.extend(&self.normals);
-        for value in &self.biome {
-            out.extend(value.to_le_bytes());
-        }
-        for value in &self.indices {
-            out.extend(value.to_le_bytes());
-        }
-    }
-
     fn write_quantized(&self, out: &mut Vec<u8>) {
         let vertex_count = self.positions.len() / 3;
         out.extend((vertex_count as u32).to_le_bytes());
@@ -170,9 +148,7 @@ impl Mesh {
         for value in &self.biome {
             out.extend((*value as u16).to_le_bytes());
         }
-        while out.len() % 4 != 0 {
-            out.push(0);
-        }
+        out.resize(out.len().next_multiple_of(4), 0);
     }
 }
 
@@ -180,6 +156,7 @@ struct Textures {
     resolver: ObjTextureResolver,
     layers: BTreeMap<PathBuf, u16>,
     pixels: Vec<u8>,
+    face_layers: HashMap<String, HashMap<[i32; 3], u16>>,
     fallback: usize,
     fallback_blocks: BTreeMap<String, usize>,
     grass_tint: [u8; 3],
@@ -224,6 +201,7 @@ impl Textures {
             resolver: ObjTextureResolver::with_pack_roots([pack], "textures"),
             layers: BTreeMap::new(),
             pixels,
+            face_layers: HashMap::new(),
             fallback: 0,
             fallback_blocks: BTreeMap::new(),
             grass_tint: colormap_tint(&pack.join("textures/colormap/grass.png"), [121, 182, 91]),
@@ -278,6 +256,28 @@ impl Textures {
     }
 
     fn layer(&mut self, block: &str, normal: [i32; 3]) -> u16 {
+        // Resolving a material builds its block model and checks texture paths.
+        // Do that once per block/face, rather than for every emitted face.
+        if let Some(&layer) = self
+            .face_layers
+            .get(block)
+            .and_then(|faces| faces.get(&normal))
+        {
+            if layer == 0 {
+                self.fallback += 1;
+                *self.fallback_blocks.entry(block.to_owned()).or_default() += 1;
+            }
+            return layer;
+        }
+        let layer = self.resolve_layer(block, normal);
+        self.face_layers
+            .entry(block.to_owned())
+            .or_default()
+            .insert(normal, layer);
+        layer
+    }
+
+    fn resolve_layer(&mut self, block: &str, normal: [i32; 3]) -> u16 {
         let Some(texture) = self.resolver.texture_for(block, normal) else {
             self.fallback += 1;
             *self.fallback_blocks.entry(block.to_owned()).or_default() += 1;
@@ -603,12 +603,16 @@ fn read_grid(
                     }
                 }
             }
+            // get_height_at_blocking reparses the complete biome record on
+            // every call. Read its 256-column height map once per chunk.
+            let heights = world.get_height_map_blocking(pos)?;
             for lz in 0..16u8 {
                 for lx in 0..16u8 {
                     let x = cx as usize * 16 + usize::from(lx);
                     let z = cz as usize * 16 + usize::from(lz);
-                    let y = world
-                        .get_height_at_blocking(pos, lx, lz)?
+                    let y = heights
+                        .as_ref()
+                        .and_then(|map| map[usize::from(lz)][usize::from(lx)])
                         .map(i32::from)
                         .unwrap_or(87);
                     grid.biomes[z * SIDE + x] = if (MIN_Y..MAX_Y).contains(&y) {

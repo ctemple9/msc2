@@ -162,7 +162,9 @@ function stageBedrockMap() {
   const manifest = join(workspaceRoot, 'tools', 'world-map-proof', 'Cargo.toml');
   const built = spawnSync(
     'cargo',
-    ['build', '--locked', '--manifest-path', manifest, ...cargoProfileArguments],
+    // Terrain rendering is CPU intensive; ship the same optimized exporter
+    // used by the browser proof even when the desktop/agent are debug builds.
+    ['build', '--locked', '--release', '--manifest-path', manifest],
     { cwd: workspaceRoot, stdio: 'inherit' },
   );
   if (built.status !== 0) fail('could not build the Bedrock terrain exporter');
@@ -171,7 +173,7 @@ function stageBedrockMap() {
     'tools',
     'world-map-proof',
     'target',
-    profile,
+    'release',
     process.platform === 'win32' ? 'msc-world-map-proof.exe' : 'msc-world-map-proof',
   );
   if (!existsSync(binary)) fail(`Bedrock terrain exporter is missing: ${binary}`);

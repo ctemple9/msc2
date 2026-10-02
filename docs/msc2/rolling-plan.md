@@ -1801,6 +1801,16 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Verify:** Open a Bedrock map and confirm its progress reports one tile loading at a time while loaded tiles continue to increase.
 - **Batch:** C (P18.10) — Bedrock map integration
 
+### P18.10o — Remove measured Bedrock export bottlenecks
+
+- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Files:** `tools/world-map-proof/src/render.rs`, `clients/desktop-web/tools/prepare-agent-dev.mjs`, `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`, `docs/msc2/rolling-plan.md`
+- **Diagnosis:** The browser proof mounts one pre-rendered tile, while MSC exports catalog tiles on demand. Development staging selected an unoptimized exporter. The renderer called `get_height_at_blocking` for every column (256 complete biome-record decodes per chunk, 4096 per tile) and resolved block models/texture paths for every emitted face. Existing cache file timestamps show exports separated by tens of seconds to minutes; the latest cache rendered seven files, so the six-loaded UI alone did not identify the stalled stage. No running app/exporter process was available during this investigation.
+- **What:** Read each chunk height map once, cache resolved layers by block material and face normal (including missing textures while preserving fallback counts), and always stage a release exporter for development as well as release apps. Preserve serialized atlas writes. Log tile start, completion duration and failure, and retain exporter stderr in the agent log. Remove the unused VTL4 mesh writer.
+- **Evidence:** Profiled exports against an existing MSC snapshot, with separate temporary output directories and the same starting texture index. Tile `t.9.6.vtile` took 29.91 seconds with the prior debug exporter and 2.394 seconds with the corrected release exporter; generated tile bytes were identical. Neighbor tiles `t.8.5.vtile` and `t.10.5.vtile` took 2.593 and 2.356 seconds. These measurements combine algorithm and build-profile improvements; they do not isolate either improvement or prove integrated Tauri streaming. Release exporter build and Clippy with warnings denied passed; agent build passed with its existing unused `forbidden` warning; native staging succeeded. No test suite was run.
+- **Verify:** With the newly staged agent/exporter installed, reopen the Bedrock map and confirm nearby tiles continue filling in. If progress stops, inspect `[world-map]` start/completion/error entries in the agent log to distinguish export work from transport/viewer work. Integrated acceptance remains open.
+- **Batch:** C (P18.10) — Bedrock map integration
+
 ### P18.10 — Connect saved-terrain refresh and live player controls
 
 - **Status:** Planned — owner direction, 2026-09-30

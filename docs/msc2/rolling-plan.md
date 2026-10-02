@@ -105,3 +105,13 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Commit:** `P12.195: remove local service details disclosure`
 
 **Agent checks:** Frontend type-check passed with zero errors and 10 existing warnings; `git diff --check` passed. Tests were not run.
+
+
+### P12.196 — Explain closing MSC and stopping services
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, this plan.
+**What:** Replace the connection/pairing explanation with the approved “What happens when you close MSC?” guidance: running servers continue after the app closes; use the server’s Stop button for Minecraft and Stop agent for the agent. Remove the duplicated closing-window note from the left panel and its unused styling. Preserve Cameron's uncommitted heading edit without including it in this step's commit. No tests added or run; no Rust changed.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.196 only.
+**Commit:** `P12.196: clarify closing the app and stopping the agent`

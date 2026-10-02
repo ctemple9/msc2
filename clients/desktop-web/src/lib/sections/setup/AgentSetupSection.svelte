@@ -449,10 +449,6 @@
           </div>
         </section>
       {/if}
-      <p class="service-note">
-        The agent runs independently of this window. Closing MSC does not stop the agent or a
-        running Minecraft server.
-      </p>
     </section>
 
     <section class="how-msc-works" aria-label="How MSC works">
@@ -477,9 +473,10 @@
         </li>
       </ol>
       <div class="connection-explanation">
-        <h3>A connection is control, not the server itself.</h3>
+        <h3>What happens when you close MSC?</h3>
         <p>
-          Closing the app leaves the agent running. Pairing gives this app permission to manage it.
+          <strong>Your servers keep running.</strong> Closing this window leaves the agent and Minecraft
+          running. To stop Minecraft, use the server’s Stop button. To stop the agent, use Stop agent.
         </p>
       </div>
       {#if !isCurrentLocalAgent && onPairAgain}
@@ -749,14 +746,6 @@
     line-height: 1.5;
     overflow-wrap: anywhere;
   }
-  .service-note {
-    margin-top: 18px;
-    padding-top: 15px;
-    border-top: 1px solid var(--msc2-hairline);
-    font-size: 12px;
-    line-height: 1.5;
-    color: var(--msc2-text-secondary);
-  }
   .how-msc-works {
     min-width: 0;
     padding-top: 5px;
@@ -793,6 +782,10 @@
     border-top: 1px solid var(--msc2-hairline);
     padding-top: 14px;
     margin-top: 20px;
+  }
+  .connection-explanation strong {
+    font-weight: 500;
+    color: var(--msc2-text-primary);
   }
   .connection-explanation h3 {
     font-size: 12px;

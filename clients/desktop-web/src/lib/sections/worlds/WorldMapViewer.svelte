@@ -129,7 +129,14 @@
       const { VantageViewer: Viewer, PlayerLayer: Layer } =
         await import('@thoughts-on-things/vantage-mc/three');
       if (!alive || generation !== loadGeneration) return;
-      opening = new Viewer(canvas, { players: { enabled: false }, urlState: false });
+      opening = new Viewer(canvas, {
+        players: { enabled: false },
+        urlState: false,
+        // The Bedrock agent serializes tile exports while extending its shared
+        // texture atlas. Match that limit instead of queueing six blocked HTTP
+        // requests that all appear to be rendering at once.
+        ...(serverType === 'bedrock' ? { streaming: { concurrency: 1 } } : {}),
+      });
       if (serverType === 'bedrock') {
         opening.on('stats', (stats) => {
           if (!alive || generation !== loadGeneration) return;

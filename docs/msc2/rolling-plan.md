@@ -1793,6 +1793,14 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Verify:** Open a Bedrock world in MSC and confirm the status reports loaded and saved tile counts, plus any tiles currently loading.
 - **Batch:** C (P18.10) — Bedrock map integration
 
+### P18.10n — Match Bedrock tile requests to export concurrency
+
+- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Limit Bedrock viewer fetch concurrency to one because the agent currently holds its map-cache lock while rendering and extending the shared texture atlas. This prevents six apparent simultaneous loads from accumulating as blocked requests. Java viewer concurrency remains unchanged.
+- **Verify:** Open a Bedrock map and confirm its progress reports one tile loading at a time while loaded tiles continue to increase.
+- **Batch:** C (P18.10) — Bedrock map integration
+
 ### P18.10 — Connect saved-terrain refresh and live player controls
 
 - **Status:** Planned — owner direction, 2026-09-30

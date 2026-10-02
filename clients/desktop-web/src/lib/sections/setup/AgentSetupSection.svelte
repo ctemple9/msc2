@@ -107,8 +107,6 @@
   let removeHostOpen = false;
   let removeHostBusy = false;
   let copiedCommand = '';
-  let remoteMenuOpen = false;
-  let remoteTrigger: HTMLButtonElement | undefined;
   let remoteView: 'new' | 'saved' | undefined;
   let editingHostId: HostId | undefined;
   let openingServerId = '';
@@ -189,7 +187,6 @@
   }
 
   function selectRemoteView(view: 'new' | 'saved'): void {
-    remoteMenuOpen = false;
     remoteView = view;
     editingHostId = undefined;
   }
@@ -197,7 +194,6 @@
   function editSavedHost(hostId: HostId): void {
     editingHostId = hostId;
     remoteView = 'new';
-    remoteMenuOpen = false;
   }
 
   function closeRemoteView(): void {
@@ -360,15 +356,6 @@
   }
 </script>
 
-<svelte:window
-  onkeydown={(event) => {
-    if (event.key === 'Escape' && remoteMenuOpen) {
-      remoteMenuOpen = false;
-      remoteTrigger?.focus();
-    }
-  }}
-/>
-
 <div class="agent-home">
   <header class="home-heading">
     <p class="msc2-type-overline">MSC 2</p>
@@ -492,33 +479,12 @@
             Connect to an agent on your server computer. You can manage it from this app while
             Minecraft runs there.
           </p>
-          <div
-            class="remote-picker"
-            onfocusout={(event) => {
-              if (!event.currentTarget.contains(event.relatedTarget as Node | null))
-                remoteMenuOpen = false;
-            }}
-          >
-            <button
-              bind:this={remoteTrigger}
-              type="button"
-              class="remote-trigger"
-              aria-expanded={remoteMenuOpen}
-              aria-controls="remote-agent-options"
-              onclick={() => (remoteMenuOpen = !remoteMenuOpen)}
-              >Connect remote agent <span aria-hidden="true">▾</span></button
-            >
-            {#if remoteMenuOpen}
-              <div id="remote-agent-options" class="remote-options">
-                <button type="button" onclick={() => selectRemoteView('new')}
-                  >Connect new host</button
-                >
-                <button type="button" onclick={() => selectRemoteView('saved')}
-                  >View saved hosts{#if savedHosts.length}
-                    ({savedHosts.length}){/if}</button
-                >
-              </div>
-            {/if}
+          <div class="actions">
+            <Button onclick={() => selectRemoteView('new')}>Connect new host</Button>
+            <Button onclick={() => selectRemoteView('saved')}>
+              View saved hosts{#if savedHosts.length}
+                ({savedHosts.length}){/if}
+            </Button>
           </div>
         </section>
       {/if}
@@ -897,45 +863,6 @@
   }
   .connection-explanation h3 {
     font-size: 12px;
-  }
-  .remote-picker {
-    margin-top: 14px;
-  }
-  .remote-trigger,
-  .remote-options button {
-    font: inherit;
-    font-size: 13px;
-    color: var(--msc2-text-primary);
-    cursor: pointer;
-  }
-  .remote-trigger {
-    background: transparent;
-    border: 1px solid var(--msc2-hairline);
-    border-radius: 8px;
-    padding: 8px 16px;
-  }
-  .remote-trigger span {
-    margin-left: 6px;
-  }
-  .remote-options {
-    display: grid;
-    gap: 2px;
-    margin-top: 7px;
-    padding: 5px;
-    border-radius: 5px;
-    background: var(--msc2-tier-chrome);
-    max-width: 240px;
-  }
-  .remote-options button {
-    text-align: left;
-    padding: 9px 10px;
-    background: transparent;
-    border: 0;
-    border-radius: 4px;
-  }
-  .remote-trigger:hover,
-  .remote-options button:hover {
-    background: var(--msc2-neutral-elevated);
   }
   .remote-content {
     border-top: 1px solid var(--msc2-hairline);

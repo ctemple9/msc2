@@ -191,3 +191,12 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Commit:** `P19.4: add confirmed complete uninstall to settings`
 
 **Phase 19 acceptance gate:** Cameron verifies both entry points on disposable installed MSC 2 environments for macOS, Windows MSI, and Linux desktop/headless packaging. Observe server shutdown, service/helper removal, data/credential/cache cleanup, OS package deregistration, self-removal, verified installer deletion, and readable partial-failure results. Check cancellation at each confirmation, no-write dry run, stale/tampered inventory rejection, missing/offline agent behavior, protected symlink/root paths, and that saved remote agents plus MSC 1 remain unchanged. Developer source trees are never used for destructive acceptance. The other agent independently reviews the deletion boundary and phase gate. No release workflow gates or release runs are added by this work.
+
+### P12.199 — Show remote host actions directly
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, this plan.
+**What:** Replace Connect remote agent and its dropdown with two visible buttons, Connect new host and View saved hosts (including the saved count). Retain the existing form/list underneath. Remove unused dropdown state, focus/Escape handling, and styles. Preserve owner heading and lockfile edits outside this commit. No tests added or run; no Rust changed.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.199 only.
+**Commit:** `P12.199: show remote host actions as separate buttons`

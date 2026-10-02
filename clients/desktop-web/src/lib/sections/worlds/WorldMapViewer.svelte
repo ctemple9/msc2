@@ -33,6 +33,7 @@
   let coords = 'XYZ —';
   let flying = false;
   let topDown = false;
+  let netherDepth = 83;
   let spawn: { x: number; y: number; z: number } | undefined;
   let message = '';
   let messageTimer: ReturnType<typeof setTimeout> | undefined;
@@ -249,6 +250,15 @@
     frameId = requestAnimationFrame(updateToolbar);
   }
 
+  function setNetherDepth(y: number): void {
+    if (!viewer) return;
+    stopFollowing();
+    netherDepth = Math.max(2, Math.min(126, Math.round(y)));
+    viewer.setSlice(netherDepth);
+    viewer.controls.position.y = netherDepth;
+    viewer.invalidate();
+  }
+
   function leaveFly(): void {
     releaseDesktopLook();
     viewer?.setFlyMode(false);
@@ -361,6 +371,7 @@
     if (!viewer || !playerLayer) return;
     leaveFly();
     stopFollowing();
+    viewer.setSlice(null);
     const target =
       playerLayer.positionOf(player.id) ??
       viewer.controls.position.clone().set(player.x, player.y, player.z);
@@ -393,6 +404,7 @@
   function toggleFly(): void {
     if (!viewer) return;
     stopFollowing();
+    viewer.setSlice(null);
     const controls = viewer.controls;
     const focus = controls.position.clone();
     const groundY = controls.heightAt?.(focus.x, focus.z) ?? focus.y;
@@ -693,6 +705,11 @@
             // The animated flatten path could still show block side faces
             // after the toolbar had already switched to 2D.
             const controls = viewer.controls;
+            if (selectedDimension === 'minecraft:the_nether') {
+              setNetherDepth(controls.position.y > 120 ? 83 : controls.position.y);
+            } else {
+              viewer.setSlice(null);
+            }
             controls.setView({
               position: controls.position.clone(),
               distance: controls.distance,
@@ -711,6 +728,7 @@
         onclick={() => {
           stopFollowing();
           leaveFly();
+          viewer?.setSlice(null);
           viewer?.setTilt(0.42);
         }}>3D</button
       >
@@ -721,6 +739,20 @@
         aria-pressed={flying}
         onclick={toggleFly}>Fly</button
       >
+      {#if selectedDimension === 'minecraft:the_nether' && topDown && !flying}
+        <label class="nether-depth">
+          Depth Y
+          <input
+            type="range"
+            min="2"
+            max="126"
+            step="1"
+            value={netherDepth}
+            oninput={(event) => setNetherDepth(Number(event.currentTarget.value))}
+          />
+          <output>{netherDepth}</output>
+        </label>
+      {/if}
       <output class="coordinates">{coords}</output>
       <button
         type="button"
@@ -1044,6 +1076,21 @@
   .map-toolbar button:disabled {
     opacity: 0.45;
     cursor: default;
+  }
+  .nether-depth {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    font-size: 11px;
+    color: #c3cad1;
+  }
+  .nether-depth input {
+    width: 90px;
+  }
+  .nether-depth output {
+    min-width: 22px;
+    font-variant-numeric: tabular-nums;
   }
   .coordinates {
     min-width: 155px;

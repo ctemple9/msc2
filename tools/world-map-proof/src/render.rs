@@ -931,7 +931,14 @@ pub fn create_catalog(
 ) -> Result<(), Box<dyn Error>> {
     fs::create_dir_all(output.join("tiles"))?;
     Textures::new(pack).write_shared(output)?;
-    let overview = create_overview(world, positions, pack, output)?;
+    // A roof heightfield cannot cover the Nether's hollow interior. Advertising
+    // it as whole-world coverage disables the viewer's detail-frontier fog and
+    // exposes unloaded cave tile edges. Keep interior views bounded by detail.
+    let overview = if dimension_id == "minecraft:the_nether" {
+        serde_json::Value::Null
+    } else {
+        create_overview(world, positions, pack, output)?
+    };
     let tiles: Vec<_> = anchors
         .iter()
         .map(|&(x, z)| {
@@ -947,7 +954,12 @@ pub fn create_catalog(
         serde_json::to_vec(&serde_json::json!({
             "format": 2, "tileChunks": 4, "tileBlocks": 64, "lowres": overview,
             "textures": "terrain.vtexarr", "textureLayers": 1,
-            "rendering": true, "dynamic": true,
+            "rendering": true, "dynamic": true, "caves": true,
+            "yRange": match dimension_id {
+                "minecraft:the_nether" => serde_json::json!({"min": 0, "max": 128}),
+                "minecraft:the_end" => serde_json::json!({"min": 0, "max": 256}),
+                _ => serde_json::json!({"min": MIN_Y, "max": MAX_Y}),
+            },
             "biomes": [], "tiles": tiles,
             "dimension": {
                 "id": dimension_id,

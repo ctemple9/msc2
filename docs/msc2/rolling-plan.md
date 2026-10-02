@@ -1849,6 +1849,17 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Verify:** Collapse and reopen both overlays in the map. Confirm the player count remains current while collapsed and Fly/Follow remain available after expanding. No tests run, per owner policy.
 - **Batch:** C (P18.10) — map overlay controls
 
+### P18.10t — Make Nether 2D a depth slice and restore interior streaming fog
+
+- **Status:** Awaiting Cameron verification — implemented 2026-10-02
+- **Files:** `tools/world-map-proof/src/render.rs`, `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/rolling-plan.md`
+- **Diagnosis:** Owner screenshots show nearby-looking gaps inside the Nether and a roof-obstructed 2D view whose focus stays at Y83. Inspected the current agent's Nether catalog/output: all nine detailed tiles around screenshot coordinates X147/Z-250 are exported (about 9–18 MB each). This establishes server artifacts exist, not client residency. Viewer source confirms a lowres manifest moves fog to the whole-world edge. The Nether overview only describes its roof, so that assumption leaves unloaded cave interiors exposed. A vertical camera alone cannot peel off the roof or select a deeper cave level.
+- **What:** Omit the Nether roof-only overview, retaining detail selection and the 512 MiB terrain budget. The viewer now uses its existing detail-frontier fog for Nether interiors. Overworld/End overviews remain. Declare full cave geometry and dimension Y bounds in Bedrock manifests. Entering Nether 2D slices at the current interior focus height (Y83 when above the roof), clamped to Y2–126; add a Depth Y slider that cuts geometry above the selected level and moves the focus to that level. Changing depth stops Follow so tracking cannot overwrite the selected height. 3D, Fly and player focus clear the slice.
+- **Evidence:** Release exporter build and Clippy with warnings denied passed. A diagnostic export against an existing consistent snapshot produced 171 Nether detailed references, no lowres section and Y0–128 bounds in 0.80 seconds. Updated exporter staged in both development resource/package directories with matching hashes. Svelte check passed with zero errors and 13 existing warnings; frontend production build passed. No tests run. The fog policy cause is confirmed from source; closure of the specific nearby-looking gaps and integrated depth-slider behavior requires owner observation.
+- **Limits:** Nether distant interiors still require detailed tiles; a roof heightfield cannot represent them. Fog hides the residency frontier but does not manufacture unsaved chunks or provide a distant volumetric cave overview. Detailed tile counts may still settle under the memory budget.
+- **Verify:** Restart the development session and repair service to install the exporter and discard the old catalog. Reopen the Nether: confirm unloaded detail boundaries fade into fog, and confirm nearby tiles fill as the camera moves. Enter 2D, lower Depth Y below83 and inspect the exposed interior. Return to 3D/Fly and confirm the roof/full geometry is restored. Owner can defer verification.
+- **Batch:** C (P18.10) — Nether map usability
+
 ### P18.10 — Connect saved-terrain refresh and live player controls
 
 - **Status:** Planned — owner direction, 2026-09-30

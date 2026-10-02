@@ -1,8 +1,7 @@
 # Complete local uninstall
 
 Owner-requested 2026-10-02. P19.1 implements the shared read-only inventory;
-P19.2 adds native discovery/removal; CLI and desktop entry points are being wired in P19.3–P19.4. No
-uninstall entry point is available yet.
+P19.2 adds native discovery/removal; CLI and desktop entry points are being wired in P19.3–P19.4. The local CLI entry point is implemented; the desktop action is being wired.
 
 ## Scope
 
@@ -108,3 +107,25 @@ Non-test verification for P19.1:
 ```sh
 cargo check -p msc-infrastructure
 ```
+
+## CLI entry point
+
+```sh
+msc uninstall --dry-run
+msc uninstall --danger
+```
+
+The first command is read-only. The second displays the inventory, warns about
+world/backup loss, and requires the exact `UNINSTALL MSC 2` phrase. Automation
+must supply `--danger --confirm "UNINSTALL MSC 2"`; use `--fingerprint` from the
+reviewed JSON preview to refuse changed targets. `--installer /absolute/path`
+adds a candidate that must match staged signed release metadata. `--report
+/absolute/new-result.json` explicitly retains a result outside removed trees.
+
+Removal is handed to a copied private worker. A scheduled response means only
+that the worker was launched. It waits for the parent and desktop to close,
+rediscovers targets, verifies the preview, stops the local Minecraft server,
+and removes services/data/installation. Failed or partial removal keeps a
+report and exits nonzero in the worker; the parent cannot report that later
+result as its own synchronous exit code. Interactive terminals receive worker
+output. Desktop reads the scheduled report location before closing.

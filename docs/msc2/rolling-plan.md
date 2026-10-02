@@ -176,12 +176,14 @@ into main; no release publication or exact-artifact acceptance is implied.
 
 ### P19.3 — Expose the confirmed uninstall command
 
-**Status:** Planned; blocked on P19.2 verification.
+**Status:** Implemented; awaiting Cameron's verification.
 **Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/cli/uninstall.rs` (new), CLI documentation/help, `docs/msc2/clients/local-uninstall.md`, this plan.
 **What:** Add `msc uninstall --danger`, `--dry-run`, exact `--confirm` for explicit automation, and validated additional-installer selection. Share inventory/execution with desktop rather than duplicating deletion logic. Ignore/refuse remote target overrides and obtain all destructive targets locally. Print warnings and inventory before the typed interactive confirmation. Return nonzero on blocked/partial cleanup and distinguish a detached scheduled action from actual completion. Keep ordinary `msc service uninstall` and host-reset behavior unchanged. Review CLI parsing/help through non-destructive checks; do not run a destructive invocation on the developer machine.
 **Verify:** `cargo check -p msc-agent`
 **Batch:** P19.3 only.
 **Commit:** `P19.3: add confirmed local uninstall command`
+
+**Agent checks:** Agent compilation and Clippy passed (one pre-existing auth.rs dead-code warning); no tests or uninstall commands ran. A private copied worker waits for the parent/desktop to exit, rediscovers and compares the inventory, authenticates only to the local agent to stop Minecraft, and records partial/failure outcomes. Explicit optional reports survive outside the deleted directories; otherwise successful worker files are removed. Native Windows acceptance remains pending as noted in P19.2.
 
 ### P19.4 — Add Uninstall MSC 2 to app settings
 

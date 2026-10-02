@@ -690,32 +690,33 @@
         {#each orderedServers as server (server.id)}
           <button
             class="server-row"
-            class:selected-server={server.id === serverId}
             disabled={!onOpenServer || !!openingServerId}
             onclick={() => void openServer(server.id)}
           >
             <span class="server-info">
               <span class="server-name">{server.name}</span>
-              <span class="small-detail"
-                >{server.serverType === 'bedrock'
-                  ? 'Bedrock'
-                  : server.javaFlavor || 'Java'}{server.gamePort
-                  ? ` · Port ${server.gamePort}`
-                  : ''}</span
-              >
-              {#if server.id === serverId}
-                <span class="server-stats">
-                  <span>Players {serverRunning ? (players ?? 'Unavailable') : '0'}</span>
-                  <span>RAM {serverRunning ? ramLabel(performance?.ramUsedMB?.value) : '—'}</span>
-                  <span
-                    >Uptime {serverRunning
-                      ? runStartedAt === undefined
-                        ? 'Running'
-                        : formatUptime(nowMs - runStartedAt)
-                      : '—'}</span
-                  >
-                </span>
-              {/if}
+              <span class="server-details">
+                <span class="small-detail"
+                  >{server.serverType === 'bedrock'
+                    ? 'Bedrock'
+                    : server.javaFlavor || 'Java'}{server.gamePort
+                    ? ` · Port ${server.gamePort}`
+                    : ''}</span
+                >
+                {#if server.id === serverId}
+                  <span class="server-stats">
+                    <span>Players {serverRunning ? (players ?? 'Unavailable') : '0'}</span>
+                    <span>RAM {serverRunning ? ramLabel(performance?.ramUsedMB?.value) : '—'}</span>
+                    <span
+                      >Uptime {serverRunning
+                        ? runStartedAt === undefined
+                          ? 'Running'
+                          : formatUptime(nowMs - runStartedAt)
+                        : '—'}</span
+                    >
+                  </span>
+                {/if}
+              </span>
             </span>
             <span class="server-row-end">
               {#if server.id === serverId}<span class="server-state" class:running={serverRunning}
@@ -1022,8 +1023,7 @@
     cursor: pointer;
     padding: 17px 12px;
   }
-  .server-row:hover,
-  .selected-server {
+  .server-row:hover {
     background: var(--msc2-tier-content);
   }
   .server-row:focus-visible,
@@ -1044,6 +1044,12 @@
     font-size: 15px;
     font-weight: 500;
     overflow-wrap: anywhere;
+  }
+  .server-details {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px 20px;
   }
   .server-stats {
     display: flex;

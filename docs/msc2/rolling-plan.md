@@ -126,3 +126,12 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Commit:** `P12.197: make agent server rows collapsible and show live stats`
 
 **Manual verification:** Expand On this agent; confirm the selected server is first, click another row to open its Overview, and compare Players/RAM with that server's existing screens. Start a previously stopped server while connected and compare uptime across Agents and Performance. Reconnecting to an already-running server should show Running rather than inventing elapsed time.
+
+### P12.198 — Match the selected server row to the rest of the list
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, this plan.
+**What:** Remove the selected row's permanent gray background. Place its extra stats beside the existing type/port details rather than adding a third line, so rows share the same spacing and height when room permits. Allow details to wrap on narrow screens. Retain selected-first ordering, colored status, and direct Overview navigation. Preserve Cameron's uncommitted heading and lockfile edits outside this commit. No tests added or run; no Rust changed.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.198 only.
+**Commit:** `P12.198: match selected server row styling to the list`

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { observeServerRun, serverRuns, serverRunKey } from '../shared/server-uptime';
   // MSC 1 DetailsPerformanceTabView / DetailsPerformanceTabContent.swift,
   // rebuilt to the S0 disciplined system (docs/msc2/antiAIslop.md). Same
   // shared-component pattern HomeSection/WorldsSection use (D-003).
@@ -59,6 +60,7 @@
   } from './model';
 
   export let api: ScreenProps['api'] = undefined;
+  export let hostId = 'local-agent';
   export let serverId = 'survival';
   export let active = true;
 
@@ -79,8 +81,7 @@
   let tpsChartHistory: number[] = [];
   let ramHistory: number[] = [];
 
-  let runStartMs: number | undefined;
-  let previousRunning: boolean | undefined;
+  $: runStartMs = $serverRuns.get(serverRunKey(hostId, serverId))?.startedAt;
   let nowMs = Date.now();
 
   async function poll(): Promise<void> {
@@ -94,11 +95,7 @@
     if (tps !== undefined) tpsChartHistory = pushCapped(tpsChartHistory, tps, CHART_CAPACITY);
     recordRamSample();
 
-    if (health.serverRunning !== previousRunning) {
-      if (health.serverRunning && previousRunning === false) runStartMs = Date.now();
-      if (!health.serverRunning) runStartMs = undefined;
-      previousRunning = health.serverRunning;
-    }
+    if (api) observeServerRun(hostId, serverId, health.serverRunning);
   }
 
   async function pollRam(): Promise<void> {

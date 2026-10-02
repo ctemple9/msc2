@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { observeServerRun, serverRuns, serverRunKey } from '../shared/server-uptime';
+  import { formatUptime } from '../performance/model';
+  import { onDestroy } from 'svelte';
   import Button from '../../components/base/Button.svelte';
   import ConfirmDialog from '../../components/ConfirmDialog.svelte';
   import Field from '../../components/base/Field.svelte';
@@ -18,10 +21,11 @@
     type RemoteHostConnectionInput,
   } from '../../hosts/types';
   import RemoteConnectionWizard from './connection/RemoteConnectionWizard.svelte';
-  import type { Schema } from '../shared/types';
+  import type { Schema, ScreenProps } from '../shared/types';
   import type { RemoteDesktopPairingResult } from '../../auth/desktop';
   import { formatConnectionFailure } from '../../hosts/connection-errors';
 
+  export let api: ScreenProps['api'] = undefined;
   export let readiness: AgentReadiness = 'starting';
   export let onAgentRetry: (() => void | Promise<void>) | undefined = undefined;
   export let hostId = '';
@@ -85,6 +89,16 @@
     { label: 'Stop', command: commonServiceCommands[2] },
   ];
 
+  let nowMs = Date.now();
+  $: runStartedAt = $serverRuns.get(serverRunKey(hostId, serverId))?.startedAt;
+  let serversExpanded = false;
+  let performance: Schema['PerformanceSnapshotDTO'] | undefined;
+  let players: number | undefined;
+  let statsTimer: ReturnType<typeof setInterval> | undefined;
+  let statsKey = '';
+  let statsGeneration = 0;
+  let statsBusy = false;
+
   let status: AgentServiceStatus | undefined;
   let busy = false;
   let errorMessage = '';
@@ -113,7 +127,66 @@
   $: savedHosts = hosts.filter((host) => host.id !== LOCAL_HOST_ID);
   $: editingHost = editingHostId ? savedHosts.find((host) => host.id === editingHostId) : undefined;
 
+  $: orderedServers = [
+    ...servers.filter((server) => server.id === serverId),
+    ...servers.filter((server) => server.id !== serverId),
+  ];
+
   $: selectedServer = servers.find((server) => server.id === serverId);
+
+  // Only the active server has live endpoints. Never reuse its values for another row.
+  $: configureStats(api, hostId, serverId, active && readiness === 'ready' && serversExpanded);
+
+  function configureStats(
+    client: ScreenProps['api'],
+    host: string,
+    server: string,
+    enabled: boolean,
+  ): void {
+    const key = client && enabled ? `${host}:${server}` : '';
+    if (key === statsKey) return;
+    statsKey = key;
+    const generation = ++statsGeneration;
+    clearInterval(statsTimer);
+    performance = undefined;
+    players = undefined;
+    statsBusy = false;
+    if (!key || !client) return;
+    const refreshStats = async () => {
+      if (statsBusy || generation !== statsGeneration) return;
+      statsBusy = true;
+      const results = await Promise.allSettled([
+        client.get<Schema['PerformanceSnapshotDTO']>('/v1/performance'),
+        client.get<Schema['PlayersResponseDTO']>('/v1/players'),
+        client.get<Schema['RemoteAPIStatus']>('/v1/status'),
+      ]);
+      if (generation !== statsGeneration) return;
+      const [metrics, online, current] = results;
+      if (current.status === 'fulfilled' && current.value.activeServerId === server) {
+        serverRunning = current.value.running;
+        observeServerRun(host, server, current.value.running);
+        nowMs = Date.now();
+        performance = metrics.status === 'fulfilled' ? metrics.value : undefined;
+        players = online.status === 'fulfilled' ? online.value.count : undefined;
+      } else {
+        performance = undefined;
+        players = undefined;
+      }
+      statsBusy = false;
+    };
+    void refreshStats();
+    statsTimer = setInterval(() => void refreshStats(), 5000);
+  }
+
+  onDestroy(() => {
+    statsGeneration += 1;
+    clearInterval(statsTimer);
+  });
+
+  function ramLabel(value: number | undefined): string {
+    if (value === undefined || !Number.isFinite(value)) return 'Unavailable';
+    return value >= 1024 ? `${(value / 1024).toFixed(1)} GB` : `${Math.round(value)} MB`;
+  }
 
   function selectRemoteView(view: 'new' | 'saved'): void {
     remoteMenuOpen = false;
@@ -595,32 +668,66 @@
 
   <section class="servers-section">
     <div class="section-heading">
-      <h2>{readiness === 'ready' ? 'On this agent' : 'Your servers will appear here'}</h2>
+      {#if readiness === 'ready'}
+        <button
+          class="servers-toggle"
+          aria-expanded={serversExpanded}
+          aria-controls="agent-server-list"
+          onclick={() => (serversExpanded = !serversExpanded)}
+        >
+          <span class="disclosure-arrow" aria-hidden="true">{serversExpanded ? '⌄' : '›'}</span>
+          <span>On this agent</span><span class="server-count"
+            >{servers.length} {servers.length === 1 ? 'server' : 'servers'}</span
+          >
+        </button>
+      {:else}<h2>Your servers will appear here</h2>{/if}
       {#if readiness === 'ready' && onFleet}<Button size="sm" onclick={onFleet}
           >Manage servers</Button
         >{/if}
     </div>
     {#if readiness === 'ready'}
-      {#each servers as server (server.id)}
-        <div class="server-row">
-          <div>
-            <h3>{server.name}</h3>
-            <p class="small-detail">
-              {server.serverType === 'bedrock'
-                ? 'Bedrock'
-                : server.javaFlavor || 'Java'}{#if server.id === serverId}
-                · Selected · {serverRunning ? 'Running' : 'Stopped'}{/if}
-            </p>
-          </div>
-          <Button
-            size="sm"
+      <div id="agent-server-list" hidden={!serversExpanded}>
+        {#each orderedServers as server (server.id)}
+          <button
+            class="server-row"
+            class:selected-server={server.id === serverId}
             disabled={!onOpenServer || !!openingServerId}
-            onclick={() => void openServer(server.id)}>Overview →</Button
+            onclick={() => void openServer(server.id)}
           >
-        </div>
-      {:else}<p class="empty-message">
-          No servers on this agent yet. Manage servers to create or import one.
-        </p>{/each}
+            <span class="server-info">
+              <span class="server-name">{server.name}</span>
+              <span class="small-detail"
+                >{server.serverType === 'bedrock'
+                  ? 'Bedrock'
+                  : server.javaFlavor || 'Java'}{server.gamePort
+                  ? ` · Port ${server.gamePort}`
+                  : ''}</span
+              >
+              {#if server.id === serverId}
+                <span class="server-stats">
+                  <span>Players {serverRunning ? (players ?? 'Unavailable') : '0'}</span>
+                  <span>RAM {serverRunning ? ramLabel(performance?.ramUsedMB?.value) : '—'}</span>
+                  <span
+                    >Uptime {serverRunning
+                      ? runStartedAt === undefined
+                        ? 'Running'
+                        : formatUptime(nowMs - runStartedAt)
+                      : '—'}</span
+                  >
+                </span>
+              {/if}
+            </span>
+            <span class="server-row-end">
+              {#if server.id === serverId}<span class="server-state" class:running={serverRunning}
+                  >Selected · {serverRunning ? 'Running' : 'Stopped'}</span
+                >{/if}
+              <span class="overview-arrow" aria-hidden="true">→</span>
+            </span>
+          </button>
+        {:else}<p class="empty-message">
+            No servers on this agent yet. Manage servers to create or import one.
+          </p>{/each}
+      </div>
     {:else}<p class="detail">
         Connect an agent to see the servers it manages. No server information is available yet.
       </p>{/if}
@@ -879,6 +986,84 @@
     padding: 17px 0;
     border-bottom: 1px solid var(--msc2-hairline);
   }
+  .servers-toggle {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 4px 0;
+    background: transparent;
+    border: 0;
+    color: var(--msc2-text-primary);
+    font: inherit;
+    font-size: 19px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+  }
+  .server-count,
+  .disclosure-arrow,
+  .overview-arrow {
+    color: var(--msc2-text-tertiary);
+  }
+  .server-count {
+    font-size: 12px;
+    font-weight: 400;
+  }
+  .server-row {
+    width: 100%;
+    background: transparent;
+    border-top: 0;
+    border-left: 0;
+    border-right: 0;
+    color: var(--msc2-text-primary);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    padding: 17px 12px;
+  }
+  .server-row:hover,
+  .selected-server {
+    background: var(--msc2-tier-content);
+  }
+  .server-row:focus-visible,
+  .servers-toggle:focus-visible {
+    outline: 2px solid var(--msc2-text-secondary);
+    outline-offset: 2px;
+  }
+  .server-row:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+  .server-info {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+  }
+  .server-name {
+    font-size: 15px;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+  }
+  .server-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    font-size: 12px;
+    color: var(--msc2-text-secondary);
+  }
+  .server-row-end {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .server-state {
+    font-size: 12px;
+    color: var(--msc2-status-warn);
+  }
+  .server-state.running {
+    color: var(--msc2-status-ok);
+  }
   .saved-host-info {
     min-width: 0;
   }
@@ -927,6 +1112,11 @@
     .saved-host-row {
       align-items: flex-start;
       flex-direction: column;
+    }
+    .server-row-end {
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
     }
     .saved-host-route {
       flex-wrap: wrap;

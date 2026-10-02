@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
+  import { observeServerRun, forgetHostRuns } from './lib/sections/shared/server-uptime';
   import { bundleIdentity } from './lib/bundle-identity';
   import { ApiClient, ApiError } from './lib/api/client';
   import ApplicationShell from './lib/components/ApplicationShell.svelte';
@@ -473,6 +474,7 @@
     servers = [];
     selectedServerId = '';
     status = defaultStatus;
+    forgetHostRuns(hostId);
 
     if (isLocalHostForReset() && isDesktopShell && result.mode === 'everything') {
       let localServiceRemoved = true;
@@ -645,6 +647,7 @@
       permissions = me.permissions;
       servers = nextServers;
       status = nextStatus;
+      observeServerRun(hostId, nextStatus.activeServerId ?? '', nextStatus.running);
       selectedServerId = nextServerId;
       hostStore.setServers(selectedHostId, nextServers);
       if (nextServerId) hostStore.selectServer(selectedHostId, nextServerId);
@@ -660,6 +663,7 @@
       servers = [];
       selectedServerId = '';
       status = defaultStatus;
+      forgetHostRuns(hostId);
       agentReadiness = readinessForError(error);
       shellMessage = `Unable to establish the selected host context: ${formatConnectionFailure(error)}`;
       hostStore.updateConnection(hostId, 'error');
@@ -709,6 +713,7 @@
         action === 'start',
       );
       status = nextStatus;
+      observeServerRun(hostId, nextStatus.activeServerId ?? '', nextStatus.running);
       if (action === 'start' && !nextStatus.running) {
         startupFailure = {
           serverName: activeServer?.name ?? 'Server',
@@ -768,6 +773,7 @@
     try {
       servers = await screenApi.get<Schema['ServerDTO'][]>('/v1/servers');
       status = await screenApi.get<Schema['RemoteAPIStatus']>('/v1/status');
+      observeServerRun(hostId, status.activeServerId ?? '', status.running);
     } catch {
       // The sheet already presents the operation's result; a later shell poll
       // can reconcile the list if the host drops during the final stop.
@@ -797,6 +803,7 @@
     servers = [];
     selectedServerId = '';
     status = defaultStatus;
+    forgetHostRuns(hostId);
     agentReadiness = 'starting';
     hostStore.updateConnection(selectedHostId, 'connecting');
     try {

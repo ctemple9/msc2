@@ -1770,6 +1770,21 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Commit:** P18.10k: keep Bedrock initial view on terrain
 - **Batch:** C (P18.10) — Bedrock map integration
 
+### P18.10l — Keep progressive Bedrock tile textures in sync
+
+- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Files:** `tools/world-map-proof/src/render.rs`, `docs/msc2/rolling-plan.md`
+- **What:** Write Bedrock's on-demand tiles in Vantage's progressive VTL6
+  format. This lets the viewer refresh its growing texture atlas as rendered
+  tiles add block textures, preventing missing atlas layers from appearing as
+  black terrain. Keep the existing empty surface summary until Bedrock surface
+  biome data is added.
+- **Verify:** Open a Bedrock world in MSC with saved terrain. Confirm the map
+  shows its block textures instead of black slabs in 2D and 3D, including
+  tiles that finish rendering after the viewer opens.
+- **Commit:** P18.10l: sync progressive Bedrock tile textures
+- **Batch:** C (P18.10) — Bedrock map integration
+
 ### P18.10 — Connect saved-terrain refresh and live player controls
 
 - **Status:** Planned — owner direction, 2026-09-30

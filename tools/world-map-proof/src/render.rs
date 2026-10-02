@@ -121,6 +121,59 @@ impl Mesh {
             out.extend(value.to_le_bytes());
         }
     }
+
+    fn write_quantized(&self, out: &mut Vec<u8>) {
+        let vertex_count = self.positions.len() / 3;
+        out.extend((vertex_count as u32).to_le_bytes());
+        out.extend((self.indices.len() as u32).to_le_bytes());
+        for value in &self.uv {
+            out.extend(value.to_le_bytes());
+        }
+        out.extend(&self.colors);
+        out.extend(&self.normals);
+        for value in &self.indices {
+            out.extend(value.to_le_bytes());
+        }
+
+        let (min, scale) = if vertex_count == 0 {
+            ([0.0; 3], [1.0; 3])
+        } else {
+            let mut min = [f32::INFINITY; 3];
+            let mut max = [f32::NEG_INFINITY; 3];
+            for position in self.positions.chunks_exact(3) {
+                for axis in 0..3 {
+                    min[axis] = min[axis].min(position[axis]);
+                    max[axis] = max[axis].max(position[axis]);
+                }
+            }
+            let scale = std::array::from_fn(|axis| (max[axis] - min[axis]) / f32::from(u16::MAX));
+            (min, scale)
+        };
+        for value in min.into_iter().chain(scale) {
+            out.extend(value.to_le_bytes());
+        }
+        for position in self.positions.chunks_exact(3) {
+            for axis in 0..3 {
+                let quantized = if scale[axis] == 0.0 {
+                    0
+                } else {
+                    ((position[axis] - min[axis]) / scale[axis])
+                        .round()
+                        .clamp(0.0, f32::from(u16::MAX)) as u16
+                };
+                out.extend(quantized.to_le_bytes());
+            }
+        }
+        for value in &self.layer {
+            out.extend((*value as u16).to_le_bytes());
+        }
+        for value in &self.biome {
+            out.extend((*value as u16).to_le_bytes());
+        }
+        while out.len() % 4 != 0 {
+            out.push(0);
+        }
+    }
 }
 
 struct Textures {
@@ -945,10 +998,15 @@ fn render_tile_in_dimension(
     }
     fs::create_dir_all(output)?;
     let mut tile = Vec::new();
-    tile.extend(b"VTL4");
-    tile.extend(4u32.to_le_bytes());
-    solid.write(&mut tile);
-    fluid.write(&mut tile);
+    tile.extend(b"VTL6");
+    tile.extend(6u32.to_le_bytes());
+    solid.write_quantized(&mut tile);
+    fluid.write_quantized(&mut tile);
+    // VTL6 stores a surface map before the biome-name legend. This Bedrock
+    // exporter does not yet derive those summaries, so write an empty surface.
+    for value in [0u32, 0u32, 0u32, 0u32] {
+        tile.extend(value.to_le_bytes());
+    }
     tile.extend(1u32.to_le_bytes());
     tile.extend(4u16.to_le_bytes());
     tile.extend(b"none");

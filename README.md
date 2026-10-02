@@ -112,6 +112,18 @@ Backups can run manually, on a schedule, or before risky changes. MSC 2 does
 not call a backup successful until it has finished writing and passed its
 verification checks. Restores are handled as carefully as possible too.
 
+### Lets you explore your world from the app
+
+Open a world from the Worlds tab to see its saved terrain in 2D or 3D. You
+can fly around Java and Bedrock worlds, switch between the Overworld, Nether,
+and End, and refresh the terrain after making changes in Minecraft. When
+live player tracking is available, you can see players moving, fly to them,
+or follow them as they explore.
+
+The map shows terrain Minecraft has generated and saved. Flying around the
+map does not generate new chunks in the game. This feature is in the current
+development build; it is not included in the published v0.1.18 release.
+
 ### Handles mods, plugins, and modpacks
 
 MSC 2 can find and install server software, mods, plugins, and modpacks from
@@ -335,12 +347,19 @@ MSC 2 uses and builds on projects maintained by other people:
 | [Geyser](https://github.com/GeyserMC/Geyser) | Lets Bedrock players join a Java server |
 | [Floodgate](https://github.com/GeyserMC/Floodgate) | Lets Bedrock players join without a Java account |
 | [Chunker](https://github.com/HiveGamesOSS/Chunker) | Converts worlds between Java and Bedrock |
+| [Vantage](https://github.com/thoughts-on-things/vantage-mc) | The embedded 3D world viewer and Java terrain renderer |
+| [bedrock-world](https://github.com/BE-Community-Dev/bedrock-world) | Reads saved Bedrock chunks for MSC's terrain exporter |
+| [bedrock-block-model](https://github.com/BE-Community-Dev/bedrock-block-model) | Resolves Bedrock block shapes and textures |
 | [Xboxbroadcast](https://github.com/MCXboxBroadcast/Broadcaster) | Lets players on Bedrock editions find your server from their Friends tab |
 | [Modrinth](https://modrinth.com) | Mod and modpack catalog |
 | [CurseForge](https://www.curseforge.com) | Mod and modpack catalog |
 | [Playit.gg](https://playit.gg) | Lets people connect without port forwarding |
 | [Adoptium Temurin](https://adoptium.net) | The Java runtime that Java servers need |
 | [Mojang & Microsoft](https://www.minecraft.net) | Minecraft itself and the Bedrock Dedicated Server |
+
+MSC 2 uses Vantage's viewer and builds its own Bedrock terrain exporter and
+server integration around it. Thank you to the Vantage and Bedrock community
+contributors for making that work possible.
 
 If I forgot to credit your project, that's on me. Let me know and I'll address that; thank you to everyone who helped maintain the projects above.
 

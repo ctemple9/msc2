@@ -205,6 +205,11 @@ fn artifact_type(path: &str) -> Option<&'static str> {
     if path.len() > 128 {
         return None;
     }
+    if let Some(name) = path.strip_prefix("overview/t.") {
+        let parts: Vec<_> = name.split('.').collect();
+        return matches!(parts.as_slice(), [x, z, "vlr"] if x.parse::<i32>().is_ok() && z.parse::<i32>().is_ok())
+            .then_some("application/octet-stream");
+    }
     let name = path.strip_prefix("tiles/")?;
     let parts: Vec<_> = name.split('.').collect();
     match parts.as_slice() {

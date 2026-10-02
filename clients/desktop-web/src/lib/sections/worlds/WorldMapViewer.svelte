@@ -55,11 +55,12 @@
 
   function bedrockTileStatus(
     displayName: string,
-    stats: { loaded: number; loading: number; total: number },
+    stats: { loaded: number; loading: number; total: number; lowres?: number },
   ): string {
     if (stats.total === 0) return `No saved terrain in ${displayName}`;
     const loading = stats.loading > 0 ? ` · ${stats.loading} loading` : '';
-    return `Saved ${displayName} terrain · ${stats.loaded} loaded / ${stats.total} saved tiles${loading}`;
+    const overview = stats.lowres ? ` · ${stats.lowres} overview tiles` : '';
+    return `Saved ${displayName} terrain · ${stats.loaded} detailed / ${stats.total} saved tiles${overview}${loading}`;
   }
 
   $: selected = dimensions.find((dimension) => dimension.id === selectedDimension);
@@ -112,7 +113,7 @@
       ? 'Preparing saved Bedrock terrain and verified textures…'
       : `Loading ${entry.displayName}…`;
     let opening: VantageViewer | undefined;
-    let bedrockStats: { loaded: number; loading: number; total: number } | undefined;
+    let bedrockStats: { loaded: number; loading: number; total: number; lowres?: number } | undefined;
     try {
       const read = async (path: string, signal?: AbortSignal): Promise<ArrayBuffer> => {
         if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
@@ -135,7 +136,17 @@
         // The Bedrock agent serializes tile exports while extending its shared
         // texture atlas. Match that limit instead of queueing six blocked HTTP
         // requests that all appear to be rendering at once.
-        ...(serverType === 'bedrock' ? { streaming: { concurrency: 1 } } : {}),
+        ...(serverType === 'bedrock'
+          ? {
+              streaming: {
+                concurrency: 1,
+                maxBytes: 512 * 1024 * 1024,
+                maxTiles: 120,
+                // The whole-world overview replaces remembered screenshots.
+                mapMemory: 0,
+              },
+            }
+          : {}),
       });
       if (serverType === 'bedrock') {
         opening.on('stats', (stats) => {

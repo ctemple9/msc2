@@ -2,7 +2,10 @@ use bedrock_block_model::{
     BlockFace, BlockStateQuery, BlockStateValue, ModelPlane, ModelShape, ObjTextureResolver,
     is_full_opaque_block, model_shape_for_block_state,
 };
-use bedrock_world::{BedrockWorld, BlockState, ChunkPos, Dimension, NbtTag, SubChunkFormat};
+use bedrock_world::chunk::parse_subchunk;
+use bedrock_world::{
+    BedrockWorld, BlockState, ChunkKey, ChunkPos, Dimension, NbtTag, SubChunkFormat,
+};
 use image::{DynamicImage, GenericImageView, imageops::FilterType};
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
@@ -780,7 +783,146 @@ pub fn render_grid(
     Ok(())
 }
 
+// One surface sample per chunk, independent of the expensive detailed meshes.
+// Shared edge samples come from the same map, so adjacent overview tiles agree.
+fn create_overview(
+    world: &BedrockWorld,
+    positions: &[ChunkPos],
+    pack: &Path,
+    output: &Path,
+) -> Result<serde_json::Value, Box<dyn Error>> {
+    let mut textures = Textures::new(pack);
+    let mut colors = HashMap::<String, [u8; 3]>::new();
+    let mut samples = BTreeMap::new();
+    for &pos in positions {
+        let Some(map) = world.get_height_map_blocking(pos)? else {
+            continue;
+        };
+        let Some(height) = map[8][8] else { continue };
+        // BDS height records may point at the first air block above the
+        // surface. Resolve the actual visible block rather than painting that
+        // air as a default material. Only decode the one or two touched sections.
+        let mut surface = None;
+        let mut section_y = i8::MAX;
+        let mut section = None;
+        for y in (i32::from(height) - 16..=i32::from(height)).rev() {
+            let next_section = y.div_euclid(16) as i8;
+            if next_section != section_y {
+                section_y = next_section;
+                section = world
+                    .storage()
+                    .get(&ChunkKey::subchunk(pos, section_y).encode())?
+                    .map(|bytes| parse_subchunk(section_y, bytes))
+                    .transpose()?;
+            }
+            if let Some(state) = section
+                .as_ref()
+                .and_then(|section| section.visible_block_state_at(8, y.rem_euclid(16) as u8, 8))
+            {
+                surface = Some((y as i16, state.name.clone()));
+                break;
+            }
+        }
+        let Some((height, name)) = surface else {
+            continue;
+        };
+        let name = name.as_str();
+        let color = *colors.entry(name.to_owned()).or_insert_with(|| {
+            let layer = textures.layer(name, [0, 1, 0]) as usize;
+            let pixels = &textures.pixels[layer * 1024..(layer + 1) * 1024];
+            let mut sum = [0u32; 3];
+            let mut weight = 0u32;
+            for pixel in pixels.chunks_exact(4) {
+                weight += u32::from(pixel[3]);
+                for channel in 0..3 {
+                    sum[channel] += u32::from(pixel[channel]) * u32::from(pixel[3]);
+                }
+            }
+            let tint = textures.tint(name, [0, 1, 0], u32::MAX);
+            let mut color = std::array::from_fn(|channel| {
+                ((sum[channel] / weight.max(1)) * u32::from(tint[channel]) / 255) as u8
+            });
+            if name.contains("water") {
+                color = [48, 101, 185];
+            }
+            color
+        });
+        samples.insert((pos.x, pos.z), (height, color));
+    }
+    // Keep the whole-world overview below the viewer's 160 coarse-tile limit,
+    // even for scattered worlds. Each tile uses a fixed 65 x 65 sample grid.
+    let mut level = 4u32;
+    let anchors = loop {
+        let chunks = 4i32
+            .checked_shl(level)
+            .ok_or("overview coordinates exceed supported range")?;
+        let anchors: std::collections::BTreeSet<_> = samples
+            .keys()
+            .map(|&(x, z)| (x.div_euclid(chunks), z.div_euclid(chunks)))
+            .collect();
+        if anchors.len() <= 128 {
+            break anchors;
+        }
+        if level >= 20 {
+            return Err("overview extent exceeds supported coordinates".into());
+        }
+        level += 1;
+    };
+    let span = 1i32 << level;
+    let tile_blocks = 64 * span;
+    let chunk_step = span / 16;
+    // Aggregate rather than skip samples when the overview needs larger cells.
+    let mut cells = BTreeMap::<(i32, i32), (i16, [u8; 3])>::new();
+    for ((x, z), sample) in samples {
+        let key = (x.div_euclid(chunk_step), z.div_euclid(chunk_step));
+        cells
+            .entry(key)
+            .and_modify(|old| {
+                if sample.0 > old.0 {
+                    *old = sample;
+                }
+            })
+            .or_insert(sample);
+    }
+    fs::create_dir_all(output.join("overview"))?;
+    let mut tiles = Vec::new();
+    for (x, z) in anchors {
+        let mut heights = Vec::with_capacity(65 * 65);
+        let mut rgb = Vec::with_capacity(65 * 65 * 3);
+        for j in 0..65 {
+            for i in 0..65 {
+                let (height, color) = cells
+                    .get(&(x * 64 + i, z * 64 + j))
+                    .copied()
+                    .unwrap_or((i16::MIN, [0; 3]));
+                heights.push(height);
+                rgb.extend(color);
+            }
+        }
+        let mut bytes = Vec::new();
+        bytes.extend(b"VLR1");
+        for value in [1u32, 65, 65] {
+            bytes.extend(value.to_le_bytes());
+        }
+        bytes.extend((x * tile_blocks).to_le_bytes());
+        bytes.extend((z * tile_blocks).to_le_bytes());
+        bytes.extend((span as u32).to_le_bytes());
+        for height in heights {
+            bytes.extend(height.to_le_bytes());
+        }
+        bytes.extend(rgb);
+        let path = format!("overview/t.{x}.{z}.vlr");
+        fs::write(output.join(&path), &bytes)?;
+        tiles.push(serde_json::json!({"x": x, "z": z, "path": path, "bytes": bytes.len()}));
+    }
+    Ok(
+        serde_json::json!({"grid": 65, "levels": [{"level": level, "tileBlocks": tile_blocks, "span": span, "tiles": tiles}]}),
+    )
+}
+
 pub fn create_catalog(
+    world: &BedrockWorld,
+    positions: &[ChunkPos],
     anchors: &[(i32, i32)],
     pack: &Path,
     output: &Path,
@@ -789,6 +931,7 @@ pub fn create_catalog(
 ) -> Result<(), Box<dyn Error>> {
     fs::create_dir_all(output.join("tiles"))?;
     Textures::new(pack).write_shared(output)?;
+    let overview = create_overview(world, positions, pack, output)?;
     let tiles: Vec<_> = anchors
         .iter()
         .map(|&(x, z)| {
@@ -802,7 +945,7 @@ pub fn create_catalog(
     fs::write(
         output.join("manifest.json"),
         serde_json::to_vec(&serde_json::json!({
-            "format": 1, "tileChunks": 4, "tileBlocks": 64,
+            "format": 2, "tileChunks": 4, "tileBlocks": 64, "lowres": overview,
             "textures": "terrain.vtexarr", "textureLayers": 1,
             "rendering": true, "dynamic": true,
             "biomes": [], "tiles": tiles,

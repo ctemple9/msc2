@@ -310,10 +310,13 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
             return render::render_catalog_tile(&world, (x, z), pack, output, dimension);
         }
-        let anchors: BTreeSet<_> = world
+        let positions: Vec<_> = world
             .list_render_chunk_positions_blocking(WorldScanOptions::default())?
             .into_iter()
             .filter(|p| p.dimension == dimension)
+            .collect();
+        let anchors: BTreeSet<_> = positions
+            .iter()
             .map(|p| (p.x.div_euclid(4) * 4, p.z.div_euclid(4) * 4))
             .collect();
         let spawn = (dimension == Dimension::Overworld)
@@ -331,6 +334,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                 (-64..320).contains(y).then_some((*x, *y, *z))
             });
         return render::create_catalog(
+            &world,
+            &positions,
             &anchors.into_iter().collect::<Vec<_>>(),
             pack,
             output,

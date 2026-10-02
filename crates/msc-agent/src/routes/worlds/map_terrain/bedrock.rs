@@ -85,6 +85,10 @@ pub(super) async fn artifact(
             let parts: Vec<_> = name.split('.').collect();
             matches!(parts.as_slice(), [x, z, "vtile"] if x.parse::<i32>().is_ok() && z.parse::<i32>().is_ok())
         })
+        && !matches!(query.path.strip_prefix("overview/t."), Some(name) if {
+            let parts: Vec<_> = name.split('.').collect();
+            matches!(parts.as_slice(), [x, z, "vlr"] if x.parse::<i32>().is_ok() && z.parse::<i32>().is_ok())
+        })
     {
         return error_response(
             StatusCode::BAD_REQUEST,

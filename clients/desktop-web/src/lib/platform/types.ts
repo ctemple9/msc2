@@ -56,6 +56,35 @@ export interface BedrockHelperServiceStatus {
   readonly detail: string;
 }
 
+export interface UninstallInventory {
+  readonly computer: string;
+  readonly platform: string;
+  readonly fingerprint: string;
+  readonly entries: readonly {
+    kind: string;
+    path: string | null;
+    identity: string;
+    evidence: string;
+    state: 'present' | 'missing' | 'blocked';
+    problem: string | null;
+  }[];
+  readonly exclusions: readonly string[];
+  readonly warnings: readonly string[];
+}
+
+export interface LocalUninstallRequest {
+  readonly confirmation: string;
+  readonly fingerprint: string;
+  readonly installers: readonly string[];
+  readonly keepReport: boolean;
+}
+
+export interface UninstallScheduled {
+  readonly state: 'scheduled';
+  readonly reportPath: string;
+  readonly detail: string;
+}
+
 export type UpdateState = 'current' | 'staged' | 'unavailable';
 
 export interface UpdateCheckResult {
@@ -108,6 +137,8 @@ export interface PlatformAdapter {
   agentHealthCheck(): Promise<boolean>;
   agentServiceStatus(): Promise<AgentServiceStatus>;
   manageAgentService(action: AgentServiceAction): Promise<AgentServiceStatus>;
+  previewLocalUninstall(installers: readonly string[]): Promise<UninstallInventory>;
+  uninstallLocal(request: LocalUninstallRequest): Promise<UninstallScheduled>;
   checkForUpdates(): Promise<UpdateCheckResult>;
   installUpdate(releaseId: string): Promise<UpdateInstallResult>;
 }
@@ -130,6 +161,8 @@ export interface TauriPlatformDependencies {
   agentHealthCheck(): Promise<boolean>;
   agentServiceStatus(): Promise<AgentServiceStatus>;
   manageAgentService(action: AgentServiceAction): Promise<AgentServiceStatus>;
+  previewLocalUninstall?(installers: readonly string[]): Promise<UninstallInventory>;
+  uninstallLocal?(request: LocalUninstallRequest): Promise<UninstallScheduled>;
   checkForUpdates?(): Promise<UpdateCheckResult>;
   installUpdate?(releaseId: string): Promise<UpdateInstallResult>;
 }

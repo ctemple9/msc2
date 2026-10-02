@@ -16,6 +16,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 mod ssh;
+mod uninstall;
 mod update;
 
 const DESKTOP_CREDENTIAL_KEY_PREFIX: &str = "msc.desktop.host-token.";
@@ -1761,6 +1762,8 @@ pub fn run() {
             agent_health_check,
             quit_app,
             manage_agent_service,
+            uninstall::preview_local_uninstall,
+            uninstall::uninstall_local,
             check_for_updates,
             install_coordinated_update,
             ssh::ssh_tunnel_start,

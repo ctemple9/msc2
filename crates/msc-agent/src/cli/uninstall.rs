@@ -174,6 +174,7 @@ pub async fn run(common: CommonArgs, args: UninstallArgs) -> Result<(), CliError
             report: args.report,
         },
         &preview.agent_data_dir,
+        common.json,
     )?;
     if common.json {
         print_json(&scheduled)
@@ -211,7 +212,7 @@ fn print_preview(inventory: &msc_infrastructure::uninstall::Inventory) {
     println!("Preview fingerprint: {}", inventory.fingerprint);
 }
 
-fn schedule(job: Job, data_dir: &Path) -> Result<Scheduled, CliError> {
+fn schedule(job: Job, data_dir: &Path, quiet: bool) -> Result<Scheduled, CliError> {
     let suffix: String = rand::random::<[u8; 16]>()
         .iter()
         .map(|byte| format!("{byte:02x}"))
@@ -271,7 +272,7 @@ fn schedule(job: Job, data_dir: &Path) -> Result<Scheduled, CliError> {
             .arg(&job_path)
             .env("MSC2_DATA_DIR", data_dir)
             .stdin(Stdio::null());
-        if job.desktop_pid.is_some() {
+        if job.desktop_pid.is_some() || quiet {
             command.stdout(Stdio::null()).stderr(Stdio::null());
         }
         #[cfg(windows)]

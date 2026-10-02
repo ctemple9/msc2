@@ -44,6 +44,7 @@
   } from './lib/hosts/types';
   import ManageSheet from './lib/sections/fleet/ManageSheet.svelte';
   import AppSettingsSheet from './lib/sections/app-settings/AppSettingsSheet.svelte';
+  import UninstallSheet from './lib/sections/app-settings/UninstallSheet.svelte';
   import ResetSheet from './lib/sections/app-settings/ResetSheet.svelte';
   import { restoreAccent } from './lib/styles/accent';
   import { bannerColorFor } from './lib/styles/bannerColor';
@@ -187,6 +188,7 @@
   let manageOpen = false;
   let settingsOpen = false;
   let resetOpen = false;
+  let uninstallOpen = false;
   let headerEditingServer: Schema['ServerDTO'] | undefined;
   let addressesVisible = false;
   let sshPasswordPromptHostId: HostId | null = null;
@@ -1188,7 +1190,15 @@
     {preloadTabs}
     onPreloadTabsChanged={setPreloadTabs}
     onOpenReset={openReset}
+    onOpenUninstall={() => {
+      settingsOpen = false;
+      uninstallOpen = true;
+    }}
   />
+{/if}
+
+{#if uninstallOpen}
+  <UninstallSheet onClose={() => (uninstallOpen = false)} />
 {/if}
 
 {#if resetOpen}

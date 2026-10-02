@@ -187,12 +187,14 @@ into main; no release publication or exact-artifact acceptance is implied.
 
 ### P19.4 — Add Uninstall MSC 2 to app settings
 
-**Status:** Planned; blocked on P19.3 verification.
+**Status:** Implemented; awaiting Cameron's verification.
 **Files:** `clients/desktop-web/src/lib/sections/app-settings/AppSettingsSheet.svelte`, `clients/desktop-web/src/lib/sections/app-settings/UninstallSheet.svelte` (new), `clients/desktop-web/src/App.svelte`, platform adapter types/implementation, `clients/desktop-web/src-tauri/src/lib.rs` and a native uninstall module if needed, `docs/msc2/clients/local-uninstall.md`, this plan.
 **What:** Read antiAIslop.md before frontend work. Add a separate destructive Uninstall action beside Reset. Show native local inventory independent of selected remote host; support verified additional-installer selection. Require the loss acknowledgement, typed phrase, and final dialog before invoking native execution. Enforce typed confirmation and inventory identity natively, disable duplicate submissions, and show OS elevation and failures clearly. Clear all local saved remote credentials/connections without contacting those agents. Exit only after native handoff is established; communicate scheduled continuation and its result location accurately. Existing Reset remains unchanged. Preserve unrelated owner edits and commit only this step's work.
 **Verify:** `npm --prefix clients/desktop-web run check && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml`
 **Batch:** P19.4 only.
 **Commit:** `P19.4: add confirmed complete uninstall to settings`
+
+**Agent checks:** Svelte check passed with only ten pre-existing warnings; desktop native compilation passed. No tests or destructive uninstall ran. Settings uses only the packaged local command, previews verified targets, enforces the loss acknowledgement/typed phrase/final dialog, and closes after private worker handoff. Reports default to the home folder. Installer discovery is bounded by retained signed metadata, and Windows native acceptance remains pending. JSON CLI worker output is detached so the scheduled response stays parseable; Linux elevated tools use fixed absolute paths; marked Windows archives remove their exact User/Machine PATH entry. Agent and desktop Clippy completed with only existing warnings.
 
 **Phase 19 acceptance gate:** Cameron verifies both entry points on disposable installed MSC 2 environments for macOS, Windows MSI, and Linux desktop/headless packaging. Observe server shutdown, service/helper removal, data/credential/cache cleanup, OS package deregistration, self-removal, verified installer deletion, and readable partial-failure results. Check cancellation at each confirmation, no-write dry run, stale/tampered inventory rejection, missing/offline agent behavior, protected symlink/root paths, and that saved remote agents plus MSC 1 remain unchanged. Developer source trees are never used for destructive acceptance. The other agent independently reviews the deletion boundary and phase gate. No release workflow gates or release runs are added by this work.
 

@@ -45,6 +45,7 @@
   export let preloadTabs = true;
   export let onPreloadTabsChanged: (enabled: boolean) => void = () => {};
   export let onOpenReset: () => void = () => {};
+  export let onOpenUninstall: () => void = () => {};
 
   let serversRootPath = '';
   let revealBusy = false;
@@ -749,7 +750,7 @@
     </section>
 
     <section class="zone">
-      <p class="msc2-type-overline">Reset</p>
+      <p class="msc2-type-overline">Reset and uninstall</p>
       <Card padding="0">
         <div class="row">
           <div class="row-text">
@@ -759,6 +760,15 @@
             >
           </div>
           <Button variant="destructive" size="sm" onclick={onOpenReset}>Reset…</Button>
+        </div>
+        <div class="row">
+          <div class="row-text">
+            <span class="name">Uninstall MSC 2</span>
+            <span class="hint"
+              >Permanently remove this computer's MSC installation, servers, worlds, and backups.</span
+            >
+          </div>
+          <Button variant="destructive" size="sm" onclick={onOpenUninstall}>Uninstall…</Button>
         </div>
       </Card>
     </section>

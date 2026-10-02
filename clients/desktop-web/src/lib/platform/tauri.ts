@@ -9,6 +9,9 @@ import type {
   PlatformAdapter,
   TauriPlatformDependencies,
   UpdateCheckResult,
+  UninstallInventory,
+  UninstallScheduled,
+  LocalUninstallRequest,
   UpdateInstallResult,
 } from './types';
 
@@ -52,6 +55,16 @@ export function createTauriPlatform(dependencies: TauriPlatformDependencies): Pl
     agentHealthCheck: dependencies.agentHealthCheck,
     agentServiceStatus: dependencies.agentServiceStatus,
     manageAgentService: dependencies.manageAgentService,
+    previewLocalUninstall:
+      dependencies.previewLocalUninstall ??
+      (async () => {
+        throw new Error('Uninstall preview is unavailable in this desktop build.');
+      }),
+    uninstallLocal:
+      dependencies.uninstallLocal ??
+      (async () => {
+        throw new Error('Uninstall is unavailable in this desktop build.');
+      }),
     checkForUpdates:
       dependencies.checkForUpdates ??
       (async (): Promise<UpdateCheckResult> => {
@@ -196,6 +209,10 @@ export async function loadTauriPlatform(): Promise<PlatformAdapter> {
         if (event.payload.type === 'drop') handler(event.payload.paths);
       }),
     onCloseRequested: (handler: () => void) => getCurrentWindow().onCloseRequested(handler),
+    previewLocalUninstall: (installers: readonly string[]) =>
+      invoke<UninstallInventory>('preview_local_uninstall', { installers }),
+    uninstallLocal: (request: LocalUninstallRequest) =>
+      invoke<UninstallScheduled>('uninstall_local', { request }),
     agentHealthCheck: () => invoke<boolean>('agent_health_check'),
     agentServiceStatus: () => invoke<AgentServiceStatus>('agent_service_status'),
     manageAgentService: (action: AgentServiceAction) =>

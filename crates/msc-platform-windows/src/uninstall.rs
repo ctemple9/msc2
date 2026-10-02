@@ -63,18 +63,30 @@ impl LocalServices for WindowsUninstall {
                 {
                     return Err("Headless ownership marker changed.".into());
                 }
-                if native::remove_path(path).is_ok() {
-                    return Ok(());
-                }
-                let program_files =
-                    std::env::var_os("ProgramFiles").ok_or("ProgramFiles is unavailable.")?;
-                if path != &std::path::PathBuf::from(program_files).join("MSC2/bin") {
-                    return Err("Refusing an unknown elevated archive path.".into());
+                let program_files = std::env::var_os("ProgramFiles")
+                    .map(std::path::PathBuf::from)
+                    .map(|root| root.join("MSC2/bin"));
+                let local = std::env::var_os("LOCALAPPDATA")
+                    .map(std::path::PathBuf::from)
+                    .map(|root| root.join("MSC2/bin"));
+                let machine = program_files.as_ref() == Some(path);
+                if !machine && local.as_ref() != Some(path) {
+                    return Err("Refusing an unknown archive path.".into());
                 }
                 let literal = path.display().to_string().replace('\'', "''");
-                elevate(&format!(
-                    "$ErrorActionPreference='Stop'; $p='{literal}'; if ((Get-Item -LiteralPath $p).Attributes -band [IO.FileAttributes]::ReparsePoint) {{ throw 'Refusing reparse point' }}; if ((Get-Content -LiteralPath (Join-Path $p '.msc2-owned') -Raw).Trim() -ne 'msc2-headless-archive') {{ throw 'Ownership changed' }}; Remove-Item -LiteralPath $p -Recurse -Force; $old=[Environment]::GetEnvironmentVariable('Path','Machine'); $new=($old -split ';' | Where-Object {{ $_.TrimEnd('\\') -ine $p.TrimEnd('\\') }}) -join ';'; [Environment]::SetEnvironmentVariable('Path',$new,'Machine')"
-                ))
+                let scope = if machine { "Machine" } else { "User" };
+                let script = format!(
+                    "$ErrorActionPreference='Stop'; $p='{literal}'; if ((Get-Item -LiteralPath $p).Attributes -band [IO.FileAttributes]::ReparsePoint) {{ throw 'Refusing reparse point' }}; if ((Get-Content -LiteralPath (Join-Path $p '.msc2-owned') -Raw).Trim() -ne 'msc2-headless-archive') {{ throw 'Ownership changed' }}; Remove-Item -LiteralPath $p -Recurse -Force; $old=[Environment]::GetEnvironmentVariable('Path','{scope}'); $new=($old -split ';' | Where-Object {{ $_.TrimEnd([char]92) -ine $p.TrimEnd([char]92) }}) -join ';'; [Environment]::SetEnvironmentVariable('Path',$new,'{scope}')"
+                );
+                if machine {
+                    elevate(&script)
+                } else {
+                    let encoded = native::powershell_encoded(&script);
+                    native::run(
+                        "powershell.exe",
+                        &["-NoProfile", "-NonInteractive", "-EncodedCommand", &encoded],
+                    )
+                }
             }
             _ => Err("Unsupported Windows installation identity.".into()),
         }

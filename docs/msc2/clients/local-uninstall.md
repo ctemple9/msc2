@@ -1,7 +1,7 @@
 # Complete local uninstall
 
-Owner-requested 2026-10-02. P19.1 implements the shared read-only inventory;
-P19.2 adds native discovery/removal; CLI and desktop entry points are being wired in P19.3–P19.4. The local CLI entry point is implemented; the desktop action is being wired.
+Owner-requested 2026-10-02. Implemented in P19.1–P19.4; destructive acceptance
+on disposable installed environments remains with Cameron.
 
 ## Scope
 
@@ -37,7 +37,7 @@ identify every installed package on its own.
 Only the three path overrides are copied from service environments. Preview
 serialization never includes the full environment, authentication tokens, or
 secret contents. Windows credential cleanup is represented by the MSC2 target
-prefix for the current user; native credential enumeration/deletion is P19.2.
+prefix for the current user; native credential enumeration/deletion is implemented in P19.2.
 
 The shared inventory covers platform data-directory conventions and explicit
 service paths, configured roots and registered server directories, bundle-ID
@@ -65,7 +65,7 @@ before deletion. OS service and package operations need separate native
 identity validation; an arbitrary serialized `Entry` is never executable
 cleanup instructions.
 
-## Confirmation and completion (planned)
+## Confirmation and completion
 
 Desktop: preview the exact local computer/targets, acknowledge permanent loss
 of worlds and backups, type `UNINSTALL MSC 2`, then confirm in a final dialog.
@@ -76,9 +76,9 @@ phrase. `msc uninstall --dry-run` changes nothing. Explicit automation uses
 `--confirm "UNINSTALL MSC 2"`; redirected input without it is refused. No
 uninstall route is added to the HTTP API. Existing Reset remains unchanged.
 
-The native executor must first gracefully stop Minecraft/helpers, remove
-services, clean data/credentials, and use verified OS installation mechanisms
-for app removal. Self-removal may need a protected detached continuation.
+The local worker gracefully stops Minecraft before the native executor removes
+services/helpers, cleans data/credentials, and uses verified OS installation mechanisms
+for app removal through a protected detached continuation.
 Scheduled work is not reported as completed uninstall. Failures must show what
 remains and preserve a readable result outside the deleted MSC paths.
 
@@ -87,9 +87,9 @@ remains and preserve a readable result outside the deleted MSC paths.
 A filename such as MSC_2.dmg is not ownership evidence. A candidate must have a
 SHA-256 checksum obtained from verified signed MSC release metadata, and the
 current bytes must match it. Changed or unverified candidates are blocked.
-Unknown renamed/moved installers cannot be discovered reliably and must be
-selected and verified explicitly. Mounted-image unmount and native package
-identity handling are execution work. Never directly purge OS package caches.
+Moved installers must be selected explicitly and retain a filename found in
+the verified staged catalog. Older installers without retained signed metadata
+are left in place. Mounted images and OS package caches are not purged.
 
 ## Essential boundary checks
 
@@ -107,6 +107,15 @@ Non-test verification for P19.1:
 ```sh
 cargo check -p msc-infrastructure
 ```
+
+## Desktop entry point
+
+Open the app settings (gear), scroll to **Reset and uninstall**, and choose
+**Uninstall…**. The separate sheet shows native targets and exclusions, permits
+verified installer selection, and requires the permanent-loss checkbox, exact
+phrase, and final dialog. A removal report in the home folder is enabled by
+default. Native handoff succeeds before the desktop closes. The chosen remote
+host is never passed to the local command.
 
 ## CLI entry point
 

@@ -135,7 +135,7 @@ fn elevated(program: &str, args: &[&str]) -> Result<(), String> {
         },
     );
     let status = command
-        .arg(program)
+        .arg(format!("/usr/bin/{program}"))
         .args(args)
         .status()
         .map_err(|error| error.to_string())?;

@@ -328,7 +328,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 else {
                     return None;
                 };
-                Some((*x, *y, *z))
+                (-64..320).contains(y).then_some((*x, *y, *z))
             });
         return render::create_catalog(
             &anchors.into_iter().collect::<Vec<_>>(),

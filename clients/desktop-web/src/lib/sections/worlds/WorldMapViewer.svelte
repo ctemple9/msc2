@@ -103,6 +103,7 @@
       ? 'Preparing saved Bedrock terrain and verified textures…'
       : `Loading ${entry.displayName}…`;
     let opening: VantageViewer | undefined;
+    let loadedTerrainTiles = 0;
     try {
       const read = async (path: string, signal?: AbortSignal): Promise<ArrayBuffer> => {
         if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
@@ -120,6 +121,17 @@
         await import('@thoughts-on-things/vantage-mc/three');
       if (!alive || generation !== loadGeneration) return;
       opening = new Viewer(canvas, { players: { enabled: false }, urlState: false });
+      if (serverType === 'bedrock') {
+        opening.on('stats', (stats) => {
+          if (!alive || generation !== loadGeneration) return;
+          loadedTerrainTiles = stats.loaded;
+          status = stats.loaded > 0
+            ? `Saved ${entry.displayName} terrain · ${stats.loaded} tiles ready`
+            : stats.total === 0
+              ? `No saved terrain in ${entry.displayName}`
+              : `Rendering saved ${entry.displayName} terrain tiles…`;
+        });
+      }
       const source: WorldSource = {
         label: `${worldName} · ${entry.displayName}`,
         manifest,
@@ -138,7 +150,9 @@
       spawn = worldSpawn && [worldSpawn.x, worldSpawn.y, worldSpawn.z].every(Number.isFinite)
         ? worldSpawn : undefined;
       status = serverType === 'bedrock'
-        ? `Saved ${entry.displayName} terrain · tiles load as you move`
+        ? loadedTerrainTiles > 0
+          ? `Saved ${entry.displayName} terrain · ${loadedTerrainTiles} tiles ready`
+          : `Rendering saved ${entry.displayName} terrain tiles…`
         : `Saved ${entry.displayName} terrain`;
     } catch (error) {
       if (alive && generation === loadGeneration) {

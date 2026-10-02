@@ -1761,6 +1761,15 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Commit:** P18.10j: reuse unchanged Bedrock tiles on refresh
 - **Batch:** C (P18.10) — Bedrock map integration
 
+### P18.10k — Keep the Bedrock initial view on terrain
+
+- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Files:** `tools/world-map-proof/src/main.rs`, `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Ignore Bedrock's out-of-range Y sentinel instead of using it as a real camera spawn. Keep the Bedrock terrain status explicit while the first on-demand tiles render, then show the number of tiles ready. This addresses the high initial camera and blank-looking load while large Bedrock saves render.
+- **Verify:** Open a Bedrock world with saved terrain in MSC. Confirm the camera starts over terrain when the level.dat spawn Y is 32767, the status says tiles are rendering, and then reports tiles ready as terrain appears. Check an empty dimension reports no saved terrain.
+- **Commit:** P18.10k: keep Bedrock initial view on terrain
+- **Batch:** C (P18.10) — Bedrock map integration
+
 ### P18.10 — Connect saved-terrain refresh and live player controls
 
 - **Status:** Planned — owner direction, 2026-09-30

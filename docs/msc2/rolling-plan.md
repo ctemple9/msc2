@@ -1811,6 +1811,16 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Verify:** With the newly staged agent/exporter installed, reopen the Bedrock map and confirm nearby tiles continue filling in. If progress stops, inspect `[world-map]` start/completion/error entries in the agent log to distinguish export work from transport/viewer work. Integrated acceptance remains open.
 - **Batch:** C (P18.10) — Bedrock map integration
 
+### P18.10p — Deliver terrain as binary and retain Bedrock block textures
+
+- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Files:** `clients/desktop-web/src-tauri/src/lib.rs`, `clients/desktop-web/src/lib/auth/desktop.ts`, `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`, `docs/msc2/rolling-plan.md`
+- **Diagnosis:** Owner reports visible terrain but 20+ second tile arrival and magenta placeholders. Agent log records exports completing in 0.98–7.85 seconds; export time alone does not explain arrival time. Desktop proxy serialized every response byte as a JSON number; multi-megabyte terrain therefore crossed WebKit as millions of array entries. The sample-pack extractor discarded root `blocks.json`, unlike the browser proof; the texture resolver uses that file for face/material mapping.
+- **What:** Add a binary IPC response command that delegates to the existing authenticated, origin-checked proxy, framing small status/header JSON separately from raw body bytes. The native credential bridge decodes that frame while preserving the existing fetch/credential interface. Include `blocks.json` in bounded, checksum-verified pack extraction and use a new cache directory so incomplete cached packs are replaced automatically. Existing pane geometry and UV fixes stay in use. Stage the updated agent and the corrected checksum-verified sample pack locally.
+- **Evidence:** Rendered saved base-area chunk anchor `-4,0` into separate diagnostic outputs with the old textures-only pack and corrected pack. Missing-texture fallback faces fell from 3,188 (including panes, stairs and slabs) to zero; geometry face counts were unchanged. Both exports took about five seconds. Tauri and agent compile checks passed; Svelte check reports zero errors and 13 existing warnings; frontend production build passed. Binary IPC has not yet been timed in the running owner app. No test suite was run.
+- **Verify:** Restart the Tauri development session and repair service, then reopen the Bedrock base. Confirm panes, roofs and stairs have their textures and measure tile arrival against the export timings. Native-shell changes require restart; existing viewers retain their previous material/cache state. Integrated acceptance remains open.
+- **Batch:** C (P18.10) — Bedrock map integration
+
 ### P18.10 — Connect saved-terrain refresh and live player controls
 
 - **Status:** Planned — owner direction, 2026-09-30

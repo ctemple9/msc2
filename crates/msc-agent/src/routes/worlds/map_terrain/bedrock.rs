@@ -559,8 +559,8 @@ fn resource_pack() -> Result<PathBuf, String> {
         }
     };
     let root = base.join("bedrock-map-assets");
-    let pack = root.join("v1.26.50.4");
-    if pack.join("textures/terrain_texture.json").is_file() {
+    let pack = root.join("v1.26.50.4-models");
+    if pack.join("textures/terrain_texture.json").is_file() && pack.join("blocks.json").is_file() {
         return Ok(pack);
     }
     fs::create_dir_all(&root)
@@ -575,7 +575,7 @@ fn resource_pack() -> Result<PathBuf, String> {
     });
     let _ = fs::remove_dir_all(&staging);
     installed?;
-    if pack.join("textures/terrain_texture.json").is_file() {
+    if pack.join("textures/terrain_texture.json").is_file() && pack.join("blocks.json").is_file() {
         Ok(pack)
     } else {
         Err("The verified Bedrock texture pack could not be installed.".into())
@@ -623,7 +623,7 @@ fn download_resource_pack(staging: &Path) -> Result<(), String> {
         else {
             continue;
         };
-        if !relative.starts_with("textures/")
+        if !(relative.starts_with("textures/") || relative == "blocks.json")
             || entry.is_dir()
             || entry
                 .unix_mode()
@@ -651,7 +651,8 @@ fn download_resource_pack(staging: &Path) -> Result<(), String> {
         let mut output = File::create(destination).map_err(|error| error.to_string())?;
         std::io::copy(&mut entry, &mut output).map_err(|error| error.to_string())?;
     }
-    if !pack.join("textures/terrain_texture.json").is_file() {
+    if !pack.join("textures/terrain_texture.json").is_file() || !pack.join("blocks.json").is_file()
+    {
         return Err("The verified Bedrock archive did not include terrain textures.".into());
     }
     Ok(())

@@ -665,6 +665,27 @@ async fn desktop_authorized_request(request: DesktopRequest) -> Result<DesktopRe
     })
 }
 
+/// Binary response framing avoids serializing terrain bytes as millions of
+/// JSON numbers. Authentication and origin validation remain in the same proxy.
+#[tauri::command]
+async fn desktop_authorized_request_binary(
+    request: DesktopRequest,
+) -> Result<tauri::ipc::Response, String> {
+    let response = desktop_authorized_request(request).await?;
+    let metadata = serde_json::to_vec(&serde_json::json!({
+        "status": response.status,
+        "headers": response.headers,
+    }))
+    .map_err(|error| format!("Network: Could not encode response headers: {error}"))?;
+    let length = u32::try_from(metadata.len())
+        .map_err(|_| "Network: Response headers exceed the desktop limit.".to_string())?;
+    let mut frame = Vec::with_capacity(4 + metadata.len() + response.body.len());
+    frame.extend_from_slice(&length.to_le_bytes());
+    frame.extend_from_slice(&metadata);
+    frame.extend_from_slice(&response.body);
+    Ok(tauri::ipc::Response::new(frame))
+}
+
 /// Checks a user-selected origin with the stored host credential and remembers
 /// it only after the host answers as that credential. The token never returns
 /// to the webview and a failed address cannot replace the saved route.
@@ -1732,6 +1753,7 @@ pub fn run() {
             desktop_bootstrap_local,
             desktop_forget_credentials,
             desktop_authorized_request,
+            desktop_authorized_request_binary,
             desktop_probe_host_route,
             open_external_url,
             reveal_in_file_manager,

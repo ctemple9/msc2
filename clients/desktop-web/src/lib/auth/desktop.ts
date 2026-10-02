@@ -37,7 +37,7 @@ export interface RemoteDesktopPairingResult {
 export interface DesktopResponse {
   status: number;
   headers: readonly [string, string][];
-  body: readonly number[];
+  body: readonly number[] | Uint8Array;
 }
 
 export type SshTunnelState =
@@ -192,10 +192,18 @@ export async function loadTauriDesktopCredentialBridge(): Promise<DesktopCredent
       invoke<void>('desktop_forget_credentials', {
         request: { ...request, hostIds: [...request.hostIds] },
       }),
-    authorizedRequest: (request) =>
-      invoke<DesktopResponse>('desktop_authorized_request', {
+    authorizedRequest: async (request) => {
+      const frame = await invoke<ArrayBuffer>('desktop_authorized_request_binary', {
         request: { ...request, body: request.body ? [...request.body] : null },
-      }),
+      });
+      if (frame.byteLength < 4) throw new Error('Invalid desktop response frame');
+      const length = new DataView(frame).getUint32(0, true);
+      if (length > frame.byteLength - 4) throw new Error('Invalid desktop response headers');
+      const metadata = JSON.parse(
+        new TextDecoder().decode(new Uint8Array(frame, 4, length)),
+      ) as Pick<DesktopResponse, 'status' | 'headers'>;
+      return { ...metadata, body: new Uint8Array(frame, 4 + length) };
+    },
   };
 }
 

@@ -1841,6 +1841,14 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Verify:** Restart the development session and repair service to install the staged exporter and agent. Open the Bedrock map and zoom out: distant saved terrain should appear as coarse surfaces while the status reports overview tiles. Move closer and confirm block detail streams in; players should remain live. Refresh after a saved change and confirm overview/detail use the new snapshot. Owner may defer this integrated verification.
 - **Batch:** C (P18.10) — Bedrock map integration
 
+### P18.10s — Collapse map status and player overlays
+
+- **Status:** Awaiting Cameron verification — implemented 2026-10-02
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Make both map overlays native keyboard-accessible disclosure controls, initially expanded. Terrain status collapses to a caret; Players collapses to a caret, heading and live count with a compact width. Expanding restores status or roster/actions. Disclosure state survives status/player polling.
+- **Verify:** Collapse and reopen both overlays in the map. Confirm the player count remains current while collapsed and Fly/Follow remain available after expanding. No tests run, per owner policy.
+- **Batch:** C (P18.10) — map overlay controls
+
 ### P18.10 — Connect saved-terrain refresh and live player controls
 
 - **Status:** Planned — owner direction, 2026-09-30

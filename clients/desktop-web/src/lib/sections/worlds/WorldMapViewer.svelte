@@ -624,8 +624,11 @@
         <p>{status}</p>
       </div>
     {/if}
-    <aside class="players-panel">
-      <div class="players-heading"><strong>Players</strong><span>{livePlayers.length}</span></div>
+    <details class="players-panel" open>
+      <summary class="players-heading">
+        <span class="panel-caret" aria-hidden="true">▾</span>
+        <strong>Players</strong><span>{livePlayers.length}</span>
+      </summary>
       {#if livePlayers.length === 0}
         <p>{playerFeedStatus}</p>
       {:else}
@@ -660,11 +663,16 @@
           {/each}
         </ul>
       {/if}
-    </aside>
+    </details>
     {#if desktopLook}
       <div class="look-indicator" role="status">Mouse look active · Esc releases pointer</div>
     {/if}
-    <div class="map-caption" role="status">{status}{message ? ` · ${message}` : ''}</div>
+    <details class="map-caption" open>
+      <summary aria-label="Terrain status" title="Show or hide terrain status">
+        <span class="panel-caret" aria-hidden="true">▾</span>
+      </summary>
+      <div role="status">{status}{message ? ` · ${message}` : ''}</div>
+    </details>
     <nav
       class="map-toolbar"
       aria-label="Map controls"
@@ -879,6 +887,25 @@
     border: 1px solid #3a3a40;
     border-radius: 7px;
   }
+  .players-panel:not([open]) {
+    width: fit-content;
+  }
+  .players-panel summary,
+  .map-caption summary {
+    list-style: none;
+    cursor: pointer;
+  }
+  .players-panel summary::-webkit-details-marker,
+  .map-caption summary::-webkit-details-marker {
+    display: none;
+  }
+  .panel-caret {
+    display: inline-block;
+    transition: transform 120ms ease;
+  }
+  details:not([open]) > summary .panel-caret {
+    transform: rotate(-90deg);
+  }
   .players-panel strong {
     font-size: 11px;
     font-weight: 600;
@@ -887,8 +914,11 @@
   }
   .players-heading {
     display: flex;
-    justify-content: space-between;
+    gap: 8px;
     align-items: center;
+  }
+  .players-heading strong {
+    flex: 1;
   }
   .players-heading span {
     color: #aeb4bb;
@@ -950,6 +980,16 @@
     color: #aeb4bb;
     font-size: 11px;
     border-radius: 5px;
+  }
+  .map-caption summary {
+    width: 20px;
+    min-height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .map-caption[open] > div {
+    margin-top: 4px;
   }
   .look-indicator {
     position: absolute;

@@ -53,6 +53,15 @@
   let playerRequestsInFlight = 0;
   let savedHeightAt: VantageViewer['controls']['heightAt'] | undefined;
 
+  function bedrockTileStatus(
+    displayName: string,
+    stats: { loaded: number; loading: number; total: number },
+  ): string {
+    if (stats.total === 0) return `No saved terrain in ${displayName}`;
+    const loading = stats.loading > 0 ? ` · ${stats.loading} loading` : '';
+    return `Saved ${displayName} terrain · ${stats.loaded} loaded / ${stats.total} saved tiles${loading}`;
+  }
+
   $: selected = dimensions.find((dimension) => dimension.id === selectedDimension);
 
   function say(value: string): void {
@@ -103,7 +112,7 @@
       ? 'Preparing saved Bedrock terrain and verified textures…'
       : `Loading ${entry.displayName}…`;
     let opening: VantageViewer | undefined;
-    let loadedTerrainTiles = 0;
+    let bedrockStats: { loaded: number; loading: number; total: number } | undefined;
     try {
       const read = async (path: string, signal?: AbortSignal): Promise<ArrayBuffer> => {
         if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
@@ -124,12 +133,8 @@
       if (serverType === 'bedrock') {
         opening.on('stats', (stats) => {
           if (!alive || generation !== loadGeneration) return;
-          loadedTerrainTiles = stats.loaded;
-          status = stats.loaded > 0
-            ? `Saved ${entry.displayName} terrain · ${stats.loaded} tiles ready`
-            : stats.total === 0
-              ? `No saved terrain in ${entry.displayName}`
-              : `Rendering saved ${entry.displayName} terrain tiles…`;
+          bedrockStats = stats;
+          status = bedrockTileStatus(entry.displayName, stats);
         });
       }
       const source: WorldSource = {
@@ -150,8 +155,8 @@
       spawn = worldSpawn && [worldSpawn.x, worldSpawn.y, worldSpawn.z].every(Number.isFinite)
         ? worldSpawn : undefined;
       status = serverType === 'bedrock'
-        ? loadedTerrainTiles > 0
-          ? `Saved ${entry.displayName} terrain · ${loadedTerrainTiles} tiles ready`
+        ? bedrockStats
+          ? bedrockTileStatus(entry.displayName, bedrockStats)
           : `Rendering saved ${entry.displayName} terrain tiles…`
         : `Saved ${entry.displayName} terrain`;
     } catch (error) {

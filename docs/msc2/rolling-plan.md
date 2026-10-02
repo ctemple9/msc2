@@ -1785,6 +1785,14 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Commit:** P18.10l: sync progressive Bedrock tile textures
 - **Batch:** C (P18.10) — Bedrock map integration
 
+### P18.10m — Report Bedrock tile streaming coverage
+
+- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/rolling-plan.md`
+- **What:** Report the number of resident Bedrock tiles against the total saved tiles in the catalog, including tiles currently loading. This distinguishes a sparse saved world from a viewer that has only streamed part of the saved terrain.
+- **Verify:** Open a Bedrock world in MSC and confirm the status reports loaded and saved tile counts, plus any tiles currently loading.
+- **Batch:** C (P18.10) — Bedrock map integration
+
 ### P18.10 — Connect saved-terrain refresh and live player controls
 
 - **Status:** Planned — owner direction, 2026-09-30

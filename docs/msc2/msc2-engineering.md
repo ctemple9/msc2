@@ -920,3 +920,7 @@ family.
 [Bedrock block models](https://github.com/BE-Community-Dev/bedrock-block-model),
 [Microsoft BDS scripting](https://learn.microsoft.com/en-us/minecraft/creator/documents/bedrockserver/scripting?view=minecraft-bedrock-stable),
 [experimental save control](https://learn.microsoft.com/en-us/minecraft/creator/scriptapi/minecraft/server-admin/levelstorage?view=minecraft-bedrock-experimental).
+
+### Phase 18 integrated disposition (2026-10-02)
+
+The feasibility and provisional guardrails above are retained as historical design inputs. Current implementation/owner observations, saved-terrain and player freshness distinctions, tile residency bounds, measured local costs and deferred compatibility checks are consolidated in [Phase 18 map acceptance](phase18-map-acceptance.md). Live BDS map capture now uses the proven console hold/query/copy/resume boundary against a private snapshot. The configured 512 MiB tile budget is not a measured whole-process RSS limit. Standard dimensions have representative evidence; missing saved Nether chunks and ungenerated ATM10 custom dimensions remain named limits. Cameron directed all Phase 18 steps to Done; independent gate review and exact release-artifact acceptance are not implied.

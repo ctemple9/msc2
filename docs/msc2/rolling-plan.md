@@ -32,6 +32,7 @@ Each implementation step is planned, read, executed, verified by Cameron, review
 | 15 | Maintenance follow-ups | complete |
 | 16 | Release safety and codebase readiness | complete |
 | 17 | Local CLI refinement | step records done; physical acceptance and independent review pending |
+| 18 | Integrated 3D world map | all step records done by owner direction; named checks deferred, independent review pending |
 
 ## Active Phase 16 acceptance
 
@@ -318,7 +319,9 @@ exceptions and the resulting inventory in the decision register and gate.
 - **Verify:** `git diff --check`
 - **Batch:** G (P17.25–P17.27) — close the inventory and record approved exceptions
 
-## Proposed Phase 18 — 3D world viewer
+## Phase 18 — 3D world viewer
+
+**Completion recorded 2026-10-02:** Cameron directed all Phase 18 steps and substeps to Done after completion of P18.11. The consolidated record is [Phase 18 map acceptance](phase18-map-acceptance.md). Nether source-gap troubleshooting, custom-dimension proof and additional runtime checks remain explicitly deferred; independent gate review remains open. Historical dispositions below preserve prior evidence and do not override current Done statuses.
 
 **Owner direction received 2026-09-29:** Record a 3D view for the selected
 active world. The path is **Worlds → active world → 3D**; the viewer fills the
@@ -400,7 +403,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.0 — Prepare isolated world-map worktree
 
-- **Status:** Done — Cameron verified, 2026-09-29
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Done — Cameron verified, 2026-09-29
 - **Files:** `docs/msc2/rolling-plan.md`
 - **What:** Create branch `feature/world-map-3d` and linked worktree
   `/Users/camerontemple/msc2-world-map` from `main` at
@@ -412,7 +416,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.1 — Scope the 3D world viewer vertical slice
 
-- **Status:** Done — Cameron verified section 21, 2026-09-29
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Done — Cameron verified section 21, 2026-09-29
 - **Files:** `docs/msc2/rolling-plan.md`, `docs/msc2/msc2-engineering.md`
 - **What:** Compare embedding Vantage's MIT viewer/protocol with an MSC-owned
   integration; define terrain access for standard and modded Java saves, live
@@ -442,7 +447,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2 — Prove offline BDS terrain in the Vantage viewer
 
-- **Status:** Visual verification failed — Cameron reported grey grass and
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Visual verification failed — Cameron reported grey grass and
   jagged terrain, 2026-09-29; corrective checkpoint P18.2a follows
 - **Files:** `tools/world-map-proof/`, `docs/msc2/rolling-plan.md`
 - **What:** Read an offline copy of Cameron's BDS save with a pinned Bedrock
@@ -472,7 +478,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2a — Correct the visible BDS terrain proof
 
-- **Status:** Visual verification failed — Cameron's 2026-09-29 screenshots
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Visual verification failed — Cameron's 2026-09-29 screenshots
   showed grass fringe below dirt, upside-looking plants, holes through the
   terrain, and trees without visible logs; P18.2b follows
 - **Files:** `tools/world-map-proof/src/render.rs`,
@@ -496,7 +503,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2b — Restore Bedrock block depth and texture orientation
 
-- **Status:** Done — Cameron visually verified upright textures, tree trunks
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Done — Cameron visually verified upright textures, tree trunks
   and full terrain depth in screenshots, 2026-09-29
 - **Files:** `tools/world-map-proof/src/render.rs`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
@@ -518,7 +526,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2c — Prove mature BDS shapes and surface biome tint
 
-- **Status:** Visual verification failed — Cameron's 2026-09-29 screenshots
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Visual verification failed — Cameron's 2026-09-29 screenshots
   showed stair facing, unconnected fences, lantern UV, and crossed glass-pane
   defects; P18.2d follows
 - **Files:** `tools/world-map-proof/src/main.rs`,
@@ -553,7 +562,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2d — Correct mature BDS state-dependent shapes
 
-- **Status:** Partial visual verification — Cameron confirmed stairs, fences
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Partial visual verification — Cameron confirmed stairs, fences
   and lanterns on 2026-09-29, but window panes regressed to opaque stripes;
   P18.2e follows
 - **Files:** `tools/world-map-proof/src/render.rs`,
@@ -577,7 +587,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2e — Restore see-through Bedrock glass panes
 
-- **Status:** Cameron visual check found one pane orientation still opaque;
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Cameron visual check found one pane orientation still opaque;
   P18.2f follows
 - **Files:** `tools/world-map-proof/src/render.rs`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
@@ -597,7 +608,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2f — Use transparent texture on both pane orientations
 
-- **Status:** Done — Cameron confirmed both pane directions clear, 2026-09-29
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Done — Cameron confirmed both pane directions clear, 2026-09-29
 - **Files:** `tools/world-map-proof/src/render.rs`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
 - **What:** The Bedrock resource pack maps the pane's east face to the opaque
@@ -622,7 +634,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2g — Inspect full glass at the BDS gold farm
 
-- **Status:** Done — Cameron confirmed full glass looks good, 2026-09-29
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Done — Cameron confirmed full glass looks good, 2026-09-29
 - **Files:** `tools/world-map-proof/src/render.rs`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
 - **What:** Export a separate complete 4×4 tile around Cameron's gold farm
@@ -648,7 +661,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2h — Inspect Bedrock ice mountain biome tint
 
-- **Status:** Done — Cameron confirmed the ice mountain looks good, 2026-09-29
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Done — Cameron confirmed the ice mountain looks good, 2026-09-29
 - **Files:** `tools/world-map-proof/src/render.rs`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
 - **What:** Export a complete 4×4 tile around Cameron's ice mountain at
@@ -679,7 +693,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2i — Read Bedrock biome at rendered block height
 
-- **Status:** Done — Cameron confirmed the mountain view looks good, 2026-09-29
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Done — Cameron confirmed the mountain view looks good, 2026-09-29
 - **Files:** `tools/world-map-proof/src/render.rs`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
 - **What:** Use the BDS reader's decoded 3D biome storages to assign a biome
@@ -708,7 +723,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2j — Audit Bedrock biome ID registry source
 
-- **Status:** Done — Cameron directed the registry proof, 2026-09-29
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Done — Cameron directed the registry proof, 2026-09-29
 - **Files:** `docs/msc2/bedrock-biome-registry.md`,
   `tools/world-map-proof/src/render.rs`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
@@ -733,7 +749,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2k — Reject mismatched Bedrock biome registries
 
-- **Status:** Done — Cameron confirmed the expected version rejection,
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Done — Cameron confirmed the expected version rejection,
   2026-09-29
 - **Files:** `tools/world-map-proof/Cargo.toml`, `tools/world-map-proof/Cargo.lock`,
   `tools/world-map-proof/src/main.rs`, `tools/world-map-proof/src/render.rs`,
@@ -768,7 +785,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2l — Capture one consistent running-BDS map snapshot
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification
 - **Files:** `crates/msc-agent/src/backup_operations.rs`,
   `crates/msc-agent/src/main.rs`,
   `crates/msc-agent/src/routes/lifecycle.rs`,
@@ -804,7 +822,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2m — Repair snapshot copy stack overflow
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification
 - **Files:** `crates/msc-agent/src/backup_operations.rs`,
   `docs/msc2/rolling-plan.md`
 - **What:** The first live snapshot attempt ended with an agent stack overflow,
@@ -825,7 +844,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2n — Replace saved terrain in the open proof viewer
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification
 - **Files:** `tools/world-map-proof/viewer/main.ts`,
   `tools/world-map-proof/viewer/index.html`,
   `tools/world-map-proof/viewer/style.css`,
@@ -849,7 +869,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2o — Measure one saved-terrain refresh
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification
 - **Files:** `tools/world-map-proof/measure_refresh.py`,
   `tools/world-map-proof/viewer/main.ts`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
@@ -871,7 +892,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2p — Repeat refresh measurements on the mature BDS world
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification
 - **Files:** `tools/world-map-proof/measure_refresh_series.py`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
 - **What:** Collect 2–5 owner-triggered snapshot and export measurements on
@@ -891,7 +913,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2q — Correct import progress server type
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification
 - **Files:** `crates/msc-agent/src/routes/lifecycle.rs`,
   `crates/msc-agent/src/routes/servers/import.rs`,
   `crates/msc-agent/src/routes/servers.rs`, `docs/msc2/rolling-plan.md`
@@ -911,7 +934,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.2r — Export only changed Bedrock tiles
 
-- **Status:** Done — Cameron verified unchanged and changed tile selection,
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Done — Cameron verified unchanged and changed tile selection,
   visible block change, and continuing BDS writes, 2026-09-29
 - **Files:** `tools/world-map-proof/src/main.rs`,
   `tools/world-map-proof/export_changed_tiles.py`,
@@ -938,7 +962,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3a — Prove current BDS player samples, including console clients
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification
 - **Files:** `tools/world-map-proof/bedrock-player-feed/manifest.json`,
   `tools/world-map-proof/bedrock-player-feed/scripts/main.js`,
   `tools/world-map-proof/install_bedrock_player_feed.py`,
@@ -966,7 +991,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3b — Restore authenticated BDS player-feed observation
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification
 - **Files:** `crates/msc-agent/src/auth.rs`,
   `tools/world-map-proof/watch_bedrock_player_feed.py`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
@@ -987,7 +1013,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3c — Draw a fresh Bedrock player in the proof viewer
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification
 - **Files:** `crates/msc-agent/src/routes/lifecycle.rs`,
   `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/cli/mod.rs`,
   `tools/world-map-proof/viewer/main.ts`,
@@ -1013,7 +1040,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3d — Keep the proof player poll within CLI authorization limits
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification
 - **Files:** `crates/msc-agent/src/cli/mod.rs`,
   `tools/world-map-proof/viewer/vite.config.ts`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
@@ -1036,7 +1064,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3e — Add live-player fly and follow controls
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification
 - **Files:** `tools/world-map-proof/viewer/main.ts`,
   `tools/world-map-proof/viewer/index.html`,
   `tools/world-map-proof/viewer/style.css`,
@@ -1059,7 +1088,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3f — Center the live-player camera actions
 
-- **Status:** Superseded after Cameron reported no visible change; the player
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Superseded after Cameron reported no visible change; the player
   remained at the bottom-right of the viewport.
 - **Files:** `tools/world-map-proof/viewer/main.ts`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
@@ -1083,7 +1113,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3g — Aim roster navigation at the rendered player
 
-- **Status:** Superseded after Cameron's screenshot showed the view aimed upward
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Superseded after Cameron's screenshot showed the view aimed upward
   into the roof; camera pitch used the wrong vertical sign.
 - **Files:** `tools/world-map-proof/viewer/main.ts`,
   `tools/world-map-proof/README.md`, `docs/msc2/rolling-plan.md`
@@ -1108,7 +1139,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3h — Correct the player camera pitch direction
 
-- **Status:** Superseded after Cameron's screenshots showed the player still
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Superseded after Cameron's screenshots showed the player still
   pinned near the lower-right corner. A camera projection readout then showed
   the player at normalized screen center (0, 0), revealing a canvas sizing
   issue rather than another camera direction error.
@@ -1129,7 +1161,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3i — Size the proof canvas to its visible viewport
 
-- **Status:** Done — Cameron confirmed Fly and Follow are centered, 2026-09-30
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Done — Cameron confirmed Fly and Follow are centered, 2026-09-30
 - **Files:** `tools/world-map-proof/viewer/style.css`,
   `docs/msc2/rolling-plan.md`
 - **What:** The Vantage renderer calls `setSize(..., false)` and uses the device
@@ -1149,7 +1182,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3j — Prove modded Java player samples on ATM10 Lite
 
-- **Status:** Complete — live movement, rotation, and disconnect verified on
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Complete — live movement, rotation, and disconnect verified on
   ATM10 Lite; temporary KubeJS probe removed
 - **Files:** `tools/world-map-proof/java-player-feed/scripts/server.js`,
   `tools/world-map-proof/install_java_player_feed.py`,
@@ -1184,7 +1218,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3k — Use the configured Paper world for downgrade backups
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification
 - **Files:** `crates/msc-agent/src/routes/versions.rs`,
   `docs/msc2/rolling-plan.md`
 - **What:** The Paper server has `level-name=Paper` and a real `Paper/` world,
@@ -1202,7 +1237,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3l — Prove live player samples on Paper
 
-- **Status:** Complete — live movement, rotation, and disconnect verified on
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Complete — live movement, rotation, and disconnect verified on
   Paper; temporary plugin removed
 - **Files:** `tools/world-map-proof/paper-player-feed/`,
   `tools/world-map-proof/install_paper_player_feed.py`,
@@ -1229,7 +1265,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3m — Prove live player samples on Fabric
 
-- **Status:** Complete — live movement, rotation, and disconnect verified on
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Complete — live movement, rotation, and disconnect verified on
   the selected Fabric server; temporary mod removed
 - **Files:** `tools/world-map-proof/fabric-player-feed/`,
   `tools/world-map-proof/install_fabric_player_feed.py`,
@@ -1256,7 +1293,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3n — Prove live player samples on Forge
 
-- **Status:** Complete — live movement, rotation, and disconnect verified on
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Complete — live movement, rotation, and disconnect verified on
   Forge 66.0.8; temporary mod removed
 - **Files:** `tools/world-map-proof/forge-player-feed/`,
   `tools/world-map-proof/install_forge_player_feed.py`,
@@ -1284,7 +1322,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3o — Prove live player samples on Vanilla
 
-- **Status:** Complete — live movement, rotation, and disconnect verified on
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Complete — live movement, rotation, and disconnect verified on
   Vanilla 26.3; temporary settings and datapack removed
 - **Files:** `tools/world-map-proof/vanilla-player-feed/`,
   `tools/world-map-proof/install_vanilla_player_feed.py`,
@@ -1324,7 +1363,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3p — Prove live player samples on Purpur
 
-- **Status:** Complete — live movement, rotation, and disconnect verified on
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Complete — live movement, rotation, and disconnect verified on
   Purpur 1.21.11; temporary plugin removed
 - **Files:** `tools/world-map-proof/purpur-player-feed/`,
   `tools/world-map-proof/install_purpur_player_feed.py`,
@@ -1350,7 +1390,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.3q — Prove live player samples on NeoForge without KubeJS
 
-- **Status:** Complete — live movement, rotation, and disconnect verified on
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Complete — live movement, rotation, and disconnect verified on
   Minecraft 26.2 / NeoForge 26.2.0.88 without KubeJS; temporary mod removed
 - **Files:** `tools/world-map-proof/neoforge-player-feed/`,
   `tools/world-map-proof/install_neoforge_player_feed.py`,
@@ -1377,7 +1418,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.4 — Prove Java terrain rendering before MSC integration
 
-- **Status:** Representative Java Overworld, Nether, and End rendering accepted
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Representative Java Overworld, Nether, and End rendering accepted
   across the old and new save layouts. Include discovery/rendering of saved
   custom dimensions in the planned map; validate the ATM10 case later when its
   dimension terrain has been generated.
@@ -1453,7 +1495,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.5 — Shape the standalone viewer controls before MSC integration
 
-- **Status:** Implemented and accepted in the standalone proof viewer.
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Implemented and accepted in the standalone proof viewer.
 - **What:** Use Vantage's dark, translucent map UI as a visual reference. Add a
   compact bottom toolbar for 2D/3D view, creative-style free flight (WASD,
   Space up, Shift down), coordinates, zoom, camera capture, and Home to world
@@ -1483,7 +1526,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.6 — Prove live Java saved-terrain refresh
 
-- **Status:** Overworld live snapshot and changed-tile proof accepted on Purpur
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Overworld live snapshot and changed-tile proof accepted on Purpur
   1.21.11 and Vanilla 26.3. Nether and End terrain visuals are accepted in both
   save layouts. Custom-dimension refresh is unproven and will be checked after
   ATM10 generates terrain there.
@@ -1528,7 +1572,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.8 — Integrate the map resource API with the Worlds tab
 
-- **Status:** Awaiting Cameron verification
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification
 - **Files:** `crates/msc-agent/src/`, `crates/msc-api/src/dto/worlds.rs`, `docs/msc2/api-contract/`, `clients/desktop-web/src/lib/api/generated.ts`, `docs/msc2/rolling-plan.md`
 - **What:** Add the authenticated `GET /v1/worlds/map/dimensions` Worlds
   endpoint and CLI inspection command for the selected active server's
@@ -1560,7 +1605,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.9a — Bundle the Vantage Java terrain renderer
 
-- **Status:** Awaiting Cameron verification — owner approved bundling Vantage on 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification — owner approved bundling Vantage on 2026-10-01
 - **Files:** `tools/release/stage-vantage.py`, `clients/desktop-web/tools/prepare-agent-dev.mjs`, `clients/desktop-web/src-tauri/target/package/agent/`, `tools/release/build-*-headless.*`, `packaging/`, `docs/msc2/clients/headless-installation.md`, `THIRD-PARTY-NOTICES.md`, `docs/msc2/rolling-plan.md`
 - **What:** Pin Vantage 0.15.1 platform executables by upstream release URL and archive SHA-256. Stage the matching macOS, Windows, or Linux binary into desktop resource bundles and headless archives; install it beside the agent; remove it with the MSC-owned agent installation. Document the MIT notice and renderer paths. Do not bundle Minecraft data or assets. This is the renderer-delivery prerequisite; P18.9b will add the authenticated agent bridge before P18.9 embeds it in Worlds.
 - **Verify:** On Intel macOS, run `python3 tools/release/stage-vantage.py --platform macos-x86_64 --output-dir /private/tmp/msc-vantage-check`, then `/private/tmp/msc-vantage-check/vantage --version`; on Apple Silicon, use `macos-aarch64` instead. Confirm Vantage 0.15.1. Run `node --check clients/desktop-web/tools/prepare-agent-dev.mjs`, `bash -n tools/release/build-linux-headless.sh tools/release/build-macos-headless.sh packaging/linux/install.sh packaging/linux/uninstall.sh packaging/macos/install.sh packaging/macos/uninstall.sh`, parse the changed PowerShell scripts with `pwsh`, and run `git diff --check`. This confirms the renderer can be staged for packaging and establishes the next necessary P18.9b bridge step; it does not yet deliver a visible Worlds map.
@@ -1569,7 +1615,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.9b — Add authenticated Vantage terrain bridge
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification — implemented 2026-10-01
 - **Files:** `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/worlds/map_terrain.rs`, `crates/msc-agent/Cargo.toml`, `Cargo.lock`, `docs/msc2/api-contract/openapi.json`, `clients/desktop-web/src/lib/api/generated.ts`, `docs/msc2/rolling-plan.md`
 - **What:** The Worlds-authorized `GET /v1/worlds/map/terrain` route launches one private Vantage renderer for the active Java world and a cataloged dimension. It proxies only bounded manifest, texture, and tile artifacts, validates the world root and artifact path, and retires the renderer after idle time or dimension changes. It returns explicit unavailable results for unsupported Bedrock and empty dimensions. Java client assets must be installed on the host for Vantage's default asset discovery.
 - **Verify:** Start the updated agent with a selected Java server that has saved terrain and the bundled Vantage executable. Request `GET /v1/worlds/map/terrain?dimension=minecraft%3Aoverworld&path=manifest.json` using a Worlds-authorized credential and confirm a manifest. Fetch a tile named by that manifest and `terrain.vtexarr`; an unauthenticated request must fail, and `path=../level.dat` must return 400. Confirm the responses contain no host paths. This is the secure renderer boundary for P18.9's in-window map, not the UI or live-refresh proof.
@@ -1578,7 +1625,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.9 — Embed saved terrain and dimension selection in Worlds
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification — implemented 2026-10-01
 - **Files:** `clients/desktop-web/package.json`, `clients/desktop-web/package-lock.json`, `clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte`, `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/rolling-plan.md`
 - **What:** The selected active world opens an in-window Vantage map through the Worlds-authorized terrain bridge. Dimension choices include saved Java dimensions and clearly mark empty ones. The viewer has 2D/3D, free flight, XYZ, zoom, Home to spawn, and screenshot controls. The right-side player panel names its pending live-feed capability instead of inventing players; Bedrock names its proof-only status. Exiting restores the world list and its selection. The Java view uses Vantage's installed-host assets and native visible fallback behavior.
 - **Verify:** Restart `npx tauri dev` and repair/restart the MSC agent so it loads the P18.9b route and bundled Vantage binary. In Worlds, select the active Java slot and choose View Map. Open Overworld, Nether, and End where saved; check an empty dimension's explanation, 2D/3D, Fly with WASD/Space/Shift, XYZ, zoom, Home, screenshot, and return to the same selected slot. Open an active Bedrock slot and confirm it explains that in-app terrain is pending. This advances in-window saved Java terrain; Bedrock geometry and live players remain P18.10 integration work.
@@ -1587,7 +1635,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.9c — Stage the terrain renderer with desktop agent repairs
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification — implemented 2026-10-01
 - **Files:** `clients/desktop-web/src-tauri/src/lib.rs`, `docs/msc2/rolling-plan.md`
 - **What:** Desktop Agent repair now copies the bundled Vantage executable beside `msc` in the versioned agent build directory. The build digest includes both executables, so replacing either creates a new staged build. A missing renderer in the desktop package produces a specific repair error.
 - **Verify:** Restart `npx tauri dev`, use MSC's Agent repair/restart control, and reopen the Vanilla Overworld map in Worlds. The saved terrain should appear instead of the renderer unavailable message. The running server does not need to be stopped.
@@ -1596,7 +1645,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.9d — Render Java 26.x saved dimensions in MSC
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification — implemented 2026-10-01
 - **Files:** `crates/msc-agent/Cargo.toml`, `Cargo.lock`, `crates/msc-agent/src/routes/worlds/map_terrain.rs`, `crates/msc-agent/src/routes/worlds/map_terrain/java_terrain_compat.rs`, `docs/msc2/rolling-plan.md`
 - **What:** Vantage 0.15.1 expects the old Java save layout and old block palette names. For saved Overworld, Nether, and End regions in the 26.x layout, the agent now prepares a private, bounded compatibility copy with legacy region paths and palette entries before starting Vantage. The server's world files are read only. The renderer copy is static for its session; consistent live refresh remains P18.10.
 - **Verify:** Stop Vanilla in MSC, restart `npx tauri dev`, repair/restart the agent, then start Vanilla again and open Worlds → Vanilla → View Map. The saved Overworld terrain should render instead of a sky-only view. Inspect a tree log and deepslate face for the 26.3 default orientation. The server should remain writable.
@@ -1605,7 +1655,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.9e — Make desktop Fly camera controls usable
 
-- **Status:** Needs correction — Cameron observed a steep camera jump on desktop mouse movement, 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Needs correction — Cameron observed a steep camera jump on desktop mouse movement, 2026-10-01
 - **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `clients/desktop-web/src-tauri/capabilities/default.json`, `docs/msc2/rolling-plan.md`
 - **What:** Enter Fly with a near-level pitch instead of carrying the steep map angle into first-person movement. In the macOS desktop webview, use Tauri window cursor control when browser pointer lock is unavailable, so a click on the map enables continuous mouse look; Escape, window blur, leaving Fly, and closing the map restore the cursor. Browser pointer lock remains the viewer's normal path.
 - **Verify:** Restart `npx tauri dev` and open a saved Java map in MSC. Select Fly: the view should start nearly level. Click the terrain, move the mouse beyond the former window edge, and confirm the camera keeps turning while WASD/Space/Shift still move. Press Escape and confirm the pointer returns. Repeat after switching 2D/3D and closing the map. Check the browser proof viewer still uses its usual pointer lock.
@@ -1614,7 +1665,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.9f — Correct desktop mouse-look deltas
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification — implemented 2026-10-01
 - **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/rolling-plan.md`
 - **What:** The initial desktop fallback treated the cursor's absolute distance from the map center as movement on every event. That fed the repositioning jump into pitch and could point the camera straight at the sky. Use consecutive real pointer positions as deltas, ignore repositioning events, and recenter only near the map edge. Show a visible mouse-look indicator while captured. Keep the Fly entry pitch near level.
 - **Verify:** Restart `npx tauri dev`, open a saved Java map, and select Fly. Confirm the initial view is near level. Click terrain: the mouse-look indicator appears. Turn slowly in all directions and continue past the map edge; the camera should turn smoothly without jumping to the sky. Press Escape and confirm the indicator clears and ordinary drag works again.
@@ -1623,7 +1675,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.9g — Align MSC Fly heading with the browser viewer
 
-- **Status:** Needs correction — Cameron's movement screenshots showed W still drifting sideways, 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Needs correction — Cameron's movement screenshots showed W still drifting sideways, 2026-10-01
 - **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/rolling-plan.md`
 - **What:** Remove MSC's extra downward Fly entry pitch. Start the desktop camera level so its forward heading and the direction in the center of the view agree, as they do in the browser proof viewer.
 - **Verify:** In the running MSC app, reopen a saved map, select Fly, and check that the horizon starts level. Face a distant landmark, press W, and confirm it stays centered while getting closer. Turn with mouse look and repeat. The app and browser proof should now start Fly with the same level heading.
@@ -1632,7 +1685,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.9h — Correct desktop cursor coordinates for Fly look
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification — implemented 2026-10-01
 - **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `clients/desktop-web/src-tauri/capabilities/default.json`, `docs/msc2/rolling-plan.md`
 - **What:** The desktop mouse fallback centered the cursor using WebView coordinates even though Tauri expects decorated-window coordinates. Add the native content inset before cursor warps and ignore the synthetic movement while the warp completes. Grant the three window position/scale reads needed for the conversion. Revert the attempted camera-vector W movement, which made Y descend and did not resolve lateral drift.
 - **Verify:** Restart the desktop app so the capability change loads. In MSC Fly mode, click to capture the pointer and aim at a distinctive tree or block near the screen center. Press W repeatedly; the target should grow without the view drifting diagonally. Turn with the mouse, repeat, and check that Space/Shift are the only keys changing Y. Compare the level view with the browser proof.
@@ -1641,7 +1695,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.9i — Enter Fly near terrain from a streamed-world overview
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification — implemented 2026-10-01
 - **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/rolling-plan.md`
 - **What:** The browser proof frames a small tile near terrain, while MSC opens a streamed world from a high overview. Entering Fly preserved that distant overview eye, producing the steep aerial angle Cameron showed (MSC Y 386 versus proof Y 107). When the eye is more than 32 blocks above terrain at the current map focus, place it two blocks above that terrain and start with a level pitch. Keep close views where they are.
 - **Verify:** Open a saved Java world in MSC, select Fly from the initial overview, and confirm the camera starts near ground instead of hundreds of blocks above it. Face a block near the center, move with W, then turn with mouse look and use Space/Shift. Check that switching to Fly from an already close map view stays nearby.
@@ -1650,7 +1705,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.9j — Correct macOS Fly pointer recentering
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification — implemented 2026-10-01
 - **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `clients/desktop-web/src-tauri/capabilities/default.json`, `docs/msc2/rolling-plan.md`
 - **What:** Tauri's macOS cursor API measures from the content area, so the previous Fly fallback added the title-bar inset a second time. Center the cursor in content coordinates and discard the first movement event after a warp before resuming relative mouse look. Remove the unused window geometry permissions. Tile geometry and Fly movement both already use the same world X/Z axes.
 - **Verify:** Restart the desktop app, open a Java map, enter Fly, and click to capture the pointer. Aim along a straight block edge, then press W with the mouse still: movement should follow the view without lateral turning. Turn the camera and repeat. Confirm Space and Shift change only height.
@@ -1661,7 +1717,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.9k — Size the embedded map canvas to its viewport
 
-- **Status:** Done — Cameron confirmed the camera is fixed, 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Done — Cameron confirmed the camera is fixed, 2026-10-01
 - **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/rolling-plan.md`
 - **What:** Apply the P18.3i Retina canvas fix to MSC's embedded viewer. Vantage sizes its drawing buffer using device pixel ratio but leaves the canvas CSS size unchanged. The resulting oversized canvas is clipped by the map panel, making the camera's true center appear near the lower-right corner even while the toolbar reports the correct world focus. Keep the canvas at the panel's CSS width and height so the full camera image is visible.
 - **Verify:** Reload MSC's world map on the Retina display, select 2D, and center the view on the diamond blocks at X 33, Z 30. Zoom out without panning; the blocks should remain at the viewport center. In Fly mode, aim at a block edge and press W to confirm that travel follows the visible view. Check the browser proof viewer for comparison.
@@ -1670,7 +1727,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10a — Refresh embedded Java terrain from a consistent save
 
-- **Status:** Done — Cameron confirmed refresh and stopped-server behavior, 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Done — Cameron confirmed refresh and stopped-server behavior, 2026-10-01
 - **Files:** `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/worlds/map_terrain.rs`, `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `clients/desktop-web/src/lib/api/generated.ts`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/rolling-plan.md`
 - **What:** Add a Worlds-authorized Refresh terrain action for the running active Java server. Reuse the bounded save-off/flush/copy/save-on snapshot operation, retain its private copy as the renderer source, retire the previous renderer, and reload the selected dimension after the operation succeeds. Report copy bytes and save hold duration without exposing the snapshot path. Set the 2D camera pitch and heading immediately to a true top-down view instead of marking an in-progress tilt as 2D. This first refresh reloads the dimension; changed-tile selection and live player feeds remain later P18.10 work.
 - **Verify:** Restart MSC and its agent, open a running Java world map, place a distinctive block in game, and choose Refresh terrain. Confirm the new block appears, the server still accepts block changes, and another Refresh updates again. Check that an attempted refresh while the server is stopped gives a clear error. Select 2D and confirm block side faces disappear; switch to 3D and back.
@@ -1681,7 +1739,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10b — Show current players in the embedded map
 
-- **Status:** Done — Cameron confirmed end-to-end behavior, 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Done — Cameron confirmed end-to-end behavior, 2026-10-01
 - **Files:** `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/lifecycle/map_player_query.rs`, `crates/msc-agent/src/routes/worlds.rs`, `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `clients/desktop-web/src/lib/api/generated.ts`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/rolling-plan.md`
 - **What:** Expose a Worlds-authorized, server-scoped live player endpoint. Reuse the already ingested BDS behavior-pack samples and accept structured Java samples where a server feed exists. When no Java feed is present, request current Position, Rotation, and Dimension through the managed server console while the map is open, then publish a complete sample only after the matching online roster arrives. Expire samples after five seconds and discard partial replies. Poll from the embedded viewer, draw current-dimension models, list connected players, and provide Fly and Follow actions. A followed player changing to a saved dimension switches maps; disconnect or stale feed releases Follow. The query fallback uses the player's current name as the model identity within that server run; it does not claim a UUID.
 - **Verify:** Restart the development agent and MSC, open Vanilla's Overworld map, and join the server. The Players panel should show the connected player and a model at the live coordinates. Walk and turn; both should update. Fly to and Follow the player, then disconnect; the panel/model should clear within about five seconds. Switch dimensions with a player if saved terrain exists and confirm Follow moves to that dimension. On BDS, the roster should show fresh behavior-pack samples; Bedrock terrain inside MSC remains a separate integration step.
@@ -1692,7 +1751,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10c — Verify the embedded map on Purpur 1.21.11
 
-- **Status:** Deferred to consolidated runtime verification — Cameron prefers not to test each runtime separately, 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Deferred to consolidated runtime verification — Cameron prefers not to test each runtime separately, 2026-10-01
 - **Files:** `docs/msc2/rolling-plan.md`
 - **What:** Exercise the embedded refresh and Java console player-query paths on the already-proven Purpur 1.21.11 world. This covers the legacy root `region/` layout and a pre-26.x server version in MSC, beyond Vanilla 26.3. Check a visible terrain update and live roster/model movement while Purpur remains usable. This is a runtime-compatibility smoke check; it does not repeat full offline asset auditing or claim modded block-model fidelity.
 - **Verify:** In MSC, stop Vanilla if it is still running, select and start the existing Purpur 1.21.11 server, open its Overworld map, join using Minecraft 1.21.11, and confirm the player appears and moves in the roster/model. Place a distinctive block, refresh terrain, confirm the block appears and gameplay still works, then disconnect and confirm the marker clears. If saved Nether or End terrain is present, check that the map opens that dimension. This advances the visible promise that the supported legacy Java save layout refreshes and tracks live players inside MSC; report any missing chunks, stale player state, or renderer/refresh error as a blocker before expanding to other Java flavors.
@@ -1700,7 +1760,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10d — Deliver the Bedrock terrain exporter with MSC
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification — implemented 2026-10-01
 - **Files:** `tools/world-map-proof/src/main.rs`, `clients/desktop-web/tools/prepare-agent-dev.mjs`, `clients/desktop-web/src-tauri/src/lib.rs`, `packaging/agent-service-layout.json`, `packaging/{linux,macos,windows}/`, `tools/release/build-{linux,macos,windows}-headless.*`, `docs/msc2/rolling-plan.md`
 - **What:** Build the proven Bedrock tile exporter as `bedrock-map` alongside the desktop agent and in headless archives. Agent repair copies it into the versioned agent directory, and the build digest changes when the exporter changes. Headless installers install and remove the same binary. The exporter identifies its version with `--version`. Bedrock resource-pack textures remain a separate asset-discovery prerequisite; Minecraft image assets are not bundled here. This step delivers the executable but does not yet expose Bedrock terrain in the Worlds map.
 - **Verify:** On the development Mac, run the staged `bedrock-map --version` executable and confirm its version. Review the staged desktop and headless package paths. Keep Bedrock map runtime checks in the consolidated batch rather than asking Cameron to repeat them by server flavor.
@@ -1709,7 +1770,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10e — Open a saved Bedrock Overworld tile inside MSC
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification — implemented 2026-10-01
 - **Files:** `tools/world-map-proof/src/main.rs`, `crates/msc-agent/Cargo.toml`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/worlds/map_terrain.rs`, `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`, `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/rolling-plan.md`
 - **What:** The Worlds-authorized terrain route exports one saved 4×4-chunk Bedrock Overworld area using the packaged exporter and returns only its bounded tile, texture, and spawn metadata artifacts. A running BDS world is copied behind `save hold`/`save resume` before export; a stopped world is read from its saved files. The embedded viewer loads that single tile with the same map controls and live player layer. Home reaches spawn when it lies in that tile. MSC obtains Mojang's pinned Bedrock sample textures on first use, verifies the archive SHA-256, extracts only texture files into private app data, and permits a local `MSC2_BEDROCK_RESOURCE_PACK` override. No Minecraft images enter the MSC package or repository. Nether/End terrain, wider tile coverage, and embedded Bedrock terrain refresh remain open; this step does not claim them.
 - **Verify:** During the consolidated Bedrock runtime check, run `npx tauri dev`, repair/restart the agent, then open an existing BDS world in Worlds. The first Overworld load may download textures; confirm one textured saved area appears, 2D/3D/Fly controls operate, and the running server still accepts changes. A missing network or mismatched asset archive must produce a clear map error, not a fabricated tile. Defer this physical check until Cameron's chosen batch.
@@ -1718,7 +1780,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10f — Show neighboring Bedrock terrain tiles inside MSC
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification — implemented 2026-10-01
 - **Files:** `tools/world-map-proof/src/main.rs`, `tools/world-map-proof/src/render.rs`, `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`, `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/rolling-plan.md`
 - **What:** Export up to nine populated 4×4-chunk tiles in a 3×3 grid around Bedrock world spawn from one saved BDS snapshot. The tiles use one shared texture array, and the agent serves a bounded manifest and only its numbered tile paths. The MSC viewer loads that manifest through Vantage's tiled world source, so panning across neighboring tiles no longer stops at the original 4×4 area. This remains a bounded saved-area view, not full-world paging; refresh and Nether/End terrain remain separate steps.
 - **Verify:** In the consolidated Bedrock runtime check, open a BDS Overworld with saved chunks around spawn in MSC, pan or Fly across a former 4×4 tile edge, and confirm adjacent saved terrain loads with consistent textures and coordinates. The first export can take longer because it prepares several tiles. Check that a request for an unlisted tile returns a clear error and BDS remains writable. Do not run this as another per-flavor check now.
@@ -1727,7 +1790,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10g — Refresh saved Bedrock terrain inside MSC
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification — implemented 2026-10-01
 - **Files:** `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/worlds/map_terrain.rs`, `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`, `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/rolling-plan.md`
 - **What:** Enable Refresh terrain for a running BDS world. The operation takes a consistent save hold/resume snapshot, records bytes and hold time, and selects that snapshot for the next Bedrock tile export. The map reloads after the operation succeeds; BDS resumes writes before success is reported. The cached render and prior unused snapshot are retired. Rendering still rebuilds the bounded tile grid in full; dirty-tile selection is not yet used by the embedded map.
 - **Verify:** In the consolidated Bedrock runtime check, change a block in a loaded tile, use Refresh terrain, confirm the block appears and BDS still accepts edits. Stop BDS and confirm Refresh terrain gives a clear stopped-server error.
@@ -1736,7 +1800,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10h — Page through all saved Bedrock Overworld tiles
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification — implemented 2026-10-01
 - **Files:** `tools/world-map-proof/src/main.rs`, `tools/world-map-proof/src/render.rs`, `crates/msc-agent/src/backup_operations.rs`, `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`, `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/rolling-plan.md`
 - **What:** Catalog every saved Bedrock Overworld 4×4-chunk tile from one consistent world copy. Vantage requests tile paths as the camera moves; the agent renders only requested tiles and uses an append-only shared texture array so earlier tiles keep the same texture indices. A stopped world is also copied first, ensuring later tile requests do not read a LevelDB save after BDS starts. Refresh replaces the snapshot and catalog. The existing 2 GiB/30-second world-copy limit and per-artifact size limit still apply; Nether/End terrain and low-detail whole-world previews remain separate.
 - **Verify:** In the consolidated Bedrock runtime check, open a saved BDS Overworld, move farther than the former 3×3 tile boundary, and confirm newly reached terrain loads without a fixed edge or mismatched textures. Revisit an earlier tile, then edit a block and refresh; confirm the edit appears and BDS remains writable. A large world above the existing snapshot limit should report the copy error clearly.
@@ -1745,7 +1810,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10i — Show saved Bedrock Nether and End terrain
 
-- **Status:** Done — Cameron direction, 2026-10-02. Cameron reports the End is good after checking it; further Nether gap checks are deferred.
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Done — Cameron direction, 2026-10-02. Cameron reports the End is good after checking it; further Nether gap checks are deferred.
 - **Files:** `tools/world-map-proof/src/main.rs`, `tools/world-map-proof/src/render.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`, `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/rolling-plan.md`
 - **What:** Add dimension-specific saved chunk catalogs and on-demand tiles for the Bedrock Nether and End. MSC shows the same dimension selector used by Java. A consistent saved world copy is shared across dimension catalogs, while each dimension keeps separate tiles and textures. Nether and End get their own atmosphere and do not use the Overworld spawn. A dimension with no generated chunks reports an export error when selected.
 - **Owner result:** Cameron confirmed the End check passed on 2026-10-02. This records his reported map check, not separate execution of every scenario below. Nether missing saved chunks remain documented in P18.10u for later troubleshooting.
@@ -1755,7 +1821,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10j — Reuse unchanged Bedrock tiles on refresh
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification — implemented 2026-10-01
 - **Files:** `tools/world-map-proof/src/main.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/rolling-plan.md`
 - **What:** After a consistent BDS snapshot, catalog each cached dimension and compare only its previously rendered 4×4 tiles against the new copy. Keep unchanged tile files and their shared texture index; leave changed or newly generated tiles for on-demand rendering. Retire removed tiles. Preserve the prior snapshot and cache if catalog or comparison fails. Refresh operation details record reused, changed, and removed tile counts. The save copy itself remains a full bounded snapshot.
 - **Verify:** In the consolidated Bedrock runtime check, open two distant saved tiles, change a block in one, and refresh. Confirm the changed tile updates, the unchanged tile still displays, both dimensions remain selectable, and BDS accepts new edits. Check the refresh operation details for reused and changed counts. Repeat without edits and confirm already rendered tiles are reused.
@@ -1764,7 +1831,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10k — Keep the Bedrock initial view on terrain
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification — implemented 2026-10-01
 - **Files:** `tools/world-map-proof/src/main.rs`, `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/rolling-plan.md`
 - **What:** Ignore Bedrock's out-of-range Y sentinel instead of using it as a real camera spawn. Keep the Bedrock terrain status explicit while the first on-demand tiles render, then show the number of tiles ready. This addresses the high initial camera and blank-looking load while large Bedrock saves render.
 - **Verify:** Open a Bedrock world with saved terrain in MSC. Confirm the camera starts over terrain when the level.dat spawn Y is 32767, the status says tiles are rendering, and then reports tiles ready as terrain appears. Check an empty dimension reports no saved terrain.
@@ -1773,7 +1841,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10l — Keep progressive Bedrock tile textures in sync
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification — implemented 2026-10-01
 - **Files:** `tools/world-map-proof/src/render.rs`, `docs/msc2/rolling-plan.md`
 - **What:** Write Bedrock's on-demand tiles in Vantage's progressive VTL6
   format. This lets the viewer refresh its growing texture atlas as rendered
@@ -1788,7 +1857,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10m — Report Bedrock tile streaming coverage
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification — implemented 2026-10-01
 - **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/rolling-plan.md`
 - **What:** Report the number of resident Bedrock tiles against the total saved tiles in the catalog, including tiles currently loading. This distinguishes a sparse saved world from a viewer that has only streamed part of the saved terrain.
 - **Verify:** Open a Bedrock world in MSC and confirm the status reports loaded and saved tile counts, plus any tiles currently loading.
@@ -1796,7 +1866,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10n — Match Bedrock tile requests to export concurrency
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification — implemented 2026-10-01
 - **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/rolling-plan.md`
 - **What:** Limit Bedrock viewer fetch concurrency to one because the agent currently holds its map-cache lock while rendering and extending the shared texture atlas. This prevents six apparent simultaneous loads from accumulating as blocked requests. Java viewer concurrency remains unchanged.
 - **Verify:** Open a Bedrock map and confirm its progress reports one tile loading at a time while loaded tiles continue to increase.
@@ -1804,7 +1875,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10o — Remove measured Bedrock export bottlenecks
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification — implemented 2026-10-01
 - **Files:** `tools/world-map-proof/src/render.rs`, `clients/desktop-web/tools/prepare-agent-dev.mjs`, `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`, `docs/msc2/rolling-plan.md`
 - **Diagnosis:** The browser proof mounts one pre-rendered tile, while MSC exports catalog tiles on demand. Development staging selected an unoptimized exporter. The renderer called `get_height_at_blocking` for every column (256 complete biome-record decodes per chunk, 4096 per tile) and resolved block models/texture paths for every emitted face. Existing cache file timestamps show exports separated by tens of seconds to minutes; the latest cache rendered seven files, so the six-loaded UI alone did not identify the stalled stage. No running app/exporter process was available during this investigation.
 - **What:** Read each chunk height map once, cache resolved layers by block material and face normal (including missing textures while preserving fallback counts), and always stage a release exporter for development as well as release apps. Preserve serialized atlas writes. Log tile start, completion duration and failure, and retain exporter stderr in the agent log. Remove the unused VTL4 mesh writer.
@@ -1814,7 +1886,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10p — Deliver terrain as binary and retain Bedrock block textures
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-01
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification — implemented 2026-10-01
 - **Files:** `clients/desktop-web/src-tauri/src/lib.rs`, `clients/desktop-web/src/lib/auth/desktop.ts`, `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`, `docs/msc2/rolling-plan.md`
 - **Diagnosis:** Owner reports visible terrain but 20+ second tile arrival and magenta placeholders. Agent log records exports completing in 0.98–7.85 seconds; export time alone does not explain arrival time. Desktop proxy serialized every response byte as a JSON number; multi-megabyte terrain therefore crossed WebKit as millions of array entries. The sample-pack extractor discarded root `blocks.json`, unlike the browser proof; the texture resolver uses that file for face/material mapping.
 - **What:** Add a binary IPC response command that delegates to the existing authenticated, origin-checked proxy, framing small status/header JSON separately from raw body bytes. The native credential bridge decodes that frame while preserving the existing fetch/credential interface. Include `blocks.json` in bounded, checksum-verified pack extraction and use a new cache directory so incomplete cached packs are replaced automatically. Existing pane geometry and UV fixes stay in use. Stage the updated agent and the corrected checksum-verified sample pack locally.
@@ -1824,7 +1897,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10q — Keep backup polling from starving map and health requests
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-02
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification — implemented 2026-10-02
 - **Files:** `crates/msc-agent/src/routes/backups.rs`, `clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte`, `docs/msc2/rolling-plan.md`
 - **Diagnosis:** Owner reports map progress pausing at 22/30 tiles, stale players and a temporary disconnect. Captured the running agent (PID 96407, matching the disconnected screenshot) at approximately 675% CPU. A three-second health request timed out. A process sample found 14 runtime threads in backup-list scans; the list synchronously validates/decompresses every ZIP on Tokio HTTP workers. Worlds polling starts another list every eight seconds even while its cards are hidden behind the map. This is direct evidence of request-worker starvation, not a proved tile-count limit or agent crash.
 - **What:** Move backup listing/validation into `spawn_blocking` under one global semaphore permit, held inside the blocking job so cancellation does not allow overlapping scans. Preserve archive-safety validation. Suppress hidden Worlds/card/backup polling while the map is open and prevent overlapping refresh batches; wait for all batch requests to settle before releasing that guard. The map retains its own player polling and terrain refresh.
@@ -1834,7 +1908,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10r — Keep a lightweight Bedrock world overview behind nearby detail
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-02. Cameron reports the prior build keeps players live and settles around 40 detailed tiles; that observation is consistent with bounded terrain residency, but its exact memory cutoff was not captured.
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification — implemented 2026-10-02. Cameron reports the prior build keeps players live and settles around 40 detailed tiles; that observation is consistent with bounded terrain residency, but its exact memory cutoff was not captured.
 - **Files:** `tools/world-map-proof/src/main.rs`, `tools/world-map-proof/src/render.rs`, `crates/msc-agent/src/routes/worlds/map_terrain.rs`, `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`, `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/rolling-plan.md`
 - **What:** Emit a format-2 manifest with VLR1 surface overview tiles covering each selected Bedrock dimension. Sample saved height records and resolve the actual surface block through direct subchunk-key reads, including the first-air height convention; average its top texture and apply vegetation/water tint. Start with one sample per chunk and aggregate larger cells for scattered worlds until at most 128 fixed 65-by-65 overview tiles remain. Shared edge samples agree and absent saved samples remain empty. The existing viewer streams the overview first and nearby VTL6 block meshes afterward. Keep the existing 512 MiB estimated terrain residency and 120 detailed-tile limits explicit, and disable remembered screenshots because the overview provides distant coverage. Status distinguishes detailed and overview tile counts. Refresh regenerates the overview from the new snapshot; detailed tile reuse remains in place. Artifact routes accept only bounded numeric overview filenames.
 - **Evidence:** Profiled against an existing consistent owner-world snapshot, without opening the live database. Overworld: 2,327 detailed tile references, 27 overview files totaling 571,131 bytes, final catalog export 12.06 seconds (earlier corrected surface run 9.37 seconds). Nether: 171 detailed references, four overview files / 84,612 bytes, 1.63 seconds. End: 76 detailed references, six overview files / 126,918 bytes, 0.66 seconds. Rejected an earlier approach after observing expensive per-chunk prefix scans; direct subchunk reads removed that cost. Surface material inspection caught and corrected first-air height interpretation before staging. Exporter release build and Clippy with warnings denied passed; agent check/build passed with its existing unused-function warning; Svelte check passed with zero errors and 13 existing warnings; frontend production build passed. Updated agent/exporter staged in development runtime and package directories, with matching SHA-256 hashes. No test suite was run; integrated visual acceptance remains open.
@@ -1844,7 +1919,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10s — Collapse map status and player overlays
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-02
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification — implemented 2026-10-02
 - **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/rolling-plan.md`
 - **What:** Make both map overlays native keyboard-accessible disclosure controls, initially expanded. Terrain status text itself toggles the disclosure, with an upward caret shown only while collapsed; Players collapses to a caret, heading and live count with a compact width. Expanding restores status or roster/actions. Disclosure state survives status/player polling.
 - **Verify:** Collapse and reopen both overlays in the map. Confirm the player count remains current while collapsed and Fly/Follow remain available after expanding. No tests run, per owner policy.
@@ -1852,7 +1928,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10t — Make Nether 2D a depth slice and restore interior streaming fog
 
-- **Status:** Awaiting Cameron verification — implemented 2026-10-02
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Awaiting Cameron verification — implemented 2026-10-02
 - **Files:** `tools/world-map-proof/src/render.rs`, `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/rolling-plan.md`
 - **Diagnosis:** Owner screenshots show nearby-looking gaps inside the Nether and a roof-obstructed 2D view whose focus stays at Y83. Inspected the current agent's Nether catalog/output: all nine detailed tiles around screenshot coordinates X147/Z-250 are exported (about 9–18 MB each). This establishes server artifacts exist, not client residency. Viewer source confirms a lowres manifest moves fog to the whole-world edge. The Nether overview only describes its roof, so that assumption leaves unloaded cave interiors exposed. A vertical camera alone cannot peel off the roof or select a deeper cave level.
 - **What:** Omit the Nether roof-only overview, retaining detail selection and the 512 MiB terrain budget. The viewer now uses its existing detail-frontier fog for Nether interiors. Overworld/End overviews remain. Declare full cave geometry and dimension Y bounds in Bedrock manifests. Entering Nether 2D slices at the current interior focus height (Y83 when above the roof), clamped to Y2–126; add a Depth Y slider that cuts geometry above the selected level and moves the focus to that level. Changing depth stops Follow so tracking cannot overwrite the selected height. 3D, Fly and player focus clear the slice.
@@ -1863,7 +1940,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10u — Trace the remaining Nether chunk holes
 
-- **Status:** Done — Cameron direction, 2026-10-02; further Nether troubleshooting deferred. Missing source coverage remains unresolved, and the holes are not claimed fixed.
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Done — Cameron direction, 2026-10-02; further Nether troubleshooting deferred. Missing source coverage remains unresolved, and the holes are not claimed fixed.
 - **Files:** `docs/msc2/rolling-plan.md`
 - **What:** Trace the owner's current Nether Fly view at X170/Y206/Z-234 through exported geometry, chunk reads, the snapshot database and live immutable database files. Correct the earlier inference that these specific holes were caused by client residency or fog. Do not fill absent saved chunks with fabricated terrain.
 - **Evidence:** The detailed tile at chunk anchor (8,-16) exists and renders nine populated chunks, but seven of its sixteen chunks return no records: (9,-15), (9,-14), (10,-14), (11,-14), (8,-13), (10,-13), (11,-13). The populated neighbors have bedrock at Y127. Both prefix scans and direct subchunk lookups agree; full catalog scanning also excludes (9,-15). An independent Python reader decoded every data block in all 73 physical LevelDB tables and found no key for chunk (9,-15), including across dimensions. The snapshot's only WAL is 64 bytes and contains no matching coordinate key. All 73 immutable tables match their live-world counterparts byte-for-byte (SHA-256); none are missing or changed. This establishes absent saved source records for the inspected hole, rather than an exporter lookup or snapshot-copy omission. Temporary exporter diagnostics were removed. No tests run, world data modified, or server lifecycle changes made.
@@ -1873,7 +1951,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10v — Match the map dimension selector to Settings
 
-- **Status:** Implemented — awaiting owner observation, 2026-10-02
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Implemented — awaiting owner observation, 2026-10-02
 - **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/rolling-plan.md`
 - **What:** Replace the map's raw native select with the shared Settings Select component: dark theme field, rounded border and neutral downward chevron. Preserve dimension selection and unavailable labels; supply an accessible Dimension label.
 - **Verify:** Open the map and confirm the selector matches Settings and switches dimensions. No tests run.
@@ -1881,7 +1960,8 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.10 — Connect saved-terrain refresh and live player controls
 
-- **Status:** Planned — owner direction, 2026-09-30
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Historical disposition:** Planned — owner direction, 2026-09-30
 - **Files:** `crates/msc-agent/src/`, `clients/desktop-web/src/`, `docs/msc2/rolling-plan.md`
 - **What:** Replace proof-only refresh and player-feed calls with the Worlds
   capability. Refresh the selected dimension from a consistent snapshot while
@@ -1901,8 +1981,10 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 ### P18.11 — Close the integrated map acceptance record
 
-- **Status:** Planned — owner direction, 2026-09-30
-- **Files:** `docs/msc2/rolling-plan.md`, `docs/msc2/msc2-engineering.md`, `docs/msc2/msc2-port-plan.md`
+- **Status:** Done — Cameron direction, 2026-10-02. See `phase18-map-acceptance.md` for owner observations and deferred checks.
+- **Completion:** Consolidated `docs/msc2/phase18-map-acceptance.md`, updated engineering disposition and proposed port-plan gate, and reconciled all Phase 18 statuses. Preserved historical evidence and named deferred checks. Documentation-only; no tests run.
+- **Historical disposition:** Planned — owner direction, 2026-09-30
+- **Files:** `docs/msc2/phase18-map-acceptance.md`, `docs/msc2/rolling-plan.md`, `docs/msc2/msc2-engineering.md`, `docs/msc2/msc2-port-plan.md`
 - **What:** Review the integrated map against the selected runtime matrix and
   the Worlds-tab UX promise. Record Java and BDS terrain coverage, supported
   dimensions, capability gaps, model/texture fallbacks, freshness, refresh

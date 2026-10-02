@@ -217,6 +217,12 @@ Phase 17 implements D-040's host-local CLI contract and the API-to-CLI task inve
 
 **Exit criteria:** desktop and headless packages on macOS, Windows, and Linux put `msc` on PATH; local and SSH login-shell commands require no visible token or repeated setup before and after agent restart and host reboot; wrong-user and forwarded-port attempts are refused; service start, stop, and status work with the agent down and preserve the documented boot policy; every user-facing API task has a CLI command or an owner-approved exception under D-041; provider and edition limits, route permissions, confirmations, active-server context, and JSON output are accurate. Cameron records physical acceptance before the other agent reviews this gate. Phase 16's separate acceptance remains open until its own evidence and review are complete. Phase 17 adds no CI or release-publication gate.
 
+### Phase 18 — Integrated 3D world map
+
+**Step disposition (2026-10-02):** P18.0–P18.11 and corrective substeps are Done at Cameron's direction. P18.11 consolidates the selected Java/BDS runtime evidence, standard dimensions, camera, terrain refresh, player controls, block appearance, resource bounds and deferred limitations in [Phase 18 map acceptance](phase18-map-acceptance.md).
+
+**Proposed exit gate:** The independent reviewer evaluates the in-window Worlds-map promise against that record, including saved-terrain freshness, live roster/Fly/Follow, selected runtime coverage, controls/exit, explicit empty dimensions and asset fallbacks. Nether absent-source troubleshooting, ATM10 custom-dimension visual proof and further consolidated runtime/platform checks remain deferred. Done step statuses do not prove universal mod support, total RSS compliance or separate release acceptance. Independent review remains open.
+
 ### Continuous, from Phase 1 onward
 
 The client capability matrix (D-023) is updated as each capability lands, with intentional exceptions recorded rather than discovered.

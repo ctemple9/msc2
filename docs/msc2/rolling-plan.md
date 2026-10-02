@@ -1860,6 +1860,16 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 - **Verify:** Restart the development session and repair service to install the exporter and discard the old catalog. Reopen the Nether: confirm unloaded detail boundaries fade into fog, and confirm nearby tiles fill as the camera moves. Enter 2D, lower Depth Y below83 and inspect the exposed interior. Return to 3D/Fly and confirm the roof/full geometry is restored. Owner can defer verification.
 - **Batch:** C (P18.10) — Nether map usability
 
+### P18.10u — Trace the remaining Nether chunk holes
+
+- **Status:** Investigation complete; source coverage unresolved — 2026-10-02. No claim that the holes are fixed.
+- **Files:** `docs/msc2/rolling-plan.md`
+- **What:** Trace the owner's current Nether Fly view at X170/Y206/Z-234 through exported geometry, chunk reads, the snapshot database and live immutable database files. Correct the earlier inference that these specific holes were caused by client residency or fog. Do not fill absent saved chunks with fabricated terrain.
+- **Evidence:** The detailed tile at chunk anchor (8,-16) exists and renders nine populated chunks, but seven of its sixteen chunks return no records: (9,-15), (9,-14), (10,-14), (11,-14), (8,-13), (10,-13), (11,-13). The populated neighbors have bedrock at Y127. Both prefix scans and direct subchunk lookups agree; full catalog scanning also excludes (9,-15). An independent Python reader decoded every data block in all 73 physical LevelDB tables and found no key for chunk (9,-15), including across dimensions. The snapshot's only WAL is 64 bytes and contains no matching coordinate key. All 73 immutable tables match their live-world counterparts byte-for-byte (SHA-256); none are missing or changed. This establishes absent saved source records for the inspected hole, rather than an exporter lookup or snapshot-copy omission. Temporary exporter diagnostics were removed. No tests run, world data modified, or server lifecycle changes made.
+- **Limits:** This does not establish why BDS has not saved those chunks, whether the game currently generates them in memory, or whether other visible holes have the same cause. A map renderer cannot reconstruct the absent blocks faithfully. The prior Nether depth slider remains useful; the fog change did not resolve these source holes.
+- **Verify:** When convenient, visit the affected area in the game and refresh saved terrain after BDS saves it. If the in-game area is complete but a refreshed snapshot still lacks those keys, investigate the BDS save boundary using that observed state. Owner verification can be deferred.
+- **Batch:** C (P18.10) — Nether source coverage diagnosis
+
 ### P18.10 — Connect saved-terrain refresh and live player controls
 
 - **Status:** Planned — owner direction, 2026-09-30

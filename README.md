@@ -17,7 +17,10 @@ everything first.
 
 ## Current release and support
 
-The newest published build is [MSC 2 v0.1.18](https://github.com/ctemple9/msc2/releases/tag/v0.1.18),
+The next release is [MSC 2 v0.1.19](https://github.com/ctemple9/msc2/releases/tag/v0.1.19),
+containing the redesigned agent home and integrated world map. Publication is
+requested; use the release page to confirm downloadable artifacts are available.
+The newest published build at preparation is [MSC 2 v0.1.18](https://github.com/ctemple9/msc2/releases/tag/v0.1.18),
 an unsigned prerelease. There is no stable release yet. Download the
 platform-specific installer or archive from that release page and verify its
 entry in `SHA256SUMS` before installing. The Phase 16 acceptance record

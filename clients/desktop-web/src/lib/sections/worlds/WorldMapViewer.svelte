@@ -669,9 +669,11 @@
     {/if}
     <details class="map-caption" open>
       <summary aria-label="Terrain status" title="Show or hide terrain status">
-        <span class="panel-caret" aria-hidden="true">▾</span>
+        <span class="terrain-caret" aria-hidden="true">▴</span>
+        <span class="terrain-caption-text" role="status">
+          {status}{message ? ` · ${message}` : ''}
+        </span>
       </summary>
-      <div role="status">{status}{message ? ` · ${message}` : ''}</div>
     </details>
     <nav
       class="map-toolbar"
@@ -981,15 +983,16 @@
     font-size: 11px;
     border-radius: 5px;
   }
-  .map-caption summary {
+  .map-caption .terrain-caret {
+    display: flex;
     width: 20px;
     min-height: 20px;
-    display: flex;
     align-items: center;
     justify-content: center;
   }
-  .map-caption[open] > div {
-    margin-top: 4px;
+  .map-caption[open] .terrain-caret,
+  .map-caption:not([open]) .terrain-caption-text {
+    display: none;
   }
   .look-indicator {
     position: absolute;

@@ -1845,7 +1845,7 @@ implementation checkpoint is chosen after Cameron reviews the preceding proof.
 
 - **Status:** Awaiting Cameron verification — implemented 2026-10-02
 - **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, `docs/msc2/rolling-plan.md`
-- **What:** Make both map overlays native keyboard-accessible disclosure controls, initially expanded. Terrain status collapses to a caret; Players collapses to a caret, heading and live count with a compact width. Expanding restores status or roster/actions. Disclosure state survives status/player polling.
+- **What:** Make both map overlays native keyboard-accessible disclosure controls, initially expanded. Terrain status text itself toggles the disclosure, with an upward caret shown only while collapsed; Players collapses to a caret, heading and live count with a compact width. Expanding restores status or roster/actions. Disclosure state survives status/player polling.
 - **Verify:** Collapse and reopen both overlays in the map. Confirm the player count remains current while collapsed and Fly/Follow remain available after expanding. No tests run, per owner policy.
 - **Batch:** C (P18.10) — map overlay controls
 

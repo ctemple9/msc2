@@ -138,7 +138,7 @@ into main; no release publication or exact-artifact acceptance is implied.
 
 ## Phase 19 — Complete local uninstall (owner-requested 2026-10-02)
 
-**Planning state:** Ready for Cameron's read. Implementation has not started.
+**Planning state:** Cameron authorized implementation on 2026-10-02. P19.1 is implemented pending owner verification; later steps remain planned.
 
 **Owner-approved intent:** Add **Uninstall MSC 2…** beside Reset in app settings and a local `msc uninstall --danger` command. Permanently remove this computer's MSC 2 agent services, managed servers/worlds/backups, MSC-owned helpers and runtimes, host/client data and credentials, caches/logs, installed command, and desktop app. Never contact or uninstall a saved remote agent. Running this flow on a remote computer means running its local MSC desktop or CLI there. Preserve MSC 1, source checkouts, separately installed Java/Tailscale/Docker, unrelated files, and OS-owned package caches.
 
@@ -150,12 +150,18 @@ into main; no release publication or exact-artifact acceptance is implied.
 
 ### P19.1 — Inventory local installations and define the deletion boundary
 
-**Status:** Planned; awaiting Cameron's read.
+**Status:** Implemented; awaiting Cameron's verification.
 **Files:** `crates/msc-infrastructure/src/uninstall.rs` (new), `crates/msc-infrastructure/src/lib.rs`, `crates/msc-infrastructure/tests/uninstall.rs` (new only for essential boundary cases), `docs/msc2/clients/local-uninstall.md` (new), this plan.
 **What:** Build one serializable local inventory for CLI and desktop, with canonical paths, ownership evidence, missing/unavailable states, and exclusions. Discover service definitions and their actual MSC2_DATA_DIR/MSC2_APP_CONFIG_PATH/MSC2_AGENT_SERVERS_ROOT overrides rather than guessing from the current shell. Cover desktop and headless data layouts (macOS MSC 2 vs MSC2; Windows roaming/local data; Linux desktop and system headless roots), registered server roots and external managed server/backups with explicit ownership boundaries, client WebView state, credential stores, helper installs, old marked headless versions, command links/PATH entries, application/package identity, and verified installer files. Inventory is read-only; corrupt configuration or ambiguous ownership blocks affected deletion and is visible. Reject root/home/shared-parent targets, MSC 1 paths, symlink escapes, traversal, and unsupported developer checkout removal. Record essential controlled tests for path escapes, ambiguous ownership, and remote exclusion; do not run them without a specific owner instruction. Avoid brittle timing or real-machine installation fixtures.
 **Verify:** `cargo check -p msc-infrastructure`
 **Batch:** P19.1 only.
 **Commit:** `P19.1: inventory local msc installations for uninstall`
+
+**Implementation boundary:** The shared layer consumes local OS service/package inspection from platform adapters; P19.2 wires those native inspections and execution. Missing service/package inspection produces a blocking entry, never an assumption that an installation is absent. No CLI command or Settings uninstall action is available in this step. The preview function itself has no network, elevation, process control, or filesystem mutation.
+
+**Essential tests:** Added six controlled in-memory deletion-boundary cases for protected/symlink/source targets, corrupt-config parent removal, ambiguous custom data roots, service override/secret separation, unverified/changed installers, and preview mutation. These protect permanent data loss or secret disclosure rather than structure/prose. Expected runtime is under one second after compilation. No tests were run.
+
+**Agent checks:** Package type-check, compilation of the focused test target without execution, formatting, and package-library Clippy with warnings denied passed. No Rust test executables were run. Owner verification remains open.
 
 ### P19.2 — Remove services, data, credentials, and OS installation locally
 

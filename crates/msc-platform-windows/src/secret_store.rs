@@ -202,3 +202,43 @@ mod tests {
         }
     }
 }
+
+/// Purge only MSC's production credential namespace in the current user session.
+/// Elevating this operation would address a different user's credential store.
+pub fn remove_all_msc_credentials() -> Result<()> {
+    use windows_sys::Win32::Security::Credentials::CredEnumerateW;
+    let filter = to_wide("MSC2:*");
+    let mut count = 0;
+    let mut entries: *mut *mut CREDENTIALW = ptr::null_mut();
+    // SAFETY: Windows owns the returned array until CredFree; each credential
+    // and its NUL-terminated TargetName are live for that same allocation.
+    unsafe {
+        if CredEnumerateW(filter.as_ptr(), 0, &mut count, &mut entries) == 0 {
+            let error = GetLastError();
+            return if error == ERROR_NOT_FOUND {
+                Ok(())
+            } else {
+                Err(SecretStoreError(format!(
+                    "Could not enumerate MSC credentials: {error}"
+                )))
+            };
+        }
+        let mut failure = None;
+        for index in 0..count as usize {
+            let entry = *entries.add(index);
+            if CredDeleteW((*entry).TargetName, CRED_TYPE_GENERIC, 0) == 0 {
+                failure = Some(SecretStoreError(format!(
+                    "Could not remove MSC credential: {}",
+                    GetLastError()
+                )));
+                break;
+            }
+        }
+        CredFree(entries.cast());
+        if let Some(error) = failure {
+            Err(error)
+        } else {
+            Ok(())
+        }
+    }
+}

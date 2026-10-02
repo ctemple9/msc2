@@ -629,7 +629,7 @@ fn wait_for_service_state(
     Ok(latest)
 }
 
-fn run_as_administrator(command: &str) -> Result<(), ServiceError> {
+pub(crate) fn run_as_administrator(command: &str) -> Result<(), ServiceError> {
     let script =
         "on run argv\n  do shell script (item 1 of argv) with administrator privileges\nend run";
     let output = Command::new("/usr/bin/osascript")

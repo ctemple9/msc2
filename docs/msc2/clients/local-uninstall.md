@@ -1,7 +1,7 @@
 # Complete local uninstall
 
 Owner-requested 2026-10-02. P19.1 implements the shared read-only inventory;
-execution, CLI command, and desktop action are planned in P19.2–P19.4. No
+P19.2 adds native discovery/removal; CLI and desktop entry points are being wired in P19.3–P19.4. No
 uninstall entry point is available yet.
 
 ## Scope

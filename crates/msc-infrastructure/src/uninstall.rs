@@ -1,6 +1,8 @@
 //! Read-only inventory for complete local uninstall. This module deliberately
 //! has no deletion or process-control functions; execution must revalidate it.
 
+pub mod native;
+
 use crate::fs::FileSystem;
 use crate::path_safety::safe_path;
 use crate::service::{ServiceInstallRequest, ServiceState, ServiceStatusReport};

@@ -15,3 +15,6 @@ pub mod process;
 pub mod secret_store;
 #[cfg(unix)]
 pub mod service;
+
+#[cfg(unix)]
+pub mod uninstall;

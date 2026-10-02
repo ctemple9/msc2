@@ -165,12 +165,14 @@ into main; no release publication or exact-artifact acceptance is implied.
 
 ### P19.2 — Remove services, data, credentials, and OS installation locally
 
-**Status:** Planned; blocked on P19.1 verification.
+**Status:** Implemented; awaiting Cameron's verification. Cameron authorized completion of P19.2–P19.4 together on 2026-10-02.
 **Files:** `crates/msc-infrastructure/src/uninstall.rs`, platform-specific uninstall modules under `crates/msc-platform-macos/src/`, `crates/msc-platform-windows/src/`, `crates/msc-platform-linux/src/`, existing service/secret-store adapters where necessary, essential controlled boundary tests if current coverage misses a concrete risk, `docs/msc2/clients/local-uninstall.md`, this plan.
 **What:** Execute the inventory through existing platform privilege boundaries, with no remote service API. Authenticate to the local agent if available, request graceful server/helper shutdown and verify it; handle an offline/stopped installation through its inspected service definition without guessing process ownership. Stop/unregister all verified MSC-owned service/helper definitions, remove approved data and credential records, remove verified links/PATH entries, uninstall the desktop/package and marked headless artifacts, then delete the approved installer files. Distinguish Windows MSI uninstall from raw file deletion; use Linux package ownership and macOS bundle identifier checks. Secure detached continuation state against tampering; revalidate filesystem boundaries/ownership immediately before deletion. Never execute a user-writable elevated cleanup script blindly. Provide partial-failure/result reporting and retry inventory for leftovers, preserving failures rather than suppressing them. Do not launch the real uninstaller while implementing or verifying this step.
 **Verify:** `cargo check -p msc-platform-macos -p msc-platform-windows -p msc-platform-linux`
 **Batch:** P19.2 only.
 **Commit:** `P19.2: implement complete local uninstall execution`
+
+**Agent checks:** Host-platform checks and package-library Clippy passed without running tests or uninstall. Linux cleanup code also compiles on Unix for inspection. A Windows-target check was attempted but blocked by missing Windows C headers in ring (assert.h); Windows native compilation/acceptance remains required on Windows. The copied worker and CLI handoff are wired in P19.3; native execution is not invoked here.
 
 ### P19.3 — Expose the confirmed uninstall command
 

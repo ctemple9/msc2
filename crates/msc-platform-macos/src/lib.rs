@@ -13,3 +13,6 @@ pub mod process;
 pub mod secret_store;
 #[cfg(target_os = "macos")]
 pub mod service;
+
+#[cfg(target_os = "macos")]
+pub mod uninstall;

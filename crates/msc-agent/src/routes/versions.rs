@@ -1256,11 +1256,28 @@ fn run_install_java_runtime(
         &asset,
     ) {
         Ok(path) => {
+            // Windows callers need java.exe rather than the extracted folder.
+            // Keep the established macOS/Linux result behavior unchanged.
+            let executable = if host == HostOs::Windows {
+                match java_runtime_detection::normalized_java_executable_path(
+                    &StdFileSystem,
+                    &path.to_string_lossy(),
+                ) {
+                    Ok(executable) => executable,
+                    Err(error) => {
+                        let _ = state.finish_operation_failure(
+                            &operation_id,
+                            "unusable_java_runtime",
+                            error,
+                        );
+                        return;
+                    }
+                }
+            } else {
+                path.to_string_lossy().into_owned()
+            };
             let mut result = std::collections::BTreeMap::new();
-            result.insert(
-                "runtimePath".to_string(),
-                path.to_string_lossy().into_owned(),
-            );
+            result.insert("runtimePath".to_string(), executable);
             result.insert("major".to_string(), major.to_string());
             let _ = state.finish_operation_success(
                 &operation_id,

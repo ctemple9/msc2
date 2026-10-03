@@ -57,7 +57,7 @@ pub fn normalized_java_executable_path(
     fs: &dyn FileSystem,
     raw_path: &str,
 ) -> Result<String, String> {
-    if !raw_path.contains('/') {
+    if !raw_path.contains('/') && !raw_path.contains('\\') {
         return Ok(raw_path.to_string());
     }
     let path = Path::new(raw_path);
@@ -66,13 +66,11 @@ pub fn normalized_java_executable_path(
         .map_err(|_| format!("Java path does not exist: {raw_path}"))?;
 
     if meta.is_dir {
-        let candidate = path.join("bin/java");
-        return match fs.stat(&candidate) {
-            Ok(m) if m.executable => Ok(candidate.to_string_lossy().into_owned()),
-            _ => Err(format!(
-                "'{raw_path}' is a Java HOME directory but has no executable at bin/java"
-            )),
-        };
+        return java_executable_in_home(fs, path)
+            .map(|candidate| candidate.to_string_lossy().into_owned())
+            .ok_or_else(|| {
+                format!("'{raw_path}' is a Java HOME directory but has no executable at bin/java")
+            });
     }
 
     if meta.executable {
@@ -143,18 +141,24 @@ fn inspect_candidate(
     insert_runtime(fs, runtimes, &candidate.join("Contents/Home"));
 }
 
+fn java_executable_in_home(fs: &dyn FileSystem, home: &Path) -> Option<PathBuf> {
+    ["bin/java", "bin/java.exe"]
+        .into_iter()
+        .map(|relative| home.join(relative))
+        .find(|candidate| {
+            fs.stat(candidate)
+                .is_ok_and(|meta| meta.is_file && meta.executable)
+        })
+}
+
 fn insert_runtime(
     fs: &dyn FileSystem,
     runtimes: &mut BTreeMap<String, DetectedJavaRuntime>,
     home: &Path,
 ) {
-    let java_path = home.join("bin/java");
-    let Ok(meta) = fs.stat(&java_path) else {
+    let Some(java_path) = java_executable_in_home(fs, home) else {
         return;
     };
-    if !meta.is_file || !meta.executable {
-        return;
-    }
     let executable_path = java_path.to_string_lossy().into_owned();
     if runtimes.contains_key(&executable_path) {
         return;

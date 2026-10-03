@@ -397,6 +397,12 @@
       throw new Error(`Java ${event.major} installed, but MSC could not select its runtime path.`);
     }
     javaSelectedPath = event.runtimePath;
+    if (api) {
+      const response = await api.get<Schema['JavaRuntimesResponseDTO']>(
+        serverEditorPaths.javaRuntimes,
+      );
+      javaRuntimes = response.runtimes ?? [];
+    }
     draft = {
       ...draft,
       javaPath: event.runtimePath,

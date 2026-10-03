@@ -169,6 +169,33 @@ fn java_runtime_detection_normalization_directory_without_bin_java_returns_error
 
 // --- detectInstalledJavaRuntimes ---
 
+#[test]
+fn java_runtime_detection_windows_executable_is_discovered_and_normalized() {
+    let root = PathBuf::from("C:/msc-runtimes");
+    let home = root.join("temurin-25-windows-x64");
+    let executable = home.join("bin/java.exe");
+    let fs = FakeFileSystem::new().with_file(&executable, b"java".to_vec(), true);
+    let runtimes = detect_installed_java_runtimes(&fs, &[root.to_string_lossy().into_owned()]);
+    assert_eq!(runtimes.len(), 1);
+    assert_eq!(PathBuf::from(&runtimes[0].executable_path), executable);
+    assert_eq!(runtimes[0].major_version, Some(25));
+    assert_eq!(
+        PathBuf::from(normalized_java_executable_path(&fs, &home.to_string_lossy()).unwrap()),
+        executable,
+    );
+
+    // The existing Unix executable stays preferred even if an .exe is present.
+    let unix_executable = home.join("bin/java");
+    let fs = fs.with_file(&unix_executable, b"java".to_vec(), true);
+    let runtimes = detect_installed_java_runtimes(&fs, &[root.to_string_lossy().into_owned()]);
+    assert_eq!(runtimes.len(), 1);
+    assert_eq!(PathBuf::from(&runtimes[0].executable_path), unix_executable);
+    assert_eq!(
+        PathBuf::from(normalized_java_executable_path(&fs, &home.to_string_lossy()).unwrap()),
+        unix_executable,
+    );
+}
+
 fn search_roots(input: &Value) -> Vec<String> {
     input["searchRoots"]
         .as_array()

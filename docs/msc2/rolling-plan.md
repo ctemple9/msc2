@@ -1,5 +1,18 @@
 # MSC 2 — Rolling Plan
 
+### P12.233 — Refresh newly installed Java in the Windows server picker
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`, `crates/msc-infrastructure/src/java_runtime_detection.rs`, `crates/msc-agent/src/routes/versions.rs`, `crates/msc-infrastructure/tests/java_runtime_detection.rs`, this plan.
+**What:** Refresh the builder's runtime list after installation. Discover Windows `bin/java.exe`, recognize backslash-separated executable/home paths, and return the installed executable rather than its directory on Windows. Preserve the existing macOS/Linux installer return behavior, macOS bundle inspection, and preferred `bin/java` discovery/normalization.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.233 only.
+**Commit:** `P12.233: refresh installed java in the windows server picker`
+
+**Checks:** Svelte check passed with zero errors and eleven existing warnings. Rust formatting and shipping-agent Clippy passed with existing Windows warnings outside this change. The focused discovery test target compiled with `cargo check -p msc-infrastructure --test java_runtime_detection`; no tests run.
+**Essential coverage:** One in-memory filesystem regression covers discovery and normalization of a Java 25 `java.exe`, then confirms `bin/java` remains preferred when present. It protects the reported missing Windows runtime and the owner's Unix compatibility requirement; no real JDK, network, timing or host paths are required. Expected runtime below one millisecond; execution deferred to Cameron. Existing Unix/macOS discovery fixtures remain unchanged.
+**Manual acceptance:** Rebuild the desktop and agent. On Windows, create a Paper server requiring Java 25, install Java from the runtime picker, return with Okay, and confirm Java 25 appears selected with a `bin/java.exe` path and can be used to continue. Check Detect also finds already installed managed Windows runtimes. On macOS/Linux, confirm the existing Java picker/install flow still works; physical platform acceptance remains pending.
+
 ### P12.232 — Coordinate Bedrock initiation connection setup and shutdown
 
 **Status:** Implemented; awaiting Cameron's Windows verification.

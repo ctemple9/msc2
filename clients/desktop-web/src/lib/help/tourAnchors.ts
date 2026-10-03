@@ -36,6 +36,7 @@ export const KNOWN_TOUR_ANCHOR_IDS: ReadonlySet<string> = new Set([
   'ob_world_essentials',
   'ob_world_generation',
   'ob_world_gameplay',
+  'ob_world_packs',
   'ob_create_save',
   'ob_manage_done',
   'ob_accept_eula',

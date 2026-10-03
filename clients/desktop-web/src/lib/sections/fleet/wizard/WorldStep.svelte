@@ -270,7 +270,7 @@
       {/if}
     </section>
   {/if}
-  <details class="packs-disclosure">
+  <details class="packs-disclosure" use:onboardingAnchor={'ob_world_packs'}>
     <summary
       ><span
         ><span class="packs-title">Packs{packs.length ? ` (${packs.length})` : ''}</span><span

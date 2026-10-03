@@ -549,3 +549,15 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Checks:** Formatting, ordinary Clippy, regression compilation, Svelte check and production frontend build passed. Svelte reports eleven existing warnings. Clippy reports the existing unused `auth::forbidden` function; strict `-D warnings` fails on that unrelated warning. No release workflow or test suite was run.
 
 **Manual acceptance:** Rebuild/restart the app and agent. On a Java server, expand Packs below Gameplay Rules, browse datapacks filtered to the configured Minecraft version, add a catalog release and import a local ZIP. Confirm their rows show titles/descriptions/icons where available and Remove works; navigate Back/Continue and confirm the selection persists. Create the server and verify the selected packs in its Worlds tab and after first start. Repeat on Bedrock with behavior/resource filters and a linked `.mcaddon`; inspect the resulting behavior/resource records. Try a backup world and confirm packs target the imported active slot. Cancel creation and confirm no existing world received the staged packs. Local Java imports are validated as datapack archives but their Minecraft compatibility remains unverified.
+
+
+### P12.223 — Include first-world packs in the onboarding tour
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `content/guides/onboarding.json`, `content/guides/onboarding-source-map.json`, desktop tour anchors/overlay, wizard WorldStep, this plan.
+**What:** After Gameplay Rules, spotlight Packs and ask the user to expand it. Advance to its overview on the section click, then wait for Okay before the world review. Explain Java datapacks, Bedrock behavior/resource packs, browsing/importing, deferred installation and the option to add packs later in Worlds. Reuse the existing disclosure action and overview presentation; retain the Packs layout as Cameron directed. Renumber downstream guide steps and map the new first-world cards to their source section. No tests added or run for this small tour wiring change.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.223 only.
+**Commit:** `P12.223: include world packs in onboarding tour`
+
+**Manual acceptance:** Restart the tour on Java and Bedrock. After Gameplay Rules → Okay, confirm Packs is highlighted with an expansion prompt; expand it and confirm its overview appears with Okay. Confirm Okay advances to world review, without requiring a pack selection.

@@ -43,11 +43,17 @@
     'network-continue': 'ob_wizard_continue',
     'world-generation-expand': 'ob_world_generation',
     'world-gameplay-expand': 'ob_world_gameplay',
+    'world-packs-expand': 'ob_world_packs',
     'world-review': 'ob_wizard_continue',
     'add-ons': 'ob_wizard_continue',
   };
   const REVIEW_STEP_IDS = new Set(['server-settings', 'world-review', 'add-ons', 'create']);
-  const WORLD_FORM_STEP_IDS = new Set(['world-essentials', 'world-generation', 'world-gameplay']);
+  const WORLD_FORM_STEP_IDS = new Set([
+    'world-essentials',
+    'world-generation',
+    'world-gameplay',
+    'world-packs',
+  ]);
 
   let cardHidden = false;
   let lastIndex = -1;
@@ -284,7 +290,7 @@
           <div class="hint-row">
             <p class="hint">Start Fresh is selected. Click Continue to continue.</p>
           </div>
-        {:else if step.id === 'world-generation-expand' || step.id === 'world-gameplay-expand'}
+        {:else if step.id === 'world-generation-expand' || step.id === 'world-gameplay-expand' || step.id === 'world-packs-expand'}
           <div class="hint-row">
             <p class="hint">Expand the highlighted section to continue.</p>
           </div>

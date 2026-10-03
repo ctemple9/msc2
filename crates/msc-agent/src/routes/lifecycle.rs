@@ -2721,6 +2721,7 @@ impl LifecycleRoutesState {
             let mut last_world_time_poll = Instant::now();
             loop {
                 state.drain_bedrock_events();
+                state.enforce_first_start_safety_cap();
                 let runtime_state = state.inner.bedrock_runtime.state();
                 if matches!(
                     runtime_state,

@@ -80,6 +80,10 @@
   let consoleClearedAt: number | undefined;
   const clearedConsoleLineKeys = new Set<string>();
   let consoleTimer: ReturnType<typeof setInterval> | undefined;
+  let transportRefreshBusy = false;
+  let broadcastStarting = false;
+  let broadcastSetupOperationId = '';
+  let disposed = false;
 
   $: busy =
     phase === 'starting-pass-one' ||
@@ -167,10 +171,13 @@
   }
 
   $: publicMethod = connectivity?.joinAddressSource === 'duckdns' ? 'DuckDNS' : 'port forwarding';
-  $: publicServerAddress = publicEndpoint(connectivity?.joinAddress, localPort);
-  $: publicBedrockAddress = localBedrockPort
-    ? publicEndpoint(connectivity?.joinAddress, localBedrockPort)
+  $: publicServerAddress = !playitEnabled
+    ? publicEndpoint(connectivity?.joinAddress, localPort)
     : undefined;
+  $: publicBedrockAddress =
+    !playitEnabled && localBedrockPort
+      ? publicEndpoint(connectivity?.joinAddress, localBedrockPort)
+      : undefined;
 
   async function refreshConsole(): Promise<void> {
     if (!api) return;
@@ -191,13 +198,28 @@
   }
 
   onMount(() => {
-    consoleTimer = setInterval(() => void refreshConsole(), 1000);
+    consoleTimer = setInterval(() => {
+      void refreshConsole();
+      void refreshSetupTransports();
+    }, 1000);
     void refreshConsole();
   });
 
   onDestroy(() => {
+    disposed = true;
     if (consoleTimer) clearInterval(consoleTimer);
   });
+
+  async function refreshSetupTransports(): Promise<void> {
+    if (disposed || phase !== 'transport-setup' || transportRefreshBusy) return;
+    transportRefreshBusy = true;
+    try {
+      await Promise.all([refreshPlayit(), refreshBroadcast()]);
+      maybeBeginPassTwo();
+    } finally {
+      transportRefreshBusy = false;
+    }
+  }
 
   function setTransport(key: TransportKey, state: TransportState): void {
     transport = { ...transport, [key]: state };
@@ -208,7 +230,7 @@
       waiting: 'Waiting',
       ready: 'Ready',
       skipped: 'Skipped',
-      failed: 'Timed out',
+      failed: 'Failed',
       'not-applicable': 'Not enabled',
     }[state];
   }
@@ -268,7 +290,9 @@
     if (
       operation.result &&
       typeof operation.result === 'object' &&
-      'firstStartComplete' in operation.result
+      'firstStartComplete' in operation.result &&
+      (operation.result.firstStartComplete === true ||
+        operation.result.firstStartComplete === 'true')
     ) {
       await finishComplete();
       return;
@@ -355,17 +379,35 @@
     playitAttemptedThisRound = false;
   }
 
-  function setupBroadcast(): void {
+  async function setupBroadcast(): Promise<void> {
     if (phase !== 'transport-setup') return;
-    if (!broadcastUnlocked || transport.broadcast !== 'waiting') return;
+    if (!broadcastUnlocked || broadcastStarting) return;
+    setTransport('broadcast', 'waiting');
+    broadcastStarting = true;
     error = '';
-    broadcastChoiceRequired = false;
-    maybeBeginPassTwo();
+    try {
+      const result = await mutate<Schema['BroadcastSimpleResultDTO']>(
+        api,
+        serverEditorPaths.broadcastStart,
+      );
+      if (result.operationId) {
+        broadcastSetupOperationId = result.operationId;
+        void monitorBroadcastOperation(result.operationId);
+      }
+      await refreshBroadcast();
+    } catch (caught) {
+      error = errorMessage(caught);
+      setTransport('broadcast', 'failed');
+    } finally {
+      broadcastStarting = false;
+      maybeBeginPassTwo();
+    }
   }
 
   function maybeBeginPassTwo(): void {
     if (
       phase !== 'transport-setup' ||
+      disposed ||
       showPlayitSetup ||
       playitChoiceRequired ||
       broadcastChoiceRequired
@@ -388,20 +430,13 @@
         );
         if (result.operationId) void pollOperation(api, result.operationId);
       }
-      if (transport.broadcast === 'waiting') {
-        const result = await mutate<Schema['BroadcastSimpleResultDTO']>(
-          api,
-          serverEditorPaths.broadcastStart,
-        );
-        if (result.operationId) {
-          void monitorBroadcastOperation(result.operationId);
-        }
-      }
       const accepted = await mutate<Schema['SimpleResult']>(api, fleetMutationPaths.start);
       operationId = accepted.operationId ?? '';
       if (!operationId) throw new Error('The agent did not return the second-pass operation.');
       phase = 'waiting';
-      void monitorPassTwo();
+      void monitorPassTwo().catch((caught) => {
+        if (!disposed) failWithMessage(caught);
+      });
     } catch (caught) {
       failWithMessage(caught);
     }
@@ -416,7 +451,7 @@
         transport.playit === 'waiting' &&
         ((playit.isRunning && address) || /timed out|failed/i.test(playit.note ?? ''))
       ) {
-        setTransport('playit', address ? 'ready' : 'failed');
+        setTransport('playit', playit.isRunning && address ? 'ready' : 'failed');
       }
     } catch (caught) {
       statusLine = errorMessage(caught);
@@ -438,6 +473,15 @@
     try {
       broadcast = await api.get<Schema['BroadcastStatusDTO']>('/v1/broadcast/status');
       broadcastAuth = await api.get<Schema['BroadcastAuthPromptDTO']>('/v1/broadcast/auth-prompt');
+      if (disposed) return;
+      if (
+        !broadcastSetupOperationId &&
+        broadcast.authenticated &&
+        (broadcast.bedrockBroadcastRunning || broadcast.xboxBroadcastRunning)
+      ) {
+        setTransport('broadcast', 'ready');
+        broadcastChoiceRequired = false;
+      }
       if (!broadcastAuth.isPresent) {
         broadcastAuthPromptKey = '';
         broadcastAuthHidden = false;
@@ -450,7 +494,12 @@
         broadcastAuthPromptKey = promptKey;
         broadcastAuthHidden = false;
       }
-      if (!broadcastAuthHidden) showBroadcastAuth = true;
+      if (
+        !broadcastAuthHidden &&
+        (phase === 'transport-setup' || phase === 'starting-pass-two' || phase === 'waiting')
+      ) {
+        showBroadcastAuth = true;
+      }
     } catch (caught) {
       statusLine = errorMessage(caught);
     }
@@ -469,17 +518,30 @@
 
   async function monitorBroadcastOperation(id: string): Promise<void> {
     if (!api) return;
-    const operation = await pollOperation(api, id);
-    if (operation?.state === 'succeeded') {
-      setTransport('broadcast', 'ready');
-    } else if (operation?.state === 'failed' || operation?.state === 'cancelled') {
+    try {
+      const operation = await pollOperation(api, id);
+      if (disposed || broadcastSetupOperationId !== id) return;
+      broadcastSetupOperationId = '';
+      if (operation?.state === 'succeeded') {
+        setTransport('broadcast', 'ready');
+        broadcastChoiceRequired = false;
+        showBroadcastAuth = false;
+        maybeBeginPassTwo();
+      } else if (operation?.state === 'failed' || operation?.state === 'cancelled') {
+        setTransport('broadcast', 'failed');
+        error = operation.error?.message ?? 'Xbox Broadcast setup did not complete. Try again.';
+      }
+    } catch (caught) {
+      if (disposed || broadcastSetupOperationId !== id) return;
+      broadcastSetupOperationId = '';
       setTransport('broadcast', 'failed');
+      error = errorMessage(caught);
     }
   }
 
   async function monitorPassTwo(): Promise<void> {
     if (!api) return;
-    for (;;) {
+    while (!disposed) {
       const operation = await api.get<Schema['OperationDTO']>(
         `/v1/operations/${encodeURIComponent(operationId)}`,
       );
@@ -518,13 +580,32 @@
   }
 
   async function finishComplete(): Promise<void> {
+    if (disposed) return;
+    if (api) {
+      phase = 'stopping';
+      statusLine = 'Confirming the server has stopped…';
+      const current = await api.get<Schema['RemoteAPIStatus']>(serverEditorPaths.status);
+      if (current.running) await requestStop();
+      const stopped = await waitForRunningState(
+        () => api!.get<Schema['RemoteAPIStatus']>(serverEditorPaths.status),
+        false,
+        { timeoutMs: 30_000 },
+      );
+      if (stopped.running) {
+        serverRunning = true;
+        failWithMessage(new Error('The server is still stopping. Initiation has not completed.'));
+        return;
+      }
+    }
     if (api && playitEnabled) await refreshPlayit();
     if (api && broadcastEnabled) await refreshBroadcast();
     await refreshConnectivity();
     if (api && serverType === 'java') {
       try {
         const diagnosis = await api.get<Schema['HealthProblemsResponseDTO']>('/v1/health/problems');
-        const helpers = diagnosis.problems.filter((problem) => /geyser|floodgate/i.test(problem.offenderName));
+        const helpers = diagnosis.problems.filter((problem) =>
+          /geyser|floodgate/i.test(problem.offenderName),
+        );
         if (diagnosis.isSoftFail && helpers.length) {
           const status = await api.get<Schema['RemoteAPIStatus']>('/v1/status');
           serverRunning = status.running;
@@ -539,6 +620,8 @@
       }
     }
     phase = 'complete';
+    showBroadcastAuth = false;
+    showPlayitSetup = false;
     statusLine = 'First-start setup is complete.';
     onComplete();
   }
@@ -547,9 +630,11 @@
     if (api && serverRunning) {
       await mutate<Schema['SimpleResult']>(api, fleetMutationPaths.stop);
       const status = await waitForRunningState(
-        () => api!.get<Schema['RemoteAPIStatus']>('/v1/status'), false,
+        () => api!.get<Schema['RemoteAPIStatus']>('/v1/status'),
+        false,
       );
-      if (status.running) throw new Error('The server is still stopping. Try again when it has stopped.');
+      if (status.running)
+        throw new Error('The server is still stopping. Try again when it has stopped.');
       serverRunning = false;
     }
     error = '';
@@ -569,7 +654,7 @@
   }
 </script>
 
-<Sheet {title} size="md" visible={!hidden} {onClose}>
+<Sheet {title} size="md" visible={!hidden && !showPlayitSetup && !showBroadcastAuth} {onClose}>
   {#if phase === 'eula'}
     <div class="stack">
       <div>
@@ -618,8 +703,8 @@
         </p>
         <h2>{phase === 'transport-setup' ? 'Choose connections' : 'Checking connections'}</h2>
         <p class="copy">
-          MSC waits for the server and every enabled connection, then stops the server. Setup time
-          spent entering Playit credentials is not counted against the technical wait.
+          Finish Playit and Xbox sign-in here before the second run. MSC then checks the server and
+          its connections and stops it. Time spent signing in is not counted against that run.
         </p>
       </div>
 
@@ -646,12 +731,17 @@
             tone={transportTone(transport.broadcast)}
             label={transportLabel(transport.broadcast)}
           />
-          {#if phase === 'transport-setup' && transport.broadcast === 'waiting'}
+          {#if phase === 'transport-setup' && (transport.broadcast === 'waiting' || transport.broadcast === 'failed')}
             <Button
               variant="secondary"
               size="sm"
-              disabled={!broadcastUnlocked}
-              onclick={setupBroadcast}>Set up</Button
+              disabled={!broadcastUnlocked || broadcastStarting || broadcastAuth?.isPresent}
+              onclick={() => void setupBroadcast}
+              >{broadcastStarting
+                ? 'Starting…'
+                : transport.broadcast === 'failed'
+                  ? 'Try again'
+                  : 'Set up'}</Button
             >
           {/if}
         </div>

@@ -1,5 +1,17 @@
 # MSC 2 — Rolling Plan
 
+### P12.232 — Coordinate Bedrock initiation connection setup and shutdown
+
+**Status:** Implemented; awaiting Cameron's Windows verification.
+**Files:** `clients/desktop-web/src/lib/sections/server-editor/FirstStartSheet.svelte`, `crates/msc-agent/src/routes/networking.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, this plan.
+**What:** Refresh Playit/Broadcast during the stopped connection-choice stage. Start Xbox Broadcast from its Set up action and finish its real setup operation/device sign-in before starting pass two; give failed setup a retry instead of treating every failure as a timeout. Hide the coordinator behind credential sheets and prevent late Broadcast prompts after completion. Feed Broadcast readiness to the agent's first-start coordinator outside the helper lock. Apply the existing safety limit to the Bedrock process pump. Confirm the server is stopped before displaying completion, and suppress port-forwarding addresses when Playit was selected. Require a true firstStartComplete result rather than the mere presence of that field.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.232 only.
+**Commit:** `P12.232: coordinate initiation helper setup and shutdown`
+
+**Checks:** Svelte check passed with zero errors and eleven existing warnings; Rust formatting passed. `cargo clippy -p msc-agent --bin msc` compiled successfully with existing Windows warnings outside the changed code. Strict all-target Clippy was blocked by the existing unused `BEDROCK_HELPER_SOCKET_MODE` constant; the broader non-strict run also found existing outdated `CommonArgs` fields in `tests/cli_service.rs`. Those unrelated files were left unchanged. No test suites or account/provider operations run, and no source-text assertion tests added.
+**Manual acceptance:** On Windows, initiate a new Bedrock server with Playit and Xbox Broadcast enabled. Complete Playit and confirm its row updates without clicking Xbox setup. Click Xbox Set up and authenticate in the device-code sheet while the Minecraft server remains stopped. Confirm pass two begins only after authentication, completion waits for Minecraft shutdown, and the summary has the Playit endpoint and authenticated friend name without a port-forwarding endpoint. Close the result and confirm the server remains stopped and no late sign-in sheet appears. Also check a saved Playit key and an Xbox sign-in failure/retry. This account and process acceptance remains pending; local checks do not establish it.
+
 ### P12.231 — Remove repeated onboarding instructions
 
 **Status:** Implemented; awaiting Cameron's verification.

@@ -733,20 +733,42 @@ fn spawn_broadcast_output_pump(
         let mut interval = tokio::time::interval(Duration::from_millis(100));
         loop {
             interval.tick().await;
-            let Ok(mut services) = services.lock() else {
-                continue;
-            };
-            for service in services.values_mut() {
-                match service.poll() {
-                    Ok(lines) => {
-                        for line in lines {
-                            append_broadcast_console_line(&lifecycle, line);
+            let mut transport_updates = Vec::new();
+            {
+                let Ok(mut services) = services.lock() else {
+                    continue;
+                };
+                for (server_id, service) in services.iter_mut() {
+                    match service.poll() {
+                        Ok(lines) => {
+                            for line in lines {
+                                append_broadcast_console_line(&lifecycle, line);
+                            }
+                        }
+                        Err(error) => {
+                            lifecycle.append_console_line("xbox-broadcast", &error.to_string());
                         }
                     }
-                    Err(error) => {
-                        lifecycle.append_console_line("xbox-broadcast", &error.to_string());
+                    if let Ok(status) = service.status() {
+                        let state = match status.snapshot.status {
+                            HelperStatus::Running => Some(FirstStartTransportState::Ready),
+                            HelperStatus::TimedOut => Some(FirstStartTransportState::Failed),
+                            _ => None,
+                        };
+                        if let Some(state) = state {
+                            transport_updates.push((server_id.clone(), state));
+                        }
                     }
                 }
+            }
+            // Completing a transport can stop its helper; release the service
+            // lock before calling back into the lifecycle coordinator.
+            for (server_id, status) in transport_updates {
+                lifecycle.mark_first_start_transport_for_server(
+                    &server_id,
+                    FirstRunTransport::Broadcast,
+                    status,
+                );
             }
         }
     });

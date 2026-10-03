@@ -36,7 +36,6 @@
       title: 'Xbox Broadcast',
       subtitle: 'Optional · Console players see your server in Friends.',
     },
-    { title: 'Tailscale', subtitle: 'Optional · Remote access from any network.' },
     { title: 'You’re All Set', subtitle: 'Create your first server to get started.' },
   ] as const;
 
@@ -56,19 +55,15 @@
   let xboxStatus: 'checking' | 'installed' | 'not-installed' | 'downloading' | 'unavailable' =
     'checking';
   let xboxFilename = '';
-  let tailscaleStatus: 'unknown' | 'installed' | 'not-installed' | 'unavailable' = 'unknown';
-  let tailscaleChecking = false;
   let platformKind: PlatformKind | null = null;
   let rootMessage = '';
   let javaMessage = '';
   let xboxMessage = '';
-  let tailscaleMessage = '';
   let completionBusy = false;
   let completionMessage = '';
   let rootTone: 'ok' | 'warn' | 'error' = 'warn';
   let javaTone: 'ok' | 'warn' | 'error' = 'warn';
   let xboxTone: 'ok' | 'warn' | 'error' = 'warn';
-  let tailscaleTone: 'ok' | 'warn' | 'error' = 'warn';
 
   $: bedrockAdvertisement = capabilities?.serverTypes?.bedrock;
   $: bedrockReady =
@@ -81,7 +76,7 @@
     (capabilities === null
       ? 'The selected agent has not reported Bedrock readiness yet.'
       : 'Bedrock is not available on this host.');
-  $: optionalPage = setupPage === 3 || setupPage === 4 || setupPage === 5;
+  $: optionalPage = setupPage === 3 || setupPage === 4;
   $: rootTone = rootStatus === 'ready' ? 'ok' : rootStatus === 'unavailable' ? 'error' : 'warn';
   $: rootLabel =
     rootStatus === 'ready'
@@ -113,18 +108,6 @@
           : xboxStatus === 'not-installed'
             ? 'Not downloaded'
             : 'Unavailable';
-  $: tailscaleTone =
-    tailscaleStatus === 'installed' ? 'ok' : tailscaleStatus === 'unavailable' ? 'error' : 'warn';
-  $: tailscaleLabel = tailscaleChecking
-    ? 'Checking…'
-    : tailscaleStatus === 'installed'
-      ? 'Installed'
-      : tailscaleStatus === 'not-installed'
-        ? 'Not installed'
-        : tailscaleStatus === 'unavailable'
-          ? 'Check unavailable'
-          : 'Not checked';
-
   onMount(() => {
     void getPlatform().then((platform) => (platformKind = platform.kind));
     if (typeof localStorage !== 'undefined') {
@@ -150,7 +133,6 @@
       return;
     }
     await Promise.all([probeCapabilities(), probeServersRoot(), probeJava(), probeXbox()]);
-    updateTailscaleFromCapabilities();
   }
 
   async function probeCapabilities(): Promise<void> {
@@ -243,11 +225,6 @@
     } catch {
       xboxStatus = 'unavailable';
     }
-  }
-
-  function updateTailscaleFromCapabilities(): void {
-    const state = capabilities?.helpers?.tailscale;
-    tailscaleStatus = state === true ? 'installed' : state === false ? 'not-installed' : 'unknown';
   }
 
   function openExternalLink(event: MouseEvent, url: string): void {
@@ -351,31 +328,6 @@
     }
   }
 
-  async function checkTailscale(): Promise<void> {
-    if (tailscaleChecking) return;
-    if (!api) {
-      tailscaleStatus = 'unavailable';
-      tailscaleMessage = 'Connect to an agent before checking Tailscale.';
-      return;
-    }
-    tailscaleChecking = true;
-    tailscaleStatus = 'unknown';
-    tailscaleMessage = '';
-    try {
-      capabilities = await api.get<Capabilities>('/v1/capabilities');
-      updateTailscaleFromCapabilities();
-      if (tailscaleStatus === 'unknown') {
-        tailscaleStatus = 'unavailable';
-        tailscaleMessage = 'This agent does not advertise a Tailscale installation check.';
-      }
-    } catch {
-      tailscaleStatus = 'unavailable';
-      tailscaleMessage = 'The selected agent could not check Tailscale.';
-    } finally {
-      tailscaleChecking = false;
-    }
-  }
-
   async function finishHostSetup(): Promise<void> {
     if (!api || completionBusy) return;
     completionBusy = true;
@@ -410,7 +362,7 @@
       void validateAndSaveHost();
       return;
     }
-    if (setupPage < 6) {
+    if (setupPage < 5) {
       setupPage += 1;
       return;
     }
@@ -418,15 +370,15 @@
   }
 
   function skipOptional(): void {
-    if (setupPage < 6) setupPage += 1;
+    if (setupPage < 5) setupPage += 1;
   }
 </script>
 
 <div class="setup-intro" class:compact>
   {#if !compact}
     <header class="setup-header">
-      <div class="step-track" aria-label={`Setup step ${setupPage + 1} of 7`}>
-        {#each Array(7) as _, index}
+      <div class="step-track" aria-label={`Setup step ${setupPage + 1} of 6`}>
+        {#each Array(6) as _, index}
           {#if index > 0}<span class="track-line" class:done={index <= setupPage}></span>{/if}
           <span
             class="track-step"
@@ -436,14 +388,14 @@
         {/each}
       </div>
       <p class="msc2-type-overline">
-        {setupPage === 6 ? 'Setup complete' : `Step ${setupPage + 1} of 7`}
+        {setupPage === 5 ? 'Setup complete' : `Step ${setupPage + 1} of 6`}
       </p>
       <h2 id={headingId} class="setup-title">{pageMeta[setupPage].title}</h2>
       <p class="setup-subtitle">{pageMeta[setupPage].subtitle}</p>
     </header>
   {:else}
     <h3 id={headingId} class="setup-title compact-title">
-      {setupPage === 6 ? 'You’re All Set' : 'First-time Setup'}
+      {setupPage === 5 ? 'You’re All Set' : 'First-time Setup'}
     </h3>
     <p class="setup-subtitle">Continue through the setup steps to configure this host.</p>
   {/if}
@@ -474,7 +426,7 @@
             </li>
             <li>
               <strong>Review access</strong>
-              <span>Look over optional playit.gg, Xbox Broadcast, and Tailscale setup.</span>
+              <span>Look over optional playit.gg and Xbox Broadcast setup.</span>
             </li>
           </ol>
           <p class="hint">You can change these choices later.</p>
@@ -764,46 +716,6 @@
           When you first start a server with Xbox Broadcast enabled, MSC will prompt you to sign in
           with your Microsoft account in a private session.
         </p>
-      {:else if setupPage === 5}
-        <Card>
-          <p class="card-title">What is Tailscale?</p>
-          <p class="card-desc">
-            A private mesh VPN that connects your devices no matter where they are.
-          </p>
-          <ul class="feature-list">
-            <li>Access your host’s servers from the desktop app or CLI on another computer</li>
-            <li>Free for personal use — takes about a minute to set up</li>
-            <li>Works alongside playit.gg — they solve different problems</li>
-          </ul>
-        </Card>
-        <Card>
-          <p class="card-title">Tailscale · Optional</p>
-          <p class="card-desc">Check whether Tailscale is already installed.</p>
-          <div class="field-row">
-            <StatusDot tone={tailscaleTone} label={tailscaleLabel} />
-            <span class="action-spacer"></span>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={tailscaleChecking}
-              onclick={() => void checkTailscale()}
-              >{tailscaleChecking ? 'Checking…' : 'Check'}</Button
-            >
-          </div>
-          {#if tailscaleStatus === 'not-installed'}<p class="hint">
-              Tailscale isn’t installed.
-              <a
-                class="link-inline"
-                href="https://tailscale.com/download"
-                target="_blank"
-                rel="noreferrer"
-                onclick={(event) => openExternalLink(event, 'https://tailscale.com/download')}
-                >Download it free from tailscale.com →</a
-              >
-            </p>{:else if tailscaleStatus === 'installed'}<p class="hint">
-              Tailscale is installed. Enable it and join your tailnet to access servers remotely.
-            </p>{:else if tailscaleMessage}<p class="hint warn">{tailscaleMessage}</p>{/if}
-        </Card>
       {:else}
         <div class="done-page">
           <div class="done-check" aria-hidden="true">✓</div>
@@ -849,7 +761,7 @@
 
   {#if completionMessage}<p class="hint warn" role="alert">{completionMessage}</p>{/if}
   <div class="setup-actions">
-    {#if setupPage > 0 && setupPage < 6}
+    {#if setupPage > 0 && setupPage < 5}
       <Button variant="secondary" onclick={() => (setupPage -= 1)}>Back</Button>
     {/if}
     <span class="action-spacer"></span>
@@ -860,11 +772,11 @@
       variant="primary"
       disabled={completionBusy || (setupPage === 1 && !wantsJava && !wantsBedrock)}
       onclick={nextSetupPage}
-      >{setupPage === 6 && completionBusy
+      >{setupPage === 5 && completionBusy
         ? 'Finishing…'
-        : setupPage === 6
+        : setupPage === 5
           ? 'Get Started'
-          : setupPage === 5
+          : setupPage === 4
             ? 'Continue'
             : 'Next'}</Button
     >

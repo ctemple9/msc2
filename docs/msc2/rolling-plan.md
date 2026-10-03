@@ -504,3 +504,12 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Verify:** Rebuild and launch the desktop app; confirm the initial window opens at the resized dimensions instead of filling the display.
 **Batch:** P12.219 only.
 **Commit:** `P12.219: match default window to resized app`
+
+### P12.220 — Remove Tailscale from first-run setup
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/help/SetupIntro.svelte`, this plan.
+**What:** Remove the Tailscale page from first-run setup and remove its mention from the intro page. Keep the remaining setup steps, optional skips, and completion navigation in order.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.220 only.
+**Commit:** `P12.220: remove tailscale from first-run setup`

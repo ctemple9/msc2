@@ -337,6 +337,10 @@
     editingValues = next;
   }
 
+  function notifyActiveWorldProfileChanged(): void {
+    window.dispatchEvent(new Event('msc2:active-world-profile-changed'));
+  }
+
   function profileStatusLabel(value: string): string {
     if (value === 'pending_activation') return 'Saved. Applies when this world becomes active.';
     if (value === 'pending_restart') return 'Saved. Restart the server to apply these settings.';
@@ -375,6 +379,7 @@
         ),
       };
       editingNotice = profileStatusLabel(result.status);
+      notifyActiveWorldProfileChanged();
     } catch (caught) {
       editingConfirmation = safetyPrompt(caught);
       if (!editingConfirmation) {
@@ -492,6 +497,7 @@
                 ? 'Activation cancelled.'
                 : (operation.error?.message ?? 'Activation failed.'),
           );
+          if (operation.state === 'succeeded') notifyActiveWorldProfileChanged();
           await Promise.all([loadWorlds(), loadBackups()]);
           break;
         }
@@ -1040,6 +1046,7 @@
     onClose={() => (showCreate = false)}
     onCreated={(updated) => {
       selectedSlotId = updated.activeSlotId ?? undefined;
+      notifyActiveWorldProfileChanged();
       onWorldsCreatedOrRenamed(updated);
       flash('World created and activated.');
       void loadBackups();

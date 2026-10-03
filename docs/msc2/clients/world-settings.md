@@ -47,6 +47,15 @@ Settings supplied by a particular server build, plugin, or mod are explicitly
 are handed off to that server or mod's own configuration path. MSC does not
 invent a universal editor or silently claim an unsupported setting applied.
 
+The sidebar's Difficulty and Gamemode controls edit the active slot's
+`gameplay.difficulty` and `gameplay.default-game-mode` profile fields. They
+show the active profile values, and World Settings refreshes them after a save
+or activation. For a running server, Java applies those profile fields through
+the shared Java gameplay path used by every Java flavor; Bedrock sends its
+supported runtime commands and reports a restart requirement if it cannot
+apply a change live. The two surfaces therefore edit one saved world default,
+while `force-gamemode` remains a separate server-wide override.
+
 ## Evidence map
 
 The targeted checks below are the implementation evidence for the release

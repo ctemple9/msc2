@@ -2145,6 +2145,39 @@ pub async fn update_profile(
     } else {
         worlds::WorldProfileApplicationReport::default()
     };
+    if active && running && server.server_type == ServerType::Bedrock {
+        for (key, command, value) in [
+            (
+                "gameplay.difficulty",
+                "difficulty",
+                profile.gameplay.difficulty.as_deref(),
+            ),
+            (
+                "gameplay.default-game-mode",
+                "defaultgamemode",
+                profile.gameplay.default_game_mode.as_deref(),
+            ),
+        ] {
+            if !changes.iter().any(|(changed, _)| changed == key) {
+                continue;
+            }
+            let Some(value) = value else { continue };
+            let status = match state
+                .lifecycle
+                .send_bedrock_command(&format!("{command} {value}"))
+            {
+                Ok(_) => (worlds::WorldProfileApplyStatus::Live, None),
+                Err(error) => (
+                    worlds::WorldProfileApplyStatus::PendingRestart,
+                    Some(format!("runtime_command_failed: {error:?}")),
+                ),
+            };
+            if let Some(change) = report.changes.iter_mut().find(|change| change.key == key) {
+                change.status = status.0;
+                change.reason = status.1;
+            }
+        }
+    }
     if active && running && server.server_type == ServerType::Java {
         match state.lifecycle.apply_active_java_world_gameplay() {
             Ok(()) => {

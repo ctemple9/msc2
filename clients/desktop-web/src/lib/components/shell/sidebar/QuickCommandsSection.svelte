@@ -1,7 +1,6 @@
 <script lang="ts">
-  // Ports MSC 1 QuickCommandsView.swift in full -- live, in-session shortcuts
-  // sent as live agent operations, not persisted server.properties edits
-  // (that's SettingsSection's job). Command strings read verbatim from
+  // Sidebar difficulty and default gamemode follow the active world profile.
+  // Time, weather, and other shortcuts remain in-session commands. Command strings read verbatim from
   // AppViewModel+ServerControls.swift:475-528, not guessed.
   //
   // Bedrock branching is real and manual, not something /v1/command does for
@@ -14,11 +13,13 @@
   // behind this route") does not hold at this layer. So this component keeps
   // the oracle's own whitelist->allowlist and save-all->save hold/save
   // resume branching client-side, exactly as MSC 1 does.
+  import { onMount } from 'svelte';
   import Select from '../../base/Select.svelte';
   import Toggle from '../../base/Toggle.svelte';
   import { ApiError } from '../../../api/client';
   import type { Schema, ScreenApi } from '../../../sections/shared/types';
   import { call, errorMessage, mutate } from '../../../sections/shared/types';
+  import { worldPaths } from '../../../sections/worlds/model';
 
   export let api: ScreenApi | undefined = undefined;
   export let activeServerId: string | undefined = undefined;
@@ -58,6 +59,9 @@
   let notice = '';
   let confirmation: SafetyPrompt | undefined;
   let loadedForServerId: string | undefined;
+  let activeWorldSlotId: string | undefined;
+  let settingBusy = false;
+  let loadGeneration = 0;
 
   type SafetyPrompt = {
     token: string;
@@ -65,6 +69,10 @@
     message: string;
     command: string;
     restoreGamemode?: string;
+    worldSetting?: {
+      key: 'gameplay.difficulty' | 'gameplay.default-game-mode';
+      value: string;
+    };
   };
 
   function safetyPrompt(
@@ -91,6 +99,7 @@
   $: tps = performance?.tps1m?.value;
   $: onlineCount = players?.count ?? 0;
   $: disabled = !running || !canControl;
+  $: worldSettingDisabled = disabled || !activeWorldSlotId || settingBusy;
   $: relativeTime = capabilities?.worldSettings?.relativeTime;
   $: relativeTimeAvailable = relativeTime?.available === true;
 
@@ -103,7 +112,15 @@
     void load();
   }
 
+  onMount(() => {
+    const refresh = () => void load();
+    window.addEventListener('msc2:active-world-profile-changed', refresh);
+    return () => window.removeEventListener('msc2:active-world-profile-changed', refresh);
+  });
+
   async function load(): Promise<void> {
+    const generation = ++loadGeneration;
+    if (!api) return;
     performance = await call(api, performance, '/v1/performance');
     players = await call(api, players, '/v1/players');
     const settings = await call<Schema['SettingsResponseDTO'] | undefined>(
@@ -112,9 +129,25 @@
       '/v1/settings',
     );
     const fields = settings?.sections.flatMap((section) => section.fields) ?? [];
-    difficulty = fields.find((field) => field.key === 'difficulty')?.value ?? difficulty;
-    gamemode = fields.find((field) => field.key === 'gamemode')?.value ?? gamemode;
     whitelistEnabled = fields.find((field) => field.key === 'white-list')?.value === 'true';
+    activeWorldSlotId = undefined;
+    difficulty = 'normal';
+    gamemode = 'survival';
+    try {
+      const worlds = await api.get<Schema['WorldSlotsResponseDTO']>(worldPaths.list);
+      if (generation !== loadGeneration) return;
+      activeWorldSlotId = worlds.activeSlotId;
+      if (activeWorldSlotId) {
+        const slot = await api.get<Schema['WorldSlotWithProfileDTO']>(worldPaths.profile(activeWorldSlotId));
+        if (generation !== loadGeneration) return;
+        difficulty = slot.profile.gameplay.difficulty ?? 'normal';
+        gamemode = slot.profile.gameplay.defaultGameMode ?? 'survival';
+      }
+    } catch (error) {
+      if (generation !== loadGeneration) return;
+      activeWorldSlotId = undefined;
+      notice = errorMessage(error);
+    }
   }
 
   async function sendCommand(
@@ -148,15 +181,56 @@
     }
   }
 
+  async function saveWorldSetting(
+    key: 'gameplay.difficulty' | 'gameplay.default-game-mode',
+    value: string,
+    token?: string,
+  ): Promise<void> {
+    if (!api || !activeWorldSlotId || settingBusy) return;
+    const previous = key === 'gameplay.difficulty' ? difficulty : gamemode;
+    settingBusy = true;
+    notice = '';
+    confirmation = undefined;
+    try {
+      const result = await mutate<Schema['WorldProfileUpdateResultDTO']>(api, worldPaths.profile(activeWorldSlotId), {
+        changes: { [key]: value },
+        ...(token ? { confirmation: token } : {}),
+      });
+      if (key === 'gameplay.difficulty') difficulty = value;
+      else gamemode = value;
+      if (
+        result.status === 'pending_restart' ||
+        result.status === 'pending_activation' ||
+        result.status === 'blocked'
+      ) {
+        notice = result.changes.find((change) => change.key === key)?.reason ?? 'Saved; it will apply after the server restarts.';
+      }
+      window.dispatchEvent(new Event('msc2:active-world-profile-changed'));
+    } catch (error) {
+      const prompt = safetyPrompt(error);
+      if (prompt) {
+        confirmation = {
+          ...prompt,
+          command: key === 'gameplay.difficulty' ? `difficulty ${value}` : `defaultgamemode ${value}`,
+          restoreGamemode: key === 'gameplay.default-game-mode' ? previous : undefined,
+          worldSetting: { key, value },
+        };
+      } else {
+        if (key === 'gameplay.difficulty') difficulty = previous;
+        else gamemode = previous;
+        notice = errorMessage(error);
+      }
+    } finally {
+      settingBusy = false;
+    }
+  }
+
   function applyDifficulty(value: string): void {
-    difficulty = value;
-    void sendCommand(`difficulty ${value}`);
+    void saveWorldSetting('gameplay.difficulty', value);
   }
 
   function applyGamemode(value: string): void {
-    const previous = gamemode;
-    gamemode = value;
-    void sendCommand(`defaultgamemode ${value}`, undefined, previous);
+    void saveWorldSetting('gameplay.default-game-mode', value);
   }
 
   function cancelConfirmation(): void {
@@ -167,7 +241,11 @@
   function confirmCommand(): void {
     if (!confirmation) return;
     const pending = confirmation;
-    void sendCommand(pending.command, pending.token, pending.restoreGamemode);
+    if (pending.worldSetting) {
+      void saveWorldSetting(pending.worldSetting.key, pending.worldSetting.value, pending.token);
+    } else {
+      void sendCommand(pending.command, pending.token, pending.restoreGamemode);
+    }
   }
 
   function setWhitelist(enabled: boolean): void {
@@ -223,6 +301,9 @@
         </button>
       {/each}
     </div>
+    {#if !activeWorldSlotId}
+      <p class="subtle-note" role="status">Select an active world slot to change its difficulty or default game mode.</p>
+    {/if}
     {#if !relativeTimeAvailable}
       <p class="subtle-note" role="status">
         {relativeTime?.reason ??
@@ -251,13 +332,13 @@
       <Select
         options={DIFFICULTY_OPTIONS}
         value={difficulty}
-        {disabled}
+        disabled={worldSettingDisabled}
         onchange={applyDifficulty}
       />
     </div>
     <div class="field-row">
       <span class="field-label">Gamemode</span>
-      <Select options={GAMEMODE_OPTIONS} value={gamemode} {disabled} onchange={applyGamemode} />
+      <Select options={GAMEMODE_OPTIONS} value={gamemode} disabled={worldSettingDisabled} onchange={applyGamemode} />
     </div>
     <div class="field-row toggle-row">
       <Toggle checked={whitelistEnabled} label="Whitelist" {disabled} onchange={setWhitelist} />

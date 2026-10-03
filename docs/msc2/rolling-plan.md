@@ -420,3 +420,14 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Commit:** `P12.212: freeze world activation elapsed timer`
 
 **Manual acceptance:** Activate a world. On terminal status, elapsed time must stop changing immediately, including while the refreshed world list is loading. No tests added or run.
+
+### P12.213 — Keep sidebar gameplay defaults in the active world profile
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/components/shell/sidebar/QuickCommandsSection.svelte`, `clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte`, `crates/msc-agent/src/routes/worlds.rs`, `docs/msc2/clients/world-settings.md`, this plan.
+**What:** Read sidebar Difficulty and Gamemode from the active slot's `WorldProfile` and save changes back through its profile endpoint. Refresh the sidebar after profile saves, world activation, and world creation. Running Bedrock servers apply these fields with runtime commands and report pending restart if a command cannot be sent. Java uses the shared profile application path for Paper and all other Java flavors.
+**Verify:** `npm --prefix clients/desktop-web run check` and `cargo clippy -p msc-agent --bin msc`
+**Batch:** P12.213 only.
+**Commit:** `P12.213: sync sidebar world gameplay settings`
+
+**Manual acceptance:** On Bedrock and Java servers, confirm the sidebar and active slot's World Settings show the same difficulty and default game mode. Change each value from either surface and confirm the other reflects it. Check Creative confirmation behavior on Bedrock and Java; confirm Paper, Fabric, Forge, and NeoForge share the Java behavior. No tests added or run.

@@ -8,6 +8,9 @@ export default defineConfig({
     // Tauri's dev URL is deliberately fixed so the shell and Vite agree.
     port: 1420,
     strictPort: true,
+    watch: {
+      ignored: ['**/src-tauri/target/**'],
+    },
   },
   build: {
     outDir: 'dist',

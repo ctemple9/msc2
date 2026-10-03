@@ -597,6 +597,15 @@ into main; no release publication or exact-artifact acceptance is implied.
 
 **Manual acceptance:** Start Paper with the incompatible Geyser build. Confirm its explanation appears once, ends with one period, and the existing actions remain available. The same rendering applies to Floodgate findings.
 
+### P12.227 — Exclude Tauri build output from Vite watching
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/vite.config.ts`, this plan.
+**What:** Exclude `src-tauri/target` from Vite's recursive file watcher. Tauri compiles Rust dependencies into this directory while Vite watches the frontend root; on Windows, watching a locked proc-macro DLL fails with `EBUSY`. This generated directory is not frontend source on any platform. No tests added or run.
+**Verify:** From `clients/desktop-web`, run `npx tauri dev` and confirm Vite starts without an `EBUSY` watcher error and the app window opens.
+**Batch:** P12.227 only.
+**Commit:** `P12.227: exclude tauri target from vite watcher`
+
 ### P18.10w — Expose depth slicing in every 2D dimension
 
 **Status:** Implemented; awaiting Cameron's verification.

@@ -1136,6 +1136,26 @@ impl LifecycleRoutesState {
         }
     }
 
+    pub fn update_broadcast_lifecycle(&self, server_id: &str, enabled: bool) {
+        {
+            let mut first_start = self.inner.first_start.lock().unwrap();
+            if let Some(run) = first_start.as_mut()
+                && run.server_id == server_id
+            {
+                // A deferred helper must stay excluded when pass two resets
+                // transport readiness; otherwise it would launch again.
+                run.broadcast = if enabled {
+                    FirstStartTransportState::Waiting
+                } else {
+                    FirstStartTransportState::NotApplicable
+                };
+            }
+        }
+        if !enabled && let Some(integration) = self.playit_lifecycle() {
+            integration.stop_broadcast_for_server(server_id);
+        }
+    }
+
     /// Stop the backend that actually owns the first-start process. The Java
     /// lifecycle service is still the right owner for Java, but Bedrock lives
     /// in the selected runtime (including the macOS VM sidecar).

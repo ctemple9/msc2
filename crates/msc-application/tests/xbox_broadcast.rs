@@ -170,7 +170,13 @@ fn broadcast_cancel_and_watchdog_leave_truthful_terminal_operations() {
     operations
         .request_cancel(&operation_id, "cancel requested")
         .unwrap();
+    service
+        .observe_output(
+            "To sign in, open https://www.microsoft.com/link and enter the code ABCD-1234",
+        )
+        .unwrap();
     assert!(service.cancel_start_if_requested().unwrap());
+    assert!(service.status().unwrap().auth_prompt.is_none());
     assert_eq!(
         operations.snapshot(&operation_id).unwrap().unwrap().state,
         OperationState::Cancelled
@@ -178,8 +184,14 @@ fn broadcast_cancel_and_watchdog_leave_truthful_terminal_operations() {
 
     let mut timed_out = XboxBroadcastService::new("paper-2", true, supervisor, secrets, operations);
     let timeout_id = OperationId::new(timed_out.start(launch(), &acquisition(fs)).unwrap());
+    timed_out
+        .observe_output(
+            "To sign in, open https://www.microsoft.com/link and enter the code ABCD-1234",
+        )
+        .unwrap();
     assert!(!timed_out.ready_timeout_elapsed(59).unwrap());
     assert!(timed_out.ready_timeout_elapsed(60).unwrap());
+    assert!(timed_out.status().unwrap().auth_prompt.is_none());
     assert_eq!(
         timed_out.status().unwrap().snapshot.status,
         HelperStatus::TimedOut
@@ -188,6 +200,30 @@ fn broadcast_cancel_and_watchdog_leave_truthful_terminal_operations() {
         operations.snapshot(&timeout_id).unwrap().unwrap().state,
         OperationState::Failed
     );
+}
+
+#[test]
+fn broadcast_stop_and_process_failure_discard_device_sign_in() {
+    let (operations, supervisor, secrets, fs) = service_setup();
+    for (server_id, stop_explicitly) in [("stopped", true), ("failed", false)] {
+        let mut service =
+            XboxBroadcastService::new(server_id, true, supervisor, secrets, operations);
+        service.start(launch(), &acquisition(fs)).unwrap();
+        service
+            .observe_output(
+                "To sign in, open https://www.microsoft.com/link and enter the code ABCD-1234",
+            )
+            .unwrap();
+        assert!(service.status().unwrap().auth_prompt.is_some());
+        if stop_explicitly {
+            service.stop().unwrap();
+        } else {
+            let (pid, _) = supervisor.spawned_requests().into_iter().last().unwrap();
+            supervisor.crash(pid, 1).unwrap();
+            service.poll().unwrap();
+        }
+        assert!(service.status().unwrap().auth_prompt.is_none());
+    }
 }
 
 #[test]

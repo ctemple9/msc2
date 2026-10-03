@@ -42,7 +42,8 @@
     | 'stopping'
     | 'complete'
     | 'failed';
-  type TransportState = 'waiting' | 'ready' | 'skipped' | 'failed' | 'not-applicable';
+  type TransportState =
+    'waiting' | 'configured' | 'ready' | 'skipped' | 'failed' | 'not-applicable';
   type TransportKey = 'playit' | 'broadcast';
 
   let phase: Phase = 'eula';
@@ -82,6 +83,7 @@
   let consoleTimer: ReturnType<typeof setInterval> | undefined;
   let transportRefreshBusy = false;
   let broadcastStarting = false;
+  let broadcastDeferred = false;
   let broadcastSetupOperationId = '';
   let disposed = false;
 
@@ -228,6 +230,7 @@
   function transportLabel(state: TransportState): string {
     return {
       waiting: 'Waiting',
+      configured: 'Configured',
       ready: 'Ready',
       skipped: 'Skipped',
       failed: 'Failed',
@@ -236,7 +239,7 @@
   }
 
   function transportTone(state: TransportState): 'ok' | 'warn' | 'error' {
-    if (state === 'ready') return 'ok';
+    if (state === 'ready' || state === 'configured') return 'ok';
     if (state === 'waiting') return 'warn';
     if (state === 'failed') return 'error';
     return 'warn';
@@ -359,7 +362,7 @@
     playitSetupSucceeded = true;
     showPlayitSetup = false;
     playitChoiceRequired = false;
-    setTransport('playit', 'waiting');
+    setTransport('playit', 'configured');
     void refreshPlayit();
     maybeBeginPassTwo();
   }
@@ -386,6 +389,7 @@
       reopenBroadcastAuth();
       return;
     }
+    if (broadcastSetupOperationId) return;
     setTransport('broadcast', 'waiting');
     broadcastStarting = true;
     error = '';
@@ -408,6 +412,26 @@
     }
   }
 
+  async function deferBroadcast(): Promise<void> {
+    if (!api || phase !== 'transport-setup' || broadcastStarting) return;
+    broadcastStarting = true;
+    try {
+      await mutate(api, '/v1/servers/xbox-broadcast', { serverId: activeServerId, enabled: false });
+      broadcastDeferred = true;
+      broadcastSetupOperationId = '';
+      broadcastAuth = undefined;
+      showBroadcastAuth = false;
+      broadcastChoiceRequired = false;
+      setTransport('broadcast', 'skipped');
+      error = '';
+      maybeBeginPassTwo();
+    } catch (caught) {
+      error = errorMessage(caught);
+    } finally {
+      broadcastStarting = false;
+    }
+  }
+
   function maybeBeginPassTwo(): void {
     if (
       phase !== 'transport-setup' ||
@@ -427,12 +451,15 @@
     passTwoStartedAt = Date.now();
     stopRequested = false;
     try {
-      if (transport.playit === 'waiting') {
+      // Configuration survives a stopped helper. Pass two must check the
+      // connection again rather than carrying setup-stage readiness forward.
+      if (playitEnabled) {
+        setTransport('playit', 'waiting');
         const result = await mutate<Schema['PlayitActionResultDTO']>(
           api,
           serverEditorPaths.playitStart,
         );
-        if (result.operationId) void pollOperation(api, result.operationId);
+        if (result.operationId) void monitorPlayitOperation(result.operationId);
       }
       const accepted = await mutate<Schema['SimpleResult']>(api, fleetMutationPaths.start);
       operationId = accepted.operationId ?? '';
@@ -451,6 +478,11 @@
     try {
       playit = await api.get<Schema['PlayitStatusResponseDTO']>(serverEditorPaths.playit);
       const address = serverType === 'bedrock' ? playit.bedrockAddress : playit.javaAddress;
+      if (phase === 'transport-setup' && playit.hasSecretKey && address) {
+        setTransport('playit', 'configured');
+        playitChoiceRequired = false;
+        return;
+      }
       if (
         transport.playit === 'waiting' &&
         ((playit.isRunning && address) || /timed out|failed/i.test(playit.note ?? ''))
@@ -459,6 +491,21 @@
       }
     } catch (caught) {
       statusLine = errorMessage(caught);
+    }
+  }
+
+  async function monitorPlayitOperation(id: string): Promise<void> {
+    try {
+      const operation = await pollOperation(api, id);
+      if (disposed || phase === 'stopping' || phase === 'complete') return;
+      if (operation?.state === 'failed' || operation?.state === 'cancelled') {
+        setTransport('playit', 'failed');
+        error = operation.error?.message ?? 'Playit stopped before its connection was ready.';
+      }
+    } catch (caught) {
+      if (disposed || phase === 'stopping' || phase === 'complete') return;
+      setTransport('playit', 'failed');
+      error = errorMessage(caught);
     }
   }
 
@@ -473,7 +520,7 @@
   }
 
   async function refreshBroadcast(): Promise<void> {
-    if (!api || !broadcastEnabled) return;
+    if (!api || !broadcastEnabled || broadcastDeferred) return;
     try {
       broadcast = await api.get<Schema['BroadcastStatusDTO']>('/v1/broadcast/status');
       broadcastAuth = await api.get<Schema['BroadcastAuthPromptDTO']>('/v1/broadcast/auth-prompt');
@@ -523,7 +570,31 @@
   async function monitorBroadcastOperation(id: string): Promise<void> {
     if (!api) return;
     try {
-      const operation = await pollOperation(api, id);
+      const deadline = Date.now() + 90_000;
+      let signInPresented = false;
+      let operation: Schema['OperationDTO'];
+      for (;;) {
+        if (disposed || broadcastSetupOperationId !== id) return;
+        operation = await api.get<Schema['OperationDTO']>(
+          `/v1/operations/${encodeURIComponent(id)}`,
+        );
+        if (
+          operation.state === 'succeeded' ||
+          operation.state === 'failed' ||
+          operation.state === 'cancelled'
+        )
+          break;
+        signInPresented ||= Boolean(broadcastAuth?.isPresent);
+        // A helper that never offers sign-in or readiness is a startup failure.
+        // Once sign-in appears, the user owns the time spent authenticating.
+        if (!signInPresented && Date.now() >= deadline) {
+          await mutate(api, serverEditorPaths.broadcastStop);
+          throw new Error(
+            'Xbox Broadcast did not start or offer sign-in within 90 seconds. Try again.',
+          );
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
       if (disposed || broadcastSetupOperationId !== id) return;
       broadcastSetupOperationId = '';
       if (operation?.state === 'succeeded') {
@@ -533,12 +604,16 @@
         maybeBeginPassTwo();
       } else if (operation?.state === 'failed' || operation?.state === 'cancelled') {
         setTransport('broadcast', 'failed');
+        showBroadcastAuth = false;
+        broadcastAuth = undefined;
         error = operation.error?.message ?? 'Xbox Broadcast setup did not complete. Try again.';
       }
     } catch (caught) {
       if (disposed || broadcastSetupOperationId !== id) return;
       broadcastSetupOperationId = '';
       setTransport('broadcast', 'failed');
+      showBroadcastAuth = false;
+      broadcastAuth = undefined;
       error = errorMessage(caught);
     }
   }
@@ -742,9 +817,11 @@
             <Button
               variant="secondary"
               size="sm"
-              disabled={!broadcastUnlocked || broadcastStarting}
-              onclick={() => void setupBroadcast}
-              >{broadcastStarting
+              disabled={!broadcastUnlocked ||
+                broadcastStarting ||
+                (Boolean(broadcastSetupOperationId) && !broadcastAuth?.isPresent)}
+              onclick={() => void setupBroadcast()}
+              >{broadcastStarting || (broadcastSetupOperationId && !broadcastAuth?.isPresent)
                 ? 'Starting…'
                 : transport.broadcast === 'failed'
                   ? 'Try again'
@@ -755,6 +832,18 @@
           {/if}
         </div>
       </div>
+
+      {#if phase === 'transport-setup' && transport.broadcast === 'failed'}
+        <p class="copy">
+          You can retry Xbox sign-in or disable Broadcast for this server and enable it later in
+          settings.
+        </p>
+        <Button
+          variant="secondary"
+          onclick={() => void deferBroadcast()}
+          disabled={broadcastStarting}>Continue without Broadcast</Button
+        >
+      {/if}
 
       {#if broadcastAuth?.isPresent}
         <div class="notice broadcast-auth-notice" role="status">
@@ -823,7 +912,7 @@
               <span>Bedrock — anywhere (playit.gg)</span><code>{playit.bedrockAddress}</code>
             </div>
           {/if}
-          {#if broadcastEnabled}
+          {#if broadcastEnabled && !broadcastDeferred}
             <div>
               <span>Xbox Broadcast</span>
               {#if broadcast?.gamertag}
@@ -921,7 +1010,13 @@
 {/if}
 
 {#if showBroadcastAuth && broadcastAuth?.isPresent}
-  <BroadcastAuthSheet {api} prompt={broadcastAuth} visible={!hidden} onClose={closeBroadcastAuth} />
+  <BroadcastAuthSheet
+    {api}
+    prompt={broadcastAuth}
+    visible={!hidden}
+    dismissOnDone={false}
+    onClose={closeBroadcastAuth}
+  />
 {/if}
 
 <style>

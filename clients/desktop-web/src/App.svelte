@@ -374,7 +374,7 @@
     Boolean(activeServer) &&
     !manageOpen &&
     !headerEditingServer &&
-    !initiationVisible;
+    !initiationServer;
 
   async function refreshBroadcastAuthPrompt(): Promise<void> {
     const request = ++broadcastAuthRequest;

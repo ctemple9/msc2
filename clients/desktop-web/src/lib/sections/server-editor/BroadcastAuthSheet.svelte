@@ -9,6 +9,7 @@
   export let api: ScreenApi | undefined = undefined;
   export let prompt: Schema['BroadcastAuthPromptDTO'];
   export let visible = true;
+  export let dismissOnDone = true;
   export let onClose: () => void;
 
   let busy = false;
@@ -29,7 +30,7 @@
     busy = true;
     error = '';
     try {
-      await mutate(api, serverEditorPaths.broadcastAuthPromptDismiss);
+      if (dismissOnDone) await mutate(api, serverEditorPaths.broadcastAuthPromptDismiss);
       onClose();
     } catch (caught) {
       error =

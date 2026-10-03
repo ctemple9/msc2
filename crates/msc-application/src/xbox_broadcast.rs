@@ -185,6 +185,7 @@ impl<'a> XboxBroadcastService<'a> {
                 return Err(XboxBroadcastError::Acquisition(message));
             }
         };
+        self.auth_prompt = None;
         self.reset_stopped_helper_manager();
         match self
             .helpers
@@ -273,6 +274,7 @@ impl<'a> XboxBroadcastService<'a> {
         message: impl Into<String>,
     ) -> Result<(), XboxBroadcastError> {
         self.snapshot = HelperSnapshot::stopped();
+        self.auth_prompt = None;
         if let Some(operation_id) = self.active_operation.take() {
             self.operations
                 .fail(&operation_id, lifecycle_error(code, message))
@@ -304,6 +306,7 @@ impl<'a> XboxBroadcastService<'a> {
     }
 
     pub fn stop(&mut self) -> Result<(), XboxBroadcastError> {
+        self.auth_prompt = None;
         self.helpers
             .force_terminate(&self.key())
             .map_err(map_process_error)?;
@@ -323,6 +326,7 @@ impl<'a> XboxBroadcastService<'a> {
         if !(self.operations.cancellation_check(&operation_id))() {
             return Ok(false);
         }
+        self.auth_prompt = None;
         self.helpers
             .request_graceful_stop(&self.key())
             .map_err(map_process_error)?;
@@ -342,6 +346,7 @@ impl<'a> XboxBroadcastService<'a> {
             return Ok(false);
         }
         let operation_id = self.active_operation.take().expect("checked above");
+        self.auth_prompt = None;
         let _ = self.helpers.request_graceful_stop(&self.key());
         self.operations
             .fail(

@@ -214,17 +214,20 @@ pub async fn update_xbox_broadcast(
         server.xbox_broadcast_enabled = enabled;
         Ok::<_, &str>(())
     }) {
-        Ok(()) => Json(ServerXboxBroadcastResultDto {
-            success: true,
-            message: if enabled {
-                "Xbox Broadcast enabled for this server.".to_string()
-            } else {
-                "Xbox Broadcast disabled for this server.".to_string()
-            },
-            server_id: Some(server_id),
-            enabled,
-        })
-        .into_response(),
+        Ok(()) => {
+            state.update_broadcast_lifecycle(&server_id, enabled);
+            Json(ServerXboxBroadcastResultDto {
+                success: true,
+                message: if enabled {
+                    "Xbox Broadcast enabled for this server.".to_string()
+                } else {
+                    "Xbox Broadcast disabled for this server.".to_string()
+                },
+                server_id: Some(server_id),
+                enabled,
+            })
+            .into_response()
+        }
         Err(crate::routes::lifecycle::TryMutateError::Domain(_)) => error_response(
             StatusCode::NOT_FOUND,
             "server_not_found",

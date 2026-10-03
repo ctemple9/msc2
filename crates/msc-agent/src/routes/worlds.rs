@@ -4938,13 +4938,15 @@ mod tests {
         assert_eq!(begin.status(), StatusCode::OK);
         let begun: StagedUploadBeginResultDto = json_body(begin).await;
 
-        // Build a tiny real zip to upload.
+        // Loose external world files must reach normalization through the real
+        // route. Activation's strict layout rejects this source before import;
+        // using it here catches a route precheck bypassing the normalizer.
         let zip_bytes = {
             let mut buf = std::io::Cursor::new(Vec::new());
             {
                 let mut writer = zip::ZipWriter::new(&mut buf);
                 writer
-                    .start_file("world/level.dat", zip::write::SimpleFileOptions::default())
+                    .start_file("level.dat", zip::write::SimpleFileOptions::default())
                     .unwrap();
                 use std::io::Write;
                 writer.write_all(b"fake level dat").unwrap();
@@ -4978,7 +4980,14 @@ mod tests {
         assert_eq!(imported.status(), StatusCode::OK);
         let imported: WorldMutationResultDto = json_body(imported).await;
         assert!(imported.success);
-        assert_eq!(imported.updated.unwrap().slots.len(), 1);
+        let slots = imported.updated.unwrap().slots;
+        assert_eq!(slots.len(), 1);
+        let names = msc_infrastructure::archive::list_entry_names(&world_store::zip_path(
+            &_dir,
+            &slots[0].id,
+        ))
+        .unwrap();
+        assert!(names.contains(&"world/level.dat".to_string()));
 
         // Re-uploading (or re-importing) the same, already-redeemed id is
         // a plain 404.

@@ -1,6 +1,7 @@
 //! Import, export, activation, and replacement route orchestration.
 
 use super::*;
+use msc_infrastructure::archive::ArchiveError;
 
 pub async fn import(
     State(state): State<WorldsRoutesState>,
@@ -70,19 +71,9 @@ pub async fn import(
         (entry.zip_path, None)
     };
 
-    if let Err(error) =
-        msc_infrastructure::archive::validate_world_archive(&source_path, server.server_type)
-    {
-        if let Some(staged_path) = staged_path {
-            let _ = std::fs::remove_file(staged_path);
-        }
-        return error_response(
-            StatusCode::BAD_REQUEST,
-            "invalid_world_archive",
-            &error.to_string(),
-        );
-    }
-
+    // External ZIPs may have loose files or enclosing folders. The importer
+    // checks source safety, normalizes packaging, then validates the stored
+    // layout; applying activation's strict layout here rejects valid imports.
     let operation_id =
         match begin_operation(lifecycle, &server.id, "world-import", "Importing world.") {
             Ok(id) => id,
@@ -108,7 +99,20 @@ pub async fn import(
             let _ = lifecycle
                 .operations()
                 .fail(&operation_id, "world_error", error.to_string());
-            world_error_response(error)
+            match error {
+                WorldError::Archive(
+                    error @ (ArchiveError::Corrupt(_)
+                    | ArchiveError::UnsafeEntry(_)
+                    | ArchiveError::InvalidWorldLayout(_)
+                    | ArchiveError::EntryCountExceeded { .. }
+                    | ArchiveError::TotalSizeExceeded { .. }),
+                ) => error_response(
+                    StatusCode::BAD_REQUEST,
+                    "invalid_world_archive",
+                    &error.to_string(),
+                ),
+                error => world_error_response(error),
+            }
         }
     };
     if let Some(staged_path) = staged_path {

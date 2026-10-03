@@ -233,3 +233,17 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Agent checks:** Rust formatting and Clippy for the affected libraries and archive test target; Svelte static check (zero errors, ten existing warnings). No test commands run.
 
 **Manual acceptance:** Rebuild/restart the local app and agent, then import `/Users/camerontemple/msc2-servers/XqKXS4++O7k=.zip` unchanged through the Bedrock Worlds tab. With the server stopped, activate the imported slot and confirm the existing terrain loads. Also import a `.mcworld` file without renaming it. External bundles containing several worlds require individual imports; a selection screen remains a separate UI/API change.
+
+
+### P6.53 — Let API imports reach external archive normalization
+
+**Status:** Implemented; awaiting Cameron's verification. Follow-up to Cameron's report that the unchanged ZIP still receives the original error after P6.52.
+**Files:** `crates/msc-agent/src/routes/worlds/import_activation.rs`, `crates/msc-agent/src/routes/worlds.rs`, this plan.
+**What:** Remove the import route's premature activation-layout check. All desktop and CLI imports now reach P6.52's source safety checks, normalization, and strict final layout validation. Preserve invalid-archive HTTP 400 responses and consumed staging cleanup; failures are recorded on the exclusive import operation. Diagnosis confirmed that the running local agent contains the new normalization code, so the repeated rejection was a missed route-level check, not an outdated binary. Preserve activation/restore validation unchanged.
+**Verify:** `cargo test -p msc-agent --bin msc world_backup_routes_staged_upload_import_round_trip`
+**Batch:** P6.53 only.
+**Commit:** `P6.53: normalize world imports before checking stored layout`
+
+**Essential coverage:** Strengthen the existing staged-upload/import round-trip with a loose `level.dat` ZIP and assert that the stored archive contains `world/level.dat`. This directly catches a route precheck preventing normalization, the gap missed by P6.52's library cases. Reuses the existing controlled local ZIP and fake process/journal setup; no additional test count, network, live Minecraft or timing assumptions. Expected runtime remains under one second. Test execution is deferred.
+
+**Agent checks:** Rust formatting and production agent Clippy passed (one existing unused `auth::forbidden` warning). Broader test-target compilation was blocked by pre-existing `crates/msc-agent/tests/cli_service.rs` references to removed `CommonArgs` fields (`base_url`, `host`, `port`, `token`); no tests ran and that unrelated file was not changed. Rebuild/restart the development app/agent and retry the original Bedrock ZIP unchanged for manual acceptance.

@@ -387,3 +387,14 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Commit:** `P12.209: expand world activation progress display`
 
 **Manual acceptance:** Activation progress spans the world section width and shows elapsed time without Last progress text. Lost-agent-contact reporting remains available. No tests added or run.
+
+### P12.210 — Fill stretched world slot cards with selection outline
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldSlotCard.svelte`, this plan.
+**What:** Make the inner slot wrapper fill the grid-stretched Card. The selected border and background now cover the entire card height, which follows the tallest card in each grid row even when a slot has fewer metadata lines.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.210 only.
+**Commit:** `P12.210: fill world slot selection cards`
+
+**Manual acceptance:** Select slots with and without seed/profile details in the same row. Their selected border should run around the full, equal-height card including the blank space below shorter metadata. Svelte check passed; no tests added or run.

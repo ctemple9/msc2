@@ -221,6 +221,7 @@
     display: flex;
     flex-direction: column;
     box-sizing: border-box;
+    height: 100%;
     border-radius: 12px;
     overflow: hidden;
     border: 2px solid transparent;

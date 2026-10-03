@@ -1,5 +1,19 @@
 # MSC 2 — Rolling Plan
 
+### P18.10y — Retry maps after an initially empty Bedrock world
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`, this plan.
+**What:** Reject and remove empty dimension catalogs instead of retaining them indefinitely. When no rendered dimension remains, release the old saved-world snapshot so the next map request captures fresh data. Keep a shared snapshot while a populated dimension still uses it. Preserve readiness gating, save-resume cleanup, exporters, Java maps, and platform runtimes. This shared Bedrock cache correction applies on Windows, macOS, and Linux.
+**Verify:** `cargo clippy -p msc-agent --bin msc`
+**Batch:** P18.10y only.
+**Commit:** `P18.10y: release empty bedrock map snapshots for retry`
+
+**Evidence:** Bedrock 2's first map snapshot at 17:43:27 preceded Cameron's player connection at 17:45:09. The snapshot database had two tiny .ldb files and a 64-byte log; its exported Overworld manifest had zero tiles and no spawn. The live database subsequently had a roughly 2.9 MB log. The cache retained both the empty catalog and original snapshot, so reopening could never see the later generated world. Console output confirmed the previous readiness fix resumed saves promptly after its successful repeated query.
+**Checks:** Rust formatting, shipping-agent Clippy, and agent build passed with existing unrelated Windows warnings. `cargo rustc -p msc-agent --bin msc --profile test -- --emit=metadata` compiled the binary unit-test target without executing tests or including the unrelated broken CLI integration-test target. Built agent staged in desktop development/package resource directories with matching SHA256 hashes; the running service was not restarted or repaired. Live rendering and macOS acceptance remain Cameron's verification.
+**Essential coverage:** One controlled regression rejects an empty Overworld catalog and checks that its temporary catalog/snapshot files are released, then checks an empty Nether catalog leaves a populated Overworld and its shared snapshot available. This protects the observed persistent empty-map failure and prevents invalidating an already usable dimension. Unique automatically cleaned temporary directories; no Minecraft, exporter, network, sleeps, or timing assumptions. Expected runtime under 10 ms; compiled only, not executed.
+**Manual acceptance:** Stop Minecraft, Repair the agent using the staged development binary, restart Bedrock 2, join it, and open View Map. Confirm Overworld terrain renders. On a fresh server, open the map before joining, then join and reopen; confirm an initially empty result no longer prevents later terrain from loading. Confirm an unvisited Nether still reports empty without breaking the populated Overworld. Repeat the map retry on macOS Bedrock. No live worlds or existing user snapshots were changed by the investigation.
+
 ### P12.241 — Preserve Java's initial slot through fresh-server registration
 
 **Status:** Implemented; awaiting Cameron's verification.

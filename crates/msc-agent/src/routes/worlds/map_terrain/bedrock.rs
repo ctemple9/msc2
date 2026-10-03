@@ -33,6 +33,28 @@ struct BedrockState {
     snapshot: Option<BedrockSnapshot>,
 }
 
+impl BedrockState {
+    fn require_saved_terrain(&mut self, dimension: &str) -> Result<(), String> {
+        let tile = self
+            .tiles
+            .get(dimension)
+            .ok_or("The Bedrock tile is unavailable.")?;
+        if tile.tiles.is_empty() {
+            self.tiles.remove(dimension);
+            // A map opened before anyone joins may snapshot an ungenerated
+            // world. Retry from fresh saved data instead of pinning that copy.
+            // Other rendered dimensions still need their consistent snapshot.
+            if self.tiles.is_empty() {
+                self.snapshot = None;
+            }
+            return Err(format!(
+                "No saved terrain has been generated in {dimension}."
+            ));
+        }
+        Ok(())
+    }
+}
+
 struct BedrockSnapshot {
     server_id: String,
     world: PathBuf,
@@ -398,15 +420,11 @@ impl BedrockStore {
                 .tiles
                 .insert(dimension.to_owned(), BedrockTile { output, tiles });
         }
+        current.require_saved_terrain(dimension)?;
         let tile = current
             .tiles
             .get(dimension)
             .ok_or("The Bedrock tile is unavailable.")?;
-        if tile.tiles.is_empty() {
-            return Err(format!(
-                "No saved terrain has been generated in {dimension}."
-            ));
-        }
         let path = tile.output.join(artifact);
         if artifact.starts_with("tiles/") {
             if !tile.tiles.contains(artifact) {
@@ -464,6 +482,85 @@ impl BedrockStore {
             return Err("The Bedrock tile artifact exceeds the map size limit.".into());
         }
         fs::read(path).map_err(|error| format!("Could not read the Bedrock tile: {error}"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct TestDirectory(PathBuf);
+
+    impl Drop for TestDirectory {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn empty_catalog_releases_snapshot_for_retry_but_keeps_rendered_dimensions() {
+        let root = std::env::temp_dir().join(format!("msc-map-empty-{}", Uuid::new_v4()));
+        fs::create_dir(&root).unwrap();
+        let _cleanup = TestDirectory(root.clone());
+        let snapshot_dir = root.join("snapshot");
+        fs::create_dir(&snapshot_dir).unwrap();
+        let empty_output = root.join("empty");
+        fs::create_dir(&empty_output).unwrap();
+        let mut state = BedrockState {
+            snapshot: Some(BedrockSnapshot {
+                server_id: "server".into(),
+                world: root.join("live-world"),
+                snapshot: crate::backup_operations::WorldMapSnapshot {
+                    path: snapshot_dir.join("world"),
+                    bytes: 0,
+                    hold_millis: 0,
+                },
+            }),
+            ..BedrockState::default()
+        };
+        state.tiles.insert(
+            "minecraft:overworld".into(),
+            BedrockTile {
+                output: empty_output.clone(),
+                tiles: BTreeSet::new(),
+            },
+        );
+
+        assert!(state.require_saved_terrain("minecraft:overworld").is_err());
+        assert!(state.tiles.is_empty());
+        assert!(state.snapshot.is_none());
+        assert!(!empty_output.exists());
+        assert!(!snapshot_dir.exists());
+
+        fs::create_dir(&snapshot_dir).unwrap();
+        state.snapshot = Some(BedrockSnapshot {
+            server_id: "server".into(),
+            world: root.join("live-world"),
+            snapshot: crate::backup_operations::WorldMapSnapshot {
+                path: snapshot_dir.join("world"),
+                bytes: 1,
+                hold_millis: 0,
+            },
+        });
+        state.tiles.insert(
+            "minecraft:overworld".into(),
+            BedrockTile {
+                output: root.join("populated"),
+                tiles: BTreeSet::from(["tiles/t.0.0.vtile".into()]),
+            },
+        );
+        state.tiles.insert(
+            "minecraft:the_nether".into(),
+            BedrockTile {
+                output: root.join("empty-nether"),
+                tiles: BTreeSet::new(),
+            },
+        );
+        assert!(state.require_saved_terrain("minecraft:the_nether").is_err());
+        assert!(state.require_saved_terrain("minecraft:overworld").is_ok());
+        assert!(state.snapshot.is_some());
+        assert!(snapshot_dir.exists());
+        drop(state);
     }
 }
 

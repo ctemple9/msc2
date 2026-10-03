@@ -280,6 +280,22 @@ fn service_manager() -> Result<Box<dyn ServiceManager>, CliError> {
     ))
 }
 
+/// Returns the data directory configured for the installed local agent.
+/// Unix CLI authorization sockets live beside that agent's state, which may
+/// be outside the CLI process's default directory.
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+pub(crate) fn installed_agent_data_dir() -> Result<Option<std::path::PathBuf>, CliError> {
+    let report = service_manager()?
+        .execute(ServiceManagerCommand::Status {
+            service_name: ServiceName::new(AGENT_SERVICE_NAME),
+        })
+        .map_err(|error| CliError::internal(format!("service management failed: {error}")))?;
+    Ok(report
+        .definition
+        .and_then(|definition| definition.environment.get("MSC2_DATA_DIR").cloned())
+        .map(std::path::PathBuf::from))
+}
+
 fn into_model(command: ServiceCommand) -> Result<ServiceManagerCommand, CliError> {
     match command {
         ServiceCommand::Install(args) => Ok(ServiceManagerCommand::Install(args.into_request()?)),

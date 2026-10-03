@@ -38,6 +38,14 @@ it. Agent restart and host reboot discard all issued credentials. The same
 authorized OS account can obtain a fresh one after the service returns,
 without persistent CLI setup. A host reset clears outstanding credentials.
 
+On macOS and Linux, the CLI locates the Unix socket using an explicit
+`MSC2_DATA_DIR` from its own environment when supplied. Otherwise it reads the
+installed agent service definition and uses that service's `MSC2_DATA_DIR`,
+falling back to the platform default only when no service override exists.
+This keeps CLI and agent socket paths aligned even when installation uses a
+custom data root. Windows uses a fixed named pipe and does not depend on the
+data-directory path.
+
 ### Linux exchange (P17.4)
 
 The Linux agent binds `local-cli.sock` inside its installing-user-owned MSC

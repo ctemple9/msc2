@@ -6,6 +6,8 @@
 //! this one-shot command transport.
 
 use std::io;
+#[cfg(any(target_os = "linux", target_os = "macos", test))]
+use std::path::PathBuf;
 use std::time::Duration;
 
 use axum::http::{Method, StatusCode, Uri};
@@ -167,14 +169,39 @@ fn encode_query_component(value: &str) -> String {
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 async fn acquire_local_cli_token() -> Result<String, CliError> {
-    let socket_path =
-        msc_infrastructure::config_repository::default_app_data_dir().join(local_cli_socket_name());
+    let socket_path = local_cli_data_dir()?.join(local_cli_socket_name());
     let endpoint = socket_path.display().to_string();
     let stream = tokio::net::UnixStream::connect(&socket_path)
         .await
         .map_err(|error| local_endpoint_error(error, &endpoint))?;
     let mut reader = BufReader::new(stream);
     read_local_cli_response(&mut reader).await
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn local_cli_data_dir() -> Result<PathBuf, CliError> {
+    let process_override = std::env::var_os("MSC2_DATA_DIR")
+        .filter(|path| !path.is_empty())
+        .map(PathBuf::from);
+    let service_override = if process_override.is_none() {
+        crate::cli::service::installed_agent_data_dir()?
+    } else {
+        None
+    };
+    Ok(resolve_local_cli_data_dir(
+        process_override,
+        service_override,
+        msc_infrastructure::config_repository::default_app_data_dir(),
+    ))
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos", test))]
+fn resolve_local_cli_data_dir(
+    process_override: Option<PathBuf>,
+    service_override: Option<PathBuf>,
+    default_dir: PathBuf,
+) -> PathBuf {
+    process_override.or(service_override).unwrap_or(default_dir)
 }
 
 #[cfg(target_os = "linux")]
@@ -288,6 +315,34 @@ fn local_exchange_io_error(error: io::Error, endpoint: &str) -> CliError {
     CliError::internal(format!(
         "the local agent authorization exchange ended at {endpoint}; the agent may be stopped or restarting: {error}"
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_local_cli_data_dir;
+    use std::path::PathBuf;
+
+    #[test]
+    fn service_data_directory_is_used_when_cli_has_no_override() {
+        let actual = resolve_local_cli_data_dir(
+            None,
+            Some(PathBuf::from("/service/data with spaces")),
+            PathBuf::from("/cli/default"),
+        );
+
+        assert_eq!(actual, PathBuf::from("/service/data with spaces"));
+    }
+
+    #[test]
+    fn explicit_cli_data_directory_still_takes_precedence() {
+        let actual = resolve_local_cli_data_dir(
+            Some(PathBuf::from("/explicit/override")),
+            Some(PathBuf::from("/service/data")),
+            PathBuf::from("/cli/default"),
+        );
+
+        assert_eq!(actual, PathBuf::from("/explicit/override"));
+    }
 }
 
 struct RawHttpResponse {

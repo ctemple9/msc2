@@ -453,3 +453,16 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Commit:** `P12.215: apply bedrock gamemode to online players`
 
 **Manual acceptance:** With multiple players online, change the active Bedrock world's default game mode from the sidebar or World Settings. Every connected player should switch immediately; new players should also receive the saved default. Confirm Bedrock Creative still requires the existing achievement warning. No tests added or run.
+
+### P17.28 — Resolve the CLI socket from the installed agent service
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `crates/msc-agent/src/cli/transport.rs`, `crates/msc-agent/src/cli/service.rs`, `docs/msc2/clients/phase17-cli.md`, this plan.
+**What:** On macOS and Linux, locate the local CLI socket using an explicit process `MSC2_DATA_DIR` when set, otherwise read `MSC2_DATA_DIR` from the installed agent service definition, and use the existing platform default when the service has no override. This fixes the macOS headless installer path mismatch and also supports Linux custom data roots. Windows uses a fixed named pipe and is unaffected. Add focused path-precedence tests without running them.
+**Verify:** `cargo check -p msc-agent`
+**Batch:** P17.28 only.
+**Commit:** `P17.28: resolve cli socket from installed service`
+
+**Essential tests:** Two pure path-selection cases protect the concrete CLI authorization failure caused by a service/CLI data-directory mismatch and retain the documented explicit environment override. They use fixed paths, do not touch the host, and should complete in under one second after compilation. Tests were not run.
+
+**Manual acceptance:** On macOS, run `msc capabilities` without setting `MSC2_DATA_DIR`; confirm it uses the installed service path. On Linux, repeat with the default installer path and with an explicitly configured service data root. Confirm an explicit shell `MSC2_DATA_DIR` still takes precedence. Windows needs no path-specific change because its CLI connects to the fixed local named pipe.

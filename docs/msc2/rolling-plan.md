@@ -1,5 +1,18 @@
 # MSC 2 — Rolling Plan
 
+### P12.234 — Discover Windows Java installed under the default data folder
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `crates/msc-agent/src/routes/versions.rs`, this plan.
+**What:** Include `%LOCALAPPDATA%/MSC2/runtimes` in Windows Java discovery as well as the current agent's managed runtime root. Preserve macOS/Linux search roots and leave existing installations in place.
+**Verify:** `cargo clippy -p msc-agent --bin msc`
+**Batch:** P12.234 only.
+**Commit:** `P12.234: discover windows java across agent data folders`
+
+**Diagnosis:** The running service binary matched the rebuilt packaged agent by SHA-256. Its live `msc --json java list` returned only configured Java 21. Service metadata sets `MSC2_DATA_DIR` to `C:/Users/Cameron/AppData/Roaming/MSC2`, but the verified Temurin 25 executable resides under `C:/Users/Cameron/AppData/Local/MSC2/runtimes`. P12.233 fixed executable recognition but missed this separate root mismatch.
+**Checks:** Rust formatting and `cargo clippy -p msc-agent --bin msc` passed with existing Windows warnings outside the change. Inspection confirms the additional root is guarded by `HostOs::Windows`; macOS/Linux discovery behavior is unchanged. No tests run.
+**Manual acceptance:** Rebuild the packaged agent and Repair the Windows service, reopen the runtime picker, and confirm the existing Java 25 appears without another install. The CLI `msc --json java list` should include its Local `bin/java.exe` path. No service restart, credential changes, Java download, or tests performed by the agent in this step.
+
 ### P12.233 — Refresh newly installed Java in the Windows server picker
 
 **Status:** Implemented; awaiting Cameron's verification.

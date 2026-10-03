@@ -773,6 +773,18 @@ pub async fn java_runtimes(State(state): State<LifecycleRoutesState>) -> Respons
     let configured_path = state.app_config_snapshot().java_path;
     let detected = tokio::task::spawn_blocking(move || {
         let mut roots = vec![runtimes_root().to_string_lossy().into_owned()];
+        // The desktop service uses Roaming through MSC2_DATA_DIR, while
+        // runtimes installed by an earlier/default agent live under Local.
+        // Discover both so Repair does not hide already installed Windows JDKs.
+        if host == HostOs::Windows
+            && let Some(local_app_data) = std::env::var_os("LOCALAPPDATA")
+            && !local_app_data.is_empty()
+        {
+            let local_runtimes = PathBuf::from(local_app_data).join("MSC2").join("runtimes");
+            if local_runtimes != runtimes_root() {
+                roots.push(local_runtimes.to_string_lossy().into_owned());
+            }
+        }
         roots.extend(default_java_runtime_search_roots(host, &home_dir));
         let mut detected =
             java_runtime_detection::detect_installed_java_runtimes(&StdFileSystem, &roots);

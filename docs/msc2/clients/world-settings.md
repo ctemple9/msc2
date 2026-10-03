@@ -55,7 +55,10 @@ the shared Java gameplay path used by every Java flavor; Bedrock sends its
 supported runtime commands and reports a restart requirement if it cannot
 apply a change live. Changing the Bedrock default game mode also updates every
 player currently online; BDS otherwise uses `defaultgamemode` for new players,
-and `force-gamemode` remains a separate server-wide override.
+and `force-gamemode` remains a separate server-wide override. The sidebar's
+Enforce Gamemode switch edits that server property, which takes effect after a
+restart when players join; enabling it requires the existing server-wide
+confirmation.
 
 ## Evidence map
 

@@ -454,6 +454,17 @@ into main; no release publication or exact-artifact acceptance is implied.
 
 **Manual acceptance:** With multiple players online, change the active Bedrock world's default game mode from the sidebar or World Settings. Every connected player should switch immediately; new players should also receive the saved default. Confirm Bedrock Creative still requires the existing achievement warning. No tests added or run.
 
+### P12.216 — Replace sidebar whitelist with Enforce Gamemode
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/components/shell/sidebar/QuickCommandsSection.svelte`, `clients/desktop-web/src/lib/sections/settings/SettingsSection.svelte`, `crates/msc-domain/src/settings_schema.rs`, `docs/msc2/clients/world-settings.md`, this plan.
+**What:** Replace the sidebar Whitelist control with Enforce Gamemode. Read and save the server-wide `force-gamemode` property through `/v1/settings`, preserve its existing confirmation when enabled, and refresh the sidebar when Server Settings changes it. Mark this property restart-required for Java and Bedrock because the running server reads it at startup; explain that it enforces the server default when players join.
+**Verify:** `npm --prefix clients/desktop-web run check` and `cargo clippy -p msc-agent --bin msc`
+**Batch:** P12.216 only.
+**Commit:** `P12.216: replace sidebar whitelist with enforce gamemode`
+
+**Manual acceptance:** Confirm the sidebar shows Force Gamemode's saved value on Java and Bedrock, including values changed in Server Settings. Enable it and accept the server-wide confirmation; the setting should persist and indicate restart when the server is running. After restart, players joining should receive the server default. Disabling should persist without confirmation. No tests added or run.
+
 ### P17.28 — Resolve the CLI socket from the installed agent service
 
 **Status:** Implemented; awaiting Cameron's verification.

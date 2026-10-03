@@ -162,6 +162,7 @@
       draft = { ...original };
       rejected = result.rejected ?? [];
       notice = summarize(result);
+      window.dispatchEvent(new Event('msc2:server-settings-changed'));
     } catch (error) {
       confirmation = safetyPrompt(error);
       if (!confirmation) notice = errorMessage(error);

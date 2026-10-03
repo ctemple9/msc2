@@ -134,7 +134,9 @@ pub fn java_setting_contract(key: &str) -> Option<SettingContract> {
         "allow-nether" => {
             server_contract(SettingApplyPolicy::RestartRequired, "server.runtime", None)
         }
-        "force-gamemode" => server_contract(SettingApplyPolicy::LiveSafe, "server.runtime", None),
+        "force-gamemode" => {
+            server_contract(SettingApplyPolicy::RestartRequired, "server.runtime", None)
+        }
         "spawn-protection" => server_contract(
             SettingApplyPolicy::LiveSafe,
             "server.access",
@@ -233,7 +235,9 @@ pub fn bedrock_setting_contract(key: &str) -> Option<SettingContract> {
         | "content-log-file-enabled" => {
             server_contract(SettingApplyPolicy::RestartRequired, "server.runtime", None)
         }
-        "force-gamemode" => server_contract(SettingApplyPolicy::LiveSafe, "server.runtime", None),
+        "force-gamemode" => {
+            server_contract(SettingApplyPolicy::RestartRequired, "server.runtime", None)
+        }
         _ => return None,
     };
     Some(contract)

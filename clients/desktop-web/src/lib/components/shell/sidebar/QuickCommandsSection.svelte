@@ -7,12 +7,10 @@
   // us: crates/msc-agent/src/routes/commands.rs forwards whatever string it
   // gets straight to the sidecar with no translation (only a leading-slash
   // strip), and msc-domain/src/commands.rs's own command catalog marks
-  // "whitelist"/"save-all"/"reload" as supports_bedrock: false and
-  // "allowlist" as supports_java: false -- confirming the openapi contract's
-  // x-notes claim ("allowlist/save/operator commands are translated...
-  // behind this route") does not hold at this layer. So this component keeps
-  // the oracle's own whitelist->allowlist and save-all->save hold/save
-  // resume branching client-side, exactly as MSC 1 does.
+  // "save-all"/"reload" as supports_bedrock: false and "allowlist" as
+  // supports_java: false -- confirming the openapi contract's x-notes claim
+  // ("allowlist/save/operator commands are translated...") does not hold at
+  // this layer. Bedrock therefore keeps the oracle's save-all -> save hold / save resume branching.
   import { onMount } from 'svelte';
   import Select from '../../base/Select.svelte';
   import Toggle from '../../base/Toggle.svelte';
@@ -55,7 +53,9 @@
   let players: Schema['PlayersResponseDTO'] | undefined;
   let difficulty = 'normal';
   let gamemode = 'survival';
-  let whitelistEnabled = false;
+  let forceGamemodeEnabled = false;
+  let forceGamemodeAvailable = false;
+  let forceGamemodeBusy = false;
   let notice = '';
   let confirmation: SafetyPrompt | undefined;
   let loadedForServerId: string | undefined;
@@ -73,6 +73,7 @@
       key: 'gameplay.difficulty' | 'gameplay.default-game-mode';
       value: string;
     };
+    serverSetting?: { key: 'force-gamemode'; enabled: boolean };
   };
 
   function safetyPrompt(
@@ -100,6 +101,7 @@
   $: onlineCount = players?.count ?? 0;
   $: disabled = !running || !canControl;
   $: worldSettingDisabled = disabled || !activeWorldSlotId || settingBusy;
+  $: forceGamemodeDisabled = !canControl || !forceGamemodeAvailable || forceGamemodeBusy;
   $: relativeTime = capabilities?.worldSettings?.relativeTime;
   $: relativeTimeAvailable = relativeTime?.available === true;
 
@@ -115,7 +117,11 @@
   onMount(() => {
     const refresh = () => void load();
     window.addEventListener('msc2:active-world-profile-changed', refresh);
-    return () => window.removeEventListener('msc2:active-world-profile-changed', refresh);
+    window.addEventListener('msc2:server-settings-changed', refresh);
+    return () => {
+      window.removeEventListener('msc2:active-world-profile-changed', refresh);
+      window.removeEventListener('msc2:server-settings-changed', refresh);
+    };
   });
 
   async function load(): Promise<void> {
@@ -129,7 +135,9 @@
       '/v1/settings',
     );
     const fields = settings?.sections.flatMap((section) => section.fields) ?? [];
-    whitelistEnabled = fields.find((field) => field.key === 'white-list')?.value === 'true';
+    const forceGamemode = fields.find((field) => field.key === 'force-gamemode');
+    forceGamemodeAvailable = forceGamemode !== undefined;
+    forceGamemodeEnabled = forceGamemode?.value === 'true';
     activeWorldSlotId = undefined;
     difficulty = 'normal';
     gamemode = 'survival';
@@ -243,22 +251,49 @@
     const pending = confirmation;
     if (pending.worldSetting) {
       void saveWorldSetting(pending.worldSetting.key, pending.worldSetting.value, pending.token);
+    } else if (pending.serverSetting) {
+      void setForceGamemode(pending.serverSetting.enabled, pending.token);
     } else {
       void sendCommand(pending.command, pending.token, pending.restoreGamemode);
     }
   }
 
-  function setWhitelist(enabled: boolean): void {
-    whitelistEnabled = enabled;
-    void sendCommand(
-      isBedrock
-        ? enabled
-          ? 'allowlist on'
-          : 'allowlist off'
-        : enabled
-          ? 'whitelist on'
-          : 'whitelist off',
-    );
+  async function setForceGamemode(enabled: boolean, confirmationToken?: string): Promise<void> {
+    if (!api || forceGamemodeBusy || !forceGamemodeAvailable) return;
+    const previous = forceGamemodeEnabled;
+    forceGamemodeBusy = true;
+    notice = '';
+    confirmation = undefined;
+    try {
+      const result = await mutate<Schema['SettingsUpdateResultDTO']>(api, '/v1/settings', {
+        changes: { 'force-gamemode': String(enabled) },
+        ...(confirmationToken ? { confirmation: confirmationToken } : {}),
+      });
+      if (!result.success || !result.appliedKeys.includes('force-gamemode')) {
+        throw new Error('MSC could not save Enforce Gamemode.');
+      }
+      forceGamemodeEnabled = enabled;
+      window.dispatchEvent(new Event('msc2:server-settings-changed'));
+      notice = result.restartRequired
+        ? 'Saved. Restart the server for Enforce Gamemode to take effect.'
+        : running
+          ? 'Saved. Enforce Gamemode applies when players join.'
+          : 'Saved. Enforce Gamemode applies the next time the server starts.';
+    } catch (error) {
+      forceGamemodeEnabled = previous;
+      const prompt = safetyPrompt(error);
+      if (prompt) {
+        confirmation = {
+          ...prompt,
+          command: '',
+          serverSetting: { key: 'force-gamemode', enabled },
+        };
+      } else {
+        notice = errorMessage(error);
+      }
+    } finally {
+      forceGamemodeBusy = false;
+    }
   }
 
   function saveAll(): void {
@@ -341,9 +376,15 @@
       <Select options={GAMEMODE_OPTIONS} value={gamemode} disabled={worldSettingDisabled} onchange={applyGamemode} />
     </div>
     <div class="field-row toggle-row">
-      <Toggle checked={whitelistEnabled} label="Whitelist" {disabled} onchange={setWhitelist} />
-      <span class="field-label">Whitelist</span>
+      <Toggle
+        checked={forceGamemodeEnabled}
+        label="Enforce Gamemode"
+        disabled={forceGamemodeDisabled}
+        onchange={(enabled) => void setForceGamemode(enabled)}
+      />
+      <span class="field-label">Enforce Gamemode</span>
     </div>
+    <p class="subtle-note">Sets players to the server's default game mode when they join.</p>
 
     <p class="overline">Actions</p>
     <div class="button-row">

@@ -727,11 +727,9 @@
           <p>{bytesLabel(activation.current)} of {bytesLabel(activation.total)}</p>
         {/if}
         <p>
-          Elapsed {elapsedLabel(activationClock - activation.startedAt)} ·
+          Elapsed {elapsedLabel(activationClock - activation.startedAt)}
           {#if activation.connectionError}
-            Last agent contact {elapsedLabel(activationClock - activation.lastContactAt)} ago
-          {:else}
-            Last progress {elapsedLabel(activationClock - activation.lastProgressAt)} ago
+            · Last agent contact {elapsedLabel(activationClock - activation.lastContactAt)} ago
           {/if}
         </p>
         {#if activation.connectionError}
@@ -1251,7 +1249,7 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    max-width: 520px;
+    width: 100%;
     font-size: 12px;
     color: var(--msc2-text-secondary);
   }

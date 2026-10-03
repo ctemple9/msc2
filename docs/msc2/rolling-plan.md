@@ -376,3 +376,14 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Commit:** `P12.208: open server actions from row clicks`
 
 **Manual acceptance:** Manage Servers has a chevron instead of action buttons on each row. Clicking or keyboard-activating the row opens the Components-style three-action menu; Set Active updates the selected server, Edit opens its editor, Remove requires existing confirmation. Escape/click-away dismisses the menu. No tests added or run.
+
+### P12.209 — Expand activation progress and simplify elapsed text
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte`, this plan.
+**What:** Remove the Last progress age from activation display and replace its 520px cap with full available width. Preserve elapsed time, percentage, byte counts and lost-contact reporting. Display-only change; no activation logic, backend changes, restarts or live operations performed.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.209 only.
+**Commit:** `P12.209: expand world activation progress display`
+
+**Manual acceptance:** Activation progress spans the world section width and shows elapsed time without Last progress text. Lost-agent-contact reporting remains available. No tests added or run.

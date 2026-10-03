@@ -2214,7 +2214,7 @@ pub fn create_bedrock_server(
             }
         }
 
-        let slot = match &request.world_source {
+        let mut slot = match &request.world_source {
             BedrockWorldSource::Fresh => {
                 let slot = world::build_fresh_slot(
                     uuid::Uuid::new_v4().to_string().to_uppercase(),
@@ -2264,6 +2264,18 @@ pub fn create_bedrock_server(
             worlds::WorldProfileApplyContext::Creation,
             false,
         )?;
+        if matches!(request.world_source, BedrockWorldSource::Fresh) {
+            // Bedrock profile application creates the initial level.dat.
+            // Archive it into this slot before registration treats the live
+            // folder as an unrelated world and creates a second slot.
+            slot = worlds::update_active_slot_from_current_world(
+                fs,
+                &new_dir,
+                ServerType::Bedrock,
+                Some(&initial_level_name),
+                &slot,
+            )?;
+        }
         world_store::set_active_slot_id(fs, &new_dir, Some(&slot.id))?;
 
         let mut config = ConfigServer::new(

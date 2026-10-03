@@ -145,6 +145,31 @@ fn fresh_bedrock_creation_writes_native_config_and_active_slot_transactionally()
         fs::read_to_string(server_dir.join("world_slots/active_slot_id.txt")).unwrap(),
         format!("{}\n", created.world_slot.id)
     );
+    let original_profile = msc_infrastructure::world_store::load_profile(
+        &StdFileSystem,
+        &server_dir,
+        &created.world_slot,
+    );
+    let outcome = msc_application::worlds::reconcile_imported_worlds(
+        &StdFileSystem,
+        &server_dir,
+        ServerType::Bedrock,
+        None,
+        "2026-08-23T12:00:01Z",
+    )
+    .unwrap();
+    assert!(matches!(
+        outcome,
+        msc_application::worlds::ReconciliationOutcome::LiveFoldersProvenIdenticalToRecordedSlot { slot_id }
+            if slot_id == created.world_slot.id
+    ));
+    let slots = msc_infrastructure::world_store::load_slots(&StdFileSystem, &server_dir);
+    assert_eq!(slots.len(), 1);
+    assert_eq!(slots[0].id, created.world_slot.id);
+    assert_eq!(
+        msc_infrastructure::world_store::load_profile(&StdFileSystem, &server_dir, &slots[0]),
+        original_profile
+    );
 }
 
 #[test]

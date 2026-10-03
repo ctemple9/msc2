@@ -1,5 +1,19 @@
 # MSC 2 — Rolling Plan
 
+### P12.240 — Keep the initial Bedrock world in its original slot
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `crates/msc-application/src/provisioning.rs`, `crates/msc-application/tests/bedrock_imports.rs`, this plan.
+**What:** After applying a fresh Bedrock world's creation profile, archive its initial live folder into the existing creation slot using the existing slot-update operation. Preserve slot identity, name, timestamp, and profile; return the updated slot. Registration can then verify the live world matches that archive instead of creating a second slot. This applies to fresh Bedrock creation on all platforms; Java creation and imported-world recovery branches are unchanged. No live user slots or worlds are removed.
+**Verify:** `cargo clippy -p msc-agent --bin msc`
+**Batch:** P12.240 only.
+**Commit:** `P12.240: archive fresh bedrock worlds into their initial slot`
+
+**Evidence:** Cameron's Bedrock server has one live world folder and two same-name/same-timestamp slots. The original slot contains only its creation profile; the second, active slot has world.zip and detected world metadata. Fresh Bedrock creation applies its profile by writing level.dat, while registration's import reconciliation treats a live folder alongside an archive-less slot as a separate world and creates a new slot. Archiving into the original slot before registration closes that mismatch without weakening recovery for actual imported or mismatched world data.
+**Checks:** Rust formatting and shipping-agent Clippy passed with existing unrelated Windows warnings. `cargo check -p msc-application --test bedrock_imports` compiled the focused regression target. The agent is rebuilt/staged for desktop Repair. No tests executed or live world/slot data changed.
+**Essential coverage:** Extend the existing fresh Bedrock creation regression through the same import-reconciliation call used by server registration. Assert registration recognizes the original slot, only one slot remains, and the complete profile is unchanged. Uses the existing unique temporary directory with automatic cleanup and a tiny local world archive; no Bedrock process, network, port, or sleep assumptions. Expected runtime under 100 ms; execution deferred to Cameron.
+**Manual acceptance:** Repair with the staged agent, create a new fresh Bedrock server, and confirm Worlds shows exactly one slot before initiation and after both initiation runs. Confirm its selected seed/gameplay settings and active identity remain intact. Existing duplicate entries are retained; this correction prevents their creation in new servers.
+
 ### P12.239 — Clear Windows Bedrock shutdown tracking after exit
 
 **Status:** Implemented; awaiting Cameron's verification.

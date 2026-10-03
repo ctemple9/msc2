@@ -1,5 +1,18 @@
 # MSC 2 — Rolling Plan
 
+### P12.242 — Decode desktop API frames on Fedora
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/auth/desktop.ts`, this plan.
+**What:** Normalize Tauri's binary API response to bytes before decoding its length, headers, and body. Fedora WebKit returns the response as a JavaScript number array; other desktop runtimes may return an ArrayBuffer. Keep the Rust agent, native authorization, and Windows/macOS response content unchanged.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.242 only.
+**Commit:** `P12.242: decode desktop api frames on fedora`
+
+**Evidence:** On the installed v0.1.20 Fedora desktop, the native `desktop_bootstrap_local` call succeeds. The same desktop's `desktop_authorized_request_binary` returns an Array of 704 numbers for `/v1/me`, while the frontend passed it directly to `DataView`, which requires an ArrayBuffer. That exception prevents the app from reading successful API responses and leaves the setup screen at its generic unavailable state. The running agent, credential helper, saved desktop credential, and all four startup API endpoints were healthy. The fix converts either IPC shape to a byte view before reading the existing frame format.
+**Checks:** Svelte check passed with zero errors and eleven existing warnings; production frontend build passed. No test suite ran. The installed RPM still contains the old frontend until a corrected package is built and installed.
+**Manual acceptance:** Install a desktop package containing this commit on Fedora, open MSC, and confirm the local agent connects without another repair. Confirm Repair reconnects. Check the same packaged desktop connection on Windows and macOS; their native authorization and service installation paths were not changed.
+
 ### P16.36 — Publish v0.1.20 through the build-only release workflow
 
 **Status:** Prepared; publication and Cameron's artifact acceptance pending.

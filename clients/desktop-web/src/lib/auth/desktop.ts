@@ -193,16 +193,23 @@ export async function loadTauriDesktopCredentialBridge(): Promise<DesktopCredent
         request: { ...request, hostIds: [...request.hostIds] },
       }),
     authorizedRequest: async (request) => {
-      const frame = await invoke<ArrayBuffer>('desktop_authorized_request_binary', {
+      const frame = await invoke<ArrayBuffer | number[]>('desktop_authorized_request_binary', {
         request: { ...request, body: request.body ? [...request.body] : null },
       });
-      if (frame.byteLength < 4) throw new Error('Invalid desktop response frame');
-      const length = new DataView(frame).getUint32(0, true);
-      if (length > frame.byteLength - 4) throw new Error('Invalid desktop response headers');
-      const metadata = JSON.parse(
-        new TextDecoder().decode(new Uint8Array(frame, 4, length)),
-      ) as Pick<DesktopResponse, 'status' | 'headers'>;
-      return { ...metadata, body: new Uint8Array(frame, 4 + length) };
+      // Tauri delivers ipc::Response as an ArrayBuffer on some hosts and a
+      // number array on Linux WebKit. Both carry the same framed bytes.
+      const bytes = new Uint8Array(frame);
+      if (bytes.byteLength < 4) throw new Error('Invalid desktop response frame');
+      const length = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(
+        0,
+        true,
+      );
+      if (length > bytes.byteLength - 4) throw new Error('Invalid desktop response headers');
+      const metadata = JSON.parse(new TextDecoder().decode(bytes.subarray(4, 4 + length))) as Pick<
+        DesktopResponse,
+        'status' | 'headers'
+      >;
+      return { ...metadata, body: bytes.subarray(4 + length) };
     },
   };
 }

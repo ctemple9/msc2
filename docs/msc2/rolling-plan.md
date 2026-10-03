@@ -409,3 +409,14 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Commit:** `P12.211: contain long active world names`
 
 **Manual acceptance:** Open Overview with an unusually long active-world slot name. The title should truncate within Active World and Chat should keep its own column with no overlap. Svelte check passed; no tests added or run.
+
+### P12.212 — Freeze activation elapsed time at completion
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte`, this plan.
+**What:** Stop the one-second elapsed-time clock as soon as the agent reports succeeded, failed, or cancelled. Keep the terminal progress and elapsed value steady while worlds/backups refresh; existing cleanup then closes the progress display.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.212 only.
+**Commit:** `P12.212: freeze world activation elapsed timer`
+
+**Manual acceptance:** Activate a world. On terminal status, elapsed time must stop changing immediately, including while the refreshed world list is loading. No tests added or run.

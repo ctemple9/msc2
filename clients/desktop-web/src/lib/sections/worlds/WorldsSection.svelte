@@ -483,6 +483,8 @@
           connectionError: undefined,
         };
         if (['succeeded', 'failed', 'cancelled'].includes(operation.state)) {
+          if (activationTimer) clearInterval(activationTimer);
+          activationTimer = undefined;
           flash(
             operation.state === 'succeeded'
               ? 'World activated.'

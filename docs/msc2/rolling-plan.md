@@ -606,6 +606,19 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Batch:** P12.227 only.
 **Commit:** `P12.227: exclude tauri target from vite watcher`
 
+### P12.228 — Keep Windows agent installation responsive and elevate registration
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src-tauri/src/lib.rs`, `windows_service.rs`, `windows_service.ps1`, `windows_service_prompt.cs`, `crates/msc-platform-windows/src/service.rs`, this plan.
+**What:** Run service actions and status checks on blocking workers so OS prompts and subprocess waits cannot freeze the desktop event loop. Replace the piped PowerShell credential prompt with an explicitly displayed native Windows credential dialog owned by the app. Ask for UAC approval for registration/removal; retain the original installing account even when a different administrator approves UAC. Collect its password inside the elevated helper, preserve the existing install request/environment through the agent CLI, grant service-logon permission and query/start/stop access to this service, and wait for startup. Routine start/stop stay unelevated under D-025. Return cancellation and diagnostic errors through a temporary result file containing no credentials, then remove it. Hide helper consoles and redact credentials from service-controller failures, including echoed diagnostics. macOS/Linux keep their existing platform actions with the new background dispatch.
+**Verify:** From `clients/desktop-web`, run `npx tauri dev`; follow the manual acceptance below.
+**Batch:** P12.228 only.
+**Commit:** `P12.228: keep windows agent installation responsive`
+
+**Checks:** Rust formatting, ordinary Clippy for the desktop and Windows platform crate, PowerShell parsing, and C# native-helper compilation passed. Strict Clippy is blocked by existing warnings: the unused infrastructure Bedrock socket-mode constant, unused desktop update helper and Windows installing-user return. The password-redaction regression was compiled with the platform tests; no tests were run. No release workflow changed or run.
+**Essential regression:** A service-registration failure previously included the password-bearing command arguments in its error. The new controlled regression supplies command arguments and fake stdout/stderr containing a password, then checks that the password is absent and the useful error remains. It performs no OS calls, uses no timing/environment assumptions and should run in under one millisecond. It protects secret disclosure rather than incidental error wording.
+**Manual acceptance:** Restart the development session. Choose Install, cancel UAC, and confirm the app reports cancellation and responds normally. Retry, approve UAC, cancel the native password dialog, and confirm the same. Retry with the installing account's Windows password (not its Hello PIN); confirm the agent reaches Running and connects. Stop/start the installed agent and confirm no further UAC or password prompt. Repair should use UAC and the credential dialog again. Check a failed credential/start attempt reports its error without disclosing the password. Live Windows acceptance and macOS/Linux physical checks remain Cameron's verification.
+
 ### P18.10w — Expose depth slicing in every 2D dimension
 
 **Status:** Implemented; awaiting Cameron's verification.

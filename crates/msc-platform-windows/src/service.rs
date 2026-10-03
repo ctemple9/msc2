@@ -611,17 +611,54 @@ fn quote_windows_argument(argument: &str) -> String {
 }
 
 fn run_sc(args: &[String]) -> Result<String, ServiceError> {
-    let output = Command::new("sc.exe")
-        .args(args)
+    let mut command = Command::new("sc.exe");
+    command.args(args);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x0800_0000);
+    }
+    let output = command
         .output()
         .map_err(|err| ServiceError::Platform(format!("running sc.exe: {err}")))?;
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     } else {
-        Err(ServiceError::Platform(format!(
-            "sc.exe {} failed: {}",
-            args.join(" "),
-            String::from_utf8_lossy(&output.stderr).trim()
-        )))
+        Err(sc_error(args, &output.stdout, &output.stderr))
+    }
+}
+
+fn sc_error(args: &[String], stdout: &[u8], stderr: &[u8]) -> ServiceError {
+    let mut detail = format!(
+        "{}{}",
+        String::from_utf8_lossy(stdout),
+        String::from_utf8_lossy(stderr)
+    );
+    // Neither command arguments nor echoed diagnostics may disclose a credential.
+    for pair in args.windows(2) {
+        if pair[0].eq_ignore_ascii_case("password=") && !pair[1].is_empty() {
+            detail = detail.replace(&pair[1], "[redacted]");
+        }
+    }
+    ServiceError::Platform(format!(
+        "sc.exe {} failed: {}",
+        args.first().map(String::as_str).unwrap_or("operation"),
+        detail.trim()
+    ))
+}
+
+#[cfg(test)]
+mod credential_error_tests {
+    #[test]
+    fn registration_failure_does_not_disclose_the_password() {
+        let args = ["create", "msc-agent", "password=", "private-password"].map(String::from);
+        let error = super::sc_error(
+            &args,
+            b"Access is denied. private-password",
+            b" rejected private-password",
+        )
+        .to_string();
+        assert!(!error.contains("private-password"));
+        assert!(error.contains("Access is denied"));
     }
 }

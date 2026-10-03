@@ -18,6 +18,8 @@ use std::sync::Mutex;
 mod ssh;
 mod uninstall;
 mod update;
+#[cfg(target_os = "windows")]
+mod windows_service;
 
 const DESKTOP_CREDENTIAL_KEY_PREFIX: &str = "msc.desktop.host-token.";
 const LOCAL_HOST_ID_KEY: &str = "msc.desktop.local-agent-host-id";
@@ -779,7 +781,13 @@ async fn desktop_probe_host_route(
 /// not start anything: opening or closing the desktop shell is never a server
 /// lifecycle action.
 #[tauri::command]
-fn agent_service_status() -> Result<AgentServiceStatus, String> {
+async fn agent_service_status() -> Result<AgentServiceStatus, String> {
+    tauri::async_runtime::spawn_blocking(agent_service_status_blocking)
+        .await
+        .map_err(|error| format!("Could not check the agent service: {error}"))?
+}
+
+fn agent_service_status_blocking() -> Result<AgentServiceStatus, String> {
     let expected_binary = expected_local_agent_binary()?;
     service_manager()?
         .execute(ServiceManagerCommand::Status {
@@ -818,7 +826,26 @@ fn quit_app(app: tauri::AppHandle) {
 /// service action. Platform registration may trigger the OS elevation flow;
 /// routine agent operation remains under the installing user's account.
 #[tauri::command]
-fn manage_agent_service(action: AgentServiceAction) -> Result<AgentServiceStatus, String> {
+async fn manage_agent_service(
+    action: AgentServiceAction,
+    _window: tauri::WebviewWindow,
+) -> Result<AgentServiceStatus, String> {
+    #[cfg(target_os = "windows")]
+    let owner_window = _window.hwnd().map_err(|error| error.to_string())?.0 as isize;
+    #[cfg(not(target_os = "windows"))]
+    let owner_window = 0;
+    // Credential dialogs and service commands must not hold the window's event loop.
+    tauri::async_runtime::spawn_blocking(move || {
+        manage_agent_service_blocking(action, owner_window)
+    })
+    .await
+    .map_err(|error| format!("Could not complete the agent service action: {error}"))?
+}
+
+fn manage_agent_service_blocking(
+    action: AgentServiceAction,
+    _owner_window: isize,
+) -> Result<AgentServiceStatus, String> {
     let service_name = ServiceName::new(AGENT_SERVICE_NAME);
     if matches!(&action, AgentServiceAction::Start) {
         ensure_installed_agent_matches_package()?;
@@ -891,12 +918,9 @@ fn manage_agent_service(action: AgentServiceAction) -> Result<AgentServiceStatus
             AgentServiceAction::Install | AgentServiceAction::Repair => {
                 let request = agent_install_request()?;
                 let expected_binary = request.binary_path.clone();
-                let password = prompt_windows_service_password()?;
-                msc_platform_windows::service::WindowsServiceManager::new()
-                    .install_with_password(request, Some(&password))
-                    .map_err(|error| error.to_string())?;
+                windows_service::install(&request, _owner_window)?;
                 let report = manager
-                    .execute(ServiceManagerCommand::Start { service_name })
+                    .execute(ServiceManagerCommand::Status { service_name })
                     .map_err(|error| error.to_string())?;
                 ensure_service_report_uses_binary(report, &expected_binary)?
             }
@@ -906,9 +930,12 @@ fn manage_agent_service(action: AgentServiceAction) -> Result<AgentServiceStatus
             AgentServiceAction::Stop => manager
                 .execute(ServiceManagerCommand::Stop { service_name })
                 .map_err(|error| error.to_string())?,
-            AgentServiceAction::Uninstall => manager
-                .execute(ServiceManagerCommand::Uninstall { service_name })
-                .map_err(|error| error.to_string())?,
+            AgentServiceAction::Uninstall => {
+                windows_service::uninstall(&expected_local_agent_binary()?)?;
+                manager
+                    .execute(ServiceManagerCommand::Status { service_name })
+                    .map_err(|error| error.to_string())?
+            }
         }
     };
     Ok(report_status(report))
@@ -1427,34 +1454,6 @@ fn installing_user() -> Result<String, String> {
     }
     #[cfg(not(target_os = "windows"))]
     Ok(user)
-}
-
-#[cfg(target_os = "windows")]
-fn prompt_windows_service_password() -> Result<String, String> {
-    let script = r#"
-[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
-$name = "$env:USERDOMAIN\$env:USERNAME"
-$credential = Get-Credential -UserName $name -Message 'Enter your Windows password for the MSC 2 agent service'
-if ($null -eq $credential -or $credential.UserName -ine $name) { exit 2 }
-$pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($credential.Password)
-try { [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer) | ConvertTo-Json -Compress }
-finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer) }
-"#;
-    let output = std::process::Command::new("powershell.exe")
-        .args(["-NoProfile", "-Command", script])
-        .output()
-        .map_err(|error| {
-            format!("Could not open the Windows service credential prompt: {error}")
-        })?;
-    if !output.status.success() {
-        return Err("The Windows service credential prompt was cancelled or failed.".into());
-    }
-    let password: String = serde_json::from_slice(&output.stdout)
-        .map_err(|_| "The Windows service credential prompt returned invalid data.".to_string())?;
-    if password.is_empty() {
-        return Err("The Windows service password cannot be empty.".into());
-    }
-    Ok(password)
 }
 
 fn report_status(report: ServiceStatusReport) -> AgentServiceStatus {

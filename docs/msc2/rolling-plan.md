@@ -431,3 +431,14 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Commit:** `P12.213: sync sidebar world gameplay settings`
 
 **Manual acceptance:** On Bedrock and Java servers, confirm the sidebar and active slot's World Settings show the same difficulty and default game mode. Change each value from either surface and confirm the other reflects it. Check Creative confirmation behavior on Bedrock and Java; confirm Paper, Fabric, Forge, and NeoForge share the Java behavior. No tests added or run.
+
+### P12.214 — Keep latest Java selection stable through server creation
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`, this plan.
+**What:** Pin the resolved latest Java version when the wizard first asks which runtime to use. This keeps the selected Java runtime associated with the same release through the World step and Create action, so the wizard doesn't ask twice. Changing the selected version or Java flavor still invalidates the selection.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.214 only.
+**Commit:** `P12.214: keep latest java selection through creation`
+
+**Manual acceptance:** Create a fresh Java server with Download latest selected. Choose Java at the first prompt; the final Create Server action should not prompt again. If you go back and change Minecraft version or Java flavor, the runtime picker should appear again before proceeding. No tests added or run.

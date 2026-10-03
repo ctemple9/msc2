@@ -282,6 +282,11 @@
     const entry = draft.versionId
       ? response.versions?.find((candidate) => candidate.id === draft.versionId)
       : (response.versions?.find((candidate) => candidate.isLatest) ?? response.versions?.[0]);
+    if (!packVersion && !draft.versionId && entry) {
+      // Keep the Java choice attached to the exact release whose Java
+      // requirement was shown. WorldStep and creation then use the same pin.
+      draft.versionId = entry.id;
+    }
     return entry?.mcVersion;
   }
 

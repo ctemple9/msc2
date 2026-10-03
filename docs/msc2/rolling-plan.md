@@ -1,5 +1,16 @@
 # MSC 2 — Rolling Plan
 
+### P16.36 — Publish v0.1.20 through the build-only release workflow
+
+**Status:** Prepared; publication and Cameron's artifact acceptance pending.
+**Files:** Agent/client/Tauri version manifests and lockfiles, source/static bundle identity and its existing assertion, README, `docs/msc2/release/v0.1.20.md`, this plan.
+**What:** Increment v0.1.19 to v0.1.20, synchronize locked release identity, and include the required Windows Tokio dependency correction in the Tauri lockfile. Publish current main through the existing release workflow only; preserve nine artifacts, checksums, and signed update metadata. Monitor until completion, inspect failures before any targeted retry, and keep the tag immutable. Cameron explicitly authorized publication and fixes for release failures. No CI/test workflows or test execution.
+**Verify:** `gh release view v0.1.20 --json tagName,isPrerelease,assets,url`
+**Batch:** P16.36 only.
+**Commit:** `P16.36: prepare v0.1.20 release`
+
+**Preparation:** Inspected the full release workflow and prior successful v0.1.19 run. Only release.yml is active. Signing-secret and public-key variable names are present. Locked Cargo metadata resolves for the agent and desktop manifests; version fields are synchronized. Publishing will run the existing four-platform build matrix; physical acceptance remains separate.
+
 ### P18.10y — Retry maps after an initially empty Bedrock world
 
 **Status:** Implemented; awaiting Cameron's verification.

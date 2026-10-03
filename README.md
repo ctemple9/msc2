@@ -17,7 +17,7 @@ everything first.
 
 ## Current release and support
 
-The next release is [MSC 2 v0.1.19](https://github.com/ctemple9/msc2/releases/tag/v0.1.19),
+The next release is [MSC 2 v0.1.20](https://github.com/ctemple9/msc2/releases/tag/v0.1.20),
 containing the redesigned agent home and integrated world map. Publication is
 requested; use the release page to confirm downloadable artifacts are available.
 The newest published build at preparation is [MSC 2 v0.1.18](https://github.com/ctemple9/msc2/releases/tag/v0.1.18),

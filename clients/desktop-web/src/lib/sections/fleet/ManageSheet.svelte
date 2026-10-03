@@ -123,16 +123,6 @@
   {@const isActive = server.id === status.activeServerId}
   <Card padding="0">
     <div class="server-row">
-      <div class="server-icon">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path
-            d="M4 6h16v4H4zM4 14h16v4H4z"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </div>
       <div class="server-info">
         <div class="server-title">
           <span class="server-name">{server.name || '(no name)'}</span>
@@ -318,17 +308,6 @@
     align-items: center;
     gap: 10px;
     padding: 11px 14px;
-  }
-  .server-icon {
-    width: 32px;
-    height: 32px;
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 8px;
-    background: var(--msc2-neutral-elevated);
-    color: rgba(255, 255, 255, 0.6);
   }
   .server-info {
     flex: 1;

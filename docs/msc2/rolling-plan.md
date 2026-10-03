@@ -354,3 +354,14 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Commit:** `P12.206: add optional chunker update checks`
 
 **Manual acceptance:** Rebuild/restart app and agent. Convert World preflight has plain conversion guidance without an orange rail. Check for updates displays latest/current status; lookup failure does not prevent conversion with the installed version. Choose Update Chunker if offered, observe acquisition progress, then confirm installed version/formats refresh. No converter update occurs from checking alone. Svelte check passed with zero errors and ten existing warnings; Rust formatting and production Clippy passed with the existing unused auth helper warning. No tests or live downloads run.
+
+### P12.207 — Remove decorative Manage Servers icons
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/sections/fleet/ManageSheet.svelte`, this plan.
+**What:** Remove the decorative server glyph and its boxed surface from each Manage Servers row, including unused styling. Server names and paths now begin at the existing row inset; preserve badges, activation and menu actions.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.207 only.
+**Commit:** `P12.207: remove decorative server row icons`
+
+**Manual acceptance:** Open Manage Servers: every row starts with the server name, without a left icon or reserved icon gap. No tests added or run.

@@ -1,5 +1,18 @@
 # MSC 2 — Rolling Plan
 
+### P12.237 — Make Xbox setup actionable after Playit readiness
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/sections/server-editor/FirstStartSheet.svelte`, this plan.
+**What:** Preserve Xbox setup's existing Playit-attempted unlock condition and additionally allow the displayed Playit Ready state to unlock it. If the agent already has a Microsoft sign-in prompt, use the button to reopen it instead of disabling the button. Label that action Sign in, and explain when Playit setup still blocks the action. Preserve the existing Broadcast launch/sign-in-before-pass-two sequence. This shared frontend change applies to all platforms; it does not remove any previously allowed setup action on macOS/Linux.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.237 only.
+**Commit:** `P12.237: unlock broadcast setup from playit readiness`
+
+**Evidence:** Cameron reports Set up stays completely unchanged on click. Inspection found two independent disabling conditions: a separate Playit attempted flag and any existing Broadcast prompt. These could leave setup disabled while the sheet showed Playit Ready or while sign-in was available. The live agent currently reports no running Broadcast/prompt and the active server has no Broadcast working directory; this does not establish which condition applied to the earlier click. Both disabled-action paths are corrected without claiming a reproduced Microsoft sign-in.
+**Checks:** Svelte check passed with zero errors and eleven existing warnings. No Rust changes or tests run.
+**Manual acceptance:** Rebuild the desktop frontend and initiate a Windows server with both helpers. After Playit becomes Ready, confirm Xbox Set up is enabled and changes to Starting on click. Confirm the Microsoft sign-in sheet appears, closing it offers Sign in/Show code again, and reopening does not start a second helper. Authentication should continue the existing pass-two/shutdown sequence. Physical acceptance remains pending.
+
 ### P12.236 — Recognize executable files on the real Windows filesystem
 
 **Status:** Implemented; awaiting Cameron's verification.

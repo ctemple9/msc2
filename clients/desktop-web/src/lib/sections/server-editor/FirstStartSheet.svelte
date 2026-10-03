@@ -93,7 +93,7 @@
   $: title = phase === 'complete' ? 'First Start' : `Initiate ${serverName || 'server'}`;
   $: allTransportsResolved = Object.values(transport).every((state) => state !== 'waiting');
   $: serverReady = /ready/i.test(statusLine);
-  $: broadcastUnlocked = !playitEnabled || playitAttempted;
+  $: broadcastUnlocked = !playitEnabled || playitAttempted || transport.playit === 'ready';
 
   function errorCodeFrom(caught: unknown): string {
     if (typeof caught === 'object' && caught !== null && 'error' in caught) {
@@ -382,6 +382,10 @@
   async function setupBroadcast(): Promise<void> {
     if (phase !== 'transport-setup') return;
     if (!broadcastUnlocked || broadcastStarting) return;
+    if (broadcastAuth?.isPresent) {
+      reopenBroadcastAuth();
+      return;
+    }
     setTransport('broadcast', 'waiting');
     broadcastStarting = true;
     error = '';
@@ -726,7 +730,10 @@
           {/if}
         </div>
         <div class="transport-row">
-          <div><strong>Xbox Broadcast</strong><span>Xbox discovery helper</span></div>
+          <div>
+            <strong>Xbox Broadcast</strong>
+            <span>{broadcastUnlocked ? 'Xbox discovery helper' : 'Finish Playit setup first'}</span>
+          </div>
           <StatusDot
             tone={transportTone(transport.broadcast)}
             label={transportLabel(transport.broadcast)}
@@ -735,13 +742,15 @@
             <Button
               variant="secondary"
               size="sm"
-              disabled={!broadcastUnlocked || broadcastStarting || broadcastAuth?.isPresent}
+              disabled={!broadcastUnlocked || broadcastStarting}
               onclick={() => void setupBroadcast}
               >{broadcastStarting
                 ? 'Starting…'
                 : transport.broadcast === 'failed'
                   ? 'Try again'
-                  : 'Set up'}</Button
+                  : broadcastAuth?.isPresent
+                    ? 'Sign in'
+                    : 'Set up'}</Button
             >
           {/if}
         </div>

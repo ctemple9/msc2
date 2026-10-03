@@ -34,7 +34,9 @@
   let coords = 'XYZ —';
   let flying = false;
   let topDown = false;
-  let netherDepth = 83;
+  let depthY = 83;
+  let depthMin = 2;
+  let depthMax = 126;
   let spawn: { x: number; y: number; z: number } | undefined;
   let message = '';
   let messageTimer: ReturnType<typeof setTimeout> | undefined;
@@ -166,6 +168,13 @@
       if (!alive || generation !== loadGeneration) return;
       viewer = opening;
       opening = undefined;
+      const range = viewer.sliceRange;
+      depthMin = Math.ceil(range.min + 2);
+      depthMax = Math.max(depthMin, Math.floor(range.max));
+      if (dimension === 'minecraft:the_nether') {
+        depthMax = Math.max(depthMin, Math.min(126, depthMax));
+      }
+      depthY = depthMax;
       playerLayer = new Layer({ scene: viewer.scene, camera: viewer.camera });
       applyPlayers();
       viewer.controls.addEventListener('start', () => {
@@ -251,12 +260,14 @@
     frameId = requestAnimationFrame(updateToolbar);
   }
 
-  function setNetherDepth(y: number): void {
+  function setDepth(y: number): void {
     if (!viewer) return;
     stopFollowing();
-    netherDepth = Math.max(2, Math.min(126, Math.round(y)));
-    viewer.setSlice(netherDepth);
-    viewer.controls.position.y = netherDepth;
+    // Surface-following would lift the focus back above the selected cave level.
+    holdFocusHeight();
+    depthY = Math.max(depthMin, Math.min(depthMax, Math.round(y)));
+    viewer.setSlice(depthY);
+    viewer.controls.position.y = depthY;
     viewer.invalidate();
   }
 
@@ -275,7 +286,7 @@
     viewer?.invalidate();
   }
 
-  function holdPlayerHeight(): void {
+  function holdFocusHeight(): void {
     if (!viewer || savedHeightAt !== undefined) return;
     savedHeightAt = viewer.controls.heightAt;
     viewer.controls.heightAt = null;
@@ -387,7 +398,7 @@
     };
     viewer.controls.setMode('map');
     if (follow) {
-      holdPlayerHeight();
+      holdFocusHeight();
       followedId = player.id;
       playerLayer.setFollowed(player.id);
       viewer.controls.setView(state);
@@ -519,6 +530,8 @@
     if (!viewer || !spawn) return;
     stopFollowing();
     leaveFly();
+    viewer.setSlice(null);
+    depthY = depthMax;
     viewer.controls.animateTo({
       position: viewer.controls.position.clone().set(spawn.x + 0.5, spawn.y, spawn.z + 0.5),
       distance: 140,
@@ -705,9 +718,9 @@
             // after the toolbar had already switched to 2D.
             const controls = viewer.controls;
             if (selectedDimension === 'minecraft:the_nether') {
-              setNetherDepth(controls.position.y > 120 ? 83 : controls.position.y);
+              setDepth(controls.position.y > 120 ? 83 : controls.position.y);
             } else {
-              viewer.setSlice(null);
+              setDepth(viewer.slice ?? depthMax);
             }
             controls.setView({
               position: controls.position.clone(),
@@ -738,18 +751,18 @@
         aria-pressed={flying}
         onclick={toggleFly}>Fly</button
       >
-      {#if selectedDimension === 'minecraft:the_nether' && topDown && !flying}
-        <label class="nether-depth">
+      {#if viewer && topDown && !flying}
+        <label class="map-depth">
           Depth Y
           <input
             type="range"
-            min="2"
-            max="126"
+            min={depthMin}
+            max={depthMax}
             step="1"
-            value={netherDepth}
-            oninput={(event) => setNetherDepth(Number(event.currentTarget.value))}
+            value={depthY}
+            oninput={(event) => setDepth(Number(event.currentTarget.value))}
           />
-          <output>{netherDepth}</output>
+          <output>{depthY}</output>
         </label>
       {/if}
       <output class="coordinates">{coords}</output>
@@ -1067,7 +1080,7 @@
     opacity: 0.45;
     cursor: default;
   }
-  .nether-depth {
+  .map-depth {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -1075,10 +1088,10 @@
     font-size: 11px;
     color: #c3cad1;
   }
-  .nether-depth input {
+  .map-depth input {
     width: 90px;
   }
-  .nether-depth output {
+  .map-depth output {
     min-width: 22px;
     font-variant-numeric: tabular-nums;
   }

@@ -596,3 +596,16 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Commit:** `P12.226: remove repeated startup failure explanations`
 
 **Manual acceptance:** Start Paper with the incompatible Geyser build. Confirm its explanation appears once, ends with one period, and the existing actions remain available. The same rendering applies to Floodgate findings.
+
+### P18.10w — Expose depth slicing in every 2D dimension
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Extend the existing Depth Y control to every dimension in 2D. Use the viewer's manifest-backed height range (including its supported lower slice limit), retaining the Nether's Y126 roof limit and Y83 default when entering from above the roof. Other dimensions enter at full height; lowering Y cuts away terrain above that level. Hold camera focus at the selected height so surface tracking cannot lift it out of the cave; changing depth stops Follow. 3D, Fly, player focus and Home restore unsliced terrain and normal height tracking. Preserve the existing control styling under the required `antiAIslop.md` design law. No tests added or run for this narrow use of the existing viewer slice API.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P18.10w only.
+**Commit:** `P18.10w: enable depth slicing in all 2d dimensions`
+
+**Checks:** Svelte check passed with zero errors and eleven existing warnings outside the map component. No Rust files changed, so Rust formatting/Clippy are not relevant to this step. No test suites or release workflows run.
+
+**Manual acceptance:** Reopen the map, select 2D in the Overworld and lower Depth Y below the surface, including negative Y. Confirm saved caves appear, panning/zooming retain the selected focus height, and 3D/Fly restore full terrain. Repeat in the End and a saved custom dimension; confirm each range follows its terrain manifest. Check Nether 2D still opens at Y83 from above the roof and stops at Y126. Follow a player, then change depth and confirm Follow stops. Home should restore the unsliced spawn view. Cave visibility depends on the saved geometry present in the map; this frontend change does not generate missing chunks.

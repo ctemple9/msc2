@@ -1,5 +1,19 @@
 # MSC 2 — Rolling Plan
 
+### P18.10x — Retry Bedrock map readiness while save preparation finishes
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `crates/msc-agent/src/backup_operations.rs`, this plan.
+**What:** Bound each live Bedrock `save query` confirmation wait to 500 ms within the existing ten-second overall budget. This lets the existing readiness loop query again after BDS initially reports that save preparation is incomplete. Preserve immediate readiness, same-run console boundaries, required readiness before map copying, and save-resume cleanup. Keep Java flush confirmation's full wait and leave platform runtimes, terrain exporters, and frontend rendering unchanged. The shared correction also applies to macOS/Linux Bedrock and live Bedrock backup readiness.
+**Verify:** `cargo clippy -p msc-agent --bin msc`
+**Batch:** P18.10x only.
+**Commit:** `P18.10x: retry live bedrock map save readiness`
+
+**Evidence:** The running Windows BDS console recorded Saving followed immediately by A previous save has not been completed at 17:23:48 and 17:26:44, followed by Changes to the world are resumed approximately ten seconds later. The production waiter previously spent the entire overall budget on the first query, preventing the existing retry loop from sending a second. The bundled BDS how-to explicitly requires repeated queries until preparation finishes. Java instead receives a completion response to `save-all flush`; it does not use Bedrock's query protocol. MSC 1's checkout is unavailable on this Windows machine; no source there was modified.
+**Checks:** Rust formatting, shipping-agent Clippy, and agent build passed with existing unrelated Windows warnings. `cargo check -p msc-agent --bin msc --tests` compiled the binary's unit-test target, including the new regression, but the overall command failed on existing `cli_service` integration-test references to removed CommonArgs fields base_url/host/port/token. Those unrelated tests remain unchanged. No tests were executed. Built agent copied to the desktop development/package resource directories with matching SHA256 hashes; the running service was not restarted or repaired.
+**Essential coverage:** One regression exercises the production wait loop with a simulated clock: first query not ready, a later query ready inside the overall budget, immediate readiness, a Java flush completing after the Bedrock query interval, and readiness never arriving before the overall timeout. Existing application fakes returned immediately and missed the production waiter exhausting the deadline. No real sleeps, server processes, files, ports, or network assumptions; expected runtime under one millisecond. Compiled only; execution remains Cameron's decision.
+**Manual acceptance:** Stop the running Minecraft server, apply desktop Settings → Repair to load the staged agent, then start Bedrock and open View Map while it is running. Confirm terrain appears and world saving resumes; refresh/reopen and check another saved dimension. Repeat the live map on macOS Bedrock and on a Java server. Actual Windows terrain rendering and macOS compatibility remain owner verification; build/compilation alone do not establish those results.
+
 ### P12.240 — Keep the initial Bedrock world in its original slot
 
 **Status:** Implemented; awaiting Cameron's verification.

@@ -539,7 +539,7 @@ pub(crate) fn snapshot_java_world(
 struct LiveBackupConsole {
     lifecycle: LifecycleRoutesState,
     deadline: Instant,
-    confirmation_boundary: Mutex<Option<BackupBoundary>>,
+    confirmation_boundary: Mutex<Option<(BackupBoundary, Duration)>>,
 }
 
 impl LiveBackupConsole {
@@ -554,6 +554,16 @@ impl LiveBackupConsole {
             confirmation_boundary: Mutex::new(None),
         }
     }
+
+    fn confirmation_budget(command: &str) -> Duration {
+        // BDS answers queries before save preparation finishes. Leave time
+        // for another query instead of spending the overall deadline on one.
+        if command == "save query" {
+            Duration::from_millis(500)
+        } else {
+            Self::BUDGET
+        }
+    }
 }
 
 impl BackupConsole for LiveBackupConsole {
@@ -565,35 +575,95 @@ impl BackupConsole for LiveBackupConsole {
         if matches!(command, "save-all flush" | "save hold" | "save query")
             || command == "save-off" && confirmation.is_none()
         {
-            *confirmation = Some(boundary);
+            *confirmation = Some((boundary, Self::confirmation_budget(command)));
         }
         true
     }
 
     fn wait_for_line(&self, matches: &dyn Fn(&str) -> bool) -> bool {
-        let Some(boundary) = self.confirmation_boundary.lock().unwrap().clone() else {
+        let Some((boundary, budget)) = self.confirmation_boundary.lock().unwrap().clone() else {
             return false;
         };
-        let start = Instant::now();
-        loop {
-            let Some(lines) = self.lifecycle.backup_lines_after(&boundary) else {
-                return false;
-            };
-            if lines.iter().any(|line| {
-                matches!(line.source.as_str(), "stdout" | "stderr" | "bedrock")
-                    && matches(&line.text)
-            }) {
-                return true;
-            }
-            if self.deadline_reached() || start.elapsed() >= Self::BUDGET {
-                return false;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(100));
-        }
+        wait_for_confirmation(
+            self.deadline,
+            budget,
+            || {
+                self.lifecycle.backup_lines_after(&boundary).map(|lines| {
+                    lines.iter().any(|line| {
+                        matches!(line.source.as_str(), "stdout" | "stderr" | "bedrock")
+                            && matches(&line.text)
+                    })
+                })
+            },
+            Instant::now,
+            std::thread::sleep,
+        )
     }
 
     fn deadline_reached(&self) -> bool {
         Instant::now() >= self.deadline
+    }
+}
+
+fn wait_for_confirmation(
+    overall_deadline: Instant,
+    budget: Duration,
+    mut observe: impl FnMut() -> Option<bool>,
+    mut now: impl FnMut() -> Instant,
+    mut pause: impl FnMut(Duration),
+) -> bool {
+    let deadline = overall_deadline.min(now() + budget);
+    loop {
+        match observe() {
+            Some(true) => return true,
+            None => return false,
+            Some(false) => {}
+        }
+        let remaining = deadline.saturating_duration_since(now());
+        if remaining.is_zero() {
+            return false;
+        }
+        pause(remaining.min(Duration::from_millis(100)));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::Cell;
+
+    #[test]
+    fn bedrock_queries_retry_before_deadline_without_shortening_java_flush() {
+        let start = Instant::now();
+        let clock = Cell::new(start);
+        let overall_deadline = start + LiveBackupConsole::BUDGET;
+        let ready_at = start + Duration::from_millis(750);
+        let wait = |command: &str, ready_at: Instant| {
+            wait_for_confirmation(
+                overall_deadline,
+                LiveBackupConsole::confirmation_budget(command),
+                || Some(clock.get() >= ready_at),
+                || clock.get(),
+                |duration| clock.set(clock.get() + duration),
+            )
+        };
+
+        // The first BDS response is not ready; a subsequent query can succeed
+        // inside the same overall deadline, including a fast macOS response.
+        assert!(!wait("save query", ready_at));
+        assert!(clock.get() < overall_deadline);
+        assert!(wait("save query", ready_at));
+        assert!(wait("save query", clock.get()));
+
+        clock.set(start);
+        assert!(wait("save-all flush", ready_at));
+
+        clock.set(start);
+        let never_ready = overall_deadline + Duration::from_secs(1);
+        while clock.get() < overall_deadline {
+            assert!(!wait("save query", never_ready));
+        }
+        assert_eq!(clock.get(), overall_deadline);
     }
 }
 

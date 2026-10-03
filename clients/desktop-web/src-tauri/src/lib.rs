@@ -329,19 +329,18 @@ async fn desktop_bootstrap_local() -> Result<DesktopPairingResult, String> {
     {
         return bootstrap_local_macos();
     }
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "windows"))]
     {
-        return bootstrap_local_linux().await;
+        return bootstrap_local_pairing().await;
     }
     #[allow(unreachable_code)]
     Err("Local desktop bootstrap is unavailable on this platform.".to_string())
 }
 
-// Linux uses the host-local recovery pairing command rather than claiming
-// the macOS signed-process bootstrap is available on Linux. The one-use code
-// and bearer stay inside this native backend throughout the exchange.
-#[cfg(target_os = "linux")]
-async fn bootstrap_local_linux() -> Result<DesktopPairingResult, String> {
+// Linux and Windows use host-local recovery pairing under the installing
+// account. The one-use code and bearer stay inside this native backend.
+#[cfg(any(target_os = "linux", target_os = "windows"))]
+async fn bootstrap_local_pairing() -> Result<DesktopPairingResult, String> {
     let store = desktop_secret_store()?;
     if let Some(host_id) = store
         .get(LOCAL_HOST_ID_KEY)
@@ -361,7 +360,13 @@ async fn bootstrap_local_linux() -> Result<DesktopPairingResult, String> {
     let binary = expected_local_agent_binary()?;
     let data_directory = agent_data_directory()?;
     let output = tauri::async_runtime::spawn_blocking(move || {
-        std::process::Command::new(binary)
+        let mut command = std::process::Command::new(binary);
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            command.creation_flags(0x0800_0000);
+        }
+        command
             .args([
                 "--json",
                 "pairing",
@@ -402,7 +407,7 @@ async fn bootstrap_local_linux() -> Result<DesktopPairingResult, String> {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 struct DesktopPairingBootstrapResult {
     pairing_code: String,
     agent_host_id: String,

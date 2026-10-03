@@ -619,6 +619,19 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Essential regression:** A service-registration failure previously included the password-bearing command arguments in its error. The new controlled regression supplies command arguments and fake stdout/stderr containing a password, then checks that the password is absent and the useful error remains. It performs no OS calls, uses no timing/environment assumptions and should run in under one millisecond. It protects secret disclosure rather than incidental error wording.
 **Manual acceptance:** Restart the development session. Choose Install, cancel UAC, and confirm the app reports cancellation and responds normally. Retry, approve UAC, cancel the native password dialog, and confirm the same. Retry with the installing account's Windows password (not its Hello PIN); confirm the agent reaches Running and connects. Stop/start the installed agent and confirm no further UAC or password prompt. Repair should use UAC and the credential dialog again. Check a failed credential/start attempt reports its error without disclosing the password. Live Windows acceptance and macOS/Linux physical checks remain Cameron's verification.
 
+### P12.229 — Authenticate the Windows desktop with its running local agent
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src-tauri/src/lib.rs`, this plan.
+**What:** Enable the existing host-local desktop pairing flow on Windows as well as Linux. The local bootstrap command previously returned unavailable on Windows even after successful service installation. Reuse the installing-account pairing CLI, redeem its one-use code through the loopback API, and store the resulting desktop credential in the native credential store. Preserve cached-credential probing and the agent identity check. Hide the Windows pairing subprocess console; codes and bearer tokens remain inside the native backend. No authentication bypass, agent-service change or tests added.
+**Verify:** From `clients/desktop-web`, run `npx tauri dev`; confirm the already running Windows agent connects without another installation or repair.
+**Batch:** P12.229 only.
+**Commit:** `P12.229: authenticate local windows desktop agent`
+
+**Diagnosis:** The installed Windows service was Running under Cameron's account and `/v1/healthz` returned HTTP 204. The desktop bootstrap had only macOS/Linux branches and returned unavailable on Windows; the setup screen replaced that failure with its generic reach/authenticate message.
+**Checks:** Desktop Rust formatting and ordinary Clippy passed, with the same three existing Windows/infrastructure warnings recorded in P12.228. No tests or pairing commands were run by the agent.
+**Manual acceptance:** Restart the desktop development session and confirm the existing running local agent connects. Restart again to confirm the stored credential is reused. If Repair is subsequently used, confirm its automatic connection retry also authenticates. Live pairing/credential verification remains Cameron's check; no tests were run.
+
 ### P18.10w — Expose depth slicing in every 2D dimension
 
 **Status:** Implemented; awaiting Cameron's verification.

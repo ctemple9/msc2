@@ -526,3 +526,12 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Verify:** `npm --prefix clients/desktop-web run check`
 **Batch:** P12.220 only.
 **Commit:** `P12.220: remove tailscale from first-run setup`
+
+### P12.221 — Correct managed helper updates and startup recovery
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `crates/msc-application/src/geyser.rs`, `crates/msc-application/tests/geyser.rs`, desktop Components, App, FirstStartSheet, StartupFailurePanel, StartupFailureSheet, this plan.
+**What:** Compare installed helper checksums against official releases; preserve disabled paths on update; restrict managed helper menus to plugins. Restart running servers during startup recovery, label plugin failures accurately, retain helper diagnosis, use official updates for helper repair, and surface soft helper failures after first-start completion. Add one essential controlled regression for disabled Floodgate replacement followed by a current suffixed snapshot: protects repeated-download and accidental-enable failures absent from existing coverage. Uses a fake provider and unique temporary directory, no network/timing assumptions; expected runtime under one second. Tests added but not run.
+**Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-application -- -D warnings && cargo check -p msc-application --test geyser && npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run build`
+**Batch:** P12.221 only.
+**Commit:** `P12.221: correct managed helper updates and startup recovery`

@@ -7,6 +7,7 @@
 
   export let api: ScreenApi | undefined = undefined;
   export let serverName = 'Server';
+  export let serverRunning = false;
   export let operationKind: 'initiate' | 'start' = 'start';
   export let errorCode = '';
   export let failureMessage = '';
@@ -28,7 +29,9 @@
     if (!api) return;
     try {
       const response = await api.get<Schema['HealthProblemsResponseDTO']>('/v1/health/problems');
-      currentProblems = response.problems;
+      currentProblems = errorCode === 'geyser_plugin_failed'
+        ? response.problems.filter((problem) => /geyser|floodgate/i.test(problem.offenderName))
+        : response.problems;
     } catch {
       // The operation error remains useful when the health route is briefly
       // unavailable, and the console stays available below the diagnosis.
@@ -110,6 +113,12 @@
     repairProblemId = problem.id;
     repairNotice = '';
     try {
+      if (action === 'update' && /^(geyser(?:-spigot)?|floodgate)$/i.test(problem.offenderName)) {
+        const component = problem.offenderName.toLowerCase().startsWith('geyser') ? 'geyser' : 'floodgate';
+        const result = await mutate<Schema['ComponentUpdateResultDTO']>(api, '/v1/components/update', { component });
+        repairNotice = result.message;
+        return;
+      }
       const result = await mutate<Schema['HealthRepairResultDTO']>(api, '/v1/health/repair', {
         problemId: problem.id,
         action,
@@ -150,7 +159,7 @@
   {#if currentProblems.length}
     <section class="findings" aria-label="Startup findings">
       <p class="section-label">
-        {currentProblems.length === 1 ? 'What stopped the server' : 'What stopped the server'}
+        {errorCode === 'geyser_plugin_failed' ? 'Plugin load failure' : 'What stopped the server'}
       </p>
       {#each currentProblems as problem (problem.id)}
         <div class="finding">
@@ -201,7 +210,7 @@
       disabled={retrying || repairProblemId !== ''}
       onclick={() => void retry()}
     >
-      {retrying ? 'Retrying…' : `Retry ${operationKind}`}
+      {retrying ? 'Retrying…' : serverRunning ? 'Restart server' : `Retry ${operationKind}`}
     </Button>
   </div>
 </div>

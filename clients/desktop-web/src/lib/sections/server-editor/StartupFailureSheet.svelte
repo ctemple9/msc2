@@ -5,6 +5,7 @@
 
   export let api: ScreenApi | undefined = undefined;
   export let serverName = 'Server';
+  export let serverRunning = false;
   export let operationKind: 'initiate' | 'start' = 'start';
   export let errorCode = '';
   export let failureMessage = '';
@@ -23,12 +24,10 @@
     {api}
     {serverName}
     {operationKind}
+    {serverRunning}
     {errorCode}
     {failureMessage}
     {problems}
-    onRetry={async () => {
-      await onRetry();
-      onClose();
-    }}
+    {onRetry}
   />
 </Sheet>

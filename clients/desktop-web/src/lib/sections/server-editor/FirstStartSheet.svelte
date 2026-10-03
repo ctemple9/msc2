@@ -3,6 +3,7 @@
   // the existing routes and renders their truth; credentials stay inside
   // PlayitSetupSheet and never enter this coordinator's state.
   import { onDestroy, onMount } from 'svelte';
+  import { waitForRunningState } from '../../lifecycle/serverLifecycle';
   import Sheet from '../../components/base/Sheet.svelte';
   import Button from '../../components/base/Button.svelte';
   import StatusDot from '../../components/base/StatusDot.svelte';
@@ -49,6 +50,7 @@
   let statusLine = '';
   let error = '';
   let failureCode = '';
+  let serverRunning = false;
   let failureMessage = '';
   let failureProblems: Schema['StartupProblemDTO'][] = [];
   let showPlayitSetup = false;
@@ -519,12 +521,37 @@
     if (api && playitEnabled) await refreshPlayit();
     if (api && broadcastEnabled) await refreshBroadcast();
     await refreshConnectivity();
+    if (api && serverType === 'java') {
+      try {
+        const diagnosis = await api.get<Schema['HealthProblemsResponseDTO']>('/v1/health/problems');
+        const helpers = diagnosis.problems.filter((problem) => /geyser|floodgate/i.test(problem.offenderName));
+        if (diagnosis.isSoftFail && helpers.length) {
+          const status = await api.get<Schema['RemoteAPIStatus']>('/v1/status');
+          serverRunning = status.running;
+          failureCode = 'geyser_plugin_failed';
+          failureMessage = `${helpers[0].offenderName} did not load.`;
+          failureProblems = helpers;
+          phase = 'failed';
+          return;
+        }
+      } catch {
+        // First-start completion remains available if diagnosis is unreachable.
+      }
+    }
     phase = 'complete';
     statusLine = 'First-start setup is complete.';
     onComplete();
   }
 
-  function retryAfterFailure(): void {
+  async function retryAfterFailure(): Promise<void> {
+    if (api && serverRunning) {
+      await mutate<Schema['SimpleResult']>(api, fleetMutationPaths.stop);
+      const status = await waitForRunningState(
+        () => api!.get<Schema['RemoteAPIStatus']>('/v1/status'), false,
+      );
+      if (status.running) throw new Error('The server is still stopping. Try again when it has stopped.');
+      serverRunning = false;
+    }
     error = '';
     failureCode = '';
     failureMessage = '';
@@ -740,6 +767,7 @@
         {api}
         {serverName}
         operationKind="initiate"
+        {serverRunning}
         errorCode={failureCode}
         failureMessage={failureMessage || error}
         problems={failureProblems}

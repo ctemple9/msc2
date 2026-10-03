@@ -371,6 +371,7 @@
   }
 
   function managedHelper(addon: Schema['AddonItemDTO']): 'geyser' | 'floodgate' | undefined {
+    if (kind !== 'plugin') return undefined;
     const stem = addon.jarStem.toLowerCase();
     if (stem.includes('floodgate')) return 'floodgate';
     if (stem.includes('geyser')) return 'geyser';

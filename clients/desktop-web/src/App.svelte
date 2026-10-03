@@ -772,7 +772,8 @@
 
   async function retryStartup(): Promise<void> {
     startupFailure = undefined;
-    await lifecycle('start');
+    if (status.running) await lifecycle('stop');
+    if (!status.running) await lifecycle('start');
   }
 
   function openInitiation(): void {
@@ -1122,6 +1123,7 @@
     api={screenApi}
     serverName={startupFailure.serverName}
     operationKind="start"
+    serverRunning={status.running}
     errorCode={startupFailure.errorCode}
     failureMessage={startupFailure.message}
     problems={startupFailure.problems ?? []}

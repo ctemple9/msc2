@@ -219,3 +219,58 @@ fn reads_geyser_build_from_matching_cache_metadata() {
 
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn disabled_floodgate_updates_once_and_identical_snapshot_is_current() {
+    let dir = server_dir();
+    let enabled = dir.join("plugins/floodgate-spigot.jar");
+    let disabled = dir.join("plugins/floodgate-spigot.jar.disabled");
+    fs::rename(&enabled, &disabled).unwrap();
+    let mut bytes = Cursor::new(Vec::new());
+    {
+        let mut archive = ZipWriter::new(&mut bytes);
+        archive
+            .start_file("plugin.yml", SimpleFileOptions::default())
+            .unwrap();
+        archive
+            .write_all(b"name: floodgate\nversion: 2.2.5-SNAPSHOT (b141-81b65cc)\n")
+            .unwrap();
+        archive.finish().unwrap();
+    }
+    let bytes = bytes.into_inner();
+    let transport =
+        FakeTransport::for_project(GeyserProject::Floodgate, "2.2.5-SNAPSHOT", 141, &bytes);
+    let cache = dir.join("helper-cache");
+    let first = geyser::update_latest_if_needed(
+        &StdFileSystem,
+        &transport,
+        &cache,
+        &dir,
+        GeyserProject::Floodgate,
+        HelperPlatform::LinuxX86_64,
+    )
+    .unwrap();
+    assert!(matches!(first, geyser::ManagedPluginUpdate::Updated(_)));
+    assert!(!enabled.exists());
+    assert_eq!(fs::read(&disabled).unwrap(), bytes);
+    // No download response remains: a current artifact needs only metadata.
+    transport
+        .responses
+        .lock()
+        .unwrap()
+        .retain(|url, _| url == &latest_build_url(GeyserProject::Floodgate));
+    let second = geyser::update_latest_if_needed(
+        &StdFileSystem,
+        &transport,
+        &cache,
+        &dir,
+        GeyserProject::Floodgate,
+        HelperPlatform::LinuxX86_64,
+    )
+    .unwrap();
+    assert!(matches!(
+        second,
+        geyser::ManagedPluginUpdate::UpToDate { .. }
+    ));
+    fs::remove_dir_all(dir).unwrap();
+}

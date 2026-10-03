@@ -102,8 +102,32 @@
     }
   }
 
+  let checkingUpdate = false;
+  let latestChunkerVersion = '';
+  let updateError = '';
+  const normalizedVersion = (version: string) => version.replace(/^v/i, '').trim();
+  $: chunkerIsCurrent = formatsState.kind === 'ready' && !!formatsState.version &&
+    normalizedVersion(formatsState.version) === normalizedVersion(latestChunkerVersion);
+
+  async function checkChunkerUpdate(): Promise<void> {
+    if (!api || checkingUpdate) return;
+    checkingUpdate = true;
+    updateError = '';
+    latestChunkerVersion = '';
+    try {
+      const response = await api.get<{ latestVersion: string }>(worldPaths.chunkerDownload);
+      latestChunkerVersion = response.latestVersion;
+    } catch (error) {
+      updateError = error instanceof Error ? error.message : 'Could not check for Chunker updates.';
+    } finally {
+      checkingUpdate = false;
+    }
+  }
+
   async function downloadChunker(): Promise<void> {
     if (!api) return;
+    const previous = formatsState;
+    updateError = '';
     formatsState = { kind: 'downloading', statusLine: 'Starting Chunker download…' };
     try {
       const result = await mutate<Schema['WorldChunkerDownloadResultDTO']>(
@@ -119,16 +143,20 @@
       if (operation?.state === 'succeeded') {
         await loadFormats();
       } else {
-        formatsState = {
-          kind: 'unavailable',
-          message: operation?.error?.message ?? 'Chunker download did not complete.',
-        };
+        if (previous.kind === 'ready') {
+          formatsState = previous;
+          updateError = operation?.error?.message ?? 'Chunker update did not complete.';
+        } else {
+          formatsState = { kind: 'unavailable', message: operation?.error?.message ?? 'Chunker download did not complete.' };
+        }
       }
     } catch (error) {
-      formatsState = {
-        kind: 'needs-download',
-        message: error instanceof Error ? error.message : 'Failed to download Chunker.',
-      };
+      if (previous.kind === 'ready') {
+        formatsState = previous;
+        updateError = error instanceof Error ? error.message : 'Failed to update Chunker.';
+      } else {
+        formatsState = { kind: 'needs-download', message: error instanceof Error ? error.message : 'Failed to download Chunker.' };
+      }
     }
   }
 
@@ -239,6 +267,22 @@
           <p class="msc2-type-overline">Installing Chunker</p>
           <p class="status-line">{formatsState.statusLine}</p>
           <p class="explain">Keep this window open while the official CLI is downloaded.</p>
+        </div>
+      {/if}
+      {#if formatsState.kind === 'ready'}
+        <div class="chunker-updates">
+          <Button variant="secondary" disabled={checkingUpdate} onclick={() => void checkChunkerUpdate()}>{checkingUpdate ? 'Checking…' : 'Check for Chunker updates'}</Button>
+          {#if latestChunkerVersion}
+            <p class="explain" role="status">
+              {#if chunkerIsCurrent}Chunker is up to date ({latestChunkerVersion}).
+              {:else if !formatsState.version}Latest release: {latestChunkerVersion}. The installed version is unknown.
+              {:else}Chunker {latestChunkerVersion} is available.{/if}
+            </p>
+            {#if !chunkerIsCurrent}
+              <Button variant="secondary" onclick={() => void downloadChunker()}>Update Chunker</Button>
+            {/if}
+          {/if}
+          {#if updateError}<p class="explain" role="alert">{updateError}</p>{/if}
         </div>
       {/if}
       <p class="disclaimer">
@@ -430,7 +474,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 12px;
+    padding: 0;
     background: var(--msc2-tier-chrome);
     border: 1px solid transparent;
     border-radius: 8px;
@@ -516,12 +560,14 @@
   .chunker-panel .explain {
     margin: 0;
   }
+  .chunker-updates { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+  .chunker-updates .explain { margin: 0; }
   .disclaimer {
     margin: 0;
     padding: 10px 12px;
     font-size: 11px;
     line-height: 1.5;
     color: var(--msc2-text-secondary);
-    border-left: 2px solid var(--msc2-status-warn);
+
   }
 </style>

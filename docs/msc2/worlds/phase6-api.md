@@ -152,3 +152,7 @@ P6.21 (real route wiring) surfaced two shapes this note had gotten wrong, both f
 - **Route/operation counts.** §3's table and count sentence, and §7's row-count sentence, are updated in place to include this route (twelve routes/thirteen operations, 106 total) — the same "update §3 in place, record the reasoning in a dated addendum" pattern §9 already established. `tools/api-contract-check.py`'s `EXPECTED_TOTAL` constant itself is not part of this step's Files list or Verify command and so is **not yet updated** — flagged in the P6.34 report as an immediate follow-up.
 
 Both corrections are implemented in the same commit that updates this note; see that commit and `rolling-plan.md`'s P6.20/P6.21 entries for the full account.
+
+### Chunker release check (P12.206)
+
+`GET /v1/worlds/convert/chunker` requires Worlds permission and returns `{ "latestVersion": "<official release tag>" }`. It reads HiveGamesOSS/Chunker's latest release metadata and validates that a supported official JAR asset exists. It does not download or modify Chunker. Failed release lookup returns `chunker_check_failed`; the installed converter remains usable. The existing POST on this path downloads the latest release only after the user chooses installation/update. Installed version and formats remain available through `/v1/worlds/convert/formats`.

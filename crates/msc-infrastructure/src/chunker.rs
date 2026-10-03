@@ -107,44 +107,8 @@ pub fn download_latest(
     progress: &mut dyn FnMut(&str),
 ) -> Result<AcquiredChunker, ChunkerError> {
     progress("Fetching the latest Chunker release…");
-    let metadata_bytes = transport
-        .get(
-            RELEASE_METADATA_URL,
-            "Chunker release metadata",
-            2 * 1024 * 1024,
-        )
-        .map_err(ChunkerError::Network)?;
-    let release: ReleaseMetadata = serde_json::from_slice(&metadata_bytes).map_err(|error| {
-        ChunkerError::InvalidRelease(format!("invalid release metadata: {error}"))
-    })?;
-    if release.tag_name.trim().is_empty() || release.tag_name.contains('/') {
-        return Err(ChunkerError::InvalidRelease(
-            "release has no safe version tag".to_string(),
-        ));
-    }
-    let asset = release
-        .assets
-        .iter()
-        .find(|asset| {
-            let name = asset.name.to_ascii_lowercase();
-            name.ends_with(".jar") && name.contains("cli")
-        })
-        .or_else(|| {
-            release
-                .assets
-                .iter()
-                .find(|asset| asset.name.to_ascii_lowercase().ends_with(".jar"))
-        })
-        .ok_or_else(|| ChunkerError::InvalidRelease("release contains no JAR asset".to_string()))?;
-    if !is_safe_asset_name(&asset.name)
-        || !asset
-            .browser_download_url
-            .starts_with(RELEASE_DOWNLOAD_PREFIX)
-    {
-        return Err(ChunkerError::InvalidRelease(
-            "release asset is not an official Chunker GitHub download".to_string(),
-        ));
-    }
+    let release = latest_release(transport)?;
+    let asset = jar_asset(&release)?;
 
     progress(&format!("Downloading Chunker {}…", release.tag_name));
     let bytes = transport
@@ -182,7 +146,7 @@ pub fn download_latest(
         .map_err(|error| ChunkerError::Filesystem(format!("create cache directory: {error}")))?;
     let staged_jar = jar.with_file_name(".chunker-cli.jar.download");
     let metadata = ChunkerMetadata {
-        version: release.tag_name,
+        version: release.tag_name.clone(),
         asset_name: asset.name.clone(),
         asset_url: asset.browser_download_url.clone(),
         sha256,
@@ -273,4 +237,58 @@ fn validate_jar(bytes: &[u8]) -> Result<(), ChunkerError> {
 
 fn cleanup(fs: &dyn FileSystem, path: &Path) {
     let _ = fs.remove(path);
+}
+
+/// Read official release metadata without downloading or replacing the installed JAR.
+pub fn latest_version(transport: &dyn Transport) -> Result<String, ChunkerError> {
+    let release = latest_release(transport)?;
+    jar_asset(&release)?;
+    Ok(release.tag_name)
+}
+
+fn latest_release(transport: &dyn Transport) -> Result<ReleaseMetadata, ChunkerError> {
+    let metadata_bytes = transport
+        .get(
+            RELEASE_METADATA_URL,
+            "Chunker release metadata",
+            2 * 1024 * 1024,
+        )
+        .map_err(ChunkerError::Network)?;
+    let release: ReleaseMetadata = serde_json::from_slice(&metadata_bytes).map_err(|error| {
+        ChunkerError::InvalidRelease(format!("invalid release metadata: {error}"))
+    })?;
+    if release.tag_name.trim().is_empty() || release.tag_name.contains('/') {
+        return Err(ChunkerError::InvalidRelease(
+            "release has no safe version tag".to_string(),
+        ));
+    }
+    Ok(release)
+}
+
+fn jar_asset(release: &ReleaseMetadata) -> Result<&ReleaseAsset, ChunkerError> {
+    let asset = release
+        .assets
+        .iter()
+        .find(|asset| {
+            let name = asset.name.to_ascii_lowercase();
+            name.ends_with(".jar") && name.contains("cli")
+        })
+        .or_else(|| {
+            release
+                .assets
+                .iter()
+                .find(|asset| asset.name.to_ascii_lowercase().ends_with(".jar"))
+        })
+        .ok_or_else(|| ChunkerError::InvalidRelease("release contains no JAR asset".to_string()))?;
+    if !is_safe_asset_name(&asset.name)
+        || !asset
+            .browser_download_url
+            .starts_with(RELEASE_DOWNLOAD_PREFIX)
+    {
+        return Err(ChunkerError::InvalidRelease(
+            "release asset is not an official Chunker GitHub download".to_string(),
+        ));
+    }
+
+    Ok(asset)
 }

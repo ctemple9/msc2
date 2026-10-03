@@ -343,3 +343,14 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Commit:** `P12.205: match datapack actions to components menus`
 
 **Manual acceptance:** Click a datapack row: the popup must look like Components with View and Uninstall. View opens its in-app catalog page where available. Uninstall shows inline confirmation; Cancel preserves the pack, confirmed Uninstall removes it. Clicking away or Escape closes the popup. Svelte check passed with zero errors and ten existing warnings; no tests added or run.
+
+### P12.206 — Check Chunker updates and quiet conversion guidance
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldConversionWizard.svelte`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-infrastructure/src/chunker.rs`, `docs/msc2/worlds/phase6-api.md`, this plan.
+**What:** Remove the orange side rail and inset from conversion guidance. Add an explicit Check for Chunker updates action on preflight when installed. Report the official latest release, up-to-date status, or lookup failure; offer Update Chunker when the release differs or installed provenance is unknown. Share official release/JAR selection validation between metadata lookup and acquisition. New permission-checked/audited GET reads metadata only on a blocking worker. Updating remains user-selected via existing operation/progress/download validation; reload supported formats and installed version on success. Preserve ready conversion controls if an update attempt fails. No automatic update, tests, or release workflow changes.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.206 only.
+**Commit:** `P12.206: add optional chunker update checks`
+
+**Manual acceptance:** Rebuild/restart app and agent. Convert World preflight has plain conversion guidance without an orange rail. Check for updates displays latest/current status; lookup failure does not prevent conversion with the installed version. Choose Update Chunker if offered, observe acquisition progress, then confirm installed version/formats refresh. No converter update occurs from checking alone. Svelte check passed with zero errors and ten existing warnings; Rust formatting and production Clippy passed with the existing unused auth helper warning. No tests or live downloads run.

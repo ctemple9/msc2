@@ -155,7 +155,10 @@ pub fn router(state: WorldsRoutesState) -> Router {
             post(install_bedrock_behavior_pack),
         )
         .route("/worlds/convert/formats", get(convert_formats))
-        .route("/worlds/convert/chunker", post(download_chunker))
+        .route(
+            "/worlds/convert/chunker",
+            get(check_chunker_update).post(download_chunker),
+        )
         .route("/worlds/convert", post(convert))
         .route(
             "/worlds/:slot_id/thumbnail",
@@ -196,6 +199,40 @@ pub async fn convert_formats(
         &credential,
         "GET",
         "/v1/worlds/convert/formats",
+        response.status(),
+    );
+    response
+}
+
+pub async fn check_chunker_update(
+    State(state): State<WorldsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
+        return response;
+    }
+    let result = tokio::task::spawn_blocking(|| {
+        msc_infrastructure::chunker::latest_version(&HttpTransport::new())
+    })
+    .await;
+    let response = match result {
+        Ok(Ok(version)) => Json(serde_json::json!({ "latestVersion": version })).into_response(),
+        Ok(Err(error)) => error_response(
+            StatusCode::BAD_GATEWAY,
+            "chunker_check_failed",
+            &error.to_string(),
+        ),
+        Err(error) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "chunker_check_failed",
+            &error.to_string(),
+        ),
+    };
+    audit(
+        &state.lifecycle,
+        &credential,
+        "GET",
+        "/v1/worlds/convert/chunker",
         response.status(),
     );
     response

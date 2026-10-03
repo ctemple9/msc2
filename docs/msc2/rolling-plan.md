@@ -277,3 +277,15 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Agent checks:** Rust formatting; Clippy for the affected libraries, archive/activation test targets, and production agent (one existing unused `auth::forbidden` warning); Svelte static check (zero errors, ten existing warnings). No tests or live world mutations run.
 
 **Manual acceptance:** Rebuild/restart the development app and agent. Activate a sizable saved world while the server is stopped; verify the checking/backup/save/extraction stages and real byte bar, followed by success. During a long stage, observe elapsed time and last-progress age. A status read/connection failure must show retrying and last-agent-contact age, then resume tracking the same operation after recovery. Switching tabs retains tracking; switching host/server or destroying the view must stop its timer/polling and prevent late old-operation notices. Percentages describe the current named stage and can reset at the next stage; periods with no countable byte work show the stage/time rather than a simulated percentage. Progress age reveals inactivity but does not by itself prove a stall.
+
+
+### P12.201 — Open Modrinth project links in the default browser
+
+**Status:** Implemented; awaiting Cameron's verification. Cameron reported that View on Modrinth does nothing in the Paper datapack project sheet.
+**Files:** `clients/desktop-web/src/lib/sections/components/ProjectDetailSheet.svelte`, this plan.
+**What:** Route the shared Modrinth project sheet's external anchors through the existing platform `openExternal` function, which invokes Tauri's validated OS browser opener. Ordinary `target="_blank"` anchors did not invoke that desktop command. Apply the same handling to About-description links and Source/Issues/Wiki/Discord anchors in this sheet. Preserve link destinations and styling; show browser-opening errors inline instead of silently failing. The shared sheet covers datapacks, mods and plugins. No native code, URL policy, API contract or release workflow changes; no new tests needed for this small wiring correction and no tests run.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.201 only.
+**Commit:** `P12.201: open project detail links in the default browser`
+
+**Manual acceptance:** In the Paper world's datapack browser, open Terratonic and click View on Modrinth; confirm the default browser opens the project page. Check the About wiki link and a project's Source/Issues/Wiki links through the same shared sheet. The existing desktop opener reports failed/unsupported URL launches inline. Similar plain anchors in the separate CurseForge Bedrock pack sheet are outside this step.

@@ -6,6 +6,7 @@
   // (GET /v1/catalog/projects/:id[/versions]) and the CatalogInstallRequestDTO
   // .versionId field; P12.7/P12.7a left this page undone since neither existed.
   import { onMount } from 'svelte';
+  import { openExternal } from '../../platform';
   import Sheet from '../../components/base/Sheet.svelte';
   import Button from '../../components/base/Button.svelte';
   import Badge from '../../components/base/Badge.svelte';
@@ -53,6 +54,7 @@
   let installedVersionIds: Set<string> = new Set();
   let expandedVersionIds: Set<string> = new Set();
   let notice = '';
+  let linkError: string | undefined;
 
   $: serverLoaders = new Set(modrinthLoaderFacets(javaFlavor));
   $: loaderFilter = expandedLoaders(javaFlavor, modrinthLoaderFacets(javaFlavor));
@@ -66,6 +68,18 @@
   $: modrinthURL = item.projectType
     ? `https://modrinth.com/${item.projectType}/${modrinthSlug}`
     : `https://modrinth.com/project/${modrinthSlug}`;
+
+  async function openProjectLink(event: MouseEvent): Promise<void> {
+    // Tauri links must use the OS browser opener rather than a new webview.
+    event.preventDefault();
+    const url = (event.currentTarget as HTMLAnchorElement).href;
+    linkError = undefined;
+    try {
+      await openExternal(url);
+    } catch (error) {
+      linkError = error instanceof Error ? error.message : 'Could not open this link in your browser.';
+    }
+  }
 
   onMount(async () => {
     if (!api) {
@@ -179,10 +193,11 @@
     </div>
   </div>
 
-  <a class="modrinth-link" href={modrinthURL} target="_blank" rel="noopener noreferrer">
+  <a class="modrinth-link" href={modrinthURL} onclick={openProjectLink} target="_blank" rel="noopener noreferrer">
     View on Modrinth
   </a>
 
+  {#if linkError}<p class="explain warn" role="alert">{linkError}</p>{/if}
   {#if notice}<p class="notice" role="status">{notice}</p>{/if}
 
   {#if loading}
@@ -223,7 +238,7 @@
               {#if segment.type === 'bold'}<strong>{segment.text}</strong
                 >{:else if segment.type === 'link'}<a
                   href={segment.href}
-                  target="_blank"
+                  onclick={openProjectLink} target="_blank"
                   rel="noopener noreferrer">{segment.text}</a
                 >{:else}{segment.text}{/if}
             {/each}
@@ -336,18 +351,18 @@
 
     {#if project && (project.sourceURL || project.issuesURL || project.wikiURL || project.discordURL)}
       <div class="section links">
-        {#if project.sourceURL}<a href={project.sourceURL} target="_blank" rel="noopener noreferrer"
+        {#if project.sourceURL}<a href={project.sourceURL} onclick={openProjectLink} target="_blank" rel="noopener noreferrer"
             >Source</a
           >{/if}
-        {#if project.issuesURL}<a href={project.issuesURL} target="_blank" rel="noopener noreferrer"
+        {#if project.issuesURL}<a href={project.issuesURL} onclick={openProjectLink} target="_blank" rel="noopener noreferrer"
             >Issues</a
           >{/if}
-        {#if project.wikiURL}<a href={project.wikiURL} target="_blank" rel="noopener noreferrer"
+        {#if project.wikiURL}<a href={project.wikiURL} onclick={openProjectLink} target="_blank" rel="noopener noreferrer"
             >Wiki</a
           >{/if}
         {#if project.discordURL}<a
             href={project.discordURL}
-            target="_blank"
+            onclick={openProjectLink} target="_blank"
             rel="noopener noreferrer">Discord</a
           >{/if}
       </div>

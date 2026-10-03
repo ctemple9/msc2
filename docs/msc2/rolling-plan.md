@@ -1,5 +1,18 @@
 # MSC 2 — Rolling Plan
 
+### P12.243 — Align Fedora development Repair with staged agent bundles
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `crates/msc-platform-linux/src/service.rs`, this plan.
+**What:** Make the elevated Linux helper verify the same agent, Vantage renderer, and Bedrock map exporter digest that the desktop uses for a staged development build. Copy all three verified executables into the root-owned system build directory so the repaired agent can find its map tools beside itself. Packaged agent installs retain their existing system-package path; Windows and macOS service paths are unchanged.
+**Verify:** `cargo clippy -p msc-agent --bin msc`
+**Batch:** P12.243 only.
+**Commit:** `P12.243: align linux dev repair with staged agent bundles`
+
+**Evidence:** The live Fedora `tauri dev` Repair command returned `staged MSC executable does not match its content-addressed build name` from the installed elevated helper. The staged directory name matches SHA-256 over `msc`, `vantage`, and `bedrock-map` in that order, while the old helper compared it with SHA-256 of `msc` alone. It rejected the valid bundle before changing the running service. The agent resolves both map tools beside its own executable, so the helper must copy the complete bundle when installing the system-owned dev build.
+**Checks:** Rust formatting and shipping-agent Clippy passed with existing unrelated warnings. The live staged bundle's three-file digest matched its directory name. No tests ran. A corrected RPM is needed to replace the installed elevated helper before development Repair can use this fix.
+**Manual acceptance:** Install a Fedora RPM containing this commit, restart `npx tauri dev`, then click Repair agent and approve the OS prompt. Confirm the dev desktop connects and the service runs from `/usr/lib/MSC 2/agent/dev-builds/<digest>/msc`; confirm its sibling `vantage` and `bedrock-map` executables are present. Confirm a packaged desktop still connects using `/usr/lib/MSC 2/agent/msc`.
+
 ### P12.242 — Decode desktop API frames on Fedora
 
 **Status:** Implemented; awaiting Cameron's verification.

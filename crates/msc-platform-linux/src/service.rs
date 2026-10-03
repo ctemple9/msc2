@@ -436,13 +436,26 @@ fn prepare_service_agent_binary(
         return Ok(request.clone());
     }
 
-    let bytes = fs::read(&source).map_err(|error| {
-        ServiceError::InvalidDefinition(format!(
-            "could not read the staged MSC agent {}: {error}",
-            source.display()
-        ))
+    let source_directory = source.parent().ok_or_else(|| {
+        ServiceError::InvalidDefinition("staged MSC build has no directory".into())
     })?;
-    let digest = hex_lower(&Sha256::digest(&bytes));
+    let mut hasher = Sha256::new();
+    let mut executables = Vec::new();
+    // The desktop names a staged build from all three executables. Keep the
+    // elevated check and system copy tied to that same immutable bundle.
+    for name in ["msc", "vantage", "bedrock-map"] {
+        let path = source_directory.join(name);
+        validate_user_owned_executable(&path, uid)?;
+        let bytes = fs::read(&path).map_err(|error| {
+            ServiceError::InvalidDefinition(format!(
+                "could not read staged MSC executable {}: {error}",
+                path.display()
+            ))
+        })?;
+        hasher.update(&bytes);
+        executables.push((name, bytes));
+    }
+    let digest = hex_lower(&hasher.finalize());
     let staged_digest = source
         .parent()
         .and_then(Path::file_name)
@@ -450,7 +463,7 @@ fn prepare_service_agent_binary(
         .ok_or_else(|| ServiceError::InvalidDefinition("staged MSC build has no digest".into()))?;
     if digest != staged_digest {
         return invalid_desktop_request(
-            "staged MSC executable does not match its content-addressed build name",
+            "staged MSC bundle does not match its content-addressed build name",
         );
     }
 
@@ -458,43 +471,56 @@ fn prepare_service_agent_binary(
     ensure_system_build_directory(&builds_directory)?;
     let build_directory = builds_directory.join(&digest);
     ensure_system_build_directory(&build_directory)?;
-    let destination = build_directory.join("msc");
+    for (name, bytes) in executables {
+        install_system_build_executable(&build_directory.join(name), &bytes)?;
+    }
+
+    let mut prepared = request.clone();
+    prepared.binary_path = build_directory.join("msc");
+    Ok(prepared)
+}
+
+fn install_system_build_executable(destination: &Path, bytes: &[u8]) -> Result<(), ServiceError> {
     if destination.exists() {
-        validate_helper_executable(&destination, true)?;
-        let installed = fs::read(&destination).map_err(|error| {
+        validate_helper_executable(destination, true)?;
+        let installed = fs::read(destination).map_err(|error| {
             ServiceError::Platform(format!("could not verify the system MSC build: {error}"))
         })?;
-        if Sha256::digest(&installed) != Sha256::digest(&bytes) {
+        if Sha256::digest(&installed) != Sha256::digest(bytes) {
             return invalid_desktop_request(
                 "system MSC development build does not match its content-addressed name",
             );
         }
-    } else {
-        let temporary = build_directory.join(format!(".msc.{}.stage", std::process::id()));
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o755)
-            .open(&temporary)
-            .map_err(|error| {
-                ServiceError::Platform(format!("could not stage the system MSC build: {error}"))
-            })?;
-        use std::io::Write;
-        file.write_all(&bytes).map_err(|error| {
-            ServiceError::Platform(format!("could not write the system MSC build: {error}"))
-        })?;
-        file.sync_all().map_err(|error| {
-            ServiceError::Platform(format!("could not sync the system MSC build: {error}"))
-        })?;
-        fs::rename(&temporary, &destination).map_err(|error| {
-            ServiceError::Platform(format!("could not install the system MSC build: {error}"))
-        })?;
-        validate_helper_executable(&destination, true)?;
+        return Ok(());
     }
-
-    let mut prepared = request.clone();
-    prepared.binary_path = destination;
-    Ok(prepared)
+    let name = destination.file_name().ok_or_else(|| {
+        ServiceError::InvalidDefinition("system MSC executable has no file name".into())
+    })?;
+    let temporary = destination.with_file_name(format!(
+        ".{}.{}.stage",
+        name.to_string_lossy(),
+        std::process::id()
+    ));
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o755)
+        .open(&temporary)
+        .map_err(|error| {
+            ServiceError::Platform(format!("could not stage the system MSC build: {error}"))
+        })?;
+    use std::io::Write;
+    file.write_all(bytes).map_err(|error| {
+        ServiceError::Platform(format!("could not write the system MSC build: {error}"))
+    })?;
+    file.sync_all().map_err(|error| {
+        ServiceError::Platform(format!("could not sync the system MSC build: {error}"))
+    })?;
+    fs::rename(&temporary, destination).map_err(|error| {
+        ServiceError::Platform(format!("could not install the system MSC build: {error}"))
+    })?;
+    validate_helper_executable(destination, true)?;
+    Ok(())
 }
 
 // lib_t permits execution without a daemon transition: the agent remains in

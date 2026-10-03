@@ -188,6 +188,164 @@ pub fn validate_archive_safety(zip_path: &Path) -> Result<(), ArchiveError> {
     validate_archive_safety_with_limits(zip_path, ArchiveLimits::default()).map(|_| ())
 }
 
+/// Imports external packaging into the strict layout used by activation and
+/// recovery. The source is read-only; only the new slot's archive is rewritten.
+/// Raw copying preserves permissions so normalization cannot disguise executable
+/// entries, and avoids recompressing large world databases. Returns the folder
+/// name for a single Bedrock world so the slot activates that imported world.
+pub fn normalize_world_import(
+    source: &Path,
+    destination: &Path,
+    server_type: ServerType,
+) -> Result<Option<String>, ArchiveError> {
+    let mut input = validate_archive_safety_with_limits(source, ArchiveLimits::default())?;
+    let mut names = Vec::new();
+    let mut levels = BTreeSet::new();
+    for index in 0..input.len() {
+        let entry = input
+            .by_index_raw(index)
+            .map_err(|error| ArchiveError::Corrupt(error.to_string()))?;
+        let name = entry.name().replace('\\', "/");
+        let path = name.trim_end_matches('/');
+        if path.split('/').any(|part| part.is_empty() || part == ".") {
+            return Err(ArchiveError::UnsafeEntry(name));
+        }
+        if import_packaging_metadata(path) || path == WORLD_PROFILE_ENTRY {
+            names.push((name, entry.is_dir()));
+            continue;
+        }
+        if !entry.is_dir() && path.rsplit('/').next() == Some("level.dat") {
+            levels.insert(path.strip_suffix("level.dat").unwrap().to_string());
+        }
+        names.push((name, entry.is_dir()));
+    }
+
+    // Existing MSC archives can contain several named Bedrock worlds. Preserve
+    // that established layout, while ordinary external imports require one world
+    // so we never silently choose the wrong one from a bundle.
+    let canonical_bedrock = server_type == ServerType::Bedrock
+        && !levels.is_empty()
+        && levels.iter().all(|root| {
+            root.starts_with("worlds/") && root.trim_end_matches('/').split('/').count() == 2
+        });
+    let main_levels: Vec<_> = levels
+        .iter()
+        .filter(|root| {
+            server_type == ServerType::Bedrock
+                || !levels.iter().any(|main| {
+                    *root == &format!("{}_nether/", main.trim_end_matches('/'))
+                        || *root == &format!("{}_the_end/", main.trim_end_matches('/'))
+                })
+        })
+        .collect();
+    if !canonical_bedrock && main_levels.len() != 1 {
+        return Err(ArchiveError::InvalidWorldLayout(
+            if main_levels.is_empty() {
+                "No world found: the archive must contain level.dat and world data".into()
+            } else {
+                format!(
+                    "This archive contains multiple worlds ({}); import one world at a time",
+                    main_levels
+                        .iter()
+                        .map(|root| if root.is_empty() {
+                            "archive root"
+                        } else {
+                            root.trim_end_matches('/')
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            },
+        ));
+    }
+    let root = main_levels.first().map(|root| root.as_str()).unwrap_or("");
+    if server_type == ServerType::Bedrock && !canonical_bedrock {
+        let database = format!("{root}db/");
+        if !names
+            .iter()
+            .any(|(name, is_dir)| !is_dir && name.starts_with(&database))
+        {
+            return Err(ArchiveError::InvalidWorldLayout(
+                "No Bedrock database found beside level.dat; Java worlds must be converted before Bedrock import".into(),
+            ));
+        }
+    }
+    let world_name = root
+        .trim_end_matches('/')
+        .rsplit('/')
+        .next()
+        .filter(|name| !name.is_empty())
+        .unwrap_or("world");
+    let parent = root.strip_suffix(&format!("{world_name}/")).unwrap_or("");
+    let result = (|| {
+        let mut output = ZipWriter::new(fs::File::create(destination).map_err(ArchiveError::Io)?);
+        for (index, (name, is_dir)) in names.iter().enumerate() {
+            let path = name.trim_end_matches('/');
+            if import_packaging_metadata(path) {
+                continue;
+            }
+            let mapped = if path == WORLD_PROFILE_ENTRY || canonical_bedrock {
+                name.clone()
+            } else if server_type == ServerType::Bedrock {
+                if *is_dir
+                    && (path == root.trim_end_matches('/') || root.starts_with(&format!("{path}/")))
+                {
+                    continue;
+                }
+                let relative = name.strip_prefix(root).ok_or_else(|| {
+                    ArchiveError::InvalidWorldLayout(format!(
+                        "Unrelated entry outside the world: {name}"
+                    ))
+                })?;
+                format!("worlds/{world_name}/{relative}")
+            } else if root.is_empty() {
+                format!("world/{name}")
+            } else {
+                if *is_dir
+                    && !parent.is_empty()
+                    && (path == parent.trim_end_matches('/')
+                        || parent.starts_with(&format!("{path}/")))
+                {
+                    continue;
+                }
+                name.strip_prefix(parent)
+                    .ok_or_else(|| {
+                        ArchiveError::InvalidWorldLayout(format!(
+                            "Unrelated entry outside the world: {name}"
+                        ))
+                    })?
+                    .to_string()
+            };
+            let entry = input
+                .by_index(index)
+                .map_err(|error| ArchiveError::Corrupt(error.to_string()))?;
+            output
+                .raw_copy_file_rename(entry, mapped)
+                .map_err(|error| ArchiveError::Corrupt(error.to_string()))?;
+        }
+        output
+            .finish()
+            .map_err(|error| ArchiveError::Io(io::Error::other(error)))?;
+        validate_world_archive(destination, server_type)?;
+        Ok(
+            if server_type == ServerType::Bedrock && main_levels.len() == 1 {
+                Some(world_name.to_string())
+            } else {
+                None
+            },
+        )
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(destination);
+    }
+    result
+}
+
+fn import_packaging_metadata(path: &str) -> bool {
+    path.split('/')
+        .any(|part| part == "__MACOSX" || part == ".DS_Store" || part.starts_with("._"))
+}
+
 /// Checks the *world* layout as well as generic ZIP safety. Only these roots
 /// may later be moved into a server directory. A legacy Bedrock archive may
 /// have its world files loose under `worlds/`; the application relocates that

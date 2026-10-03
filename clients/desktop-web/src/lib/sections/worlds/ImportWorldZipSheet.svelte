@@ -38,8 +38,8 @@
       const picked = await (
         await getPlatform()
       ).pickFileStream({
-        label: 'Choose a world ZIP',
-        extensions: ['zip'],
+        label: 'Choose a world archive',
+        extensions: ['zip', 'mcworld'],
       });
       if (picked) pendingWorldSource = picked;
     } catch (error) {
@@ -54,7 +54,7 @@
 
   function finishWorldUpload(upload: Schema['StagedUploadCompleteResultDTO']): void {
     if (!pendingWorldSource) throw new Error('The selected world archive is no longer available.');
-    name = pendingWorldSource.name.replace(/\.zip$/i, '');
+    name = pendingWorldSource.name.replace(/\.(zip|mcworld)$/i, '');
     step = {
       kind: 'staged',
       fileName: pendingWorldSource.name,
@@ -88,18 +88,18 @@
 </script>
 
 <Sheet
-  title="Import ZIP as New World"
+  title="Import Archive as New World"
   size="sm"
   visible={!pendingWorldSource}
   onClose={step.kind === 'importing' ? undefined : onClose}
 >
   <div class="body">
     {#if step.kind === 'pick'}
-      <p class="explain">Choose an external world archive to import as a new world slot.</p>
+      <p class="explain">Choose a ZIP or .mcworld archive. Enclosing folders are handled automatically.</p>
       <div class="footer">
         <Button variant="secondary" onclick={onClose}>Cancel</Button>
         <Button variant="primary" disabled={picking} onclick={() => void chooseAndStage()}>
-          {picking ? 'Opening…' : 'Choose ZIP…'}
+          {picking ? 'Opening…' : 'Choose Archive…'}
         </Button>
       </div>
     {:else if step.kind === 'staged'}

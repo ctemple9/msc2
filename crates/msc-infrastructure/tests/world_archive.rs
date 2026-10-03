@@ -327,3 +327,145 @@ fn world_archive_creation_cancellation_removes_partial_zip() {
         "a cancelled archive must not leave a partial ZIP"
     );
 }
+
+// Essential: external folder wrappers previously prevented real Bedrock worlds
+// from importing. Small local ZIPs exercise packaging without live Minecraft,
+// network access, timing or large databases; expected runtime is under a second.
+#[test]
+fn world_import_normalizes_bedrock_packaging_and_preserves_source() {
+    use msc_domain::identity::ServerType;
+    use msc_infrastructure::archive::{list_entry_names, normalize_world_import, read_entry_bytes};
+    let tmp = TempDir::new("import-bedrock-packaging");
+    for (prefix, expected_name) in [
+        ("", "world"),
+        ("XqKXS4++O7k=/", "XqKXS4++O7k="),
+        ("download/enclosing/My World/", "My World"),
+        ("worlds/My World/", "My World"),
+        ("worlds/", "worlds"),
+    ] {
+        let source = tmp.path().join("source.mcworld");
+        let destination = tmp.path().join("normalized.zip");
+        let level = format!("{prefix}level.dat");
+        let database = format!("{prefix}db/000001.ldb");
+        let mut zip = ZipWriter::new(fs::File::create(&source).unwrap());
+        let options = SimpleFileOptions::default().unix_permissions(0o644);
+        let mut ancestor = String::new();
+        for part in prefix
+            .trim_end_matches('/')
+            .split('/')
+            .filter(|part| !part.is_empty())
+        {
+            ancestor.push_str(part);
+            ancestor.push('/');
+            zip.add_directory(
+                &ancestor,
+                SimpleFileOptions::default().unix_permissions(0o755),
+            )
+            .unwrap();
+        }
+        for name in [
+            level.as_str(),
+            database.as_str(),
+            "__MACOSX/._level.dat",
+            ".DS_Store",
+        ] {
+            zip.start_file(name, options).unwrap();
+            zip.write_all(b"hello world").unwrap();
+        }
+        zip.finish().unwrap();
+        let original = fs::read(&source).unwrap();
+        assert_eq!(
+            normalize_world_import(&source, &destination, ServerType::Bedrock).unwrap(),
+            Some(expected_name.to_string())
+        );
+        assert_eq!(fs::read(&source).unwrap(), original);
+        let names = list_entry_names(&destination).unwrap();
+        assert_eq!(names.iter().filter(|name| !name.ends_with('/')).count(), 2);
+        assert!(
+            !names
+                .iter()
+                .any(|name| name.contains("__MACOSX") || name.contains(".DS_Store"))
+        );
+        assert_eq!(
+            read_entry_bytes(
+                &destination,
+                &format!("worlds/{expected_name}/db/000001.ldb")
+            )
+            .unwrap(),
+            Some(b"hello world".to_vec())
+        );
+    }
+}
+
+// Essential: stripping wrappers must not hide server configuration, traversal,
+// links or extra worlds. Refusal must remove the incomplete slot archive.
+#[test]
+fn world_import_normalization_refuses_unsafe_or_ambiguous_contents() {
+    use msc_domain::identity::ServerType;
+    use msc_infrastructure::archive::normalize_world_import;
+    let tmp = TempDir::new("import-refusal");
+    for extra in [
+        ("My World/server.properties", false),
+        ("My World/start.sh", false),
+        ("My World/../../escape", false),
+        ("My World/db/link", true),
+        ("Other World/level.dat", false),
+        ("outside.txt", false),
+    ] {
+        let source = tmp.path().join("source.zip");
+        let destination = tmp.path().join("normalized.zip");
+        write_zip(
+            &source,
+            &[
+                ("My World/level.dat", false),
+                ("My World/db/000001.ldb", false),
+                extra,
+            ],
+        );
+        assert!(normalize_world_import(&source, &destination, ServerType::Bedrock).is_err());
+        assert!(!destination.exists());
+    }
+    // A harmless-looking filename with executable permissions must remain
+    // executable through raw copying, so strict world validation refuses it.
+    let source = tmp.path().join("executable.zip");
+    let destination = tmp.path().join("normalized.zip");
+    let mut zip = ZipWriter::new(fs::File::create(&source).unwrap());
+    for (name, mode) in [
+        ("My World/level.dat", 0o644),
+        ("My World/db/000001.ldb", 0o644),
+        ("My World/data.bin", 0o755),
+    ] {
+        zip.start_file(name, SimpleFileOptions::default().unix_permissions(mode))
+            .unwrap();
+        zip.write_all(b"hello world").unwrap();
+    }
+    zip.finish().unwrap();
+    assert!(normalize_world_import(&source, &destination, ServerType::Bedrock).is_err());
+    assert!(!destination.exists());
+}
+
+// Essential: the shared importer must preserve Java's separate dimension
+// folders while accepting enclosing download folders. Uses tiny local files.
+#[test]
+fn world_import_normalizes_java_wrappers_without_losing_dimensions() {
+    use msc_domain::identity::ServerType;
+    use msc_infrastructure::archive::{list_entry_names, normalize_world_import};
+    let tmp = TempDir::new("import-java-packaging");
+    let source = tmp.path().join("source.zip");
+    let destination = tmp.path().join("normalized.zip");
+    write_zip(
+        &source,
+        &[
+            ("download/world/level.dat", false),
+            ("download/world/region/r.0.0.mca", false),
+            ("download/world_nether/level.dat", false),
+            ("download/world_nether/DIM-1/region/r.0.0.mca", false),
+            ("download/world_the_end/level.dat", false),
+        ],
+    );
+    normalize_world_import(&source, &destination, ServerType::Java).unwrap();
+    let names = list_entry_names(&destination).unwrap();
+    assert!(names.contains(&"world_nether/DIM-1/region/r.0.0.mca".to_string()));
+    assert!(names.contains(&"world_the_end/level.dat".to_string()));
+    assert!(!names.iter().any(|name| name.starts_with("download/")));
+}

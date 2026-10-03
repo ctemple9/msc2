@@ -1180,10 +1180,10 @@ pub(crate) fn imported_world_metadata_from_zip(
 }
 
 /// `createSlotFromZIP(zipURL:name:for:logLine:)` (source line 1008-
-/// 1077): copies the external ZIP's bytes into a new slot. P16.4 adds a
-/// world-layout check before the copy, so an archive that could install
-/// server configuration or executable files is refused at import as well
-/// as activation. The generic ZIP safety check still runs at extraction.
+/// 1077): imports the external ZIP into a new slot. P16.4 adds a
+/// world-layout check. External folder wrappers and packaging metadata are
+/// normalized in the new slot archive; activation retains its strict layout
+/// and safety checks. The original archive is never modified.
 pub fn import_zip_as_new_slot(
     fs: &dyn FileSystem,
     server_dir: &Path,
@@ -1200,17 +1200,19 @@ pub fn import_zip_as_new_slot(
     if trimmed.is_empty() {
         return Err(WorldError::EmptyName);
     }
-    archive::validate_world_archive(source_zip_path, server_type)?;
-
     let new_id = Uuid::new_v4().to_string().to_uppercase();
     let dir = world_store::slot_directory(server_dir, &new_id);
     fs.create_dir_all(&dir)?;
     let dest_zip = world_store::zip_path(server_dir, &new_id);
 
-    if let Err(e) = copy_via_fs(fs, source_zip_path, &dest_zip) {
-        let _ = fs.remove(&dir);
-        return Err(e.into());
-    }
+    let imported_level_name =
+        match archive::normalize_world_import(source_zip_path, &dest_zip, server_type) {
+            Ok(level_name) => level_name,
+            Err(e) => {
+                let _ = fs.remove(&dir);
+                return Err(e.into());
+            }
+        };
 
     let parsed_metadata = imported_world_metadata_from_zip(&dest_zip, server_type);
     let slot = WorldSlot {
@@ -1221,12 +1223,9 @@ pub fn import_zip_as_new_slot(
         thumbnail_file_name: None,
         world_level_name: match server_type {
             ServerType::Java => infer_java_level_name_from_zip(&dest_zip),
-            ServerType::Bedrock => Some(resolved_level_name(
-                fs,
-                server_dir,
-                server_type,
-                raw_level_name,
-            )),
+            ServerType::Bedrock => Some(imported_level_name.unwrap_or_else(|| {
+                resolved_level_name(fs, server_dir, server_type, raw_level_name)
+            })),
         },
         world_seed: parsed_metadata.seed.clone(),
         zip_size_bytes: zip_size_bytes(fs, &dest_zip),

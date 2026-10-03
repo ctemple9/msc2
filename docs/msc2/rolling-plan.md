@@ -215,3 +215,21 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Verify:** `npm --prefix clients/desktop-web run check`
 **Batch:** P12.200 only.
 **Commit:** `P12.200: update agent instructions for the local cli`
+
+
+## Phase 6 import correction — owner-requested 2026-10-02
+
+### P6.52 — Accept external world archive folder layouts
+
+**Status:** Implemented; awaiting Cameron's verification. Cameron explicitly authorized implementation in this conversation.
+**Files:** `crates/msc-infrastructure/src/archive.rs`, `crates/msc-infrastructure/tests/world_archive.rs`, `crates/msc-application/src/worlds.rs`, `clients/desktop-web/src/lib/sections/worlds/ImportWorldZipSheet.svelte`, this plan.
+**What:** Recognize Bedrock world files at the archive root, in a named folder, or inside enclosing folders; retain existing MSC layouts. Accept `.mcworld` in the Worlds import picker. Normalize only the new slot archive, removing known macOS packaging metadata while preserving file contents, compression and permissions. Store the detected single Bedrock world folder name so activation opens that imported world. Also accept loose Java worlds and enclosing folders around Java worlds with their sibling dimensions. Keep generic source safety/CRC/size checks and strict final world-layout checks; reject unrelated files and ambiguous external multi-world bundles with an explanatory error. Existing MSC-format multiple Bedrock worlds remain supported. Original archives are untouched; failed normalization removes the partial archive/slot. MSC 1's `WorldSlotManager.createSlotFromZIP` copies ZIPs unchanged without structural checks; this correction preserves P16.4's stronger safety boundary while broadening input packaging. No API contract or release workflow changed.
+**Verify:** `cargo test -p msc-infrastructure --test world_archive world_import_`
+**Batch:** P6.52 only.
+**Commit:** `P6.52: normalize external world archive layouts on import`
+
+**Essential test rationale:** Three focused cases protect previously rejected external layouts, correct Bedrock folder identity, original archive preservation, retention of Java dimensions, and refusal of traversal, links, executable permissions, server configuration, unrelated entries and ambiguous bundles. Existing strict-layout tests do not exercise normalization. All inputs are tiny local ZIPs with controlled contents and independent temporary directories; no network, Minecraft runtime or timing assumptions. Expected combined runtime: under one second. Tests were added and compiled with Clippy but not run.
+
+**Agent checks:** Rust formatting and Clippy for the affected libraries and archive test target; Svelte static check (zero errors, ten existing warnings). No test commands run.
+
+**Manual acceptance:** Rebuild/restart the local app and agent, then import `/Users/camerontemple/msc2-servers/XqKXS4++O7k=.zip` unchanged through the Bedrock Worlds tab. With the server stopped, activate the imported slot and confirm the existing terrain loads. Also import a `.mcworld` file without renaming it. External bundles containing several worlds require individual imports; a selection screen remains a separate UI/API change.

@@ -1,5 +1,19 @@
 # MSC 2 — Rolling Plan
 
+### P12.239 — Clear Windows Bedrock shutdown tracking after exit
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `crates/msc-application/src/bedrock_windows.rs`, `crates/msc-application/tests/bedrock_windows.rs`, this plan.
+**What:** Clear graceful-stop timing and forced-stop tracking when Windows Bedrock exits. Restrict deadline escalation to the Stopping state and consume queued process exits before attempting forced termination. Continue observing the termination event when a force-stop is needed. This prevents status polling after pass one from raising a nonexistent-process error, cancelling Playit/Broadcast, and aborting initiation. Linux/macOS runtime sources are unchanged.
+**Verify:** `cargo clippy -p msc-agent --bin msc`
+**Batch:** P12.239 only.
+**Commit:** `P12.239: clear windows bedrock shutdown tracking after exit`
+
+**Evidence:** The current Windows pass one stopped at 17:00:03, followed by Playit helper cancellation/stop at 17:00:24 and two Broadcast operations cancelled as Xbox Broadcast stopped. Windows poll_event checked its stale 20-second graceful-stop deadline before checking whether the process still existed. The error handler stopped both helpers and aborted the first-start coordinator on each later poll. P12.238 corrected setup display and click handling but did not address this runtime error. Linux source contains a similar timer pattern; investigation/fixes there are outside this Windows change and no Linux behavior has been modified.
+**Checks:** Rust formatting and shipping-agent Clippy passed with existing unrelated Windows warnings. The focused Windows runtime regression target compiled with `cargo check -p msc-application --test bedrock_windows`; no tests executed. The agent is rebuilt/staged for desktop Repair. Live acceptance remains with Cameron.
+**Essential coverage:** One fake-process/fake-clock regression exercises clean exit observed both before and after the shutdown deadline, then repeats stopped-state polling past the deadline. It asserts one clean termination, no subsequent error/events, and no forced termination. Existing coverage checks real deadline escalation but missed polling after clean exit. It reuses the existing ephemeral UDP-port setup; no real Bedrock, provider requests, or sleeps are used. Expected runtime under 10 ms; execution deferred to Cameron.
+**Manual acceptance:** Repair the Windows service using the newly staged agent. Initiate Bedrock with Playit and Broadcast; leave the stopped connection stage open beyond 20 seconds, complete Playit, and click Xbox Set up. Confirm Microsoft sign-in appears and the helper remains running while authenticating. Complete sign-in, confirm pass two runs, then confirm the final Minecraft server is stopped. Existing server/configuration/credentials can be retained; no fresh-install reset is needed for this correction.
+
 ### P12.238 — Separate initiation setup from connection readiness
 
 **Status:** Implemented; awaiting Cameron's verification.

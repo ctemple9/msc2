@@ -384,8 +384,6 @@
       />
       <span class="field-label">Enforce Gamemode</span>
     </div>
-    <p class="subtle-note">Sets players to the server's default game mode when they join.</p>
-
     <p class="overline">Actions</p>
     <div class="button-row">
       <button type="button" class="pill" {disabled} onclick={saveAll}>Save All</button>

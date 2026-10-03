@@ -477,3 +477,12 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Essential tests:** Two pure path-selection cases protect the concrete CLI authorization failure caused by a service/CLI data-directory mismatch and retain the documented explicit environment override. They use fixed paths, do not touch the host, and should complete in under one second after compilation. Tests were not run.
 
 **Manual acceptance:** On macOS, run `msc capabilities` without setting `MSC2_DATA_DIR`; confirm it uses the installed service path. On Linux, repeat with the default installer path and with an explicitly configured service data root. Confirm an explicit shell `MSC2_DATA_DIR` still takes precedence. Windows needs no path-specific change because its CLI connects to the fixed local named pipe.
+
+### P12.217 — Remove Enforce Gamemode helper text
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/components/shell/sidebar/QuickCommandsSection.svelte`, this plan.
+**What:** Remove the explanatory sentence beneath the sidebar Enforce Gamemode toggle.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.217 only.
+**Commit:** `P12.217: remove enforce gamemode helper text`

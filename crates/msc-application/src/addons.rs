@@ -84,6 +84,12 @@ pub fn install_java_datapack(
     project_title: &str,
     minecraft_version: &str,
 ) -> Result<(String, String, Vec<String>, PathBuf), JavaDatapackError> {
+    if !version.loaders.iter().any(|loader| loader == "datapack") {
+        return Err(JavaDatapackError::Invalid(
+            "The selected release is a mod or another package type; choose a datapack release."
+                .into(),
+        ));
+    }
     if !version
         .game_versions
         .iter()

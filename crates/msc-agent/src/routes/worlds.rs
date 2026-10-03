@@ -1053,6 +1053,12 @@ pub async fn install_java_datapack(
                 );
             }
         };
+    if !version.loaders.iter().any(|loader| loader == "datapack") {
+        return invalid_body(
+            "invalid_datapack",
+            "Choose a datapack release. Fabric, NeoForge and other mod builds cannot be installed as datapacks.",
+        );
+    }
     if !version
         .game_versions
         .iter()

@@ -303,3 +303,20 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Essential test rationale:** One focused regression case reproduces overlay metadata preceding main metadata, at archive root and inside an enclosing folder; checks preserved overlays/main metadata, prior-world backup, and refusal of ambiguous separate packs without changing the world. Existing addon tests did not cover datapack metadata selection. Uses tiny local ZIPs and a unique directory with automatic cleanup, no network, live Minecraft, sleeps or timing assertions. Expected runtime under one second. Test compiled but not run.
 
 **Manual acceptance:** Rebuild/restart the app and agent; on a stopped Paper server, install Terratonic 3.0.27 from the datapack sheet and confirm success/Installed. Close and reopen the browser and project details; the same saved Modrinth version should remain Installed. Installation errors must remain errors rather than create Installed labels. World-generation effects and external datapack dependencies remain Minecraft/pack behavior, not proved by installation alone.
+
+
+### P12.203 — Limit world datapack choices to datapack releases
+
+**Status:** Implemented; awaiting Cameron's verification. Cameron reported Fabric/NeoForge mod releases labeled Compatible in the Paper datapack browser and requested a correction.
+**Files:** `clients/desktop-web/src/lib/sections/components/ProjectDetailSheet.svelte`, `clients/desktop-web/src/lib/sections/worlds/WorldPackBrowserSheet.svelte`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-application/src/addons.rs`, `crates/msc-application/tests/addons.rs`, this plan.
+**What:** Require the provider's datapack loader/type marker in the world datapack detail sheet before collapsing/filtering versions or computing the compatible-version summary. Exclude mod builds even if they match the server Minecraft version; do not use the general add-on browser's fallback to show them when no datapack remains. Base Stable-only fallback on datapack releases. Automatic search-result installation selects a matching datapack release, not the first same-Minecraft mod release. Reject non-datapack releases before download in the agent and before mutation in the application installer. Datapacks for other Minecraft versions remain visible with Other version; the existing installer still refuses versions that do not list the server version. Shared mod/plugin browsing retains its existing behavior. No API contract or release workflow changes.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.203 only.
+**Commit:** `P12.203: exclude mod builds from world datapack installs`
+
+**Essential coverage:** Extend the existing overlay-install regression with Fabric and NeoForge releases advertising the same Minecraft version and containing otherwise valid datapack metadata. Assert refusal and unchanged world bytes. Reuse controlled tiny local ZIPs, no additional test count or runtime assumptions; expected under one second. Tests compiled but not run.
+
+**Manual acceptance:** Rebuild/restart app and agent. Browse the mixed Tectonic project from the Paper world's datapack browser: Fabric/NeoForge builds must be absent; only datapack builds can receive the Compatible/Other version badge and install controls. A mod-only release list must remain empty rather than fall back to incompatible builds. Install from the search result must select a matching datapack release. Compatible here means the provider lists the server Minecraft version, not proof of runtime or dependency behavior.
+
+
+**Agent checks for P12.203:** Rust formatting, application regression test compilation with Clippy, and production agent Clippy passed (one existing unused `auth::forbidden` warning). Svelte static check passed with zero errors and ten existing warnings. No tests or live installs run.

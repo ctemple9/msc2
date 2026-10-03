@@ -197,7 +197,7 @@
         `/v1/catalog/projects/${encodeURIComponent(item.projectId)}/versions`,
       );
       const version = versions.versions.find((candidate) =>
-        candidate.gameVersions.includes(selectedMinecraftVersion),
+        candidate.loaders.includes('datapack') && candidate.gameVersions.includes(selectedMinecraftVersion),
       );
       if (!version) {
         throw new Error(
@@ -456,6 +456,7 @@
   <ProjectDetailSheet
     {api}
     item={javaDetailItem}
+    requiredVersionLoader="datapack"
     knownInstalledVersionIds={installedJavaVersions.get(javaDetailItem.projectId) ?? []}
     serverMinecraftVersion={selectedMinecraftVersion || undefined}
     onClose={() => (javaDetailItem = undefined)}

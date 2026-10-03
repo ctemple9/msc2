@@ -43,6 +43,8 @@
    *  version stages it via `onStaged` instead of calling
    *  POST /v1/components/install, which requires an already-active server. */
   export let mode: 'install' | 'stage' = 'install';
+  /** World datapack browsing must never fall back to mod-loader releases. */
+  export let requiredVersionLoader: string | undefined = undefined;
   export let knownInstalledVersionIds: readonly string[] = [];
   export let onStaged: ((versionId: string) => void) | undefined = undefined;
 
@@ -60,9 +62,12 @@
   $: allInstalledVersionIds = new Set([...knownInstalledVersionIds, ...installedVersionIds]);
   $: serverLoaders = new Set(modrinthLoaderFacets(javaFlavor));
   $: loaderFilter = expandedLoaders(javaFlavor, modrinthLoaderFacets(javaFlavor));
-  $: collapsed = collapseVersions(versions, serverLoaders);
+  $: eligibleVersions = requiredVersionLoader
+    ? versions.filter((version) => version.loaders.includes(requiredVersionLoader!))
+    : versions;
+  $: collapsed = collapseVersions(eligibleVersions, serverLoaders);
   $: visible = filterVisibleVersions(collapsed, { stableOnly, loaders: loaderFilter });
-  $: hasCompatibleVersion = versions.some((v) => isVersionCompatible(v, serverMinecraftVersion));
+  $: hasCompatibleVersion = eligibleVersions.some((v) => isVersionCompatible(v, serverMinecraftVersion));
   $: aboutParagraphs = sanitizeModrinthBody(project?.body ?? item.description ?? '')
     .split('\n\n')
     .filter((p) => p.trim().length > 0);
@@ -99,7 +104,10 @@
       // Projects like Geyser/Floodgate publish every build through the beta
       // channel and never mark a version "release" -- stableOnly would hide
       // everything, so turn it off automatically (load(), line 762-764).
-      if (versions.length > 0 && !versions.some(isStableVersion)) {
+      const eligible = requiredVersionLoader
+        ? versions.filter((version) => version.loaders.includes(requiredVersionLoader!))
+        : versions;
+      if (eligible.length > 0 && !eligible.some(isStableVersion)) {
         stableOnly = false;
       }
     } catch (error) {

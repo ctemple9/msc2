@@ -751,6 +751,7 @@ fn java_datapack_install_uses_outer_metadata_and_preserves_overlays() {
         "https://example.com/pack.zip",
     );
     selected.game_versions = vec!["26.2".to_string()];
+    selected.loaders = vec!["datapack".to_string()];
     for prefix in ["", "Enclosing/"] {
         std::fs::write(&world_path, &original).unwrap();
         let overlay_name = format!("{prefix}overlay/pack.mcmeta");
@@ -792,6 +793,25 @@ fn java_datapack_install_uses_outer_metadata_and_preserves_overlays() {
         assert!(saved.by_name("world/datapacks/overlay-project-overlay-version/overlay/data/example/function/test.mcfunction").is_ok());
     }
     std::fs::write(&world_path, &original).unwrap();
+    // Matching Minecraft versions are insufficient: mod releases must be
+    // refused even when their ZIP happens to contain valid datapack metadata.
+    let datapack_bytes = zip_bytes(&[("pack.mcmeta", metadata)]);
+    for loader in ["fabric", "neoforge"] {
+        selected.loaders = vec![loader.to_string()];
+        assert!(
+            addons::install_java_datapack(
+                &world_path,
+                &datapack_bytes,
+                &selected,
+                "overlay-project",
+                "Example",
+                "26.2"
+            )
+            .is_err()
+        );
+        assert_eq!(std::fs::read(&world_path).unwrap(), original);
+    }
+    selected.loaders = vec!["datapack".to_string()];
     let ambiguous = zip_bytes(&[("One/pack.mcmeta", metadata), ("Two/pack.mcmeta", metadata)]);
     assert!(
         addons::install_java_datapack(

@@ -21,6 +21,7 @@
   export let bedrock = false;
   export let slotId: string;
   export let minecraftVersion = '';
+  export let initialProject: ProjectDetailItem | undefined = undefined;
   export let onClose: () => void;
   export let onInstalled: () => void;
 
@@ -33,7 +34,7 @@
   let picking = false;
   let results: Schema['CatalogItemDTO'][] = [];
   let bedrockResults: Schema['BedrockBehaviorPackCatalogItemDTO'][] = [];
-  let javaDetailItem: ProjectDetailItem | undefined;
+  let javaDetailItem: ProjectDetailItem | undefined = initialProject;
   let detailItem: Schema['BedrockBehaviorPackCatalogItemDTO'] | undefined;
   let detail: Schema['BedrockBehaviorPackDetailDTO'] | undefined;
   let detailLoading = false;

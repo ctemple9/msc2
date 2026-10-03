@@ -791,6 +791,34 @@ fn java_datapack_install_uses_outer_metadata_and_preserves_overlays() {
             .unwrap();
         assert_eq!(actual, metadata);
         assert!(saved.by_name("world/datapacks/overlay-project-overlay-version/overlay/data/example/function/test.mcfunction").is_ok());
+        drop(saved);
+        let installed = std::fs::read(&world_path).unwrap();
+        let pack = msc_domain::world_profile::WorldPackRecord {
+            id: "example".into(),
+            edition: "java".into(),
+            kind: "java_datapack".into(),
+            name: "Example".into(),
+            source: Default::default(),
+            files: paths,
+            checksum: None,
+            compatibility: None,
+            minecraft_versions: vec![],
+            enabled: true,
+            dependencies: vec![],
+        };
+        assert!(addons::mutate_world_pack(&world_path, &pack, Some(false)).is_err());
+        assert_eq!(std::fs::read(&world_path).unwrap(), installed);
+        let backup = addons::mutate_world_pack(&world_path, &pack, None).unwrap();
+        assert_eq!(std::fs::read(backup).unwrap(), installed);
+        let mut saved = zip::ZipArchive::new(std::fs::File::open(&world_path).unwrap()).unwrap();
+        assert_eq!(saved.len(), 1);
+        let mut level = Vec::new();
+        saved
+            .by_name("world/level.dat")
+            .unwrap()
+            .read_to_end(&mut level)
+            .unwrap();
+        assert_eq!(level, b"level");
     }
     std::fs::write(&world_path, &original).unwrap();
     // Matching Minecraft versions are insufficient: mod releases must be

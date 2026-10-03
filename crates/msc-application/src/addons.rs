@@ -307,25 +307,29 @@ pub fn world_pack_size_bytes(world_zip_path: &Path, files: &[String]) -> Option<
     })
 }
 
-/// Change a Bedrock pack's activation entry in a saved world. Removing a pack
+/// Delete Java datapack files or change a Bedrock activation entry. Removing a pack
 /// also removes its files; disabling it keeps the files so it can be enabled
 /// again later.
-pub fn mutate_bedrock_world_pack(
+pub fn mutate_world_pack(
     world_zip_path: &Path,
     pack: &msc_domain::world_profile::WorldPackRecord,
     enabled: Option<bool>,
 ) -> Result<PathBuf, BedrockBehaviorPackError> {
     use std::collections::BTreeSet;
 
-    let activation_file = if pack.kind == "bedrock_resource_pack" {
-        "world_resource_packs.json"
-    } else if pack.kind == "bedrock_behavior_pack" {
-        "world_behavior_packs.json"
-    } else {
-        return Err(BedrockBehaviorPackError::Invalid(
-            "Only Bedrock behavior and resource packs can be changed here.".into(),
-        ));
-    };
+    let activation_file =
+        if pack.edition == "java" && pack.kind == "java_datapack" && enabled.is_none() {
+            ""
+        } else if pack.kind == "bedrock_resource_pack" {
+            "world_resource_packs.json"
+        } else if pack.kind == "bedrock_behavior_pack" {
+            "world_behavior_packs.json"
+        } else {
+            return Err(BedrockBehaviorPackError::Invalid(
+                "Java datapacks can be deleted; Bedrock packs can be enabled, disabled or deleted."
+                    .into(),
+            ));
+        };
     let mut world = zip::ZipArchive::new(
         std::fs::File::open(world_zip_path)
             .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?,
@@ -336,6 +340,17 @@ pub fn mutate_bedrock_world_pack(
         .find_map(|name| name.strip_suffix("level.dat"))
         .unwrap_or("worlds/")
         .to_owned();
+    if pack.edition == "java"
+        && (pack.files.is_empty()
+            || pack
+                .files
+                .iter()
+                .any(|file| !file.starts_with("datapacks/")))
+    {
+        return Err(BedrockBehaviorPackError::Invalid(
+            "The datapack file list is unavailable or invalid; no changes were made.".into(),
+        ));
+    }
     let activation_path = format!("{world_root}{activation_file}");
     let files: BTreeSet<String> = pack
         .files
@@ -422,12 +437,14 @@ pub fn mutate_bedrock_world_pack(
         std::io::copy(&mut entry, &mut output)
             .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?;
     }
-    output
-        .start_file(&activation_path, options)
-        .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?;
-    output
-        .write_all(&activation_bytes)
-        .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?;
+    if !activation_file.is_empty() {
+        output
+            .start_file(&activation_path, options)
+            .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?;
+        output
+            .write_all(&activation_bytes)
+            .map_err(|error| BedrockBehaviorPackError::Io(error.to_string()))?;
+    }
     // Windows will not let us replace the archive while its reader is still open.
     drop(world);
     output

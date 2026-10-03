@@ -82,6 +82,8 @@
   let mapOpen = false;
   let confirming: { slotId: string; kind: 'activate' | 'delete' | 'duplicate' } | undefined;
   let confirmingBackupDeleteId: string | undefined;
+  let packProject: { projectId: string; title: string } | undefined;
+  let selectedDatapack: Schema['WorldPackRecordDTO'] | undefined;
   let confirmingPackDeleteId: string | undefined;
   let busy = false;
   let notice: string | undefined;
@@ -212,7 +214,7 @@
     }
   }
 
-  async function changeBedrockPack(
+  async function changeWorldPack(
     pack: Schema['WorldPackRecordDTO'],
     action: 'toggle' | 'delete',
   ) {
@@ -232,6 +234,7 @@
       });
       profiles = { ...profiles, [slot.id]: result.slot };
       confirmingPackDeleteId = undefined;
+      selectedDatapack = undefined;
     } catch (error) {
       notice = error instanceof Error ? error.message : String(error);
     } finally {
@@ -763,7 +766,7 @@
             selected={selectedSlotId === slot.id}
             {busy}
             confirming={confirming?.slotId === slot.id ? confirming.kind : undefined}
-            onSelect={() => (selectedSlotId = selectedSlotId === slot.id ? undefined : slot.id)}
+            onSelect={() => { selectedDatapack = undefined; confirmingPackDeleteId = undefined; selectedSlotId = selectedSlotId === slot.id ? undefined : slot.id; }}
             onOpenMenu={(event) => openActionMenu(event, slot)}
             onConfirmActivate={() => void confirmActivate()}
             onConfirmDuplicate={() => void confirmDuplicate()}
@@ -874,7 +877,7 @@
                       size="sm"
                       variant="destructive"
                       disabled={busy}
-                      onclick={() => void changeBedrockPack(pack, 'delete')}>Delete</Button
+                      onclick={() => void changeWorldPack(pack, 'delete')}>Delete</Button
                     >
                     <Button
                       size="sm"
@@ -886,7 +889,7 @@
                       size="sm"
                       variant="secondary"
                       disabled={busy || worlds.serverRunning}
-                      onclick={() => void changeBedrockPack(pack, 'toggle')}
+                      onclick={() => void changeWorldPack(pack, 'toggle')}
                       >{pack.enabled ? 'Disable' : 'Enable'}</Button
                     >
                     <Button
@@ -915,7 +918,8 @@
         {:else}
           <Card padding="0">
             {#each packs.filter((pack) => pack.edition === 'java') as pack, index (pack.id)}
-              <div class="pack-row" class:bordered={index > 0}>
+              <button type="button" class="pack-row datapack-row" class:bordered={index > 0}
+                onclick={() => { selectedDatapack = pack; confirmingPackDeleteId = undefined; notice = '';  }}>
                 <div class="pack-info">
                   <span class="pack-name">{pack.name}</span>
                   <span class="ownership"
@@ -927,7 +931,7 @@
                 <Badge variant="status" tone={pack.enabled ? 'ok' : 'warn'}
                   >{pack.enabled ? 'Enabled' : 'Disabled'}</Badge
                 >
-              </div>
+              </button>
             {/each}
           </Card>
         {/if}
@@ -991,12 +995,39 @@
 </div>
 {/if}
 
+{#if selectedDatapack && selectedSlot}
+  <Sheet title={selectedDatapack.name} onClose={() => { selectedDatapack = undefined; confirmingPackDeleteId = undefined; }}>
+    <p class="ownership">Installed in {selectedSlot.name} · {selectedDatapack.enabled ? 'Enabled' : 'Disabled'}</p>
+    {#if selectedDatapack.source.provider === 'modrinth' && selectedDatapack.source.projectId}
+      <Button variant="secondary" onclick={() => {
+        if (!selectedDatapack?.source.projectId) return;
+        packProject = { projectId: selectedDatapack.source.projectId, title: selectedDatapack.name };
+        selectedDatapack = undefined;
+        showPackBrowser = true;
+      }}>View datapack</Button>
+    {:else}
+      <p class="ownership">No catalog page is recorded for this datapack.</p>
+    {/if}
+    {#if worlds.serverRunning}
+      <p class="ownership">Stop the server before deleting this datapack.</p>
+    {:else if confirmingPackDeleteId === selectedDatapack.id}
+      <p>Delete this datapack from {selectedSlot.name}?</p>
+      <Button variant="destructive" disabled={busy} onclick={() => selectedDatapack && void changeWorldPack(selectedDatapack, 'delete')}>Delete datapack</Button>
+      <Button variant="secondary" disabled={busy} onclick={() => confirmingPackDeleteId = undefined}>Cancel</Button>
+    {:else}
+      <Button variant="destructive" disabled={busy} onclick={() => confirmingPackDeleteId = selectedDatapack?.id}>Delete datapack</Button>
+    {/if}
+    {#if notice}<p class="ownership">{notice}</p>{/if}
+  </Sheet>
+{/if}
+
 {#if showPackBrowser && selectedSlot}
   <WorldPackBrowserSheet
     {api}
+    initialProject={packProject}
     bedrock={isBedrock}
     slotId={selectedSlot.id}
-    onClose={() => (showPackBrowser = false)}
+    onClose={() => { showPackBrowser = false; packProject = undefined; }}
     onInstalled={() => void loadProfiles()}
   />
 {/if}
@@ -1320,6 +1351,17 @@
   .empty-action {
     margin-top: 10px;
   }
+  .datapack-row {
+    width: 100%;
+    background: transparent;
+    color: inherit;
+    border: 0;
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+  }
+  .datapack-row:hover { background: var(--surface-raised); }
+
   .pack-row {
     display: flex;
     align-items: center;

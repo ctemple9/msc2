@@ -320,3 +320,15 @@ into main; no release publication or exact-artifact acceptance is implied.
 
 
 **Agent checks for P12.203:** Rust formatting, application regression test compilation with Clippy, and production agent Clippy passed (one existing unused `auth::forbidden` warning). Svelte static check passed with zero errors and ten existing warnings. No tests or live installs run.
+
+### P12.204 — Manage installed world datapacks
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte`, `clients/desktop-web/src/lib/sections/worlds/WorldPackBrowserSheet.svelte`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-application/src/addons.rs`, `crates/msc-application/tests/addons.rs`, this plan.
+**What:** Clicking an installed Java datapack opens its status and Delete action, with confirmation. View datapack opens its saved Modrinth project inside MSC, including Installed labels; packs without a recorded catalog identity explain why no page is available. Extend existing pack management to delete Java datapack files, retain safety backup and profile rollback, and refresh/reapply stopped active worlds using their actual edition and configured level name. Java enable/disable is not offered because it requires a separate Minecraft activation-list change. Keep existing Bedrock controls.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.204 only.
+**Commit:** `P12.204: add installed datapack deletion and project navigation`
+
+**Essential coverage:** Extend the existing small local overlay fixture to delete all installed files while preserving level.dat, verify backup bytes, and refuse unsupported Java disable without mutation. No network or timing assumptions; expected under one second. Compiled with Clippy, not run.
+**Manual acceptance:** Rebuild/restart app and agent. Click an installed datapack on a stopped Paper world. View datapack must open its in-app project page if a saved Modrinth source exists. Delete requires confirmation, removes the row and its files from the selected world, and stays removed after reopening and activating the world. Cancel leaves it installed. Active running servers refuse deletion.

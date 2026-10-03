@@ -1886,14 +1886,7 @@ pub async fn update_profile(
         if changes.len() != 1 {
             return invalid_body(
                 "one_profile_change_required",
-                "Change Bedrock packs separately from other world settings.",
-            );
-        }
-        if server.server_type != ServerType::Bedrock {
-            return error_response(
-                StatusCode::CONFLICT,
-                "unsupported_pack_change",
-                "Only Bedrock world packs can be managed here.",
+                "Change packs separately from other world settings.",
             );
         }
         if active && running {
@@ -1958,6 +1951,14 @@ pub async fn update_profile(
             .iter()
             .find(|candidate| candidate.id == pack.id)
             .map(|candidate| candidate.enabled);
+        if server.server_type != ServerType::Bedrock
+            && (pack.edition != "java" || pack.kind != "java_datapack" || next_enabled.is_some())
+        {
+            return invalid_body(
+                "unsupported_pack_change",
+                "Java datapacks can only be deleted here.",
+            );
+        }
         let dependent = original_profile.packs.iter().any(|candidate| {
             candidate.enabled
                 && candidate.id != pack.id
@@ -1999,8 +2000,8 @@ pub async fn update_profile(
         match worlds::update_active_slot_from_current_world(
             &StdFileSystem,
             server_dir,
-            ServerType::Bedrock,
-            None,
+            server.server_type,
+            original_profile.identity.level_name.as_deref(),
             &updated_slot,
         )
         .and_then(|updated| {
@@ -2021,7 +2022,7 @@ pub async fn update_profile(
     };
     if changes_packs {
         let (pack, next_enabled) = pack_mutation.as_ref().expect("validated above");
-        match msc_application::addons::mutate_bedrock_world_pack(
+        match msc_application::addons::mutate_world_pack(
             &world_store::zip_path(server_dir, &updated_slot.id),
             pack,
             *next_enabled,
@@ -2054,7 +2055,7 @@ pub async fn update_profile(
         if let Err(error) = worlds::activate_slot(
             &StdFileSystem,
             server_dir,
-            ServerType::Bedrock,
+            server.server_type,
             &updated_slot,
             false,
             &iso8601_now(),
@@ -2062,7 +2063,7 @@ pub async fn update_profile(
                 run_pre_mutation_safety_backup(
                     &state.lifecycle,
                     server_dir,
-                    ServerType::Bedrock,
+                    server.server_type,
                     raw_level_name.as_deref(),
                     || false,
                 )

@@ -206,6 +206,15 @@ pub fn normalize_world_import(
             .by_index_raw(index)
             .map_err(|error| ArchiveError::Corrupt(error.to_string()))?;
         let name = entry.name().replace('\\', "/");
+        // Raw file copying rebuilds ZIP type bits. Check the original type
+        // first so an executable or special entry cannot become a plain file.
+        let mode = entry.unix_mode().unwrap_or(0);
+        let kind = mode & 0o170000;
+        if (entry.is_dir() && kind != 0 && kind != 0o040000)
+            || (!entry.is_dir() && (mode & 0o111 != 0 || (kind != 0 && kind != 0o100000)))
+        {
+            return Err(ArchiveError::UnsafeEntry(name));
+        }
         let path = name.trim_end_matches('/');
         if path.split('/').any(|part| part.is_empty() || part == ".") {
             return Err(ArchiveError::UnsafeEntry(name));
@@ -319,9 +328,21 @@ pub fn normalize_world_import(
             let entry = input
                 .by_index(index)
                 .map_err(|error| ArchiveError::Corrupt(error.to_string()))?;
-            output
-                .raw_copy_file_rename(entry, mapped)
-                .map_err(|error| ArchiveError::Corrupt(error.to_string()))?;
+            if entry.is_dir() {
+                // raw_copy_file_rename uses file options that discard type bits;
+                // add_directory explicitly restores the directory type.
+                output
+                    .add_directory(
+                        mapped,
+                        SimpleFileOptions::default()
+                            .unix_permissions(entry.unix_mode().unwrap_or(0o755)),
+                    )
+                    .map_err(|error| ArchiveError::Corrupt(error.to_string()))?;
+            } else {
+                output
+                    .raw_copy_file_rename(entry, mapped)
+                    .map_err(|error| ArchiveError::Corrupt(error.to_string()))?;
+            }
         }
         output
             .finish()

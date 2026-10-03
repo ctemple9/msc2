@@ -363,6 +363,11 @@ fn world_import_normalizes_bedrock_packaging_and_preserves_source() {
             )
             .unwrap();
         }
+        zip.add_directory(
+            format!("{prefix}db/"),
+            SimpleFileOptions::default().unix_permissions(0o700),
+        )
+        .unwrap();
         for name in [
             level.as_str(),
             database.as_str(),
@@ -379,6 +384,13 @@ fn world_import_normalizes_bedrock_packaging_and_preserves_source() {
             Some(expected_name.to_string())
         );
         assert_eq!(fs::read(&source).unwrap(), original);
+        let mut normalized = zip::ZipArchive::new(fs::File::open(&destination).unwrap()).unwrap();
+        let directory = normalized
+            .by_name(&format!("worlds/{expected_name}/db/"))
+            .unwrap();
+        assert!(directory.is_dir());
+        assert_eq!(directory.unix_mode().unwrap() & 0o170000, 0o040000);
+        assert_eq!(directory.unix_mode().unwrap() & 0o777, 0o700);
         let names = list_entry_names(&destination).unwrap();
         assert_eq!(names.iter().filter(|name| !name.ends_with('/')).count(), 2);
         assert!(
@@ -426,7 +438,7 @@ fn world_import_normalization_refuses_unsafe_or_ambiguous_contents() {
         assert!(!destination.exists());
     }
     // A harmless-looking filename with executable permissions must remain
-    // executable through raw copying, so strict world validation refuses it.
+    // executable in the source; normalization must refuse it before copying.
     let source = tmp.path().join("executable.zip");
     let destination = tmp.path().join("normalized.zip");
     let mut zip = ZipWriter::new(fs::File::create(&source).unwrap());

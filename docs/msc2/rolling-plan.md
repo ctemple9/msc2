@@ -247,3 +247,17 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Essential coverage:** Strengthen the existing staged-upload/import round-trip with a loose `level.dat` ZIP and assert that the stored archive contains `world/level.dat`. This directly catches a route precheck preventing normalization, the gap missed by P6.52's library cases. Reuses the existing controlled local ZIP and fake process/journal setup; no additional test count, network, live Minecraft or timing assumptions. Expected runtime remains under one second. Test execution is deferred.
 
 **Agent checks:** Rust formatting and production agent Clippy passed (one existing unused `auth::forbidden` warning). Broader test-target compilation was blocked by pre-existing `crates/msc-agent/tests/cli_service.rs` references to removed `CommonArgs` fields (`base_url`, `host`, `port`, `token`); no tests ran and that unrelated file was not changed. Rebuild/restart the development app/agent and retry the original Bedrock ZIP unchanged for manual acceptance.
+
+
+### P6.54 — Preserve directory types when normalizing ZIPs
+
+**Status:** Implemented; awaiting Cameron's verification. Follow-up to Cameron's `unsafe archive entry: worlds/XqKXS4++O7k=/db/` import failure.
+**Files:** `crates/msc-infrastructure/src/archive.rs`, `crates/msc-infrastructure/tests/world_archive.rs`, this plan.
+**What:** Write normalized directory markers with ZIP `add_directory`, retaining their permission bits. Raw copying remains only for file contents. The ZIP library's `raw_copy_file_rename` reconstructs options via `unix_permissions`, which strips entry type bits; directory markers therefore became regular-file entries and failed strict validation. Inspect original entry modes before copying to reject executables and non-regular types rather than let option reconstruction disguise them. Source archives and strict activation validation remain unchanged.
+**Verify:** `cargo test -p msc-infrastructure --test world_archive world_import_`
+**Batch:** P6.54 only.
+**Commit:** `P6.54: preserve directory entry types during world import`
+
+**Essential coverage:** Extend the existing Bedrock packaging case with an explicit `db/` directory marker (the actual failed entry) for every supported layout, and assert the stored directory type and original 0700 permissions. No new test count; existing tiny local fixtures, expected combined runtime under one second. No tests run.
+
+**Agent checks:** Rust formatting and Clippy for the affected libraries and archive test target. Manual acceptance requires rebuilding/restarting the agent and importing the unchanged original ZIP.

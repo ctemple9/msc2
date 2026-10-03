@@ -1,5 +1,18 @@
 # MSC 2 — Rolling Plan
 
+### P12.235 — Find Windows Java without an interactive Local AppData variable
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `crates/msc-agent/src/routes/versions.rs`, this plan.
+**What:** On Windows, include `HOME/AppData/Local/MSC2/runtimes` alongside the agent-managed root and optional LOCALAPPDATA root. The desktop service explicitly records the installing user's HOME; discovery must not rely solely on an interactive LOCALAPPDATA variable. macOS/Linux paths are unchanged.
+**Verify:** `cargo clippy -p msc-agent --bin msc`
+**Batch:** P12.235 only.
+**Commit:** `P12.235: locate windows java from the service user home`
+
+**Evidence:** Java 25.0.4.1 executed successfully again from Cameron's Local runtime folder. The repaired service binary and rebuilt `target/debug/msc.exe` have matching SHA-256 hashes, but the live Java list still returns only Java 21. Service metadata from the preceding diagnosis records `HOME=C:/Users/Cameron`. P12.234 added the environment-dependent Local root but did not cover missing/different service LOCALAPPDATA. This correction derives the known installed root directly from HOME; the service process's live environment has not been inspected, so that cause remains an inference until owner acceptance.
+**Checks:** Rust formatting and shipping-agent Clippy passed with existing unrelated Windows warnings. `npm --prefix clients/desktop-web run prepare:agent` rebuilt and staged the debug/package agent successfully. No tests, service restarts, or Java downloads run.
+**Manual acceptance:** Repair using the freshly staged agent, reopen the Java picker, and confirm the already installed Local Java 25 appears. No Java reinstall is needed. Live acceptance remains pending until the service runs this revision.
+
 ### P12.234 — Discover Windows Java installed under the default data folder
 
 **Status:** Implemented; awaiting Cameron's verification.

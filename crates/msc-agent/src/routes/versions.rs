@@ -776,13 +776,22 @@ pub async fn java_runtimes(State(state): State<LifecycleRoutesState>) -> Respons
         // The desktop service uses Roaming through MSC2_DATA_DIR, while
         // runtimes installed by an earlier/default agent live under Local.
         // Discover both so Repair does not hide already installed Windows JDKs.
-        if host == HostOs::Windows
-            && let Some(local_app_data) = std::env::var_os("LOCALAPPDATA")
-            && !local_app_data.is_empty()
-        {
-            let local_runtimes = PathBuf::from(local_app_data).join("MSC2").join("runtimes");
-            if local_runtimes != runtimes_root() {
-                roots.push(local_runtimes.to_string_lossy().into_owned());
+        if host == HostOs::Windows {
+            // SCM services may lack the interactive user's LOCALAPPDATA.
+            // The desktop installer explicitly records HOME for this user.
+            roots.push(
+                home_dir
+                    .join("AppData/Local/MSC2/runtimes")
+                    .to_string_lossy()
+                    .into_owned(),
+            );
+            if let Some(local_app_data) = std::env::var_os("LOCALAPPDATA")
+                && !local_app_data.is_empty()
+            {
+                let local_runtimes = PathBuf::from(local_app_data).join("MSC2").join("runtimes");
+                if local_runtimes != runtimes_root() {
+                    roots.push(local_runtimes.to_string_lossy().into_owned());
+                }
             }
         }
         roots.extend(default_java_runtime_search_roots(host, &home_dir));

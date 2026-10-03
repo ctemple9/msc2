@@ -495,3 +495,12 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Verify:** `npm --prefix clients/desktop-web run check`
 **Batch:** P12.218 only.
 **Commit:** `P12.218: allow older java runtimes during setup`
+
+### P12.219 — Match the default window to the resized app
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src-tauri/tauri.conf.json`, this plan.
+**What:** Set the initial Tauri content area to 1600 × 900 logical pixels to match Cameron's manually resized app window.
+**Verify:** Rebuild and launch the desktop app; confirm the initial window opens at the resized dimensions instead of filling the display.
+**Batch:** P12.219 only.
+**Commit:** `P12.219: match default window to resized app`

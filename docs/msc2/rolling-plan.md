@@ -573,3 +573,15 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Commit:** `P12.224: configure curseforge key from pack browser`
 
 **Manual acceptance:** With no CurseForge key, open Bedrock Browse Packs during creation and click the missing-key message. Confirm the console link opens externally, Cancel/Escape return to browsing without losing the draft, and Save stores the key and retries the current search. Saving failures stay in the key sheet. Repeat from the Worlds tab. The API key remains saved for the agent as in Settings; it is not read back into the field.
+
+
+### P12.225 — Remove duplicate world review tour instruction
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/help/TourOverlay.svelte`, this plan.
+**What:** Remove the hardcoded world-review hint that repeats the guide's body. Show the instruction once, retaining Okay and Continue behavior. No tests added or run for this copy removal.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.225 only.
+**Commit:** `P12.225: remove duplicate world review tour instruction`
+
+**Manual acceptance:** Restart the tour and reach Nice, Your World Is Configured. Confirm the review instruction appears once and Okay still reveals the world page for review and Continue.

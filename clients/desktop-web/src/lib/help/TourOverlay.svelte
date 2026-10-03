@@ -224,11 +224,7 @@
             Nothing is required for a basic server. Feel free to browse or add files, then click
             Okay and Continue when you are ready.
           </p>
-        {:else if step.id === 'world-review'}
-          <p class="hint review-hint">
-            Review your world settings, then click Continue when you are ready.
-          </p>
-        {:else}
+        {:else if step.id !== 'world-review'}
           <p class="hint review-hint">
             Review the summary and display name, then click Okay and Create Server when you are
             ready.

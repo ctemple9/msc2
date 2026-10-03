@@ -712,3 +712,97 @@ fn update_plugin_from_source_github_selects_jar_asset() {
     );
     assert_eq!(fs.read(&outcome.installed_path).unwrap(), b"jar bytes");
 }
+
+// Essential: overlay metadata appears before main metadata in real Terratonic
+// ZIPs. Tiny controlled archives cover root and enclosing-folder packaging,
+// preserve overlays, and still reject separate packs with no common pack root.
+// No network, Minecraft runtime or timing assumptions; expected under a second.
+#[test]
+fn java_datapack_install_uses_outer_metadata_and_preserves_overlays() {
+    use std::io::{Cursor, Write};
+    struct Scratch(std::path::PathBuf);
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    fn zip_bytes(entries: &[(&str, &[u8])]) -> Vec<u8> {
+        let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        for (name, bytes) in entries {
+            zip.start_file(*name, zip::write::SimpleFileOptions::default())
+                .unwrap();
+            zip.write_all(bytes).unwrap();
+        }
+        zip.finish().unwrap().into_inner()
+    }
+    let scratch = Scratch(
+        std::env::temp_dir().join(format!("msc2-datapack-overlay-{}", uuid::Uuid::new_v4())),
+    );
+    std::fs::create_dir_all(&scratch.0).unwrap();
+    let world_path = scratch.0.join("world.zip");
+    let original = zip_bytes(&[("world/level.dat", b"level")]);
+    let metadata = br#"{"pack":{"pack_format":15,"description":"Main pack"},"overlays":{"entries":[{"directory":"overlay","formats":[15,999]}]}}"#;
+    let overlay_metadata = br#"{"pack":{"pack_format":15,"description":"Overlay"}}"#;
+    let mut selected = version(
+        "overlay-version",
+        "overlay-project",
+        "1",
+        "pack.zip",
+        "https://example.com/pack.zip",
+    );
+    selected.game_versions = vec!["26.2".to_string()];
+    for prefix in ["", "Enclosing/"] {
+        std::fs::write(&world_path, &original).unwrap();
+        let overlay_name = format!("{prefix}overlay/pack.mcmeta");
+        let data_name = format!("{prefix}overlay/data/example/function/test.mcfunction");
+        let main_name = format!("{prefix}pack.mcmeta");
+        let incoming = zip_bytes(&[
+            (overlay_name.as_str(), overlay_metadata),
+            (data_name.as_str(), b"say example"),
+            (main_name.as_str(), metadata),
+        ]);
+        let (_, _, paths, backup) = addons::install_java_datapack(
+            &world_path,
+            &incoming,
+            &selected,
+            "overlay-project",
+            "Example",
+            "26.2",
+        )
+        .unwrap();
+        assert_eq!(std::fs::read(backup).unwrap(), original);
+        assert!(
+            paths
+                .iter()
+                .any(|path| path.ends_with("/overlay/pack.mcmeta"))
+        );
+        let mut saved = zip::ZipArchive::new(std::fs::File::open(&world_path).unwrap()).unwrap();
+        let main = paths
+            .iter()
+            .find(|path| path.ends_with("/pack.mcmeta") && !path.ends_with("/overlay/pack.mcmeta"))
+            .unwrap();
+        use std::io::Read;
+        let mut actual = Vec::new();
+        saved
+            .by_name(&format!("world/{main}"))
+            .unwrap()
+            .read_to_end(&mut actual)
+            .unwrap();
+        assert_eq!(actual, metadata);
+        assert!(saved.by_name("world/datapacks/overlay-project-overlay-version/overlay/data/example/function/test.mcfunction").is_ok());
+    }
+    std::fs::write(&world_path, &original).unwrap();
+    let ambiguous = zip_bytes(&[("One/pack.mcmeta", metadata), ("Two/pack.mcmeta", metadata)]);
+    assert!(
+        addons::install_java_datapack(
+            &world_path,
+            &ambiguous,
+            &selected,
+            "overlay-project",
+            "Example",
+            "26.2"
+        )
+        .is_err()
+    );
+    assert_eq!(std::fs::read(&world_path).unwrap(), original);
+}

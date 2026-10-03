@@ -15,7 +15,7 @@
   import { errorMessage, mutate } from '../shared/types';
   import { formatCount, parseInlineMarkdown, sanitizeCurseForgeBody } from '../components/model';
   import type { ProjectDetailItem } from '../components/model';
-  import { pollOperation } from './model';
+  import { pollOperation, worldPaths, type WorldSlotWithProfile } from './model';
 
   export let api: ScreenApi | undefined;
   export let bedrock = false;
@@ -45,10 +45,34 @@
   let installing = '';
   let installingFileId: number | undefined;
   let installed = new Set<string>();
+  let installedJavaVersions = new Map<string, string[]>();
+
+  function recordInstalledJavaVersion(projectId: string, versionId: string): void {
+    installed = new Set(installed).add(projectId);
+    const next = new Map(installedJavaVersions);
+    next.set(projectId, [...new Set([...(next.get(projectId) ?? []), versionId])]);
+    installedJavaVersions = next;
+  }
+
+  async function loadInstalledJavaPacks(): Promise<void> {
+    if (!api || bedrock) return;
+    try {
+      const saved = await api.get<WorldSlotWithProfile>(worldPaths.profile(slotId));
+      for (const pack of saved.profile.packs) {
+        if (pack.kind === 'java_datapack' && pack.source.provider === 'modrinth'
+          && pack.source.projectId && pack.source.versionId) {
+          recordInstalledJavaVersion(pack.source.projectId, pack.source.versionId);
+        }
+      }
+    } catch (error) {
+      notice = `Could not check installed datapacks: ${errorMessage(error)}`;
+    }
+  }
   let notice = '';
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   onMount(async () => {
+    await loadInstalledJavaPacks();
     if (selectedMinecraftVersion.trim() || !api) {
       versionLoading = false;
       return;
@@ -188,7 +212,7 @@
         { projectId: item.projectId, versionId: version.id },
       );
       notice = `${result.pack.name} installed.`;
-      installed = new Set(installed).add(item.projectId);
+      recordInstalledJavaVersion(item.projectId, version.id);
       onInstalled();
     } catch (error) {
       notice = errorMessage(error);
@@ -210,6 +234,7 @@
         `/v1/worlds/${encodeURIComponent(slotId)}/datapacks/install`,
         { projectId: item.projectId, versionId: version.id },
       );
+      recordInstalledJavaVersion(item.projectId, version.id);
       return `${result.pack.name} installed.`;
     } catch (error) {
       notice = errorMessage(error);
@@ -405,7 +430,7 @@
             </div>
           </button>
           {#if installed.has(item.projectId)}
-            <span class="added">Added</span>
+            <span class="added">Installed</span>
           {:else if installing === item.projectId}
             <span class="added">Installing…</span>
           {:else if versionLoading}
@@ -431,6 +456,7 @@
   <ProjectDetailSheet
     {api}
     item={javaDetailItem}
+    knownInstalledVersionIds={installedJavaVersions.get(javaDetailItem.projectId) ?? []}
     serverMinecraftVersion={selectedMinecraftVersion || undefined}
     onClose={() => (javaDetailItem = undefined)}
     onInstalled={(projectId) => {

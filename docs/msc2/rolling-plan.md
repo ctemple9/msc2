@@ -289,3 +289,17 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Commit:** `P12.201: open project detail links in the default browser`
 
 **Manual acceptance:** In the Paper world's datapack browser, open Terratonic and click View on Modrinth; confirm the default browser opens the project page. Check the About wiki link and a project's Source/Issues/Wiki links through the same shared sheet. The existing desktop opener reports failed/unsupported URL launches inline. Similar plain anchors in the separate CurseForge Bedrock pack sheet are outside this step.
+
+
+### P12.202 — Install datapacks with overlays and remember installed versions
+
+**Status:** Implemented; awaiting Cameron's verification. Cameron clarified that the Terratonic install actually failed, and also requested recognition of previously installed datapacks.
+**Files:** `crates/msc-application/src/addons.rs`, `crates/msc-application/tests/addons.rs`, `clients/desktop-web/src/lib/sections/components/ProjectDetailSheet.svelte`, `clients/desktop-web/src/lib/sections/worlds/WorldPackBrowserSheet.svelte`, this plan.
+**What:** Select the outermost `pack.mcmeta` rather than the first member in ZIP order. Inspection of the actual Modrinth Terratonic 3.0.27 download (version cT2AsHrJ) showed seven metadata members: six overlay copies before the root copy; the old installer selected an overlay and rejected legitimate sibling files. Preserve all overlay contents and keep the common-root, path, symlink, size, compatibility and checksum checks. Read the selected world's saved Modrinth datapack records when opening the browser, pass their version IDs into project details, and label successful/pre-existing recorded installations Installed (staging remains Added). Record successful new versions immediately. Shared project details no longer mark a failed/cancelled background install as installed. The browser-link correction remains its own P12.201 commit. Manual/imported packs without saved provider/version identity cannot be matched to a Modrinth release by these labels; no identity is guessed. No live install performed and no release workflow changes.
+**Verify:** `cargo test -p msc-application --test addons java_datapack_install_uses_outer_metadata_and_preserves_overlays`
+**Batch:** P12.202 only.
+**Commit:** `P12.202: install overlay datapacks and restore installed labels`
+
+**Essential test rationale:** One focused regression case reproduces overlay metadata preceding main metadata, at archive root and inside an enclosing folder; checks preserved overlays/main metadata, prior-world backup, and refusal of ambiguous separate packs without changing the world. Existing addon tests did not cover datapack metadata selection. Uses tiny local ZIPs and a unique directory with automatic cleanup, no network, live Minecraft, sleeps or timing assertions. Expected runtime under one second. Test compiled but not run.
+
+**Manual acceptance:** Rebuild/restart the app and agent; on a stopped Paper server, install Terratonic 3.0.27 from the datapack sheet and confirm success/Installed. Close and reopen the browser and project details; the same saved Modrinth version should remain Installed. Installation errors must remain errors rather than create Installed labels. World-generation effects and external datapack dependencies remain Minecraft/pack behavior, not proved by installation alone.

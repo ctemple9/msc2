@@ -152,7 +152,10 @@ pub fn install_java_datapack(
     }
     let (metadata_name, metadata_bytes) = pack_files
         .iter()
-        .find(|(name, _)| name == "pack.mcmeta" || name.ends_with("/pack.mcmeta"))
+        .filter(|(name, _)| name == "pack.mcmeta" || name.ends_with("/pack.mcmeta"))
+        // Overlay directories can contain their own metadata before the main
+        // pack in ZIP order. The outermost metadata identifies the whole pack.
+        .min_by_key(|(name, _)| name.matches('/').count())
         .ok_or_else(|| {
             JavaDatapackError::Invalid(
                 "The archive does not contain Java datapack metadata (pack.mcmeta).".into(),

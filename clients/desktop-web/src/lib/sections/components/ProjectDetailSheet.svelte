@@ -43,6 +43,7 @@
    *  version stages it via `onStaged` instead of calling
    *  POST /v1/components/install, which requires an already-active server. */
   export let mode: 'install' | 'stage' = 'install';
+  export let knownInstalledVersionIds: readonly string[] = [];
   export let onStaged: ((versionId: string) => void) | undefined = undefined;
 
   let project: Schema['CatalogProjectDetailDTO'] | undefined;
@@ -56,6 +57,7 @@
   let notice = '';
   let linkError: string | undefined;
 
+  $: allInstalledVersionIds = new Set([...knownInstalledVersionIds, ...installedVersionIds]);
   $: serverLoaders = new Set(modrinthLoaderFacets(javaFlavor));
   $: loaderFilter = expandedLoaders(javaFlavor, modrinthLoaderFacets(javaFlavor));
   $: collapsed = collapseVersions(versions, serverLoaders);
@@ -135,10 +137,10 @@
         });
         if (result.operationId) {
           const operation = await pollOperation(api, result.operationId);
-          notice =
-            operation?.state === 'succeeded'
-              ? `${result.message} — restart the server to apply.`
-              : (operation?.error?.message ?? result.message);
+          if (operation?.state !== 'succeeded') {
+            throw new Error(operation?.error?.message ?? 'Installation did not complete.');
+          }
+          notice = `${result.message} — restart the server to apply.`;
         } else {
           notice = result.message;
         }
@@ -307,8 +309,8 @@
                   </span>
                 </span>
               </button>
-              {#if installedVersionIds.has(version.id)}
-                <span class="added">Added</span>
+              {#if allInstalledVersionIds.has(version.id)}
+                <span class="added">{mode === 'stage' ? 'Added' : 'Installed'}</span>
               {:else if installingVersionId === version.id}
                 <span class="added">Installing…</span>
               {:else}

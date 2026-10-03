@@ -561,3 +561,15 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Commit:** `P12.223: include world packs in onboarding tour`
 
 **Manual acceptance:** Restart the tour on Java and Bedrock. After Gameplay Rules → Okay, confirm Packs is highlighted with an expansion prompt; expand it and confirm its overview appears with Okay. Confirm Okay advances to world review, without requiring a pack selection.
+
+
+### P12.224 — Configure CurseForge without leaving pack browsing
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldPackBrowserSheet.svelte`, this plan.
+**What:** Turn the missing-key API error into a clickable prompt that opens a small API key sheet. Provide a masked key field, the owner-requested CurseForge console link through the native external opener, and Save/Cancel. Save through the existing agent settings endpoint and retry the current search without closing the browser or creation wizard. Cancel and Escape retain the browser, query, filters and wizard draft; clear key input on dismissal/success. Missing credentials no longer show the misleading no-results/search-term advice. No tests added or run for this existing API/UI integration.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.224 only.
+**Commit:** `P12.224: configure curseforge key from pack browser`
+
+**Manual acceptance:** With no CurseForge key, open Bedrock Browse Packs during creation and click the missing-key message. Confirm the console link opens externally, Cancel/Escape return to browsing without losing the draft, and Save stores the key and retries the current search. Saving failures stay in the key sheet. Repeat from the Worlds tab. The API key remains saved for the agent as in Settings; it is not read back into the field.

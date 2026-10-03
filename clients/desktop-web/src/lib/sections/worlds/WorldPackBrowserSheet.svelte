@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { ApiError } from '../../api/client';
+  import { openExternal } from '../../platform';
   import { getPlatform } from '../../platform';
   import type { FileChunkSource } from '../../platform/types';
   import StagedUploadSheet from '../components/StagedUploadSheet.svelte';
@@ -77,6 +79,63 @@
     }
   }
   let notice = '';
+  let needsCurseForgeKey = false;
+  let showKeySheet = false;
+  let apiKey = '';
+  let keySaving = false;
+  let keyError = '';
+
+  function closeKeySheet(): void {
+    if (keySaving) return;
+    apiKey = '';
+    keyError = '';
+    showKeySheet = false;
+  }
+
+  async function openKeyConsole(event: MouseEvent): Promise<void> {
+    event.preventDefault();
+    try {
+      await openExternal('https://console.curseforge.com/');
+    } catch (error) {
+      keyError = errorMessage(error);
+    }
+  }
+
+  async function saveApiKey(): Promise<void> {
+    if (!apiKey.trim() || keySaving) return;
+    keySaving = true;
+    keyError = '';
+    try {
+      const status = await mutate<Schema['CurseForgeApiKeyStatusDTO']>(
+        api,
+        '/v1/config/curseforge',
+        { apiKey: apiKey.trim() },
+      );
+      if (!status.configured) throw new Error('The CurseForge API key was not saved.');
+      apiKey = '';
+      showKeySheet = false;
+      needsCurseForgeKey = false;
+      await search();
+      if (detailItem) await showBedrockDetail(detailItem);
+    } catch (error) {
+      keyError = errorMessage(error);
+    } finally {
+      keySaving = false;
+    }
+  }
+
+  onMount(() => {
+    // Escape dismisses only the key prompt, retaining the browser and wizard.
+    const onKey = (event: KeyboardEvent) => {
+      if (showKeySheet && event.key === 'Escape') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        closeKeySheet();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  });
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   onMount(async () => {
@@ -165,6 +224,7 @@
     const requestId = ++searchRequestId;
     loading = true;
     notice = '';
+    needsCurseForgeKey = false;
     try {
       const params = new URLSearchParams();
       if (bedrock) params.set('kind', packKind);
@@ -186,6 +246,8 @@
       if (requestId !== searchRequestId) return;
       results = [];
       bedrockResults = [];
+      needsCurseForgeKey =
+        bedrock && error instanceof ApiError && error.error.code === 'missing_curseforge_api_key';
       notice = errorMessage(error);
     } finally {
       if (requestId === searchRequestId) loading = false;
@@ -421,9 +483,15 @@
         : 'Packs are installed in this world.'} Linked resource and behavior packs install together.
     </p>
   {/if}
-  {#if notice}<p class="notice" role="status">{notice}</p>{/if}
+  {#if needsCurseForgeKey}
+    <button type="button" class="key-prompt" onclick={() => (showKeySheet = true)}
+      >No CurseForge API key is configured. Click to add one…</button
+    >
+  {:else if notice}<p class="notice" role="status">{notice}</p>{/if}
 
-  {#if loading && (bedrock ? bedrockResults.length === 0 : results.length === 0)}
+  {#if needsCurseForgeKey}
+    <p class="explain">Save a key to browse CurseForge packs, or import your own pack file.</p>
+  {:else if loading && (bedrock ? bedrockResults.length === 0 : results.length === 0)}
     <p class="explain" role="status">Searching…</p>
   {:else if bedrock && bedrockResults.length === 0}
     <EmptyState title="No packs found" message="Try a different search term.">
@@ -699,7 +767,80 @@
   />
 {/if}
 
+{#if showKeySheet}
+  <Sheet title="CurseForge API key" size="sm" onClose={closeKeySheet}>
+    <div class="key-form">
+      <p>Save a key for this agent to browse CurseForge packs.</p>
+      <a href="https://console.curseforge.com/" onclick={(event) => void openKeyConsole(event)}
+        >Get a key from the CurseForge API Console</a
+      >
+      <label
+        ><span>API key</span><input
+          type="password"
+          bind:value={apiKey}
+          disabled={keySaving}
+          autocomplete="new-password"
+          placeholder="Paste API key"
+        /></label
+      >
+      {#if keyError}<p role="alert">{keyError}</p>{/if}
+      <div class="key-actions">
+        <Button variant="secondary" disabled={keySaving} onclick={closeKeySheet}>Cancel</Button>
+        <Button
+          variant="primary"
+          disabled={keySaving || !apiKey.trim() || !api}
+          onclick={() => void saveApiKey()}>{keySaving ? 'Saving…' : 'Save'}</Button
+        >
+      </div>
+    </div>
+  </Sheet>
+{/if}
+
 <style>
+  .key-prompt {
+    padding: 0;
+    margin: 8px 0;
+    border: 0;
+    background: none;
+    color: var(--msc2-text-primary);
+    font: inherit;
+    font-size: 12px;
+    text-align: left;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .key-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    font-size: 12px;
+  }
+  .key-form p {
+    margin: 0;
+    color: var(--msc2-text-secondary);
+  }
+  .key-form a {
+    color: var(--msc2-text-primary);
+  }
+  .key-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .key-form input {
+    padding: 8px 10px;
+    border: 1px solid var(--msc2-hairline-field);
+    border-radius: 8px;
+    background: var(--msc2-tier-chrome);
+    color: var(--msc2-text-primary);
+    font: inherit;
+  }
+  .key-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
   .pack-actions,
   .pack-filters {
     display: flex;

@@ -1058,6 +1058,69 @@ fn provisioning_applies_the_first_world_profile_before_first_start() {
 // ---------------------------------------------------------------------
 
 #[test]
+fn fresh_java_registration_preserves_one_slot_with_or_without_prepared_generation_pack() {
+    for custom_generation in [false, true] {
+        let tmp = TempDir::new("fresh-java-registration");
+        let transport = vanilla_transport();
+        let mut profile = WorldProfile::new();
+        profile.identity.level_name = Some("custom_world".into());
+        profile.identity.seed = Some("12345".into());
+        if custom_generation {
+            profile.generation.biome_source = Some("minecraft:plains".into());
+        }
+        let mut request = base_request(JavaServerFlavor::Vanilla, WorldSource::Fresh);
+        request.initial_world_profile = Some(&profile);
+        let created = provisioning::create_download_and_go_server(
+            &StdFileSystem,
+            &transport,
+            tmp.path(),
+            tmp.path(),
+            &request,
+            "2026-08-18T00:00:00Z",
+            always_ok2,
+            always_ok3,
+        )
+        .unwrap();
+        let server_dir = PathBuf::from(&created.config.server_dir);
+        let world_dir = server_dir.join("custom_world");
+        assert_eq!(world_dir.exists(), custom_generation);
+        assert!(!world_dir.join("level.dat").exists());
+        let preset_path = world_dir.join(
+            "datapacks/msc-world-generation/data/msc/worldgen/world_preset/world_profile.json",
+        );
+        let original_preset = custom_generation.then(|| fs::read(&preset_path).unwrap());
+        let saved = msc_infrastructure::world_store::load_profile(
+            &StdFileSystem,
+            &server_dir,
+            &created.world_slot,
+        );
+        msc_application::worlds::reconcile_imported_worlds(
+            &StdFileSystem,
+            &server_dir,
+            msc_domain::identity::ServerType::Java,
+            None,
+            "2026-08-18T00:00:01Z",
+        )
+        .unwrap();
+        let slots = msc_infrastructure::world_store::load_slots(&StdFileSystem, &server_dir);
+        assert_eq!(slots.len(), 1);
+        assert_eq!(slots[0].id, created.world_slot.id);
+        assert_eq!(
+            msc_infrastructure::world_store::load_profile(&StdFileSystem, &server_dir, &slots[0]),
+            saved
+        );
+        assert!(!msc_infrastructure::world_store::zip_path(&server_dir, &slots[0].id).exists());
+        assert_eq!(
+            fs::read_to_string(server_dir.join("world_slots/active_slot_id.txt")).unwrap(),
+            format!("{}\n", slots[0].id)
+        );
+        if let Some(original_preset) = original_preset {
+            assert_eq!(fs::read(&preset_path).unwrap(), original_preset);
+        }
+    }
+}
+
+#[test]
 fn provisioning_install_step_flavor_refused() {
     let tmp = TempDir::new("install-step-refused");
     let transport = FakeTransport::new();

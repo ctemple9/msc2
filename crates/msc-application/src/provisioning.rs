@@ -1137,6 +1137,9 @@ pub(crate) fn finish_server_creation(
         false,
     )?;
     world_store::set_active_slot_id(fs, new_dir, Some(&slot.id))?;
+    if matches!(request.world_source, WorldSource::Fresh) {
+        worlds::mark_fresh_world_reconciled(fs, new_dir)?;
+    }
 
     let should_record = provisioning::should_record_loader_version(
         request.flavor,

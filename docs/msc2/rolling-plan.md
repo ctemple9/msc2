@@ -1,5 +1,20 @@
 # MSC 2 — Rolling Plan
 
+### P12.241 — Preserve Java's initial slot through fresh-server registration
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `crates/msc-application/src/provisioning.rs`, `crates/msc-application/src/worlds.rs`, `crates/msc-application/tests/provisioning.rs`, this plan.
+**What:** Once fresh Java creation has saved its profile and active slot ID, record the existing world-reconciliation marker for that owned initial slot. The shared creation finalizer covers download-and-go and installer-based Java server families. A custom generation data pack can create a world folder before level.dat exists; import recovery must not turn that preparation into a second slot. Keep this slot archive-less so Minecraft still generates the world on first start. Imported Java servers retain existing reconciliation/archive comparison; Bedrock creation and platform runtimes are unchanged.
+**Verify:** `cargo clippy -p msc-agent --bin msc`
+**Batch:** P12.241 only.
+**Commit:** `P12.241: preserve fresh java slots during registration`
+
+**Evidence:** Java generation_properties creates a world folder for custom biome/generator settings. Registration counts an existing folder as live data; an archive-less initial slot then triggers a second slot. Java's preparation lacks level.dat, so creating a world archive here would violate archive/activation expectations. Recording the owned fresh slot as reconciled prevents import recovery from adopting the generation pack as another world. Normal fresh creation previously reached the same marker through the archive-less/no-live-folder reconciliation branch.
+**Checks:** Rust formatting and shipping-agent Clippy passed with existing unrelated Windows warnings. `cargo check -p msc-application --test provisioning` compiled the focused regression with existing warnings. The updated agent is rebuilt/staged for desktop Repair. No tests executed or live world/slot data changed.
+**Essential coverage:** One regression covers fresh Java creation and registration with and without custom generation. Assert one original active slot, identical saved profile, preserved generation-preset contents, no pre-generated level.dat, and no world archive. Existing fake download transport and unique automatically cleaned temporary directories avoid real Java/Minecraft, live networks, ports, sleeps, and clock assumptions. Expected runtime under 100 ms; execution remains with Cameron.
+**Manual acceptance:** Repair with the staged agent. Create a Java server with a custom Biome Source or Generator Options, confirm one slot before/after initiation, and confirm the chosen generation settings apply. Also confirm normal default-world generation. Existing duplicate entries are retained; this prevents duplicates in new fresh Java servers across platforms.
+
+
 ### P18.10x — Retry Bedrock map readiness while save preparation finishes
 
 **Status:** Implemented; awaiting Cameron's verification.

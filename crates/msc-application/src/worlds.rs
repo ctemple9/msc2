@@ -112,6 +112,16 @@ fn reconciliation_marker_path(server_dir: &Path) -> PathBuf {
     world_store::slots_directory(server_dir).join(".p6_reconciled")
 }
 
+pub(crate) fn mark_fresh_world_reconciled(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+) -> io::Result<()> {
+    // Creation already owns the initial slot and any prepared data packs.
+    // Import recovery must not turn that pre-generation folder into a new
+    // world slot. Call only after the creation profile and active ID are saved.
+    fs.write(&reconciliation_marker_path(server_dir), b"1")
+}
+
 /// Scratch location for [`reconcile_imported_worlds`]'s own "extract an
 /// archive into the live-folder location" branch — distinct from
 /// [`activation_staged_dir`], which belongs to a different transaction

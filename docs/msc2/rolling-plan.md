@@ -1,5 +1,17 @@
 # MSC 2 — Rolling Plan
 
+### P12.230 — Hide scrollbars throughout first-time setup
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/help/SetupIntro.svelte`, this plan.
+**What:** Hide scrollbars on every setup page and the nested Java runtime list, matching the outer first-launch window. Preserve scrolling so overflow content remains accessible.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.230 only.
+**Commit:** `P12.230: hide scrollbars throughout first-time setup`
+
+**Checks:** Svelte check passed with zero errors and eleven existing warnings. No Rust changes or tests run.
+**Manual acceptance:** Open first-time setup and move through every page, including step 2 with Java and Bedrock selected. Confirm no scrollbars appear; confirm overflow content and long Java runtime lists remain reachable by scrolling.
+
 > ## STATUS: Phase 16 step records P16.1–P16.34 and Phase 17 step records P17.1–P17.27 and all Phase 18 steps/substeps are Done at Cameron's direction and archived. [v0.1.18](https://github.com/ctemple9/msc2/releases/tag/v0.1.18) published all nine artifacts from `ededaf33632bbbdcc518ae8928a54bb3ba073cc6`. Outstanding physical acceptance, deferred checks and independent phase reviews remain separate from Done step status.
 > **Next move:** Cameron records Phase 17 physical acceptance, then the other agent reviews its gate. Phase 16 still needs Cameron's exact-artifact results in `docs/msc2/release/phase16-acceptance.md` and an independent gate review. Phase 18 awaits independent review against its consolidated map acceptance record; named checks remain deferred. Done step statuses do not assert that pending gate evidence exists.
 

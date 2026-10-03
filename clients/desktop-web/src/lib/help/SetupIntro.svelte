@@ -858,6 +858,17 @@
     overflow-y: auto;
     animation: setup-page-in 180ms ease both;
   }
+  .setup-page,
+  .runtime-list {
+    /* Keep overflow reachable without visible scrollbars in the setup flow. */
+    scrollbar-width: none;
+  }
+  .setup-page::-webkit-scrollbar,
+  .runtime-list::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
   @keyframes setup-page-in {
     from {
       opacity: 0;

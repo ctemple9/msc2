@@ -133,18 +133,31 @@ fn world_activation_applies_saved_profile_without_overwriting_server_settings() 
     profile.gameplay.default_game_mode = Some("creative".to_string());
     world_store::save_profile(&StdFileSystem, server_dir, &slot, &profile).unwrap();
 
-    worlds::activate_slot(
+    let mut stages = Vec::new();
+    worlds::activate_slot_with_progress(
         &StdFileSystem,
         server_dir,
         ServerType::Java,
         &slot,
         false,
         "2026-06-01T00:00:00Z",
-        || true,
+        |_| true,
         || false,
+        &mut |stage, _, _| stages.push(stage.to_string()),
     )
     .unwrap();
 
+    // Existing end-to-end profile coverage also protects the new stage reporting:
+    // an activation must expose its work without changing the resulting settings.
+    for stage in [
+        "Checking imported world",
+        "Backing up current world",
+        "Extracting imported world",
+        "Installing world",
+        "Applying world settings",
+    ] {
+        assert!(stages.iter().any(|reported| reported == stage));
+    }
     let properties = fs::read_to_string(server_dir.join("server.properties")).unwrap();
     assert!(properties.lines().any(|line| line == "difficulty=hard"));
     assert!(properties.lines().any(|line| line == "gamemode=creative"));

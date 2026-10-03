@@ -293,29 +293,54 @@ pub async fn activate(
     let task_operation_id = operation_id.clone();
     let should_cancel = lifecycle.operations().cancellation_check(&operation_id);
     let backup_should_cancel = should_cancel.clone();
+    let progress_lifecycle = lifecycle.clone();
+    let progress_operation_id = operation_id.clone();
     tokio::spawn(async move {
         let now = iso8601_now();
         let backup_lifecycle = task_lifecycle.clone();
         let backup_dir = server_dir.clone();
         let backup_type = server_type;
         let result = tokio::task::spawn_blocking(move || {
-            worlds::activate_slot(
+            let mut last_report = std::time::Instant::now();
+            let mut last_stage = String::new();
+            let mut progress = |stage: &str, current: u64, total: u64| {
+                // Journaling every 64 KiB would make progress itself expensive.
+                // Stage changes, first/last counts and at most four updates per
+                // second retain useful liveness without flooding disk or clients.
+                if stage != last_stage
+                    || current == 0
+                    || current == total
+                    || last_report.elapsed() >= std::time::Duration::from_millis(250)
+                {
+                    let _ = progress_lifecycle.operations().progress(
+                        &progress_operation_id,
+                        current,
+                        total,
+                        stage,
+                    );
+                    last_report = std::time::Instant::now();
+                    last_stage = stage.to_string();
+                }
+            };
+            worlds::activate_slot_with_progress(
                 &StdFileSystem,
                 &backup_dir,
                 backup_type,
                 &slot,
                 running,
                 &now,
-                || {
-                    run_pre_mutation_safety_backup(
+                |progress| {
+                    run_pre_mutation_safety_backup_with_progress(
                         &backup_lifecycle,
                         &backup_dir,
                         backup_type,
                         raw_level_name.as_deref(),
                         &backup_should_cancel,
+                        Some(progress),
                     )
                 },
                 should_cancel,
+                &mut progress,
             )
         })
         .await;
@@ -378,6 +403,24 @@ pub(super) fn run_pre_mutation_safety_backup(
     raw_level_name: Option<&str>,
     should_cancel: impl Fn() -> bool,
 ) -> bool {
+    run_pre_mutation_safety_backup_with_progress(
+        lifecycle,
+        server_dir,
+        server_type,
+        raw_level_name,
+        should_cancel,
+        None,
+    )
+}
+
+fn run_pre_mutation_safety_backup_with_progress(
+    lifecycle: &LifecycleRoutesState,
+    server_dir: &Path,
+    server_type: ServerType,
+    raw_level_name: Option<&str>,
+    should_cancel: impl Fn() -> bool,
+    progress: Option<&mut msc_infrastructure::archive::WorldProgress<'_>>,
+) -> bool {
     let _ = lifecycle;
     let now = iso8601_now();
     let association = msc_domain::world::BackupAssociation {
@@ -385,7 +428,7 @@ pub(super) fn run_pre_mutation_safety_backup(
         slot_name: None,
         world_seed: None,
     };
-    msc_application::backups::create_backup(
+    msc_application::backups::create_backup_with_progress(
         &StdFileSystem,
         server_dir,
         server_type,
@@ -401,6 +444,7 @@ pub(super) fn run_pre_mutation_safety_backup(
         None,
         || false,
         should_cancel,
+        progress,
     )
     .is_ok()
 }

@@ -476,6 +476,33 @@ pub fn activate_slot(
     backup: impl FnOnce() -> bool,
     should_cancel: impl Fn() -> bool,
 ) -> Result<WorldSlot, ActivationError> {
+    activate_slot_with_progress(
+        fs,
+        server_dir,
+        server_type,
+        slot,
+        is_server_running,
+        now,
+        |_| backup(),
+        should_cancel,
+        &mut |_, _, _| {},
+    )
+}
+
+/// Reports real activation stages and archive byte counts. The callback is
+/// observational: cancellation and the durable world-swap order stay unchanged.
+#[allow(clippy::too_many_arguments)]
+pub fn activate_slot_with_progress(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    server_type: ServerType,
+    slot: &WorldSlot,
+    is_server_running: bool,
+    now: &str,
+    backup: impl FnOnce(&mut dyn FnMut(&str, u64, u64)) -> bool,
+    should_cancel: impl Fn() -> bool,
+    progress: &mut dyn FnMut(&str, u64, u64),
+) -> Result<WorldSlot, ActivationError> {
     if fs.stat(&activation_dir(server_dir)).is_ok() {
         return Err(repair_error("activation transaction is still present").into());
     }
@@ -496,7 +523,12 @@ pub fn activate_slot(
         )));
     }
     let mut approved_roots = if has_archive {
-        archive::validate_world_archive(&world_store::zip_path(server_dir, &slot.id), server_type)?
+        progress("Checking imported world", 0, 0);
+        archive::validate_world_archive_with_progress(
+            &world_store::zip_path(server_dir, &slot.id),
+            server_type,
+            &mut |current, total| progress("Checking imported world", current, total),
+        )?
     } else {
         Vec::new()
     };
@@ -504,7 +536,10 @@ pub fn activate_slot(
     let current_level_name = resolved_level_name(fs, server_dir, server_type, None);
     let current_folders = existing_world_folders(fs, server_dir, server_type, &current_level_name);
 
-    if !current_folders.is_empty() && !backup() {
+    if !current_folders.is_empty() {
+        progress("Backing up current world", 0, 0);
+    }
+    if !current_folders.is_empty() && !backup(progress) {
         return if should_cancel() {
             Err(ActivationError::Cancelled)
         } else {
@@ -519,12 +554,14 @@ pub fn activate_slot(
             && active_id != slot.id
             && let Some(old_slot) = slots.iter().find(|old| old.id == active_id)
         {
-            update_active_slot_from_current_world(
+            progress("Saving outgoing world slot", 0, 0);
+            update_active_slot_from_current_world_with_progress(
                 fs,
                 server_dir,
                 server_type,
                 Some(&current_level_name),
                 old_slot,
+                Some(&mut |current, total| progress("Saving outgoing world slot", current, total)),
             )
             .map_err(|error| io::Error::other(error.to_string()))?;
         }
@@ -542,7 +579,7 @@ pub fn activate_slot(
     let staged_dir = activation_staged_dir(server_dir);
     if has_archive {
         let zip_path = world_store::zip_path(server_dir, &slot.id);
-        if let Err(e) = archive::extract_zip(&zip_path, &staged_dir) {
+        if let Err(e) = archive::extract_zip_with_progress(&zip_path, &staged_dir, progress) {
             let _ = fs.remove(&activation_dir(server_dir));
             return Err(e.into());
         }
@@ -605,6 +642,7 @@ pub fn activate_slot(
     }
 
     let prior_dir = activation_prior_dir(server_dir);
+    progress("Installing world", 0, 0);
     begin_world_swap(
         fs,
         &activation_dir(server_dir),
@@ -615,6 +653,7 @@ pub fn activate_slot(
         approved_roots,
     )?;
 
+    progress("Applying world settings", 0, 0);
     finish_activation_commit(
         fs,
         server_dir,

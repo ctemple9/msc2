@@ -481,3 +481,68 @@ fn world_import_normalizes_java_wrappers_without_losing_dimensions() {
     assert!(names.contains(&"world_the_end/level.dat".to_string()));
     assert!(!names.iter().any(|name| name.starts_with("download/")));
 }
+
+// Essential: byte progress must describe actual I/O, not a simulated percentage,
+// while preserving the archive verification/extraction round trip. Controlled
+// local data crosses several buffers; no sleeps, network or live Minecraft.
+#[test]
+fn world_activation_archive_progress_counts_real_bytes() {
+    use msc_infrastructure::archive::{
+        create_zip_from_folders_with_progress, extract_zip_with_progress,
+        validate_archive_safety_with_progress,
+    };
+    let tmp = TempDir::new("activation-byte-progress");
+    let source = tmp.path().join("source");
+    fs::create_dir_all(source.join("world/region")).unwrap();
+    let contents = vec![17_u8; 200_000];
+    fs::write(source.join("world/level.dat"), b"level").unwrap();
+    fs::write(source.join("world/region/r.0.0.mca"), &contents).unwrap();
+    let expected = contents.len() as u64 + 5;
+    let archive = tmp.path().join("world.zip");
+    let mut compressed = Vec::new();
+    create_zip_from_folders_with_progress(
+        &archive,
+        &source,
+        &["world".into()],
+        || false,
+        &mut |current, total| compressed.push((current, total)),
+    )
+    .unwrap();
+    let mut checked = Vec::new();
+    validate_archive_safety_with_progress(&archive, &mut |current, total| {
+        checked.push((current, total))
+    })
+    .unwrap();
+    let destination = tmp.path().join("destination");
+    let mut extracted = Vec::new();
+    extract_zip_with_progress(&archive, &destination, &mut |stage, current, total| {
+        extracted.push((stage.to_string(), current, total))
+    })
+    .unwrap();
+    assert_eq!(
+        fs::read(destination.join("world/region/r.0.0.mca")).unwrap(),
+        contents
+    );
+    for events in [
+        compressed,
+        checked,
+        extracted
+            .iter()
+            .filter(|(stage, _, _)| stage == "Checking archive before extraction")
+            .map(|(_, current, total)| (*current, *total))
+            .collect(),
+        extracted
+            .iter()
+            .filter(|(stage, _, _)| stage == "Extracting imported world")
+            .map(|(_, current, total)| (*current, *total))
+            .collect(),
+    ] {
+        assert_eq!(events.last(), Some(&(expected, expected)));
+        assert!(
+            events
+                .iter()
+                .any(|(current, total)| *current > 0 && current < total)
+        );
+        assert!(events.windows(2).all(|pair| pair[0].0 <= pair[1].0));
+    }
+}

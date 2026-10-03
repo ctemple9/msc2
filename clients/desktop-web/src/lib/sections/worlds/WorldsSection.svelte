@@ -55,6 +55,7 @@
     demoSlots,
     legacyImportName,
     pollOperation,
+    operationPath,
     serversPath,
     worldPaths,
     diffWorldSettings,
@@ -66,10 +67,8 @@
   } from './model';
 
   export let api: ScreenProps['api'] = undefined;
-  // Nothing in this screen needs host-scoped local storage (unlike
-  // HomeSection's notes or PlayersOnlineSection's Bedrock session-log
-  // cutoff) -- kept only so the section registry can pass it uniformly.
-  export const hostId = 'local-agent';
+  // Activation status must stay attached to the host that started it.
+  export let hostId = 'local-agent';
   export let serverId = 'survival';
   export let active = true;
 
@@ -86,6 +85,39 @@
   let confirmingPackDeleteId: string | undefined;
   let busy = false;
   let notice: string | undefined;
+  type ActivationProgress = {
+    api: NonNullable<ScreenProps['api']>;
+    serverId: string;
+    hostId: string;
+    stage: string;
+    current: number;
+    total: number;
+    startedAt: number;
+    lastProgressAt: number;
+    lastContactAt: number;
+    connectionError?: string;
+  };
+  let activation: ActivationProgress | undefined;
+  let activationClock = Date.now();
+  let activationGeneration = 0;
+  let activationTimer: ReturnType<typeof setInterval> | undefined;
+
+  function elapsedLabel(milliseconds: number): string {
+    const seconds = Math.max(0, Math.floor(milliseconds / 1000));
+    return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+  }
+
+  function stopActivationMonitoring(): void {
+    activationGeneration += 1;
+    if (activationTimer) clearInterval(activationTimer);
+    activationTimer = undefined;
+    activation = undefined;
+    busy = false;
+  }
+
+  $: if (activation && (activation.api !== api || activation.serverId !== serverId || activation.hostId !== hostId)) {
+    stopActivationMonitoring();
+  }
 
   let showCreate = false;
   let showPackBrowser = false;
@@ -218,7 +250,10 @@
     loadingAll = true;
     try {
       const results = await Promise.allSettled([
-        loadWorlds(), loadBackups(), loadServers(), loadBackupConfig(),
+        loadWorlds(),
+        loadBackups(),
+        loadServers(),
+        loadBackupConfig(),
       ]);
       const failure = results.find((result) => result.status === 'rejected');
       if (failure?.status === 'rejected') throw failure.reason;
@@ -370,28 +405,98 @@
   }
 
   async function confirmActivate(): Promise<void> {
-    if (!confirming) return;
+    if (!confirming || !api) return;
     const { slotId } = confirming;
+    const activationApi = api;
+    const activationServerId = serverId;
+    const activationHostId = hostId;
+    const generation = ++activationGeneration;
+    const isCurrent = (): boolean =>
+      mounted &&
+      generation === activationGeneration &&
+      api === activationApi &&
+      serverId === activationServerId && hostId === activationHostId;
     confirming = undefined;
     busy = true;
-    flash('Activating world…');
+    notice = undefined;
+    activationClock = Date.now();
+    activation = {
+      api: activationApi,
+      serverId: activationServerId,
+      hostId: activationHostId,
+      stage: 'Requesting world activation',
+      current: 0,
+      total: 0,
+      startedAt: activationClock,
+      lastProgressAt: activationClock,
+      lastContactAt: activationClock,
+    };
+    activationTimer = setInterval(() => {
+      activationClock = Date.now();
+    }, 1000);
     try {
-      const result = await mutate<Schema['WorldActivateResultDTO']>(api, worldPaths.activate, {
-        slotId,
-      });
-      if (result.operationId) {
-        const operation = await pollOperation(api, result.operationId);
-        flash(
-          operation?.state === 'succeeded'
-            ? 'World activated.'
-            : (operation?.error?.message ?? 'Activation did not complete.'),
-        );
+      const result = await mutate<Schema['WorldActivateResultDTO']>(
+        activationApi,
+        worldPaths.activate,
+        {
+          slotId,
+        },
+      );
+      if (!isCurrent()) return;
+      if (!result.operationId) throw new Error('The agent did not return an activation operation.');
+      // Retry status reads without resubmitting activation: losing the connection
+      // must not report failure or start a second world swap.
+      while (isCurrent()) {
+        let operation: Schema['OperationDTO'];
+        try {
+          operation = await activationApi.get<Schema['OperationDTO']>(
+            operationPath(result.operationId),
+          );
+        } catch (error) {
+          if (!isCurrent() || !activation) return;
+          activation = {
+            ...activation,
+            connectionError: error instanceof Error ? error.message : 'Status unavailable',
+          };
+          await new Promise((resolve) => setTimeout(resolve, 900));
+          continue;
+        }
+        if (!isCurrent() || !activation) return;
+        const current = operation.progress?.current ?? 0;
+        const total = operation.progress?.total ?? 0;
+        const stage = operation.statusLine || 'Activating world';
+        const changed: boolean =
+          stage !== activation.stage ||
+          current !== activation.current ||
+          total !== activation.total;
+        activationClock = Date.now();
+        activation = {
+          ...activation,
+          stage,
+          current,
+          total,
+          lastProgressAt: changed ? activationClock : activation.lastProgressAt,
+          lastContactAt: activationClock,
+          connectionError: undefined,
+        };
+        if (['succeeded', 'failed', 'cancelled'].includes(operation.state)) {
+          flash(
+            operation.state === 'succeeded'
+              ? 'World activated.'
+              : operation.state === 'cancelled'
+                ? 'Activation cancelled.'
+                : (operation.error?.message ?? 'Activation failed.'),
+          );
+          await Promise.all([loadWorlds(), loadBackups()]);
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 900));
       }
-      await Promise.all([loadWorlds(), loadBackups()]);
     } catch (error) {
-      flash(error instanceof Error ? error.message : 'Failed to activate this world.');
+      if (isCurrent())
+        flash(error instanceof Error ? error.message : 'Failed to activate this world.');
     } finally {
-      busy = false;
+      if (isCurrent()) stopActivationMonitoring();
     }
   }
 
@@ -547,6 +652,7 @@
     }
   });
   onDestroy(() => {
+    stopActivationMonitoring();
     mounted = false;
     if (refreshTimer) clearInterval(refreshTimer);
     refreshTimer = undefined;
@@ -599,6 +705,40 @@
       runtime, and network helpers—apply to every world and stay in Settings.
     </p>
 
+    {#if activation}
+      <div class="activation-progress" aria-label="World activation progress">
+        <div class="activation-stage">
+          <span role="status">{activation.stage}</span>
+          {#if activation.total > 0}
+            <span
+              >{Math.min(100, Math.floor((100 * activation.current) / activation.total))}%</span
+            >
+          {/if}
+        </div>
+        {#if activation.total > 0}
+          <progress
+            aria-label={activation.stage}
+            max={activation.total}
+            value={Math.min(activation.current, activation.total)}
+          ></progress>
+          <p>{bytesLabel(activation.current)} of {bytesLabel(activation.total)}</p>
+        {/if}
+        <p>
+          Elapsed {elapsedLabel(activationClock - activation.startedAt)} ·
+          {#if activation.connectionError}
+            Last agent contact {elapsedLabel(activationClock - activation.lastContactAt)} ago
+          {:else}
+            Last progress {elapsedLabel(activationClock - activation.lastProgressAt)} ago
+          {/if}
+        </p>
+        {#if activation.connectionError}
+          <p class="activation-connection" role="status">
+            Cannot read activation status. Retrying; activation may still be running.
+            {activation.connectionError}
+          </p>
+        {/if}
+      </div>
+    {/if}
     {#if notice}<p class="notice" role="status">{notice}</p>{/if}
 
     {#if worlds.slots.length === 0}
@@ -1074,6 +1214,48 @@
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
+  }
+  .activation-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: 520px;
+    font-size: 12px;
+    color: var(--msc2-text-secondary);
+  }
+  .activation-stage {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    font-weight: 500;
+  }
+  .activation-progress p {
+    margin: 0;
+    color: var(--msc2-text-tertiary);
+  }
+  .activation-progress progress {
+    display: block;
+    width: 100%;
+    height: 5px;
+    appearance: none;
+    border: 0;
+    border-radius: 2px;
+    background: var(--msc2-tier-content);
+  }
+  .activation-progress progress::-webkit-progress-bar {
+    background: var(--msc2-tier-content);
+    border-radius: 2px;
+  }
+  .activation-progress progress::-webkit-progress-value {
+    background: var(--msc2-text-secondary);
+    border-radius: 2px;
+  }
+  .activation-progress progress::-moz-progress-bar {
+    background: var(--msc2-text-secondary);
+    border-radius: 2px;
+  }
+  .activation-progress .activation-connection {
+    color: var(--msc2-status-warn);
   }
   .notice {
     margin: 0;

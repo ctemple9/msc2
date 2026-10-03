@@ -799,6 +799,25 @@ pub fn update_active_slot_from_current_world(
     raw_level_name: Option<&str>,
     slot: &WorldSlot,
 ) -> Result<WorldSlot, WorldError> {
+    update_active_slot_from_current_world_with_progress(
+        fs,
+        server_dir,
+        server_type,
+        raw_level_name,
+        slot,
+        None,
+    )
+}
+
+/// Saves the outgoing slot with optional measured compression progress.
+pub fn update_active_slot_from_current_world_with_progress(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    server_type: ServerType,
+    raw_level_name: Option<&str>,
+    slot: &WorldSlot,
+    progress: Option<&mut dyn FnMut(u64, u64)>,
+) -> Result<WorldSlot, WorldError> {
     let configured_level_name = if raw_level_name.is_none() {
         read_configured_level_name(fs, server_dir)
     } else {
@@ -817,7 +836,17 @@ pub fn update_active_slot_from_current_world(
     let temp_zip = dir.join("world.update.tmp.zip");
     let _ = fs.remove(&temp_zip);
 
-    if let Err(e) = archive::create_zip_from_folders(&temp_zip, server_dir, &folders) {
+    let creation = match progress {
+        Some(progress) => archive::create_zip_from_folders_with_progress(
+            &temp_zip,
+            server_dir,
+            &folders,
+            || false,
+            progress,
+        ),
+        None => archive::create_zip_from_folders(&temp_zip, server_dir, &folders),
+    };
+    if let Err(e) = creation {
         let _ = fs.remove(&temp_zip);
         return Err(e.into());
     }

@@ -173,6 +173,48 @@ fn safe_join(dest_root: &Path, name: &str) -> PathBuf {
     path
 }
 
+/// Stage and byte reporting shared by world operations; totals are per stage.
+pub type WorldProgress<'a> = dyn FnMut(&str, u64, u64) + 'a;
+
+// Counts bytes after successful writes, including validation writes to a sink.
+// Callers can throttle publication without reducing the accuracy of the count.
+struct ByteProgress<'a> {
+    current: u64,
+    total: u64,
+    callback: &'a mut dyn FnMut(u64, u64),
+}
+
+impl ByteProgress<'_> {
+    fn advance(&mut self, bytes: usize) {
+        self.current = self.current.saturating_add(bytes as u64);
+        (self.callback)(self.current, self.total);
+    }
+
+    fn copy(&mut self, reader: &mut impl Read, writer: &mut impl Write) -> io::Result<()> {
+        let mut buffer = [0_u8; 64 * 1024];
+        loop {
+            let read = match reader.read(&mut buffer) {
+                Ok(read) => read,
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+                Err(error) => return Err(error),
+            };
+            if read == 0 {
+                return Ok(());
+            }
+            writer.write_all(&buffer[..read])?;
+            self.advance(read);
+        }
+    }
+}
+
+/// Reports verified uncompressed bytes without writing any world files.
+pub fn validate_archive_safety_with_progress(
+    zip_path: &Path,
+    progress: &mut dyn FnMut(u64, u64),
+) -> Result<(), ArchiveError> {
+    validate_archive_safety_reporting(zip_path, ArchiveLimits::default(), progress).map(|_| ())
+}
+
 /// The read-only half of [`extract_zip_with_limits`] — declared-metadata
 /// checks (entry count, name safety, symlink mode, total declared
 /// uncompressed size) plus a no-write dry-run decompression proving every
@@ -375,7 +417,17 @@ pub fn validate_world_archive(
     zip_path: &Path,
     server_type: ServerType,
 ) -> Result<Vec<String>, ArchiveError> {
-    let mut archive = validate_archive_safety_with_limits(zip_path, ArchiveLimits::default())?;
+    validate_world_archive_with_progress(zip_path, server_type, &mut |_, _| {})
+}
+
+/// The strict world check with byte progress during its CRC verification pass.
+pub fn validate_world_archive_with_progress(
+    zip_path: &Path,
+    server_type: ServerType,
+    progress: &mut dyn FnMut(u64, u64),
+) -> Result<Vec<String>, ArchiveError> {
+    let mut archive =
+        validate_archive_safety_reporting(zip_path, ArchiveLimits::default(), progress)?;
     let mut roots = BTreeSet::new();
     let mut main_worlds = BTreeSet::new();
     let mut bedrock_worlds = BTreeSet::new();
@@ -524,6 +576,14 @@ fn validate_archive_safety_with_limits(
     zip_path: &Path,
     limits: ArchiveLimits,
 ) -> Result<ZipArchive<fs::File>, ArchiveError> {
+    validate_archive_safety_reporting(zip_path, limits, &mut |_, _| {})
+}
+
+fn validate_archive_safety_reporting(
+    zip_path: &Path,
+    limits: ArchiveLimits,
+    progress: &mut dyn FnMut(u64, u64),
+) -> Result<ZipArchive<fs::File>, ArchiveError> {
     let file = fs::File::open(zip_path).map_err(ArchiveError::Open)?;
     let mut archive = ZipArchive::new(file).map_err(|e| ArchiveError::Corrupt(e.to_string()))?;
 
@@ -558,6 +618,12 @@ fn validate_archive_safety_with_limits(
         }
     }
 
+    progress(0, total_uncompressed);
+    let mut bytes = ByteProgress {
+        current: 0,
+        total: total_uncompressed,
+        callback: progress,
+    };
     // Pass 1: dry-run decompression to a sink — proves every entry's
     // local file data matches its central directory record (catches a
     // corrupt/truncated archive) without writing anything to `dest_root`.
@@ -565,7 +631,9 @@ fn validate_archive_safety_with_limits(
         let mut entry = archive
             .by_index(i)
             .map_err(|e| ArchiveError::Corrupt(e.to_string()))?;
-        io::copy(&mut entry, &mut io::sink()).map_err(|e| ArchiveError::Corrupt(e.to_string()))?;
+        bytes
+            .copy(&mut entry, &mut io::sink())
+            .map_err(|e| ArchiveError::Corrupt(e.to_string()))?;
     }
 
     Ok(archive)
@@ -589,8 +657,45 @@ pub fn extract_zip_with_limits(
     dest_root: &Path,
     limits: ArchiveLimits,
 ) -> Result<(), ArchiveError> {
-    let mut archive = validate_archive_safety_with_limits(zip_path, limits)?;
+    extract_zip_reporting(zip_path, dest_root, limits, &mut |_, _, _| {})
+}
 
+/// Reports the verification and extraction passes separately; their byte
+/// totals describe each pass rather than an estimated whole-operation percent.
+pub fn extract_zip_with_progress(
+    zip_path: &Path,
+    dest_root: &Path,
+    progress: &mut dyn FnMut(&str, u64, u64),
+) -> Result<(), ArchiveError> {
+    extract_zip_reporting(zip_path, dest_root, ArchiveLimits::default(), progress)
+}
+
+fn extract_zip_reporting(
+    zip_path: &Path,
+    dest_root: &Path,
+    limits: ArchiveLimits,
+    progress: &mut dyn FnMut(&str, u64, u64),
+) -> Result<(), ArchiveError> {
+    let mut archive =
+        validate_archive_safety_reporting(zip_path, limits, &mut |current, total| {
+            progress("Checking archive before extraction", current, total)
+        })?;
+    let mut total = 0_u64;
+    for index in 0..archive.len() {
+        let entry = archive
+            .by_index_raw(index)
+            .map_err(|e| ArchiveError::Corrupt(e.to_string()))?;
+        if !entry.is_dir() && entry.name() != WORLD_PROFILE_ENTRY {
+            total = total.saturating_add(entry.size());
+        }
+    }
+    progress("Extracting imported world", 0, total);
+    let mut report = |current, total| progress("Extracting imported world", current, total);
+    let mut bytes = ByteProgress {
+        current: 0,
+        total,
+        callback: &mut report,
+    };
     for i in 0..archive.len() {
         let mut entry = archive
             .by_index(i)
@@ -608,7 +713,7 @@ pub fn extract_zip_with_limits(
             fs::create_dir_all(parent).map_err(ArchiveError::Io)?;
         }
         let mut out = fs::File::create(&dest).map_err(ArchiveError::Io)?;
-        io::copy(&mut entry, &mut out).map_err(ArchiveError::Io)?;
+        bytes.copy(&mut entry, &mut out).map_err(ArchiveError::Io)?;
         drop(out);
         apply_executable_bit(&dest, entry.unix_mode())?;
     }
@@ -758,6 +863,7 @@ fn add_file_from_disk<W: Write + io::Seek, F: Fn() -> bool>(
     name: &str,
     disk_path: &Path,
     should_cancel: &F,
+    progress: &mut ByteProgress<'_>,
 ) -> Result<(), ArchiveError> {
     let opts = SimpleFileOptions::default()
         .compression_method(CompressionMethod::Deflated)
@@ -778,6 +884,7 @@ fn add_file_from_disk<W: Write + io::Seek, F: Fn() -> bool>(
             return Err(ArchiveError::Cancelled);
         }
         zip.write_all(&buffer[..read]).map_err(ArchiveError::Io)?;
+        progress.advance(read);
     }
     Ok(())
 }
@@ -794,6 +901,7 @@ fn add_dir_recursive<W: Write + io::Seek, F: Fn() -> bool>(
     disk_dir: &Path,
     zip_prefix: &str,
     should_cancel: &F,
+    progress: &mut ByteProgress<'_>,
 ) -> Result<(), ArchiveError> {
     if should_cancel() {
         return Err(ArchiveError::Cancelled);
@@ -810,9 +918,9 @@ fn add_dir_recursive<W: Write + io::Seek, F: Fn() -> bool>(
         let zip_path = format!("{zip_prefix}/{name}");
         let file_type = entry.file_type().map_err(ArchiveError::Io)?;
         if file_type.is_dir() {
-            add_dir_recursive(zip, &path, &zip_path, should_cancel)?;
+            add_dir_recursive(zip, &path, &zip_path, should_cancel, progress)?;
         } else if file_type.is_file() {
-            add_file_from_disk(zip, &zip_path, &path, should_cancel)?;
+            add_file_from_disk(zip, &zip_path, &path, should_cancel, progress)?;
         }
         // A symlink inside a source world folder is neither expected nor
         // specially handled — the same "don't invent new source-side
@@ -851,6 +959,77 @@ pub fn create_zip_from_folders_cancellable(
     folder_names: &[String],
     should_cancel: impl Fn() -> bool,
 ) -> Result<(), ArchiveError> {
+    create_zip_reporting(
+        dest_zip_path,
+        base_dir,
+        folder_names,
+        should_cancel,
+        &mut ByteProgress {
+            current: 0,
+            total: 0,
+            callback: &mut |_, _| {},
+        },
+    )
+}
+
+/// Measures source file sizes, then reports bytes successfully compressed.
+/// Used only by callers requesting progress; ordinary archive creation does
+/// not acquire an extra directory traversal.
+pub fn create_zip_from_folders_with_progress(
+    dest_zip_path: &Path,
+    base_dir: &Path,
+    folder_names: &[String],
+    should_cancel: impl Fn() -> bool,
+    progress: &mut dyn FnMut(u64, u64),
+) -> Result<(), ArchiveError> {
+    fn size(path: &Path, should_cancel: &impl Fn() -> bool) -> Result<u64, ArchiveError> {
+        if should_cancel() {
+            return Err(ArchiveError::Cancelled);
+        }
+        let metadata = fs::symlink_metadata(path).map_err(ArchiveError::Io)?;
+        if metadata.is_file() {
+            return Ok(metadata.len());
+        }
+        let mut total = 0_u64;
+        if metadata.is_dir() {
+            for entry in fs::read_dir(path).map_err(ArchiveError::Io)? {
+                total = total.saturating_add(size(
+                    &entry.map_err(ArchiveError::Io)?.path(),
+                    should_cancel,
+                )?);
+            }
+        }
+        Ok(total)
+    }
+    let mut total = 0_u64;
+    progress(0, 0);
+    for name in folder_names {
+        let path = base_dir.join(name);
+        if path.is_dir() {
+            total = total.saturating_add(size(&path, &should_cancel)?);
+        }
+    }
+    progress(0, total);
+    create_zip_reporting(
+        dest_zip_path,
+        base_dir,
+        folder_names,
+        should_cancel,
+        &mut ByteProgress {
+            current: 0,
+            total,
+            callback: progress,
+        },
+    )
+}
+
+fn create_zip_reporting(
+    dest_zip_path: &Path,
+    base_dir: &Path,
+    folder_names: &[String],
+    should_cancel: impl Fn() -> bool,
+    progress: &mut ByteProgress<'_>,
+) -> Result<(), ArchiveError> {
     let result = (|| {
         if should_cancel() {
             return Err(ArchiveError::Cancelled);
@@ -863,7 +1042,7 @@ pub fn create_zip_from_folders_cancellable(
             }
             let disk_dir = base_dir.join(name);
             if disk_dir.is_dir() {
-                add_dir_recursive(&mut zip, &disk_dir, name, &should_cancel)?;
+                add_dir_recursive(&mut zip, &disk_dir, name, &should_cancel, progress)?;
             }
         }
         if should_cancel() {

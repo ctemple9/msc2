@@ -214,6 +214,46 @@ pub fn create_backup(
     still_running_at_resume: impl FnOnce() -> bool,
     should_cancel: impl Fn() -> bool,
 ) -> Result<BackupCreationResult, BackupError> {
+    create_backup_with_progress(
+        fs,
+        server_dir,
+        server_type,
+        raw_level_name,
+        association,
+        server_id,
+        server_display_name,
+        is_automatic,
+        tokened,
+        trigger_reason,
+        auto_prune_max_count,
+        now,
+        console,
+        still_running_at_resume,
+        should_cancel,
+        None,
+    )
+}
+
+/// Backup creation with optional byte progress for activation's safety copy.
+#[allow(clippy::too_many_arguments)]
+pub fn create_backup_with_progress(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    server_type: ServerType,
+    raw_level_name: Option<&str>,
+    association: &BackupAssociation,
+    server_id: Option<&str>,
+    server_display_name: Option<&str>,
+    is_automatic: bool,
+    tokened: bool,
+    trigger_reason: Option<&str>,
+    auto_prune_max_count: Option<i64>,
+    now: &str,
+    console: Option<&dyn BackupConsole>,
+    still_running_at_resume: impl FnOnce() -> bool,
+    should_cancel: impl Fn() -> bool,
+    mut progress: Option<&mut archive::WorldProgress<'_>>,
+) -> Result<BackupCreationResult, BackupError> {
     if should_cancel() {
         return Err(BackupError::Cancelled);
     }
@@ -251,12 +291,21 @@ pub fn create_backup(
         None => false,
     };
 
-    let zip_result = archive::create_zip_from_folders_cancellable(
-        &zip_path,
-        server_dir,
-        &folders,
-        &should_cancel,
-    );
+    let zip_result = match &mut progress {
+        Some(progress) => archive::create_zip_from_folders_with_progress(
+            &zip_path,
+            server_dir,
+            &folders,
+            &should_cancel,
+            &mut |current, total| progress("Backing up current world", current, total),
+        ),
+        None => archive::create_zip_from_folders_cancellable(
+            &zip_path,
+            server_dir,
+            &folders,
+            &should_cancel,
+        ),
+    };
 
     if saves_paused {
         let console = console.expect("saves_paused is only true when console was Some");
@@ -269,9 +318,15 @@ pub fn create_backup(
         Err(error) => return Err(BackupError::Archive(error)),
     }
 
-    if archive::validate_archive_safety(&zip_path).is_err()
-        || !archive_contains_every_folder(&zip_path, &folders)
-    {
+    let verification = match &mut progress {
+        Some(progress) => {
+            archive::validate_archive_safety_with_progress(&zip_path, &mut |current, total| {
+                progress("Checking safety backup", current, total)
+            })
+        }
+        None => archive::validate_archive_safety(&zip_path),
+    };
+    if verification.is_err() || !archive_contains_every_folder(&zip_path, &folders) {
         return Err(BackupError::VerificationFailed);
     }
 

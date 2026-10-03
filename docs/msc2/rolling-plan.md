@@ -1,5 +1,19 @@
 # MSC 2 — Rolling Plan
 
+### P12.236 — Recognize executable files on the real Windows filesystem
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `crates/msc-infrastructure/src/fs.rs`, `crates/msc-infrastructure/tests/java_runtime_detection.rs`, this plan.
+**What:** Replace the Windows filesystem's unconditional `executable: false` stub with a file-and-extension check for exe/com/bat/cmd. Preserve the exact Unix execute-permission calculation. This allows the discovery and normalization fixes from P12.233–P12.235 to accept the installed Java 25 executable.
+**Verify:** `cargo clippy -p msc-agent --bin msc`
+**Batch:** P12.236 only.
+**Commit:** `P12.236: recognize windows executable files during java discovery`
+
+**Diagnosis:** The newly repaired running agent still returned only configured Java 21. Source inspection found that `StdFileSystem.stat` used a non-Unix placeholder always returning false for executable files. Runtime discovery requires both `is_file` and `executable`, so no real Windows JDK could pass even after correcting filenames/search roots. Earlier fake-filesystem coverage marked java.exe executable and missed this production boundary; environment-only fixes were incomplete.
+**Checks:** Rust formatting, shipping-agent Clippy and compilation of the discovery regression target passed with existing unrelated warnings. No tests run. The agent was rebuilt/staged for desktop Repair; the running service is not replaced by building alone.
+**Essential coverage:** Add one Windows-only real-filesystem regression with a temporary metadata-only java.exe, a text file, and a directory ending in .exe. Assert discovery and home normalization find the JDK, and reject non-executable files/directories. The fake executable is never launched; no Java install/network/timing wait is needed. A unique temporary folder is cleaned by an RAII guard even after an assertion failure. Expected runtime below 100 ms. Execution remains deferred to Cameron.
+**Manual acceptance:** Load the freshly staged agent with Repair, reopen the Java picker, and confirm Local Temurin Java 25 is listed. The live CLI Java list should include its `bin/java.exe` path. No reinstall is required. macOS/Linux retain the same permission-bit behavior; physical acceptance remains with Cameron.
+
 ### P12.235 — Find Windows Java without an interactive Local AppData variable
 
 **Status:** Implemented; awaiting Cameron's verification.

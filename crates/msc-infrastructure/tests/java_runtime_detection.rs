@@ -169,6 +169,48 @@ fn java_runtime_detection_normalization_directory_without_bin_java_returns_error
 
 // --- detectInstalledJavaRuntimes ---
 
+#[cfg(windows)]
+#[test]
+fn java_runtime_detection_windows_real_filesystem_recognizes_java_exe() {
+    use msc_infrastructure::fs::{FileSystem, StdFileSystem};
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let root = std::env::temp_dir().join(format!(
+        "msc2-java-discovery-{}-{unique}",
+        std::process::id()
+    ));
+    struct Cleanup(PathBuf);
+    impl Drop for Cleanup {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    let _cleanup = Cleanup(root.clone());
+    let home = root.join("temurin-25-windows-x64");
+    let executable = home.join("bin/java.exe");
+    std::fs::create_dir_all(executable.parent().unwrap()).unwrap();
+    std::fs::write(&executable, b"metadata only; never launched").unwrap();
+    let text = home.join("bin/readme.txt");
+    std::fs::write(&text, b"text").unwrap();
+    let directory = home.join("directory.exe");
+    std::fs::create_dir(&directory).unwrap();
+    assert!(StdFileSystem.stat(&executable).unwrap().executable);
+    assert!(!StdFileSystem.stat(&text).unwrap().executable);
+    assert!(!StdFileSystem.stat(&directory).unwrap().executable);
+    let runtimes =
+        detect_installed_java_runtimes(&StdFileSystem, &[root.to_string_lossy().into_owned()]);
+    assert_eq!(runtimes.len(), 1);
+    assert_eq!(PathBuf::from(&runtimes[0].executable_path), executable);
+    assert_eq!(
+        PathBuf::from(
+            normalized_java_executable_path(&StdFileSystem, &home.to_string_lossy()).unwrap()
+        ),
+        executable,
+    );
+}
+
 #[test]
 fn java_runtime_detection_windows_executable_is_discovered_and_normalized() {
     let root = PathBuf::from("C:/msc-runtimes");

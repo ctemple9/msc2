@@ -98,7 +98,7 @@ impl FileSystem for StdFileSystem {
         Ok(Metadata {
             is_file: meta.is_file(),
             is_dir: meta.is_dir(),
-            executable: is_executable(&meta),
+            executable: is_executable(path, &meta),
             size: meta.len(),
             modified: meta.modified().unwrap_or(SystemTime::UNIX_EPOCH),
         })
@@ -136,16 +136,28 @@ impl FileSystem for StdFileSystem {
 }
 
 #[cfg(unix)]
-fn is_executable(meta: &std::fs::Metadata) -> bool {
+fn is_executable(_path: &Path, meta: &std::fs::Metadata) -> bool {
     use std::os::unix::fs::PermissionsExt;
     meta.permissions().mode() & 0o111 != 0
 }
 
-// Windows has no POSIX executable bit; executability there is an
-// extension check, not a permission bit. Not needed until a Windows
-// substrate step actually asks the question (D-017).
-#[cfg(not(unix))]
-fn is_executable(_meta: &std::fs::Metadata) -> bool {
+// Windows does not have the Unix execute permission bit. Recognize launchable
+// files by extension so discovery can distinguish java.exe from ordinary files.
+#[cfg(windows)]
+fn is_executable(path: &Path, meta: &std::fs::Metadata) -> bool {
+    meta.is_file()
+        && path
+            .extension()
+            .and_then(|value| value.to_str())
+            .is_some_and(|extension| {
+                ["exe", "com", "bat", "cmd"]
+                    .iter()
+                    .any(|allowed| extension.eq_ignore_ascii_case(allowed))
+            })
+}
+
+#[cfg(not(any(unix, windows)))]
+fn is_executable(_path: &Path, _meta: &std::fs::Metadata) -> bool {
     false
 }
 

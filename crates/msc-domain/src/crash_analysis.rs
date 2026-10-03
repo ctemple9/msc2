@@ -582,7 +582,7 @@ pub fn analyze_paper_plugins(
     let mut problems = Vec::new();
     let mut seen = HashSet::new();
 
-    for raw in text.split('\n') {
+    for (line_index, raw) in text.lines().enumerate() {
         let line = raw.trim();
 
         if let Some(problem) = parse_geyser_incompatible_version(line, &text, installed_plugins)
@@ -632,6 +632,12 @@ pub fn analyze_paper_plugins(
             if plugin_name.is_empty() {
                 continue;
             }
+            let geyser_craft_item_stack_failure = plugin_name.eq_ignore_ascii_case("Geyser-Spigot")
+                && text.lines().skip(line_index).take(120).any(|candidate| {
+                    candidate.contains(
+                        "Couldn't find asBukkitCopy or asCraftMirror method on CraftItemStack",
+                    )
+                });
             let match_entry = match_installed_plugin(plugin_name, installed_plugins);
             let problem = StartupProblem {
                 kind: StartupProblemKind::LoadError,
@@ -641,12 +647,29 @@ pub fn analyze_paper_plugins(
                 offender_id: None,
                 installed_file: match_entry.map(|m| m.filename.clone()),
                 installed_jar_stem: match_entry.map(|m| m.jar_stem.clone()),
-                requirement: Some(
+                requirement: Some(if geyser_craft_item_stack_failure {
+                    "Geyser failed to load because its command integration could not find a CraftItemStack method required by this Paper API. The installed Geyser build is incompatible with this server version.".to_string()
+                } else {
                     "Failed to enable — the plugin errored on startup (it may be outdated)."
-                        .to_string(),
-                ),
+                        .to_string()
+                }),
                 missing_dependency: None,
-                raw_excerpt: line.to_string(),
+                raw_excerpt: if geyser_craft_item_stack_failure {
+                    text.lines()
+                        .skip(line_index)
+                        .take(120)
+                        .filter(|candidate| {
+                            candidate.contains("Error occurred while enabling Geyser")
+                                || candidate.contains("CraftBukkitReflection")
+                                || candidate.contains("Couldn't find asBukkitCopy or asCraftMirror method on CraftItemStack")
+                                || candidate.contains("Caused by:")
+                        })
+                        .take(6)
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                } else {
+                    line.to_string()
+                },
             };
             if seen.insert(problem.id()) {
                 problems.push(problem);

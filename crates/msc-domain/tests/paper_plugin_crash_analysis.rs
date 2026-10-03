@@ -166,3 +166,35 @@ fn paper_plugin_crash_analysis_geyser_unrelated_status_message_ignored() {
     let problems = run(&load("geyser-unrelated-status-message-ignored"));
     assert!(problems.is_empty());
 }
+
+#[test]
+fn paper_plugin_crash_analysis_geyser_craft_item_stack_failure_explains_api_mismatch() {
+    let excerpt = vec![
+        "[ERROR]: Error occurred while enabling Geyser-Spigot v2.11.3-SNAPSHOT (Is it up to date?)"
+            .to_string(),
+        "Caused by: java.lang.IllegalArgumentException: Couldn't find asBukkitCopy or asCraftMirror method on CraftItemStack".to_string(),
+    ];
+    let installed = vec![PluginEntry {
+        filename: "Geyser-Spigot.jar".into(),
+        jar_stem: "Geyser-Spigot".into(),
+        display_name: "Geyser-Spigot".into(),
+        version: Some("2.11.3-SNAPSHOT".into()),
+        is_enabled: true,
+    }];
+
+    let problems = analyze_paper_plugins(&excerpt, &installed);
+
+    assert_eq!(problems.len(), 1);
+    assert_eq!(problems[0].offender_name, "Geyser-Spigot");
+    assert!(
+        problems[0]
+            .requirement
+            .as_deref()
+            .is_some_and(|message| message.contains("Paper API"))
+    );
+    assert!(
+        problems[0]
+            .raw_excerpt
+            .contains("asBukkitCopy or asCraftMirror")
+    );
+}

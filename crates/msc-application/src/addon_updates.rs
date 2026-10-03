@@ -281,6 +281,24 @@ pub fn resolve_addon_updates(
         let tier = (add_on_kind == AddOnKind::Plugin)
             .then(|| addon_update::derive_plugin_tier(&entry.jar_stem, plugin_sources));
 
+        if tier == Some(addon_update::PluginTier::Managed) {
+            items.push(AddonUpdateItem {
+                filename: entry.filename.clone(),
+                jar_stem: entry.jar_stem.clone(),
+                is_enabled: entry.is_enabled,
+                display_name: entry.display_name.clone(),
+                project_id: None,
+                provenance: None,
+                tier,
+                current_version: entry.version.clone(),
+                bucket: AddonUpdateBucket::Unlinked,
+                available_version_id: None,
+                available_version_label: None,
+                available_version: None,
+            });
+            continue;
+        }
+
         let project_id = addon_update::resolve_project_id(
             fresh.map(|v| v.project_id.as_str()),
             persisted_by_hash.map(|l| l.project_id.as_str()),

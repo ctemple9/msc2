@@ -39,6 +39,12 @@ pub struct ManagedPluginInstallation {
     pub acquired: AcquiredHelper,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ManagedPluginUpdate {
+    UpToDate { latest: GeyserBuild },
+    Updated(Box<ManagedPluginInstallation>),
+}
+
 /// Version information read from a plugin's own descriptor inside its JAR.
 /// This is intentionally independent from the download resolver: users can
 /// also place a plugin JAR in `plugins/` manually, and Components should show
@@ -87,6 +93,52 @@ pub fn install_latest(
     let (build, acquired) =
         geyser_provider::acquire_latest(transport, fs, cache_directory, project, platform)
             .map_err(map_acquisition_error)?;
+    install_acquired(fs, server_dir, project, build, acquired)
+}
+
+/// Checks GeyserMC's latest build and replaces an installed helper only when
+/// its descriptor identifies a different version/build. The current JAR is
+/// left in place when metadata lookup or verified acquisition fails.
+pub fn update_latest_if_needed(
+    fs: &dyn FileSystem,
+    transport: &dyn Transport,
+    cache_directory: &Path,
+    server_dir: &Path,
+    project: GeyserProject,
+    platform: HelperPlatform,
+) -> Result<ManagedPluginUpdate, InstallError> {
+    let latest = geyser_provider::resolve_latest_build(transport, project)
+        .map_err(|error| InstallError::Acquisition(error.to_string()))?;
+    let installation = installation(fs, server_dir);
+    let plugin_path = match project {
+        GeyserProject::Geyser => installation.geyser_path,
+        GeyserProject::Floodgate => installation.floodgate_path,
+    }
+    .ok_or_else(|| InstallError::Filesystem(format!("{} is not installed", project.api_name())))?;
+
+    let installed = installed_plugin_version(fs, &plugin_path);
+    let latest_build = i64::try_from(latest.build).ok();
+    if installed
+        .as_ref()
+        .is_some_and(|current| current.version == latest.version && current.build == latest_build)
+    {
+        return Ok(ManagedPluginUpdate::UpToDate { latest });
+    }
+
+    let acquired =
+        geyser_provider::acquire_build(transport, fs, cache_directory, &latest, platform)
+            .map_err(map_acquisition_error)?;
+    install_acquired(fs, server_dir, project, latest, acquired)
+        .map(|installed| ManagedPluginUpdate::Updated(Box::new(installed)))
+}
+
+fn install_acquired(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    project: GeyserProject,
+    build: GeyserBuild,
+    acquired: AcquiredHelper,
+) -> Result<ManagedPluginInstallation, InstallError> {
     let plugins_dir = server_dir.join("plugins");
     if !fs
         .stat(&plugins_dir)

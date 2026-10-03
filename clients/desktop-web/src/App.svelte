@@ -361,6 +361,7 @@
         serverName: string;
         errorCode: string;
         message: string;
+        problems?: Schema['StartupProblemDTO'][];
       }
     | undefined;
   let preloadTabs = readTabPreloadPreference();
@@ -716,6 +717,29 @@
       );
       status = nextStatus;
       observeServerRun(hostId, nextStatus.activeServerId ?? '', nextStatus.running);
+      if (action === 'start' && nextStatus.running && activeServer?.serverType === 'java') {
+        try {
+          const diagnosis = await screenApi.get<Schema['HealthProblemsResponseDTO']>(
+            '/v1/health/problems',
+          );
+          const helperProblem = diagnosis.isSoftFail
+            ? diagnosis.problems.find((problem) =>
+                /geyser|floodgate/i.test(problem.offenderName),
+              )
+            : undefined;
+          if (helperProblem) {
+            startupFailure = {
+              serverName: activeServer.name,
+              errorCode: 'geyser_plugin_failed',
+              message: `${helperProblem.offenderName} did not load.`,
+              problems: [helperProblem],
+            };
+            shellMessage = startupFailure.message;
+          }
+        } catch {
+          // A diagnosis lookup must not turn a successful server start into a failure.
+        }
+      }
       if (action === 'start' && !nextStatus.running) {
         startupFailure = {
           serverName: activeServer?.name ?? 'Server',
@@ -1100,6 +1124,7 @@
     operationKind="start"
     errorCode={startupFailure.errorCode}
     failureMessage={startupFailure.message}
+    problems={startupFailure.problems ?? []}
     visible
     onClose={() => (startupFailure = undefined)}
     onRetry={retryStartup}

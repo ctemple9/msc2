@@ -9,6 +9,7 @@ export { addonPaths, addonStatusLabel, demoAddons } from '../addons/model';
 // editions rather than needing a separate Bedrock-only route.
 export const componentPaths = {
   status: '/v1/components',
+  update: '/v1/components/update',
   version: '/v1/components/version',
   versions: '/v1/versions',
 } as const;

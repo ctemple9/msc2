@@ -136,6 +136,19 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Batch:** P12.198 only.
 **Commit:** `P12.198: match selected server row styling to the list`
 
+### P12.199 — Update managed Geyser helpers and surface load failures
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `crates/msc-infrastructure/src/geyser.rs`, `crates/msc-application/src/geyser.rs`, `crates/msc-application/src/addon_updates.rs`, `crates/msc-application/tests/addon_updates.rs`, `crates/msc-agent/src/routes/components.rs`, `crates/msc-domain/src/crash_analysis.rs`, `crates/msc-domain/tests/paper_plugin_crash_analysis.rs`, `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`, `clients/desktop-web/src/lib/sections/components/model.ts`, `clients/desktop-web/src/lib/sections/server-editor/StartupFailureSheet.svelte`, `clients/desktop-web/src/lib/sections/server-editor/StartupFailurePanel.svelte`, `docs/msc2/api-contract/openapi.json`, `clients/desktop-web/src/lib/api/generated.ts`, this plan.
+**What:** In the installed-plugin action menu, replace View with Update for Geyser and Floodgate. Keep both helpers out of Modrinth update checks, including when a stale project link exists. On request, resolve GeyserMC's latest Spigot build, report when the installed version/build is current, or checksum-verify and atomically replace it while preserving the existing JAR on failure. Report the resulting version/build and that a restart is needed. Detect the CraftItemStack reflection error from Geyser's Paper startup output, record a plain-language Paper API incompatibility diagnosis with the relevant log evidence, and open the existing startup issue sheet when that helper fails even if Paper reaches ready. Add one controlled regression test for the reported Geyser failure signature; strengthen existing update-resolution coverage for stale Modrinth links. Do not run tests.
+**Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-domain -p msc-application -- -D warnings && cargo clippy -p msc-agent -- -D warnings -A dead_code && cargo check -p msc-application --test addon_updates && cargo check -p msc-domain --test paper_plugin_crash_analysis && npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run build && npm --prefix clients/desktop-web run api:check`
+**Batch:** P12.199 only.
+**Commit:** `P12.199: add managed geyser updates and startup diagnosis`
+
+**Essential test rationale:** The new single regression case protects the user-reported Paper/Geyser failure from being reduced to a generic plugin load error and verifies that the diagnosis retains the CraftItemStack cause. Existing tests cover other Paper plugin failures and Geyser's separate minimum-Minecraft-version message, not this Paper API signature. The case uses two fixed console lines and one in-memory plugin entry, with no network or timing assumptions. Expected runtime: under one second. It is added but not run.
+
+**Agent checks:** Rust formatting passed. Strict Clippy passed for `msc-domain` and `msc-application`; the `msc-agent` Clippy check passed with its pre-existing `dead_code` lint allowed because `auth::forbidden` is unused elsewhere. Both affected integration-test targets compiled with `cargo check --test`; no tests were run. Svelte check passed with zero errors and 11 existing warnings; production frontend build and API generation passed. Manual desktop verification remains pending.
+
 ## Phase 19 — Complete local uninstall (owner-requested 2026-10-02)
 
 **Planning state:** Cameron authorized implementation on 2026-10-02. P19.1 is implemented pending owner verification; later steps remain planned.

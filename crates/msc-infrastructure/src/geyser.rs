@@ -213,8 +213,18 @@ pub fn acquire_latest(
 ) -> Result<(GeyserBuild, AcquiredHelper), GeyserAcquisitionError> {
     let build =
         resolve_latest_build(transport, project).map_err(GeyserAcquisitionError::Resolution)?;
-    let release = build.resolved_release(platform);
-    let acquired = acquire_resolved_helper(transport, fs, cache_directory, &release)
-        .map_err(GeyserAcquisitionError::Acquisition)?;
+    let acquired = acquire_build(transport, fs, cache_directory, &build, platform)?;
     Ok((build, acquired))
+}
+
+pub fn acquire_build(
+    transport: &dyn Transport,
+    fs: &dyn FileSystem,
+    cache_directory: &std::path::Path,
+    build: &GeyserBuild,
+    platform: HelperPlatform,
+) -> Result<AcquiredHelper, GeyserAcquisitionError> {
+    let release = build.resolved_release(platform);
+    acquire_resolved_helper(transport, fs, cache_directory, &release)
+        .map_err(GeyserAcquisitionError::Acquisition)
 }

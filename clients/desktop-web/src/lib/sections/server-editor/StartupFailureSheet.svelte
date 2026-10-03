@@ -8,11 +8,14 @@
   export let operationKind: 'initiate' | 'start' = 'start';
   export let errorCode = '';
   export let failureMessage = '';
+  export let problems: Schema['StartupProblemDTO'][] = [];
   export let visible = false;
   export let onClose: () => void = () => {};
   export let onRetry: () => void | Promise<void> = () => {};
 
-  $: title = `${serverName} startup issue`;
+  $: title = errorCode === 'geyser_plugin_failed'
+    ? `${problems[0]?.offenderName ?? 'Geyser'} did not load`
+    : `${serverName} startup issue`;
 </script>
 
 <Sheet {title} size="md" {visible} {onClose}>
@@ -22,6 +25,7 @@
     {operationKind}
     {errorCode}
     {failureMessage}
+    {problems}
     onRetry={async () => {
       await onRetry();
       onClose();

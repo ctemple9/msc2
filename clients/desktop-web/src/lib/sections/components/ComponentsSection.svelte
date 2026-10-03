@@ -113,7 +113,9 @@
     (component) => component.name === (isBedrock ? 'bedrock' : activeServer?.javaFlavor),
   );
   $: addonFolderName = isModded ? 'mods' : 'plugins';
-  $: anyAddonUpdatable = addons.some((addon) => addon.bucket === 'updateAvailable');
+  $: anyAddonUpdatable = addons.some(
+    (addon) => addon.bucket === 'updateAvailable' && !managedHelper(addon),
+  );
   let addonSearch = '';
   let addonFilter: ComponentState | 'all' = 'all';
   const addonFilterOptions = [
@@ -136,6 +138,7 @@
   let updatingStems: Set<string> = new Set();
   let confirmingRemove: string | undefined;
   let addonMenu: { addon: Schema['AddonItemDTO']; x: number; y: number } | undefined;
+  let updatingManagedHelper = '';
   let detailAddon: Schema['AddonItemDTO'] | undefined;
   let showVoicePrompt = false;
   let showPlayitSetup = false;
@@ -365,6 +368,30 @@
 
   function openAddonMenu(event: MouseEvent, addon: Schema['AddonItemDTO']): void {
     addonMenu = { addon, x: event.clientX, y: event.clientY };
+  }
+
+  function managedHelper(addon: Schema['AddonItemDTO']): 'geyser' | 'floodgate' | undefined {
+    const stem = addon.jarStem.toLowerCase();
+    if (stem.includes('floodgate')) return 'floodgate';
+    if (stem.includes('geyser')) return 'geyser';
+    return undefined;
+  }
+
+  async function updateManagedHelper(helper: 'geyser' | 'floodgate'): Promise<void> {
+    if (updatingManagedHelper) return;
+    updatingManagedHelper = helper;
+    flash(`Checking ${helper === 'geyser' ? 'Geyser' : 'Floodgate'} for updates…`);
+    try {
+      const result = await mutate<Schema['ComponentUpdateResultDTO']>(api, componentPaths.update, {
+        component: helper,
+      });
+      flash(result.message);
+      await Promise.all([loadComponents(), loadAddons()]);
+    } catch (error) {
+      flash(error instanceof Error ? error.message : `Failed to check ${helper} updates.`);
+    } finally {
+      updatingManagedHelper = '';
+    }
   }
 
   function addonDetailItem(addon: Schema['AddonItemDTO']): ProjectDetailItem {
@@ -676,7 +703,7 @@
                         </span>
                         <span class="subtitle">
                           {addonFilename(addon)} · {addon.currentVersion ?? 'Unknown version'}
-                          {#if addon.bucket === 'updateAvailable' && addon.availableVersion}
+                          {#if addon.bucket === 'updateAvailable' && addon.availableVersion && !managedHelper(addon)}
                             → {addon.availableVersion}
                           {/if}
                         </span>
@@ -686,7 +713,7 @@
                         label={componentStateLabel(addonState(addon))}
                       />
                     </button>
-                    {#if addon.bucket === 'updateAvailable'}
+                    {#if addon.bucket === 'updateAvailable' && !managedHelper(addon)}
                       <Button
                         size="sm"
                         variant="secondary"
@@ -819,11 +846,23 @@
         label: menuAddon.isEnabled ? 'Disable' : 'Enable',
         onSelect: () => void toggleAddon(menuAddon),
       },
-      {
-        label: 'View',
-        disabled: !menuAddon.projectId,
-        onSelect: () => (detailAddon = menuAddon),
-      },
+      ...(managedHelper(menuAddon)
+        ? [
+            {
+              label: updatingManagedHelper
+                ? 'Checking…'
+                : `Update ${managedHelper(menuAddon) === 'geyser' ? 'Geyser' : 'Floodgate'}`,
+              disabled: Boolean(updatingManagedHelper),
+              onSelect: () => void updateManagedHelper(managedHelper(menuAddon)!),
+            },
+          ]
+        : [
+            {
+              label: 'View',
+              disabled: !menuAddon.projectId,
+              onSelect: () => (detailAddon = menuAddon),
+            },
+          ]),
       {
         label: 'Uninstall',
         tone: 'destructive',

@@ -41,6 +41,7 @@ use msc_infrastructure::addon_provider::{self as provider, AddonTransport, HttpT
 use msc_infrastructure::audit_log::Entry as AuditEntry;
 use msc_infrastructure::download_staging::sha512_hex;
 use msc_infrastructure::fs::StdFileSystem;
+use msc_infrastructure::jar_provider::HttpTransport as GeyserHttpTransport;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
@@ -423,6 +424,13 @@ fn is_paper_like(flavor: JavaServerFlavor) -> bool {
     )
 }
 
+fn component_name(project: msc_infrastructure::geyser::GeyserProject) -> &'static str {
+    match project {
+        msc_infrastructure::geyser::GeyserProject::Geyser => "Geyser",
+        msc_infrastructure::geyser::GeyserProject::Floodgate => "Floodgate",
+    }
+}
+
 fn component_rows(server: &msc_domain::app_config_schema::ConfigServer) -> Vec<ComponentStatusDto> {
     let mut rows = Vec::new();
     if server.server_type == ServerType::Bedrock {
@@ -462,10 +470,10 @@ fn component_rows(server: &msc_domain::app_config_schema::ConfigServer) -> Vec<C
             note: None,
         });
         // Geyser and Floodgate are managed compatibility helpers, not
-        // catalog add-ons.  Keep a row even when one is absent so the
-        // Components tab can distinguish a missing helper from an inventory
-        // that was never checked. Their builds have no provider-backed update
-        // check yet, so expose the installed fact and say that honestly.
+        // catalog add-ons. Keep a row even when one is absent so Components
+        // can distinguish a missing helper from an inventory not checked.
+        // This inventory stays offline; the explicit update action resolves
+        // GeyserMC's current build only when the user asks.
         let installation = geyser::installation(&StdFileSystem, Path::new(&server.server_dir));
         for (name, installed, plugin_path) in [
             (
@@ -1798,6 +1806,82 @@ pub async fn update_component(
     let Some(server) = state.lifecycle.active_config_server() else {
         return no_active_server();
     };
+    if let Some(component) = body.component.as_deref() {
+        let project = match component {
+            "geyser" => msc_infrastructure::geyser::GeyserProject::Geyser,
+            "floodgate" => msc_infrastructure::geyser::GeyserProject::Floodgate,
+            _ => {
+                return error_response(
+                    StatusCode::BAD_REQUEST,
+                    "invalid_component",
+                    "Managed helper must be geyser or floodgate.",
+                );
+            }
+        };
+        if server.server_type != ServerType::Java || !is_paper_like(server.java_flavor) {
+            return error_response(
+                StatusCode::CONFLICT,
+                "not_supported",
+                "Geyser and Floodgate updates require a Paper-family Java server.",
+            );
+        }
+        let server_dir = Path::new(&server.server_dir);
+        let cache_directory = server_dir
+            .parent()
+            .unwrap_or(server_dir)
+            .join("_addon_cache");
+        let platform = match msc_infrastructure::helper_acquisition::HelperPlatform::current() {
+            Ok(platform) => platform,
+            Err(error) => {
+                return error_response(
+                    StatusCode::BAD_GATEWAY,
+                    "helper_platform_unavailable",
+                    &error.to_string(),
+                );
+            }
+        };
+        let transport = GeyserHttpTransport::new();
+        return match geyser::update_latest_if_needed(
+            &StdFileSystem,
+            &transport,
+            &cache_directory,
+            server_dir,
+            project,
+            platform,
+        ) {
+            Ok(geyser::ManagedPluginUpdate::UpToDate { latest }) => {
+                Json(ComponentUpdateResultDto {
+                    success: true,
+                    message: format!(
+                        "{} is up to date ({} · build {}).",
+                        component_name(project),
+                        latest.version,
+                        latest.build
+                    ),
+                    new_build: i64::try_from(latest.build).ok(),
+                    new_version: Some(latest.version),
+                })
+                .into_response()
+            }
+            Ok(geyser::ManagedPluginUpdate::Updated(installed)) => Json(ComponentUpdateResultDto {
+                success: true,
+                message: format!(
+                    "{} updated to {} · build {}. Restart the server to apply it.",
+                    component_name(project),
+                    installed.build.version,
+                    installed.build.build
+                ),
+                new_build: i64::try_from(installed.build.build).ok(),
+                new_version: Some(installed.build.version),
+            })
+            .into_response(),
+            Err(error) => error_response(
+                StatusCode::BAD_GATEWAY,
+                "managed_helper_update_failed",
+                &error.to_string(),
+            ),
+        };
+    }
     if let Some(enabled) = body.check_addon_updates {
         let result = state.lifecycle.try_mutate_config(|config| {
             let server_cfg = config

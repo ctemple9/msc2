@@ -36,6 +36,9 @@
   }
 
   function titleForCode(): string {
+    if (errorCode === 'geyser_plugin_failed' && currentProblems.length) {
+      return `${currentProblems[0].offenderName} did not load`;
+    }
     if (currentProblems.length) return `${serverName} could not start`;
     switch (errorCode) {
       case 'unusable_java_runtime':

@@ -1093,7 +1093,7 @@
     "/v1/components/update": {
       "post": {
         "summary": "Update a system component (paper/geyser/floodgate) or a Modrinth-tracked add-on",
-        "x-notes": "Eight request shapes now share one endpoint: updateAll=true updates every add-on with an available update (async, 202); jarStem alone updates one specific add-on (async, 202); jarStem+enabled toggles it (sync, 200); jarStem+linkProjectId manually links it; jarStem+sourceUrl sets/replaces its plugin source; jarStem+removeSource removes one; checkAddonUpdates alone changes the active server's provider-check preference (sync, 200); and the legacy component=paper|geyser|floodgate path updates a system component. Imported modpacks retain their metadata but do not disable individual add-on management. POST /v1/modpacks/import remains the explicit bulk replacement path.",
+        "x-notes": "Eight request shapes share one endpoint: updateAll=true updates every add-on with an available update (async, 202); jarStem alone updates one specific add-on (async, 202); jarStem+enabled toggles it (sync, 200); jarStem+linkProjectId manually links it; jarStem+sourceUrl sets/replaces its plugin source; jarStem+removeSource removes one; checkAddonUpdates alone changes the active server's provider-check preference (sync, 200); and component=paper|geyser|floodgate updates a system component. Geyser/Floodgate resolve their latest GeyserMC build on demand and update synchronously; they are excluded from Modrinth update resolution. Imported modpacks retain their metadata but do not disable individual add-on management. POST /v1/modpacks/import remains the explicit bulk replacement path.",
         "requestBody": {
           "required": true,
           "content": {
@@ -1106,7 +1106,7 @@
         },
         "responses": {
           "200": {
-            "description": "Synchronous shapes only (toggle/link/source-set/source-remove): updateAll/jarStem-update shapes instead return 202 (see below) once request shape and the pack-managed guard pass.",
+            "description": "Synchronous shapes (toggle/link/source-set/source-remove, component check/update): add-on updateAll/jarStem-update shapes instead return 202 (see below) once request shape and the pack-managed guard pass.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1144,7 +1144,7 @@
             "x-error-code": "invalid_body"
           },
           "404": {
-            "description": "not_found (jarStem path)",
+            "description": "not_found (jarStem path or requested managed helper is not installed)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1175,6 +1175,17 @@
               }
             },
             "x-error-code": "internal_error"
+          },
+          "502": {
+            "description": "upstream helper metadata or artifact download failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "managed_helper_update_failed"
           }
         },
         "x-permission-category": "addons"
@@ -8519,7 +8530,8 @@
         "type": "object",
         "properties": {
           "component": {
-            "type": "string"
+            "type": "string",
+            "description": "With paper/geyser/floodgate: update a managed system component. Geyser and Floodgate check GeyserMC's latest Spigot build when requested; the response says whether it was current or updated."
           },
           "jarStem": {
             "type": "string"
@@ -10927,7 +10939,7 @@
           },
           "note": {
             "type": "string",
-            "description": "Set for a component this build honestly cannot check yet (e.g. Geyser/Floodgate update checks stay Phase 9) instead of a fabricated isUpToDate/updatable value."
+            "description": "Set when this offline status response has no provider-backed update verdict. Geyser and Floodgate update checks run only when requested from their component action."
           }
         },
         "required": [

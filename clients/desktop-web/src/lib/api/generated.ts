@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 09f88082359e2a39759b9a80346a23a820038d144c4fb0510d05ac1fadf9dc98
+// Contract SHA-256: 44bd8dad2f0a1c3d252a1f7c6d1052427869447a506c9d005a73031815be0912
 
 export interface paths {
   '/v1/active-server': {
@@ -1408,7 +1408,7 @@ export interface paths {
         };
       };
       responses: {
-        /** @description Synchronous shapes only (toggle/link/source-set/source-remove): updateAll/jarStem-update shapes instead return 202 (see below) once request shape and the pack-managed guard pass. */
+        /** @description Synchronous shapes (toggle/link/source-set/source-remove, component check/update): add-on updateAll/jarStem-update shapes instead return 202 (see below) once request shape and the pack-managed guard pass. */
         200: {
           headers: {
             [name: string]: unknown;
@@ -1437,7 +1437,7 @@ export interface paths {
             'application/json': components['schemas']['ErrorDTO'];
           };
         };
-        /** @description not_found (jarStem path) */
+        /** @description not_found (jarStem path or requested managed helper is not installed) */
         404: {
           headers: {
             [name: string]: unknown;
@@ -1457,6 +1457,15 @@ export interface paths {
         };
         /** @description internal error */
         500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description upstream helper metadata or artifact download failed */
+        502: {
           headers: {
             [name: string]: unknown;
           };
@@ -6419,7 +6428,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Capture current Java terrain for the selected active world */
+    /** Capture current terrain for the selected active world */
     post: operations['refreshWorldMapTerrain'];
     delete?: never;
     options?: never;
@@ -6434,7 +6443,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Fetch a bounded saved Java terrain artifact for an active world dimension */
+    /** Fetch a bounded saved terrain artifact for an active world dimension */
     get: operations['getWorldMapTerrainArtifact'];
     put?: never;
     post?: never;
@@ -7274,7 +7283,7 @@ export interface components {
       latestBuild?: number;
       latestVersion?: string;
       name: string;
-      /** @description Set for a component this build honestly cannot check yet (e.g. Geyser/Floodgate update checks stay Phase 9) instead of a fabricated isUpToDate/updatable value. */
+      /** @description Set when this offline status response has no provider-backed update verdict. Geyser and Floodgate update checks run only when requested from their component action. */
       note?: string;
       updatable: boolean;
     } & {
@@ -7283,6 +7292,7 @@ export interface components {
     ComponentUpdateRequestDTO: {
       /** @description With no other request shape: enable or disable provider-backed mod/plugin update checks for the active server. Off by default. */
       checkAddonUpdates?: boolean;
+      /** @description With paper/geyser/floodgate: update a managed system component. Geyser and Floodgate check GeyserMC's latest Spigot build when requested; the response says whether it was current or updated. */
       component?: string;
       /** @description With jarStem and no updateAll/component: enable/disable that add-on (togglePlugin/toggleMod). */
       enabled?: boolean;
@@ -11352,15 +11362,8 @@ export interface operations {
         };
         content?: never;
       };
-      /** @description No running active Java world or another operation holds this server */
+      /** @description No running active world or another operation holds this server */
       409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Bedrock terrain renderer not integrated */
-      501: {
         headers: {
           [name: string]: unknown;
         };
@@ -11418,14 +11421,7 @@ export interface operations {
         };
         content?: never;
       };
-      /** @description Bedrock renderer not integrated */
-      501: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-      /** @description Private Java renderer unavailable */
+      /** @description Private terrain renderer unavailable */
       502: {
         headers: {
           [name: string]: unknown;

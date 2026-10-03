@@ -250,6 +250,20 @@ fn addon_updates_geyser_excluded_on_plugin_server_kept_on_mod_server() {
     let plugins_dir = Path::new("/server/plugins");
     write_jar(&fs, plugins_dir, "Geyser-Spigot.jar", b"geyser bytes");
     let transport = FakeTransport::new();
+    let managed_link = AddonLink {
+        project_id: "geyser-modrinth-project".into(),
+        title: Some("Geyser on Modrinth".into()),
+        slug: None,
+        icon_url: None,
+        provenance: AddonLinkProvenance::UserLinked,
+        installed_version_id: Some("old-version".into()),
+        installed_file_name: Some("Geyser-Spigot.jar".into()),
+        installed_hash: None,
+        client_side: None,
+        server_side: None,
+        extra: Default::default(),
+    };
+    let links = HashMap::from([(managed_link.project_id.clone(), managed_link)]);
 
     let plan = addon_updates::resolve_addon_updates(
         &transport,
@@ -257,14 +271,14 @@ fn addon_updates_geyser_excluded_on_plugin_server_kept_on_mod_server() {
         plugins_dir,
         JavaServerFlavor::Paper,
         None,
-        &HashMap::new(),
+        &links,
         &HashMap::new(),
     );
-    // Excluded from hash resolution -> no hash computed -> falls straight
-    // through to Unlinked without ever registering a fake response (a bug
-    // here would panic on the unexpected POST/GET instead of silently
-    // passing).
+    // A managed helper remains outside Modrinth update resolution even if a
+    // stale or manually-added project link exists for its filename.
     assert_eq!(plan.items[0].bucket, AddonUpdateBucket::Unlinked);
+    assert!(plan.items[0].project_id.is_none());
+    assert!(plan.items[0].available_version.is_none());
 
     let mods_dir = Path::new("/server2/mods");
     write_jar(&fs, mods_dir, "geyser-fabric.jar", b"geyser mod bytes");

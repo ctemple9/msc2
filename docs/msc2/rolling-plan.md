@@ -1,5 +1,17 @@
 # MSC 2 — Rolling Plan
 
+### P12.231 — Remove repeated onboarding instructions
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `content/guides/onboarding.json`, `content/guides/onboarding-source-map.json`, `clients/desktop-web/src/lib/help/TourOverlay.svelte`, `clients/desktop-web/src/lib/help/SetupIntro.svelte`, this plan.
+**What:** Remove repeated body/footer instructions and duplicate setup completion text. Fold the first-world introduction into Essentials. Suppress the world-review popup while retaining its Continue action listener. Give section-opening cards distinct titles, preserve their expansion actions, shorten add-on/create cards, and remove the repeated running-state claim from the later tour completion copy. Keep source mapping and order aligned with the remaining content.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.231 only.
+**Commit:** `P12.231: remove repeated onboarding instructions`
+
+**Checks:** Svelte check passed with zero errors and eleven existing warnings. No Rust changes or tests added/run.
+**Manual acceptance:** Restart setup/tour. Confirm setup completion has one heading; each card gives its action once; Essentials follows connectivity directly; expansion and Okay buttons still advance through world options; the wizard's Continue advances from world settings without a review popup; add-on and creation cards dismiss correctly and creation finishes the tour.
+
 ### P12.230 — Hide scrollbars throughout first-time setup
 
 **Status:** Implemented; awaiting Cameron's verification.

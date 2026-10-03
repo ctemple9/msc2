@@ -719,10 +719,6 @@
       {:else}
         <div class="done-page">
           <div class="done-check" aria-hidden="true">✓</div>
-          <h3>You’re All Set</h3>
-          <p>
-            MSC is configured and ready. Click “Get Started” to create your first Minecraft server.
-          </p>
           <div class="summary-card">
             <Card padding="0">
               <div class="summary-row">
@@ -1135,18 +1131,6 @@
     gap: 10px;
     padding: 12px 0 4px;
     text-align: center;
-  }
-  .done-page h3 {
-    margin: 0;
-    color: var(--msc2-text-primary);
-    font-size: 18px;
-    font-weight: 600;
-  }
-  .done-page > p {
-    max-width: 26rem;
-    margin: 0;
-    color: var(--msc2-text-secondary);
-    font-size: 13px;
   }
   .done-check {
     display: grid;

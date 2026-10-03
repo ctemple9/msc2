@@ -193,7 +193,8 @@
 
 <svelte:window on:resize={onResize} />
 
-{#if step && !(REVIEW_STEP_IDS.has(step.id) && cardHidden)}
+<!-- World review waits for the wizard's Continue action without another popup. -->
+{#if step && step.id !== 'world-review' && !(REVIEW_STEP_IDS.has(step.id) && cardHidden)}
   <div class="tour-root" role="dialog" aria-modal="true" aria-live="polite">
     {#if !cardHidden}
       {#if blocking}
@@ -217,19 +218,6 @@
       <div class="bookend-card">
         <h2>{step.title}</h2>
         <p>{step.body}</p>
-        {#if step.id === 'server-settings'}
-          <p class="hint review-hint">Click Continue once you have reviewed your settings.</p>
-        {:else if step.id === 'add-ons'}
-          <p class="hint review-hint">
-            Nothing is required for a basic server. Feel free to browse or add files, then click
-            Okay and Continue when you are ready.
-          </p>
-        {:else if step.id !== 'world-review'}
-          <p class="hint review-hint">
-            Review the summary and display name, then click Okay and Create Server when you are
-            ready.
-          </p>
-        {/if}
         <div class="actions center">
           <Button variant="secondary" size="sm" onclick={onSkip}>{skipLabel}</Button>
           <Button variant="primary" onclick={() => (cardHidden = true)}>Okay</Button>
@@ -240,7 +228,7 @@
         <h2>{step.title}</h2>
         <p>{step.body}</p>
         <div class="actions center">
-          {#if stepIndex === 0 || step.id === 'first-world'}
+          {#if stepIndex === 0}
             <Button variant="secondary" size="sm" onclick={onSkip}>{skipLabel}</Button>
           {/if}
           <Button variant="primary" onclick={() => onAdvance(false)}
@@ -272,27 +260,10 @@
             <Button variant="secondary" size="sm" onclick={onSkip}>Finish tour</Button>
             <Button variant="primary" size="sm" onclick={() => onAdvance(false)}>Continue</Button>
           </div>
-        {:else if step.id === 'manage-servers' || step.id === 'create-server' || step.id === 'network-continue'}
-          <div class="hint-row">
-            <p class="hint">
-              {step.id === 'manage-servers'
-                ? 'Open the server dropdown, then choose Manage… to continue.'
-                : step.id === 'create-server'
-                  ? 'Click Add Server… to continue.'
-                  : 'Click Continue to continue.'}
-            </p>
-          </div>
-        {:else if step.id === 'choose-path'}
-          <div class="hint-row">
-            <p class="hint">Start Fresh is selected. Click Continue to continue.</p>
-          </div>
-        {:else if step.id === 'world-generation-expand' || step.id === 'world-gameplay-expand' || step.id === 'world-packs-expand'}
-          <div class="hint-row">
-            <p class="hint">Expand the highlighted section to continue.</p>
-          </div>
+        {:else if step.id && ACTION_ANCHORS[step.id]}
+          <!-- The body names the action; the real highlighted control advances it. -->
         {:else if WORLD_FORM_STEP_IDS.has(step.id)}
           <div class="hint-row">
-            <p class="hint">When you are finished, click Okay.</p>
             <Button variant="primary" size="sm" onclick={() => onAdvance(true)}>Okay</Button>
           </div>
         {:else if step.requiresUserAction}

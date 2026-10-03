@@ -266,12 +266,13 @@
   }
   .activity-row {
     display: grid;
-    grid-template-columns: 1fr 240px 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 240px) minmax(0, 1fr);
     gap: 10px;
     align-items: stretch;
   }
   .world-col {
     display: flex;
+    min-width: 0;
   }
   .world-col :global(> *) {
     flex: 1;

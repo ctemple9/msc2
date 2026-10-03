@@ -148,6 +148,7 @@
   }
   .row {
     display: flex;
+    min-width: 0;
     gap: 10px;
     align-items: flex-start;
   }
@@ -162,7 +163,9 @@
     color: rgba(255, 255, 255, 0.85);
   }
   .meta {
+    flex: 1;
     min-width: 0;
+    overflow: hidden;
   }
   .name {
     margin: 0;

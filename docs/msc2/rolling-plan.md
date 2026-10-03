@@ -398,3 +398,14 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Commit:** `P12.210: fill world slot selection cards`
 
 **Manual acceptance:** Select slots with and without seed/profile details in the same row. Their selected border should run around the full, equal-height card including the blank space below shorter metadata. Svelte check passed; no tests added or run.
+
+### P12.211 — Keep long active world names inside Overview cards
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/sections/home/HomeSection.svelte`, `clients/desktop-web/src/lib/sections/home/ActiveWorldCard.svelte`, this plan.
+**What:** Allow the Activity grid tracks and Active World column to shrink below their contents' intrinsic width. Let the world title metadata column take only available space and clip its existing single-line ellipsis inside the card. Long slot names no longer push into or overlap Chat.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.211 only.
+**Commit:** `P12.211: contain long active world names`
+
+**Manual acceptance:** Open Overview with an unusually long active-world slot name. The title should truncate within Active World and Chat should keep its own column with no overlap. Svelte check passed; no tests added or run.

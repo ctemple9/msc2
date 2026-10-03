@@ -83,7 +83,7 @@
   let confirming: { slotId: string; kind: 'activate' | 'delete' | 'duplicate' } | undefined;
   let confirmingBackupDeleteId: string | undefined;
   let packProject: { projectId: string; title: string } | undefined;
-  let selectedDatapack: Schema['WorldPackRecordDTO'] | undefined;
+  let datapackMenu: { pack: Schema['WorldPackRecordDTO']; x: number; y: number } | undefined;
   let confirmingPackDeleteId: string | undefined;
   let busy = false;
   let notice: string | undefined;
@@ -234,7 +234,7 @@
       });
       profiles = { ...profiles, [slot.id]: result.slot };
       confirmingPackDeleteId = undefined;
-      selectedDatapack = undefined;
+      datapackMenu = undefined;
     } catch (error) {
       notice = error instanceof Error ? error.message : String(error);
     } finally {
@@ -766,7 +766,7 @@
             selected={selectedSlotId === slot.id}
             {busy}
             confirming={confirming?.slotId === slot.id ? confirming.kind : undefined}
-            onSelect={() => { selectedDatapack = undefined; confirmingPackDeleteId = undefined; selectedSlotId = selectedSlotId === slot.id ? undefined : slot.id; }}
+            onSelect={() => { datapackMenu = undefined; confirmingPackDeleteId = undefined; selectedSlotId = selectedSlotId === slot.id ? undefined : slot.id; }}
             onOpenMenu={(event) => openActionMenu(event, slot)}
             onConfirmActivate={() => void confirmActivate()}
             onConfirmDuplicate={() => void confirmDuplicate()}
@@ -918,20 +918,26 @@
         {:else}
           <Card padding="0">
             {#each packs.filter((pack) => pack.edition === 'java') as pack, index (pack.id)}
-              <button type="button" class="pack-row datapack-row" class:bordered={index > 0}
-                onclick={() => { selectedDatapack = pack; confirmingPackDeleteId = undefined; notice = '';  }}>
-                <div class="pack-info">
-                  <span class="pack-name">{pack.name}</span>
-                  <span class="ownership"
-                    >{pack.source.provider ?? 'Source unavailable'} · {pack.source.version ??
-                      pack.source.versionId ??
-                      ''}</span
-                  >
-                </div>
-                <Badge variant="status" tone={pack.enabled ? 'ok' : 'warn'}
-                  >{pack.enabled ? 'Enabled' : 'Disabled'}</Badge
-                >
-              </button>
+              <div class="pack-row" class:bordered={index > 0} class:pack-selected={datapackMenu?.pack.id === pack.id}>
+                {#if confirmingPackDeleteId === pack.id}
+                  <div class="pack-info"><span class="pack-name">{pack.name}</span></div>
+                  <span class="ownership">Uninstall?</span>
+                  <Button size="sm" variant="secondary" disabled={busy} onclick={() => confirmingPackDeleteId = undefined}>Cancel</Button>
+                  <Button size="sm" variant="destructive" disabled={busy || worlds.serverRunning} onclick={() => void changeWorldPack(pack, 'delete')}>Uninstall</Button>
+                {:else}
+                  <button type="button" class="datapack-row" onclick={(event) => {
+                    const rect = event.currentTarget.getBoundingClientRect();
+                    datapackMenu = { pack, x: event.detail === 0 ? rect.left : event.clientX, y: event.detail === 0 ? rect.bottom : event.clientY };
+                    confirmingPackDeleteId = undefined;
+                  }}>
+                    <div class="pack-info">
+                      <span class="pack-name">{pack.name} <Icon name="chevron" size={10} /></span>
+                      <span class="ownership">{pack.source.provider ?? 'Source unavailable'} · {pack.source.version ?? pack.source.versionId ?? ''}</span>
+                    </div>
+                    <Badge variant="status" tone={pack.enabled ? 'ok' : 'warn'}>{pack.enabled ? 'Enabled' : 'Disabled'}</Badge>
+                  </button>
+                {/if}
+              </div>
             {/each}
           </Card>
         {/if}
@@ -995,30 +1001,25 @@
 </div>
 {/if}
 
-{#if selectedDatapack && selectedSlot}
-  <Sheet title={selectedDatapack.name} onClose={() => { selectedDatapack = undefined; confirmingPackDeleteId = undefined; }}>
-    <p class="ownership">Installed in {selectedSlot.name} · {selectedDatapack.enabled ? 'Enabled' : 'Disabled'}</p>
-    {#if selectedDatapack.source.provider === 'modrinth' && selectedDatapack.source.projectId}
-      <Button variant="secondary" onclick={() => {
-        if (!selectedDatapack?.source.projectId) return;
-        packProject = { projectId: selectedDatapack.source.projectId, title: selectedDatapack.name };
-        selectedDatapack = undefined;
-        showPackBrowser = true;
-      }}>View datapack</Button>
-    {:else}
-      <p class="ownership">No catalog page is recorded for this datapack.</p>
-    {/if}
-    {#if worlds.serverRunning}
-      <p class="ownership">Stop the server before deleting this datapack.</p>
-    {:else if confirmingPackDeleteId === selectedDatapack.id}
-      <p>Delete this datapack from {selectedSlot.name}?</p>
-      <Button variant="destructive" disabled={busy} onclick={() => selectedDatapack && void changeWorldPack(selectedDatapack, 'delete')}>Delete datapack</Button>
-      <Button variant="secondary" disabled={busy} onclick={() => confirmingPackDeleteId = undefined}>Cancel</Button>
-    {:else}
-      <Button variant="destructive" disabled={busy} onclick={() => confirmingPackDeleteId = selectedDatapack?.id}>Delete datapack</Button>
-    {/if}
-    {#if notice}<p class="ownership">{notice}</p>{/if}
-  </Sheet>
+{#if datapackMenu && selectedSlot}
+  {@const menuPack = datapackMenu.pack}
+  <Menu x={datapackMenu.x} y={datapackMenu.y} onClose={() => datapackMenu = undefined}
+    items={[
+      {
+        label: 'View',
+        disabled: menuPack.source.provider !== 'modrinth' || !menuPack.source.projectId,
+        onSelect: () => {
+          if (!menuPack.source.projectId) return;
+          packProject = { projectId: menuPack.source.projectId, title: menuPack.name };
+          showPackBrowser = true;
+        },
+      },
+      {
+        label: 'Uninstall', tone: 'destructive', disabled: busy || worlds.serverRunning,
+        onSelect: () => confirmingPackDeleteId = menuPack.id,
+      },
+    ]}
+  />
 {/if}
 
 {#if showPackBrowser && selectedSlot}
@@ -1352,7 +1353,12 @@
     margin-top: 10px;
   }
   .datapack-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
     width: 100%;
+    padding: 0;
     background: transparent;
     color: inherit;
     border: 0;
@@ -1360,7 +1366,12 @@
     cursor: pointer;
     font: inherit;
   }
-  .datapack-row:hover { background: var(--surface-raised); }
+  .pack-row:has(.datapack-row):hover { background: rgba(255, 255, 255, 0.04); }
+  .pack-selected {
+    border-radius: var(--msc2-radius-2);
+    background: rgba(59, 130, 246, 0.06);
+    box-shadow: inset 0 0 0 1.5px var(--msc2-selection);
+  }
 
   .pack-row {
     display: flex;

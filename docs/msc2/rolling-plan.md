@@ -332,3 +332,14 @@ into main; no release publication or exact-artifact acceptance is implied.
 
 **Essential coverage:** Extend the existing small local overlay fixture to delete all installed files while preserving level.dat, verify backup bytes, and refuse unsupported Java disable without mutation. No network or timing assumptions; expected under one second. Compiled with Clippy, not run.
 **Manual acceptance:** Rebuild/restart app and agent. Click an installed datapack on a stopped Paper world. View datapack must open its in-app project page if a saved Modrinth source exists. Delete requires confirmation, removes the row and its files from the selected world, and stays removed after reopening and activating the world. Cancel leaves it installed. Active running servers refuse deletion.
+
+### P12.205 — Match datapack actions to Components menus
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte`, this plan.
+**What:** Replace the datapack action sheet with the same shared popup Menu used by Components. Show View and destructive Uninstall only, with matching selected-row styling and a chevron. View opens the saved in-app Modrinth project; disable View when no supported catalog identity exists. Uninstall switches the row to inline Uninstall?/Cancel/Uninstall confirmation, matching Components. Keep stopped-server protection and existing removal/backup behavior. Anchor keyboard-triggered menus to the row.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.205 only.
+**Commit:** `P12.205: match datapack actions to components menus`
+
+**Manual acceptance:** Click a datapack row: the popup must look like Components with View and Uninstall. View opens its in-app catalog page where available. Uninstall shows inline confirmation; Cancel preserves the pack, confirmed Uninstall removes it. Clicking away or Escape closes the popup. Svelte check passed with zero errors and ten existing warnings; no tests added or run.

@@ -585,3 +585,14 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Commit:** `P12.225: remove duplicate world review tour instruction`
 
 **Manual acceptance:** Restart the tour and reach Nice, Your World Is Configured. Confirm the review instruction appears once and Okay still reveals the world page for review and Continue.
+
+### P12.226 — Show startup failure explanations once
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/sections/server-editor/StartupFailurePanel.svelte`, this plan.
+**What:** Show each diagnosed failure explanation in its finding only, omitting the duplicate heading summary. For load failures with a supplied explanation, use that explanation directly and normalize its final period. Retain fallback summaries when no diagnosis exists and all repair/restart actions. No tests added or run for this copy cleanup.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.226 only.
+**Commit:** `P12.226: remove repeated startup failure explanations`
+
+**Manual acceptance:** Start Paper with the incompatible Geyser build. Confirm its explanation appears once, ends with one period, and the existing actions remain available. The same rendering applies to Floodgate findings.

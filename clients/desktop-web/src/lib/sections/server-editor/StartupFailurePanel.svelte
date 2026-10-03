@@ -62,7 +62,6 @@
   }
 
   function summaryForCode(): string {
-    if (currentProblems.length) return problemExplanation(currentProblems[0]);
     if (failureMessage) return failureMessage;
     return 'The process stopped before the server became ready.';
   }
@@ -79,7 +78,9 @@
       return `${problem.offenderName} is installed more than once.`;
     }
     if (problem.kind === 'loadError') {
-      return `${problem.offenderName} failed while loading.${problem.requirement ? ` ${problem.requirement}.` : ''}`;
+      return problem.requirement
+        ? `${problem.requirement.trim().replace(/[.]+$/, '')}.`
+        : `${problem.offenderName} failed while loading.`;
     }
     return problem.requirement || 'The server stopped before it became ready.';
   }
@@ -153,7 +154,9 @@
   <div class="failure-heading">
     <p class="msc2-type-overline">Startup diagnosis</p>
     <h2>{titleForCode()}</h2>
-    <p class="summary">{summaryForCode()}</p>
+    {#if !currentProblems.length}
+      <p class="summary">{summaryForCode()}</p>
+    {/if}
   </div>
 
   {#if currentProblems.length}

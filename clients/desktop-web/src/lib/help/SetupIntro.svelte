@@ -25,6 +25,7 @@
     ['Forge', 'Classic modding platform. Widest mod selection.'],
     ['NeoForge', 'Forge’s modern successor. More active development.'],
   ] as const;
+  const minimumSupportedJavaMajor = 8;
 
   const pageMeta = [
     { title: 'First-time Setup', subtitle: 'Let’s get Minecraft Server Controller configured.' },
@@ -193,9 +194,12 @@
       const usable =
         javaRuntimes.find(
           (runtime) =>
-            (runtime.majorVersion ?? 0) >= 21 &&
+            (runtime.majorVersion ?? 0) >= minimumSupportedJavaMajor &&
             (!configured || runtime.executablePath === configured),
-        ) ?? javaRuntimes.find((runtime) => (runtime.majorVersion ?? 0) >= 21);
+        ) ??
+        javaRuntimes.find(
+          (runtime) => (runtime.majorVersion ?? 0) >= minimumSupportedJavaMajor,
+        );
       if (usable) {
         if (configured || pathToSave !== undefined) {
           javaStatus = 'found';
@@ -207,7 +211,7 @@
         }
       } else {
         javaStatus = 'not-found';
-        javaMessage = 'No Java 21 or later runtime was found on this host.';
+        javaMessage = `No Java ${minimumSupportedJavaMajor} or later runtime was found on this host.`;
       }
     } catch {
       javaStatus = 'unavailable';
@@ -579,8 +583,8 @@
           <p class="msc2-type-overline">Java Executable</p>
           <Card>
             <p class="card-desc">
-              Java servers require JDK 21 or later. Point to your binary or let the agent find it on
-              PATH.
+              Select an installed Java runtime. MSC checks whether it matches each Minecraft version
+              when you create a server.
             </p>
             <div class="field-row">
               <input
@@ -625,7 +629,7 @@
                     type="button"
                     class="runtime-option"
                     class:selected={javaPath === runtime.executablePath && javaExplicitlySelected}
-                    disabled={(runtime.majorVersion ?? 0) < 21}
+                    disabled={(runtime.majorVersion ?? 0) < minimumSupportedJavaMajor}
                     onclick={() => void selectDetectedJava(runtime)}
                   >
                     <span class="runtime-info">
@@ -637,7 +641,9 @@
                       </span>
                     </span>
                     <span class="runtime-action"
-                      >{(runtime.majorVersion ?? 0) >= 21 ? 'Select' : 'Needs Java 21'}</span
+                      >{(runtime.majorVersion ?? 0) >= minimumSupportedJavaMajor
+                        ? 'Select'
+                        : `Needs Java ${minimumSupportedJavaMajor}`}</span
                     >
                   </button>
                 {/each}
@@ -653,7 +659,8 @@
             </div>
             <StatusDot tone={javaTone} label={javaLabel} />
             {#if javaStatus === 'not-found'}<p class="hint warn">
-                {javaMessage} Install the current Temurin LTS or choose an existing JDK 21+ executable,
+                {javaMessage} Install Java or choose an existing Java {minimumSupportedJavaMajor}+
+                executable,
                 then check again.
               </p>{:else if javaMessage}<p class="hint warn">{javaMessage}</p>{/if}
           </Card>

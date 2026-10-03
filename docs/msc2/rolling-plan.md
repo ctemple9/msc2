@@ -486,3 +486,12 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Verify:** `npm --prefix clients/desktop-web run check`
 **Batch:** P12.217 only.
 **Commit:** `P12.217: remove enforce gamemode helper text`
+
+### P12.218 — Allow older Java runtimes in first-run setup
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/help/SetupIntro.svelte`, `clients/desktop-web/src-tauri/tauri.conf.json`, this plan.
+**What:** Let first-run setup select Java 8 or later instead of incorrectly requiring Java 21 before a Minecraft version is known. Keep version-specific compatibility checks at server creation, and set the default Tauri window to 1740 × 1080 logical pixels to match Cameron's current window.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.218 only.
+**Commit:** `P12.218: allow older java runtimes during setup`

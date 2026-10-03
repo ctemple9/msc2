@@ -100,8 +100,12 @@ pub struct WorldPackDependencyDto {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JavaDatapackInstallRequestDto {
+    #[serde(default)]
     pub project_id: String,
+    #[serde(default)]
     pub version_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub staged_upload_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -230,6 +230,16 @@
               <span class="value">Managed by this modpack</span>
             </div>
           {/if}
+          {#if (draft.pendingWorldPacks ?? []).some((pack) => pack.edition === draft.serverType)}
+            <div class="row">
+              <span class="label">{draft.serverType === 'java' ? 'Datapacks' : 'World packs'}</span>
+              <span class="value"
+                >{(draft.pendingWorldPacks ?? []).filter(
+                  (pack) => pack.edition === draft.serverType,
+                ).length} staged</span
+              >
+            </div>
+          {/if}
           {#if totalStagedAddOns > 0}
             <div class="row">
               <span class="label">{addOnNoun}</span>

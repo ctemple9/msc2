@@ -19,7 +19,10 @@
 
   export let api: ScreenApi | undefined;
   export let bedrock = false;
-  export let slotId: string;
+  export let slotId = '';
+  export let onStage:
+    ((pack: import('../fleet/wizard/model').PendingWorldPack) => void) | undefined = undefined;
+  export let stagedPacks: import('../fleet/wizard/model').PendingWorldPack[] = [];
   export let minecraftVersion = '';
   export let initialProject: ProjectDetailItem | undefined = undefined;
   export let onClose: () => void;
@@ -56,12 +59,16 @@
   }
 
   async function loadInstalledJavaPacks(): Promise<void> {
-    if (!api || bedrock) return;
+    if (!api || bedrock || onStage) return;
     try {
       const saved = await api.get<WorldSlotWithProfile>(worldPaths.profile(slotId));
       for (const pack of saved.profile.packs) {
-        if (pack.kind === 'java_datapack' && pack.source.provider === 'modrinth'
-          && pack.source.projectId && pack.source.versionId) {
+        if (
+          pack.kind === 'java_datapack' &&
+          pack.source.provider === 'modrinth' &&
+          pack.source.projectId &&
+          pack.source.versionId
+        ) {
           recordInstalledJavaVersion(pack.source.projectId, pack.source.versionId);
         }
       }
@@ -74,7 +81,12 @@
 
   onMount(async () => {
     await loadInstalledJavaPacks();
-    if (selectedMinecraftVersion.trim() || !api) {
+    for (const pack of stagedPacks) {
+      if (pack.kind === 'javaCatalog') recordInstalledJavaVersion(pack.projectId, pack.versionId);
+      if (pack.kind === 'bedrockCatalog')
+        installed = new Set(installed).add(bedrockFileKey(pack.projectId, pack.fileId));
+    }
+    if (selectedMinecraftVersion.trim() || !api || onStage) {
       versionLoading = false;
       return;
     }
@@ -197,8 +209,10 @@
       const versions = await api.get<Schema['CatalogVersionsResponseDTO']>(
         `/v1/catalog/projects/${encodeURIComponent(item.projectId)}/versions`,
       );
-      const version = versions.versions.find((candidate) =>
-        candidate.loaders.includes('datapack') && candidate.gameVersions.includes(selectedMinecraftVersion),
+      const version = versions.versions.find(
+        (candidate) =>
+          candidate.loaders.includes('datapack') &&
+          candidate.gameVersions.includes(selectedMinecraftVersion),
       );
       if (!version) {
         throw new Error(
@@ -206,6 +220,21 @@
             ? `No datapack version lists Minecraft ${selectedMinecraftVersion}. Open its details to choose another version.`
             : 'The server Minecraft version is unavailable. Open datapack details to choose a version.',
         );
+      }
+      if (onStage) {
+        onStage({
+          id: crypto.randomUUID(),
+          kind: 'javaCatalog',
+          edition: 'java',
+          projectId: item.projectId,
+          versionId: version.id,
+          title: item.title,
+          description: item.description,
+          iconURL: item.iconURL ?? undefined,
+        });
+        recordInstalledJavaVersion(item.projectId, version.id);
+        notice = `${item.title} added.`;
+        return;
       }
       const result = await mutate<Schema['JavaDatapackInstallResultDTO']>(
         api,
@@ -230,6 +259,21 @@
     installing = item.projectId;
     notice = '';
     try {
+      if (onStage) {
+        onStage({
+          id: crypto.randomUUID(),
+          kind: 'javaCatalog',
+          edition: 'java',
+          projectId: item.projectId,
+          versionId: version.id,
+          title: item.title,
+          description: item.description,
+          iconURL: item.iconURL ?? undefined,
+        });
+        recordInstalledJavaVersion(item.projectId, version.id);
+        notice = `${item.title} added.`;
+        return `${item.title} added.`;
+      }
       const result = await mutate<Schema['JavaDatapackInstallResultDTO']>(
         api,
         `/v1/worlds/${encodeURIComponent(slotId)}/datapacks/install`,
@@ -254,6 +298,21 @@
     installingFileId = fileId;
     notice = '';
     try {
+      if (onStage) {
+        onStage({
+          id: crypto.randomUUID(),
+          kind: 'bedrockCatalog',
+          edition: 'bedrock',
+          projectId: item.projectId,
+          fileId,
+          title: item.title,
+          description: item.description,
+          iconURL: item.iconURL ?? undefined,
+        });
+        installed = new Set(installed).add(bedrockFileKey(item.projectId, fileId));
+        notice = `${item.title} added.`;
+        return;
+      }
       const result = await mutate<Schema['BedrockBehaviorPackInstallResultDTO']>(
         api,
         `/v1/worlds/${encodeURIComponent(slotId)}/behaviorpacks/install`,
@@ -295,6 +354,17 @@
   async function installUploadedPack(
     upload: Schema['StagedUploadCompleteResultDTO'],
   ): Promise<void> {
+    if (onStage) {
+      onStage({
+        id: crypto.randomUUID(),
+        kind: 'localFile',
+        edition: 'bedrock',
+        title: pendingPack?.name ?? 'Imported pack',
+        stagedUploadId: upload.stagedUploadId,
+      });
+      notice = 'Pack added.';
+      return;
+    }
     const result = await mutate<Schema['BedrockBehaviorPackInstallResultDTO']>(
       api,
       `/v1/worlds/${encodeURIComponent(slotId)}/behaviorpacks/install`,
@@ -346,7 +416,9 @@
       >
     </div>
     <p class="subtitle">
-      Packs are installed in this world. Linked resource and behavior packs install together.
+      {onStage
+        ? 'Packs install in the first world after server creation.'
+        : 'Packs are installed in this world.'} Linked resource and behavior packs install together.
     </p>
   {/if}
   {#if notice}<p class="notice" role="status">{notice}</p>{/if}
@@ -431,7 +503,7 @@
             </div>
           </button>
           {#if installed.has(item.projectId)}
-            <span class="added">Installed</span>
+            <span class="added">{onStage ? 'Added' : 'Installed'}</span>
           {:else if installing === item.projectId}
             <span class="added">Installing…</span>
           {:else if versionLoading}

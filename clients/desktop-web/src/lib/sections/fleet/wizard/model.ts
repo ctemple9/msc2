@@ -261,6 +261,7 @@ export interface WizardDraft {
    *  form. The legacy fields above remain for compatibility with the
    *  existing create request and confirmation copy. */
   worldSettings?: WorldSettingsValues;
+  pendingWorldPacks?: PendingWorldPack[];
   /** Set once "From backup (.zip)" has staged a file via
    *  `api.uploadFile('world-import', ...)` -- the same staged-upload
    *  primitive `worlds/ImportWorldZipSheet.svelte` uses. Held client-side
@@ -331,8 +332,19 @@ export interface WizardDraft {
   importEulaAccepted: boolean;
 }
 
-/** One entry in `WizardDraft.pendingAddOns` -- see that field's own doc
- *  comment for how each kind gets redeemed. */
+/** Selected packs remain staged until the first world exists. */
+export type PendingWorldPack = {
+  id: string;
+  title: string;
+  description?: string;
+  iconURL?: string;
+} & (
+  | { kind: 'javaCatalog'; edition: 'java'; projectId: string; versionId: string }
+  | { kind: 'bedrockCatalog'; edition: 'bedrock'; projectId: string; fileId: number }
+  | { kind: 'localFile'; edition: 'java' | 'bedrock'; stagedUploadId: string }
+);
+
+/** One entry in `WizardDraft.pendingAddOns`. */
 export type PendingAddOn =
   | {
       readonly id: string;
@@ -667,11 +679,16 @@ export async function redeemStagedWorldBackup(
   });
   const updated = result.updated;
   const newSlot = updated?.slots.find((slot) => slot.id !== updated.activeSlotId);
-  if (!newSlot) return;
+  if (!newSlot) throw new Error('The imported world slot could not be located.');
   const activated = await mutate<Schema['WorldActivateResultDTO']>(api, worldPaths.activate, {
     slotId: newSlot.id,
   });
-  if (activated.operationId) await pollOperation(api, activated.operationId);
+  if (activated.operationId) {
+    const operation = await pollOperation(api, activated.operationId);
+    if (operation?.state !== 'succeeded') {
+      throw new Error(operation?.error?.message ?? 'The imported world could not be activated.');
+    }
+  }
 }
 
 /**
@@ -738,12 +755,47 @@ export async function createServerFromDraft(
 
   const warnings: string[] = [];
   const modpackSummary = operation ? modpackCreationSummary(operation) : undefined;
+  let worldReady = true;
   if (draft.worldSourceMode === 'backupZip' && draft.stagedWorldBackup) {
     try {
       await redeemStagedWorldBackup(api, draft.stagedWorldBackup);
     } catch (error) {
+      worldReady = false;
       warnings.push(`World backup: ${errorMessage(error)}`);
     }
+  }
+  const packs = (draft.pendingWorldPacks ?? []).filter((pack) => pack.edition === draft.serverType);
+  if (packs.length && worldReady && api) {
+    try {
+      const worlds = await api.get<Schema['WorldSlotsResponseDTO']>(worldPaths.list);
+      if (!worlds.activeSlotId) throw new Error('The first world slot could not be located.');
+      for (const pack of packs) {
+        onProgress?.(`Installing ${pack.title}…`);
+        try {
+          const body =
+            pack.kind === 'localFile'
+              ? { stagedUploadId: pack.stagedUploadId }
+              : pack.kind === 'javaCatalog'
+                ? { projectId: pack.projectId, versionId: pack.versionId }
+                : { projectId: pack.projectId, fileId: pack.fileId };
+          const path = `/v1/worlds/${encodeURIComponent(worlds.activeSlotId)}/${pack.edition === 'java' ? 'datapacks' : 'behaviorpacks'}/install`;
+          const result = await mutate<{ operationId?: string }>(api, path, body);
+          if (result.operationId) {
+            const installed = await pollOperation(api, result.operationId);
+            if (installed?.state !== 'succeeded')
+              throw new Error(installed?.error?.message ?? 'Pack installation failed.');
+          }
+        } catch (error) {
+          warnings.push(`${pack.title}: ${errorMessage(error)}`);
+        }
+      }
+    } catch (error) {
+      warnings.push(`World packs: ${errorMessage(error)}`);
+    }
+  } else if (packs.length && !worldReady) {
+    warnings.push(
+      'World packs were skipped because the selected world backup could not be imported.',
+    );
   }
   for (const addOn of draft.pendingAddOns) {
     try {

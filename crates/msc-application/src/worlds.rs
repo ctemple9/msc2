@@ -721,6 +721,55 @@ fn zip_size_bytes(fs: &dyn FileSystem, path: &Path) -> Option<i64> {
     fs.read(path).ok().map(|bytes| bytes.len() as i64)
 }
 
+/// Packs selected before terrain generation live separately from a saved world.
+/// Keeping them out of world.zip preserves fresh-world seed/generation semantics.
+pub fn world_pack_archive_path(server_dir: &Path, slot_id: &str) -> PathBuf {
+    let world = world_store::zip_path(server_dir, slot_id);
+    if world.is_file() {
+        world
+    } else {
+        world.with_file_name("packs.zip")
+    }
+}
+
+pub fn prepare_world_pack_archive(
+    server_dir: &Path,
+    server_type: ServerType,
+    slot: &WorldSlot,
+) -> Result<PathBuf, WorldError> {
+    let path = world_pack_archive_path(server_dir, &slot.id);
+    if path.is_file() {
+        return Ok(path);
+    }
+    let profile =
+        world_store::load_profile(&msc_infrastructure::fs::StdFileSystem, server_dir, slot);
+    let level = profile
+        .identity
+        .level_name
+        .as_deref()
+        .or(slot.world_level_name.as_deref())
+        .ok_or(WorldError::NoArchiveOrFreshMetadata)?;
+    if !safe_world_folder_name(level) {
+        return Err(WorldError::InvalidWorldSource);
+    }
+    let root = if server_type == ServerType::Java {
+        format!("{level}/")
+    } else {
+        format!("worlds/{level}/")
+    };
+    let file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)?;
+    let mut zip = zip::ZipWriter::new(file);
+    zip.add_directory(root, zip::write::SimpleFileOptions::default())
+        .map_err(|error| io::Error::other(error.to_string()))?;
+    zip.finish()
+        .map_err(|error| io::Error::other(error.to_string()))?
+        .sync_all()?;
+    Ok(path)
+}
+
 fn slot_zip_exists(fs: &dyn FileSystem, server_dir: &Path, slot_id: &str) -> bool {
     has_archive(fs, server_dir, slot_id)
 }

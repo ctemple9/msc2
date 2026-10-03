@@ -32,6 +32,8 @@
   import type { Schema, ScreenApi } from '../../shared/types';
   import { errorMessage } from '../../shared/types';
   import StagedUploadSheet from '../../components/StagedUploadSheet.svelte';
+  import WorldPackBrowserSheet from '../../worlds/WorldPackBrowserSheet.svelte';
+  import type { PendingWorldPack } from './model';
   import WorldSettingsForm from '../../worlds/WorldSettingsForm.svelte';
   import {
     defaultWorldSettingsValues,
@@ -43,6 +45,50 @@
   export let api: ScreenApi | undefined = undefined;
   export let draft: WizardDraft;
   export let resolvingVersion = false;
+
+  let showPackBrowser = false;
+  let pendingPackSource: FileChunkSource | undefined;
+  let packError = '';
+  let resolvedMinecraftVersion = '';
+  $: packs = (draft.pendingWorldPacks ?? []).filter((pack) => pack.edition === draft.serverType);
+
+  function stagePack(pack: PendingWorldPack): void {
+    const current = draft.pendingWorldPacks ?? [];
+    const duplicate = current.some((entry) =>
+      entry.kind === 'javaCatalog' && pack.kind === 'javaCatalog'
+        ? entry.projectId === pack.projectId && entry.versionId === pack.versionId
+        : entry.kind === 'bedrockCatalog' && pack.kind === 'bedrockCatalog'
+          ? entry.projectId === pack.projectId && entry.fileId === pack.fileId
+          : false,
+    );
+    if (!duplicate) draft.pendingWorldPacks = [...current, pack];
+  }
+
+  async function choosePack(): Promise<void> {
+    packError = '';
+    try {
+      pendingPackSource =
+        (await (
+          await getPlatform()
+        ).pickFileStream({
+          label: draft.serverType === 'java' ? 'Choose a datapack ZIP' : 'Choose a Bedrock pack',
+          extensions: draft.serverType === 'java' ? ['zip'] : ['mcpack', 'mcaddon', 'zip'],
+        })) ?? undefined;
+    } catch (error) {
+      packError = errorMessage(error);
+    }
+  }
+
+  function finishPackUpload(upload: Schema['StagedUploadCompleteResultDTO']): void {
+    if (!pendingPackSource) throw new Error('The selected pack is no longer available.');
+    stagePack({
+      id: crypto.randomUUID(),
+      kind: 'localFile',
+      edition: draft.serverType,
+      title: pendingPackSource.name,
+      stagedUploadId: upload.stagedUploadId,
+    });
+  }
 
   let staging = false;
   let pendingWorldSource: FileChunkSource | undefined;
@@ -73,6 +119,7 @@
     if (requestKey !== capabilityRequestKey) {
       capabilityRequestKey = requestKey;
       capabilities = undefined;
+      resolvedMinecraftVersion = '';
       if (api) void loadCapabilities(requestKey);
     }
   }
@@ -86,13 +133,17 @@
       let minecraftVersion =
         pack?.minecraftVersion ??
         (draft.serverType === 'bedrock' ? draft.bedrockVersion : draft.versionId);
-      if (!minecraftVersion || minecraftVersion.toLowerCase() === 'latest') {
+      if (!pack?.minecraftVersion) {
         const versions = await api.get<Schema['VersionsResponseDTO']>(
           versionsForCreatePath(draft.serverType, draft.javaFlavor),
         );
         if (requestKey !== capabilityRequestKey) return;
         const resolved =
-          versions.versions?.find((entry) => entry.isLatest) ?? versions.versions?.[0];
+          versions.versions?.find(
+            (entry) => entry.id === minecraftVersion || entry.mcVersion === minecraftVersion,
+          ) ??
+          versions.versions?.find((entry) => entry.isLatest) ??
+          versions.versions?.[0];
         minecraftVersion = resolved?.mcVersion;
         // Pin the catalog and download to the same release. Loader selections keep their full ID.
         if (resolved && minecraftVersion) {
@@ -100,6 +151,7 @@
           else draft.versionId = resolved.id;
         }
       }
+      resolvedMinecraftVersion = minecraftVersion ?? '';
       const params = new URLSearchParams({ serverType: draft.serverType });
       if (minecraftVersion) params.set('minecraftVersion', minecraftVersion);
       if (draft.serverType === 'java') params.set('javaFlavor', draft.javaFlavor);
@@ -218,7 +270,111 @@
       {/if}
     </section>
   {/if}
+  <details class="packs-disclosure">
+    <summary
+      ><span
+        ><span class="packs-title">Packs{packs.length ? ` (${packs.length})` : ''}</span><span
+          class="packs-subtitle"
+          >{draft.serverType === 'java'
+            ? 'Datapacks for this world'
+            : 'Behavior and resource packs for this world'}</span
+        ></span
+      ><span class="chevron" aria-hidden="true">⌄</span></summary
+    >
+    {#if packs.length === 0}
+      <div class="pack-choices">
+        <button
+          type="button"
+          class="pack-choice"
+          disabled={!api || !resolvedMinecraftVersion || resolvingVersion}
+          onclick={() => (showPackBrowser = true)}
+        >
+          <span>{draft.serverType === 'java' ? 'Browse Datapacks' : 'Browse Packs'}</span>
+          <small
+            >{draft.serverType === 'java'
+              ? 'Search Modrinth for datapacks for this Minecraft version.'
+              : 'Browse behavior and resource packs on CurseForge.'}</small
+          >
+        </button>
+        <button
+          type="button"
+          class="pack-choice"
+          disabled={!api?.uploadFile}
+          onclick={() => void choosePack()}
+        >
+          <span>{draft.serverType === 'java' ? 'Import Datapacks' : 'Import Packs'}</span>
+          <small
+            >{draft.serverType === 'java'
+              ? 'Add your own datapack ZIP.'
+              : 'Add a .mcpack, .mcaddon, or .zip file.'}</small
+          >
+        </button>
+      </div>
+    {:else}
+      <div class="pack-heading">
+        <span>{draft.serverType === 'java' ? 'Datapacks' : 'Packs'} ({packs.length})</span>
+        <div class="pack-actions">
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={!api?.uploadFile}
+            onclick={() => void choosePack()}>Import…</Button
+          >
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={!api || !resolvedMinecraftVersion || resolvingVersion}
+            onclick={() => (showPackBrowser = true)}
+            >{draft.serverType === 'java' ? 'Browse Datapacks' : 'Browse Packs'}</Button
+          >
+        </div>
+      </div>
+      {#each packs as pack (pack.id)}
+        <div class="pack-row">
+          {#if pack.iconURL}<img src={pack.iconURL} alt="" width="32" height="32" />{/if}
+          <div class="pack-info">
+            <span>{pack.title}</span>{#if pack.description}<small>{pack.description}</small>{/if}
+          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            onclick={() =>
+              (draft.pendingWorldPacks = (draft.pendingWorldPacks ?? []).filter(
+                (entry) => entry.id !== pack.id,
+              ))}>Remove</Button
+          >
+        </div>
+      {/each}
+    {/if}
+    <p class="hint">
+      These install in the first world after the server is created.{draft.serverType === 'bedrock'
+        ? ' Linked behavior and resource packs install together.'
+        : ' Imported datapack compatibility is not verified.'}
+    </p>
+    {#if packError}<p class="hint warn" role="status">{packError}</p>{/if}
+  </details>
 </div>
+
+{#if showPackBrowser}
+  <WorldPackBrowserSheet
+    {api}
+    bedrock={draft.serverType === 'bedrock'}
+    minecraftVersion={resolvedMinecraftVersion}
+    stagedPacks={packs}
+    onStage={stagePack}
+    onInstalled={() => {}}
+    onClose={() => (showPackBrowser = false)}
+  />
+{/if}
+{#if pendingPackSource}
+  <StagedUploadSheet
+    {api}
+    purpose="addon-local-file"
+    source={pendingPackSource}
+    onComplete={finishPackUpload}
+    onClose={() => (pendingPackSource = undefined)}
+  />
+{/if}
 
 {#if pendingWorldSource}
   <StagedUploadSheet
@@ -231,6 +387,94 @@
 {/if}
 
 <style>
+  .packs-disclosure {
+    border-top: 1px solid var(--msc2-hairline-subtle);
+  }
+  summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    cursor: pointer;
+    list-style: none;
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+  .packs-title {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .packs-subtitle,
+  small {
+    display: block;
+    margin-top: 2px;
+    color: var(--msc2-text-tertiary);
+    font-size: 11px;
+  }
+  .chevron {
+    color: var(--msc2-text-tertiary);
+  }
+  details[open] .chevron {
+    transform: rotate(180deg);
+  }
+  .pack-choices {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .pack-choice {
+    text-align: left;
+    padding: 14px;
+    background: none;
+    border: 1px solid var(--msc2-hairline-subtle);
+    border-radius: 10px;
+    color: var(--msc2-text-primary);
+    font: inherit;
+    cursor: pointer;
+  }
+  .pack-choice:hover {
+    background: var(--msc2-neutral-muted);
+  }
+  .pack-choice:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .pack-choice span,
+  .pack-heading {
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .pack-heading,
+  .pack-actions,
+  .pack-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .pack-heading {
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .pack-row {
+    padding: 12px 0;
+  }
+  .pack-row img {
+    object-fit: cover;
+    border-radius: 6px;
+  }
+  .pack-info {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .pack-info small {
+    font-weight: 400;
+  }
+
   .world {
     display: flex;
     flex-direction: column;

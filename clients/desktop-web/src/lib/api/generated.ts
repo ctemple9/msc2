@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 44bd8dad2f0a1c3d252a1f7c6d1052427869447a506c9d005a73031815be0912
+// Contract SHA-256: 503105b06f447aea8583bc97cd0a1ea4c8ea32c896c633d0619b04d6486b80bc
 
 export interface paths {
   '/v1/active-server': {
@@ -7681,12 +7681,16 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
-    JavaDatapackInstallRequestDTO: {
-      projectId: string;
-      versionId: string;
+    /** @description Choose a Modrinth release or a local datapack ZIP, exclusively. */
+    JavaDatapackInstallRequestDTO: ({
+      projectId?: string;
+      /** @description Completed addon-local-file upload of a datapack ZIP; compatibility is unverified. */
+      stagedUploadId?: string;
+      versionId?: string;
     } & {
       [key: string]: unknown;
-    };
+    }) &
+      (unknown | unknown);
     JavaDatapackInstallResultDTO: {
       pack: components['schemas']['WorldPackRecordDTO'];
       /** @enum {string} */

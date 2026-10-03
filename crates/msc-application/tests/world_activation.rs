@@ -680,3 +680,90 @@ fn world_activation_reconcile_installed_finishes_committing_new_world() {
     let meta = fs::read_to_string(slot_dir.join("slot.json")).unwrap();
     assert!(meta.contains("2026-06-01T00:00:00Z"));
 }
+
+#[test]
+fn world_activation_first_world_packs_preserve_generation_and_reject_non_pack_files() {
+    use msc_application::addons;
+    for edition in [ServerType::Java, ServerType::Bedrock] {
+        let tmp = TempDir::new(&format!("first-world-packs-{}", uuid::Uuid::new_v4()));
+        let server_dir = tmp.path();
+        write_server_properties(server_dir, "first-world");
+        let slot = fresh_slot("first-slot", "first-world", "998877");
+        world_store::save_metadata(&StdFileSystem, server_dir, &slot).unwrap();
+        let packs = worlds::prepare_world_pack_archive(server_dir, edition, &slot).unwrap();
+        let mut zip = ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        let opts = SimpleFileOptions::default();
+        if edition == ServerType::Java {
+            zip.start_file("pack.mcmeta", opts).unwrap();
+            zip.write_all(br#"{"pack":{"pack_format":48,"description":"First world"}}"#)
+                .unwrap();
+            zip.start_file("data/example/function/start.mcfunction", opts)
+                .unwrap();
+            zip.write_all(b"say First world").unwrap();
+            let bytes = zip.finish().unwrap().into_inner();
+            let (_, _, files, _) =
+                addons::install_local_java_datapack(&packs, &bytes, "First world").unwrap();
+            assert!(addons::world_pack_size_bytes(&packs, &files).unwrap() > 0);
+        } else {
+            // Exercise the fresh-world activation boundary independently of
+            // manifest/dependency validation already covered by the pack installer.
+            zip.add_directory("worlds/first-world/", opts).unwrap();
+            zip.start_file(
+                "worlds/first-world/behavior_packs/example/manifest.json",
+                opts,
+            )
+            .unwrap();
+            zip.write_all(b"{}").unwrap();
+            zip.start_file("worlds/first-world/world_behavior_packs.json", opts)
+                .unwrap();
+            zip.write_all(b"[]").unwrap();
+            fs::write(&packs, zip.finish().unwrap().into_inner()).unwrap();
+        }
+        for _ in 0..2 {
+            worlds::activate_slot(
+                &StdFileSystem,
+                server_dir,
+                edition,
+                &slot,
+                false,
+                "2026-10-03T00:00:00Z",
+                || true,
+                || false,
+            )
+            .unwrap();
+            assert!(!world_store::zip_path(server_dir, &slot.id).exists());
+            let props = fs::read_to_string(server_dir.join("server.properties")).unwrap();
+            assert!(props.contains("level-seed=998877"));
+            if edition == ServerType::Java {
+                assert!(!server_dir.join("first-world/level.dat").exists());
+                assert!(server_dir.join("first-world/datapacks").is_dir());
+            } else {
+                assert!(!server_dir.join("worlds/first-world/db").exists());
+                assert!(
+                    server_dir
+                        .join("worlds/first-world/behavior_packs/example/manifest.json")
+                        .is_file()
+                );
+            }
+        }
+        let mut invalid = ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        invalid.start_file("server.jar", opts).unwrap();
+        invalid.write_all(b"must not install").unwrap();
+        fs::write(&packs, invalid.finish().unwrap().into_inner()).unwrap();
+        assert!(
+            worlds::activate_slot(
+                &StdFileSystem,
+                server_dir,
+                edition,
+                &slot,
+                false,
+                "2026-10-03T00:00:00Z",
+                || true,
+                || false
+            )
+            .is_err()
+        );
+        assert!(!server_dir.join("server.jar").exists());
+        assert!(!server_dir.join("world_slots/.activation").exists());
+    }
+}

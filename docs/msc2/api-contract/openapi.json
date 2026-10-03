@@ -7960,8 +7960,52 @@
       },
       "JavaDatapackInstallRequestDTO": {
         "type": "object",
-        "properties": {"projectId": {"type": "string"}, "versionId": {"type": "string"}},
-        "required": ["projectId", "versionId"]
+        "properties": {
+          "projectId": {
+            "type": "string"
+          },
+          "versionId": {
+            "type": "string"
+          },
+          "stagedUploadId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Completed addon-local-file upload of a datapack ZIP; compatibility is unverified."
+          }
+        },
+        "oneOf": [
+          {
+            "required": [
+              "projectId",
+              "versionId"
+            ],
+            "not": {
+              "required": [
+                "stagedUploadId"
+              ]
+            }
+          },
+          {
+            "required": [
+              "stagedUploadId"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "projectId"
+                  ]
+                },
+                {
+                  "required": [
+                    "versionId"
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "description": "Choose a Modrinth release or a local datapack ZIP, exclusively."
       },
       "JavaDatapackInstallResultDTO": {
         "type": "object",

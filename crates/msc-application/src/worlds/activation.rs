@@ -533,6 +533,48 @@ pub fn activate_slot_with_progress(
         Vec::new()
     };
 
+    let fresh_packs = if !has_archive {
+        let packs = world_store::slot_directory(server_dir, &slot.id).join("packs.zip");
+        if packs.is_file() {
+            let level = &identity
+                .as_ref()
+                .ok_or(ActivationError::NoArchiveOrFreshMetadata)?
+                .level_name;
+            let root = if server_type == ServerType::Java {
+                format!("{level}/")
+            } else {
+                format!("worlds/{level}/")
+            };
+            archive::validate_archive_safety(&packs)?;
+            for name in archive::list_entry_names(&packs)? {
+                let allowed = name == root
+                    || (server_type == ServerType::Bedrock && name == "worlds/")
+                    || name.strip_prefix(&root).is_some_and(|relative| {
+                        if server_type == ServerType::Java {
+                            relative.starts_with("datapacks/")
+                        } else {
+                            relative.starts_with("behavior_packs/")
+                                || relative.starts_with("resource_packs/")
+                                || matches!(
+                                    relative,
+                                    "world_behavior_packs.json" | "world_resource_packs.json"
+                                )
+                        }
+                    });
+                if !allowed {
+                    return Err(ActivationError::Archive(ArchiveError::InvalidWorldLayout(
+                        "Fresh-world pack archive contains non-pack files.".into(),
+                    )));
+                }
+            }
+            Some(packs)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     let current_level_name = resolved_level_name(fs, server_dir, server_type, None);
     let current_folders = existing_world_folders(fs, server_dir, server_type, &current_level_name);
 
@@ -631,6 +673,22 @@ pub fn activate_slot_with_progress(
                 relocate_legacy_bedrock_layout(&staged_dir, &identity.level_name)?;
             }
         }
+    }
+
+    if let Some(packs) = fresh_packs {
+        if let Err(error) = archive::extract_zip_with_progress(&packs, &staged_dir, progress) {
+            let _ = fs.remove(&activation_dir(server_dir));
+            return Err(error.into());
+        }
+        approved_roots = vec![if server_type == ServerType::Java {
+            identity
+                .as_ref()
+                .expect("validated fresh identity")
+                .level_name
+                .clone()
+        } else {
+            "worlds".into()
+        }];
     }
 
     // Last chance to cancel for free: staging is complete but nothing at

@@ -108,6 +108,39 @@ pub fn install_java_datapack(
         }
     }
 
+    install_java_datapack_archive(
+        world_zip_path,
+        archive_bytes,
+        project_id,
+        &version.id,
+        project_title,
+    )
+}
+
+/// Local imports share archive validation and replacement with catalog installs,
+/// but do not claim provider-verified Minecraft compatibility.
+pub fn install_local_java_datapack(
+    world_zip_path: &Path,
+    archive_bytes: &[u8],
+    name: &str,
+) -> Result<(String, String, Vec<String>, PathBuf), JavaDatapackError> {
+    let checksum = msc_infrastructure::download_staging::sha512_hex(archive_bytes);
+    install_java_datapack_archive(
+        world_zip_path,
+        archive_bytes,
+        "local",
+        &checksum[..16],
+        name,
+    )
+}
+
+fn install_java_datapack_archive(
+    world_zip_path: &Path,
+    archive_bytes: &[u8],
+    project_id: &str,
+    version_id: &str,
+    project_title: &str,
+) -> Result<(String, String, Vec<String>, PathBuf), JavaDatapackError> {
     let mut incoming = zip::ZipArchive::new(Cursor::new(archive_bytes))
         .map_err(|error| JavaDatapackError::Invalid(format!("Invalid datapack ZIP: {error}")))?;
     if incoming.is_empty() || incoming.len() > 20_000 {
@@ -193,7 +226,7 @@ pub fn install_java_datapack(
     let pack_folder = format!(
         "{}-{}",
         safe_pack_path(project_id),
-        safe_pack_path(&version.id)
+        safe_pack_path(version_id)
     );
 
     let world_file = std::fs::File::open(world_zip_path)
@@ -204,6 +237,11 @@ pub fn install_java_datapack(
     let world_root = world
         .file_names()
         .find_map(|name| name.strip_suffix("level.dat"))
+        .or_else(|| {
+            world
+                .file_names()
+                .find(|name| name.ends_with('/') && name.matches('/').count() == 1)
+        })
         .unwrap_or("")
         .to_string();
     let datapack_root = format!("{world_root}datapacks/{pack_folder}/");
@@ -299,6 +337,13 @@ pub fn world_pack_size_bytes(world_zip_path: &Path, files: &[String]) -> Option<
     let world_root = archive
         .file_names()
         .find_map(|name| name.strip_suffix("level.dat"))
+        .or_else(|| {
+            archive.file_names().find(|name| {
+                name.ends_with('/')
+                    && (name.matches('/').count() == 1 && *name != "worlds/"
+                        || name.starts_with("worlds/") && name.matches('/').count() == 2)
+            })
+        })
         .unwrap_or("worlds/")
         .to_owned();
     files.iter().try_fold(0_u64, |total, file| {
@@ -338,6 +383,13 @@ pub fn mutate_world_pack(
     let world_root = world
         .file_names()
         .find_map(|name| name.strip_suffix("level.dat"))
+        .or_else(|| {
+            world.file_names().find(|name| {
+                name.ends_with('/')
+                    && (name.matches('/').count() == 1 && *name != "worlds/"
+                        || name.starts_with("worlds/") && name.matches('/').count() == 2)
+            })
+        })
         .unwrap_or("worlds/")
         .to_owned();
     if pack.edition == "java"

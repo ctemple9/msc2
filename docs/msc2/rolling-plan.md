@@ -365,3 +365,14 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Commit:** `P12.207: remove decorative server row icons`
 
 **Manual acceptance:** Open Manage Servers: every row starts with the server name, without a left icon or reserved icon gap. No tests added or run.
+
+### P12.208 — Open server actions from the whole row
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/sections/fleet/ManageSheet.svelte`, this plan.
+**What:** Replace per-server Set Active and three-dot buttons with a full-row button and trailing chevron. Use the existing shared Menu, Components selection treatment, and Set Active/Edit/Remove labels. Keep removal confirmation and editor behavior; disable Set Active for the already active server or missing control permission. Keyboard activation anchors the menu to the row.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.208 only.
+**Commit:** `P12.208: open server actions from row clicks`
+
+**Manual acceptance:** Manage Servers has a chevron instead of action buttons on each row. Clicking or keyboard-activating the row opens the Components-style three-action menu; Set Active updates the selected server, Edit opens its editor, Remove requires existing confirmation. Escape/click-away dismisses the menu. No tests added or run.

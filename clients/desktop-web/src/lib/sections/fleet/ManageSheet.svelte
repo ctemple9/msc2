@@ -28,6 +28,7 @@
   import Sheet from '../../components/base/Sheet.svelte';
   import Card from '../../components/base/Card.svelte';
   import Button from '../../components/base/Button.svelte';
+  import Icon from '../../components/base/Icon.svelte';
   import Badge from '../../components/base/Badge.svelte';
   import StatusDot from '../../components/base/StatusDot.svelte';
   import EmptyState from '../../components/base/EmptyState.svelte';
@@ -88,7 +89,9 @@
   }
 
   function openMenu(serverId: string, event: MouseEvent): void {
-    menuPos = { x: event.clientX, y: event.clientY };
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    menuPos = { x: event.detail === 0 ? rect.left : event.clientX,
+      y: event.detail === 0 ? rect.bottom : event.clientY };
     openMenuFor = serverId;
   }
 
@@ -122,7 +125,8 @@
 {#snippet serverCard(server: Schema['ServerDTO'])}
   {@const isActive = server.id === status.activeServerId}
   <Card padding="0">
-    <div class="server-row">
+    <button type="button" class="server-row" class:selected={openMenuFor === server.id}
+      aria-label={`Actions for ${server.name || 'unnamed server'}`} onclick={(event) => openMenu(server.id, event)}>
       <div class="server-info">
         <div class="server-title">
           <span class="server-name">{server.name || '(no name)'}</span>
@@ -133,22 +137,8 @@
         </div>
         <p class="server-dir">{server.directory}</p>
       </div>
-      <Button variant="secondary" size="sm" disabled={isActive} onclick={() => setActive(server.id)}
-        >Set Active</Button
-      >
-      <Button
-        variant="ghost-icon"
-        size="sm"
-        label="More actions"
-        onclick={(event) => openMenu(server.id, event)}
-      >
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <circle cx="12" cy="5" r="1.6" fill="currentColor" />
-          <circle cx="12" cy="12" r="1.6" fill="currentColor" />
-          <circle cx="12" cy="19" r="1.6" fill="currentColor" />
-        </svg>
-      </Button>
-    </div>
+      <span class="row-affordance"><Icon name="chevron" size={10} /></span>
+    </button>
     {#if confirmingRemoveId === server.id}
       <div class="confirm-row">
         <span
@@ -171,10 +161,10 @@
       y={menuPos.y}
       onClose={() => (openMenuFor = undefined)}
       items={[
-        { label: 'Set as Active', onSelect: () => setActive(server.id) },
-        { label: 'Edit…', onSelect: () => (editingServer = server) },
+        { label: 'Set Active', disabled: isActive || !canControl, onSelect: () => setActive(server.id) },
+        { label: 'Edit', onSelect: () => (editingServer = server) },
         {
-          label: 'Remove…',
+          label: 'Remove',
           tone: 'destructive',
           disabled: !canControl,
           onSelect: () => (confirmingRemoveId = server.id),
@@ -304,11 +294,25 @@
     gap: 8px;
   }
   .server-row {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
     display: flex;
     align-items: center;
     gap: 10px;
     padding: 11px 14px;
   }
+  .server-row:hover { background: rgba(255, 255, 255, 0.04); }
+  .server-row.selected {
+    border-radius: var(--msc2-radius-2);
+    background: rgba(59, 130, 246, 0.06);
+    box-shadow: inset 0 0 0 1.5px var(--msc2-selection);
+  }
+  .row-affordance { color: var(--msc2-text-tertiary); }
   .server-info {
     flex: 1;
     min-width: 0;

@@ -2162,10 +2162,22 @@ pub async fn update_profile(
                 continue;
             }
             let Some(value) = value else { continue };
-            let status = match state
+            let applied = match state
                 .lifecycle
                 .send_bedrock_command(&format!("{command} {value}"))
             {
+                Ok(_) if key == "gameplay.default-game-mode" => {
+                    // BDS defaultgamemode only affects new players unless
+                    // force-gamemode is enabled. Keep the slot default
+                    // independent, then move current players explicitly.
+                    state
+                        .lifecycle
+                        .send_bedrock_command(&format!("gamemode {value} @a"))
+                }
+                Ok(_) => Ok(None),
+                Err(error) => Err(error),
+            };
+            let status = match applied {
                 Ok(_) => (worlds::WorldProfileApplyStatus::Live, None),
                 Err(error) => (
                     worlds::WorldProfileApplyStatus::PendingRestart,

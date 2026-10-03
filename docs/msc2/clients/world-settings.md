@@ -53,8 +53,9 @@ show the active profile values, and World Settings refreshes them after a save
 or activation. For a running server, Java applies those profile fields through
 the shared Java gameplay path used by every Java flavor; Bedrock sends its
 supported runtime commands and reports a restart requirement if it cannot
-apply a change live. The two surfaces therefore edit one saved world default,
-while `force-gamemode` remains a separate server-wide override.
+apply a change live. Changing the Bedrock default game mode also updates every
+player currently online; BDS otherwise uses `defaultgamemode` for new players,
+and `force-gamemode` remains a separate server-wide override.
 
 ## Evidence map
 

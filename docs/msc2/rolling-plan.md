@@ -442,3 +442,14 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Commit:** `P12.214: keep latest java selection through creation`
 
 **Manual acceptance:** Create a fresh Java server with Download latest selected. Choose Java at the first prompt; the final Create Server action should not prompt again. If you go back and change Minecraft version or Java flavor, the runtime picker should appear again before proceeding. No tests added or run.
+
+### P12.215 — Apply Bedrock default game mode to online players
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `crates/msc-agent/src/routes/worlds.rs`, `docs/msc2/clients/world-settings.md`, this plan.
+**What:** When the active, running Bedrock world's default game mode changes, keep applying `defaultgamemode` for the saved world default and also run `gamemode <mode> @a` so currently connected players switch immediately. Difficulty continues to apply through Bedrock's live difficulty command. Keep Creative's existing achievements confirmation.
+**Verify:** `cargo fmt --all` and `cargo clippy -p msc-agent --bin msc`
+**Batch:** P12.215 only.
+**Commit:** `P12.215: apply bedrock gamemode to online players`
+
+**Manual acceptance:** With multiple players online, change the active Bedrock world's default game mode from the sidebar or World Settings. Every connected player should switch immediately; new players should also receive the saved default. Confirm Bedrock Creative still requires the existing achievement warning. No tests added or run.

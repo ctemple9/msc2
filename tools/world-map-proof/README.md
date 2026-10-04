@@ -819,6 +819,15 @@ skins, or the final MSC Worlds-tab layout.
 
 ## Java terrain proof (P18.4)
 
+P18.14's production-resource analysis and unresolved contextual-model gate are
+recorded in [the renderer design](../../docs/msc2/world-map-assets-design.md)
+and [the acceptance catalogue](../../docs/msc2/world-map-assets-acceptance.md).
+The scripts below remain historical proof tools. Their namespace flattening,
+placeholders and `exact` audit category must not be promoted into production
+resource selection or visual-success claims. New diagnostic contracts call
+successful ordinary model lookup `model_resolved`; visual acceptance is
+separate. No client-capture exporter is implemented by these commands.
+
 Use the Vantage 0.15.1 CLI and matching Minecraft client assets. The helper
 copies only one selected 4×4-chunk area to `/private/tmp`; it reads the stopped
 server's Anvil region and never writes to a world. Minecraft 26.3 stores block

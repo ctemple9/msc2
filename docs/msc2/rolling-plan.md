@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current work:** PLAN — P18.13 records the Java mod-asset analysis and proposes P18.14–P18.21 as four two-step execution batches. Execution has not begun; Cameron reviews this plan first. Existing phase/step acceptance records below are preserved.
+**Current work:** BATCH EXECUTE A — P18.14 records the pinned renderer analysis, resource/API contract and acceptance catalogue, with a feasibility blocker for contextual/code-rendered geometry. P18.15 remains unstarted pending a demonstrated client-capture or internal-adapter remedy. Batch stopped under P18.14's explicit failure/stop rule; existing acceptance records remain open and preserved.
 
 ### P18.13 — Plan automatic modded map assets and successful repairs
 
@@ -86,7 +86,7 @@ No Verify command below runs a test suite. Essential regressions may be added on
 
 ### P18.14 — Establish the renderer route and acceptance fixtures
 
-**Status:** Planned; awaiting Cameron's plan review.
+**Status:** Feasibility analysis recorded; blocked on difficult-model capture/adapter proof; awaiting Cameron's verification of the recorded findings. Not complete.
 **Files:** `docs/msc2/world-map-assets-design.md` (new), `docs/msc2/world-map-assets-acceptance.md` (new), existing Java proof scripts and `tools/world-map-proof/README.md`; isolated prototype files under `tools/world-map-proof/` only if needed; this plan. Production renderer paths stay unchanged in this step.
 **What:** Resolve the high-risk engineering choices before acquiring thousands of resources or building UI:
 
@@ -102,9 +102,15 @@ No Verify command below runs a test suite. Essential regressions may be added on
 **Commit:** `P18.14: define modded map renderer and acceptance contract`
 **Acceptance evidence:** The design maps every required rendering class to an implementable success path and lists any pending owner proof. It identifies a supported solution for the two same-name namespace blocks and at least one contextual/code-rendered object. Named private fixture/version availability is recorded; an unavailable fixture remains a blocker for final acceptance, not a waived requirement.
 
+**Execution result (2026-10-04):** Added [renderer/resource contract](world-map-assets-design.md) and [acceptance catalogue](world-map-assets-acceptance.md). Inspected Vantage v0.15.1 at upstream commit `953f0ac78d62de751a935b8e8d5be2d711d6fd56`, including model dispatch, namespace stripping, state-keyed mesh cache, tile topology and viewer material/decoder contracts. Selected a namespace-aware private resolver extension; baseline production paths remain untouched. Recorded conditional API/CLI grammar, bindings, generation fingerprints, progress/outcomes, quota policy and exact fixture-receipt requirements. Exact private hashes/mod/loader pins/coordinates unavailable on this host remain pending, rather than invented.
+
+**Feasibility blocker:** The current resolver/cache cannot render two identical palette states with different visible block-entity contents/context, cannot execute custom model loaders, and has no general client-output ingestion path. Existing ATM10 Lootr evidence uses a placeholder. The proposed client-capture/supplemental triangle/material route is an engineering alternative, not a demonstrated remedy. A matching-client or pinned internal-adapter prototype and specific owner-run visual proof must establish that path before P18.15; no nonexistent exporter command is presented as runnable. See the design's alternatives and acceptance's proof sequence. This does not waive custom-loader, code-rendered or saved-custom-dimension acceptance.
+
+**Checks:** Documentation diff/whitespace inspection and the recorded non-test Verify command. No Rust or frontend changes, so Rust formatting/Clippy and frontend checks are not applicable. No tests, live rendering proof, Minecraft execution, source-world changes or release actions. Historical proof scripts/reports retain their original behavior and evidence.
+
 ### P18.15 — Add resource identity, safe inventory and useful diagnostics
 
-**Status:** Planned; depends on P18.14; awaiting Cameron's plan review.
+**Status:** Unstarted; blocked by P18.14's difficult-model feasibility result. Batch A authorization is recorded; no further approval between these steps is required once the blocker is actually resolved.
 **Files:** New `crates/msc-domain/src/map_assets.rs` and exports; new application/infrastructure map-asset modules and their exports; Java map bridge, compatibility helper, DTOs and API schema/generated types; `crates/msc-agent/src/cli/mod.rs` for read-only reporting; focused regression sources only when essential; design/acceptance documents and this plan.
 **What:** Establish the shared foundation without changing which assets a working map renders:
 

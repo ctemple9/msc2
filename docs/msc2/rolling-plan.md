@@ -1,5 +1,16 @@
 # MSC 2 — Rolling Plan
 
+### P16.39 — Replace the cancelled v0.1.22 candidate
+
+**Status:** Prepared; publication and Cameron's artifact acceptance pending.
+**Files:** `clients/desktop-web/src-tauri/Cargo.lock`, `docs/msc2/release/v0.1.22.md`, this plan.
+**What:** Restore serde_repr 0.1.21 with its original checksum; the P16.38 version bump accidentally changed this unrelated registry package to nonexistent 0.1.22. Include P12.249 modern datapack support and retain the headless Linux fix. Cameron explicitly requested cancellation/removal and confirmed replacement of the unpublished v0.1.22 tag. Remove cancelled run 37177543797 and its old tag, then publish the corrected source using the unchanged build-only release workflow. No published v0.1.22 release or uploaded workflow artifacts existed when inspected.
+**Verify:** `gh release view v0.1.22 --json tagName,isPrerelease,assets,url`
+**Batch:** P16.39 only.
+**Commit:** `P16.39: repair and replace v0.1.22 candidate`
+
+**Checks:** Inspected all three completed failed platform logs: identical unavailable serde_repr dependency, before packaging. Fourth build cancelled. Restored the original registry version/checksum from the prior tag. Locked desktop metadata, synchronized application versions, formatting and diff whitespace checks passed. Application Clippy and addon regression compilation recorded in P12.249. No tests run or workflow gates changed. Nine artifacts, SHA256SUMS and signed update metadata remain required. Expected build time about 40 minutes based on recent successful runs; physical acceptance remains Cameron's verification. Tag replacement is a specifically owner-authorized exception, not a routine retry.
+
 ### P12.249 — Accept modern Java datapack metadata
 
 **Status:** Implemented; awaiting Cameron's verification.

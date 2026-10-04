@@ -123,6 +123,17 @@ No Verify command below runs a test suite. Essential regressions may be added on
 
 **Owner acceptance still required:** Run the exact Verify command above, create the new named Creative Superflat world, teleport to the fixture chunk, run `/mscproof setup` and `/mscproof capture`, then Load capture in the proof viewer. Compare barnacles shape/orientation/texture transparency and both pedestal/item appearances against Minecraft. Inspect the three refusal records and saved-frame label; save confirmation only if those results match. A clean build or valid export does not close this step. P18.15 stays paused pending Cameron's confirmed visual result; later mixed-pack/custom-dimension/platform/loader acceptance remains unchanged.
 
+### P18.14b — Bind capture after integrated-server pause saves
+
+**Status:** Implemented correction; awaiting Cameron's owner-run proof. Not complete.
+**Files:** Isolated client capture source and README under `tools/world-map-proof/client-capture/`; this plan.
+**What:** Fix Cameron's first live proof refusing `snapshot_mismatch`. The client log records integrated-server pause saves between fixture setup and capture, even with simulation frozen. On an explicit capture request, verify client/server fixture context against setup and verify unchanged resources/frozen simulation, flush the current save on the server thread, then bind its snapshot for the following render-frame capture. Preserve all unloaded-chunk, wrong-snapshot and wrong-context refusals and before/after mesh checks. No production changes or existing-world edits. Do not run Minecraft or tests.
+**Verify:** `python3 tools/world-map-proof/client-capture/proof.py run --workspace /home/camerontemple/.cache/msc-map-client-proof`
+**Batch:** P18.14b only — one corrective commit; stop for Cameron's live proof. P18.15 remains paused.
+**Commit:** `P18.14b: bind mesh capture after flushing pause saves`
+**Checks:** Java package build and prepared-launch directory check; Git whitespace inspection. No tests or Minecraft launch. The observed pause-save cause is supported by the private client log; the correction's live rendering result remains pending.
+**Owner verification:** Close the running proof client, run Verify, reopen the isolated proof world and run setup then capture. Switching focus before capture must not invalidate an otherwise unchanged fixture. Compare the named exported appearances and inspect all three refusal records before confirming evidence. This correction does not close P18.14a's visual acceptance or waive later acceptance rows.
+
 ### P18.15 — Add resource identity, safe inventory and useful diagnostics
 
 **Status:** Paused at Cameron's direction; unstarted until he runs P18.14a's proof and confirms the visual result. Batch A authorization remains recorded.

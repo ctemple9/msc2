@@ -82,7 +82,9 @@ In the new client:
    snapshot/context binding. It refuses other client roots, multiplayer,
    other world names or an unloaded fixture chunk.
 3. Wait until the two displayed items and barnacles are visible, then use
-   `/mscproof capture`. Capture happens after the rendered level frame. A
+   `/mscproof capture`. This checks that client/server fixture context and resources
+   still match setup, flushes a fresh save and binds its snapshot, then captures
+   after the rendered level frame. A
    client update that does not match the saved context is refused; after
    waiting for updates, request capture again. If you edited the scene or
    changed simulation/resources, rerun setup rather than bypassing the guard.
@@ -122,7 +124,12 @@ owner-run capture, not an automatically executed test suite.
 ## Binding, limits and evidence
 
 The server fixture freezes simulation and flushes its save before taking a
-SHA-256 receipt of `level.dat` and saved region files. The context hash covers
+SHA-256 receipt of `level.dat` and saved region files. Minecraft can still save
+on pause or autosave while simulation is frozen. Therefore the explicit capture
+request checks the unchanged setup context/resources on client and server, then
+flushes and fingerprints a fresh snapshot for that capture. Snapshot mismatch
+checks remain active before and after meshing; setup-time metadata rewrites do
+not silently bypass them. The context hash covers
 states and canonical client-visible block-entity update data in the named
 2..10 / Y64..67 / Z2..5 area plus a one-block halo. Client capture must match that
 context and the on-disk snapshot both before and after meshing. Input/config

@@ -62,7 +62,7 @@ public final class CaptureProof {
     void commands(RegisterClientCommandsEvent event) {
         event.getDispatcher().register(literal("mscproof")
             .then(literal("setup").executes(c -> setup()))
-            .then(literal("capture").executes(c -> { captureRequested = true; return Command.SINGLE_SUCCESS; })));
+            .then(literal("capture").executes(c -> prepareCapture())));
     }
 
     static void tell(String message) {
@@ -118,6 +118,36 @@ public final class CaptureProof {
                 } catch (Exception e) { tell(e.getMessage()); }
             });
         } catch (Exception e) { tell(e.getMessage()); }
+        return Command.SINGLE_SUCCESS;
+    }
+
+    int prepareCapture() {
+        try {
+            MinecraftServer server = isolatedServer();
+            Binding fixture = binding;
+            if (fixture == null) throw new IOException("needs_setup: /mscproof setup first");
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.level == null || !mc.level.dimension().equals(Level.OVERWORLD)) throw new IOException("dimension_mismatch");
+            if (!fixture.context.equals(context(mc.level))) throw new IOException("context_mismatch: wait for updates or rerun setup if the fixture changed");
+            server.execute(() -> {
+                try {
+                    if (binding != fixture) throw new IOException("setup_changed_during_capture_request");
+                    if (!server.tickRateManager().isFrozen()) throw new IOException("simulation_not_frozen: run setup again");
+                    if (!fixture.context.equals(context(server.overworld()))) throw new IOException("context_mismatch: saved fixture contents changed");
+                    if (!fixture.resources.equals(resources())) throw new IOException("resource_context_mismatch");
+                    // Integrated-server pause/autosaves can rewrite metadata while simulation is frozen.
+                    // An explicit capture request binds a freshly flushed save, after checking setup context.
+                    server.saveEverything(true,true,true);
+                    Binding capture = new Binding(snapshot(fixture.world), fixture.context, fixture.resources,
+                            server.overworld().getGameTime(), fixture.world);
+                    mc.execute(() -> {
+                        if (binding != fixture) { tell("Capture refused: setup_changed_during_capture_request"); return; }
+                        binding = capture;
+                        captureRequested = true;
+                    });
+                } catch (Exception e) { tell("Capture refused: " + e.getMessage()); }
+            });
+        } catch (Exception e) { tell("Capture refused: " + e.getMessage()); }
         return Command.SINGLE_SUCCESS;
     }
 

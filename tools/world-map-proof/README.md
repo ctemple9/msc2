@@ -1,5 +1,13 @@
 # P18.2 — offline BDS terrain proof
 
+## Matching-client mesh feasibility prototype (P18.14a)
+
+See [the isolated client-capture prototype](client-capture/README.md) for pinned
+NeoForge/Supplementaries fixtures, the existing owner-run command, bounded
+geometry/texture/material export, refusal checks and visual evidence collection.
+The tools build; live rendering and Cameron's visual confirmation remain pending.
+P18.15 stays paused. Historical proof instructions and P18.14 findings are preserved.
+
 ## Fabric live player feed proof (P18.3m)
 
 This temporary Fabric mod targets the managed **Fabric 26.2 / Loader 0.19.5**

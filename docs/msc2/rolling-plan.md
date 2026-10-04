@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current work:** BATCH EXECUTE A — P18.14 records the pinned renderer analysis, resource/API contract and acceptance catalogue, with a feasibility blocker for contextual/code-rendered geometry. P18.15 remains unstarted pending a demonstrated client-capture or internal-adapter remedy. Batch stopped under P18.14's explicit failure/stop rule; existing acceptance records remain open and preserved.
+**Current work:** P18.14a matching-client supplemental mesh prototype implemented and built in isolation; awaiting Cameron's owner-run Minecraft proof and visual confirmation. P18.14 findings commit is preserved. P18.15 remains paused at Cameron's direction; the feasibility and broader acceptance gates remain open.
 
 ### P18.13 — Plan automatic modded map assets and successful repairs
 
@@ -108,9 +108,24 @@ No Verify command below runs a test suite. Essential regressions may be added on
 
 **Checks:** Documentation diff/whitespace inspection and the recorded non-test Verify command. No Rust or frontend changes, so Rust formatting/Clippy and frontend checks are not applicable. No tests, live rendering proof, Minecraft execution, source-world changes or release actions. Historical proof scripts/reports retain their original behavior and evidence.
 
+### P18.14a — Prove matching-client supplemental mesh capture
+
+**Status:** Implemented tooling; awaiting Cameron's live proof and visual confirmation. Not complete.
+**Files:** New isolated `tools/world-map-proof/client-capture/` client mod/build sources, fixture preparation/export validator/evidence tools and proof viewer; proof README; this plan. Existing production renderer, world files and the P18.14 findings commit remain untouched.
+**What:** In one feasibility batch, inspect available private fixtures and choose one exactly pinned Minecraft/NeoForge client with a real custom-loader block and a contextual block pair whose identical states have different visible contents or surroundings. Build a client-side exporter using the actual baked-model/block-entity rendering entry points, emitting bounded supplemental triangle geometry, captured textures and explicit material properties. Prepare only a new isolated client/fixture, record source/version/content/snapshot/context hashes automatically, refuse unloaded chunks and mismatched context rather than producing substitute geometry, and label animation as a saved frame. Provide validation and an MSC-owned proof viewer for the exported result with automated receipts and owner visual evidence. Ask only for an essential unavailable input, naming the recommended fixture and its purpose. Do not launch Minecraft or run tests; compile/package and static checks are permitted. Record limitations honestly and keep P18.15 paused until Cameron runs the existing proof command and confirms the named appearances and refusal cases. No cross-platform/general-mod claim or release action.
+**Verify:** `python3 tools/world-map-proof/client-capture/proof.py run --workspace /home/camerontemple/.cache/msc-map-client-proof`
+**Batch:** Feasibility A — P18.14a only; one implementation/evidence-tooling batch and one commit, then stop for owner-run live proof. P18.15 stays paused.
+**Commit:** `P18.14a: prototype matching-client mesh capture`
+
+**Implementation evidence (2026-10-04):** Inspected the installed ATM10 inputs and selected Minecraft 1.21.1 / NeoForge 21.1.251 with exact-hashed Supplementaries 1.21.1-3.9.9 and Moonlight 1.21.1-3.6.8. Barnacles at 9,65,3 use the actual `supplementaries:random_rotation` loader; equal-state pedestals at 3,65,3 and 6,65,3 hold a diamond and emerald. The new client mod collects actual model/block-entity output into supplemental indexed triangles, GPU texture PNGs and explicit materials; the MSC proof viewer consumes these files. Preparation copies only the two pinned JARs into a marked private workspace, checks the prepared launch directory and produces source/binary/input receipts. Capture binds the flushed isolated snapshot, canonical state/block-entity context and resource selection; unloaded-chunk, wrong-snapshot and wrong-context requests must be refused before publishing an immutable capture. Animation is a saved frame. Validation bounds/checks artifacts and the viewer records explicit owner confirmations with Minecraft/viewer screenshots. See [prototype instructions and limits](../../tools/world-map-proof/client-capture/README.md). No input request was needed; no existing world or production file was changed.
+
+**Checks:** Built/package-compiled the pinned Java client mod and prepared its launch configuration using `proof.py build` (`jar`, `prepareClientRun`, `writeProofLaunchReceipt` only). Python compilation, viewer JavaScript syntax and Git whitespace inspection passed. No tests or Minecraft launch; no live capture/export validation or visual pass is claimed. No Rust edits, so Rust formatting/Clippy are not applicable. Initial development asset preparation downloaded approximately 786 MiB into Gradle's cache; subsequent builds reuse it.
+
+**Owner acceptance still required:** Run the exact Verify command above, create the new named Creative Superflat world, teleport to the fixture chunk, run `/mscproof setup` and `/mscproof capture`, then Load capture in the proof viewer. Compare barnacles shape/orientation/texture transparency and both pedestal/item appearances against Minecraft. Inspect the three refusal records and saved-frame label; save confirmation only if those results match. A clean build or valid export does not close this step. P18.15 stays paused pending Cameron's confirmed visual result; later mixed-pack/custom-dimension/platform/loader acceptance remains unchanged.
+
 ### P18.15 — Add resource identity, safe inventory and useful diagnostics
 
-**Status:** Unstarted; blocked by P18.14's difficult-model feasibility result. Batch A authorization is recorded; no further approval between these steps is required once the blocker is actually resolved.
+**Status:** Paused at Cameron's direction; unstarted until he runs P18.14a's proof and confirms the visual result. Batch A authorization remains recorded.
 **Files:** New `crates/msc-domain/src/map_assets.rs` and exports; new application/infrastructure map-asset modules and their exports; Java map bridge, compatibility helper, DTOs and API schema/generated types; `crates/msc-agent/src/cli/mod.rs` for read-only reporting; focused regression sources only when essential; design/acceptance documents and this plan.
 **What:** Establish the shared foundation without changing which assets a working map renders:
 

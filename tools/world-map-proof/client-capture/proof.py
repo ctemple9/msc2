@@ -246,8 +246,13 @@ def validate(directory: Path, expected: dict | None = None) -> tuple[dict, dict]
         raise ValueError("Wrong contextual display items")
     if roles["custom_loader_barnacles"][1]["loader"] != "supplementaries:random_rotation":
         raise ValueError("Wrong custom loader")
-    if "supplementaries" not in roles["custom_loader_barnacles"][1]["bakedModelClass"]:
-        raise ValueError("Custom model was not baked by the real mod")
+    custom = roles["custom_loader_barnacles"][1]
+    # The pinned north-only blockstate selects a RandomRotationModel inside
+    # Minecraft's multipart wrapper. Its outer class cannot establish loader provenance.
+    if (custom["bakedModelClass"] != "net.minecraft.client.resources.model.MultiPartBakedModel"
+            or custom["state"] != "supplementaries:barnacles[down=false,east=false,north=true,south=false,up=false,waterlogged=false,west=false]"
+            or custom["modelResourceSha256"] != "40258ae4a7a45ca37271001039e49528d5141c9076adbfc191fe3955db7f5ffd"):
+        raise ValueError("Pinned multipart custom-loader fixture/model provenance mismatch")
     files = manifest["files"]
     if len(files) > 145 or set(p.name for p in directory.iterdir()) != set(files) | {"capture.json"}:
         raise ValueError("Unlisted files or export count exceeded")

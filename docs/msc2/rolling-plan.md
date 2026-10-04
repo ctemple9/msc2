@@ -145,6 +145,17 @@ No Verify command below runs a test suite. Essential regressions may be added on
 **Checks:** Java package build/prepared-launch check and Git whitespace inspection. Inspected `ClientLevel`, `ClientChunkCache` and `ChunkSource` in the pinned local development source archive. No tests or Minecraft launch; live capture and visual acceptance remain pending.
 **Owner verification:** Close the proof client, run Verify and reopen the isolated world. Run setup then capture. Successful export must include `unloaded_chunk`, `snapshot_mismatch` and `context_mismatch` refusals. Compare the named appearances in the viewer before confirming visual evidence; no broader acceptance is waived.
 
+### P18.14d — Validate the pinned multipart custom-model wrapper
+
+**Status:** Implemented correction; awaiting Cameron's visual confirmation. Not complete.
+**Files:** Isolated export validator and README under `tools/world-map-proof/client-capture/`; this plan.
+**What:** Fix the viewer rejecting Cameron's successful capture because its outer baked-model class is Minecraft's `MultiPartBakedModel`. Inspect the real export, pinned barnacles blockstate and custom loader bytecode: the north-only state selects `supplementaries:block/barnacles`, whose resource uses `supplementaries:random_rotation`, within the vanilla multipart wrapper. Replace the incorrect package-name check with exact expected wrapper, north-only state and pinned loaded model-resource SHA-256 checks. Retain exact mod/game pins, loader identity, required nonempty custom geometry, contextual pair, materials/artifacts and all three refusal checks. Validate the owner's existing export; no recapture or Minecraft launch is required to inspect it. No production or world changes.
+**Verify:** `python3 tools/world-map-proof/client-capture/proof.py view --workspace /home/camerontemple/.cache/msc-map-client-proof`
+**Batch:** P18.14d only — one corrective commit; stop for Cameron's visual comparison. P18.15 remains paused.
+**Commit:** `P18.14d: validate pinned multipart custom-model evidence`
+**Checks:** Python syntax compilation, validation of Cameron's actual published capture and Git whitespace inspection. No tests or Minecraft launch. Existing live export records equal pedestal states with 84 diamond and 72 emerald block-entity vertices, exact custom model resource hash and all three required refusal codes. Export validation does not establish visual matching.
+**Owner verification:** Use Verify to inspect the existing capture, click Load capture and compare its appearances with Minecraft/the saved frame. Confirm evidence only after the named geometry, textures/transparency, distinct items and saved-frame/refusal details match. No acceptance criterion or broader platform/mod claim is waived.
+
 ### P18.15 — Add resource identity, safe inventory and useful diagnostics
 
 **Status:** Paused at Cameron's direction; unstarted until he runs P18.14a's proof and confirms the visual result. Batch A authorization remains recorded.

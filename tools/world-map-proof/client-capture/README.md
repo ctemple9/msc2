@@ -38,7 +38,10 @@ Chosen custom-loader block: Supplementaries barnacles at **9,65,3**. The actual
 JAR's `models/block/barnacles.json` uses `supplementaries:random_rotation`, with
 nested geometry that the ordinary element resolver cannot read directly. The
 export records the loaded model class, loader and resource hash, and must
-produce nonempty geometry. Both faces, their attached orientation, texture
+produce nonempty geometry. Minecraft wraps the selected custom model in
+`MultiPartBakedModel`; validation checks that expected wrapper, the exact
+north-only block state and pinned loaded model-resource hash, rather than
+requiring the outer class name to belong to Supplementaries. Both faces, their attached orientation, texture
 alpha and placement must be compared with Minecraft.
 
 Chosen contextual block: Supplementaries pedestals at **3,65,3** and **6,65,3**.

@@ -1,5 +1,16 @@
 # MSC 2 — Rolling Plan
 
+### P16.42 — Publish v0.1.23 with Java map dependency recovery
+
+**Status:** Prepared; publication and Cameron's artifact acceptance pending.
+**Files:** Agent/client/Tauri version manifests and lockfiles, source/static bundle identity and its existing assertion, README, `docs/msc2/release/v0.1.23.md`, this plan.
+**What:** Increment the latest remote/published tag v0.1.22 to v0.1.23 and synchronize owned release identities without changing registry dependency versions. Include P18.12's complete headless helper updates, missing Vantage recovery, verified version-matched Java assets and diagnostic errors. Push main and the new immutable tag through the unchanged four-platform build-only workflow, preserving nine artifacts, checksums and signed update metadata. Cameron explicitly requested implementation, commit pushes and the next release tag.
+**Verify:** `gh release view v0.1.23 --json tagName,isPrerelease,assets,url`
+**Batch:** P16.42 only.
+**Commit:** `P16.42: prepare v0.1.23 release`
+
+**Preparation:** Inspected the complete active release workflow and successful v0.1.22 publication. No release gates changed or tests run. Implementation formatting, Clippy and frontend checks recorded under P18.12; synchronized source identity and locked metadata checked before tagging. README retains the actually published v0.1.22 while introducing the new candidate. Recent successful release runs took 38–47 minutes. Ubuntu map acceptance remains Cameron's check.
+
 ### P18.12 — Prepare Java map dependencies on headless hosts
 
 **Status:** Implemented; awaiting Cameron's verification.

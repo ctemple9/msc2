@@ -27,6 +27,13 @@ release acceptance gate.
 v0.1.22 fixes headless Linux service status and routine CLI control, and
 accepts modern Java datapack metadata such as Tectonic 3.0.29 for Minecraft 26.3.
 
+The next candidate, v0.1.23, fixes headless updates omitting terrain helpers and
+prepares Java map dependencies automatically on the server host. The first map
+launch can recover a missing Vantage renderer and downloads verified Minecraft
+textures for the saved world's version; later launches reuse the cache. Renderer
+failures now identify the affected dependency and retain diagnostics in agent
+logs. Publication uses the existing build-only release workflow.
+
 | Installation | Published platform and architecture | Supported control surface |
 |---|---|---|
 | Desktop app | macOS Intel (`x86_64`) and Apple Silicon (`aarch64`); Windows 64-bit (`x86_64`); Linux 64-bit (`x86_64`) as `.deb` and `.rpm` | Tauri desktop app |

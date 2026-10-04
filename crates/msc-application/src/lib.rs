@@ -5,6 +5,7 @@ pub mod addons;
 pub mod backups;
 pub mod bedrock_linux;
 pub mod bedrock_macos;
+pub mod bedrock_map_feed;
 pub mod bedrock_players;
 pub mod bedrock_provisioning;
 pub mod bedrock_runtime;

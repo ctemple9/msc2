@@ -2649,6 +2649,16 @@ impl LifecycleRoutesState {
                 })
             })
             .and_then(|()| {
+                msc_application::bedrock_map_feed::ensure_active_world_feed(Path::new(
+                    &active.server_dir,
+                ))
+                .map_err(|error| {
+                    BedrockRuntimeError::Provisioning(format!(
+                        "could not prepare live Bedrock map players: {error}"
+                    ))
+                })
+            })
+            .and_then(|()| {
                 let server_dir = Path::new(&active.server_dir);
                 let transport_result = match (sidecar, transport) {
                     (_, BedrockConnectionTransport::Raknet) => {
@@ -2803,7 +2813,10 @@ impl LifecycleRoutesState {
                     self.record_map_player_line(&line);
                     let origin = self.console_line_origin(&line);
                     let internal_time_query = self.record_time_query_line(&line, origin);
-                    if !internal_time_query && !Self::is_hidden_time_query_line(&line) {
+                    if !internal_time_query
+                        && !Self::is_hidden_time_query_line(&line)
+                        && !Self::is_hidden_map_position_line(&line)
+                    {
                         self.inner
                             .console
                             .push(ConsoleLine::with_origin("bedrock", None, origin, line));
@@ -3113,7 +3126,11 @@ impl LifecycleRoutesState {
             self.console_line_origin(text)
         };
         let internal_time_query = self.record_time_query_line(text, origin);
-        if !internal_time_query && !Self::is_hidden_time_query_line(text) {
+        if !internal_time_query
+            && !query_reply
+            && !Self::is_hidden_time_query_line(text)
+            && !Self::is_hidden_map_position_line(text)
+        {
             self.inner.console.push(ConsoleLine::with_origin(
                 source,
                 None,
@@ -3144,6 +3161,22 @@ impl LifecycleRoutesState {
             || message.starts_with("the time is ")
             || message.starts_with("time is ")
             || message.contains("clock minecraft:") && message.contains(" is at ")
+    }
+
+    fn is_hidden_map_position_line(line: &str) -> bool {
+        let stripped = strip_ansi(line);
+        let clean = stripped.trim();
+        if clean.contains("MSC_MAP_PLAYERS_V1 ") || map_player_query::entity_field(clean).is_some()
+        {
+            return true;
+        }
+        let command = clean
+            .strip_prefix("> ")
+            .unwrap_or(clean)
+            .trim_start_matches('/');
+        ["Pos", "Rotation", "Dimension"]
+            .iter()
+            .any(|field| command == format!("execute as @a run data get entity @s {field}"))
     }
 
     fn console_line_origin(&self, line: &str) -> ConsoleLineOrigin {
@@ -4257,6 +4290,22 @@ mod tests {
     use msc_infrastructure::secret_store::{FakeSecretStore, SecretStore};
     use std::collections::HashMap;
     use std::ffi::OsString;
+
+    #[test]
+    fn map_positions_never_enter_the_visible_console() {
+        let hidden = [
+            "[Scripting] MSC_MAP_PLAYERS_V1 {\"players\":[{\"x\":1.0}]}",
+            "> execute as @a run data get entity @s Pos",
+            "[20:00:00] [Server thread/INFO]: Alex has the following entity data: [1.0d, 2.0d, 3.0d]",
+            "[20:00:00] [Server thread/INFO]: Alex has the following entity data: [45.0f, 90.0f]",
+        ];
+        for line in hidden {
+            assert!(LifecycleRoutesState::is_hidden_map_position_line(line));
+        }
+        assert!(!LifecycleRoutesState::is_hidden_map_position_line(
+            "[20:00:00] [Server thread/INFO]: Alex joined the game"
+        ));
+    }
 
     fn imported_server(server_dir: std::path::PathBuf) -> ImportedPaperServer {
         ImportedPaperServer {

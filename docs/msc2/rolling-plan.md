@@ -1,5 +1,19 @@
 # MSC 2 — Rolling Plan
 
+### P12.246 — Install live Bedrock map players for every active world
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `crates/msc-application/assets/bedrock-map-feed/`, `crates/msc-application/src/bedrock_map_feed.rs`, `crates/msc-application/src/lib.rs`, `crates/msc-application/tests/bedrock_map_feed.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, this plan.
+**What:** Bundle the existing Bedrock player-position behavior pack with the agent and register it for the active world before each stopped-server start, including newly created and later selected worlds. Preserve other behavior packs and update an installed proof pack in place. Remove Bedrock feed lines, Java feed lines, and Java position-query replies and command echoes before they enter MSC's console, regardless of Auto-hide. Keep Java's existing fallback query path and all platform runtime/service implementations unchanged.
+**Verify:** `cargo clippy -p msc-agent --bin msc`
+**Batch:** P12.246 only.
+**Commit:** `P12.246: install bedrock map feed automatically`
+
+**Evidence:** The live Fedora Bedrock server reported its online player while `/v1/worlds/map/players` remained `awaiting-feed`; its new world had no feed pack or world pack registration. The prior pack existed only under the manual map-proof tool. Java already polls position fields through built-in console commands when no server feed exists, so it needs console filtering but no pack installer. The agent currently pushed both feed messages and Java query replies into the console buffer, where disabling Auto-hide exposed frequent coordinate lines.
+**Checks:** Rust formatting, focused regression compilation, shipping-agent Clippy, and desktop agent build/staging pass. No tests were run, and the running agent and worlds were not changed.
+**Essential coverage:** An isolated filesystem regression installs the bundled feed in an active world, checks preservation of another pack and idempotence, then switches the active world and checks registration there. A small console-filter regression checks that Bedrock roster lines and Java coordinate replies/command echoes are hidden while ordinary server events remain visible. These catch the observed new-world `awaiting-feed` failure and the reported coordinate spam without Minecraft, network, timing, global state, or credentials. Expected runtime under 10 ms total; compiled only, not executed.
+**Manual acceptance:** Rebuild the desktop, Repair the agent, and create or select a new Bedrock world. Start it, join, open View Map, and confirm live player coordinates appear and update. Turn Auto-hide off and confirm map feed positions never appear in MSC's console. Start and join a Java server, confirm live players appear using the existing query path, and confirm its position and rotation replies do not appear in the console. Repeat on Windows and macOS when available; the shared start and console logic applies there, while platform runtime/service code is untouched.
+
 ### P12.245 — Keep Fedora Bedrock shutdown from cancelling Broadcast
 
 **Status:** Implemented; awaiting Cameron's verification.

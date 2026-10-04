@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import io
+import json
 import os
 from pathlib import Path
 import sys
@@ -15,35 +16,10 @@ from urllib.request import Request, urlopen
 from zipfile import ZipFile
 
 
-VERSION = "0.15.1"
+RELEASE = json.loads(Path(__file__).with_name("vantage-release.json").read_text())
+VERSION = RELEASE["version"]
 BASE_URL = f"https://github.com/thoughts-on-things/vantage-mc/releases/download/v{VERSION}"
-ASSETS = {
-    "macos-x86_64": (
-        "vantage-x86_64-macos.tar.gz",
-        "dd20d193a508ca260aff1ae9cf7dc42025ac2a9dd104020f7a4937b3479059e2",
-        "vantage",
-    ),
-    "macos-aarch64": (
-        "vantage-aarch64-macos.tar.gz",
-        "a3043a386fcf9afbfa676997d33c64309ddb7769a14a1a22b473b9ed11e2da5d",
-        "vantage",
-    ),
-    "linux-x86_64": (
-        "vantage-x86_64-linux.tar.gz",
-        "ff1fb5059017c536d8cd3dc8654155333fba763a12888fa308c1949458f5d89c",
-        "vantage",
-    ),
-    "linux-aarch64": (
-        "vantage-aarch64-linux.tar.gz",
-        "a94c945ec83778e7170305887cbdbd062e5d8dab35f8db0db63d0d05a1c62fe6",
-        "vantage",
-    ),
-    "windows-x86_64": (
-        "vantage-x86_64-windows.zip",
-        "d333a297e0e0027dff0c26f20cb111c9eab97cc97bfa65bbad382201b7812b15",
-        "vantage.exe",
-    ),
-}
+ASSETS = RELEASE["assets"]
 MAX_ARCHIVE_BYTES = 32 * 1024 * 1024
 LICENSE_PATH = Path(__file__).with_name("VANTAGE-LICENSE.txt")
 

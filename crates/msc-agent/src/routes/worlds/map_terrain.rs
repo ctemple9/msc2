@@ -1,6 +1,8 @@
 //! Authenticated, bounded access to one private Vantage Java renderer.
 pub(super) mod bedrock;
+mod dependencies;
 mod java_terrain_compat;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -26,6 +28,30 @@ use msc_infrastructure::fs::StdFileSystem;
 
 const IDLE: Duration = Duration::from_secs(90);
 const MAX_ARTIFACT: usize = 32 * 1024 * 1024;
+
+#[derive(Debug)]
+struct TerrainError {
+    code: &'static str,
+    message: String,
+}
+
+impl TerrainError {
+    fn new(code: &'static str, message: impl Into<String>) -> Self {
+        Self {
+            code,
+            message: message.into(),
+        }
+    }
+}
+
+impl From<()> for TerrainError {
+    fn from(_: ()) -> Self {
+        Self::new(
+            "renderer_unavailable",
+            "The Java terrain renderer could not supply this artifact. See the agent logs on the server host for details.",
+        )
+    }
+}
 
 #[derive(Clone, Default)]
 pub(super) struct RendererStore(Arc<RendererState>);
@@ -59,6 +85,8 @@ struct Renderer {
     token: String,
     cache: PathBuf,
     child: Child,
+    diagnostics: Arc<Mutex<Vec<u8>>>,
+    diagnostic_reader: Option<std::thread::JoinHandle<()>>,
     last_use: Instant,
 }
 
@@ -66,6 +94,9 @@ impl Drop for Renderer {
     fn drop(&mut self) {
         let _ = self.child.kill();
         let _ = self.child.wait();
+        if let Some(reader) = self.diagnostic_reader.take() {
+            let _ = reader.join();
+        }
         let _ = std::fs::remove_dir_all(&self.cache);
     }
 }
@@ -142,11 +173,21 @@ pub(super) async fn artifact(
         );
     }
     let store = state.map_renderer.clone();
+    let selected_version = crate::routes::versions::minecraft_version_from_selection(
+        Some(server.java_flavor),
+        server.minecraft_version.clone(),
+    );
     let server_id = server.id;
     let dimension_id = query.dimension;
     let artifact = query.path;
     match tokio::task::spawn_blocking(move || {
-        store.fetch(&server_id, &world, &dimension_id, &artifact)
+        store.fetch(
+            &server_id,
+            &world,
+            &dimension_id,
+            &artifact,
+            selected_version.as_deref(),
+        )
     })
     .await
     {
@@ -169,11 +210,15 @@ pub(super) async fn artifact(
             "renderer_unavailable",
             "The terrain renderer could not supply this artifact.",
         ),
-        _ => error_response(
-            StatusCode::BAD_GATEWAY,
-            "renderer_unavailable",
-            "The terrain renderer is unavailable; check that Java client assets are installed on the host.",
-        ),
+        Ok(Err(error)) => error_response(StatusCode::BAD_GATEWAY, error.code, &error.message),
+        Err(error) => {
+            eprintln!("Java terrain renderer task failed: {error}");
+            error_response(
+                StatusCode::BAD_GATEWAY,
+                "renderer_unavailable",
+                "The Java terrain renderer failed. See the agent logs on the server host for details.",
+            )
+        }
     }
 }
 
@@ -256,7 +301,8 @@ impl RendererStore {
         world: &Path,
         dimension: &str,
         artifact: &str,
-    ) -> Result<(u16, Vec<u8>), ()> {
+        selected_version: Option<&str>,
+    ) -> Result<(u16, Vec<u8>), TerrainError> {
         let (port, token) = {
             let mut guard = self.0.current.lock().map_err(|_| ())?;
             let mut saved = self.0.snapshot.lock().map_err(|_| ())?;
@@ -277,7 +323,12 @@ impl RendererStore {
                     && renderer.child.try_wait().ok().flatten().is_none()
             });
             if !reuse {
-                *guard = Some(Renderer::launch(server_id, render_world, dimension)?);
+                *guard = Some(Renderer::launch(
+                    server_id,
+                    render_world,
+                    dimension,
+                    selected_version,
+                )?);
             }
             let renderer = guard.as_mut().ok_or(())?;
             renderer.last_use = Instant::now();
@@ -290,14 +341,23 @@ impl RendererStore {
             .header("Authorization", format!("Bearer {token}"))
             .header("Accept-Encoding", "identity")
             .call()
-            .map_err(|_| ())?;
+            .map_err(|error| {
+                eprintln!(
+                    "Java terrain artifact request failed: {}",
+                    error.to_string().replace(&token, "[redacted]")
+                );
+                TerrainError::from(())
+            })?;
         let status = response.status().as_u16();
         let bytes = response
             .into_body()
             .with_config()
             .limit(MAX_ARTIFACT as u64)
             .read_to_vec()
-            .map_err(|_| ())?;
+            .map_err(|error| {
+                eprintln!("Java terrain artifact read failed: {error}");
+                TerrainError::from(())
+            })?;
         Ok((status, bytes))
     }
 
@@ -331,19 +391,14 @@ impl RendererStore {
 }
 
 impl Renderer {
-    fn launch(server_id: &str, world: &Path, dimension: &str) -> Result<Self, ()> {
-        let binary = std::env::var_os("MSC2_VANTAGE_BIN")
-            .map(PathBuf::from)
-            .or_else(|| {
-                std::env::current_exe().ok()?.parent().map(|parent| {
-                    parent.join(if cfg!(windows) {
-                        "vantage.exe"
-                    } else {
-                        "vantage"
-                    })
-                })
-            })
-            .ok_or(())?;
+    fn launch(
+        server_id: &str,
+        world: &Path,
+        dimension: &str,
+        selected_version: Option<&str>,
+    ) -> Result<Self, TerrainError> {
+        let binary = dependencies::binary()?;
+        let assets = dependencies::assets(world, selected_version)?;
         let listener = std::net::TcpListener::bind("127.0.0.1:0").map_err(|_| ())?;
         let port = listener.local_addr().map_err(|_| ())?.port();
         drop(listener);
@@ -354,7 +409,10 @@ impl Renderer {
             Err(error) => {
                 eprintln!("Java terrain compatibility preparation failed: {error}");
                 let _ = std::fs::remove_dir_all(&cache);
-                return Err(());
+                return Err(TerrainError::new(
+                    "terrain_preparation_failed",
+                    "The saved Java terrain could not be prepared for rendering. See the agent logs on the server host for details.",
+                ));
             }
         };
         let token = format!(
@@ -363,11 +421,13 @@ impl Renderer {
             Uuid::new_v4().simple(),
             Uuid::new_v4().simple()
         );
-        let child = Command::new(binary)
+        let mut child = Command::new(binary)
             .arg("server")
             .arg(render_world)
             .args(["--dimension", dimension, "--out"])
             .arg(cache.join("render"))
+            .arg("--assets")
+            .arg(assets)
             .args([
                 "--host",
                 "127.0.0.1",
@@ -387,11 +447,31 @@ impl Renderer {
             .env("VANTAGE_SERVER_TOKEN", &token)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            .stderr(Stdio::piped())
             .spawn()
-            .map_err(|_| {
+            .map_err(|error| {
                 let _ = std::fs::remove_dir_all(&cache);
+                eprintln!("Java terrain renderer could not start: {error}");
+                TerrainError::new("renderer_start_failed", "The Java terrain renderer could not start. Repair MSC on the server host and check the agent logs for details.")
             })?;
+        let diagnostics = Arc::new(Mutex::new(Vec::new()));
+        let diagnostic_reader = child.stderr.take().map(|mut stderr| {
+            let captured = diagnostics.clone();
+            // Keep draining after the diagnostic cap so the renderer cannot
+            // block on a full pipe or grow the agent's memory without bound.
+            std::thread::spawn(move || {
+                let mut buffer = [0u8; 4096];
+                while let Ok(count) = stderr.read(&mut buffer) {
+                    if count == 0 {
+                        break;
+                    }
+                    if let Ok(mut bytes) = captured.lock() {
+                        let remaining = (16 * 1024usize).saturating_sub(bytes.len());
+                        bytes.extend_from_slice(&buffer[..count.min(remaining)]);
+                    }
+                }
+            })
+        });
         let mut renderer = Self {
             server_id: server_id.to_string(),
             world: world.to_path_buf(),
@@ -400,12 +480,21 @@ impl Renderer {
             token,
             cache,
             child,
+            diagnostics,
+            diagnostic_reader,
             last_use: Instant::now(),
         };
         let started = Instant::now();
         while started.elapsed() < Duration::from_secs(45) {
-            if renderer.child.try_wait().map_err(|_| ())?.is_some() {
-                return Err(());
+            if let Some(status) = renderer.child.try_wait().map_err(|_| ())? {
+                if let Some(reader) = renderer.diagnostic_reader.take() {
+                    let _ = reader.join();
+                }
+                renderer.log_failure(&format!("exited with {status}"));
+                return Err(TerrainError::new(
+                    "renderer_start_failed",
+                    "The Java terrain renderer exited during startup. See the agent logs on the server host for details.",
+                ));
             }
             let health = format!("http://127.0.0.1:{port}/v1/health");
             if let Ok(response) = http().get(&health).call()
@@ -415,7 +504,23 @@ impl Renderer {
             }
             std::thread::sleep(Duration::from_millis(250));
         }
-        Err(())
+        renderer.log_failure("did not become ready within 45 seconds");
+        Err(TerrainError::new(
+            "renderer_start_timeout",
+            "The Java terrain renderer did not become ready within 45 seconds. See the agent logs on the server host for details.",
+        ))
+    }
+
+    fn log_failure(&self, reason: &str) {
+        let diagnostics = self
+            .diagnostics
+            .lock()
+            .ok()
+            .map(|bytes| String::from_utf8_lossy(&bytes).replace(&self.token, "[redacted]"));
+        eprintln!(
+            "Java terrain renderer {reason}: {}",
+            diagnostics.unwrap_or_default()
+        );
     }
 }
 

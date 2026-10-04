@@ -63,8 +63,20 @@ Apple Silicon archive has no
 Bedrock sidecar; that is a platform capability boundary, not an installation failure.
 All desktop and headless Java map packages also include the pinned Vantage
 0.15.1 renderer binary and `VANTAGE-LICENSE.txt` beside the MSC agent. The
-renderer does not include Minecraft assets; a later map launch uses assets
-from the selected Java installation.
+renderer does not include Minecraft assets. The first Java map launch downloads
+and verifies the official Minecraft client assets for the saved world's version
+(or the configured Minecraft version when the save has no version metadata).
+MSC extracts only block assets and game data into
+`<MSC2_DATA_DIR>/map-dependencies/java-assets/<version>` and reuses that cache
+on later launches. No Minecraft launcher, player login, or player join is
+required on the server host. First use requires internet access from that host.
+
+Headless updates replace both terrain helpers alongside the agent and preserve
+their previous copies for rollback. If an older update left Vantage missing,
+the map downloads the checksum-pinned renderer into MSC's own dependency cache
+without elevation. An explicit `MSC2_VANTAGE_BIN` override remains authoritative;
+MSC reports a missing override instead of replacing it. Renderer startup
+diagnostics go to the agent logs, with the private renderer token redacted.
 
 The Linux archive additionally contains `install.sh`, `uninstall.sh`, and the
 systemd input definitions used by its service installer. macOS archives

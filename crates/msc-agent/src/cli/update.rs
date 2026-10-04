@@ -469,6 +469,7 @@ fn apply_verified_update(
         .join("payload");
     release_update::extract_standalone_archive(&staged.artifact_path, &payload)
         .map_err(CliError::internal)?;
+    validate_payload(&payload).map_err(CliError::internal)?;
 
     let (service_state, service_name, health_port) = local_service_state(&current_executable)?;
     if service_state == ServiceState::Running
@@ -756,24 +757,50 @@ fn package_manager_guidance(staged: &StagedUpdate) -> String {
     )
 }
 
+fn payload_names(payload: &Path) -> Vec<String> {
+    let suffix = if cfg!(target_os = "windows") {
+        ".exe"
+    } else {
+        ""
+    };
+    let mut names = ["msc", "vantage", "bedrock-map"]
+        .map(|name| format!("{name}{suffix}"))
+        .to_vec();
+    names.push("VANTAGE-LICENSE.txt".to_string());
+    if payload.join("sidecar").is_dir() {
+        names.push("sidecar".to_string());
+    }
+    names
+}
+
+fn validate_payload(payload: &Path) -> Result<(), String> {
+    for name in payload_names(payload) {
+        let metadata = fs::symlink_metadata(payload.join(&name))
+            .map_err(|_| format!("The signed headless archive is missing {name}."))?;
+        if !(metadata.is_file() || name == "sidecar" && metadata.is_dir()) {
+            return Err(format!(
+                "The signed headless archive has an invalid {name}."
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn replace_payload(
     payload: &Path,
     installation_root: &Path,
     rollback: &Path,
 ) -> Result<PayloadChange, ReplacementFailure> {
+    // Validate the complete payload before any installed component changes.
+    validate_payload(payload).map_err(|detail| ReplacementFailure {
+        detail,
+        restored: true,
+    })?;
     fs::create_dir_all(rollback).map_err(|error| ReplacementFailure {
         detail: format!("Could not create rollback storage: {error}"),
         restored: true,
     })?;
-    let binary_name = if cfg!(target_os = "windows") {
-        "msc.exe"
-    } else {
-        "msc"
-    };
-    let mut names = vec![binary_name.to_string()];
-    if payload.join("sidecar").is_dir() {
-        names.push("sidecar".to_string());
-    }
+    let names = payload_names(payload);
 
     let mut changed = Vec::new();
     let result: Result<(), String> = (|| {
@@ -1100,5 +1127,54 @@ mod tests {
         assert!(error.message.contains("Authorization was canceled"));
 
         std::fs::remove_dir_all(directory).expect("remove isolated fixture directory");
+    }
+}
+
+#[cfg(test)]
+mod payload_tests {
+    use super::*;
+
+    #[test]
+    fn headless_updates_install_helpers_and_rollback_the_complete_payload() {
+        let root =
+            std::env::temp_dir().join(format!("msc-update-payload-{}", uuid::Uuid::new_v4()));
+        struct Cleanup(PathBuf);
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+        let _cleanup = Cleanup(root.clone());
+        let payload = root.join("payload");
+        let installed = root.join("installed");
+        let rollback = root.join("rollback");
+        fs::create_dir_all(&payload).unwrap();
+        fs::create_dir_all(&installed).unwrap();
+        let names = payload_names(&payload);
+        let agent = &names[0];
+        fs::write(installed.join(agent), b"old agent").unwrap();
+        fs::write(installed.join(&names[1]), b"old renderer").unwrap();
+        for name in &names {
+            fs::write(payload.join(name), b"new payload").unwrap();
+        }
+        let changed = replace_payload(&payload, &installed, &rollback).unwrap();
+        for name in &names {
+            assert_eq!(fs::read(installed.join(name)).unwrap(), b"new payload");
+        }
+        rollback_payload(&changed, &installed).unwrap();
+        assert_eq!(fs::read(installed.join(agent)).unwrap(), b"old agent");
+        assert_eq!(
+            fs::read(installed.join(&names[1])).unwrap(),
+            b"old renderer"
+        );
+        assert!(!installed.join(&names[2]).exists());
+        assert!(!installed.join("VANTAGE-LICENSE.txt").exists());
+
+        fs::remove_file(payload.join(&names[1])).unwrap();
+        let error =
+            replace_payload(&payload, &installed, &root.join("incomplete-rollback")).unwrap_err();
+        assert!(error.restored);
+        assert_eq!(fs::read(installed.join(agent)).unwrap(), b"old agent");
+        assert!(!root.join("incomplete-rollback").exists());
     }
 }

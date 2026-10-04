@@ -30,6 +30,7 @@ image = { version = "0.25", default-features = false, features = ["gif", "jpeg",
 ureq = "3"
 fastnbt = "2"
 flate2 = "1"
+tar = "0.4"
 zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 [dev-dependencies]

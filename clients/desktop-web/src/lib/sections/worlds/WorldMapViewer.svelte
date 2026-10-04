@@ -115,7 +115,7 @@
     busy = true;
     status = serverType === 'bedrock'
       ? 'Preparing saved Bedrock terrain and verified textures…'
-      : `Loading ${entry.displayName}…`;
+      : `Preparing ${entry.displayName} terrain and Minecraft textures…`;
     let opening: VantageViewer | undefined;
     let bedrockStats: { loaded: number; loading: number; total: number; lowres?: number } | undefined;
     try {

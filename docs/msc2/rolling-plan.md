@@ -1,5 +1,18 @@
 # MSC 2 — Rolling Plan
 
+### P19.5 — Authorize Fedora complete uninstall once
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `crates/msc-platform-linux/src/uninstall.rs`, `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/cli/uninstall.rs`, `docs/msc2/clients/local-uninstall.md`, this plan.
+**What:** Keep one protected installed MSC helper running after a single Fedora authorization prompt. Send it only fixed service-stop, system-data, verified package, and marked-archive actions while the existing copied worker checks the reviewed inventory and removes user-owned data. Preserve package ownership checks, ordered service shutdown before data deletion, the rule that a partial removal retains the installed command, and the current macOS/Windows uninstall paths.
+**Verify:** `cargo clippy -p msc-agent --bin msc`
+**Batch:** P19.5 only.
+**Commit:** `P19.5: authorize linux uninstall once`
+
+**Evidence:** `LinuxUninstall` previously launched `pkexec` separately for every `systemctl`, `rm`, and `rpm` command. Fedora therefore prompted Cameron repeatedly during one confirmed removal. The installed agent is a root-owned executable that can accept a narrow privileged cleanup command after one OS authorization. The copied unprivileged worker still owns inventory comparison and user data cleanup; the privileged helper accepts no caller-supplied filesystem paths.
+**Checks:** Rust formatting, shipping-agent Clippy, and Fedora RPM build pass with existing unrelated warnings. No tests or destructive uninstall ran; the installed RPM and live services were not changed.
+**Manual acceptance:** Install an RPM containing this commit, open Settings → Uninstall MSC 2, review the inventory and confirm. Fedora should request authorization once for the complete local removal, then show a completed result. Verify `rpm -q msc-2` reports it absent and the local MSC services are gone. Test a partial-failure report by observation only if it occurs; do not interrupt or deliberately damage a live removal. Other platforms retain their previous uninstall code.
+
 ### P12.246 — Install live Bedrock map players for every active world
 
 **Status:** Implemented; awaiting Cameron's verification.

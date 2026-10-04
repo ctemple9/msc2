@@ -61,7 +61,7 @@ fn backend() -> Box<dyn LocalServices> {
     #[cfg(target_os = "macos")]
     return Box::new(msc_platform_macos::uninstall::MacUninstall);
     #[cfg(target_os = "linux")]
-    return Box::new(msc_platform_linux::uninstall::LinuxUninstall);
+    return Box::new(msc_platform_linux::uninstall::LinuxUninstall::new());
     #[cfg(target_os = "windows")]
     return Box::new(msc_platform_windows::uninstall::WindowsUninstall);
 }

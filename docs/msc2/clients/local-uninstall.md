@@ -79,6 +79,10 @@ uninstall route is added to the HTTP API. Existing Reset remains unchanged.
 The local worker gracefully stops Minecraft before the native executor removes
 services/helpers, cleans data/credentials, and uses verified OS installation mechanisms
 for app removal through a protected detached continuation.
+On Linux, the installed root-owned MSC helper stays open through those privileged
+steps so the OS asks for authorization once. It accepts only fixed service,
+system-data, and verified installation actions; the worker still removes
+user-owned files after checking the reviewed inventory.
 Scheduled work is not reported as completed uninstall. Failures must show what
 remains and preserve a readable result outside the deleted MSC paths.
 

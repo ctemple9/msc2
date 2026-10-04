@@ -80,6 +80,10 @@ pub struct CommonArgs {
 pub enum Command {
     /// Permanently uninstall MSC 2 and its managed data on this computer.
     Uninstall(uninstall::UninstallArgs),
+    /// Fixed, installed Linux cleanup helper; called through one OS authorization.
+    #[cfg(target_os = "linux")]
+    #[command(name = "uninstall-privileged", hide = true)]
+    UninstallPrivileged,
     /// Start the installed local agent service.
     Start { target: service::AgentTarget },
     /// Stop the installed local agent service.
@@ -1429,6 +1433,10 @@ impl CliError {
 pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
     match command {
         Command::Uninstall(args) => uninstall::run(common, args).await,
+        #[cfg(target_os = "linux")]
+        Command::UninstallPrivileged => {
+            msc_platform_linux::uninstall::run_privileged_uninstall().map_err(CliError::internal)
+        }
         Command::Serve { .. } => Err(CliError::internal("serve is handled in main")),
         #[cfg(target_os = "windows")]
         Command::ServiceRun { .. } => Err(CliError::internal("service-run is handled in main")),

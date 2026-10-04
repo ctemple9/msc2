@@ -17,17 +17,15 @@ everything first.
 
 ## Current release and support
 
-The next release is [MSC 2 v0.1.22](https://github.com/ctemple9/msc2/releases/tag/v0.1.22),
-fixing headless Linux service status and routine CLI control, and accepting
-modern Java datapack metadata such as Tectonic 3.0.29 for Minecraft 26.3.
-The corrected candidate is [building](https://github.com/ctemple9/msc2/actions/runs/37178253015);
-use the release page to confirm downloadable artifacts are available.
-The newest published build is [MSC 2 v0.1.21](https://github.com/ctemple9/msc2/releases/tag/v0.1.21),
+The latest published build is [MSC 2 v0.1.22](https://github.com/ctemple9/msc2/releases/tag/v0.1.22),
 an unsigned prerelease. There is no stable release yet. Download the
 platform-specific installer or archive from that release page and verify its
 entry in `SHA256SUMS` before installing. The Phase 16 acceptance record
 (P16.29) is still open; this prerelease has not passed the full physical
 release acceptance gate.
+
+v0.1.22 fixes headless Linux service status and routine CLI control, and
+accepts modern Java datapack metadata such as Tectonic 3.0.29 for Minecraft 26.3.
 
 | Installation | Published platform and architecture | Supported control surface |
 |---|---|---|
@@ -137,7 +135,7 @@ versions and loaders, resolves dependencies, and keeps client-only mods off
 the server when it can identify them.
 
 Java datapacks can be added during server creation or to a stopped world.
-The v0.1.22 candidate accepts both legacy `pack_format` metadata and modern
+v0.1.22 accepts both legacy `pack_format` metadata and modern
 `min_format`/`max_format` ranges, including Tectonic 3.0.29 for Minecraft 26.3.
 Adding a terrain-generation datapack affects newly generated chunks; it does
 not rebuild terrain already saved in the world.
@@ -222,26 +220,26 @@ app already includes the MSC 2 agent; you do not need to download both.
   environment. Manage it from another computer with the desktop app or CLI.
 ### macOS desktop — Intel and Apple Silicon Macs
 
-Download the matching macOS disk image from the [v0.1.21 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.21), open it, and drag MSC 2 into your Applications folder. Intel Macs include the local Bedrock runtime. Apple Silicon Macs include the app and Java runtime support, but no local Bedrock VM; Bedrock servers can still be managed on a compatible remote host.
+Download the matching macOS disk image from the [v0.1.22 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.22), open it, and drag MSC 2 into your Applications folder. Intel Macs include the local Bedrock runtime. Apple Silicon Macs include the app and Java runtime support, but no local Bedrock VM; Bedrock servers can still be managed on a compatible remote host.
 
 ### Windows desktop — 64-bit Windows
 
-Download the Windows `.msi` installer from the [v0.1.21 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.21) and follow the installation prompts.
+Download the Windows `.msi` installer from the [v0.1.22 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.22) and follow the installation prompts.
 
 ### Debian or Ubuntu desktop
 
-Download the Linux `.deb` package from the [v0.1.21 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.21), then install it with:
+Download the Linux `.deb` package from the [v0.1.22 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.22), then install it with:
 
 ~~~sh
-sudo apt install ./msc2-0.1.21-linux-x86_64.deb
+sudo apt install ./msc2-0.1.22-linux-x86_64.deb
 ~~~
 
 ### Fedora or other RPM-based Linux
 
-Download the Linux `.rpm` package from the [v0.1.21 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.21), then install it with:
+Download the Linux `.rpm` package from the [v0.1.22 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.22), then install it with:
 
 ~~~sh
-sudo dnf install ./msc2-0.1.21-linux-x86_64.rpm
+sudo dnf install ./msc2-0.1.22-linux-x86_64.rpm
 ~~~
 
 ### Headless agent — macOS, Windows, and Linux
@@ -271,7 +269,7 @@ Signed releases can be checked and staged locally from the agent binary:
 
 ~~~sh
 msc update check
-msc update install --release-id 0.1.21
+msc update install --release-id 0.1.22
 ~~~
 
 The install command asks for a second confirmation. Pass `--yes` for

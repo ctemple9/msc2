@@ -1,5 +1,16 @@
 # MSC 2 — Rolling Plan
 
+### P16.41 — Prepare README publication wording for v0.1.22
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `README.md`, this plan.
+**What:** At Cameron's explicit request, identify v0.1.22 as the latest published build and update download/install examples accordingly. Remove candidate/building wording and retain the fixes and prerelease acceptance limitations. This wording is prepared ahead of publication: GitHub returned release not found at editing time; Cameron was informed. Do not change the active release tag or restart the build.
+**Verify:** `git show --check --oneline HEAD`
+**Batch:** P16.41 only.
+**Commit:** `P16.41: update readme release references to v0.1.22`
+
+**Checks:** README diff and whitespace inspected. Documentation only; Rust checks are not applicable. No tests run.
+
 ### P16.40 — Update README for the corrected v0.1.22 candidate
 
 **Status:** Implemented; awaiting Cameron's verification.

@@ -170,6 +170,39 @@ fn native_linux_runtime_forces_after_twenty_seconds_and_reports_clean_stop() {
 }
 
 #[test]
+fn native_linux_runtime_stays_stopped_when_polled_past_shutdown_deadline() {
+    for observe_exit_before_deadline in [true, false] {
+        let process = FakeProcessSupervisor::new();
+        let clock = FakeClock::new();
+        let clock_control = clock.clone();
+        let mut runtime = runtime(&process, clock);
+        let pid = provision_and_start(&mut runtime, free_udp_port());
+        let pid = msc_infrastructure::process::ProcessId::new(pid);
+        process.emit_stdout(pid, b"Server started\n").unwrap();
+        runtime.poll_event().unwrap();
+        runtime.poll_event().unwrap();
+        runtime.stop().unwrap();
+        process.exit_normally(pid).unwrap();
+        if !observe_exit_before_deadline {
+            clock_control.advance(GRACEFUL_STOP_TIMEOUT + Duration::from_secs(1));
+        }
+        assert!(matches!(
+            runtime.poll_event().unwrap(),
+            Some(BedrockRuntimeEvent::Terminated {
+                reason: BedrockTerminationReason::Clean
+            })
+        ));
+        clock_control.advance(GRACEFUL_STOP_TIMEOUT + Duration::from_secs(1));
+        for _ in 0..3 {
+            assert!(runtime.poll_event().unwrap().is_none());
+        }
+        assert_eq!(runtime.state(), BedrockRuntimeState::Stopped);
+        assert!(runtime.process_id().is_none());
+        assert!(process.force_terminations().is_empty());
+    }
+}
+
+#[test]
 fn native_linux_runtime_distinguishes_unrequested_crash() {
     let process = FakeProcessSupervisor::new();
     let mut runtime = runtime(&process, FakeClock::new());

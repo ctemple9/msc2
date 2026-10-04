@@ -176,9 +176,12 @@ impl<'supervisor, C: BedrockRuntimeClock> LinuxBedrockRuntime<'supervisor, C> {
         }
     }
 
-    fn maybe_force_stop(&mut self) -> Result<(), BedrockRuntimeError> {
+    fn maybe_force_stop(&mut self) -> Result<bool, BedrockRuntimeError> {
+        if self.state != BedrockRuntimeState::Stopping {
+            return Ok(false);
+        }
         let Some(requested_at) = self.graceful_stop_at else {
-            return Ok(());
+            return Ok(false);
         };
         if self.force_stop_sent
             || self
@@ -187,7 +190,7 @@ impl<'supervisor, C: BedrockRuntimeClock> LinuxBedrockRuntime<'supervisor, C> {
                 .checked_duration_since(requested_at)
                 .is_none_or(|elapsed| elapsed < GRACEFUL_STOP_TIMEOUT)
         {
-            return Ok(());
+            return Ok(false);
         }
         let pid = self.process.ok_or(BedrockRuntimeError::InvalidState {
             operation: "force-stop",
@@ -197,7 +200,7 @@ impl<'supervisor, C: BedrockRuntimeClock> LinuxBedrockRuntime<'supervisor, C> {
             .force_terminate(pid)
             .map_err(|error| BedrockRuntimeError::Transport(error.to_string()))?;
         self.force_stop_sent = true;
-        Ok(())
+        Ok(true)
     }
 
     fn enqueue_process_events(
@@ -231,6 +234,8 @@ impl<'supervisor, C: BedrockRuntimeClock> LinuxBedrockRuntime<'supervisor, C> {
                         ))
                     };
                     self.process = None;
+                    self.graceful_stop_at = None;
+                    self.force_stop_sent = false;
                     self.state = BedrockRuntimeState::Stopped;
                     self.pending_events
                         .push_back(BedrockRuntimeEvent::Terminated { reason });
@@ -350,7 +355,6 @@ impl<C: BedrockRuntimeClock> BedrockRuntime for LinuxBedrockRuntime<'_, C> {
         if let Some(event) = self.pending_events.pop_front() {
             return Ok(Some(event));
         }
-        self.maybe_force_stop()?;
         let Some(pid) = self.process else {
             return Ok(None);
         };
@@ -359,6 +363,15 @@ impl<C: BedrockRuntimeClock> BedrockRuntime for LinuxBedrockRuntime<'_, C> {
             .drain_events(pid)
             .map_err(|error| BedrockRuntimeError::Transport(error.to_string()))?;
         self.enqueue_process_events(events)?;
+        // A queued exit wins over a stop deadline: the helper has already
+        // stopped cleanly and no process remains to terminate.
+        if self.maybe_force_stop()? {
+            let events = self
+                .process_supervisor
+                .drain_events(pid)
+                .map_err(|error| BedrockRuntimeError::Transport(error.to_string()))?;
+            self.enqueue_process_events(events)?;
+        }
         Ok(self.pending_events.pop_front())
     }
 }

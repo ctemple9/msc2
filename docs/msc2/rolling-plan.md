@@ -1,5 +1,19 @@
 # MSC 2 — Rolling Plan
 
+### P12.245 — Keep Fedora Bedrock shutdown from cancelling Broadcast
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `crates/msc-application/src/bedrock_linux.rs`, `crates/msc-application/tests/bedrock_linux.rs`, this plan.
+**What:** Apply the P12.239 native Windows shutdown correction to the Linux Bedrock runtime. Consume queued process exits before escalating a graceful stop, clear stop timing when the process exits, and leave later stopped-state polls inert. Keep true 20-second forced shutdown for a live process. Windows and macOS runtime source is unchanged.
+**Verify:** `cargo clippy -p msc-agent --bin msc`
+**Batch:** P12.245 only.
+**Commit:** `P12.245: preserve broadcast through linux bedrock shutdown`
+
+**Evidence:** The live Fedora journal shows successful first-run and Playit account operations followed by two Xbox Broadcast operations cancelled without error; the desktop therefore displayed its generic setup failure. The native Linux runtime still ran its 20-second graceful-stop check before draining a queued Bedrock exit and retained the stop deadline after setting its state to Stopped. The lifecycle error handler stops helpers and aborts first-start on that invalid force-stop. P12.239 corrected the same sequence on Windows only and explicitly identified the Linux path as still affected. This explains the observed cancellation pattern; a live Broadcast sign-in has not yet been repeated after the correction.
+**Checks:** Rust formatting, shipping-agent Clippy, focused Linux regression compilation, and `npm --prefix clients/desktop-web run prepare:agent` passed with existing unrelated warnings. No tests ran and the live service was not restarted.
+**Essential coverage:** One fake-process/fake-clock regression now covers a clean Linux exit observed before or after the stop deadline, then repeated stopped-state polls beyond it. It catches the observed helper-cancelling runtime error without Minecraft, provider calls, sleeps, or real credentials. It uses the existing ephemeral UDP-port fixture and should run in under 10 ms; compiled only, not executed.
+**Manual acceptance:** Restart `npx tauri dev`, Repair the Fedora agent with this staged build, then retry Xbox Broadcast from the Bedrock initiation sheet. Confirm the Microsoft sign-in code appears, authentication completes, and pass two finishes with the server stopped and Playit configured. Waiting beyond the first pass's 20-second shutdown deadline must not cancel Broadcast. Recheck the Windows and macOS initiation flows; their runtime sources were not changed.
+
 ### P12.244 — Recognize Linux Playit connections during Bedrock setup
 
 **Status:** Implemented; awaiting Cameron's verification.

@@ -73,6 +73,21 @@ impl fmt::Display for JavaDatapackError {
     }
 }
 
+fn datapack_format_bound(value: &serde_json::Value, upper: bool) -> Option<(u64, u64)> {
+    let implicit_minor = if upper { u64::MAX } else { 0 };
+    let (major, minor) = if let Some(major) = value.as_u64() {
+        (major, implicit_minor)
+    } else {
+        let parts = value.as_array()?;
+        match parts.as_slice() {
+            [major] => (major.as_u64()?, implicit_minor),
+            [major, minor] => (major.as_u64()?, minor.as_u64()?),
+            _ => return None,
+        }
+    };
+    (major > 0).then_some((major, minor))
+}
+
 /// Checks a Modrinth datapack archive, then writes its files under the
 /// selected Java world's `datapacks` directory inside the slot archive.
 /// The prior archive is retained beside the slot before the replacement.
@@ -213,14 +228,25 @@ fn install_java_datapack_archive(
     let metadata: serde_json::Value = serde_json::from_slice(metadata_bytes).map_err(|error| {
         JavaDatapackError::Invalid(format!("The datapack pack.mcmeta is invalid JSON: {error}"))
     })?;
-    if metadata
-        .pointer("/pack/pack_format")
-        .and_then(serde_json::Value::as_u64)
-        .is_none_or(|format| format == 0)
-        || metadata.pointer("/pack/description").is_none()
+    let pack = &metadata["pack"];
+    // Modern packs use a major/minor range instead of the legacy integer.
+    // Validate declared bounds before touching the saved world archive.
+    let valid_format = if pack.get("min_format").is_some() || pack.get("max_format").is_some() {
+        datapack_format_bound(&pack["min_format"], false)
+            .zip(datapack_format_bound(&pack["max_format"], true))
+            .is_some_and(|(minimum, maximum)| minimum <= maximum)
+    } else {
+        pack["pack_format"]
+            .as_u64()
+            .is_some_and(|format| format > 0)
+    };
+    if !valid_format
+        || pack
+            .get("description")
+            .is_none_or(serde_json::Value::is_null)
     {
         return Err(JavaDatapackError::Invalid(
-            "The datapack pack.mcmeta is missing a valid pack format or description.".into(),
+            "The datapack pack.mcmeta requires a valid pack_format or min_format/max_format range, and a description.".into(),
         ));
     }
     let pack_folder = format!(

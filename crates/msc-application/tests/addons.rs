@@ -840,6 +840,56 @@ fn java_datapack_install_uses_outer_metadata_and_preserves_overlays() {
         assert_eq!(std::fs::read(&world_path).unwrap(), original);
     }
     selected.loaders = vec!["datapack".to_string()];
+    // Essential: modern metadata was rejected before reaching Minecraft.
+    // Controlled archives also ensure malformed ranges cannot alter the world.
+    // No network or timing dependencies; expected runtime under a second.
+    for (format, accepted) in [
+        (r#""min_format":121,"max_format":121"#, true),
+        (r#""min_format":[121,1],"max_format":121"#, true),
+        (r#""min_format":[121],"max_format":[121,2]"#, true),
+        (r#""min_format":122,"max_format":121"#, false),
+        (r#""min_format":[121,2],"max_format":[121,1]"#, false),
+        (r#""min_format":121"#, false),
+        (r#""min_format":"121","max_format":121"#, false),
+        (r#""min_format":[121,-1],"max_format":121"#, false),
+        (r#""min_format":[121,0,1],"max_format":121"#, false),
+        (r#""pack_format":0"#, false),
+    ] {
+        std::fs::write(&world_path, &original).unwrap();
+        let metadata = format!(
+            r#"{{"pack":{{{format},"description":["Made with ",{{"text":"<3","color":"red"}}]}}}}"#
+        );
+        let incoming = zip_bytes(&[("pack.mcmeta", metadata.as_bytes())]);
+        let result = addons::install_java_datapack(
+            &world_path,
+            &incoming,
+            &selected,
+            "overlay-project",
+            "Example",
+            "26.2",
+        );
+        assert_eq!(result.is_ok(), accepted, "{format}");
+        if accepted {
+            let (_, _, paths, _) = result.unwrap();
+            let mut saved =
+                zip::ZipArchive::new(std::fs::File::open(&world_path).unwrap()).unwrap();
+            use std::io::Read;
+            let mut actual = String::new();
+            saved
+                .by_name(&format!(
+                    "world/{}",
+                    paths.iter().find(|p| p.ends_with("pack.mcmeta")).unwrap()
+                ))
+                .unwrap()
+                .read_to_string(&mut actual)
+                .unwrap();
+            assert_eq!(actual, metadata);
+        } else {
+            assert_eq!(std::fs::read(&world_path).unwrap(), original);
+        }
+    }
+    std::fs::write(&world_path, &original).unwrap();
+    selected.loaders = vec!["datapack".to_string()];
     let ambiguous = zip_bytes(&[("One/pack.mcmeta", metadata), ("Two/pack.mcmeta", metadata)]);
     assert!(
         addons::install_java_datapack(

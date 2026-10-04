@@ -1,5 +1,16 @@
 # MSC 2 — Rolling Plan
 
+### P16.37 — Publish v0.1.21 through the build-only release workflow
+
+**Status:** Prepared; publication and Cameron's artifact acceptance pending.
+**Files:** Agent/client/Tauri version manifests and lockfiles, source/static bundle identity and its existing assertion, README, `docs/msc2/release/v0.1.21.md`, this plan.
+**What:** Increment v0.1.20 to v0.1.21 and synchronize locked release identity. Publish current main through the existing four-platform build-only workflow, preserving all nine desktop/headless artifacts, checksums, and signed update metadata. Monitor completion and inspect all failures before targeted fixes or retries; keep the tag immutable. Cameron explicitly authorized publication and release-error fixes. Preserve the uncommitted agent heading edit locally.
+**Verify:** `gh release view v0.1.21 --json tagName,isPrerelease,assets,url`
+**Batch:** P16.37 only.
+**Commit:** `P16.37: prepare v0.1.21 release`
+
+**Preparation:** Inspected the complete active release workflow, previous successful release, changes since v0.1.20, and configured signing-secret/public-key names. No workflow gates or tests added; no tests run. Physical acceptance remains Cameron's responsibility.
+
 ### P12.247 — Hide initiation and main console scrollbars
 
 **Status:** Implemented; awaiting Cameron's verification.

@@ -141,7 +141,9 @@ client to a production snapshot.
 Every capture actually submits three invalid requests through the same guard:
 
 - An unloaded chunk at 1,000,000 / 1,000,000 must return `unloaded_chunk`, without
-  requesting terrain generation or producing an empty success tile.
+  requesting terrain generation or producing an empty success tile. Chunk guards
+  use the actual chunk source with `ChunkStatus.FULL` and loading disabled;
+  `ClientLevel.hasChunk()` is unsuitable because it always returns true.
 - A wrong snapshot hash must return `snapshot_mismatch`.
 - A wrong context hash must return `context_mismatch`.
 

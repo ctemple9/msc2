@@ -134,6 +134,17 @@ No Verify command below runs a test suite. Essential regressions may be added on
 **Checks:** Java package build and prepared-launch directory check; Git whitespace inspection. No tests or Minecraft launch. The observed pause-save cause is supported by the private client log; the correction's live rendering result remains pending.
 **Owner verification:** Close the running proof client, run Verify, reopen the isolated proof world and run setup then capture. Switching focus before capture must not invalidate an otherwise unchanged fixture. Compare the named exported appearances and inspect all three refusal records before confirming evidence. This correction does not close P18.14a's visual acceptance or waive later acceptance rows.
 
+### P18.14c — Check actual cached chunks before capture
+
+**Status:** Implemented correction; awaiting Cameron's owner-run proof. Not complete.
+**Files:** Isolated client capture source and README under `tools/world-map-proof/client-capture/`; this plan.
+**What:** Fix Cameron's live capture reporting `Required refusal did not happen: unloaded_chunk`. Inspection of pinned Minecraft 1.21.1 source establishes that `ClientLevel.hasChunk()` unconditionally returns true. Replace that unsuitable check with the actual chunk source lookup for `ChunkStatus.FULL`, loading disabled, requiring a non-null cached chunk. Apply the same guard to fixture setup, every context/halo position and requested capture coordinates; refuse missing chunks without accepting an empty fallback or generating terrain. Preserve all required runtime refusal checks and snapshot/context guards. No production changes, tests or Minecraft launch.
+**Verify:** `python3 tools/world-map-proof/client-capture/proof.py run --workspace /home/camerontemple/.cache/msc-map-client-proof`
+**Batch:** P18.14c only — one corrective commit; stop for Cameron's live proof. P18.15 remains paused.
+**Commit:** `P18.14c: refuse chunks absent from the client cache`
+**Checks:** Java package build/prepared-launch check and Git whitespace inspection. Inspected `ClientLevel`, `ClientChunkCache` and `ChunkSource` in the pinned local development source archive. No tests or Minecraft launch; live capture and visual acceptance remain pending.
+**Owner verification:** Close the proof client, run Verify and reopen the isolated world. Run setup then capture. Successful export must include `unloaded_chunk`, `snapshot_mismatch` and `context_mismatch` refusals. Compare the named appearances in the viewer before confirming visual evidence; no broader acceptance is waived.
+
 ### P18.15 — Add resource identity, safe inventory and useful diagnostics
 
 **Status:** Paused at Cameron's direction; unstarted until he runs P18.14a's proof and confirms the visual result. Batch A authorization remains recorded.

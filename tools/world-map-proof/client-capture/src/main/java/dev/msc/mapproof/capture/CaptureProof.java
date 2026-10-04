@@ -26,6 +26,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.storage.LevelResource;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
@@ -89,7 +90,7 @@ public final class CaptureProof {
             server.execute(() -> {
                 try {
                     ServerLevel level = server.overworld();
-                    if (!level.hasChunk(0,0)) throw new IOException("Refused: fixture chunk 0,0 is not loaded. Use /tp @s 6 67 11 and wait before setup.");
+                    if (!loaded(level,0,0)) throw new IOException("Refused: fixture chunk 0,0 is not loaded. Use /tp @s 6 67 11 and wait before setup.");
                     // Only this new, explicitly prepared proof world may be modified.
                     for (BlockPos p : BlockPos.betweenClosed(LOW, HIGH)) level.setBlock(p, p.getY()==64 ? Blocks.STONE.defaultBlockState() : Blocks.AIR.defaultBlockState(), 3);
                     Block pedestal = BuiltInRegistries.BLOCK.get(ResourceLocation.parse("supplementaries:pedestal"));
@@ -184,10 +185,16 @@ public final class CaptureProof {
     }
     @SuppressWarnings({"unchecked","rawtypes"}) static String value(net.minecraft.world.level.block.state.properties.Property p, Comparable v) { return p.getName(v); }
 
+    static boolean loaded(Level level, int chunkX, int chunkZ) {
+        // ClientLevel.hasChunk always returns true. Inspect its real cache without
+        // requesting generation or accepting the client's empty fallback chunk.
+        return level.getChunkSource().getChunk(chunkX,chunkZ,ChunkStatus.FULL,false) != null;
+    }
+
     static String context(Level level) throws Exception {
         StringBuilder b = new StringBuilder(level.dimension().location().toString());
         for (BlockPos p : BlockPos.betweenClosed(LOW.offset(-1,-1,-1),HIGH.offset(1,1,1))) {
-            if (!level.hasChunk(p.getX()>>4,p.getZ()>>4)) throw new IOException("unloaded_chunk: " + (p.getX()>>4)+","+(p.getZ()>>4));
+            if (!loaded(level,p.getX()>>4,p.getZ()>>4)) throw new IOException("unloaded_chunk: " + (p.getX()>>4)+","+(p.getZ()>>4));
             b.append(p.toShortString()).append(state(level.getBlockState(p)));
             BlockEntity entity=level.getBlockEntity(p);
             if (entity!=null) b.append(canonical(entity.getUpdateTag(level.registryAccess())));
@@ -237,7 +244,7 @@ public final class CaptureProof {
         if (current==null) throw new IOException("needs_setup: /mscproof setup first");
         if (!server.tickRateManager().isFrozen()) throw new IOException("simulation_not_frozen: run setup again");
         if (mc.level==null || !mc.level.dimension().equals(Level.OVERWORLD)) throw new IOException("dimension_mismatch");
-        if (!mc.level.hasChunk(pos.getX()>>4,pos.getZ()>>4)) throw new IOException("unloaded_chunk");
+        if (!loaded(mc.level,pos.getX()>>4,pos.getZ()>>4)) throw new IOException("unloaded_chunk");
         if (!current.snapshot.equals(expectedSnapshot)||!snapshot(current.world).equals(expectedSnapshot)) throw new IOException("snapshot_mismatch");
         if (!current.resources.equals(resources())) throw new IOException("resource_context_mismatch");
         if (!current.context.equals(expectedContext)||!context(mc.level).equals(expectedContext)) throw new IOException("context_mismatch: wait for client updates, or rerun setup if the fixture changed");

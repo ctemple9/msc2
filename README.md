@@ -18,9 +18,11 @@ everything first.
 ## Current release and support
 
 The next release is [MSC 2 v0.1.22](https://github.com/ctemple9/msc2/releases/tag/v0.1.22),
-fixing headless Linux service status and routine CLI control. Publication is
-requested; use the release page to confirm downloadable artifacts are available.
-The newest published build at preparation is [MSC 2 v0.1.21](https://github.com/ctemple9/msc2/releases/tag/v0.1.21),
+fixing headless Linux service status and routine CLI control, and accepting
+modern Java datapack metadata such as Tectonic 3.0.29 for Minecraft 26.3.
+The corrected candidate is [building](https://github.com/ctemple9/msc2/actions/runs/37178253015);
+use the release page to confirm downloadable artifacts are available.
+The newest published build is [MSC 2 v0.1.21](https://github.com/ctemple9/msc2/releases/tag/v0.1.21),
 an unsigned prerelease. There is no stable release yet. Download the
 platform-specific installer or archive from that release page and verify its
 entry in `SHA256SUMS` before installing. The Phase 16 acceptance record
@@ -61,7 +63,7 @@ the project has not set a numeric version window such as N-3. Keep clients and
 agents current.
 
 Security fixes are currently promised only for the latest stable release, as
-described in [SECURITY.md](SECURITY.md). Since v0.1.18 is a prerelease and no
+described in [SECURITY.md](SECURITY.md). Since the published builds are prereleases and no
 stable release has been published, no release currently qualifies for that
 security-support policy.
 
@@ -127,12 +129,18 @@ The map shows terrain Minecraft has generated and saved. Flying around the
 map does not generate new chunks in the game. This feature is in the current
 development build; it is not included in the published v0.1.18 release.
 
-### Handles mods, plugins, and modpacks
+### Handles mods, plugins, datapacks, and modpacks
 
 MSC 2 can find and install server software, mods, plugins, and modpacks from
 supported providers such as Modrinth and CurseForge. It checks Minecraft
 versions and loaders, resolves dependencies, and keeps client-only mods off
 the server when it can identify them.
+
+Java datapacks can be added during server creation or to a stopped world.
+The v0.1.22 candidate accepts both legacy `pack_format` metadata and modern
+`min_format`/`max_format` ranges, including Tectonic 3.0.29 for Minecraft 26.3.
+Adding a terrain-generation datapack affects newly generated chunks; it does
+not rebuild terrain already saved in the world.
 
 ### Learn how players can connect
 
@@ -214,26 +222,26 @@ app already includes the MSC 2 agent; you do not need to download both.
   environment. Manage it from another computer with the desktop app or CLI.
 ### macOS desktop — Intel and Apple Silicon Macs
 
-Download the matching macOS disk image from the [v0.1.18 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.18), open it, and drag MSC 2 into your Applications folder. Intel Macs include the local Bedrock runtime. Apple Silicon Macs include the app and Java runtime support, but no local Bedrock VM; Bedrock servers can still be managed on a compatible remote host.
+Download the matching macOS disk image from the [v0.1.21 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.21), open it, and drag MSC 2 into your Applications folder. Intel Macs include the local Bedrock runtime. Apple Silicon Macs include the app and Java runtime support, but no local Bedrock VM; Bedrock servers can still be managed on a compatible remote host.
 
 ### Windows desktop — 64-bit Windows
 
-Download the Windows `.msi` installer from the [v0.1.18 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.18) and follow the installation prompts.
+Download the Windows `.msi` installer from the [v0.1.21 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.21) and follow the installation prompts.
 
 ### Debian or Ubuntu desktop
 
-Download the Linux `.deb` package from the [v0.1.18 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.18), then install it with:
+Download the Linux `.deb` package from the [v0.1.21 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.21), then install it with:
 
 ~~~sh
-sudo apt install ./msc2-0.1.18-linux-x86_64.deb
+sudo apt install ./msc2-0.1.21-linux-x86_64.deb
 ~~~
 
 ### Fedora or other RPM-based Linux
 
-Download the Linux `.rpm` package from the [v0.1.18 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.18), then install it with:
+Download the Linux `.rpm` package from the [v0.1.21 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.21), then install it with:
 
 ~~~sh
-sudo dnf install ./msc2-0.1.18-linux-x86_64.rpm
+sudo dnf install ./msc2-0.1.21-linux-x86_64.rpm
 ~~~
 
 ### Headless agent — macOS, Windows, and Linux
@@ -263,7 +271,7 @@ Signed releases can be checked and staged locally from the agent binary:
 
 ~~~sh
 msc update check
-msc update install --release-id 0.1.18
+msc update install --release-id 0.1.21
 ~~~
 
 The install command asks for a second confirmation. Pass `--yes` for

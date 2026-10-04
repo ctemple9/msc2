@@ -1,5 +1,16 @@
 # MSC 2 — Rolling Plan
 
+### P16.40 — Update README for the corrected v0.1.22 candidate
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `README.md`, this plan.
+**What:** Describe the modern Java datapack fix and terrain-generation limitation, link the corrected release build, retain v0.1.21 as the newest published release, and update installation/update examples from stale v0.1.18 to v0.1.21. Preserve the active release tag and workflow; push documentation to main only.
+**Verify:** `git show --check --stat --oneline --grep='P16.40' HEAD`
+**Batch:** P16.40 only.
+**Commit:** `P16.40: document corrected v0.1.22 candidate`
+
+**Checks:** Inspected README diff and whitespace; checked replacement workflow is in progress. Documentation only; Rust formatting/Clippy are not applicable. No tests run and no release rebuild started.
+
 ### P16.39 — Replace the cancelled v0.1.22 candidate
 
 **Status:** Prepared; publication and Cameron's artifact acceptance pending.

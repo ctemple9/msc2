@@ -53,6 +53,176 @@
     }
   },
   "paths": {
+  "/v1/worlds/{slot_id}/map-assets/status": {
+    "get": {
+      "summary": "Status scoped Java map resource evidence",
+      "operationId": "statusWorldMapAssets",
+      "x-permission-category": "worlds",
+      "x-notes": "Read-only resource foundation. No downloads or renderer adoption. Reports retain original namespaces and describe only named saved bounds. Active live folders require a stopped server; archived slots can be checked while it runs. Check is operation-backed, cancellable, and revision-bound.",
+      "parameters": [
+        {
+          "name": "slot_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        {
+          "name": "serverId",
+          "in": "query",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Bound read-only map-resource result",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MapAssetsStatusDTO"
+              }
+            }
+          }
+        },
+        "403": {
+          "description": "Worlds permission required"
+        },
+        "409": {
+          "description": "Binding changed, unsupported scope, consistent snapshot required, or bounded inspection refused"
+        },
+        "404": {
+          "description": "Slot or bound report is unavailable"
+        }
+      }
+    }
+  },
+  "/v1/worlds/{slot_id}/map-assets/report": {
+    "get": {
+      "summary": "Report scoped Java map resource evidence",
+      "operationId": "reportWorldMapAssets",
+      "x-permission-category": "worlds",
+      "x-notes": "Read-only resource foundation. No downloads or renderer adoption. Reports retain original namespaces and describe only named saved bounds. Active live folders require a stopped server; archived slots can be checked while it runs. Check is operation-backed, cancellable, and revision-bound.",
+      "parameters": [
+        {
+          "name": "slot_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        {
+          "name": "serverId",
+          "in": "query",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Bound read-only map-resource result",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MapAssetsReportDTO"
+              }
+            }
+          }
+        },
+        "403": {
+          "description": "Worlds permission required"
+        },
+        "409": {
+          "description": "Binding changed, unsupported scope, consistent snapshot required, or bounded inspection refused"
+        },
+        "404": {
+          "description": "Slot or bound report is unavailable"
+        }
+      }
+    }
+  },
+  "/v1/worlds/{slot_id}/map-assets/check": {
+    "post": {
+      "summary": "Check scoped Java map resource evidence",
+      "operationId": "checkWorldMapAssets",
+      "x-permission-category": "worlds",
+      "x-notes": "Read-only resource foundation. No downloads or renderer adoption. Reports retain original namespaces and describe only named saved bounds. Active live folders require a stopped server; archived slots can be checked while it runs. Check is operation-backed, cancellable, and revision-bound.",
+      "parameters": [
+        {
+          "name": "slot_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "responses": {
+        "400": { "description": "Invalid map-resource request or bounds" },
+        "200": {
+          "description": "Bound read-only map-resource result",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MapAssetsCheckStartedDTO"
+              }
+            }
+          }
+        },
+        "403": {
+          "description": "Worlds permission required"
+        },
+        "409": {
+          "description": "Binding changed, unsupported scope, consistent snapshot required, or bounded inspection refused"
+        },
+        "404": {
+          "description": "Slot or bound report is unavailable"
+        }
+      },
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/MapAssetsCheckRequestDTO"
+            }
+          }
+        }
+      }
+    }
+  },
+  "/v1/capabilities/map-assets": {
+    "get": {
+      "summary": "Discover implemented read-only Java map-resource actions",
+      "operationId": "getMapAssetsCapabilities",
+      "x-permission-category": "worlds",
+      "responses": {
+        "200": {
+          "description": "Bound read-only map-resource result",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MapAssetsCapabilitiesDTO"
+              }
+            }
+          }
+        },
+        "403": {
+          "description": "Worlds permission required"
+        }
+      }
+    }
+  },
+
     "/v1/worlds/map/players": {
       "get": {
         "summary": "Read fresh player positions for the selected active server",
@@ -7264,6 +7434,476 @@
   },
   "components": {
     "schemas": {
+  "MapAssetsAreaDTO": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "min",
+      "max"
+    ],
+    "properties": {
+      "min": {
+        "type": "array",
+        "items": {
+          "type": "integer"
+        },
+        "minItems": 3,
+        "maxItems": 3
+      },
+      "max": {
+        "type": "array",
+        "items": {
+          "type": "integer"
+        },
+        "minItems": 3,
+        "maxItems": 3
+      }
+    }
+  },
+  "MapAssetsBindingDTO": {
+    "type": "object",
+    "required": [
+      "agentHostId",
+      "serverId",
+      "slotId",
+      "worldIncarnation",
+      "revision"
+    ],
+    "properties": {
+      "agentHostId": {
+        "type": "string"
+      },
+      "serverId": {
+        "type": "string"
+      },
+      "slotId": {
+        "type": "string"
+      },
+      "worldIncarnation": {
+        "type": "string"
+      },
+      "revision": {
+        "type": "string"
+      }
+    }
+  },
+  "MapAssetsDeclaredModDTO": {
+    "type": "object",
+    "required": [
+      "id",
+      "version"
+    ],
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "version": {
+        "type": "string",
+        "nullable": true
+      }
+    }
+  },
+  "MapAssetsSourceEvidenceDTO": {
+    "type": "object",
+    "required": [
+      "id",
+      "kind",
+      "enabled",
+      "sha256",
+      "bytes",
+      "evidence",
+      "declaredMods",
+      "namespaces",
+      "parentSource",
+      "provider",
+      "projectId",
+      "releaseId",
+      "fileId",
+      "metadataIssue"
+    ],
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "kind": {
+        "type": "string"
+      },
+      "enabled": {
+        "type": "boolean"
+      },
+      "sha256": {
+        "type": "string"
+      },
+      "bytes": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "evidence": {
+        "type": "string",
+        "enum": [
+          "local_hashed",
+          "provider_verified",
+          "unknown"
+        ]
+      },
+      "declaredMods": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/MapAssetsDeclaredModDTO"
+        }
+      },
+      "namespaces": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "parentSource": {
+        "type": "string",
+        "nullable": true
+      },
+      "provider": {
+        "type": "string",
+        "nullable": true
+      },
+      "projectId": {
+        "type": "string",
+        "nullable": true
+      },
+      "releaseId": {
+        "type": "string",
+        "nullable": true
+      },
+      "fileId": {
+        "type": "string",
+        "nullable": true
+      },
+      "metadataIssue": {
+        "type": "string",
+        "nullable": true
+      }
+    }
+  },
+  "MapAssetsDiagnosticDTO": {
+    "type": "object",
+    "required": [
+      "classification",
+      "originalId",
+      "state",
+      "detail",
+      "sourceIds",
+      "blockOccurrences",
+      "samples"
+    ],
+    "properties": {
+      "classification": {
+        "type": "string",
+        "enum": [
+          "missing_model",
+          "missing_texture",
+          "unsupported_loader",
+          "unsupported_material",
+          "missing_context",
+          "missing_saved_chunk",
+          "intentional_empty",
+          "model_resolved",
+          "selection_unknown",
+          "unsupported_renderer_namespace",
+          "invalid_model"
+        ]
+      },
+      "originalId": {
+        "type": "string"
+      },
+      "state": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string"
+        }
+      },
+      "detail": {
+        "type": "string"
+      },
+      "sourceIds": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "blockOccurrences": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "samples": {
+        "type": "array",
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        }
+      }
+    }
+  },
+  "MapAssetsReportDTO": {
+    "type": "object",
+    "required": [
+      "schemaVersion",
+      "binding",
+      "snapshotId",
+      "snapshotMinecraftVersion",
+      "resourceGenerationId",
+      "geometryGenerationId",
+      "dimension",
+      "area",
+      "operationId",
+      "outcome",
+      "visualAcceptance",
+      "scope",
+      "inspectedBlocks",
+      "inspectedChunks",
+      "distinctStates",
+      "visibleFaces",
+      "counts",
+      "diagnostics",
+      "omittedIssues",
+      "omittedSamples",
+      "sources"
+    ],
+    "properties": {
+      "schemaVersion": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "binding": {
+        "$ref": "#/components/schemas/MapAssetsBindingDTO"
+      },
+      "snapshotId": {
+        "type": "string"
+      },
+      "snapshotMinecraftVersion": { "type": "string", "nullable": true },
+      "resourceGenerationId": {
+        "type": "string"
+      },
+      "geometryGenerationId": {
+        "type": "string",
+        "nullable": true
+      },
+      "dimension": {
+        "type": "string"
+      },
+      "area": {
+        "$ref": "#/components/schemas/MapAssetsAreaDTO"
+      },
+      "operationId": {
+        "type": "string"
+      },
+      "outcome": {
+        "type": "string",
+        "enum": [
+          "checked",
+          "needs_input"
+        ]
+      },
+      "visualAcceptance": {
+        "type": "string"
+      },
+      "scope": {
+        "type": "string"
+      },
+      "inspectedBlocks": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "inspectedChunks": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "distinctStates": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "visibleFaces": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "nullable": true
+      },
+      "counts": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        }
+      },
+      "diagnostics": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/MapAssetsDiagnosticDTO"
+        }
+      },
+      "omittedIssues": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "omittedSamples": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "sources": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/MapAssetsSourceEvidenceDTO"
+        }
+      }
+    }
+  },
+  "MapAssetsStatusDTO": {
+    "type": "object",
+    "required": [
+      "schemaVersion",
+      "binding",
+      "state",
+      "inputGeneration",
+      "previousGeneration",
+      "reportAvailable",
+      "rendererAdopted",
+      "actions",
+      "note"
+    ],
+    "properties": {
+      "schemaVersion": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "binding": {
+        "$ref": "#/components/schemas/MapAssetsBindingDTO"
+      },
+      "state": {
+        "type": "string"
+      },
+      "inputGeneration": {
+        "type": "string",
+        "nullable": true
+      },
+      "previousGeneration": {
+        "type": "string",
+        "nullable": true
+      },
+      "reportAvailable": {
+        "type": "boolean"
+      },
+      "rendererAdopted": {
+        "type": "boolean"
+      },
+      "actions": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "note": {
+        "type": "string"
+      }
+    }
+  },
+  "MapAssetsCheckRequestDTO": {
+    "type": "object",
+    "required": [
+      "serverId",
+      "expectedRevision",
+      "dimension",
+      "area"
+    ],
+    "properties": {
+      "serverId": {
+        "type": "string"
+      },
+      "expectedRevision": {
+        "type": "string"
+      },
+      "dimension": {
+        "type": "string"
+      },
+      "area": {
+        "$ref": "#/components/schemas/MapAssetsAreaDTO"
+      }
+    },
+    "additionalProperties": false
+  },
+  "MapAssetsCheckStartedDTO": {
+    "type": "object",
+    "required": [
+      "result",
+      "operationId",
+      "binding"
+    ],
+    "properties": {
+      "result": {
+        "type": "string",
+        "enum": [
+          "check_started"
+        ]
+      },
+      "operationId": {
+        "type": "string"
+      },
+      "binding": {
+        "$ref": "#/components/schemas/MapAssetsBindingDTO"
+      }
+    }
+  },
+  "MapAssetsCapabilitiesDTO": {
+    "type": "object",
+    "required": [
+      "schemaVersion",
+      "actions",
+      "resourceFormats",
+      "captureFormats",
+      "rendererAdoption"
+    ],
+    "properties": {
+      "schemaVersion": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0
+      },
+      "actions": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "resourceFormats": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "captureFormats": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "rendererAdoption": {
+        "type": "boolean"
+      }
+    }
+  },
+
       "GameruleDefinitionDTO": {
         "type": "object",
         "properties": {

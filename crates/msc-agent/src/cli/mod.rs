@@ -1104,6 +1104,11 @@ pub enum PlayerWhitelistCommand {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum WorldCommand {
+    /// Inspect Java map resource evidence without acquiring assets or changing rendering.
+    MapAssets {
+        #[command(subcommand)]
+        command: MapAssetsCommand,
+    },
     /// List world slots for the active server.
     List,
     /// Capture one consistent Java or BDS world copy for the Phase 18 map proof.
@@ -3752,9 +3757,115 @@ async fn run_settings(common: CommonArgs, command: SettingsCommand) -> Result<()
     }
 }
 
+#[derive(Debug, Clone, Subcommand)]
+pub enum MapAssetsCommand {
+    Status {
+        #[arg(long)]
+        slot: String,
+    },
+    Report {
+        #[arg(long)]
+        slot: String,
+    },
+    Check {
+        #[arg(long)]
+        slot: String,
+        #[arg(long)]
+        expected_revision: String,
+        #[arg(long)]
+        dimension: String,
+        #[arg(long, num_args = 3, allow_hyphen_values = true)]
+        min: Vec<i32>,
+        #[arg(long, num_args = 3, allow_hyphen_values = true)]
+        max: Vec<i32>,
+        #[arg(long)]
+        no_wait: bool,
+    },
+}
+
+async fn run_map_assets(
+    common: CommonArgs,
+    client: &ApiClient,
+    command: MapAssetsCommand,
+) -> Result<(), CliError> {
+    let status: serde_json::Value = client.get_json("/v1/status").await?;
+    let server = status
+        .get("activeServerId")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| CliError::usage("Select an active server before inspecting map assets."))?;
+    let slot = match &command {
+        MapAssetsCommand::Status { slot }
+        | MapAssetsCommand::Report { slot }
+        | MapAssetsCommand::Check { slot, .. } => slot,
+    };
+    if uuid::Uuid::parse_str(slot).is_err() {
+        return Err(CliError::usage("--slot must be a world slot UUID."));
+    }
+    let base = format!("/v1/worlds/{slot}/map-assets");
+    match command {
+        MapAssetsCommand::Status { .. } | MapAssetsCommand::Report { .. } => {
+            let action = if matches!(command, MapAssetsCommand::Status { .. }) {
+                "status"
+            } else {
+                "report"
+            };
+            let value: serde_json::Value = client
+                .get_json(&format!("{base}/{action}?serverId={server}"))
+                .await?;
+            print_json(&value)
+        }
+        MapAssetsCommand::Check {
+            expected_revision,
+            dimension,
+            min,
+            max,
+            no_wait,
+            ..
+        } => {
+            let area = msc_domain::map_assets::Area {
+                min: min
+                    .try_into()
+                    .map_err(|_| CliError::usage("--min requires x y z."))?,
+                max: max
+                    .try_into()
+                    .map_err(|_| CliError::usage("--max requires x y z."))?,
+            };
+            area.validate().map_err(CliError::usage)?;
+            let started: msc_api::dto::MapAssetsCheckStartedDto = client
+                .post_json(
+                    &format!("{base}/check"),
+                    &msc_api::dto::MapAssetsCheckRequestDto {
+                        server_id: server.into(),
+                        expected_revision,
+                        dimension,
+                        area,
+                    },
+                )
+                .await?;
+            if no_wait {
+                return print_json(&started);
+            }
+            wait_operation(client, &started.operation_id, common.json, false).await?;
+            if !no_wait {
+                let report: msc_api::dto::MapAssetsReportDto = client
+                    .get_json(&format!("{base}/report?serverId={server}"))
+                    .await?;
+                print_json(&report)?;
+                if report.outcome != "checked" {
+                    return Err(CliError::usage(
+                        "Inspection found rendering/input issues. Read the scoped map-assets report; no repair was claimed.",
+                    ));
+                }
+            }
+            Ok(())
+        }
+    }
+}
+
 async fn run_world(common: CommonArgs, command: WorldCommand) -> Result<(), CliError> {
     let client = ApiClient::connect_local().await?;
     match command {
+        WorldCommand::MapAssets { command } => run_map_assets(common, &client, command).await,
         WorldCommand::MapDimensions => {
             let dimensions: serde_json::Value =
                 client.get_json("/v1/worlds/map/dimensions").await?;
@@ -4449,6 +4560,15 @@ async fn poll_operation(
     operation_id: &str,
     json: bool,
 ) -> Result<(), CliError> {
+    wait_operation(client, operation_id, json, true).await
+}
+
+async fn wait_operation(
+    client: &ApiClient,
+    operation_id: &str,
+    json: bool,
+    emit_terminal: bool,
+) -> Result<(), CliError> {
     let cancel_requested = Arc::new(AtomicBool::new(false));
     let watcher_flag = cancel_requested.clone();
     tokio::spawn(async move {
@@ -4471,10 +4591,12 @@ async fn poll_operation(
         }
         match operation.state {
             OperationStateDto::Succeeded => {
-                if json {
-                    print_json(&operation)?;
-                } else {
-                    println!("done.");
+                if emit_terminal {
+                    if json {
+                        print_json(&operation)?;
+                    } else {
+                        println!("done.");
+                    }
                 }
                 return Ok(());
             }

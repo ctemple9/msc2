@@ -100,6 +100,7 @@ use crate::routes::lifecycle::{
     reconciliation_degraded_response, require_permission,
 };
 
+mod map_assets;
 mod map_terrain;
 
 /// A bounded ceiling for one staged world upload — generous enough for a
@@ -118,6 +119,16 @@ pub(crate) const STAGING_TTL_SECONDS: u64 = 30 * 60;
 pub fn router(state: WorldsRoutesState) -> Router {
     Router::new()
         .route("/worlds", get(list))
+        .route("/capabilities/map-assets", get(map_assets::capabilities))
+        .route(
+            "/worlds/:slot_id/map-assets/status",
+            get(map_assets::status),
+        )
+        .route(
+            "/worlds/:slot_id/map-assets/report",
+            get(map_assets::report),
+        )
+        .route("/worlds/:slot_id/map-assets/check", post(map_assets::check))
         .route("/worlds/map/dimensions", get(map_dimensions))
         .route("/worlds/map/terrain", get(map_terrain::artifact))
         .route("/worlds/map/refresh", post(refresh_map))
@@ -344,6 +355,7 @@ pub struct WorldsRoutesState {
     pub(crate) staging: StagingStore,
     pub(crate) chunker_download_in_progress: std::sync::Arc<AtomicBool>,
     map_renderer: map_terrain::RendererStore,
+    map_assets: map_assets::AssetsState,
     bedrock_map: map_terrain::bedrock::BedrockStore,
 }
 
@@ -355,6 +367,7 @@ impl WorldsRoutesState {
             staging: StagingStore::default(),
             chunker_download_in_progress: std::sync::Arc::new(AtomicBool::new(false)),
             map_renderer: map_terrain::RendererStore::default(),
+            map_assets: map_assets::AssetsState::default(),
             bedrock_map: map_terrain::bedrock::BedrockStore::default(),
         }
     }
@@ -365,6 +378,7 @@ impl WorldsRoutesState {
             staging,
             chunker_download_in_progress: std::sync::Arc::new(AtomicBool::new(false)),
             map_renderer: map_terrain::RendererStore::default(),
+            map_assets: map_assets::AssetsState::default(),
             bedrock_map: map_terrain::bedrock::BedrockStore::default(),
         }
     }

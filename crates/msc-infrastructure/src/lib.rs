@@ -42,3 +42,5 @@ pub mod world_store;
 pub mod xbox_broadcast;
 
 pub mod gamerule_catalog;
+
+pub mod map_assets;

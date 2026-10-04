@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 503105b06f447aea8583bc97cd0a1ea4c8ea32c896c633d0619b04d6486b80bc
+// Contract SHA-256: ba90c9339c28a45cbb4182aa9c03b679d3caf3d0532624ddb439e7f8cfe321e7
 
 export interface paths {
   '/v1/active-server': {
@@ -947,6 +947,23 @@ export interface paths {
         };
       };
     };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/capabilities/map-assets': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Discover implemented read-only Java map-resource actions */
+    get: operations['getMapAssetsCapabilities'];
     put?: never;
     post?: never;
     delete?: never;
@@ -6086,6 +6103,57 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/worlds/{slot_id}/map-assets/check': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Check scoped Java map resource evidence */
+    post: operations['checkWorldMapAssets'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/worlds/{slot_id}/map-assets/report': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Report scoped Java map resource evidence */
+    get: operations['reportWorldMapAssets'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/worlds/{slot_id}/map-assets/status': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Status scoped Java map resource evidence */
+    get: operations['statusWorldMapAssets'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/worlds/{slotId}/behaviorpacks/install': {
     parameters: {
       query?: never;
@@ -7731,6 +7799,148 @@ export interface components {
     };
     JavaRuntimesResponseDTO: {
       runtimes: components['schemas']['JavaRuntimeDTO'][];
+    } & {
+      [key: string]: unknown;
+    };
+    MapAssetsAreaDTO: {
+      max: number[];
+      min: number[];
+    } & {
+      [key: string]: unknown;
+    };
+    MapAssetsBindingDTO: {
+      agentHostId: string;
+      revision: string;
+      serverId: string;
+      slotId: string;
+      worldIncarnation: string;
+    } & {
+      [key: string]: unknown;
+    };
+    MapAssetsCapabilitiesDTO: {
+      actions: string[];
+      captureFormats: string[];
+      rendererAdoption: boolean;
+      resourceFormats: string[];
+      /** Format: int64 */
+      schemaVersion: number;
+    } & {
+      [key: string]: unknown;
+    };
+    MapAssetsCheckRequestDTO: {
+      area: components['schemas']['MapAssetsAreaDTO'];
+      dimension: string;
+      expectedRevision: string;
+      serverId: string;
+    } & {
+      [key: string]: unknown;
+    };
+    MapAssetsCheckStartedDTO: {
+      binding: components['schemas']['MapAssetsBindingDTO'];
+      operationId: string;
+      /** @enum {string} */
+      result: 'check_started';
+    } & {
+      [key: string]: unknown;
+    };
+    MapAssetsDeclaredModDTO: {
+      id: string;
+      version: string | null;
+    } & {
+      [key: string]: unknown;
+    };
+    MapAssetsDiagnosticDTO: {
+      /** Format: int64 */
+      blockOccurrences: number;
+      /** @enum {string} */
+      classification:
+        | 'missing_model'
+        | 'missing_texture'
+        | 'unsupported_loader'
+        | 'unsupported_material'
+        | 'missing_context'
+        | 'missing_saved_chunk'
+        | 'intentional_empty'
+        | 'model_resolved'
+        | 'selection_unknown'
+        | 'unsupported_renderer_namespace'
+        | 'invalid_model';
+      detail: string;
+      originalId: string;
+      samples: number[][];
+      sourceIds: string[];
+      state: {
+        [key: string]: string;
+      };
+    } & {
+      [key: string]: unknown;
+    };
+    MapAssetsReportDTO: {
+      area: components['schemas']['MapAssetsAreaDTO'];
+      binding: components['schemas']['MapAssetsBindingDTO'];
+      counts: {
+        [key: string]: number;
+      };
+      diagnostics: components['schemas']['MapAssetsDiagnosticDTO'][];
+      dimension: string;
+      /** Format: int64 */
+      distinctStates: number;
+      geometryGenerationId: string | null;
+      /** Format: int64 */
+      inspectedBlocks: number;
+      /** Format: int64 */
+      inspectedChunks: number;
+      /** Format: int64 */
+      omittedIssues: number;
+      /** Format: int64 */
+      omittedSamples: number;
+      operationId: string;
+      /** @enum {string} */
+      outcome: 'checked' | 'needs_input';
+      resourceGenerationId: string;
+      /** Format: int64 */
+      schemaVersion: number;
+      scope: string;
+      snapshotId: string;
+      snapshotMinecraftVersion: string | null;
+      sources: components['schemas']['MapAssetsSourceEvidenceDTO'][];
+      /** Format: int64 */
+      visibleFaces: number | null;
+      visualAcceptance: string;
+    } & {
+      [key: string]: unknown;
+    };
+    MapAssetsSourceEvidenceDTO: {
+      /** Format: int64 */
+      bytes: number;
+      declaredMods: components['schemas']['MapAssetsDeclaredModDTO'][];
+      enabled: boolean;
+      /** @enum {string} */
+      evidence: 'local_hashed' | 'provider_verified' | 'unknown';
+      fileId: string | null;
+      id: string;
+      kind: string;
+      metadataIssue: string | null;
+      namespaces: string[];
+      parentSource: string | null;
+      projectId: string | null;
+      provider: string | null;
+      releaseId: string | null;
+      sha256: string;
+    } & {
+      [key: string]: unknown;
+    };
+    MapAssetsStatusDTO: {
+      actions: string[];
+      binding: components['schemas']['MapAssetsBindingDTO'];
+      inputGeneration: string | null;
+      note: string;
+      previousGeneration: string | null;
+      rendererAdopted: boolean;
+      reportAvailable: boolean;
+      /** Format: int64 */
+      schemaVersion: number;
+      state: string;
     } & {
       [key: string]: unknown;
     };
@@ -9607,6 +9817,33 @@ export interface operations {
       };
     };
   };
+  getMapAssetsCapabilities: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Bound read-only map-resource result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MapAssetsCapabilitiesDTO'];
+        };
+      };
+      /** @description Worlds permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   searchBedrockBehaviorPacks: {
     parameters: {
       query?: {
@@ -10509,6 +10746,150 @@ export interface operations {
         content: {
           'application/json': components['schemas']['ErrorDTO'];
         };
+      };
+    };
+  };
+  checkWorldMapAssets: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slot_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['MapAssetsCheckRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Bound read-only map-resource result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MapAssetsCheckStartedDTO'];
+        };
+      };
+      /** @description Invalid map-resource request or bounds */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Worlds permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Slot or bound report is unavailable */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Binding changed, unsupported scope, consistent snapshot required, or bounded inspection refused */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  reportWorldMapAssets: {
+    parameters: {
+      query: {
+        serverId: string;
+      };
+      header?: never;
+      path: {
+        slot_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Bound read-only map-resource result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MapAssetsReportDTO'];
+        };
+      };
+      /** @description Worlds permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Slot or bound report is unavailable */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Binding changed, unsupported scope, consistent snapshot required, or bounded inspection refused */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  statusWorldMapAssets: {
+    parameters: {
+      query: {
+        serverId: string;
+      };
+      header?: never;
+      path: {
+        slot_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Bound read-only map-resource result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MapAssetsStatusDTO'];
+        };
+      };
+      /** @description Worlds permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Slot or bound report is unavailable */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Binding changed, unsupported scope, consistent snapshot required, or bounded inspection refused */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
     };
   };

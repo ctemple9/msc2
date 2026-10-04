@@ -1,0 +1,390 @@
+//! Read-only map-resource actions. They do not acquire assets or change terrain rendering.
+use super::*;
+use axum::extract::Query;
+use msc_api::dto::{MapAssetsCapabilitiesDto, MapAssetsCheckRequestDto, MapAssetsCheckStartedDto};
+use msc_application::map_assets::{self as service, Context};
+use msc_domain::map_assets::{self as domain, Status};
+use msc_infrastructure::config_repository::default_app_data_dir;
+use msc_infrastructure::map_assets::store::Store;
+use std::sync::{Arc, Mutex};
+use tokio::sync::Semaphore;
+
+#[derive(Clone)]
+pub(super) struct AssetsState(Arc<AssetsInner>);
+struct AssetsInner {
+    workers: Arc<Semaphore>,
+    store: Mutex<Option<Store>>,
+}
+impl Default for AssetsState {
+    fn default() -> Self {
+        Self(Arc::new(AssetsInner {
+            workers: Arc::new(Semaphore::new(2)),
+            store: Mutex::new(None),
+        }))
+    }
+}
+impl AssetsState {
+    fn store(&self) -> std::io::Result<Store> {
+        let mut store = self
+            .0
+            .store
+            .lock()
+            .map_err(|_| std::io::Error::other("store_unavailable"))?;
+        if let Some(store) = store.as_ref() {
+            return Ok(store.clone());
+        }
+        let opened = Store::open(default_app_data_dir().join("map-assets"))?;
+        *store = Some(opened.clone());
+        Ok(opened)
+    }
+}
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(super) struct AssetsQuery {
+    server_id: String,
+}
+fn actions() -> Vec<String> {
+    ["status", "report", "check"]
+        .iter()
+        .map(|s| format!("worlds.map_assets.{s}.v1"))
+        .collect()
+}
+pub(super) async fn capabilities(
+    Extension(credential): Extension<AuthenticatedCredential>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
+        return response;
+    }
+    Json(MapAssetsCapabilitiesDto {
+        schema_version: 1,
+        actions: actions(),
+        resource_formats: vec!["msc-resource-inventory-1".into()],
+        capture_formats: vec![],
+        renderer_adoption: false,
+    })
+    .into_response()
+}
+#[allow(clippy::result_large_err)]
+fn bound(
+    state: &WorldsRoutesState,
+    credential: &AuthenticatedCredential,
+    server_id: &str,
+    slot: &str,
+) -> Result<Context, Response> {
+    if let Some(response) = require_permission(credential, PermissionCategoryDto::Worlds) {
+        return Err(response);
+    }
+    let server = state
+        .lifecycle
+        .active_config_server()
+        .ok_or_else(no_active_server)?;
+    if server.id != server_id {
+        return Err(error_response(
+            StatusCode::CONFLICT,
+            "server_binding_changed",
+            "Select the expected active server before inspecting resources.",
+        ));
+    }
+    if server.server_type != ServerType::Java {
+        return Err(error_response(
+            StatusCode::CONFLICT,
+            "map_assets_not_applicable",
+            "Java resource inventory does not alter the Bedrock rendering path.",
+        ));
+    }
+    let host = state.lifecycle.map_assets_host_id().map_err(|_| {
+        error_response(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "host_identity_unavailable",
+            "The agent host identity could not be read.",
+        )
+    })?;
+    service::context(&server, &host, slot).map_err(|e| asset_error(&e))
+}
+fn asset_error(error: &std::io::Error) -> Response {
+    let code = error.to_string();
+    let safe = if code.bytes().all(|c| c.is_ascii_lowercase() || c == b'_') {
+        code.as_str()
+    } else {
+        "map_assets_io_failed"
+    };
+    error_response(
+        StatusCode::CONFLICT,
+        safe,
+        "Map-resource inspection could not complete safely. The prior generation is retained; inspect the issue code before retrying.",
+    )
+}
+#[allow(clippy::result_large_err)]
+pub(super) async fn status(
+    State(state): State<WorldsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    AxumPath(slot): AxumPath<String>,
+    Query(query): Query<AssetsQuery>,
+) -> Response {
+    let task = state.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        let context = bound(&task, &credential, &query.server_id, &slot)?;
+        let store = task.map_assets.store().map_err(|e| asset_error(&e))?;
+        let pointer = store.pointer(&context.binding).map_err(|e| asset_error(&e))?;
+        let report_available = pointer.is_some();
+        Ok::<_, Response>(Status {
+            schema_version: 1,
+            binding: context.binding,
+            state: if report_available { "inspected" } else { "unchecked" }.into(),
+            input_generation: pointer.as_ref().map(|p| p.current.clone()),
+            previous_generation: pointer.and_then(|p| p.previous),
+            report_available,
+            renderer_adopted: false,
+            actions: actions(),
+            note: "Reports describe only their saved snapshot and checked area. Client selection is unknown; resource acquisition and renderer adoption are not implemented by these actions.".into(),
+        })
+    }).await;
+    match result {
+        Ok(Ok(status)) => Json(status).into_response(),
+        Ok(Err(response)) => response,
+        Err(_) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "map_assets_worker_failed",
+            "The inventory worker could not finish.",
+        ),
+    }
+}
+#[allow(clippy::result_large_err)]
+pub(super) async fn report(
+    State(state): State<WorldsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    AxumPath(slot): AxumPath<String>,
+    Query(query): Query<AssetsQuery>,
+) -> Response {
+    let task = state.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        let context = bound(&task, &credential, &query.server_id, &slot)?;
+        let store = task.map_assets.store().map_err(|e| asset_error(&e))?;
+        let pointer = store
+            .pointer(&context.binding)
+            .map_err(|e| asset_error(&e))?
+            .ok_or_else(|| {
+                error_response(
+                    StatusCode::NOT_FOUND,
+                    "map_assets_report_unavailable",
+                    "No report exists for this world binding. Run a scoped check.",
+                )
+            })?;
+        let lease = store.lease(&pointer.current).map_err(|e| asset_error(&e))?;
+        let report = lease.report.ok_or_else(|| {
+            error_response(
+                StatusCode::NOT_FOUND,
+                "map_assets_report_unavailable",
+                "This generation has no area report.",
+            )
+        })?;
+        if report.binding != context.binding {
+            return Err(error_response(
+                StatusCode::CONFLICT,
+                "binding_changed",
+                "The report belongs to a different world binding.",
+            ));
+        }
+        Ok::<_, Response>(report)
+    })
+    .await;
+    match result {
+        Ok(Ok(report)) => Json(report).into_response(),
+        Ok(Err(response)) => response,
+        Err(_) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "map_assets_worker_failed",
+            "The report worker could not finish.",
+        ),
+    }
+}
+#[allow(clippy::result_large_err)]
+pub(super) async fn check(
+    State(state): State<WorldsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    AxumPath(slot): AxumPath<String>,
+    payload: Result<Json<MapAssetsCheckRequestDto>, JsonRejection>,
+) -> Response {
+    let request = match payload {
+        Ok(Json(request)) => request,
+        Err(_) => {
+            return invalid_body(
+                "invalid_map_assets_request",
+                "Supply serverId, expectedRevision, dimension and integer min/max bounds.",
+            );
+        }
+    };
+    let task_state = state.clone();
+    let server_id = request.server_id.clone();
+    let context = match tokio::task::spawn_blocking(move || {
+        bound(&task_state, &credential, &server_id, &slot)
+    })
+    .await
+    {
+        Ok(Ok(context)) => context,
+        Ok(Err(response)) => return response,
+        Err(_) => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "map_assets_worker_failed",
+                "The binding could not be inspected.",
+            );
+        }
+    };
+    if let Err(code) = request.area.validate() {
+        return invalid_body(
+            code,
+            "Use at most 16 chunks and 262,144 blocks in one scoped inspection.",
+        );
+    }
+    if !domain::valid_resource_id(&request.dimension) || !request.dimension.contains(':') {
+        return invalid_body(
+            "invalid_dimension",
+            "Use the original namespaced dimension identifier.",
+        );
+    }
+    if context.binding.revision != request.expected_revision {
+        return (StatusCode::CONFLICT,Json(serde_json::json!({"code":"binding_changed","message":"Fetch status and retry with the current binding revision.","binding":context.binding}))).into_response();
+    }
+    if matches!(
+        context.world,
+        msc_infrastructure::map_assets::saved_terrain::WorldSource::Directory(_)
+    ) && state.lifecycle.status_snapshot().running
+    {
+        return error_response(
+            StatusCode::CONFLICT,
+            "consistent_snapshot_required",
+            "Stop the server before checking its live saved world. Archived slots can be inspected while it runs; ordinary terrain rendering remains available.",
+        );
+    }
+    let permit = match state.map_assets.0.workers.clone().try_acquire_owned() {
+        Ok(permit) => permit,
+        Err(_) => {
+            return error_response(
+                StatusCode::CONFLICT,
+                "map_assets_worker_limit",
+                "Two map-resource scans are already active on this host. Retry after an operation finishes.",
+            );
+        }
+    };
+    let operation = match state.lifecycle.operations().begin_lifecycle(
+        "world-map-assets-check",
+        Some(context.server.id.clone()),
+        "Inspecting saved map resources.",
+    ) {
+        Ok(id) => id,
+        Err(error) => return crate::routes::operations::operation_error_response(error),
+    };
+    let binding = context.binding.clone();
+    let response_id = operation.as_str().to_string();
+    let operations = state.lifecycle.operations();
+    let cancel = operations.cancellation_check(&operation);
+    let lifecycle = state.lifecycle.clone();
+    tokio::spawn(async move {
+        let work_id = operation.clone();
+        let work_operations = operations.clone();
+        let check_cancel = cancel.clone();
+        let result = tokio::task::spawn_blocking(move || {
+            let _permit = permit;
+            let store = state.map_assets.store()?;
+            let version = crate::routes::versions::minecraft_version_from_selection(
+                Some(context.server.java_flavor),
+                context.server.minecraft_version.clone(),
+            )
+            .unwrap_or_default();
+            if !version
+                .bytes()
+                .all(|c| c.is_ascii_alphanumeric() || b"._-".contains(&c))
+            {
+                return Err(std::io::Error::other("invalid_minecraft_version"));
+            }
+            let vanilla = default_app_data_dir()
+                .join("map-dependencies/java-assets")
+                .join(&version)
+                .join("assets/minecraft");
+            let (candidate, manifest, report) = service::inspect(
+                &context,
+                &store,
+                &vanilla,
+                Some(&version),
+                &request.dimension,
+                request.area,
+                work_id.as_str(),
+                &check_cancel,
+                &|current, total, line| {
+                    let _ = work_operations.progress(&work_id, current, total, line);
+                },
+            )?;
+            // Selection and slot/source revision must still match when publishing the candidate.
+            lifecycle
+                .with_expected_active_server(Some(&context.server.id), || {
+                    let server = lifecycle
+                        .active_config_server()
+                        .ok_or_else(|| std::io::Error::other("binding_changed"))?;
+                    let current = service::context(
+                        &server,
+                        &context.binding.agent_host_id,
+                        &context.binding.slot_id,
+                    )?;
+                    if current.binding != context.binding {
+                        return Err(std::io::Error::other("binding_changed"));
+                    }
+                    store.publish(&candidate, &manifest, &report, &check_cancel)?;
+                    Ok(report)
+                })
+                .map_err(|_| std::io::Error::other("binding_changed"))?
+        })
+        .await;
+        match result {
+            Ok(Ok(report)) => {
+                let _ = operations.progress(
+                    &operation,
+                    4,
+                    4,
+                    "Scoped resource inspection complete; rendering was not changed.",
+                );
+                let _ = operations.succeed(
+                    &operation,
+                    "Scoped resource inspection complete.",
+                    BTreeMap::from([
+                        ("result".into(), report.outcome),
+                        ("resourceGenerationId".into(), report.resource_generation_id),
+                        ("snapshotId".into(), report.snapshot_id),
+                    ]),
+                );
+            }
+            Ok(Err(error)) if error.to_string() == "cancelled" => {
+                let _ = operations.cancel(
+                    &operation,
+                    "Resource inspection cancelled; previous generation retained.",
+                );
+            }
+            Ok(Err(error)) => {
+                let code = error.to_string();
+                let code = if code.bytes().all(|c| c.is_ascii_lowercase() || c == b'_') {
+                    code.as_str()
+                } else {
+                    "map_assets_io_failed"
+                };
+                let _ = operations.fail(
+                    &operation,
+                    code,
+                    "Resource inspection failed safely; previous generation retained.".into(),
+                );
+            }
+            Err(_) => {
+                let _ = operations.fail(
+                    &operation,
+                    "map_assets_worker_failed",
+                    "Resource inspection worker failed; previous generation retained.".into(),
+                );
+            }
+        }
+    });
+    Json(MapAssetsCheckStartedDto {
+        result: "check_started".into(),
+        operation_id: response_id,
+        binding,
+    })
+    .into_response()
+}

@@ -1,6 +1,8 @@
 # Java map resources — renderer and repair contract
 
-P18.14 · 2026-10-04 · **Feasibility blocked; production unchanged.**
+P18.14 findings · 2026-10-04 · **Original disposition: feasibility blocked; production unchanged.**
+
+**Current update:** Cameron confirmed the isolated matching-client proof. P18.15 resource inspection is implemented, awaiting owner verification. The original findings below are historical; see the P18.15 implementation record at the end. Production supplemental geometry and broader acceptance remain open.
 
 This is the engineering result of Batch A's first step, including its stop
 rule. It does not establish successful modded rendering. P18.15 has not begun.
@@ -237,7 +239,7 @@ silently or repeat the same failed scan on tile requests.
 |---|---|
 | Individual archive / uploaded bundle | 2 GiB / 8 GiB compressed |
 | Decompressed entry / whole scan | 256 MiB / 16 GiB |
-| Archive entries / inventory source objects | 200,000 / 10,000 |
+| Archive entries / inventory source objects | 200,000 per archive; 2,000,000 cumulative / 10,000 sources |
 | Nested JAR depth / count | 4 / 1,024 per scan, shared aggregate byte budget |
 | JSON metadata/model bytes | 8 MiB per document |
 | Parent / texture reference depth | 32 / 16; cycle detection required |
@@ -261,3 +263,13 @@ host. ATM10 Lite 1.1.0 is historical proof context, not a measured quota fixture
 The acceptance manifest must record actual sizes before these limits can be
 called sufficient for that pack. Production bounds/store code have not been
 added while the renderer feasibility stop remains in effect.
+
+## P18.15 implementation record — 2026-10-04
+
+The historical P18.14 blocker above was cleared for the pinned isolated proof by Cameron’s saved visual confirmation. Broader acceptance criteria remain unchanged. P18.15 implements resource inspection, not production supplemental-mesh adoption.
+
+Read-only measurement of the installed ATM10 top-level 494 JARs found 1,438,919,961 compressed bytes, 823,443 ZIP entries and 2,381,796,095 declared decompressed bytes. Largest archive: 78,290,532 bytes; largest entry: 27,666,127 bytes. This justifies changing the proposed cumulative entry ceiling to 2,000,000 while retaining 200,000 per archive. Nested closure and decoded image usage were not measured; this is not evidence that a full scan or general mod rendering succeeds.
+
+Additional implemented ceilings: 256 MiB aggregate resource JSON, 64 selected model references per state, 4,096 elements per model, 16 chunks / 262,144 requested blocks, 256 MiB per saved region / 512 MiB aggregate, 8 MiB decoded chunk NBT / depth 64 / 100,000 nodes. Config inspection is limited to 10,000 entries / 256 MiB aggregate / 8 MiB per file. Saved archives use the 2 GiB individual archive ceiling. Workers refuse excess requests rather than waiting in an unbounded queue.
+
+Publication rechecks source stamps, configuration hashes and the host/server/slot/incarnation/revision binding. Immutable reader records remain available across pointer changes. Initial quota policy retains published and reusable content; it does not evict any object. Cancellation cleans candidate temporary files but can retain reusable hashed blobs. Quota exhaustion therefore refuses further preparation; automatic garbage collection is deferred. Incarnation uses conservative local source/slot evidence and can invalidate on metadata changes; it is not a portable restore identity. Live active-world inspection requires a stopped server. Unknown client inputs and selected order stay unknown; P18.16 supplies acquisition/staging. No provider or mod identity is inferred from filenames or namespaces.

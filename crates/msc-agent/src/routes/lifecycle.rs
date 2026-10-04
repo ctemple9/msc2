@@ -1856,6 +1856,15 @@ impl LifecycleRoutesState {
     /// `RegisteredServerDtoParts` [`Self::servers`] already returns.
     /// `None` if no server is active, matching every other
     /// `no_active_server` guard already in this codebase.
+    pub(crate) fn map_assets_host_id(&self) -> Result<String, String> {
+        self.inner
+            .auth_state
+            .as_ref()
+            .ok_or_else(|| "host_identity_unavailable".to_string())?
+            .agent_host_id()
+            .map_err(|_| "host_identity_unavailable".to_string())
+    }
+
     pub fn active_config_server(&self) -> Option<ConfigServer> {
         let active_id = self.active_server_id()?;
         self.app_config_servers()

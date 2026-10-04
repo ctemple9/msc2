@@ -43,3 +43,5 @@ pub mod world_repair;
 pub mod world_safety;
 pub mod worlds;
 pub mod xbox_broadcast;
+
+pub mod map_assets;

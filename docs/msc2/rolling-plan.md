@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current work:** Cameron ran and visually confirmed the isolated P18.14a matching-client supplemental mesh proof on 2026-10-04; saved confirmation and screenshot hashes match the validated capture. P18.14 findings commit is preserved. P18.15's proof prerequisite is satisfied; P18.15 is unstarted. Broader production/platform/mod acceptance gates remain open.
+**Current work:** Cameron ran and visually confirmed the isolated P18.14a matching-client supplemental mesh proof on 2026-10-04; saved confirmation and screenshot hashes match the validated capture. P18.14 findings commit is preserved. P18.15 is implemented and awaiting Cameron's verification; Batch A implementation ends here. Broader production/platform/mod acceptance gates remain open.
 
 ### P18.13 — Plan automatic modded map assets and successful repairs
 
@@ -169,7 +169,7 @@ No Verify command below runs a test suite. Essential regressions may be added on
 
 ### P18.15 — Add resource identity, safe inventory and useful diagnostics
 
-**Status:** Unstarted; Cameron satisfied the proof/visual-confirmation prerequisite on 2026-10-04. No P18.15 implementation in the feasibility batch; available for the next execution conversation.
+**Status:** Implemented; awaiting Cameron’s verification. Proof prerequisite confirmed on 2026-10-04. P18.16 has not started.
 **Files:** New `crates/msc-domain/src/map_assets.rs` and exports; new application/infrastructure map-asset modules and their exports; Java map bridge, compatibility helper, DTOs and API schema/generated types; `crates/msc-agent/src/cli/mod.rs` for read-only reporting; focused regression sources only when essential; design/acceptance documents and this plan.
 **What:** Establish the shared foundation without changing which assets a working map renders:
 
@@ -184,6 +184,10 @@ No Verify command below runs a test suite. Essential regressions may be added on
 **Batch:** A — P18.14–P18.15.
 **Commit:** `P18.15: inventory map resources and classify rendering failures`
 **Acceptance evidence:** Opening existing Java/Bedrock maps retains their rendering path. A report correctly identifies the supplied broken-model example and the intentional empty model separately. Host/world switch does not reuse another binding. Report labels/counts describe the checked region, not the entire world. Batch A ends with an actionable report and recorded feasibility evidence, not a claim that modded rendering is already complete.
+
+**Implementation evidence (2026-10-04):** Added typed resource/source/binding/report identities, bounded read-only archive inventory, namespace-preserving model inspection, saved Java chunk inspection, immutable diagnostic generations with atomic current/previous pointers, Worlds-authorized asynchronous status/check/report API and matching CLI. Explicitly reports unknown client selection and unsupported production renderer namespaces; no supplemental geometry is adopted. Existing Java/Bedrock rendering code is untouched. See [usage and limits](world-map-assets-usage.md). Active live-world inspection requires the server stopped; archived slots are inspected directly without extraction. Existing exact-version vanilla cache is read without downloads. Client import/acquisition and repair remain P18.16 work.
+
+**Checks:** Rust formatting and agent Clippy passed; API generation/contract consistency passed; agent build passed and the exact `world map-assets check --help` command exists; focused regression sources compiled only. No tests, Minecraft, agent launch or release actions. Existing unrelated Rust warnings remain. Three essential regression sources protect namespace/empty/context distinctions, cancelled/corrupt generation isolation and negative-coordinate/missing saved chunks. Controlled temporary inputs, no network/timing assumptions; expected total runtime below one second, not measured because they were not run.
 
 ### P18.16 — Obtain exact client resources and compose the resource stack
 

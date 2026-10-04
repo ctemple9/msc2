@@ -31,3 +31,5 @@ pub mod tps;
 pub mod version;
 pub mod world;
 pub mod world_profile;
+
+pub mod map_assets;

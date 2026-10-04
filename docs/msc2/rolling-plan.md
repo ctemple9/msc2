@@ -1,5 +1,18 @@
 # MSC 2 — Rolling Plan
 
+### P12.247 — Hide initiation and main console scrollbars
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/sections/server-editor/FirstStartSheet.svelte`, `clients/desktop-web/src/lib/components/shell/ConsoleDock.svelte`, this plan.
+**What:** Hide the initiation and main dock console scrollbars using the existing app pattern for standard and WebKit scrollbar styling, keeping overflow scrolling available. Owner-requested narrow visual change; no tests added or run.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P12.247 only.
+**Commit:** `P12.247: hide initiation and main console scrollbars`
+
+**Checks:** Svelte check passed with zero errors and eleven existing warnings outside the changed components. No Rust files changed; no tests or release workflows run.
+
+**Manual acceptance:** Open Initiate Server and the main console, wait for enough console output to overflow, and confirm both scrollbars are hidden while the mouse wheel or trackpad still scrolls the output.
+
 ### P19.5 — Authorize Fedora complete uninstall once
 
 **Status:** Implemented; awaiting Cameron's verification.

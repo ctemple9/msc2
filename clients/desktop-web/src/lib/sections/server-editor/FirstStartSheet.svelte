@@ -1183,6 +1183,7 @@
     max-height: 180px;
     min-height: 72px;
     overflow-y: auto;
+    scrollbar-width: none;
     padding: 8px 10px;
     background: var(--msc2-tier-terminal);
     border: 1px solid var(--msc2-hairline-subtle);
@@ -1190,6 +1191,9 @@
     font-family: var(--msc2-font-mono);
     font-size: 10px;
     line-height: 1.45;
+  }
+  .console-body::-webkit-scrollbar {
+    display: none;
   }
   .console-line {
     margin: 0;

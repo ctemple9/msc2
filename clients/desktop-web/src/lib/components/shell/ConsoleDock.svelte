@@ -823,6 +823,10 @@
     color: var(--msc2-text-secondary);
     line-height: 1.5;
     overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .body::-webkit-scrollbar {
+    display: none;
   }
   .line {
     margin: 0;

@@ -6,6 +6,8 @@
 //! `systemd`, and reconstructs the shared `ServiceInstallRequest` back out
 //! of metadata comments in the installed unit so `status` returns the same
 //! cross-platform shape P4.21 defined.
+//! Headless archive installations instead use the shipped systemd template;
+//! status recognizes that format without requiring private metadata comments.
 
 use crate::credential_helper::{
     CredentialHelperInstall, DEFAULT_STORE_DIR, SERVICE_UNIT_NAME, SOCKET_UNIT_NAME,
@@ -1296,7 +1298,56 @@ impl SystemdUnit {
                 path.display()
             ))
         })?;
+        if metadata_map(&text)?.is_empty()
+            && path.file_stem().and_then(|name| name.to_str()) == Some(DESKTOP_AGENT_SERVICE_NAME)
+        {
+            return Self::from_archive_unit(&text);
+        }
         Self::from_rendered(&text)
+    }
+
+    fn from_archive_unit(text: &str) -> Result<Self, ServiceError> {
+        let invalid = || {
+            ServiceError::InvalidDefinition(
+                "unrecognized MSC headless systemd unit without metadata".to_string(),
+            )
+        };
+        let field = |prefix: &str| -> Result<&str, ServiceError> {
+            let mut values = text.lines().filter_map(|line| line.strip_prefix(prefix));
+            let value = values.next().ok_or_else(invalid)?;
+            if values.next().is_some() || value.is_empty() {
+                return Err(invalid());
+            }
+            Ok(value)
+        };
+        let user = field("User=")?;
+        let group = field("Group=")?;
+        let data_dir = field("WorkingDirectory=")?;
+        // Recognize only our shipped format, rather than guess how arbitrary
+        // systemd quoting, overrides or command lines should be interpreted.
+        let expected =
+            include_str!("../../../packaging/linux/systemd/com.ctemple.msc2.agent.service.in")
+                .replace("@MSC2_USER@", user)
+                .replace("@MSC2_GROUP@", group)
+                .replace("@MSC2_DATA_DIR@", data_dir);
+        if text.trim() != expected.trim() {
+            return Err(invalid());
+        }
+        Ok(Self {
+            service_name: DESKTOP_AGENT_SERVICE_NAME.to_string(),
+            binary_path: "/usr/lib/msc2/msc".to_string(),
+            working_directory: data_dir.to_string(),
+            // The shared definition requires a path; archive output actually
+            // goes to journald. Reading status does not create this file.
+            log_path: Path::new(data_dir)
+                .join("logs/agent.log")
+                .display()
+                .to_string(),
+            run_user: user.to_string(),
+            expected_port: 48001,
+            arguments: vec!["serve".into(), "--bind".into(), "127.0.0.1:48001".into()],
+            environment: BTreeMap::from([("MSC2_DATA_DIR".into(), data_dir.into())]),
+        })
     }
 
     fn from_rendered(text: &str) -> Result<Self, ServiceError> {

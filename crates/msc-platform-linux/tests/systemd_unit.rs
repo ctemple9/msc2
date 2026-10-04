@@ -227,6 +227,65 @@ fn archive_unit_update_lifecycle_works_without_private_metadata() {
 }
 
 #[test]
+fn archive_status_and_control_preserve_custom_data_directory_without_metadata() {
+    let temp = TempDir::new("archive-status");
+    let systemctl = FakeSystemctl::default();
+    let manager = LinuxSystemdServiceManager::with_systemctl(&temp.path, systemctl.clone());
+    let service_name = msc_infrastructure::service::ServiceName::new(DESKTOP_AGENT_SERVICE_NAME);
+    let unit_name = format!("{DESKTOP_AGENT_SERVICE_NAME}.service");
+    let unit_path = temp.path.join(&unit_name);
+    let data_dir = "/srv/minecraft data";
+    let unit = include_str!("../../../packaging/linux/systemd/com.ctemple.msc2.agent.service.in")
+        .replace("@MSC2_USER@", "cameron")
+        .replace("@MSC2_GROUP@", "games")
+        .replace("@MSC2_DATA_DIR@", data_dir);
+    std::fs::write(&unit_path, &unit).unwrap();
+    systemctl.set_show_output(&unit_name, "ActiveState=active\nMainPID=4242\n");
+
+    let report = manager
+        .execute(ServiceManagerCommand::Status {
+            service_name: service_name.clone(),
+        })
+        .expect("headless package status succeeds");
+    assert_eq!(report.state, ServiceState::Running);
+    assert_eq!(report.pid, Some(4242));
+    let definition = report.definition.unwrap();
+    assert_eq!(definition.binary_path, PathBuf::from("/usr/lib/msc2/msc"));
+    assert_eq!(definition.working_directory, PathBuf::from(data_dir));
+    assert_eq!(
+        definition.environment.get("MSC2_DATA_DIR").unwrap(),
+        data_dir
+    );
+    assert_eq!(definition.run_user.as_deref(), Some("cameron"));
+    assert_eq!(definition.arguments, ["serve", "--bind", "127.0.0.1:48001"]);
+    manager
+        .execute(ServiceManagerCommand::Start {
+            service_name: service_name.clone(),
+        })
+        .unwrap();
+    systemctl.set_show_output(&unit_name, "ActiveState=inactive\nMainPID=0\n");
+    let stopped = manager
+        .execute(ServiceManagerCommand::Stop {
+            service_name: service_name.clone(),
+        })
+        .unwrap();
+    assert_eq!(stopped.state, ServiceState::Stopped);
+    assert_eq!(std::fs::read_to_string(&unit_path).unwrap(), unit);
+
+    std::fs::write(
+        &unit_path,
+        unit.replace("127.0.0.1:48001", "127.0.0.1:49000"),
+    )
+    .unwrap();
+    assert!(
+        manager
+            .execute(ServiceManagerCommand::Status { service_name })
+            .is_err(),
+        "unrecognized settings must not be reported using invented defaults"
+    );
+}
+
+#[test]
 fn start_stop_and_uninstall_issue_expected_systemctl_calls() {
     let temp = TempDir::new("lifecycle");
     let systemctl = FakeSystemctl::default();

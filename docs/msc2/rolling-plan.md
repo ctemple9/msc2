@@ -1,5 +1,19 @@
 # MSC 2 — Rolling Plan
 
+### P12.248 — Read headless Linux service status without private metadata
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `crates/msc-platform-linux/src/service.rs`, `crates/msc-platform-linux/tests/systemd_unit.rs`, this plan.
+**What:** Recognize the shipped Linux headless archive service template when the installed agent unit has no private metadata. Reconstruct its installing account, custom data directory, binary and loopback arguments for status and routine service control. Keep metadata-based desktop units supported. Require the complete shipped template to match before reporting its fixed settings; reject unknown definitions instead of guessing. Read the existing service without rewriting it, so updating the binary repairs existing archive installations. The shared report's required log path uses the conventional data-directory path; the archive service continues logging to journald and status creates no log file.
+**Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-agent --bin msc && cargo check -p msc-platform-linux --test systemd_unit`
+**Batch:** P12.248 only.
+**Commit:** `P12.248: read headless linux service status`
+
+**Evidence:** Cameron's Ubuntu `msc status` failed with missing metadata ServiceName. The headless installer renders a standard systemd template without the private comments required by the previous status parser; the CLI queried that parser before reading the live service state.
+**Checks:** Rust formatting, shipping-agent Clippy and focused regression compilation passed. Existing warnings remain in infrastructure uninstall and agent runtime/auth code. No tests ran; no installed binaries or live services changed.
+**Essential coverage:** One controlled regression renders the real package template with a custom data path containing spaces and a distinct primary group, checks running status, configured data-directory recovery, start/stop and preservation of the service file, and refuses an altered bind address rather than reporting a false default. Uses a temporary directory with cleanup and fake systemctl, with no network, real service changes or timing assumptions; expected runtime under 10 ms. Compiled only.
+**Manual acceptance:** Update the Ubuntu headless agent binary with a build containing this commit. Run `msc status` and compare with `systemctl status com.ctemple.msc2.agent.service --no-pager`. Confirm the CLI reports the actual state instead of a metadata error. Routine start/stop may be checked when managed Minecraft servers can safely be stopped. Existing unit files, data and journald logging should remain intact.
+
 ### P16.37 — Publish v0.1.21 through the build-only release workflow
 
 **Status:** Prepared; publication and Cameron's artifact acceptance pending.
@@ -23,6 +37,7 @@
 **Checks:** Svelte check passed with zero errors and eleven existing warnings outside the changed components. No Rust files changed; no tests or release workflows run.
 
 **Manual acceptance:** Open Initiate Server and the main console, wait for enough console output to overflow, and confirm both scrollbars are hidden while the mouse wheel or trackpad still scrolls the output.
+
 
 ### P19.5 — Authorize Fedora complete uninstall once
 

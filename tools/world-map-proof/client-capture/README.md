@@ -1,9 +1,11 @@
 # Matching-client supplemental mesh feasibility proof
 
-P18.14a. **Implemented tooling; owner live rendering/visual acceptance pending.**
+P18.14a. **Owner-run and visually confirmed by Cameron on 2026-10-04.**
 This is one isolated NeoForge proof, with no production integration or general
-mod/platform support claim. P18.15 remains paused until Cameron runs the proof
-and confirms its result. P18.14's findings commit remains intact.
+mod/platform support claim. The saved confirmation and screenshot are bound to
+the validated capture (692 vertices / 346 triangles), with all three refusal
+records and saved-frame identification. P18.15's proof prerequisite is satisfied;
+its implementation is unstarted. P18.14's findings commit remains intact.
 
 The exporter calls the game's actual registered baked-model and block-entity
 renderers. It does not invent a replacement shape or flatten resource names.
@@ -211,3 +213,8 @@ No Fabric/Forge adapter, headless importer, remote context correspondence,
 production renderer adoption, custom-dimension proof or platform matrix is
 implemented here. Visual acceptance can reveal a needed correction even after
 a clean build; P18.15 stays paused until that acceptance is recorded.
+
+Cameron subsequently ran the proof, confirmed the named appearances and saved
+visual evidence on 2026-10-04. See P18.14e in the rolling plan for exact artifact
+hashes. This owner confirmation supersedes the historical pending-result wording
+above for this pinned fixture only; the remaining limits still apply.

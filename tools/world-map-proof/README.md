@@ -5,8 +5,10 @@
 See [the isolated client-capture prototype](client-capture/README.md) for pinned
 NeoForge/Supplementaries fixtures, the existing owner-run command, bounded
 geometry/texture/material export, refusal checks and visual evidence collection.
-The tools build; live rendering and Cameron's visual confirmation remain pending.
-P18.15 stays paused. Historical proof instructions and P18.14 findings are preserved.
+Cameron ran and visually confirmed this pinned proof on 2026-10-04; private
+confirmation/screenshot hashes are recorded in rolling-plan P18.14e. P18.15's
+proof prerequisite is satisfied; implementation remains unstarted. Historical
+proof instructions and P18.14 findings are preserved.
 
 ## Fabric live player feed proof (P18.3m)
 

@@ -479,7 +479,7 @@ fn playit_recognizes_its_connected_agent_before_any_tunnel_address_exists() {
     supervisor
         .emit_stdout(
             pid,
-            b"INFO playitd::daemon: playit connected; tunnels loaded agent_id=6af10e70-44cc-4b60-b8f7-f6949ee4f999 tunnel_count=0\n",
+            b"\x1b[32m INFO\x1b[0m playitd::daemon: playit connected; tunnels loaded \x1b[3magent_id\x1b[0m\x1b[2m=\x1b[0m6af10e70-44cc-4b60-b8f7-f6949ee4f999 tunnel_count=0\n",
         )
         .unwrap();
     service.poll().unwrap();

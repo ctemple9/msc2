@@ -525,9 +525,14 @@ impl NetworkingState {
         // Wait for playitd's own matching connection line instead of treating a
         // later player address as the first readiness signal (there is no such
         // address until after a tunnel exists).
-        service
-            .wait_for_agent_connection(expected_agent_id, should_cancel)
-            .map_err(|error| error.to_string())?;
+        if let Err(error) = service.wait_for_agent_connection(expected_agent_id, should_cancel) {
+            if started && let Err(cleanup_error) = service.reset() {
+                return Err(format!(
+                    "{error}; MSC also could not stop the Playit helper: {cleanup_error}"
+                ));
+            }
+            return Err(error.to_string());
+        }
         Ok(started)
     }
 

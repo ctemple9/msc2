@@ -1,5 +1,19 @@
 # MSC 2 — Rolling Plan
 
+### P12.244 — Recognize Linux Playit connections during Bedrock setup
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `crates/msc-application/src/playit.rs`, `crates/msc-application/tests/playit.rs`, `crates/msc-agent/src/routes/networking.rs`, this plan.
+**What:** Remove ANSI control sequences from Playit's connection line before matching its agent ID. If setup starts a Playit helper but the connection wait fails or is cancelled, reset that helper before returning the error. Leave existing helpers, saved credentials, cloud agents, and tunnels intact. Plain Windows and macOS output remains accepted.
+**Verify:** `cargo clippy -p msc-agent --bin msc`
+**Batch:** P12.244 only.
+**Commit:** `P12.244: recognize linux playit connections`
+
+**Evidence:** The installed Playit v1.0.10 Linux binary emits ANSI sequences between log field names and `=`. MSC searched for literal `agent_id=`, so it could not recognize a successful connection and reported a 75-second timeout. The setup route marked a helper as newly started only after that wait succeeded, leaving its own helper running after this failure. Upstream Playit enables ANSI output on Linux but not Windows/macOS.
+**Checks:** Rust formatting, shipping-agent Clippy, and compilation of the focused application regression target passed with pre-existing unrelated warnings. `npm --prefix clients/desktop-web run prepare:agent` built and staged the corrected agent and its existing helper bundle. No tests ran, and the live service was not restarted.
+**Essential coverage:** The existing connection-recognition regression now supplies Playit's actual Linux ANSI field formatting. It catches the observed 75-second setup failure; a separate existing case retains plain output coverage. The fake process supplies controlled bytes with no network, files, timing, or live credentials. Expected runtime under one millisecond; compiled, not executed.
+**Manual acceptance:** Repair the desktop agent from this staged build, then retry the saved Playit setup for Bedrock. Confirm it reaches tunnel provisioning and shows an address without waiting 75 seconds or creating another cloud agent. Also confirm a cancelled or failed setup does not leave a newly started Playit helper running. Check Playit setup on Windows and macOS with their plain logs.
+
 ### P12.243 — Align Fedora development Repair with staged agent bundles
 
 **Status:** Implemented; awaiting Cameron's verification.

@@ -693,6 +693,9 @@ fn generate_claim_code() -> String {
 /// example: `playit connected; tunnels loaded agent_id=<uuid>`. This is the
 /// one readiness signal that exists before a first tunnel has an address.
 fn parse_connected_agent_id(line: &str) -> Option<String> {
+    // Playit v1.0.10 enables ANSI formatting on Linux, including between
+    // `agent_id` and `=`. Windows and macOS emit the same field without it.
+    let line = strip_ansi_control_sequences(line);
     if !line.to_ascii_lowercase().contains("playit connected") {
         return None;
     }
@@ -704,6 +707,24 @@ fn parse_connected_agent_id(line: &str) -> Option<String> {
     Uuid::parse_str(&candidate)
         .ok()
         .map(|agent_id| agent_id.hyphenated().to_string())
+}
+
+fn strip_ansi_control_sequences(line: &str) -> String {
+    let mut plain = String::with_capacity(line.len());
+    let mut characters = line.chars().peekable();
+    while let Some(character) = characters.next() {
+        if character == '\u{1b}' && characters.peek() == Some(&'[') {
+            characters.next();
+            for control in characters.by_ref() {
+                if ('@'..='~').contains(&control) {
+                    break;
+                }
+            }
+        } else {
+            plain.push(character);
+        }
+    }
+    plain
 }
 
 fn retryable_tunnel_error(error: PlayitApiError) -> bool {

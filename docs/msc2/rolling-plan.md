@@ -1,5 +1,16 @@
 # MSC 2 — Rolling Plan
 
+### P16.38 — Publish v0.1.22 with the headless Linux status fix
+
+**Status:** Prepared; publication and Cameron's artifact acceptance pending.
+**Files:** Agent/client/Tauri version manifests and lockfiles, source/static bundle identity and its existing assertion, README, `docs/msc2/release/v0.1.22.md`, this plan.
+**What:** Increment the latest remote tag v0.1.21 to v0.1.22 and synchronize release identity. Include P12.248's headless Linux status correction. Integrate the two existing remote commits before publication and retain their changes. Push main and the new immutable tag through the existing four-platform build-only workflow, preserving nine artifacts, checksums and signed update metadata. Cameron explicitly requested the push and next tag.
+**Verify:** `gh release view v0.1.22 --json tagName,isPrerelease,assets,url`
+**Batch:** P16.38 only.
+**Commit:** `P16.38: prepare v0.1.22 release`
+
+**Preparation:** Inspected the complete release workflow and successful v0.1.21 run. No workflow changes or tests run. Fix formatting, Clippy and regression compilation passed before the version bump; release identity and locked metadata checked during preparation. Ubuntu live acceptance remains Cameron's verification.
+
 ### P12.248 — Read headless Linux service status without private metadata
 
 **Status:** Implemented; awaiting Cameron's verification.

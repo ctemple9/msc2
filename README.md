@@ -17,10 +17,10 @@ everything first.
 
 ## Current release and support
 
-The next release is [MSC 2 v0.1.21](https://github.com/ctemple9/msc2/releases/tag/v0.1.21),
-containing the redesigned agent home and integrated world map. Publication is
+The next release is [MSC 2 v0.1.22](https://github.com/ctemple9/msc2/releases/tag/v0.1.22),
+fixing headless Linux service status and routine CLI control. Publication is
 requested; use the release page to confirm downloadable artifacts are available.
-The newest published build at preparation is [MSC 2 v0.1.20](https://github.com/ctemple9/msc2/releases/tag/v0.1.20),
+The newest published build at preparation is [MSC 2 v0.1.21](https://github.com/ctemple9/msc2/releases/tag/v0.1.21),
 an unsigned prerelease. There is no stable release yet. Download the
 platform-specific installer or archive from that release page and verify its
 entry in `SHA256SUMS` before installing. The Phase 16 acceptance record

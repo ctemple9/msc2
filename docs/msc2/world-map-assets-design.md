@@ -632,3 +632,44 @@ Embedding covers older archive updaters whose fixed filename list predates the
 helper directory. Restoring embedded helpers is local data extraction and never
 launches Java or downloads a game. Install/update packaging retains Vantage,
 Bedrock dependencies and the existing artifact/signature contract.
+
+
+## P18.25 guided capture and repair
+
+The repair sheet binds a single host transport and world/dimension lifecycle.
+It previews a bounded authoritative request, discovers exact packaged helpers,
+prepares a private instance through explicit input selection and requires a
+separate launch action. The native bridge downloads context directly to private
+local storage using the selected host's stored credential/origin; credentials
+and a 256 MiB ZIP do not cross webview JSON IPC. Response length is enforced
+before and during reads; only capture downloads get a 180-second timeout and
+no-redirect policy. Cancellation drops the in-flight request and is checked
+between file writes. Ordinary desktop transport retains its previous behavior.
+Temporary context is discarded after preparation, including errors. At most two
+context transfers/preparations and two retained private instances are accepted.
+
+Native app exit also cancels pending work/stops owned clients without relying
+on a webview destroy callback. Stopping a session marks its launch authority cancelled. A delayed launch cannot
+reset it. Reopening retained output is separate from launching; it never starts
+Minecraft. Unix process termination treats ESRCH as an already-ended owned group,
+while other termination failures preserve the private files. The unreaped leader
+continues to reserve the group identity until the termination attempt. Retained
+session discovery displays original host/world identities. Cross-scope recovery
+is refused; explicit private-file discard does not affect original worlds.
+
+Before capture import, the sheet runs a scoped saved check against the still-
+adopted scene. That baseline and the adopted report must agree on host/world,
+binding, dimension, affected bounds, resources and saved snapshot. The capture
+request hashes its larger neighbor context; comparing that hash with the scoped
+report hash would incorrectly reject valid captures. Both are independently
+validated in their proper scopes. Report operation IDs, actual captured counts,
+validated geometry and same-area repair evidence decide the result. Viewer
+adoption must confirm the displayed generation; viewer failure keeps the previous
+scene and reports the failure. Visual acceptance always remains owner-pending.
+
+The CLI import now accepts optional paired block bounds. Existing resource-only
+imports retain their defaults, while remote/headless captures can identify the
+same checked area explicitly. A terminal check returning unresolved diagnostics
+is expected before a repair; an upload receipt never establishes repaired.
+Exact pins, material/alternate-renderer and saved-context limitations remain
+those of P18.24. Builds and these predicates cannot prove universal mod support.

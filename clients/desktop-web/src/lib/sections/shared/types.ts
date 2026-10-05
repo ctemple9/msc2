@@ -11,6 +11,9 @@ export type ComponentState = 'installed' | 'missing' | 'unresolved' | 'disabled'
 export interface ScreenApi {
   /** Captures the selected transport for a multi-request transfer. */
   bindHost?(): ScreenApi;
+  /** Downloads saved capture context directly into native private storage. */
+  captureContext?(slotId: string, input: unknown, token: string): Promise<string>;
+  hostIdentity?(): string;
   cancelUpload?(id: string): Promise<void>;
   get<T>(path: string): Promise<T>;
   post<T>(path: string, body?: unknown): Promise<T>;

@@ -126,13 +126,60 @@ remain the original P18.26 gate. No required fixture is substituted or closed.
 
 ### P18.25 — Connect one successful guided repair process
 
-**Status:** Planned; depends on Completion A.
+**Status:** Implemented; awaiting Cameron’s verification and successful real repair acceptance.
 **Files:** Existing `MapAssetsRepairSheet.svelte`, `WorldMapViewer.svelte`, native commands, frontend map state and operation tracking; map-asset API/CLI handlers and repair evidence; design/usage/acceptance records and this plan.
 **What:** Read `antiAIslop.md` before UI work. Replace the current dead-end runtime-model explanation with the working Use Minecraft rendering action. Identify the exact matching source/context needed, preview the bounded capture request, explicitly start the selected private client only after user action, transfer output through existing authenticated staging, prepare terrain, adopt it and recheck the same affected blocks. Expose equivalent request/bundle commands for headless operators and remote Fedora-to-Ubuntu use. Keep progress/cancellation and host/world identities throughout; ignore late events after switch/close. Make missing resources, wrong versions, pack order, stale tiles/context, custom loaders and code-driven blocks lead to their applicable working remedy. A successful upload alone never yields repaired; require validated geometry and resolved relevant diagnostics in the same saved scope, plus accurate visual-verification status. Preserve navigation, camera/depth/player polling, baseline maps, compatible rollback and offline retries. Publish only exact supported ranges and remaining material/animation limitations derived from implementation/evidence.
 **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-agent --bin msc && cargo clippy --manifest-path clients/desktop-web/src-tauri/Cargo.toml --lib && npm --prefix clients/desktop-web run check`
 **Batch:** Completion B — P18.25–P18.26.
 **Commit:** `P18.25: connect successful minecraft rendering repairs`
 **Acceptance:** Cameron fixes one genuinely broken difficult block from the repair sheet inside MSC, compares it with Minecraft, and verifies unaffected blocks and scene continuity. The CLI remedies work on a headless remote agent. Any observed failure is fixed before moving past it.
+
+**Implementation (2026-10-05):** Connected the repair sheet to authoritative
+bounded capture preview, exact helper discovery, selected Prism/client-JAR/Java
+inputs, optional private memory allocation, authenticated native context download,
+private preparation and separately clicked launch. The sheet then runs a same-
+area saved baseline check, validates the private output, transfers checked data
+through existing authenticated staging, imports/adopts geometry and verifies
+matching scoped reports plus the displayed viewer generation. Host/world identity,
+operation IDs, stale/cancel checks, dimension teardown, previous-scene preservation
+and owner-pending visual status remain explicit. Repaired requires actual capture
+counts, validated geometry and same-area before/after evidence; partial/refused
+results cannot become success from upload alone.
+
+Native downloads enforce 256 MiB, no redirects, a 180-second network timeout and
+cancellation while requesting/reading/writing. They retain host credentials in
+Rust and remove temporary context after preparation. Native app exit also stops
+owned clients without relying on webview teardown. Cancelling launch authority
+cannot be undone by a delayed launch; reopening is separate. Native retained-
+session discovery supports offline output retry and explicit private-file discard.
+Unix stop recognizes an already-ended process group without falsely claiming
+termination failure, while retaining the unreaped PID identity and rejecting other
+termination failures. Ordinary transport settings are preserved. CLI import adds
+paired optional `--min`/`--max` for exact capture scope; old resource imports retain
+their defaults. Usage/design describe desktop and remote/headless remedies,
+exact pins, unsupported behavior and same-scope repair semantics.
+
+**Essential new regressions:** Three controlled frontend cases exercise production
+repair approval: distinct context/report snapshot scopes, rejected host/world/
+snapshot/area/base mismatch and false success after upload/partial/unadopted/wrong-
+operation results. No existing frontend test protects this approval boundary.
+They avoid source-text, clocks, networks and game/graphics dependencies; expected
+runtime below one second after startup. Type-checked only. Owner command:
+`npm --prefix clients/desktop-web run test:unit -- tests/screens/map-capture-repair.test.ts`.
+
+**Owner P18.24 evidence received:** Cameron ran
+`cargo test -p msc-infrastructure --test map_capture`: five passed, zero failed,
+0.05s, including durable-cache rebasing/corruption and context export boundaries.
+This records his result without marking the step Done or inferring appearances.
+
+**Agent checks:** Workspace/native formatting, agent/native Clippy and Svelte/TS
+check passed after correcting four frontend wiring errors (adapter awaits and
+native invoke import). Existing Rust warnings and eleven existing Svelte warnings
+remain; no new warning was introduced. Changed frontend/test source is formatted.
+No tests, Minecraft launch, original-world/client modification, remote operation,
+push/tag/release or physical acceptance was performed. P18.26 is unstarted;
+exact-version adapter gaps and original appearance/platform/repair/resource gates
+remain open. Step closure belongs to Cameron.
 
 ### P18.26 — Test behavior and record real platform acceptance
 
@@ -164,7 +211,14 @@ remain the original P18.26 gate. No required fixture is substituted or closed.
 **Commit:** `P18.28: prepare verified mod assets release`
 **Acceptance:** New release is publicly published with complete authentic artifacts; required exact-artifact checks pass. Record version, commit, immutable tag, workflow URL/status and acceptance evidence. A queued workflow or prepared tag is not a published release.
 
-**Current work:** P18.23 production capture intake/adoption/display is implemented and awaiting Cameron’s verification; focused regression execution requires his specific command instruction. P18.24 helpers and durable exporter reuse are next, not started. Full appearance/platform/repair acceptance and publication remain open. Cameron visually confirmed the isolated P18.14a proof on 2026-10-04. P18.15–P18.19 are implemented and awaiting Cameron's verification. P18.20’s Forge access-rule correction now compiles/packages successfully; its isolated capture remains awaiting Cameron’s verification and broader production integration is incomplete. Cameron authorized proceeding to P18.21 evidence preparation; the read-only collector and acceptance documentation are implemented, awaiting Cameron’s verification. Broader production/platform/mod acceptance gates remain open.
+**Current work:** P18.23–P18.25 are implemented and awaiting owner closure and
+production acceptance. Cameron reported five infrastructure capture regressions
+passing in 0.05s. P18.25 adds the guided repair and bounded headless import;
+its new frontend approval cases remain owner-run. P18.26 is next and unstarted.
+Original appearance, successful repair, native platform, transport, preservation
+and budget gates remain open; independent other-agent review and release
+publication follow acceptance. The isolated P18.14a appearance proof remains
+historical evidence, not a production/all-platform result.
 
 ### P18.13 — Plan automatic modded map assets and successful repairs
 

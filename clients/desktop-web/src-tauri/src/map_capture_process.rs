@@ -31,10 +31,11 @@ impl Process {
         let Some(mut child) = self.0.take() else {
             return true;
         };
-        let group_stopped = std::process::Command::new("/bin/kill")
-            .args(["-KILL", &format!("-{}", child.id())])
-            .output()
-            .is_ok_and(|output| output.status.success());
+        // SAFETY: the unreaped owned leader reserves this PID; a negative
+        // PID targets only its dedicated process group. ESRCH means it ended.
+        let killed = unsafe { libc::kill(-(child.id() as libc::pid_t), libc::SIGKILL) };
+        let group_stopped =
+            killed == 0 || std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH);
         let _ = child.kill();
         let leader_stopped = child.wait().is_ok();
         group_stopped && leader_stopped

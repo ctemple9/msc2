@@ -3,11 +3,14 @@ use super::map_capture_process::Process;
 use msc_infrastructure::map_assets::{self as assets, capture_client};
 use serde::Serialize;
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc, Mutex, OnceLock,
 };
 use tauri::Manager;
+
+static SHUTTING_DOWN: AtomicBool = AtomicBool::new(false);
 
 struct Session {
     prepared: capture_client::Prepared,
@@ -140,6 +143,9 @@ pub fn launch_map_capture(token: String, launcher: String) -> Result<(), String>
     let mut sessions = sessions()
         .lock()
         .map_err(|_| "Capture sessions unavailable.")?;
+    if SHUTTING_DOWN.load(Ordering::Acquire) {
+        return Err("The desktop is closing; no client was launched.".into());
+    }
     let session = sessions
         .get_mut(&token)
         .ok_or("Capture preparation has expired.")?;
@@ -151,7 +157,12 @@ pub fn launch_map_capture(token: String, launcher: String) -> Result<(), String>
     }
     assets::safe_path(std::path::Path::new(&launcher))
         .map_err(|_| "Choose the installed Prism Launcher executable.")?;
-    session.cancel.store(false, Ordering::Release);
+    if session.cancel.load(Ordering::Acquire) {
+        return Err(
+            "This private session was stopped. Reopen its retained output before launching again."
+                .into(),
+        );
+    }
     session.child = Some(
         Process::launch(
             std::path::Path::new(&launcher),
@@ -178,9 +189,10 @@ pub fn cancel_map_capture(token: String) -> Result<(), String> {
     let mut sessions = sessions()
         .lock()
         .map_err(|_| "Capture sessions unavailable.")?;
-    let session = sessions
-        .get_mut(&token)
-        .ok_or("Capture session has expired.")?;
+    let session = sessions.get_mut(&token);
+    let Some(session) = session else {
+        return Ok(());
+    };
     if !stop(session) {
         return Err(
             "The private client could not be confirmed stopped. Its files are retained.".into(),
@@ -313,8 +325,18 @@ pub fn resume_map_capture(app: tauri::AppHandle, token: String) -> Result<Prepar
     let mut guard = sessions()
         .lock()
         .map_err(|_| "Capture sessions unavailable.")?;
-    if guard.contains_key(&token) {
-        return Err("The capture session is already open.".into());
+    if let Some(session) = guard.get_mut(&token) {
+        if session.termination_failed {
+            return Err("Private client termination is unconfirmed.".into());
+        }
+        if session.child.is_none() {
+            session.cancel.store(false, Ordering::Release);
+        }
+        return Ok(Preparation {
+            token,
+            prepared: session.prepared.clone(),
+            game_launched: session.child.is_some(),
+        });
     }
     guard.insert(
         token.clone(),
@@ -356,4 +378,221 @@ pub fn map_capture_helpers(app: tauri::AppHandle) -> Result<serde_json::Value, S
     )
     .map_err(|_| "Invalid helper manifest.")?;
     Ok(serde_json::json!({"directory":root,"manifest":manifest}))
+}
+
+/// Polling cancellation drops the in-flight HTTP future, including during reads.
+pub(super) async fn cancellable<F: std::future::Future>(
+    work: F,
+    cancel: Option<&AtomicBool>,
+) -> Result<F::Output, String> {
+    if cancel.is_none() {
+        return Ok(work.await);
+    }
+    tokio::pin!(work);
+    loop {
+        if cancel.is_some_and(|flag| flag.load(Ordering::Acquire)) {
+            return Err("Capture context transfer cancelled.".into());
+        }
+        tokio::select! {
+            result = &mut work => return Ok(result),
+            _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {}
+        }
+    }
+}
+fn context_root(app: &tauri::AppHandle, token: &str) -> Result<PathBuf, String> {
+    if !valid_token(token) {
+        return Err("Invalid capture identifier.".into());
+    }
+    Ok(app
+        .path()
+        .app_cache_dir()
+        .map_err(|_| "Capture storage unavailable.")?
+        .join("map-capture-contexts")
+        .join(token))
+}
+#[tauri::command]
+pub async fn download_map_capture_context(
+    app: tauri::AppHandle,
+    token: String,
+    agent_host_id: String,
+    slot_id: String,
+    input: serde_json::Value,
+) -> Result<PathBuf, String> {
+    if slot_id.is_empty() || !slot_id.bytes().all(|b| b.is_ascii_hexdigit() || b == b'-') {
+        return Err("Invalid world identifier.".into());
+    }
+    let root = context_root(&app, &token)?;
+    let flag = Arc::new(AtomicBool::new(false));
+    {
+        let mut guard = pending()
+            .lock()
+            .map_err(|_| "Capture sessions unavailable.")?;
+        if guard.len() >= 2 || guard.contains_key(&token) {
+            return Err("Wait for the current capture preparation.".into());
+        }
+        guard.insert(token.clone(), flag.clone());
+    }
+    let result = async {
+        let response = super::authorized_request(
+            super::DesktopRequest {
+                agent_host_id,
+                method: "POST".into(),
+                path: format!("/v1/worlds/{slot_id}/map-assets/capture-context"),
+                headers: vec![
+                    ("Content-Type".into(), "application/json".into()),
+                    ("X-MSC-Client-Api-Version".into(), "1.0".into()),
+                ],
+                body: Some(serde_json::to_vec(&input).map_err(|_| "Invalid capture scope.")?),
+            },
+            Some(&flag),
+        )
+        .await?;
+        if !(200..300).contains(&response.status) {
+            let detail: serde_json::Value =
+                serde_json::from_slice(&response.body).unwrap_or_default();
+            return Err(format!(
+                "Capture context refused ({}; {}): {}",
+                response.status,
+                detail["code"].as_str().unwrap_or("context_unavailable"),
+                detail["message"]
+                    .as_str()
+                    .unwrap_or("Check the selected world's rendering report.")
+            ));
+        }
+        if flag.load(Ordering::Acquire) {
+            return Err("Capture context transfer cancelled.".into());
+        }
+        let parent = root.parent().ok_or("Capture storage unavailable.")?;
+        std::fs::create_dir_all(parent)
+            .map_err(|_| "Could not prepare capture context storage.")?;
+        assets::safe_path(parent).map_err(|_| "Unsafe capture context storage.")?;
+        if std::fs::read_dir(parent)
+            .map_err(|_| "Capture context storage unavailable.")?
+            .take(3)
+            .count()
+            >= 2
+        {
+            return Err("Discard an earlier capture context before downloading another.".into());
+        }
+        std::fs::create_dir(&root).map_err(|_| "Capture context already exists.")?;
+        let saved = (|| {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700))
+                    .map_err(|_| "Could not protect capture context.")?;
+            }
+            use std::io::Write;
+            let path = root.join("context.zip");
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&path)
+                .map_err(|_| "Could not stage capture context.")?;
+            for chunk in response.body.chunks(1024 * 1024) {
+                if flag.load(Ordering::Acquire) {
+                    return Err("Capture context transfer cancelled.");
+                }
+                file.write_all(chunk)
+                    .map_err(|_| "Could not stage capture context.")?;
+            }
+            file.sync_all()
+                .map_err(|_| "Could not finish capture context transfer.")?;
+            Ok(path)
+        })();
+        if saved.is_err() {
+            let _ = std::fs::remove_dir_all(&root);
+        }
+        saved.map_err(String::from)
+    }
+    .await;
+    pending()
+        .lock()
+        .map_err(|_| "Capture sessions unavailable.")?
+        .remove(&token);
+    result
+}
+#[tauri::command]
+pub fn discard_map_capture_context(app: tauri::AppHandle, token: String) -> Result<(), String> {
+    let root = context_root(&app, &token)?;
+    if root.exists() {
+        assets::safe_path(&root).map_err(|_| "Unsafe capture context storage.")?;
+        std::fs::remove_dir_all(root).map_err(|_| "Could not remove capture context.")?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn list_map_captures(app: tauri::AppHandle) -> Result<Vec<Preparation>, String> {
+    let parent = app
+        .path()
+        .app_cache_dir()
+        .map_err(|_| "Capture storage unavailable.")?
+        .join("map-captures");
+    if !parent.exists() {
+        return Ok(Vec::new());
+    }
+    assets::safe_path(&parent).map_err(|_| "Unsafe capture storage.")?;
+    let mut found = Vec::new();
+    for entry in std::fs::read_dir(&parent)
+        .map_err(|_| "Capture storage unavailable.")?
+        .take(3)
+    {
+        let entry = entry.map_err(|_| "Capture storage unavailable.")?;
+        let token = entry.file_name().to_string_lossy().to_string();
+        if !valid_token(&token) || assets::safe_path(&entry.path()).is_err() {
+            continue;
+        }
+        let descriptor = entry.path().join("session.json");
+        if !descriptor.exists() {
+            let reservations = pending()
+                .lock()
+                .map_err(|_| "Capture sessions unavailable.")?;
+            let guard = sessions()
+                .lock()
+                .map_err(|_| "Capture sessions unavailable.")?;
+            if !reservations.contains_key(&token) && !guard.contains_key(&token) {
+                let _ = std::fs::remove_dir_all(entry.path());
+            }
+            continue;
+        }
+        let Ok(bytes) = assets::read(&descriptor, assets::MAX_JSON) else {
+            continue;
+        };
+        let Ok(prepared) = serde_json::from_slice::<capture_client::Prepared>(&bytes) else {
+            continue;
+        };
+        if prepared.root != entry.path()
+            || prepared.game != entry.path().join("instances/msc-capture/.minecraft")
+            || prepared.instance_id != "msc-capture"
+        {
+            continue;
+        }
+        let running = sessions()
+            .lock()
+            .map_err(|_| "Capture sessions unavailable.")?
+            .get(&token)
+            .is_some_and(|session| session.child.is_some());
+        found.push(Preparation {
+            token,
+            prepared,
+            game_launched: running,
+        });
+    }
+    Ok(found)
+}
+
+/// Window/process exit must not depend on a webview delivering its destroy hook.
+pub(super) fn shutdown() {
+    SHUTTING_DOWN.store(true, Ordering::Release);
+    if let Ok(guard) = pending().lock() {
+        for flag in guard.values() {
+            flag.store(true, Ordering::Release);
+        }
+    }
+    if let Ok(mut guard) = sessions().lock() {
+        for session in guard.values_mut() {
+            stop(session);
+        }
+    }
 }

@@ -170,6 +170,7 @@
 
   async function loadDimension(dimension: string): Promise<void> {
     if (selectedDimension && selectedDimension !== dimension) {
+      repairOpen = false;
       cancelPreparation();
       stopFollowing();
       rendering = undefined;
@@ -1033,17 +1034,26 @@
 </section>
 
 {#if repairOpen && api && selectedDimension}
-  <MapAssetsRepairSheet
-    {api}
-    {serverId}
-    {slotId}
-    dimension={selectedDimension}
-    area={cameraArea()}
-    onClose={() => (repairOpen = false)}
-    onChanged={async () => {
-      if (alive) await loadDimension(selectedDimension);
-    }}
-  />
+  {#key `${serverId}:${slotId}:${selectedDimension}`}
+    <MapAssetsRepairSheet
+      {api}
+      {serverId}
+      {slotId}
+      dimension={selectedDimension}
+      area={cameraArea()}
+      onClose={() => (repairOpen = false)}
+      onChanged={async (generation) => {
+        const dimension = selectedDimension;
+        if (!alive) return false;
+        await loadDimension(dimension);
+        return (
+          alive &&
+          selectedDimension === dimension &&
+          (!generation || displayedGeneration === generation)
+        );
+      }}
+    />
+  {/key}
 {/if}
 
 <style>

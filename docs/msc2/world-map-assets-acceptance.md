@@ -16,6 +16,20 @@ original fixture catalogue. Required versions outside these targets remain
 pending; they are not silently substituted. No additional appearance/platform
 row is closed by build, cross-compilation or checksum verification.
 
+**P18.25 continuation:** Cameron reported all five infrastructure capture tests
+passing, zero failures, in 0.05s. The guided desktop process and explicitly
+bounded headless import are implemented. No production Minecraft capture,
+visual repair, OS-pair, installation or platform acceptance is inferred.
+
+Three essential frontend cases in `tests/screens/map-capture-repair.test.ts`
+protect false repaired claims: valid affected-area comparison with a distinct
+neighbor-context hash; rejection of another host/world/snapshot/area/base; and
+upload-only, partial, unadopted or unrelated-operation results. They exercise
+actual approval predicates with controlled receipts, without network, rendering,
+clock delays or source-text assertions; expected runtime below one second after
+startup. They have been type-checked but not run. Candidate owner command:
+`npm --prefix clients/desktop-web run test:unit -- tests/screens/map-capture-repair.test.ts`.
+
 Two essential controlled regressions extend the same `map_capture` target:
 durable-cache geometry rebasing, stale/corrupt rejection and retained capture
 readability; and chunk-limited exported context with exact snapshot identity and

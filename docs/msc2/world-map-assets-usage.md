@@ -1,8 +1,8 @@
 # P18.15 resource inspection
 
-**Current continuation (P18.24):** Production intake, private matching-client
-preparation and loader adapters are implemented. The guided repair action is
-P18.25; real rendering/platform acceptance remains P18.26. Earlier instructions
+**Current continuation (P18.25):** Production intake, private matching-client
+preparation, loader adapters and the guided repair action are implemented.
+Real rendering, successful repair and platform acceptance remain P18.26. Earlier instructions
 below describe historical stages. Isolated proof ZIPs are not production captures.
 
 The new API issues a request through
@@ -12,6 +12,77 @@ operation with the same area. The request comes from an adopted scene, retains
 it for 30 minutes, and requires matching independently observed inputs/snapshot.
 No game code runs on a headless host. The explicit `capture-context` action
 exports bounded saved chunks and context data for private client preparation.
+
+## Repair from the desktop
+
+In the world's map, open **Check rendering**. The sheet identifies its host,
+server, world, dimension and saved bounds. First inspect and apply the matching
+Prism client instance with its actual enabled packs/mod priority; capture needs
+its exact client resources and configuration receipt.
+
+Under **Use Minecraft rendering**, choose a small affected area and **Preview
+saved capture**. The preview shows the saved snapshot and exact game/loader
+version. It refuses unavailable matching helpers without selecting another
+version. Select the Prism instance folder containing `mmc-pack.json`, the exact
+Minecraft **client** JAR, and the required Java executable. Optional memory
+allocation affects only the private copy; empty uses the source instance's
+allocation. **Prepare private client** downloads the authorized context through
+the existing authenticated host connection, checks/copies the inputs and creates
+private files. Preparation does not start Minecraft.
+
+Choose the installed Prism Launcher executable and click **Launch private
+Minecraft**. Sign in within that separate launcher directory if required. Open
+its `msc-capture` save, load the requested dimension/chunks, run
+`/mscmapcapture prepare`, then `/mscmapcapture export` after restoration completes.
+Return to MSC and click **Validate and apply captured rendering**. MSC checks
+the same saved blocks before import, validates the complete local export,
+transfers data through authenticated staging, adopts checked terrain and compares
+the resulting scoped report. It also confirms the viewer displayed the adopted
+generation before presenting a successful result. Camera, depth and player
+navigation follow the existing retained-scene adoption path.
+
+A successful upload is insufficient. A **repaired** result requires a same-saved-
+area comparison, validated adopted geometry and resolved affected diagnostics.
+Partial/unsupported results remain explicit; the owner must still compare shape,
+contents, textures, transparency and neighbors with Minecraft. A saved capture
+is one animation frame, not a live simulation.
+
+**Cancel action**, **Stop private client**, sheet close and dimension/host/world
+switch stop the owned client/transfer. A stopped session requires a separate
+**Reopen stopped session** action before a new launch; a late launch cannot
+undo cancellation. Private prepared files remain for retry. **Reopen retained
+capture** lists their original host/world identities and permits checking output
+without restarting Minecraft; the displayed recovery identifier also survives
+app restart. **Discard private files** removes only the selected private copy,
+after confirmed process termination. Unconfirmed termination retains files and
+reports the problem. Expired/changed context needs a fresh preview/preparation.
+No server restart or original-client/save modification is part of this flow.
+
+### If blocks still fail
+
+- Missing resources or unknown priority: inspect/apply the exact client instance
+  and its actual pack/mod order. Re-export old bundles to add configuration
+  evidence. Repeat capture only after those inputs match.
+- Missing saved chunks: visit/generate and save them in Minecraft, refresh
+  terrain, then preview fresh context. The private client also needs the requested
+  chunks loaded and lighting complete before prepare/export.
+- Wrong Java/game/loader/client JAR: use the preview's exact pins. The server JAR
+  does not contain client models and textures.
+- Stale binding/snapshot/configuration: discard the stale private preparation,
+  refresh saved terrain and prepare fresh context for the same affected blocks.
+- Client-only shader/alternate renderer refusal: use a separate matching client
+  with default rendering, reimport its resource/configuration evidence and capture
+  again. Preserve all required server mods. A material/custom loader still
+  unsupported by the adapter needs an adapter correction; export the report and
+  the private client's refusal rather than accepting fallback cubes as success.
+- Oversized context/output: narrow the affected area. Removing required mods to
+  pass an input budget would break correspondence to the server.
+
+Exact available helper targets remain Fabric 1.20.1/0.16.14 (Fabric API
+0.92.5+1.20.1, Java 17), Forge 1.20.1/47.4.10 (Java 17), and NeoForge
+1.21.1/21.1.251 (Java 21). Unsupported versions cannot be remedied by choosing
+the nearest pin. Static resource rendering remains available on other supported
+Java versions; universal mod/renderer support is not established.
 
 ## Private matching-client capture
 
@@ -47,14 +118,25 @@ Source instances, their saves and the remote running server remain unchanged.
    rather than retrying with changed version or unrelated world inputs.
 5. The helper writes a unique ZIP under the private game's
    `.msc-map-capture/exports` and records its filename in `current`.
-   Transfer that data-only ZIP to the host and use the world's existing
-   map-assets import action with the original binding and requested area.
-   The host checks it again against its retained saved snapshot before adoption.
-   Expired or changed inputs require a fresh context and preparation.
+   Transfer that data-only ZIP to the host. Check its original affected area
+   immediately before importing so the comparison uses those same saved blocks:
 
-The desktop native module supports explicit preparation, launch, cancellation,
-output inspection and reopening retained output. The visible guided action is
-still pending P18.25. Cancellation retains private files if process termination
+   ```sh
+   msc world map-assets check --slot SLOT --expected-revision REVISION --dimension DIMENSION --min X0 Y0 Z0 --max X1 Y1 Z1
+   msc world map-assets import CAPTURE_ZIP --slot SLOT --expected-revision REVISION --dimension DIMENSION --min X0 Y0 Z0 --max X1 Y1 Z1
+   msc --json world map-assets report --slot SLOT
+   ```
+
+   Use the original request's binding and bounds, not guessed coordinates.
+   `check` can return nonzero for the very rendering issues being repaired;
+   inspect its completed report rather than chaining it with `&&`. The import
+   command stages/hashes the local ZIP and waits for adoption unless `--no-wait`
+   is selected. Resource-only imports can omit `--min`/`--max` as before; capture
+   imports should supply both. The host checks saved correspondence again before
+   adoption. Expired/changed inputs require fresh context and preparation.
+
+The desktop provides explicit preparation, launch, cancellation,
+output inspection and reopening retained output as described above. Cancellation retains private files if process termination
 cannot be confirmed. Never run the capture helper in the original instance.
 
 Checked captures may be reused after restart only when binding, inputs, saved
@@ -69,7 +151,10 @@ unresolved. Compare shape, contents, transparency and neighboring terrain with
 Minecraft before confirming success. Older viewers get an upgrade explanation
 and keep their prior scene. The full format/bounds are in the renderer design.
 
-This inspects saved Java blocks and resource evidence. It does not adopt captured meshes or repair rendering. Existing maps keep their renderer. The isolated P18.14 proof remains separate.
+## Historical P18.15 inspection instructions
+
+The following records the earlier inspection-only stage. Current capture and
+adoption are described above; the isolated P18.14 proof remains separate.
 
 Build the updated executable:
 

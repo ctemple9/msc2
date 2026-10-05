@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { invoke } from '@tauri-apps/api/core';
   import { onDestroy, onMount } from 'svelte';
   import { observeServerRun, forgetHostRuns } from './lib/sections/shared/server-uptime';
   import { bundleIdentity } from './lib/bundle-identity';
@@ -315,6 +316,14 @@
     const current = () => boundClient ?? requireClient();
     return {
       bindHost: () => createScreenApi(current()),
+      hostIdentity: () => current().host,
+      captureContext: (slotId, input, token) =>
+        invoke<string>('download_map_capture_context', {
+          agentHostId: current().host,
+          slotId,
+          input,
+          token,
+        }),
       cancelUpload: (id) => current().cancelStagedUpload(id),
       get: <T,>(path: string) => current().requestJson<T>('GET', path),
       post: <T,>(path: string, body?: unknown) => current().requestJson<T>('POST', path, { body }),
@@ -720,13 +729,10 @@
       observeServerRun(hostId, nextStatus.activeServerId ?? '', nextStatus.running);
       if (action === 'start' && nextStatus.running && activeServer?.serverType === 'java') {
         try {
-          const diagnosis = await screenApi.get<Schema['HealthProblemsResponseDTO']>(
-            '/v1/health/problems',
-          );
+          const diagnosis =
+            await screenApi.get<Schema['HealthProblemsResponseDTO']>('/v1/health/problems');
           const helperProblem = diagnosis.isSoftFail
-            ? diagnosis.problems.find((problem) =>
-                /geyser|floodgate/i.test(problem.offenderName),
-              )
+            ? diagnosis.problems.find((problem) => /geyser|floodgate/i.test(problem.offenderName))
             : undefined;
           if (helperProblem) {
             startupFailure = {

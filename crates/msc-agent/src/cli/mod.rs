@@ -3933,6 +3933,11 @@ pub enum MapAssetsCommand {
         expected_revision: String,
         #[arg(long)]
         dimension: String,
+        /// Saved block bounds for a contextual capture; both bounds are required together.
+        #[arg(long, num_args = 3, allow_hyphen_values = true, requires = "max")]
+        min: Option<Vec<i32>>,
+        #[arg(long, num_args = 3, allow_hyphen_values = true, requires = "min")]
+        max: Option<Vec<i32>>,
         #[arg(long)]
         no_wait: bool,
     },
@@ -4070,8 +4075,32 @@ async fn run_map_assets(
             expected_revision,
             dimension,
             no_wait,
+            min,
+            max,
             ..
         } => {
+            let area = match (min, max) {
+                (Some(min), Some(max)) => {
+                    let min: [i32; 3] = min
+                        .try_into()
+                        .map_err(|_| CliError::usage("Supply three minimum coordinates."))?;
+                    let max: [i32; 3] = max
+                        .try_into()
+                        .map_err(|_| CliError::usage("Supply three maximum coordinates."))?;
+                    if min.iter().zip(max).any(|(a, b)| *a > b) {
+                        return Err(CliError::usage(
+                            "Minimum coordinates exceed maximum coordinates.",
+                        ));
+                    }
+                    Some(msc_api::dto::MapAssetsAreaDto { min, max })
+                }
+                (None, None) => None,
+                _ => {
+                    return Err(CliError::usage(
+                        "Supply both --min and --max for the saved capture area.",
+                    ));
+                }
+            };
             let path = bundle.clone();
             let sha = tokio::task::spawn_blocking(move || {
                 msc_infrastructure::map_assets::file_hash(
@@ -4150,7 +4179,7 @@ async fn run_map_assets(
                         server_id: server.into(),
                         expected_revision,
                         dimension,
-                        area: None,
+                        area,
                         staged_upload_id: begin.staged_upload_id,
                         sha256: sha,
                     },

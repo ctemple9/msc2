@@ -164,3 +164,44 @@ build receipt records the helper digest; no capture or rendering pass is
 claimed. Cameron authorized proceeding with P18.21 evidence preparation.
 The catalogue/platform rows and feature gate remain pending. No production
 export command or supported Forge rendering range is advertised by this draft.
+
+## P18.21 evidence preparation — owner acceptance pending
+
+The [collector instructions](../../tools/world-map-assets/README.md) define the
+exact owner invocation, private session format, raw report exports, capture
+checksums and owner-only visual confirmation. The collector reads existing
+receipts; it performs no repair, game launch, package installation or test.
+Python compilation and collection of the actual Forge build receipt passed.
+The JAR is 27,171 bytes with SHA-256
+`7f9d58e2bdc65a1fe49ea256101393b48abf7eb13cd5c0f2269fefdda9a48e45`;
+the private build receipt SHA-256 is
+`0507c9210e3ab3684b0eeded35f18b09bd71581e8bd40e653f0545e3337de817`.
+This records one build and zero production/platform observations.
+
+| Desktop → agent | macOS | Windows | Linux |
+|---|---|---|---|
+| macOS | Pending | Pending | Pending |
+| Windows | Pending | Pending | Pending |
+| Linux | Pending | Pending | Pending |
+
+The collector expands these nine OS-family pairs into 16 transport cells with
+both native macOS architectures, Fedora desktop and Ubuntu agent, plus local
+Fedora and Ubuntu cells: 18 total. All remain pending. Its 222 coverage cells
+cover named fixtures, repairs, controls and scenarios across the five desktop
+profiles, with Windows-specific controls limited to Windows. All remain pending.
+Cameron’s previously recorded NeoForge isolated proof remains scoped feasibility
+evidence; it does not fill production transport or repair cells.
+
+Read-only inspection of Linux, both macOS headless packages, Windows headless
+and desktop staging found the existing agent, Bedrock helper and Vantage/license
+payloads; macOS Intel also stages its existing Sidecar payload. Tauri packages
+the staged agent resources. The release workflow retains its nine required
+artifacts, checksums and signed update metadata. No workflow was changed or run.
+The draft Forge JAR is not staged in those packages. Installation, update,
+rollback and helper launch acceptance on actual platforms remain pending.
+
+Actual corrected appearances, all-platform transport, performance measurements
+and budget review still require owner observations. The P18.20 production
+exporter/context/import/adoption path remains incomplete. The collector always
+keeps the feature gate open for owner verification and subsequent independent
+review; successful receipt collection cannot close it.

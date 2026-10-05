@@ -174,3 +174,11 @@ is ready, and the candidate is adopted. Otherwise it distinguishes `ready`,
 `cancelled` and `failed`. Before/after evidence records source and target resource
 generations and classification counts. Visual acceptance always remains pending
 until Cameron checks the named blocks against Minecraft.
+
+For owner acceptance, export the scoped report and rendering JSON before/after
+an actual repair, retain the exact package and fixture identities, and capture
+the named blocks in MSC and Minecraft. Follow the private session format and
+commands in [the evidence collector README](../../tools/world-map-assets/README.md).
+The collector only records existing evidence. Build receipts leave rendering
+pending; visual confirmation requires Cameron’s actual comparison. The draft
+Forge helper has not yet provided a production export/import/adoption remedy.

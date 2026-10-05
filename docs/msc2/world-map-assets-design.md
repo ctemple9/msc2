@@ -521,3 +521,14 @@ It also checks partial resolution and successful resource-generation evidence.
 No network, renderer, timers or visual snapshots are used; expected execution is
 below two seconds. Its source was compiled only; execution requires Cameron's
 specific authorization. Linux static checks do not close platform/visual gates.
+
+## P18.21 acceptance evidence preparation
+
+The read-only [collector](../../tools/world-map-assets/README.md) validates
+private exported reports, package identities and owner-confirmed captures,
+then emits a redacted matrix. Build-only receipts never populate rendering
+cells. Actual measurements must be supplied and compared with the budgets above;
+missing measurements are not zero. No production acceptance observations were
+collected in this step. The corrected Forge draft compiles, but its production
+integration and distribution remain open. Owner verification and independent
+phase review remain required.

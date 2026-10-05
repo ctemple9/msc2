@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current work:** Cameron visually confirmed the isolated P18.14a proof on 2026-10-04. P18.15–P18.19 are implemented and awaiting Cameron's verification. P18.20’s Forge access-rule correction now compiles/packages successfully; its isolated capture remains awaiting Cameron’s verification and broader production integration is incomplete. Cameron authorized proceeding to P18.21 evidence preparation; that work is in progress. Broader production/platform/mod acceptance gates remain open.
+**Current work:** Cameron visually confirmed the isolated P18.14a proof on 2026-10-04. P18.15–P18.19 are implemented and awaiting Cameron's verification. P18.20’s Forge access-rule correction now compiles/packages successfully; its isolated capture remains awaiting Cameron’s verification and broader production integration is incomplete. Cameron authorized proceeding to P18.21 evidence preparation; the read-only collector and acceptance documentation are implemented, awaiting Cameron’s verification. Broader production/platform/mod acceptance gates remain open.
 
 ### P18.13 — Plan automatic modded map assets and successful repairs
 
@@ -316,8 +316,8 @@ No Verify command below runs a test suite. Essential regressions may be added on
 
 ### P18.21 — Record all-platform normal rendering and repair success
 
-**Status:** Planned; depends on P18.20 and actual owner observations; awaiting Cameron's plan review.
-**Files:** `docs/msc2/world-map-assets-acceptance.md`, `docs/msc2/world-map-assets-design.md`, a read-only `tools/world-map-assets/collect-acceptance.py` (new), existing map/client/headless help/support documentation and this plan. Targeted fixes to earlier step files are allowed only when an observed gate failure requires them and are recorded in this step's commit; no unrelated cleanup or release workflow changes.
+**Status:** Evidence collector and acceptance preparation implemented; awaiting Cameron’s verification. Actual all-platform rendering/repair acceptance remains pending.
+**Files:** `docs/msc2/world-map-assets-acceptance.md`, `docs/msc2/world-map-assets-design.md`, `tools/world-map-assets/collect-acceptance.py`, its `README.md`, existing map/client/headless help/support documentation and this plan. Targeted fixes to earlier step files are allowed only when an observed gate failure requires them and are recorded in this step's commit; no unrelated cleanup or release workflow changes.
 **What:** Consolidate real evidence and close the feature only when the end behavior holds:
 
 - Add the read-only acceptance collector described above: ingest actual agent/desktop report JSON and package/build identities, preserve per-host/architecture/input provenance, validate missing/mismatched evidence, and generate the matrix with pending visual confirmations. It must not install packages, launch Minecraft, change fixtures or execute tests. Record its exact owner invocation beside the matrix.
@@ -333,6 +333,10 @@ No Verify command below runs a test suite. Essential regressions may be added on
 **Batch:** D — P18.20–P18.21. Batch work may prepare evidence/checklists, but owner-run acceptance remains pending until recorded; the final gate cannot be inferred from successful builds.
 **Commit:** `P18.21: record cross-platform modded map and repair acceptance`
 **Acceptance evidence:** The following final gate has actual observations, artifact/source identity and no pending required row. If any row fails, record the concrete correction and repeat only the affected checks; do not restart a broad release or pretend troubleshooting succeeded by exporting a report.
+
+**Implementation (2026-10-05):** Added the read-only standard-library collector and private evidence format. It validates actual report/binding/input/package/capture identities, retains owner visual confirmation separately, and reports 18 architecture-specific transport cells plus 222 fixture/repair/control/scenario cells. Missing observations stay pending; build receipts fill no rendering cells. Resource measurements remain pending unless actually supplied, and require budget review even when complete. The original isolated NeoForge owner confirmation remains feasibility evidence only. No production/platform acceptance was inferred.
+
+**Checks:** Python compilation and collection from the actual corrected Forge build receipt/JAR passed: one build, zero observations, no rejected inputs, all 18 transport and 222 coverage cells pending. Exact owner invocation and session instructions are in `tools/world-map-assets/README.md`. No tests were added or run; no Minecraft or release was launched. Read-only staging inspection found the existing agent/Bedrock helpers and signed publication metadata preserved; the draft Forge exporter is not staged in shipped packages. Missing P18.20 production integration, actual platform observations, visual repairs, performance budgets and independent gate review remain open.
 
 ## Final feature gate — owner-visible success
 

@@ -1,4 +1,6 @@
 //! Bounded read-only inputs and a private immutable diagnostic-generation store.
+pub mod acquire;
+pub mod compose;
 pub mod inventory;
 pub mod resolver;
 pub mod saved_terrain;

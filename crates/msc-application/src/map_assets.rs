@@ -113,6 +113,7 @@ pub fn context(server: &ConfigServer, host: &str, slot_id: &str) -> io::Result<C
         "modrinth.index.json",
         "manifest.json",
         "minecraftinstance.json",
+        ".msc-map-source/current",
     ] {
         let path = root.join(name);
         if path.exists() {
@@ -213,6 +214,7 @@ pub fn inspect(
         "modrinth.index.json",
         "manifest.json",
         "minecraftinstance.json",
+        ".msc-map-source/current",
     ] {
         let path = root.join(name);
         if path.exists() {
@@ -374,4 +376,267 @@ pub fn inspect(
     }
     poll(cancel)?;
     Ok((candidate, manifest, report))
+}
+
+/// A candidate owns its scratch and cannot switch the production renderer.
+pub struct PreparedResources {
+    pub candidate: Candidate,
+    pub stack: io_assets::compose::Stack,
+    pub manifest: ResourceManifest,
+    pub missing: Vec<io_assets::acquire::MissingSource>,
+    pub prerequisites: Vec<String>,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn prepare_resources(
+    context: &Context,
+    store: &Store,
+    vanilla: &Path,
+    game: &str,
+    transport: &dyn msc_infrastructure::addon_provider::AddonTransport,
+    secrets: &dyn msc_infrastructure::secret_store::SecretStore,
+    download_cache: &Path,
+    offline: bool,
+    cancel: &dyn Fn() -> bool,
+    progress: &dyn Fn(u64, u64, &str),
+) -> io::Result<PreparedResources> {
+    let mut candidate = store.begin()?;
+    let mut stack = io_assets::compose::Stack::default();
+    let mut layer_index = 0;
+    let scratch = candidate.directory().to_path_buf();
+    let mut layer = || -> io::Result<Inventory> {
+        let mut inventory = Inventory::default();
+        inventory.capture_into(scratch.join(format!("layer-{layer_index}")))?;
+        layer_index += 1;
+        Ok(inventory)
+    };
+    progress(0, 4, "Reading version-matched vanilla resources.");
+    let mut base = layer()?;
+    base.scan_assets(vanilla, cancel)?;
+    let format_path = vanilla
+        .parent()
+        .and_then(Path::parent)
+        .map(|p| p.join("pack.mcmeta"));
+    let pack_format = format_path
+        .filter(|p| p.exists())
+        .and_then(|p| read(&p, MAX_JSON).ok())
+        .and_then(|raw| serde_json::from_slice::<Value>(&raw).ok())
+        .and_then(|v| v["pack"]["pack_format"].as_u64())
+        .and_then(|n| u32::try_from(n).ok());
+    stack.push(base, true, pack_format)?;
+    let root = Path::new(&context.server.server_dir);
+    let receipt = root.join(".msc-map-source/current");
+    let source = if receipt.exists() {
+        let id = String::from_utf8(read(&receipt, 128)?)
+            .map_err(|_| error("invalid_map_source_receipt"))?;
+        if id.len() != 64 || !id.bytes().all(|c| c.is_ascii_hexdigit()) {
+            return Err(error("invalid_map_source_receipt"));
+        }
+        root.join(".msc-map-source").join(id)
+    } else {
+        root.to_path_buf()
+    };
+    let mut prerequisites = Vec::new();
+    let has_source =
+        source.join("modrinth.index.json").exists() || source.join("manifest.json").exists();
+    if context.server.modpack_identity.is_some() && !has_source {
+        prerequisites.push("exact_client_manifest_required".into());
+    }
+    progress(
+        1,
+        4,
+        "Collecting exact client files; verified downloads are reusable.",
+    );
+    let requests = io_assets::acquire::requests(
+        &source,
+        transport,
+        secrets,
+        game,
+        context.server.java_flavor.raw_value(),
+        context.server.loader_version.as_deref(),
+        cancel,
+    )?;
+    let mut missing = Vec::new();
+    let mut client_mods = layer()?;
+    let mut manifest_paths = BTreeSet::new();
+    for request in &requests {
+        poll(cancel)?;
+        manifest_paths.insert(root.join(&request.path));
+        match io_assets::acquire::acquire(request, root, download_cache, transport, offline, cancel)
+        {
+            Ok(path) if request.path.starts_with("mods/") => {
+                let start = client_mods.sources.len();
+                client_mods.scan_archive(&path, "exact_client_mod", &mut candidate, cancel)?;
+                if let Some(source) = client_mods.sources.get_mut(start) {
+                    source.provider = Some(request.provider.clone());
+                    source.project_id = request.project_id.clone();
+                    source.release_id = request.release_id.clone();
+                    source.file_id = request.file_id.clone();
+                    source.evidence = "published_hash_verified".into();
+                }
+            }
+            Ok(_) => {
+                prerequisites.push(format!(
+                    "client_pack_selection_required:{}",
+                    request.identity
+                ));
+            }
+            Err(issue) if issue.code == "cancelled" => return Err(error("cancelled")),
+            Err(issue) => missing.push(issue),
+        }
+    }
+    // Installed loose JARs remain read-only. Provider hash identification enriches
+    // evidence; a different client file is never guessed from a filename.
+    for path in inventory::source_paths(&root.join("mods"))? {
+        if !path.extension().is_some_and(|e| e == "jar") || manifest_paths.contains(&path) {
+            continue;
+        }
+        let start = client_mods.sources.len();
+        client_mods.scan_archive(&path, "installed_mod", &mut candidate, cancel)?;
+        if !offline {
+            let raw = read(&path, MAX_ARCHIVE)?;
+            if let Ok(Some(version)) =
+                msc_infrastructure::addon_provider::modrinth_version_from_hash(
+                    transport,
+                    &msc_infrastructure::download_staging::sha512_hex(&raw),
+                )
+                && version.game_versions.iter().any(|v| v == game)
+                && version
+                    .loaders
+                    .iter()
+                    .any(|l| l == context.server.java_flavor.raw_value())
+                && let Some(file) = version.files.iter().find(|file| {
+                    file.hashes.get("sha512").is_some_and(|h| {
+                        h.eq_ignore_ascii_case(&msc_infrastructure::download_staging::sha512_hex(
+                            &raw,
+                        ))
+                    })
+                })
+                && file.size == raw.len() as u64
+                && let Some(evidence) = client_mods.sources.get_mut(start)
+            {
+                evidence.provider = Some("modrinth".into());
+                evidence.project_id = Some(version.project_id);
+                evidence.release_id = Some(version.id);
+                evidence.evidence = "exact_provider_hash_relationship".into();
+            }
+        }
+    }
+    stack.push(client_mods, true, pack_format)?;
+    // Nested resources and top-level mod conflicts still require actual client
+    // order; the scan order is not presented as Minecraft's priority order.
+    for folder in ["overrides", "client-overrides"] {
+        let mut override_mods = layer()?;
+        override_mods.scan_mods(&source.join(folder).join("mods"), &mut candidate, cancel)?;
+        stack.push(override_mods, false, pack_format)?;
+    }
+    progress(2, 4, "Composing selected resources and their provenance.");
+    // Server packs enter only through approved stored files and a matching configured
+    // checksum. Merely having an uploaded ZIP never enables it for the map.
+    let properties = root.join("server.properties");
+    if properties.exists() {
+        let bytes = read(&properties, MAX_JSON)?;
+        let text = std::str::from_utf8(&bytes).map_err(|_| error("invalid_server_properties"))?;
+        let expected = text
+            .lines()
+            .filter_map(|s| s.split_once('='))
+            .find(|(key, _)| key.trim() == "resource-pack-sha1")
+            .map(|(_, v)| v.trim());
+        if let Some(expected) = expected.filter(|s| s.len() == 40) {
+            let mut matched = false;
+            for path in inventory::source_paths(&root.join("resource-packs"))? {
+                if path.extension().is_some_and(|e| e == "zip")
+                    && msc_infrastructure::download_staging::sha1_hex(&read(&path, MAX_ARCHIVE)?)
+                        .eq_ignore_ascii_case(expected)
+                {
+                    let mut pack = layer()?;
+                    pack.scan_archive(&path, "configured_server_pack", &mut candidate, cancel)?;
+                    stack.push(pack, true, pack_format)?;
+                    matched = true;
+                    break;
+                }
+            }
+            if !matched {
+                prerequisites.push(format!("approved_server_pack_import_required:{expected}"));
+            }
+        } else if text.lines().any(|s| {
+            s.strip_prefix("resource-pack=")
+                .is_some_and(|s| !s.trim().is_empty())
+        }) {
+            prerequisites.push("approved_server_pack_identity_required".into());
+        }
+    }
+    for folder in ["overrides", "client-overrides"] {
+        let mut tree = layer()?;
+        tree.scan_tree(&source.join(folder), "", folder, cancel)?;
+        stack.push(tree, true, pack_format)?;
+        if !inventory::source_paths(&source.join(folder).join("resourcepacks"))?.is_empty() {
+            prerequisites.push("client_pack_selection_required".into());
+        }
+    }
+    prerequisites.extend(stack.prerequisites.clone());
+    if stack.inventory.conflicts > 0 {
+        prerequisites.push("client_mod_resource_order_required".into());
+    }
+    prerequisites.sort();
+    prerequisites.dedup();
+    candidate
+        .input_stamps
+        .extend(stack.inventory.file_stamps.clone());
+    candidate.verify_inputs(cancel)?;
+    let config = store::fingerprint_configs(&root.join("config"), cancel)?;
+    let manifest_receipts = if has_source {
+        BTreeMap::from([("clientSource".into(), hash_json(&context.revision_inputs)?)])
+    } else {
+        BTreeMap::new()
+    };
+    let mut manifest = ResourceManifest {
+        schema_version: 1,
+        generation_id: String::new(),
+        minecraft_version: Some(game.into()),
+        loader: context.server.java_flavor.raw_value().into(),
+        loader_version: context.server.loader_version.clone(),
+        resolver_version: map_assets::RESOLVER_VERSION.into(),
+        renderer_version: "msc-private-resource-adapter-1".into(),
+        capture_formats: vec![],
+        sources: stack.inventory.sources.clone(),
+        selected_pack_order: None,
+        selection_known: prerequisites.is_empty(),
+        selection_revision: hash_json(&stack.winners)?,
+        config_fingerprint: hash_json(&config)?,
+        manifest_receipts,
+        archive_entries: stack.inventory.entries,
+        decompressed_bytes: stack.inventory.decompressed,
+        resource_documents: stack.inventory.documents,
+        resource_conflicts: stack.inventory.conflicts,
+    };
+    manifest.generation_id = hash_json(&(&manifest, &missing, &prerequisites))?;
+    fs_write_receipt(
+        candidate.directory(),
+        &manifest,
+        &stack.winners,
+        &missing,
+        &prerequisites,
+    )?;
+    progress(
+        3,
+        4,
+        "Candidate complete; production rendering has not changed.",
+    );
+    Ok(PreparedResources {
+        candidate,
+        stack,
+        manifest,
+        missing,
+        prerequisites,
+    })
+}
+fn fs_write_receipt(
+    root: &Path,
+    manifest: &ResourceManifest,
+    winners: &impl serde::Serialize,
+    missing: &impl serde::Serialize,
+    prerequisites: &impl serde::Serialize,
+) -> io::Result<()> {
+    std::fs::write(root.join("resources.json"),serde_json::to_vec(&serde_json::json!({"manifest":manifest,"winners":winners,"missing":missing,"prerequisites":prerequisites})).map_err(|_|error("serialization_failed"))?)
 }

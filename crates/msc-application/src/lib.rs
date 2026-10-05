@@ -23,6 +23,7 @@ pub mod import;
 pub mod java_launch;
 pub mod java_world_settings;
 pub mod lifecycle;
+mod map_source_receipts;
 pub mod modpacks;
 pub mod network_diagnostics;
 pub mod notifications;

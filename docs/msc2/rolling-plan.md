@@ -191,7 +191,7 @@ No Verify command below runs a test suite. Essential regressions may be added on
 
 ### P18.16 — Obtain exact client resources and compose the resource stack
 
-**Status:** Planned; depends on Batch A; awaiting Cameron's plan review.
+**Status:** Implemented; awaiting Cameron's verification.
 **Files:** Application/infrastructure map-asset acquisition and composition modules; existing modpack manifest/import modules and provider/download boundaries only where exact provenance must be retained; private map source receipts; resource-pack metadata readers; focused controlled regressions; design/acceptance documents and this plan. Server mod installation/classification behavior is preserved.
 **What:** Make ordinary mod asset collection automatic when its inputs are available:
 
@@ -206,6 +206,10 @@ No Verify command below runs a test suite. Essential regressions may be added on
 **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-agent --bin msc`
 **Batch:** B — P18.16–P18.17.
 **Commit:** `P18.16: acquire and compose exact modded map resources`
+
+**Implementation:** Added exact manifest/provider acquisition, verified retry cache, bounded candidate resource storage and an explicit provenance stack. Future pack imports preserve exact client manifests/overrides separately from server mods. Approved server packs require matching local configured checksum; arbitrary configured URLs are never fetched. Unknown client selection, counterpart relationship or overlay format remains a concrete input requirement. Candidate rendering adoption belongs to P18.17.
+**Checks:** Fixed the boxed missing-source constructor after the failed check. Required formatting and ordinary agent Clippy now pass, with three existing unrelated warnings. The focused infrastructure regression compiles; it was not run. No test suite, live rendering proof or release run. The new controlled acquisition regression protects checksum refusal, exact identity retention, offline/manual requirements and retry reuse without server-mod writes; expected under two seconds after compilation.
+
 **Acceptance evidence:** The selected static-mod fixture prepares exact resources without SSH or a launcher on the agent host. A pack override visibly selects the intended texture in the candidate inspection. A blocked/missing exact client file yields its specific import requirement and retains reusable verified downloads. No client-only JAR is installed into server mods, and no existing generation is replaced by a partial candidate.
 
 ### P18.17 — Adopt prepared resources without disrupting working maps

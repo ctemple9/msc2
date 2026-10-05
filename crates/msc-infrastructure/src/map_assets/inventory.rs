@@ -8,6 +8,7 @@ use zip::ZipArchive;
 
 #[derive(Default)]
 pub struct Resource {
+    pub object: Option<PathBuf>,
     pub sha256: String,
     pub sources: Vec<String>,
     pub json: Option<Value>,
@@ -17,6 +18,7 @@ pub struct Resource {
 }
 #[derive(Default)]
 pub struct Inventory {
+    capture_root: Option<PathBuf>,
     pub sources: Vec<SourceEvidence>,
     pub resources: BTreeMap<String, Resource>,
     pub entries: u64,
@@ -28,6 +30,14 @@ pub struct Inventory {
     nested: u64,
 }
 impl Inventory {
+    /// Persist bounded resource bytes in candidate scratch instead of retaining PNGs in RAM.
+    pub fn capture_into(&mut self, root: PathBuf) -> io::Result<()> {
+        fs::create_dir_all(&root)?;
+        safe_path(&root)?;
+        self.capture_root = Some(root);
+        Ok(())
+    }
+
     pub fn scan_mods(
         &mut self,
         directory: &Path,
@@ -79,11 +89,20 @@ impl Inventory {
         Ok(())
     }
     pub fn scan_assets(&mut self, root: &Path, cancel: &dyn Fn() -> bool) -> io::Result<()> {
+        self.scan_tree(root, "assets/minecraft/", "existing_client_cache", cancel)
+    }
+    pub fn scan_tree(
+        &mut self,
+        root: &Path,
+        prefix: &str,
+        kind: &str,
+        cancel: &dyn Fn() -> bool,
+    ) -> io::Result<()> {
         if !root.exists() {
             return Ok(());
         }
         safe_path(root)?;
-        let source_id = hash(b"existing-minecraft-client-cache");
+        let source_id = hash_json(&(kind, prefix))?;
         let starting_bytes = self.decompressed;
         let mut stack = vec![root.to_path_buf()];
         let mut receipt = BTreeMap::new();
@@ -112,11 +131,17 @@ impl Inventory {
                     .map_err(|_| error("asset_path"))?
                     .to_string_lossy()
                     .replace('\\', "/");
-                let name = format!("assets/minecraft/{relative}");
+                let name = format!("{prefix}{relative}");
                 if !safe_member(&name) {
                     return Err(error("unsafe_archive_path"));
                 }
-                let limit = if name.ends_with(".json") {
+                if !name.starts_with("assets/")
+                    && name != "pack.mcmeta"
+                    && !name.contains("/assets/")
+                {
+                    continue;
+                }
+                let limit = if name.ends_with(".json") || name.ends_with(".mcmeta") {
                     MAX_JSON
                 } else {
                     MAX_ENTRY
@@ -138,7 +163,7 @@ impl Inventory {
         if !receipt.is_empty() {
             self.sources.push(SourceEvidence {
                 id: source_id,
-                kind: "existing_client_cache".into(),
+                kind: kind.into(),
                 enabled: true,
                 sha256: hash_json(&receipt)?,
                 bytes: self.decompressed - starting_bytes,
@@ -212,6 +237,8 @@ impl Inventory {
                 return Err(error("decompressed_scan_limit"));
             }
             let wanted = name.starts_with("assets/")
+                || name == "pack.mcmeta"
+                || name.contains("/assets/")
                 || matches!(
                     name.as_str(),
                     "fabric.mod.json"
@@ -251,7 +278,18 @@ impl Inventory {
                     self.add_resource(&name, &id, &raw)?;
                 }
             } else if wanted {
-                metadata.insert(name, raw);
+                if enabled && (name == "pack.mcmeta" || name.contains("/assets/")) {
+                    self.add_resource(&name, &id, &raw)?;
+                }
+                if matches!(
+                    name.as_str(),
+                    "fabric.mod.json"
+                        | "META-INF/neoforge.mods.toml"
+                        | "META-INF/mods.toml"
+                        | "META-INF/jarjar/metadata.json"
+                ) {
+                    metadata.insert(name, raw);
+                }
             }
         }
         let (mods, issue) = declared_mods(&metadata);
@@ -337,10 +375,7 @@ impl Inventory {
         Ok(())
     }
     fn add_resource(&mut self, name: &str, id: &str, raw: &[u8]) -> io::Result<()> {
-        if !(name.ends_with(".json")
-            && (name.contains("/models/") || name.contains("/blockstates/")))
-            && !name.contains("/textures/")
-        {
+        if !name.starts_with("assets/") && name != "pack.mcmeta" && !name.contains("/assets/") {
             return Ok(());
         }
         let sha = hash(raw);
@@ -354,13 +389,23 @@ impl Inventory {
             }
             return Ok(());
         }
+        let object = if let Some(root) = &self.capture_root {
+            let path = root.join(&sha);
+            if !path.exists() {
+                fs::write(&path, raw)?;
+            }
+            Some(path)
+        } else {
+            None
+        };
         let mut resource = Resource {
+            object,
             sha256: sha,
             sources: vec![id.into()],
             bytes: raw.len() as u64,
             ..Default::default()
         };
-        if name.ends_with(".json") {
+        if name.ends_with(".json") || name.ends_with(".mcmeta") {
             if raw.len() as u64 > MAX_JSON {
                 return Err(error("json_document_limit"));
             }

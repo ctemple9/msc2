@@ -1020,6 +1020,7 @@ dependencies = [
  "libc",
  "msc-domain",
  "png",
+ "regex",
  "rusty-leveldb",
  "serde",
  "serde_json",

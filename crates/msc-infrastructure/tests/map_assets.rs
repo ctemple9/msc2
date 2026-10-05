@@ -235,3 +235,117 @@ fn negative_coordinates_and_missing_saved_chunks_are_not_air_successes() {
     );
     fs::remove_dir_all(root).unwrap();
 }
+
+/// Essential: wrong-client substitution or retry loss breaks a repair and can
+/// repaint terrain with another release. Fixed bytes/fake transport, <2 s locally.
+#[test]
+fn exact_download_refuses_mismatch_and_reuses_verified_bytes_without_network() {
+    use msc_infrastructure::addon_provider::{AddonTransport, RawResponse, TransportError};
+    use msc_infrastructure::map_assets::acquire::{RequiredSource, acquire};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    struct Provider {
+        calls: AtomicUsize,
+        bytes: Vec<u8>,
+    }
+    impl AddonTransport for Provider {
+        fn get(
+            &self,
+            _: &str,
+            _: &str,
+            _: &[(&str, &str)],
+            _: u64,
+        ) -> Result<RawResponse, TransportError> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok(RawResponse {
+                status: 200,
+                body: self.bytes.clone(),
+            })
+        }
+        fn post_json(
+            &self,
+            _: &str,
+            _: &str,
+            _: &serde_json::Value,
+            _: &[(&str, &str)],
+            _: u64,
+        ) -> Result<RawResponse, TransportError> {
+            panic!("unexpected identity guess")
+        }
+    }
+    let root = std::env::temp_dir().join(format!("msc-map-acquire-{}", uuid::Uuid::new_v4()));
+    fs::create_dir_all(root.join("server/mods")).unwrap();
+    let source = RequiredSource {
+        identity: "exact-release-file".into(),
+        path: "mods/client.jar".into(),
+        provider: "fixture".into(),
+        project_id: Some("project".into()),
+        release_id: Some("release".into()),
+        file_id: Some("file".into()),
+        hashes: BTreeMap::from([("sha256".into(), hash(b"exact"))]),
+        bytes: 5,
+        urls: vec!["https://cdn.modrinth.com/exact.jar".into()],
+        reason: None,
+    };
+    let provider = Provider {
+        calls: AtomicUsize::new(0),
+        bytes: b"wrong".to_vec(),
+    };
+    let issue = acquire(
+        &source,
+        &root.join("server"),
+        &root.join("downloads"),
+        &provider,
+        false,
+        &|| false,
+    )
+    .unwrap_err();
+    assert_eq!(issue.code, "published_checksum_mismatch");
+    assert_eq!(issue.source.release_id.as_deref(), Some("release"));
+    let provider = Provider {
+        calls: AtomicUsize::new(0),
+        bytes: b"exact".to_vec(),
+    };
+    let acquired = acquire(
+        &source,
+        &root.join("server"),
+        &root.join("downloads"),
+        &provider,
+        false,
+        &|| false,
+    )
+    .unwrap();
+    assert_eq!(fs::read(&acquired).unwrap(), b"exact");
+    assert!(!root.join("server/mods/client.jar").exists());
+    assert_eq!(
+        acquire(
+            &source,
+            &root.join("server"),
+            &root.join("downloads"),
+            &provider,
+            true,
+            &|| false
+        )
+        .unwrap(),
+        acquired
+    );
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
+    let mut blocked = source.clone();
+    blocked.identity = "blocked-file".into();
+    blocked.path = "mods/blocked.jar".into();
+    blocked.urls.clear();
+    assert_eq!(
+        acquire(
+            &blocked,
+            &root.join("server"),
+            &root.join("downloads"),
+            &provider,
+            false,
+            &|| false
+        )
+        .unwrap_err()
+        .code,
+        "manual_download_required"
+    );
+    assert!(acquired.exists());
+    fs::remove_dir_all(root).unwrap();
+}

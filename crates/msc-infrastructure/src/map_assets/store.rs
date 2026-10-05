@@ -204,6 +204,10 @@ impl Store {
     }
 }
 impl Candidate {
+    /// Operation-owned scratch; dropped candidates remove the whole tree.
+    pub fn directory(&self) -> &Path {
+        &self.path
+    }
     pub fn verify_inputs(&self, cancel: &dyn Fn() -> bool) -> io::Result<()> {
         for (path, before) in &self.input_stamps {
             poll(cancel)?;

@@ -273,3 +273,51 @@ Read-only measurement of the installed ATM10 top-level 494 JARs found 1,438,919,
 Additional implemented ceilings: 256 MiB aggregate resource JSON, 64 selected model references per state, 4,096 elements per model, 16 chunks / 262,144 requested blocks, 256 MiB per saved region / 512 MiB aggregate, 8 MiB decoded chunk NBT / depth 64 / 100,000 nodes. Config inspection is limited to 10,000 entries / 256 MiB aggregate / 8 MiB per file. Saved archives use the 2 GiB individual archive ceiling. Workers refuse excess requests rather than waiting in an unbounded queue.
 
 Publication rechecks source stamps, configuration hashes and the host/server/slot/incarnation/revision binding. Immutable reader records remain available across pointer changes. Initial quota policy retains published and reusable content; it does not evict any object. Cancellation cleans candidate temporary files but can retain reusable hashed blobs. Quota exhaustion therefore refuses further preparation; automatic garbage collection is deferred. Incarnation uses conservative local source/slot evidence and can invalidate on metadata changes; it is not a portable restore identity. Live active-world inspection requires a stopped server. Unknown client inputs and selected order stay unknown; P18.16 supplies acquisition/staging. No provider or mod identity is inferred from filenames or namespaces.
+
+## P18.16 acquisition/composition — 2026-10-04
+
+Exact manifest file hashes and published sizes select client downloads; already
+matching installed/disabled bytes precede reusable map-cache bytes and provider
+acquisition. Requests use the existing provider credential boundary. Map download
+transport refuses redirects, permits only Modrinth/CurseForge HTTPS content hosts,
+and never consumes a server's arbitrary resource-pack URL. Author-blocked,
+offline, missing-identity and checksum failures retain specific source requirements
+and previously verified downloads. A different server/client file is **not**
+selected by its filename: without explicit publisher relationship evidence the
+counterpart remains an import requirement. Hash identification annotates loose
+installed JARs only when the exact release lists the same file, game and loader.
+
+Future imports retain manifest bytes and relevant override JARs, assets, metadata
+and pack ZIPs in an immutable MSC-owned `.msc-map-source` receipt tree, separate
+from server mods. This is source evidence, not a new inferred modpack identity.
+Older imports without retained evidence remain explicitly incomplete. No launcher
+credentials, arbitrary client configuration or world files are retained.
+
+The stack starts with vanilla, then the set of exact/installed mod resources.
+Conflicting same-priority mod bytes stay unresolved; sorted filesystem discovery
+is not priority. An approved server pack is used only when local bytes match the
+configured SHA-1; its URL is never fetched by a scan. Enabled client pack order
+must come from the later importer; downloaded or uploaded pack ZIPs are not all
+enabled automatically. Loose client override assets follow selected packs;
+`client-overrides` follow common `overrides`. Parent/texture references and all
+namespaces remain intact. Each selected resource records winners and overridden
+sources. Applicable pack overlays require an evidenced game pack format; unknown
+format is an input requirement. Filters use bounded anchored regular expressions;
+unsupported expressions fail explicitly. Animation metadata is retained, not a
+claim that Vantage animates its output. Custom-loader/generated geometry retains
+its matching-client remedy.
+
+Candidates own bounded scratch/resource objects and include a manifest, provenance
+index, missing exact sources and prerequisites. Dropping one removes its scratch;
+verified source downloads remain reusable. No candidate switches a renderer in
+this step. No third-party assets enter Git or release artifacts.
+
+**Renderer-route adjustment for P18.17:** use a reversible, recognized-field private
+resource/palette adapter with the existing helper, instead of a separately built
+Zig resolver extension. Namespace/path bytes map bijectively into a reserved
+adapter subtree; collision with real resources is refused. Vanilla IDs retain
+special handling. Adapt only snapshot palette names and known JSON reference
+fields; arbitrary mod payload stays untouched. Unsupported models use explicitly
+reported non-occluding fallback geometry. This avoids a second executable and its
+four-platform toolchain while preserving the pinned baseline helper and explicit
+override. It does not remove the difficult-model capture acceptance requirement.

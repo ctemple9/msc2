@@ -106,3 +106,35 @@ P18.21's evidence collector may fill receipts supplied by actual platforms;
 visual rows stay pending until Cameron confirms the named blocks. No automated
 CI/release gate, release/tag change or universal present/future-mod claim is
 introduced. Any required unresolved row keeps the feature gate open.
+
+## P18.19 repair acceptance — pending owner verification
+
+No live rendering or native-platform repair pass is claimed by this implementation.
+Use a disposable, exactly pinned saved fixture and record the before/after report
+and operation IDs, snapshot/area, resource generations, captures and observer.
+
+- Remove a required standard model/texture. Desktop and CLI identify the same
+  block and missing source; matching import/acquisition removes that failure and
+  adopts validated terrain. `repaired` requires the same saved scope; check the
+  actual block appearance against Minecraft and an unchanged good block.
+- Import the wrong game/loader/mod release. Preview or host validation rejects
+  it, identifies the mismatch and leaves the previous scene usable. Choose the
+  matching instance; a repeated wrong import does not claim success.
+- Reverse two conflicting selected packs, check the named conflicting block,
+  then correct low-to-high order. Confirm both expected texture and unaffected
+  blocks. For unknown mod overlap, supply only proven client priority.
+- Make an affected terrain artifact unavailable/corrupt. Scoped checking fails
+  clearly; rebuild produces validated dependent terrain/atlas without deleting
+  game files or all caches. Check camera/depth/dimension/follow continuity.
+- Cancel transfer and cancel renderer preparation; switch hosts/servers while
+  inspecting/transferring. No candidate reaches the wrong binding. Previous
+  visible scene survives; scratch/staged resources are cleaned or expire.
+- Restore the named compatible prior selection; reject an incompatible prior
+  world/game/mod/config receipt. Export a redacted report and resource-only bundle
+  to new local filenames and consume the bundle on the headless agent.
+- Preserve Paper/Tectonic, pure vanilla and Bedrock automatic maps. Read-only
+  checking uses a consistent saved snapshot while a Java server runs. Missing
+  saved terrain recommends generation/save/refresh, and unsupported runtime
+  models/context offer no fake working exporter.
+- Repeat supported Fedora-to-Ubuntu remote import and native Windows/macOS path,
+  cancellation and export checks. Compilation on Linux is not those passes.

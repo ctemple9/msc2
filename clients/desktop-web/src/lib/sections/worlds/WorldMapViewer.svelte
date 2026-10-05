@@ -13,10 +13,13 @@
   } from '@thoughts-on-things/vantage-mc/three';
   import type { Schema, ScreenApi } from '../shared/types';
   import { pollOperation } from './model';
+  import MapAssetsRepairSheet from './MapAssetsRepairSheet.svelte';
 
   export let api: ScreenApi | undefined;
   export let serverId: string;
   export let worldName: string;
+  export let slotId: string;
+  let repairOpen = false;
   export let onClose: () => void;
 
   type Dimension = Schema['WorldMapDimensionDTO'];
@@ -103,22 +106,12 @@
         : rendering.state;
     return `${state}${rendering.stale ? ' · retained stale scene' : ''} · snapshot ${snapshot} · resources ${resources}${rendering.reasonCode ? ` · ${rendering.reasonCode}` : ''}`;
   }
-  async function retryResources(): Promise<void> {
-    if (!api || !binding || !selectedDimension) return;
-    try {
-      const current = await api.get<Schema['MapAssetsStatusDTO']>(
-        `/v1/worlds/${binding.slotId}/map-assets/status?serverId=${encodeURIComponent(serverId)}`,
-      );
-      const started = await api.post<Schema['MapAssetsCheckStartedDTO']>(
-        `/v1/worlds/${binding.slotId}/map-assets/prepare`,
-        { serverId, expectedRevision: current.binding.revision, dimension: selectedDimension },
-      );
-      if (rendering)
-        rendering = { ...rendering, state: 'preparing', operationId: started.operationId };
-      await loadDimension(selectedDimension);
-    } catch (error) {
-      say(error instanceof Error ? error.message : 'Resource preparation could not start.');
-    }
+  function cameraArea(): Schema['MapAssetsAreaDTO'] {
+    const focus = viewer?.controls.position;
+    const x = Math.floor((focus?.x ?? 0) / 16) * 16;
+    const z = Math.floor((focus?.z ?? 0) / 16) * 16;
+    const y = Math.max(-2032, Math.min(2032, Math.floor(depthY)));
+    return { min: [x, y - 16, z], max: [x + 15, y + 15, z + 15] };
   }
 
   function bedrockTileStatus(
@@ -820,8 +813,10 @@
           disabled={!viewer || refreshing}
           onclick={refreshTerrain}>{refreshing ? 'Refreshing…' : 'Refresh terrain'}</button
         >
-        {#if binding && rendering && ['failed', 'cancelled', 'needs_input'].includes(rendering.state)}
-          <button type="button" class="refresh" onclick={retryResources}>Retry resources</button>
+        {#if api && serverType !== 'bedrock' && selectedDimension}
+          <button type="button" class="refresh" onclick={() => (repairOpen = true)}
+            >Check rendering</button
+          >
         {/if}
         <div class="dimension-picker">
           <span>Dimension</span>
@@ -1001,6 +996,20 @@
     </nav>
   </div>
 </section>
+
+{#if repairOpen && api && selectedDimension}
+  <MapAssetsRepairSheet
+    {api}
+    {serverId}
+    {slotId}
+    dimension={selectedDimension}
+    area={cameraArea()}
+    onClose={() => (repairOpen = false)}
+    onChanged={async () => {
+      if (alive) await loadDimension(selectedDimension);
+    }}
+  />
+{/if}
 
 <style>
   .map-shell {

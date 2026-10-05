@@ -461,3 +461,53 @@ path/link/case/image/document/reference limits. Existing reusable receipts are
 checked against captured layer hashes on every preparation. Correct appearance,
 remote Fedora-to-Ubuntu imports, Windows/macOS paths and baseline regressions
 remain owner acceptance, not results inferred from Linux compilation.
+
+## P18.19 implementation record — 2026-10-05
+
+The repair sheet and headless commands share the existing cancellable preparation
+operation. Additive selection/restore routes validate current binding, a hashed
+selection revision and the prior receipt's game/mod/config/world compatibility.
+Import and selection updates preserve one previous resource receipt atomically;
+its immutable extracted layers remain available. A failed renderer adoption
+retains the displayed scene and validated source receipts for an explicit retry.
+This is a map-resource rollback, not a world restore or mod enablement change.
+
+Scoped checks re-resolve the adopted inventory against the retained private
+snapshot and validate overlapping terrain artifacts plus their atlas. They
+publish a new diagnostic report without replacing geometry. Stored reports are
+hash-validated and used only for the matching geometry generation. Publication
+rechecks live binding and geometry identity so an old inspection cannot replace
+a newer repair report. Baseline checks reuse a compatible private map snapshot,
+otherwise a live directory check requires a stopped server.
+
+Repair candidates inherit the latest report's exact area and reuse the saved
+scene snapshot until explicit terrain refresh. The success classifier requires
+matching saved scope/snapshot/world binding, zero remaining classified failures,
+validated geometry and an otherwise ready result before reporting `repaired`.
+The final publication and scene adoption share the existing guarded transaction.
+Counts cannot establish appearance, and new snapshots do not retroactively prove
+a repair of the previous saved area. Partial resolution and unsupported loaders,
+materials, renderer namespaces or missing context remain explicit outcomes.
+
+Rebuild aliases the same fresh renderer-candidate path for the affected area;
+tile dependency fingerprints identify unchanged tiles. It does not delete all
+caches. Generation adoption is still a whole coherent dimension/atlas transaction
+rather than mixing individually rebuilt tiles from incompatible atlases.
+
+The desktop captures its selected host transport before a multi-request upload,
+checks the native preview's checksum, cancels uploads/operations on dismissal,
+and discards native scratch handles after close or replacement. Read-only native
+inspection completes before transfer; closing during inspection discards the
+result rather than applying it. Report/bundle exports use explicitly chosen new
+local filenames. No user filesystem path goes to the remote agent. The sheet
+uses existing neutral tier/type/button tokens, flat grouping, bounded details
+and one primary remedy. It never opens automatically; dismissal cannot produce
+repeated unchanged warnings. Live players and map controls retain their existing
+behavior, with camera state preserved by the existing generation reload path.
+
+One essential synthetic report regression protects the success boundary while
+missing/unsupported issues remain, artifacts are absent, or saved scope changes.
+It also checks partial resolution and successful resource-generation evidence.
+No network, renderer, timers or visual snapshots are used; expected execution is
+below two seconds. Its source was compiled only; execution requires Cameron's
+specific authorization. Linux static checks do not close platform/visual gates.

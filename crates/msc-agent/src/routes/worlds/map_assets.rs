@@ -54,6 +54,10 @@ fn actions() -> Vec<String> {
         "prepare",
         "rendering",
         "import",
+        "repair",
+        "rebuild",
+        "selection",
+        "restore",
     ]
     .iter()
     .map(|s| format!("worlds.map_assets.{s}.v1"))
@@ -270,6 +274,8 @@ pub(super) async fn check(
         context.world,
         msc_infrastructure::map_assets::saved_terrain::WorldSource::Directory(_)
     ) && state.lifecycle.status_snapshot().running
+        && !map_terrain::has_prepared_scene(&state, &context)
+        && map_terrain::inspection_snapshot(&state, &context).is_none()
     {
         return error_response(
             StatusCode::CONFLICT,
@@ -322,19 +328,33 @@ pub(super) async fn check(
                 .join("map-dependencies/java-assets")
                 .join(&version)
                 .join("assets/minecraft");
-            let (candidate, manifest, report) = service::inspect(
+            let saved_report = map_terrain::check_prepared(
+                &state,
                 &context,
-                &store,
-                &vanilla,
-                Some(&version),
                 &request.dimension,
                 request.area,
                 work_id.as_str(),
                 &check_cancel,
-                &|current, total, line| {
-                    let _ = work_operations.progress(&work_id, current, total, line);
-                },
-            )?;
+            );
+            let (candidate, manifest, report) = if let Some(result) = saved_report {
+                result?
+            } else {
+                let saved = map_terrain::inspection_snapshot(&state, &context);
+                let inspected_context = saved.as_ref().map(|s| &s.0).unwrap_or(&context);
+                service::inspect(
+                    inspected_context,
+                    &store,
+                    &vanilla,
+                    Some(&version),
+                    &request.dimension,
+                    request.area,
+                    work_id.as_str(),
+                    &check_cancel,
+                    &|current, total, line| {
+                        let _ = work_operations.progress(&work_id, current, total, line);
+                    },
+                )?
+            };
             // Selection and slot/source revision must still match when publishing the candidate.
             lifecycle
                 .with_expected_active_server(Some(&context.server.id), || {
@@ -347,6 +367,14 @@ pub(super) async fn check(
                         &context.binding.slot_id,
                     )?;
                     if current.binding != context.binding {
+                        return Err(std::io::Error::other("binding_changed"));
+                    }
+                    if let Some(generation) = &report.geometry_generation_id
+                        && map_terrain::rendering_status(&state, &context, &report.dimension)
+                            .generation_id
+                            .as_ref()
+                            != Some(generation)
+                    {
                         return Err(std::io::Error::other("binding_changed"));
                     }
                     store.publish(&candidate, &manifest, &report, &check_cancel)?;
@@ -623,5 +651,159 @@ pub(super) async fn client_context(
         })
         .into_response(),
         Err(response) => response,
+    }
+}
+
+#[allow(clippy::result_large_err)]
+pub(super) async fn selection(
+    State(state): State<WorldsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    AxumPath(slot): AxumPath<String>,
+    Query(query): Query<AssetsQuery>,
+) -> Response {
+    let result = tokio::task::spawn_blocking(move || {
+        let context = bound(&state, &credential, &query.server_id, &slot)?;
+        let store = state.map_assets.store().map_err(|e| asset_error(&e))?;
+        let imported = service::imported(&context, &store).map_err(|e| asset_error(&e))?;
+        let (selection_revision, manifest) = match imported {
+            Some((_, receipt)) => (Some(service::selection_revision(&receipt).map_err(|e| asset_error(&e))?),Some(serde_json::to_value(receipt.manifest).map_err(|_| invalid_body("invalid_resource_selection", "Selection metadata unavailable."))?)),
+            None => (None, None),
+        };
+        let previous_generation = service::previous_resources(&context, &store).map_err(|e| asset_error(&e))?.as_ref().map(service::selection_revision).transpose().map_err(|e| asset_error(&e))?;
+        Ok::<_,Response>(msc_api::dto::MapAssetsSelectionDto { binding:context.binding, selection_revision, manifest, previous_generation, note:"Only map resources change. Pack order is low to high priority; visual correctness requires inspection in Minecraft.".into() })
+    }).await;
+    match result {
+        Ok(Ok(value)) => Json(value).into_response(),
+        Ok(Err(response)) => response,
+        Err(_) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "map_assets_worker_failed",
+            "Selection worker unavailable.",
+        ),
+    }
+}
+
+fn start_mutation(
+    state: WorldsRoutesState,
+    context: Context,
+    expected: &str,
+    dimension: String,
+    area: Option<domain::Area>,
+    mutation: service::ResourceMutation,
+) -> Response {
+    if context.binding.revision != expected
+        || !domain::valid_resource_id(&dimension)
+        || !dimension.contains(':')
+        || area.as_ref().is_some_and(|a| a.validate().is_err())
+    {
+        return error_response(
+            StatusCode::CONFLICT,
+            "binding_changed",
+            "Fetch the current binding and supply a valid dimension/area.",
+        );
+    }
+    let binding = context.binding.clone();
+    match map_terrain::mutate_resources(state, context, dimension, area, mutation) {
+        Ok(operation_id) => Json(MapAssetsCheckStartedDto {
+            result: "repair_started".into(),
+            operation_id,
+            binding,
+        })
+        .into_response(),
+        Err((code, message)) => error_response(StatusCode::CONFLICT, code, &message),
+    }
+}
+#[allow(clippy::result_large_err)]
+pub(super) async fn select(
+    State(state): State<WorldsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    AxumPath(slot): AxumPath<String>,
+    payload: Result<Json<msc_api::dto::MapAssetsSelectionRequestDto>, JsonRejection>,
+) -> Response {
+    let request = match payload {
+        Ok(Json(request)) => request,
+        _ => {
+            return invalid_body(
+                "invalid_resource_selection",
+                "Supply known ordered pack IDs and the expected selection revision.",
+            );
+        }
+    };
+    let task = state.clone();
+    let server_id = request.server_id.clone();
+    let expected_selection = request.expected_selection_revision.clone();
+    let prepared = tokio::task::spawn_blocking(move || {
+        let context = bound(&task, &credential, &server_id, &slot)?;
+        let store = task.map_assets.store().map_err(|e| asset_error(&e))?;
+        let mutation = service::select_resources(
+            &context,
+            &store,
+            &expected_selection,
+            request.selected_packs,
+            request.mod_order,
+        )
+        .map_err(|e| asset_error(&e))?;
+        Ok::<_, Response>((context, mutation))
+    })
+    .await;
+    match prepared {
+        Ok(Ok((context, mutation))) => start_mutation(
+            state,
+            context,
+            &request.expected_revision,
+            request.dimension,
+            request.area,
+            mutation,
+        ),
+        Ok(Err(response)) => response,
+        Err(_) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "map_assets_worker_failed",
+            "Selection worker unavailable.",
+        ),
+    }
+}
+#[allow(clippy::result_large_err)]
+pub(super) async fn restore(
+    State(state): State<WorldsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    AxumPath(slot): AxumPath<String>,
+    payload: Result<Json<msc_api::dto::MapAssetsRestoreRequestDto>, JsonRejection>,
+) -> Response {
+    let request = match payload {
+        Ok(Json(request)) => request,
+        _ => {
+            return invalid_body(
+                "invalid_resource_restore",
+                "Name the compatible previous resource generation.",
+            );
+        }
+    };
+    let task = state.clone();
+    let server_id = request.server_id.clone();
+    let generation = request.generation.clone();
+    let prepared = tokio::task::spawn_blocking(move || {
+        let context = bound(&task, &credential, &server_id, &slot)?;
+        let store = task.map_assets.store().map_err(|e| asset_error(&e))?;
+        let mutation = service::restore_resources(&context, &store, &generation)
+            .map_err(|e| asset_error(&e))?;
+        Ok::<_, Response>((context, mutation))
+    })
+    .await;
+    match prepared {
+        Ok(Ok((context, mutation))) => start_mutation(
+            state,
+            context,
+            &request.expected_revision,
+            request.dimension,
+            request.area,
+            mutation,
+        ),
+        Ok(Err(response)) => response,
+        Err(_) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "map_assets_worker_failed",
+            "Restore worker unavailable.",
+        ),
     }
 }

@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 28258c8da47a16f9930fa55c12995bf8c706c7fab261d687c72153ea097fd09a
+// Contract SHA-256: d2ac20df5f859451895717c4160893ee32d9394d56b32948a9f918c40fc66fac
 
 export interface paths {
   '/v1/active-server': {
@@ -6171,6 +6171,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/worlds/{slot_id}/map-assets/rebuild': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Re-render and validate the affected saved area with current resources */
+    post: operations['worldMapAssetsRebuild'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/worlds/{slot_id}/map-assets/rendering': {
     parameters: {
       query?: never;
@@ -6188,6 +6205,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/worlds/{slot_id}/map-assets/repair': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Re-render and validate the affected saved area with current resources */
+    post: operations['worldMapAssetsRepair'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/worlds/{slot_id}/map-assets/report': {
     parameters: {
       query?: never;
@@ -6199,6 +6233,42 @@ export interface paths {
     get: operations['reportWorldMapAssets'];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/worlds/{slot_id}/map-assets/restore': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Prepare guarded saved map resources */
+    post: operations['worldMapAssetsRestore'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/worlds/{slot_id}/map-assets/selection': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Status scoped Java map resource evidence */
+    get: operations['worldMapAssetsSelection'];
+    /** Prepare guarded saved map resources */
+    put: operations['worldMapAssetsSelectPut'];
+    /** Prepare guarded saved map resources */
+    post: operations['worldMapAssetsSelect'];
     delete?: never;
     options?: never;
     head?: never;
@@ -7907,7 +7977,7 @@ export interface components {
       binding: components['schemas']['MapAssetsBindingDTO'];
       operationId: string;
       /** @enum {string} */
-      result: 'check_started';
+      result: 'check_started' | 'prepare_started' | 'import_started' | 'repair_started';
     } & {
       [key: string]: unknown;
     };
@@ -7989,7 +8059,9 @@ export interface components {
       omittedSamples: number;
       operationId: string;
       /** @enum {string} */
-      outcome: 'checked' | 'needs_input';
+      outcome:
+        'checked' | 'needs_input' | 'ready' | 'repaired' | 'partially_repaired' | 'unsupported';
+      repair?: components['schemas']['MapRepairEvidenceDTO'];
       resourceGenerationId: string;
       /** Format: int64 */
       schemaVersion: number;
@@ -8000,6 +8072,35 @@ export interface components {
       /** Format: int64 */
       visibleFaces: number | null;
       visualAcceptance: string;
+    } & {
+      [key: string]: unknown;
+    };
+    MapAssetsRestoreRequestDTO: {
+      area?: components['schemas']['MapAssetsAreaDTO'];
+      dimension: string;
+      expectedRevision: string;
+      generation: string;
+      serverId: string;
+    } & {
+      [key: string]: unknown;
+    };
+    MapAssetsSelectionDTO: {
+      binding: components['schemas']['MapAssetsBindingDTO'];
+      manifest: components['schemas']['MapClientBundleManifestDTO'];
+      note: string;
+      previousGeneration: string | null;
+      selectionRevision: string | null;
+    } & {
+      [key: string]: unknown;
+    };
+    MapAssetsSelectionRequestDTO: {
+      area?: components['schemas']['MapAssetsAreaDTO'];
+      dimension: string;
+      expectedRevision: string;
+      expectedSelectionRevision: string;
+      modOrder?: string[] | null;
+      selectedPacks: string[];
+      serverId: string;
     } & {
       [key: string]: unknown;
     };
@@ -8109,6 +8210,20 @@ export interface components {
       state: string;
       /** Format: uint64 */
       unchangedTiles: number;
+    } & {
+      [key: string]: unknown;
+    };
+    MapRepairEvidenceDTO: {
+      afterCounts: {
+        [key: string]: number;
+      };
+      beforeCounts: {
+        [key: string]: number;
+      };
+      beforeOperationId: string;
+      sameSavedArea: boolean;
+      sourceGenerationId: string;
+      targetGenerationId: string;
     } & {
       [key: string]: unknown;
     };
@@ -11141,6 +11256,60 @@ export interface operations {
       };
     };
   };
+  worldMapAssetsRebuild: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slot_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['MapAssetsPrepareRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Bound read-only map-resource result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MapAssetsCheckStartedDTO'];
+        };
+      };
+      /** @description Invalid map-resource request or bounds */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Worlds permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Slot or bound report is unavailable */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Binding changed, unsupported scope, consistent snapshot required, or bounded inspection refused */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   getWorldMapRendering: {
     parameters: {
       query: {
@@ -11187,6 +11356,60 @@ export interface operations {
       };
     };
   };
+  worldMapAssetsRepair: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slot_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['MapAssetsPrepareRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Bound read-only map-resource result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MapAssetsCheckStartedDTO'];
+        };
+      };
+      /** @description Invalid map-resource request or bounds */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Worlds permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Slot or bound report is unavailable */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Binding changed, unsupported scope, consistent snapshot required, or bounded inspection refused */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   reportWorldMapAssets: {
     parameters: {
       query: {
@@ -11208,6 +11431,213 @@ export interface operations {
         content: {
           'application/json': components['schemas']['MapAssetsReportDTO'];
         };
+      };
+      /** @description Worlds permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Slot or bound report is unavailable */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Binding changed, unsupported scope, consistent snapshot required, or bounded inspection refused */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  worldMapAssetsRestore: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slot_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['MapAssetsRestoreRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Bound read-only map-resource result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MapAssetsCheckStartedDTO'];
+        };
+      };
+      /** @description Invalid map-resource request or bounds */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Worlds permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Slot or bound report is unavailable */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Binding changed, unsupported scope, consistent snapshot required, or bounded inspection refused */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  worldMapAssetsSelection: {
+    parameters: {
+      query: {
+        serverId: string;
+      };
+      header?: never;
+      path: {
+        slot_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Bound read-only map-resource result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MapAssetsSelectionDTO'];
+        };
+      };
+      /** @description Worlds permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Slot or bound report is unavailable */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Binding changed, unsupported scope, consistent snapshot required, or bounded inspection refused */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  worldMapAssetsSelectPut: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slot_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['MapAssetsSelectionRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Bound read-only map-resource result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MapAssetsCheckStartedDTO'];
+        };
+      };
+      /** @description Invalid map-resource request or bounds */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Worlds permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Slot or bound report is unavailable */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Binding changed, unsupported scope, consistent snapshot required, or bounded inspection refused */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  worldMapAssetsSelect: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slot_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['MapAssetsSelectionRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Bound read-only map-resource result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MapAssetsCheckStartedDTO'];
+        };
+      };
+      /** @description Invalid map-resource request or bounds */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
       /** @description Worlds permission required */
       403: {

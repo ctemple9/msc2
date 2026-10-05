@@ -122,6 +122,7 @@ fn cancelled_candidate_retains_current_previous_and_reader_data() {
             max: [0, 0, 0],
         },
         operation_id: "first".into(),
+        repair: None,
         outcome: "checked".into(),
         visual_acceptance: "pending".into(),
         scope: "fixture".into(),

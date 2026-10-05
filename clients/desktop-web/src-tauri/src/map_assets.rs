@@ -133,3 +133,23 @@ pub fn export_map_client_resources(token: String, destination: String) -> Result
         .sync_all()
         .map_err(|_| "Could not finish the exported bundle.".to_string())
 }
+
+#[tauri::command]
+pub fn export_map_rendering_report(report: String, destination: String) -> Result<(), String> {
+    use std::io::Write;
+    if report.len() > 32 * 1024 * 1024 {
+        return Err("Report exceeds the safe export limit.".into());
+    }
+    let value: msc_domain::map_assets::Report =
+        serde_json::from_str(&report).map_err(|_| "Invalid rendering report.")?;
+    let bytes =
+        serde_json::to_vec_pretty(&value).map_err(|_| "Could not encode rendering report.")?;
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(destination)
+        .map_err(|_| "Choose a new report filename; existing files are preserved.")?;
+    file.write_all(&bytes)
+        .and_then(|_| file.sync_all())
+        .map_err(|_| "Could not finish report export.".to_string())
+}

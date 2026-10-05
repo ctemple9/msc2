@@ -1758,6 +1758,7 @@ pub fn run() {
             map_assets::read_map_client_resources,
             map_assets::discard_map_client_resources,
             map_assets::export_map_client_resources,
+            map_assets::export_map_rendering_report,
             desktop_exchange_pairing,
             desktop_automate_remote_pairing,
             desktop_bootstrap_local,

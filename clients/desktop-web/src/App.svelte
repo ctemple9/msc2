@@ -311,24 +311,25 @@
     return client;
   }
 
-  function createScreenApi(): ScreenApi {
+  function createScreenApi(boundClient?: ApiClient): ScreenApi {
+    const current = () => boundClient ?? requireClient();
     return {
-      get: <T,>(path: string) => requireClient().requestJson<T>('GET', path),
-      post: <T,>(path: string, body?: unknown) =>
-        requireClient().requestJson<T>('POST', path, { body }),
-      getBytes: (path: string) => requireClient().requestBytes('GET', path),
-      resourceUrl: (path: string) => requireClient().resourceUrl(path),
-      upload: (purpose, bytes, options) =>
-        requireClient().stagedUpload({ purpose, ...options }, bytes),
+      bindHost: () => createScreenApi(current()),
+      cancelUpload: (id) => current().cancelStagedUpload(id),
+      get: <T,>(path: string) => current().requestJson<T>('GET', path),
+      post: <T,>(path: string, body?: unknown) => current().requestJson<T>('POST', path, { body }),
+      getBytes: (path: string) => current().requestBytes('GET', path),
+      resourceUrl: (path: string) => current().resourceUrl(path),
+      upload: (purpose, bytes, options) => current().stagedUpload({ purpose, ...options }, bytes),
       uploadFile: (purpose, source, options) => {
         const { onProgress, chunkSizeBytes, signal, ...uploadOptions } = options ?? {};
-        return requireClient().stagedUploadFromFile({ purpose, ...uploadOptions }, source, {
+        return current().stagedUploadFromFile({ purpose, ...uploadOptions }, source, {
           onProgress,
           chunkSizeBytes,
           signal,
         });
       },
-      download: (id, maxBytes) => requireClient().downloadBytes(id, maxBytes),
+      download: (id, maxBytes) => current().downloadBytes(id, maxBytes),
     };
   }
 

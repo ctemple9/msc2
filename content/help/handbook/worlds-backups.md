@@ -107,3 +107,31 @@ Backups made by the app are standard zip archives. You can open them in Finder t
 The automated rotating backup system (if enabled) creates a backup every N hours and keeps only the last X backups. This prevents backup folders from growing indefinitely.
 
 If a world gets corrupted, you can sometimes recover it without a full restore using Minecraft's built-in /replaceitem or by editing the region files — but for most cases, restoring a recent backup is faster and safer.
+
+## Saved map rendering and client resources
+
+A map shows saved terrain, not an unsaved live Minecraft scene. In a Java map,
+**Check rendering** inspects a bounded saved area around your camera and names
+missing resources, unknown pack order and unsupported blocks. Select a matching
+client instance or resource bundle when the server lacks client files; review
+its game/loader/mod versions before applying. Imports extract resource bytes
+without executing mods or changing your server's enabled mods.
+
+Pack order runs from low to high priority. A higher selected pack overrides a
+lower one. Supply mod priority only when the matching client's actual order is
+known. Repair rechecks the same affected saved blocks and adopts validated map
+artifacts; a completed download alone is not a repaired map. Unsupported runtime
+models or missing world context still need an adapter/exporter capability.
+
+Use **Rebuild affected terrain** for stale or invalid map artifacts. For chunks
+that Minecraft has not saved, visit/save them and use **Refresh terrain** instead.
+Compatible prior map resources can be restored without restoring the world.
+Reports and portable resource bundles can be exported to a new local file;
+reports are diagnostic evidence, while the named blocks still need visual checking.
+
+Headless equivalents are `msc world map-assets check`, `import`, `selection`,
+`select`, `repair`, `rebuild`, `restore` and `report --output`. Start with
+`msc world map-assets status --slot SLOT_UUID`; mutating commands require the
+current `--expected-revision`, slot and original dimension ID. `select` also
+requires the current selection revision; `restore` names its compatible previous
+generation. Use `--help` for the exact bounds, pack IDs and operation options.

@@ -681,7 +681,7 @@
 
 {#if mapOpen && selectedSlot?.isActive}
   {#key `${serverId}:${selectedSlot.id}`}
-    <WorldMapViewer {api} {serverId} worldName={selectedSlot.name} onClose={() => (mapOpen = false)} />
+    <WorldMapViewer {api} {serverId} slotId={selectedSlot.id} worldName={selectedSlot.name} onClose={() => (mapOpen = false)} />
   {/key}
 {:else}
 <div class="worlds">

@@ -2403,6 +2403,7 @@ name = "msc2-desktop-web"
 version = "0.1.23"
 dependencies = [
  "ed25519-dalek",
+ "msc-domain",
  "msc-infrastructure",
  "msc-platform-linux",
  "msc-platform-macos",

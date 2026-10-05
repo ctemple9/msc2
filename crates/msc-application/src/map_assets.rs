@@ -14,6 +14,7 @@ use msc_infrastructure::map_assets::{
 };
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
 use std::io;
 use std::path::Path;
 type StateKey = (String, BTreeMap<String, String>, bool);
@@ -336,7 +337,7 @@ pub fn inspect(
     // Sort evidence for identity only. It is deliberately not a guessed resource priority order.
     manifest.sources.sort_by(|a, b| a.id.cmp(&b.id));
     manifest.generation_id = hash_json(&manifest)?;
-    let mut report=Report {schema_version:map_assets::SCHEMA_VERSION,binding:context.binding.clone(),snapshot_id:terrain.snapshot_id,snapshot_minecraft_version,resource_generation_id:manifest.generation_id.clone(),geometry_generation_id:None,dimension:dimension.into(),area,operation_id:operation_id.into(),outcome:"checked".into(),visual_acceptance:"pending".into(),scope:"saved blocks in requested bounds only; inventory resolution, not adopted renderer output; client selection unknown".into(),inspected_blocks:terrain.blocks.len()as u64,inspected_chunks:terrain.chunks,distinct_states,visible_faces:None,counts,diagnostics,omitted_issues,omitted_samples,sources:manifest.sources.clone()};
+    let mut report=Report {schema_version:map_assets::SCHEMA_VERSION,binding:context.binding.clone(),snapshot_id:terrain.snapshot_id,snapshot_minecraft_version,resource_generation_id:manifest.generation_id.clone(),geometry_generation_id:None,dimension:dimension.into(),area,operation_id:operation_id.into(),outcome:"checked".into(),repair:None,visual_acceptance:"pending".into(),scope:"saved blocks in requested bounds only; inventory resolution, not adopted renderer output; client selection unknown".into(),inspected_blocks:terrain.blocks.len()as u64,inspected_chunks:terrain.chunks,distinct_states,visible_faces:None,counts,diagnostics,omitted_issues,omitted_samples,sources:manifest.sources.clone()};
     if report
         .counts
         .keys()
@@ -779,6 +780,32 @@ pub fn prepared_report(
     operation: &str,
     cancel: &dyn Fn() -> bool,
 ) -> io::Result<Report> {
+    report_resources(
+        context,
+        &prepared.stack.inventory,
+        &prepared.manifest,
+        !prepared.missing.is_empty(),
+        !prepared.prerequisites.is_empty(),
+        world,
+        dimension,
+        area,
+        operation,
+        cancel,
+    )
+}
+#[allow(clippy::too_many_arguments)]
+pub fn report_resources(
+    context: &Context,
+    inventory: &Inventory,
+    manifest: &ResourceManifest,
+    missing: bool,
+    prerequisites: bool,
+    world: &WorldSource,
+    dimension: &str,
+    area: Area,
+    operation: &str,
+    cancel: &dyn Fn() -> bool,
+) -> io::Result<Report> {
     let terrain = world.inspect(dimension, area, cancel)?;
     let mut groups: BTreeMap<StateKey, Vec<[i32; 3]>> = BTreeMap::new();
     for b in &terrain.blocks {
@@ -788,9 +815,7 @@ pub fn prepared_report(
             .push(b.position);
     }
     let distinct_states = groups.len() as u64;
-    let adapter = io_assets::adapter::Adapter {
-        inventory: &prepared.stack.inventory,
-    };
+    let adapter = io_assets::adapter::Adapter { inventory };
     let mut counts = BTreeMap::new();
     let mut diagnostics = Vec::new();
     let mut omitted_issues = 0;
@@ -798,10 +823,7 @@ pub fn prepared_report(
     for ((id, state, entity), positions) in groups {
         poll(cancel)?;
         let result = adapter.palette(&id, &state, entity)?;
-        let findings = io_assets::resolver::Resolver {
-            inventory: &prepared.stack.inventory,
-        }
-        .inspect(&id, &state, entity);
+        let findings = io_assets::resolver::Resolver { inventory }.inspect(&id, &state, entity);
         let mut counted = BTreeSet::new();
         for finding in findings.into_iter().filter(|f| {
             f.classification != C::UnsupportedRendererNamespace
@@ -828,13 +850,13 @@ pub fn prepared_report(
         }
         omitted_samples += terrain.missing.len().saturating_sub(5) as u64;
     }
-    let needs_input = !prepared.missing.is_empty()
-        || !prepared.prerequisites.is_empty()
+    let needs_input = missing
+        || prerequisites
         || counts
             .keys()
             .any(|c| !matches!(c, C::ModelResolved | C::IntentionalEmpty));
     Ok(Report{schema_version:1,binding:context.binding.clone(),snapshot_id:terrain.snapshot_id,
-        snapshot_minecraft_version:world.recorded_game_version()?,resource_generation_id:prepared.manifest.generation_id.clone(),geometry_generation_id:None,dimension:dimension.into(),area,operation_id:operation.into(),outcome:if needs_input{"needs_input"}else{"ready"}.into(),visual_acceptance:"pending".into(),scope:"Original saved blocks in the requested bounds; candidate artifacts validated separately. Fallback geometry is not model_resolved. Visual acceptance remains pending.".into(),inspected_blocks:terrain.blocks.len()as u64,inspected_chunks:terrain.chunks,distinct_states,visible_faces:None,counts,diagnostics,omitted_issues,omitted_samples,sources:prepared.manifest.sources.clone()})
+        snapshot_minecraft_version:world.recorded_game_version()?,resource_generation_id:manifest.generation_id.clone(),geometry_generation_id:None,dimension:dimension.into(),area,operation_id:operation.into(),repair:None,outcome:if needs_input{"needs_input"}else{"ready"}.into(),visual_acceptance:"pending".into(),scope:"Original saved blocks in the requested bounds; candidate artifacts validated separately. Fallback geometry is not model_resolved. Visual acceptance remains pending.".into(),inspected_blocks:terrain.blocks.len()as u64,inspected_chunks:terrain.chunks,distinct_states,visible_faces:None,counts,diagnostics,omitted_issues,omitted_samples,sources:manifest.sources.clone()})
 }
 
 /// Imported selection is private to the exact host/server/slot incarnation and mod inputs.
@@ -956,12 +978,192 @@ pub fn import_bundle(
     if !destination.exists() {
         std::fs::rename(&target, &destination)?;
     }
-    let temporary = root.join(format!("{}.json", uuid::Uuid::new_v4()));
-    std::fs::write(
-        &temporary,
-        serde_json::to_vec(&receipt).map_err(|_| error("serialization_failed"))?,
-    )?;
-    poll(cancel)?;
-    std::fs::rename(temporary, root.join("current.json"))?;
+    publish_resource_receipt(context, store, &receipt, cancel)?;
     Ok(receipt)
+}
+
+/// Resolution is evidence only for the same saved area with validated geometry.
+/// A changed snapshot cannot prove that an original failure was repaired.
+pub fn classify_repair(before: Option<&Report>, after: &mut Report, artifacts_validated: bool) {
+    use map_assets::Classification as C;
+    let failures = |r: &Report| {
+        r.counts
+            .iter()
+            .filter(|(c, _)| !matches!(c, C::ModelResolved | C::IntentionalEmpty))
+            .map(|(_, n)| *n)
+            .sum::<u64>()
+    };
+    let unsupported = after.counts.keys().any(|c| {
+        matches!(
+            c,
+            C::UnsupportedLoader
+                | C::UnsupportedMaterial
+                | C::MissingContext
+                | C::UnsupportedRendererNamespace
+        )
+    });
+    let Some(before) = before else {
+        if !artifacts_validated || after.geometry_generation_id.is_none() {
+            after.outcome = "needs_input".into();
+        } else if unsupported {
+            after.outcome = "unsupported".into();
+        }
+        return;
+    };
+    let artifacts_validated = artifacts_validated && after.geometry_generation_id.is_some();
+    let same = before.binding.agent_host_id == after.binding.agent_host_id
+        && before.binding.server_id == after.binding.server_id
+        && before.binding.slot_id == after.binding.slot_id
+        && before.binding.world_incarnation == after.binding.world_incarnation
+        && before.dimension == after.dimension
+        && before.area == after.area
+        && before.snapshot_id == after.snapshot_id;
+    let old_failures = failures(before);
+    let new_failures = failures(after);
+    after.repair = Some(map_assets::RepairEvidence {
+        before_operation_id: before.operation_id.clone(),
+        source_generation_id: before.resource_generation_id.clone(),
+        target_generation_id: after.resource_generation_id.clone(),
+        same_saved_area: same,
+        before_counts: before.counts.clone(),
+        after_counts: after.counts.clone(),
+    });
+    after.outcome = if artifacts_validated
+        && after.geometry_generation_id.is_some()
+        && after.outcome == "ready"
+        && same
+        && old_failures > 0
+        && new_failures == 0
+    {
+        "repaired"
+    } else if artifacts_validated && same && new_failures < old_failures && new_failures > 0 {
+        "partially_repaired"
+    } else if unsupported {
+        "unsupported"
+    } else if !artifacts_validated || new_failures > 0 {
+        "needs_input"
+    } else {
+        "ready"
+    }
+    .into();
+}
+
+pub struct ResourceMutation {
+    pub expected_selection_revision: String,
+    pub receipt: io_assets::bundle::Receipt,
+}
+pub fn selection_revision(receipt: &io_assets::bundle::Receipt) -> io::Result<String> {
+    hash_json(&receipt.manifest)
+}
+pub fn previous_resources(
+    context: &Context,
+    store: &Store,
+) -> io::Result<Option<io_assets::bundle::Receipt>> {
+    let root = io_assets::bundle::receipt_root(store, &context.binding)?;
+    let path = root.join("previous.json");
+    if !path.exists() {
+        return Ok(None);
+    }
+    let receipt: io_assets::bundle::Receipt = serde_json::from_slice(&read(&path, MAX_JSON)?)
+        .map_err(|_| error("invalid_client_import_receipt"))?;
+    if receipt.input_revision != import_revision(context)?
+        || receipt.binding.agent_host_id != context.binding.agent_host_id
+        || receipt.binding.server_id != context.binding.server_id
+        || receipt.binding.slot_id != context.binding.slot_id
+    {
+        return Ok(None);
+    }
+    receipt.manifest.validate()?;
+    Ok(Some(receipt))
+}
+pub fn select_resources(
+    context: &Context,
+    store: &Store,
+    expected: &str,
+    selected_packs: Vec<String>,
+    mod_order: Option<Vec<String>>,
+) -> io::Result<ResourceMutation> {
+    let (_, mut receipt) =
+        imported(context, store)?.ok_or_else(|| error("matching_client_import_required"))?;
+    if selection_revision(&receipt)? != expected {
+        return Err(error("resource_selection_changed"));
+    }
+    receipt.manifest.selected_packs = selected_packs;
+    receipt.manifest.mod_order = mod_order;
+    receipt.manifest.selection_known = true;
+    receipt.manifest.validate()?;
+    Ok(ResourceMutation {
+        expected_selection_revision: expected.into(),
+        receipt,
+    })
+}
+pub fn restore_resources(
+    context: &Context,
+    store: &Store,
+    generation: &str,
+) -> io::Result<ResourceMutation> {
+    let (_, current) =
+        imported(context, store)?.ok_or_else(|| error("matching_client_import_required"))?;
+    let previous = previous_resources(context, store)?
+        .filter(|p| selection_revision(p).is_ok_and(|id| id == generation))
+        .ok_or_else(|| error("compatible_previous_resources_unavailable"))?;
+    Ok(ResourceMutation {
+        expected_selection_revision: selection_revision(&current)?,
+        receipt: previous,
+    })
+}
+pub fn apply_resource_mutation(
+    context: &Context,
+    store: &Store,
+    mutation: &ResourceMutation,
+    cancel: &dyn Fn() -> bool,
+) -> io::Result<()> {
+    let (_, current) =
+        imported(context, store)?.ok_or_else(|| error("matching_client_import_required"))?;
+    if selection_revision(&current)? != mutation.expected_selection_revision
+        || import_revision(context)? != mutation.receipt.input_revision
+    {
+        return Err(error("resource_selection_changed"));
+    }
+    publish_resource_receipt(context, store, &mutation.receipt, cancel)
+}
+fn publish_resource_receipt(
+    context: &Context,
+    store: &Store,
+    receipt: &io_assets::bundle::Receipt,
+    cancel: &dyn Fn() -> bool,
+) -> io::Result<()> {
+    let root = io_assets::bundle::receipt_root(store, &context.binding)?;
+    fs::create_dir_all(&root)?;
+    safe_path(&root)?;
+    if self::context(
+        &context.server,
+        &context.binding.agent_host_id,
+        &context.binding.slot_id,
+    )?
+    .binding
+        != context.binding
+    {
+        return Err(error("binding_changed"));
+    }
+    if root.join("current.json").exists() {
+        let previous = read(&root.join("current.json"), MAX_JSON)?;
+        msc_infrastructure::atomic_write::atomic_write(
+            &msc_infrastructure::fs::StdFileSystem,
+            &root.join("previous.json"),
+            &previous,
+        )
+        .map_err(|_| error("resource_receipt_write_failed"))?;
+    }
+    poll(cancel)?;
+    let raw = serde_json::to_vec(receipt).map_err(|_| error("serialization_failed"))?;
+    if raw.len() as u64 > MAX_JSON {
+        return Err(error("resource_receipt_byte_limit"));
+    }
+    msc_infrastructure::atomic_write::atomic_write(
+        &msc_infrastructure::fs::StdFileSystem,
+        &root.join("current.json"),
+        &raw,
+    )
+    .map_err(|_| error("resource_receipt_write_failed"))
 }

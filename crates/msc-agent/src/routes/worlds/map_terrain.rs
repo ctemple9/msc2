@@ -719,6 +719,72 @@ pub(super) fn import_resources(
         .0
         .prepared
         .clone()
-        .start_job(state, context, dimension, area, true, Some((path, sha)))
+        .start_job(
+            state,
+            context,
+            dimension,
+            area,
+            true,
+            Some((path, sha)),
+            None,
+        )
         .map_err(|e| (e.code, e.message))
+}
+
+pub(super) fn mutate_resources(
+    state: WorldsRoutesState,
+    context: msc_application::map_assets::Context,
+    dimension: String,
+    area: Option<msc_domain::map_assets::Area>,
+    mutation: msc_application::map_assets::ResourceMutation,
+) -> Result<String, (&'static str, String)> {
+    state
+        .map_renderer
+        .0
+        .prepared
+        .clone()
+        .start_job(state, context, dimension, area, true, None, Some(mutation))
+        .map_err(|e| (e.code, e.message))
+}
+pub(super) fn check_prepared(
+    state: &WorldsRoutesState,
+    context: &msc_application::map_assets::Context,
+    dimension: &str,
+    area: msc_domain::map_assets::Area,
+    operation: &str,
+    cancel: &dyn Fn() -> bool,
+) -> Option<
+    std::io::Result<(
+        msc_infrastructure::map_assets::store::Candidate,
+        msc_domain::map_assets::ResourceManifest,
+        msc_domain::map_assets::Report,
+    )>,
+> {
+    state
+        .map_renderer
+        .0
+        .prepared
+        .check_saved(state, context, dimension, area, operation, cancel)
+}
+pub(super) fn has_prepared_scene(
+    state: &WorldsRoutesState,
+    context: &msc_application::map_assets::Context,
+) -> bool {
+    state.map_renderer.0.prepared.report(context).is_some()
+}
+
+pub(super) fn inspection_snapshot(
+    state: &WorldsRoutesState,
+    context: &msc_application::map_assets::Context,
+) -> Option<(msc_application::map_assets::Context, Arc<dyn Send + Sync>)> {
+    let saved = state.map_renderer.0.snapshot.lock().ok()?.clone()?;
+    if saved.server_id != context.server.id
+        || !matches!(&context.world, msc_infrastructure::map_assets::saved_terrain::WorldSource::Directory(path) if *path == saved.source_world)
+    {
+        return None;
+    }
+    let mut inspection = context.clone();
+    inspection.world =
+        msc_infrastructure::map_assets::saved_terrain::WorldSource::Directory(saved.path.clone());
+    Some((inspection, saved))
 }

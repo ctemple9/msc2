@@ -29,6 +29,10 @@ struct Scene {
     snapshot_epoch: u64,
     atlas_digest: String,
     atlas_layers: u32,
+    inventory: assets::inventory::Inventory,
+    resource_manifest: msc_domain::map_assets::ResourceManifest,
+    missing_sources: bool,
+    input_prerequisites: bool,
 }
 pub(super) fn required(state: &WorldsRoutesState, server: &ConfigServer) -> bool {
     if let Ok(context) = active_context(state, server)
@@ -172,14 +176,93 @@ impl PreparedStore {
             .unwrap_or(false)
     }
     pub fn report(&self, context: &Context) -> Option<Report> {
+        self.report_for(context, None)
+    }
+    fn report_for(&self, context: &Context, dimension: Option<&str>) -> Option<Report> {
+        let stored = state_report(context);
         let coordinator = self.0.coordinator.lock().ok()?;
-        coordinator
+        let scenes = coordinator
             .entries
             .values()
             .filter_map(|e| e.current.as_ref())
-            .filter(|scene| scene.key == key(context, &scene.report.dimension).unwrap_or_default())
+            .filter(|scene| {
+                dimension.is_none_or(|d| scene.report.dimension == d)
+                    && scene.key == key(context, &scene.report.dimension).unwrap_or_default()
+            })
+            .collect::<Vec<_>>();
+        if let Some(report) = stored
+            && scenes
+                .iter()
+                .any(|scene| report.geometry_generation_id == scene.report.geometry_generation_id)
+        {
+            return Some(report);
+        }
+        scenes
+            .into_iter()
             .max_by_key(|scene| scene.status.resources_at_unix)
             .map(|scene| scene.report.clone())
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub fn check_saved(
+        &self,
+        state: &WorldsRoutesState,
+        context: &Context,
+        dimension: &str,
+        area: Area,
+        operation: &str,
+        cancel: &dyn Fn() -> bool,
+    ) -> Option<
+        std::io::Result<(
+            assets::store::Candidate,
+            msc_domain::map_assets::ResourceManifest,
+            Report,
+        )>,
+    > {
+        let key = match key(context, dimension) {
+            Ok(key) => key,
+            Err(error) => return Some(Err(error)),
+        };
+        let scene = self.current(&key, None)?;
+        Some((|| {
+            let epoch = state.map_renderer.0.snapshot_epoch.load(Ordering::Acquire);
+            let input = revision(context, epoch)?;
+            if !self
+                .0
+                .coordinator
+                .lock()
+                .map_err(|_| assets::error("renderer_unavailable"))?
+                .entries
+                .get(&key)
+                .is_some_and(|entry| entry.revision == input && entry.outcome != "preparing")
+            {
+                return Err(assets::error("stale_map_scene"));
+            }
+            validate_scope(&scene.renderer, area, &scene.atlas_digest, cancel)?;
+            let snapshot = scene
+                .renderer
+                ._snapshot
+                .as_ref()
+                .ok_or_else(|| assets::error("consistent_snapshot_required"))?;
+            let mut report = service::report_resources(
+                context,
+                &scene.inventory,
+                &scene.resource_manifest,
+                scene.missing_sources,
+                scene.input_prerequisites,
+                &WorldSource::Directory(snapshot.path.clone()),
+                dimension,
+                area,
+                operation,
+                cancel,
+            )?;
+            report.geometry_generation_id = Some(scene.renderer.generation.clone());
+            if report.outcome == "ready" {
+                report.outcome = "checked".into();
+            }
+            report.scope = "saved blocks in requested bounds; adopted resources and matching terrain artifacts; visual acceptance pending".into();
+            let candidate = state.map_assets.store()?.begin()?;
+            Ok((candidate, scene.resource_manifest.clone(), report))
+        })())
     }
     pub fn has_server(&self, id: &str) -> bool {
         self.0
@@ -266,7 +349,7 @@ impl PreparedStore {
             status.state = "failed".into();
             status.reason_code = Some("renderer_unavailable".into());
             status.retryable = true;
-            status.note="The helper stopped serving this retained generation; the displayed scene is retained. Retry resources to prepare a replacement.".into();
+            status.note="The helper stopped serving this retained generation; the displayed scene is retained. Use Repair map assets to prepare a replacement.".into();
         }
     }
     fn current(&self, key: &str, generation: Option<&str>) -> Option<Arc<Scene>> {
@@ -297,7 +380,7 @@ impl PreparedStore {
         area: Option<Area>,
         force: bool,
     ) -> Result<String, TerrainError> {
-        self.start_job(state, context, dimension, area, force, None)
+        self.start_job(state, context, dimension, area, force, None, None)
     }
     #[allow(clippy::too_many_arguments)]
     pub fn start_job(
@@ -308,7 +391,10 @@ impl PreparedStore {
         area: Option<Area>,
         force: bool,
         source: Option<(PathBuf, String)>,
+        mutation: Option<service::ResourceMutation>,
     ) -> Result<String, TerrainError> {
+        let before = self.report_for(&context, Some(&dimension));
+        let area = area.or_else(|| before.as_ref().map(|r| r.area));
         let key = key(&context, &dimension).map_err(|_| ())?;
         let epoch = state.map_renderer.0.snapshot_epoch.load(Ordering::Acquire);
         let input = revision(&context, epoch).map_err(|_| ())?;
@@ -317,7 +403,7 @@ impl PreparedStore {
             && ((!force && entry.revision == input)
                 || (entry.revision == input && entry.outcome == "preparing"))
         {
-            if source.is_some() {
+            if source.is_some() || mutation.is_some() {
                 return Err(TerrainError::new(
                     "map_operation_busy",
                     "Wait for the current map operation before importing resources.",
@@ -385,6 +471,8 @@ impl PreparedStore {
                     &operation_for_work,
                     epoch,
                     source.as_ref(),
+                    mutation.as_ref(),
+                    before,
                 );
                 if let Some((path, _)) = source {
                     let _ = std::fs::remove_file(path);
@@ -460,6 +548,8 @@ impl PreparedStore {
         operation: &OperationId,
         epoch: u64,
         source: Option<&(PathBuf, String)>,
+        mutation: Option<&service::ResourceMutation>,
+        before: Option<Report>,
     ) -> std::io::Result<RenderingStatus> {
         let operations = state.lifecycle.operations();
         let operation_cancel = operations.cancellation_check(operation);
@@ -485,6 +575,16 @@ impl PreparedStore {
             if let Some((path, sha)) = source {
                 progress(0, 8, "Validating the matching client resource bundle.");
                 service::import_bundle(&context, &state.map_assets.store()?, path, sha, &cancel)?;
+            }
+            if let Some(mutation) = mutation {
+                service::apply_resource_mutation(
+                    &context,
+                    &state.map_assets.store()?,
+                    mutation,
+                    &cancel,
+                )?;
+            }
+            if source.is_some() || mutation.is_some() {
                 let input = revision(&context, epoch)?;
                 if !self
                     .0
@@ -515,7 +615,13 @@ impl PreparedStore {
                 .map_err(|_| assets::error("renderer_unavailable"))?
                 .as_ref()
                 .filter(|s| s.server_id == context.server.id && s.source_world == world)
-                .cloned();
+                .cloned()
+                .or_else(|| {
+                    self.current(&ticket.key, None)
+                        .filter(|s| s.snapshot_epoch == epoch)
+                        .and_then(|s| s.renderer._snapshot.clone())
+                        .filter(|s| s.server_id == context.server.id && s.source_world == world)
+                });
             let snapshot = if let Some(saved) = saved {
                 saved
             } else if state.lifecycle.status_snapshot().running {
@@ -752,11 +858,8 @@ impl PreparedStore {
                     .filter(|(p, h)| old.tile_fingerprints.get(*p) == Some(*h))
                     .count() as u64
             });
-            let mut status = empty_status(if report.outcome == "ready" {
-                "ready"
-            } else {
-                "needs_input"
-            });
+            service::classify_repair(before.as_ref(), &mut report, true);
+            let mut status = empty_status(&report.outcome);
             status.operation_id = Some(operation.as_str().into());
             status.generation_id = Some(generation.clone());
             status.resource_generation_id = Some(prepared.manifest.generation_id.clone());
@@ -792,6 +895,10 @@ impl PreparedStore {
                 snapshot_epoch: epoch,
                 atlas_digest,
                 atlas_layers,
+                resource_manifest: prepared.manifest.clone(),
+                missing_sources: !prepared.missing.is_empty(),
+                input_prerequisites: !prepared.prerequisites.is_empty(),
+                inventory: prepared.stack.inventory,
             });
             progress(
                 7,
@@ -881,7 +988,14 @@ impl PreparedStore {
                         "map_preparation_failed".into()
                     },
                 );
-                status.retryable = !cancelled;
+                status.retryable = !cancelled
+                    && !status.reason_code.as_ref().is_some_and(|code| {
+                        code.starts_with("matching_")
+                            || code.ends_with("_required")
+                            || code.starts_with("invalid_client_resource")
+                            || code == "client_bundle_checksum"
+                            || code == "compatible_previous_resources_unavailable"
+                    });
                 status.note="Prior generation retained; preparation will not repeat on tile requests. Retry explicitly after addressing this failure.".into();
                 details.insert(ticket.key.clone(), status);
             }
@@ -1200,4 +1314,112 @@ pub(super) async fn artifact(
             "The candidate artifact could not be read; the scene is retained.",
         ),
     }
+}
+
+fn state_report(context: &Context) -> Option<Report> {
+    let root = msc_infrastructure::config_repository::default_app_data_dir().join("map-assets");
+    let key = assets::hash_json(&(
+        &context.binding.agent_host_id,
+        &context.binding.server_id,
+        &context.binding.slot_id,
+    ))
+    .ok()?;
+    let pointer: assets::store::Pointer = serde_json::from_slice(
+        &assets::read(
+            &root.join("bindings").join(format!("{key}.json")),
+            assets::MAX_JSON,
+        )
+        .ok()?,
+    )
+    .ok()?;
+    if pointer.binding != context.binding
+        || pointer.current.len() != 64
+        || !pointer.current.bytes().all(|b| b.is_ascii_hexdigit())
+    {
+        return None;
+    }
+    let value: serde_json::Value = serde_json::from_slice(
+        &assets::read(
+            &root
+                .join("generations")
+                .join(format!("{}.json", pointer.current)),
+            32 * 1024 * 1024,
+        )
+        .ok()?,
+    )
+    .ok()?;
+    let manifest: msc_domain::map_assets::ResourceManifest =
+        serde_json::from_value(value["manifest"].clone()).ok()?;
+    let report: Report = serde_json::from_value(value["report"].clone()).ok()?;
+    if assets::hash_json(&(&manifest, &report)).ok()? != pointer.current
+        || report.binding != context.binding
+        || manifest.generation_id != report.resource_generation_id
+    {
+        return None;
+    }
+    Some(report)
+}
+
+fn validate_scope(
+    renderer: &Renderer,
+    area: Area,
+    atlas_digest: &str,
+    cancel: &dyn Fn() -> bool,
+) -> std::io::Result<()> {
+    let (status, raw) = renderer
+        .read("manifest.json")
+        .map_err(|_| assets::error("renderer_manifest_failed"))?;
+    if status != 200 {
+        return Err(assets::error("renderer_manifest_failed"));
+    }
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&raw).map_err(|_| assets::error("invalid_renderer_manifest"))?;
+    let width = manifest["tileChunks"]
+        .as_i64()
+        .filter(|n| (1..=32).contains(n))
+        .ok_or_else(|| assets::error("invalid_renderer_manifest"))?;
+    let tiles = manifest["tiles"]
+        .as_array()
+        .ok_or_else(|| assets::error("invalid_renderer_manifest"))?;
+    if tiles.len() > 100_000 {
+        return Err(assets::error("render_tile_limit"));
+    }
+    for tile in tiles {
+        let x = tile["x"]
+            .as_i64()
+            .ok_or_else(|| assets::error("invalid_renderer_manifest"))?;
+        let z = tile["z"]
+            .as_i64()
+            .ok_or_else(|| assets::error("invalid_renderer_manifest"))?;
+        if x < i64::from(area.min[0]).div_euclid(16 * width)
+            || x > i64::from(area.max[0]).div_euclid(16 * width)
+            || z < i64::from(area.min[2]).div_euclid(16 * width)
+            || z > i64::from(area.max[2]).div_euclid(16 * width)
+        {
+            continue;
+        }
+        let path = tile["path"]
+            .as_str()
+            .filter(|p| p.ends_with(".vtile") && super::artifact_type(p).is_some())
+            .ok_or_else(|| assets::error("invalid_renderer_manifest"))?;
+        assets::poll(cancel)?;
+        let (status, bytes) = renderer
+            .read(path)
+            .map_err(|_| assets::error("renderer_tile_failed"))?;
+        if status != 200 {
+            return Err(assets::error("renderer_tile_failed"));
+        }
+        validate_artifact(&bytes, false)?;
+    }
+    let (status, bytes) = renderer
+        .read("terrain.vtexarr")
+        .map_err(|_| assets::error("renderer_atlas_failed"))?;
+    if status != 200 {
+        return Err(assets::error("renderer_atlas_failed"));
+    }
+    validate_artifact(&bytes, true)?;
+    if assets::hash(&inflate_artifact(&bytes)?) != atlas_digest {
+        return Err(assets::error("renderer_atlas_changed"));
+    }
+    Ok(())
 }

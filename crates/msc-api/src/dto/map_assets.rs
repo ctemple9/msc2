@@ -53,3 +53,33 @@ pub struct MapAssetsClientContextDto {
     pub loader: String,
     pub loader_version: Option<String>,
 }
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MapAssetsSelectionDto {
+    pub binding: MapAssetsBindingDto,
+    pub selection_revision: Option<String>,
+    pub manifest: Option<serde_json::Value>,
+    pub previous_generation: Option<String>,
+    pub note: String,
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MapAssetsSelectionRequestDto {
+    pub server_id: String,
+    pub expected_revision: String,
+    pub expected_selection_revision: String,
+    pub dimension: String,
+    pub area: Option<MapAssetsAreaDto>,
+    pub selected_packs: Vec<String>,
+    pub mod_order: Option<Vec<String>>,
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MapAssetsRestoreRequestDto {
+    pub server_id: String,
+    pub expected_revision: String,
+    pub dimension: String,
+    pub area: Option<MapAssetsAreaDto>,
+    pub generation: String,
+}

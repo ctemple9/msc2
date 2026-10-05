@@ -96,3 +96,81 @@ ID. Unresolved input/rendering issues return a nonzero exit code; an upload
 cannot be reported as a complete repair. No local Minecraft installation or
 GPU is needed on the agent. Native desktop import/export uses the authenticated
 selected-host transport; the next step exposes these controls in the map.
+
+## P18.19 affected-area repairs
+
+In a Java map, **Check rendering** opens the repair sheet without interrupting
+player tracking. **Check camera area** inspects one saved chunk column and 32
+vertical blocks around the current depth. The report names its exact bounds,
+snapshot, block states, missing sources and unsupported model/context cases.
+A repair uses that reported area; it does not claim the entire world is fixed.
+The sheet stays closed after dismissal and never repeatedly opens for an
+unchanged issue. The quiet map resource status still reveals changed inputs.
+
+Select **Import client instance** for an explicit game/Prism directory, or
+**Import client assets** for an archive, individual pack/JAR or an exported MSC
+bundle. Review game/loader identity and the bounded mod/version evidence before
+applying. The agent additionally checks installed mod release/hash agreement.
+Wrong releases require selecting the matching client, not another download of
+the same wrong files. Unknown overlapping mod priority stays unresolved until
+the actual client order is supplied. Local hashes are not publisher verification.
+**Export resource bundle** writes a new portable file for a headless host.
+
+**Select resource packs** lists imported packs and applies low-to-high priority.
+Its optional mod ordering requires an explicit acknowledgement of known client
+priority; filenames never determine that order. **Repair map assets** appears
+for a retryable acquisition/helper failure or a resolvable resource diagnosis.
+**Rebuild affected terrain** starts a new validated renderer candidate for stale
+or invalid terrain artifacts using the saved snapshot and reported area. It
+keeps other saved data and map resource caches. To include newly generated or
+saved chunks, use the map's separate **Refresh terrain** action. Unsupported
+code-driven models, materials and missing world context need the later exporter
+or adapter capability; there is no active runtime exporter control yet.
+
+A compatible previous import/selection enables **Restore previous map resources**.
+This swaps only MSC-owned resource selection, not game files, enabled server mods
+or the world. Every mutating action validates the current binding and selection
+revision. Transfer and operation cancellation retain the displayed scene. Closed
+maps and host/server switches cancel work through the original captured transport.
+**Export report** writes bounded diagnostic JSON to a new local file; existing
+files are preserved. Reports have no host paths, credentials or private world data.
+
+The same actions are available on a selected headless agent:
+
+```sh
+# Obtain binding revision, selection revision, layer IDs and compatible rollback ID.
+msc --json world map-assets status --slot SLOT_UUID
+msc --json world map-assets selection --slot SLOT_UUID
+msc --json world map-assets check --slot SLOT_UUID --expected-revision REVISION --dimension minecraft:overworld --min 0 64 0 --max 15 95 15
+msc --json world map-assets repair --slot SLOT_UUID --expected-revision REVISION --dimension minecraft:overworld
+msc --json world map-assets select --slot SLOT_UUID --expected-revision REVISION --expected-selection-revision SELECTION --dimension minecraft:overworld --packs LOWER_PACK_ID HIGHER_PACK_ID
+msc --json world map-assets rebuild --slot SLOT_UUID --expected-revision REVISION --dimension minecraft:overworld
+msc --json world map-assets restore --slot SLOT_UUID --expected-revision REVISION --dimension minecraft:overworld --generation PREVIOUS_SELECTION_ID
+msc --json world map-assets report --slot SLOT_UUID --output map-rendering-report.json
+```
+
+Omit `--packs` to explicitly select none. Supply `--mod-order LOW_MOD_ID HIGH_MOD_ID`
+only when the full low-to-high mod layer priority is known. Repair/import/select/
+restore/rebuild use the previous scoped report's area, or the existing bounded
+first-area default if there is no report. HTTP callers can supply explicit area
+bounds. `--no-wait` returns the operation ID; Ctrl-C cancels the existing operation.
+CLI completion checks the returned report's operation ID and returns nonzero for
+unresolved, unsupported, partial or failed work. A valid report export is a
+successful export, not evidence that rendering was repaired.
+
+`POST .../map-assets/repair` and `POST .../map-assets/rebuild` reuse preparation,
+artifact validation and guarded adoption. `GET .../map-assets/selection` returns
+selection metadata; `PUT` applies it, with equivalent `POST` supported by the
+existing desktop adapter. `POST .../map-assets/restore` names a compatible prior
+selection generation. All routes require Worlds permission. A scoped check
+uses adopted resource inventory and artifacts against their retained snapshot,
+or the baseline map's private snapshot; it never downloads resources or reads a
+running server's live mutable world as if it were a consistent snapshot.
+
+A report becomes `repaired` only after its original classified failures disappear
+in the same saved area/snapshot and compatible world binding, validated geometry
+is ready, and the candidate is adopted. Otherwise it distinguishes `ready`,
+`needs_input`, `partially_repaired` and `unsupported`; operations separately expose
+`cancelled` and `failed`. Before/after evidence records source and target resource
+generations and classification counts. Visual acceptance always remains pending
+until Cameron checks the named blocks against Minecraft.

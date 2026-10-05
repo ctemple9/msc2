@@ -145,6 +145,24 @@ pub fn router(state: WorldsRoutesState) -> Router {
             "/worlds/:slot_id/map-assets/client-context",
             get(map_assets::client_context),
         )
+        .route(
+            "/worlds/:slot_id/map-assets/rebuild",
+            post(map_assets::prepare),
+        )
+        .route(
+            "/worlds/:slot_id/map-assets/repair",
+            post(map_assets::prepare),
+        )
+        .route(
+            "/worlds/:slot_id/map-assets/selection",
+            get(map_assets::selection)
+                .put(map_assets::select)
+                .post(map_assets::select),
+        )
+        .route(
+            "/worlds/:slot_id/map-assets/restore",
+            post(map_assets::restore),
+        )
         .route("/worlds/map/dimensions", get(map_dimensions))
         .route("/worlds/map/terrain", get(map_terrain::artifact))
         .route("/worlds/map/refresh", post(refresh_map))

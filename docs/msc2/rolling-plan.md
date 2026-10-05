@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current work:** Cameron visually confirmed the isolated P18.14a proof on 2026-10-04. P18.15–P18.18 are implemented and awaiting Cameron's verification. Batch C is in progress; P18.19 is next. Broader production/platform/mod acceptance gates remain open.
+**Current work:** Cameron visually confirmed the isolated P18.14a proof on 2026-10-04. P18.15–P18.19 are implemented and awaiting Cameron's verification. Batch C implementation is complete through P18.19; P18.20 has not started. Broader production/platform/mod acceptance gates remain open.
 
 ### P18.13 — Plan automatic modded map assets and successful repairs
 
@@ -260,7 +260,7 @@ No Verify command below runs a test suite. Essential regressions may be added on
 
 ### P18.19 — Deliver repairs that verify the affected blocks
 
-**Status:** Planned; depends on P18.18; awaiting Cameron's plan review.
+**Status:** Implemented; awaiting Cameron's verification.
 **Files:** Map-asset repair coordinator, operation/status/report DTOs and routes, CLI map-asset commands, `WorldMapViewer.svelte` and a focused rendering repair sheet/native action bindings, relevant embedded help content, design/acceptance documents and this plan. Read `antiAIslop.md` before frontend work.
 **What:** Turn the diagnosis/import backend into a complete remedy with matching desktop and CLI behavior:
 
@@ -276,6 +276,12 @@ No Verify command below runs a test suite. Essential regressions may be added on
 **Batch:** C — P18.18–P18.19.
 **Commit:** `P18.19: repair map assets and verify affected terrain`
 **Acceptance evidence:** Deliberately remove a disposable fixture's map resource, import a mismatched source, reverse two conflicting packs and invalidate affected tiles. For each case, desktop and CLI recommend a relevant action, it restores the named block's expected appearance, and unchanged good blocks remain good. Offline/cancelled/unsatisfied actions do not claim success. A diagnostic report alone does not close any repair acceptance row.
+
+**Implementation:** Added the bounded Java map rendering sheet and matching headless repair/rebuild/selection/restore/report-export commands. Checks reuse adopted resources and a consistent saved snapshot; mutations re-render the last inspected area, compare classified before/after failures and validate/adopt coherent terrain artifacts. Only resolved failures in the same saved scope/binding can yield `repaired`; partial, unsupported, input-required and failed/cancelled outcomes remain explicit. Source selection keeps a compatible previous receipt, and revision guards reject stale requests. Desktop transfer captures the host, validates the native checksum and cancels on close/switch. Unsupported runtime exporter/context cases remain P18.20 limitations. No tests or release actions ran. Essential success-boundary regression source was added and compiled only; expected controlled runtime below two seconds.
+
+**Agent checks:** The full permitted Verify command passed, with only existing agent/Svelte/build warnings. Native-library Clippy, native formatting, generated API consistency and `cargo check -p msc-application --test map_assets_repair` also passed. The last command compiles regression source without running tests.
+
+**Owner acceptance pending:** Matching source appearance, wrong-release rejection, conflicting pack order, invalid affected terrain, rollback, offline/cancel/host-switch behavior, camera/player continuity, baseline maps and Windows/macOS/remote checks remain the owner's live verification. See `world-map-assets-acceptance.md`; a report alone closes no rendering gate.
 
 ### P18.20 — Complete recovery for custom loaders and code-rendered blocks
 

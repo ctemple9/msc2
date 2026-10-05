@@ -144,6 +144,8 @@ pub struct Report {
     pub area: Area,
     pub operation_id: String,
     pub outcome: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repair: Option<RepairEvidence>,
     pub visual_acceptance: String,
     pub scope: String,
     pub inspected_blocks: u64,
@@ -156,6 +158,17 @@ pub struct Report {
     pub omitted_issues: u64,
     pub omitted_samples: u64,
     pub sources: Vec<SourceEvidence>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepairEvidence {
+    pub before_operation_id: String,
+    pub source_generation_id: String,
+    pub target_generation_id: String,
+    pub same_saved_area: bool,
+    pub before_counts: BTreeMap<Classification, u64>,
+    pub after_counts: BTreeMap<Classification, u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

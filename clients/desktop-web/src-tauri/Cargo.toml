@@ -18,6 +18,7 @@ tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-notification = "2"
 msc-infrastructure = { path = "../../../crates/msc-infrastructure" }
+msc-domain = { path = "../../../crates/msc-domain" }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 ed25519-dalek = "2"
 serde = { version = "1", features = ["derive"] }

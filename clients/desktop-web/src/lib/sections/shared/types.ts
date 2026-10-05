@@ -9,6 +9,9 @@ export type ComponentState = 'installed' | 'missing' | 'unresolved' | 'disabled'
 
 /** The screen layer uses this adapter to keep workflows independent of Tauri APIs. */
 export interface ScreenApi {
+  /** Captures the selected transport for a multi-request transfer. */
+  bindHost?(): ScreenApi;
+  cancelUpload?(id: string): Promise<void>;
   get<T>(path: string): Promise<T>;
   post<T>(path: string, body?: unknown): Promise<T>;
   /** Fetches binary resources through the authenticated host transport. */

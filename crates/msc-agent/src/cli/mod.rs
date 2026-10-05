@@ -3759,6 +3759,61 @@ async fn run_settings(common: CommonArgs, command: SettingsCommand) -> Result<()
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum MapAssetsCommand {
+    Repair {
+        #[arg(long)]
+        slot: String,
+        #[arg(long)]
+        expected_revision: String,
+        #[arg(long)]
+        dimension: String,
+        #[arg(long)]
+        no_wait: bool,
+    },
+    Rebuild {
+        #[arg(long)]
+        slot: String,
+        #[arg(long)]
+        expected_revision: String,
+        #[arg(long)]
+        dimension: String,
+        #[arg(long)]
+        no_wait: bool,
+    },
+    Selection {
+        #[arg(long)]
+        slot: String,
+    },
+    Select {
+        #[arg(long)]
+        slot: String,
+        #[arg(long)]
+        expected_revision: String,
+        #[arg(long)]
+        expected_selection_revision: String,
+        #[arg(long)]
+        dimension: String,
+        /// Selected pack IDs, in low-to-high priority order. Omit to disable all packs.
+        #[arg(long, num_args=1..)]
+        packs: Vec<String>,
+        /// Complete mod layer order, low-to-high priority; omit to preserve unknown order.
+        #[arg(long, num_args=1..)]
+        mod_order: Option<Vec<String>>,
+        #[arg(long)]
+        no_wait: bool,
+    },
+    Restore {
+        #[arg(long)]
+        slot: String,
+        #[arg(long)]
+        expected_revision: String,
+        #[arg(long)]
+        dimension: String,
+        #[arg(long)]
+        generation: String,
+        #[arg(long)]
+        no_wait: bool,
+    },
+
     Import {
         bundle: PathBuf,
         #[arg(long)]
@@ -3777,6 +3832,9 @@ pub enum MapAssetsCommand {
     Report {
         #[arg(long)]
         slot: String,
+        /// Export the redacted report to a new local file.
+        #[arg(long)]
+        output: Option<PathBuf>,
     },
     Rendering {
         #[arg(long)]
@@ -3822,7 +3880,12 @@ async fn run_map_assets(
         .ok_or_else(|| CliError::usage("Select an active server before inspecting map assets."))?;
     let slot = match &command {
         MapAssetsCommand::Status { slot }
-        | MapAssetsCommand::Report { slot }
+        | MapAssetsCommand::Report { slot, .. }
+        | MapAssetsCommand::Repair { slot, .. }
+        | MapAssetsCommand::Rebuild { slot, .. }
+        | MapAssetsCommand::Selection { slot }
+        | MapAssetsCommand::Select { slot, .. }
+        | MapAssetsCommand::Restore { slot, .. }
         | MapAssetsCommand::Check { slot, .. }
         | MapAssetsCommand::Prepare { slot, .. }
         | MapAssetsCommand::Rendering { slot, .. }
@@ -3832,6 +3895,11 @@ async fn run_map_assets(
         return Err(CliError::usage("--slot must be a world slot UUID."));
     }
     let base = format!("/v1/worlds/{slot}/map-assets");
+    let preparation_action = match &command {
+        MapAssetsCommand::Repair { .. } => "repair",
+        MapAssetsCommand::Rebuild { .. } => "rebuild",
+        _ => "prepare",
+    };
     match command {
         MapAssetsCommand::Import {
             bundle,
@@ -3932,23 +4000,101 @@ async fn run_map_assets(
                 .get_json(&format!("{base}/report?serverId={server}"))
                 .await?;
             print_json(&report)?;
-            if report.outcome != "ready" {
+            if report.operation_id != started.operation_id
+                || !matches!(report.outcome.as_str(), "ready" | "repaired")
+            {
                 return Err(CliError::usage(
                     "Imported resources still require input. Read the affected-area report; no complete repair was claimed.",
                 ));
             }
             Ok(())
         }
-        MapAssetsCommand::Status { .. } | MapAssetsCommand::Report { .. } => {
-            let action = if matches!(command, MapAssetsCommand::Status { .. }) {
-                "status"
-            } else {
-                "report"
+        MapAssetsCommand::Status { .. }
+        | MapAssetsCommand::Selection { .. }
+        | MapAssetsCommand::Report { .. } => {
+            let action = match &command {
+                MapAssetsCommand::Status { .. } => "status",
+                MapAssetsCommand::Selection { .. } => "selection",
+                _ => "report",
             };
             let value: serde_json::Value = client
                 .get_json(&format!("{base}/{action}?serverId={server}"))
                 .await?;
+            if let MapAssetsCommand::Report {
+                output: Some(path), ..
+            } = command
+            {
+                use std::io::Write;
+                let mut file = std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(path)
+                    .map_err(|_| {
+                        CliError::usage(
+                            "Choose a new report filename; existing files are preserved.",
+                        )
+                    })?;
+                file.write_all(
+                    serde_json::to_string_pretty(&value)
+                        .map_err(|_| CliError::internal("Report encoding failed."))?
+                        .as_bytes(),
+                )
+                .and_then(|_| file.sync_all())
+                .map_err(|_| CliError::internal("Could not finish the report export."))?;
+            }
             print_json(&value)
+        }
+        MapAssetsCommand::Select {
+            expected_revision,
+            expected_selection_revision,
+            dimension,
+            packs,
+            mod_order,
+            no_wait,
+            ..
+        } => {
+            let started: msc_api::dto::MapAssetsCheckStartedDto = client
+                .post_json(
+                    &format!("{base}/selection"),
+                    &msc_api::dto::MapAssetsSelectionRequestDto {
+                        server_id: server.into(),
+                        expected_revision,
+                        expected_selection_revision,
+                        dimension,
+                        area: None,
+                        selected_packs: packs,
+                        mod_order,
+                    },
+                )
+                .await?;
+            if no_wait {
+                return print_json(&started);
+            }
+            finish_map_repair(client, &base, server, &started.operation_id, common.json).await
+        }
+        MapAssetsCommand::Restore {
+            expected_revision,
+            dimension,
+            generation,
+            no_wait,
+            ..
+        } => {
+            let started: msc_api::dto::MapAssetsCheckStartedDto = client
+                .post_json(
+                    &format!("{base}/restore"),
+                    &msc_api::dto::MapAssetsRestoreRequestDto {
+                        server_id: server.into(),
+                        expected_revision,
+                        dimension,
+                        area: None,
+                        generation,
+                    },
+                )
+                .await?;
+            if no_wait {
+                return print_json(&started);
+            }
+            finish_map_repair(client, &base, server, &started.operation_id, common.json).await
         }
         MapAssetsCommand::Rendering { dimension, .. } => {
             let query = format!(
@@ -3966,10 +4112,22 @@ async fn run_map_assets(
             dimension,
             no_wait,
             ..
+        }
+        | MapAssetsCommand::Repair {
+            expected_revision,
+            dimension,
+            no_wait,
+            ..
+        }
+        | MapAssetsCommand::Rebuild {
+            expected_revision,
+            dimension,
+            no_wait,
+            ..
         } => {
             let started: msc_api::dto::MapAssetsCheckStartedDto = client
                 .post_json(
-                    &format!("{base}/prepare"),
+                    &format!("{base}/{preparation_action}"),
                     &msc_api::dto::MapAssetsPrepareRequestDto {
                         server_id: server.into(),
                         expected_revision,
@@ -3986,7 +4144,9 @@ async fn run_map_assets(
                 .get_json(&format!("{base}/report?serverId={server}"))
                 .await?;
             print_json(&report)?;
-            if report.outcome != "ready" {
+            if report.operation_id != started.operation_id
+                || !matches!(report.outcome.as_str(), "ready" | "repaired")
+            {
                 return Err(CliError::usage(
                     "Preparation retained unresolved issues; inspect the scoped report and required client sources. No complete repair is claimed.",
                 ));
@@ -4030,7 +4190,7 @@ async fn run_map_assets(
                     .get_json(&format!("{base}/report?serverId={server}"))
                     .await?;
                 print_json(&report)?;
-                if report.outcome != "checked" {
+                if report.operation_id != started.operation_id || report.outcome != "checked" {
                     return Err(CliError::usage(
                         "Inspection found rendering/input issues. Read the scoped map-assets report; no repair was claimed.",
                     ));
@@ -4039,6 +4199,27 @@ async fn run_map_assets(
             Ok(())
         }
     }
+}
+
+async fn finish_map_repair(
+    client: &ApiClient,
+    base: &str,
+    server: &str,
+    operation: &str,
+    json: bool,
+) -> Result<(), CliError> {
+    wait_operation(client, operation, json, false).await?;
+    let report: msc_api::dto::MapAssetsReportDto = client
+        .get_json(&format!("{base}/report?serverId={server}"))
+        .await?;
+    print_json(&report)?;
+    if report.operation_id != operation || !matches!(report.outcome.as_str(), "ready" | "repaired")
+    {
+        return Err(CliError::usage(
+            "The affected-area report still requires input or capability. No complete repair was claimed.",
+        ));
+    }
+    Ok(())
 }
 
 async fn run_world(common: CommonArgs, command: WorldCommand) -> Result<(), CliError> {

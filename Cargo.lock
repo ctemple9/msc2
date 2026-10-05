@@ -956,6 +956,7 @@ dependencies = [
  "msc-platform-linux",
  "msc-platform-macos",
  "msc-platform-windows",
+ "png",
  "rand",
  "serde",
  "serde_json",

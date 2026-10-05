@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current work:** Cameron ran and visually confirmed the isolated P18.14a matching-client supplemental mesh proof on 2026-10-04; saved confirmation and screenshot hashes match the validated capture. P18.14 findings commit is preserved. P18.15 is implemented and awaiting Cameron's verification; Batch A implementation ends here. Broader production/platform/mod acceptance gates remain open.
+**Current work:** Cameron visually confirmed the isolated P18.14a proof on 2026-10-04. P18.15–P18.17 are implemented and awaiting Cameron's verification; Batch B ends at P18.17. Broader production/platform/mod acceptance gates remain open.
 
 ### P18.13 — Plan automatic modded map assets and successful repairs
 
@@ -169,7 +169,7 @@ No Verify command below runs a test suite. Essential regressions may be added on
 
 ### P18.15 — Add resource identity, safe inventory and useful diagnostics
 
-**Status:** Implemented; awaiting Cameron’s verification. Proof prerequisite confirmed on 2026-10-04. P18.16 has not started.
+**Status:** Implemented; awaiting Cameron’s verification. Proof prerequisite confirmed on 2026-10-04. P18.16–P18.17 are implemented pending owner verification.
 **Files:** New `crates/msc-domain/src/map_assets.rs` and exports; new application/infrastructure map-asset modules and their exports; Java map bridge, compatibility helper, DTOs and API schema/generated types; `crates/msc-agent/src/cli/mod.rs` for read-only reporting; focused regression sources only when essential; design/acceptance documents and this plan.
 **What:** Establish the shared foundation without changing which assets a working map renders:
 
@@ -214,7 +214,7 @@ No Verify command below runs a test suite. Essential regressions may be added on
 
 ### P18.17 — Adopt prepared resources without disrupting working maps
 
-**Status:** Planned; depends on P18.16; awaiting Cameron's plan review.
+**Status:** Implemented; awaiting Cameron’s verification. Owner visual/platform acceptance remains pending.
 **Files:** Java terrain bridge and compatibility module, map-asset application coordinator, chosen namespace renderer/adapter and pinned build/staging inputs from P18.14, viewer artifact handling only if required by the chosen format, DTO/capability/operation data; packaging helper delivery as needed; design/acceptance documents and this plan.
 **What:** Connect asset preparation to actual map rendering as one guarded operation:
 
@@ -229,7 +229,11 @@ No Verify command below runs a test suite. Essential regressions may be added on
 **Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-agent --bin msc && npm --prefix clients/desktop-web run check`
 **Batch:** B — P18.16–P18.17.
 **Commit:** `P18.17: adopt modded resources with guarded map generations`
-**Acceptance evidence:** A standard-model modded map now renders through the normal entry point with automatic assets. Paper/Tectonic and existing Bedrock rendering remain intact. Cancel/offline/provider failure preserves the scene, health/player polling continues, and retry reuses verified data. Changing a pack updates affected appearances without a server restart. Missing saved chunks remain distinguishable from asset failures.
+
+**Implementation:** Connected first-open and explicit preparation to exact resources, private namespace/save adaptation, cancellable per-binding tickets, saved tile/atlas validation and guarded scene/report adoption. Java artifacts carry pinned generations; the viewer retains its old scene, camera/depth/follow state and player polling while a replacement loads. Original-ID scoped diagnostics distinguish marked non-occluding fallbacks and missing saved chunks; snapshot/resource age and required sources remain explicit. Vanilla/Bedrock paths, helper recovery/overrides and build-only release packaging remain intact. See the P18.17 design/usage records for bounds and conservative atlas reuse.
+
+**Checks:** Required non-test format/Clippy/viewer checks pass with only pre-existing warnings. Focused infrastructure regression source compiles; tests were not run. Live standard-model/custom-dimension rendering, cancellation/provider failure, texture-change reuse, Paper/Tectonic/Bedrock preservation and supported desktop platform acceptance remain Cameron’s verification. New controlled coordinator/adapter regressions protect stale visible-scene adoption and namespace/culling/dependency risks absent from existing store/inspection coverage; expected combined runtime under two seconds. No release actions or workflow changes.
+**Required owner acceptance (not yet recorded):** A standard-model modded map now renders through the normal entry point with automatic assets. Paper/Tectonic and existing Bedrock rendering remain intact. Cancel/offline/provider failure preserves the scene, health/player polling continues, and retry reuses verified data. Changing a pack updates affected appearances without a server restart. Missing saved chunks remain distinguishable from asset failures.
 
 ### P18.18 — Import matching client resources locally and across hosts
 

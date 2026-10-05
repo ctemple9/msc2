@@ -53,12 +53,121 @@
     }
   },
   "paths": {
+  "/v1/worlds/{slot_id}/map-assets/prepare": {
+    "post": {
+      "summary": "Prepare guarded saved map resources",
+      "operationId": "prepareWorldMapAssets",
+      "x-permission-category": "worlds",
+      "x-notes": "Exact optional resources prepare in cancellable operations; prior scenes survive failure. Active Java slots only for adoption. Visual acceptance and scoped diagnostics remain separate.",
+      "parameters": [
+        {
+          "name": "slot_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "responses": {
+        "400": {
+          "description": "Invalid map-resource request or bounds"
+        },
+        "200": {
+          "description": "Bound read-only map-resource result",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MapAssetsCheckStartedDTO"
+              }
+            }
+          }
+        },
+        "403": {
+          "description": "Worlds permission required"
+        },
+        "409": {
+          "description": "Binding changed, unsupported scope, consistent snapshot required, or bounded inspection refused"
+        },
+        "404": {
+          "description": "Slot or bound report is unavailable"
+        }
+      },
+      "requestBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/MapAssetsPrepareRequestDTO"
+            }
+          }
+        }
+      }
+    }
+  },
+  "/v1/worlds/{slot_id}/map-assets/rendering": {
+    "get": {
+      "summary": "Read saved rendering generation and preparation status",
+      "operationId": "getWorldMapRendering",
+      "x-permission-category": "worlds",
+      "x-notes": "Exact optional resources prepare in cancellable operations; prior scenes survive failure. Active Java slots only for adoption. Visual acceptance and scoped diagnostics remain separate.",
+      "parameters": [
+        {
+          "name": "slot_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        {
+          "name": "serverId",
+          "in": "query",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "dimension",
+          "in": "query",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "responses": {
+        "200": {
+          "description": "Bound read-only map-resource result",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MapRenderingStatusDTO"
+              }
+            }
+          }
+        },
+        "403": {
+          "description": "Worlds permission required"
+        },
+        "409": {
+          "description": "Binding changed, unsupported scope, consistent snapshot required, or bounded inspection refused"
+        },
+        "404": {
+          "description": "Slot or bound report is unavailable"
+        }
+      }
+    }
+  },
   "/v1/worlds/{slot_id}/map-assets/status": {
     "get": {
       "summary": "Status scoped Java map resource evidence",
       "operationId": "statusWorldMapAssets",
       "x-permission-category": "worlds",
-      "x-notes": "Read-only resource foundation. No downloads or renderer adoption. Reports retain original namespaces and describe only named saved bounds. Active live folders require a stopped server; archived slots can be checked while it runs. Check is operation-backed, cancellable, and revision-bound.",
+      "x-notes": "Bound inventory evidence. Use prepare for exact resource acquisition and guarded renderer adoption; rendering exposes live preparation and retained-scene age. Check remains a read-only scoped inspection.",
       "parameters": [
         {
           "name": "slot_id",
@@ -106,7 +215,7 @@
       "summary": "Report scoped Java map resource evidence",
       "operationId": "reportWorldMapAssets",
       "x-permission-category": "worlds",
-      "x-notes": "Read-only resource foundation. No downloads or renderer adoption. Reports retain original namespaces and describe only named saved bounds. Active live folders require a stopped server; archived slots can be checked while it runs. Check is operation-backed, cancellable, and revision-bound.",
+      "x-notes": "Bound inventory evidence. Use prepare for exact resource acquisition and guarded renderer adoption; rendering exposes live preparation and retained-scene age. Check remains a read-only scoped inspection.",
       "parameters": [
         {
           "name": "slot_id",
@@ -272,18 +381,73 @@
         "summary": "Fetch a bounded saved terrain artifact for an active world dimension",
         "operationId": "getWorldMapTerrainArtifact",
         "x-permission-category": "worlds",
-        "x-notes": "For Java, the agent privately launches bundled Vantage and permits manifest.json, terrain.vtexarr, and exact tiles/t.X.Z.vtile or tiles/lN.X.Z.vlr paths. For Bedrock Overworld, Nether, and End, it catalogs all saved 4x4-chunk tiles from one consistent world copy and renders a listed tile on demand. Each dimension has a separate tile catalog and texture array; arrays grow as tiles are rendered. Bedrock permits only manifest.json, terrain.vtexarr, and exact tiles/t.X.Z.vtile paths. Responses never include host paths or renderer tokens.",
+        "x-notes": "Java manifests return mscGenerationId; pin atlas and tile requests to it. Modded first-open queues exact preparation; while preparing without a candidate returns map_preparing with rendering status. Prior published generations remain available until their bounded idle leases retire.",
         "parameters": [
-          { "name": "dimension", "in": "query", "required": true, "schema": { "type": "string" } },
-          { "name": "path", "in": "query", "required": true, "schema": { "type": "string" } }
+          {
+            "name": "dimension",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "generation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "serverId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "responses": {
-          "200": { "description": "Terrain manifest, texture array, or tile bytes", "content": { "application/octet-stream": { "schema": { "type": "string", "format": "binary" } }, "application/json": { "schema": { "type": "object" } } } },
-          "400": { "description": "Artifact path is invalid" },
-          "403": { "description": "Worlds permission required" },
-          "404": { "description": "Dimension unknown or tile unavailable" },
-          "409": { "description": "No active world or no saved terrain for the dimension" },
-          "502": { "description": "Private terrain renderer unavailable" }
+          "200": {
+            "description": "Terrain manifest, texture array, or tile bytes",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Artifact path is invalid"
+          },
+          "403": {
+            "description": "Worlds permission required"
+          },
+          "404": {
+            "description": "Dimension unknown or tile unavailable"
+          },
+          "409": {
+            "description": "No active world or no saved terrain for the dimension"
+          },
+          "502": {
+            "description": "Private terrain renderer unavailable"
+          }
         }
       }
     },
@@ -7434,6 +7598,168 @@
   },
   "components": {
     "schemas": {
+  "MapAssetsPrepareRequestDTO": {
+    "type": "object",
+    "required": [
+      "serverId",
+      "expectedRevision",
+      "dimension"
+    ],
+    "properties": {
+      "serverId": {
+        "type": "string"
+      },
+      "expectedRevision": {
+        "type": "string"
+      },
+      "dimension": {
+        "type": "string"
+      },
+      "area": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/MapAssetsAreaDTO"
+          }
+        ],
+        "nullable": true
+      }
+    },
+    "additionalProperties": false
+  },
+  "MapRenderingStatusDTO": {
+    "type": "object",
+    "required": [
+      "state",
+      "note",
+      "operationId",
+      "generationId",
+      "resourceGenerationId",
+      "snapshotId",
+      "reasonCode",
+      "snapshotAtUnix",
+      "resourcesAtUnix",
+      "stale",
+      "retryable",
+      "affectedTiles",
+      "unchangedTiles",
+      "requiredSources",
+      "prerequisites"
+    ],
+    "properties": {
+      "state": {
+        "type": "string"
+      },
+      "note": {
+        "type": "string"
+      },
+      "operationId": {
+        "type": "string",
+        "nullable": true
+      },
+      "generationId": {
+        "type": "string",
+        "nullable": true
+      },
+      "resourceGenerationId": {
+        "type": "string",
+        "nullable": true
+      },
+      "snapshotId": {
+        "type": "string",
+        "nullable": true
+      },
+      "reasonCode": {
+        "type": "string",
+        "nullable": true
+      },
+      "snapshotAtUnix": {
+        "type": "integer",
+        "format": "uint64",
+        "nullable": true
+      },
+      "resourcesAtUnix": {
+        "type": "integer",
+        "format": "uint64",
+        "nullable": true
+      },
+      "stale": {
+        "type": "boolean"
+      },
+      "retryable": {
+        "type": "boolean"
+      },
+      "affectedTiles": {
+        "type": "integer",
+        "format": "uint64"
+      },
+      "unchangedTiles": {
+        "type": "integer",
+        "format": "uint64"
+      },
+      "requiredSources": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/MapRequiredClientSourceDTO"
+        }
+      },
+      "prerequisites": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "MapRequiredClientSourceDTO": {
+    "type": "object",
+    "required": [
+      "identity",
+      "file",
+      "code",
+      "provider",
+      "projectId",
+      "releaseId",
+      "fileId",
+      "hashes",
+      "bytes"
+    ],
+    "properties": {
+      "identity": {
+        "type": "string"
+      },
+      "file": {
+        "type": "string"
+      },
+      "code": {
+        "type": "string"
+      },
+      "provider": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": "string",
+        "nullable": true
+      },
+      "releaseId": {
+        "type": "string",
+        "nullable": true
+      },
+      "fileId": {
+        "type": "string",
+        "nullable": true
+      },
+      "hashes": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "string"
+        }
+      },
+      "bytes": {
+        "type": "integer",
+        "format": "uint64"
+      }
+    }
+  },
   "MapAssetsAreaDTO": {
     "type": "object",
     "additionalProperties": false,

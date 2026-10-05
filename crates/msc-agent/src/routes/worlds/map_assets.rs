@@ -1,4 +1,4 @@
-//! Read-only map-resource actions. They do not acquire assets or change terrain rendering.
+//! Worlds-authorized inspection, exact preparation and guarded saved-map adoption.
 use super::*;
 use axum::extract::Query;
 use msc_api::dto::{MapAssetsCapabilitiesDto, MapAssetsCheckRequestDto, MapAssetsCheckStartedDto};
@@ -24,7 +24,10 @@ impl Default for AssetsState {
     }
 }
 impl AssetsState {
-    fn store(&self) -> std::io::Result<Store> {
+    pub(super) fn worker(&self) -> Option<tokio::sync::OwnedSemaphorePermit> {
+        self.0.workers.clone().try_acquire_owned().ok()
+    }
+    pub(super) fn store(&self) -> std::io::Result<Store> {
         let mut store = self
             .0
             .store
@@ -44,7 +47,7 @@ pub(super) struct AssetsQuery {
     server_id: String,
 }
 fn actions() -> Vec<String> {
-    ["status", "report", "check"]
+    ["status", "report", "check", "prepare", "rendering"]
         .iter()
         .map(|s| format!("worlds.map_assets.{s}.v1"))
         .collect()
@@ -60,7 +63,7 @@ pub(super) async fn capabilities(
         actions: actions(),
         resource_formats: vec!["msc-resource-inventory-1".into()],
         capture_formats: vec![],
-        renderer_adoption: false,
+        renderer_adoption: true,
     })
     .into_response()
 }
@@ -126,7 +129,9 @@ pub(super) async fn status(
         let context = bound(&task, &credential, &query.server_id, &slot)?;
         let store = task.map_assets.store().map_err(|e| asset_error(&e))?;
         let pointer = store.pointer(&context.binding).map_err(|e| asset_error(&e))?;
-        let report_available = pointer.is_some();
+        let retained=map_terrain::retained_report(&task,&context);
+        let report_available = pointer.is_some() || retained.is_some();
+        let renderer_adopted=retained.is_some() || pointer.as_ref().and_then(|p|store.lease(&p.current).ok()).and_then(|l|l.report).is_some_and(|r|r.geometry_generation_id.is_some());
         Ok::<_, Response>(Status {
             schema_version: 1,
             binding: context.binding,
@@ -134,9 +139,9 @@ pub(super) async fn status(
             input_generation: pointer.as_ref().map(|p| p.current.clone()),
             previous_generation: pointer.and_then(|p| p.previous),
             report_available,
-            renderer_adopted: false,
+            renderer_adopted,
             actions: actions(),
-            note: "Reports describe only their saved snapshot and checked area. Client selection is unknown; resource acquisition and renderer adoption are not implemented by these actions.".into(),
+            note: "Reports describe only their saved snapshot and checked area. Retained renderer reports keep their original binding and saved snapshot; rendering exposes their age and stale state. Use prepare for exact resources and guarded saved-map adoption; unresolved client selection remains an input requirement.".into(),
         })
     }).await;
     match result {
@@ -162,14 +167,19 @@ pub(super) async fn report(
         let store = task.map_assets.store().map_err(|e| asset_error(&e))?;
         let pointer = store
             .pointer(&context.binding)
-            .map_err(|e| asset_error(&e))?
-            .ok_or_else(|| {
-                error_response(
-                    StatusCode::NOT_FOUND,
-                    "map_assets_report_unavailable",
-                    "No report exists for this world binding. Run a scoped check.",
-                )
-            })?;
+            .map_err(|e| asset_error(&e))?;
+        if pointer.is_none()
+            && let Some(retained) = map_terrain::retained_report(&task, &context)
+        {
+            return Ok(retained);
+        }
+        let pointer = pointer.ok_or_else(|| {
+            error_response(
+                StatusCode::NOT_FOUND,
+                "map_assets_report_unavailable",
+                "No report exists for this world binding. Run a scoped check.",
+            )
+        })?;
         let lease = store.lease(&pointer.current).map_err(|e| asset_error(&e))?;
         let report = lease.report.ok_or_else(|| {
             error_response(
@@ -387,4 +397,113 @@ pub(super) async fn check(
         binding,
     })
     .into_response()
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(super) struct RenderingQuery {
+    server_id: String,
+    dimension: String,
+}
+#[allow(clippy::result_large_err)]
+pub(super) async fn rendering(
+    State(state): State<WorldsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    AxumPath(slot): AxumPath<String>,
+    Query(query): Query<RenderingQuery>,
+) -> Response {
+    match tokio::task::spawn_blocking(move || {
+        let context = bound(&state, &credential, &query.server_id, &slot)?;
+        if !domain::valid_resource_id(&query.dimension) || !query.dimension.contains(':') {
+            return Err(invalid_body(
+                "invalid_dimension",
+                "Supply the original namespaced dimension.",
+            ));
+        }
+        Ok::<_, Response>(map_terrain::rendering_status(
+            &state,
+            &context,
+            &query.dimension,
+        ))
+    })
+    .await
+    {
+        Ok(Ok(status)) => Json(status).into_response(),
+        Ok(Err(response)) => response,
+        _ => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "map_assets_worker_failed",
+            "Map rendering status is unavailable.",
+        ),
+    }
+}
+#[allow(clippy::result_large_err)]
+pub(super) async fn prepare(
+    State(state): State<WorldsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    AxumPath(slot): AxumPath<String>,
+    payload: Result<Json<msc_api::dto::MapAssetsPrepareRequestDto>, JsonRejection>,
+) -> Response {
+    let request = match payload {
+        Ok(Json(r)) => r,
+        Err(_) => {
+            return invalid_body(
+                "invalid_map_assets_request",
+                "Supply serverId, expectedRevision, dimension and optional scoped area.",
+            );
+        }
+    };
+    let server = request.server_id.clone();
+    let task = state.clone();
+    let context = match tokio::task::spawn_blocking(move || {
+        bound(&task, &credential, &server, &slot)
+    })
+    .await
+    {
+        Ok(Ok(c)) => c,
+        Ok(Err(r)) => return r,
+        _ => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "map_assets_worker_failed",
+                "Map binding is unavailable.",
+            );
+        }
+    };
+    if request.area.as_ref().is_some_and(|a| a.validate().is_err()) {
+        return invalid_body("invalid_area", "Use at most 16 chunks and 262,144 blocks.");
+    }
+    if !domain::valid_resource_id(&request.dimension) || !request.dimension.contains(':') {
+        return invalid_body(
+            "invalid_dimension",
+            "Supply the original namespaced dimension.",
+        );
+    }
+    if context.binding.revision != request.expected_revision {
+        return error_response(
+            StatusCode::CONFLICT,
+            "binding_changed",
+            "Fetch status and retry using its current revision.",
+        );
+    }
+    if !matches!(
+        context.world,
+        msc_infrastructure::map_assets::saved_terrain::WorldSource::Directory(_)
+    ) {
+        return error_response(
+            StatusCode::CONFLICT,
+            "active_world_required",
+            "Select this slot as the active saved world before preparing its renderer.",
+        );
+    }
+    let binding = context.binding.clone();
+    match map_terrain::prepare_resources(state, context, request.dimension, request.area, true) {
+        Ok(operation_id) => Json(MapAssetsCheckStartedDto {
+            result: "prepare_started".into(),
+            operation_id,
+            binding,
+        })
+        .into_response(),
+        Err((code, message)) => error_response(StatusCode::CONFLICT, code, &message),
+    }
 }

@@ -129,6 +129,14 @@ pub fn router(state: WorldsRoutesState) -> Router {
             get(map_assets::report),
         )
         .route("/worlds/:slot_id/map-assets/check", post(map_assets::check))
+        .route(
+            "/worlds/:slot_id/map-assets/prepare",
+            post(map_assets::prepare),
+        )
+        .route(
+            "/worlds/:slot_id/map-assets/rendering",
+            get(map_assets::rendering),
+        )
         .route("/worlds/map/dimensions", get(map_dimensions))
         .route("/worlds/map/terrain", get(map_terrain::artifact))
         .route("/worlds/map/refresh", post(refresh_map))

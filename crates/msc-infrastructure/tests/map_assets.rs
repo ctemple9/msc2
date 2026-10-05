@@ -349,3 +349,158 @@ fn exact_download_refuses_mismatch_and_reuses_verified_bytes_without_network() {
     assert!(acquired.exists());
     fs::remove_dir_all(root).unwrap();
 }
+
+// Essential: store pointer tests cannot catch late renderer jobs replacing the
+// visible scene. Explicit completions cover this without helpers, clocks or I/O.
+#[test]
+fn renderer_coordinator_retains_scene_on_failure_cancel_and_stale_completion() {
+    use msc_infrastructure::map_assets::adoption::Coordinator;
+    use std::sync::Arc;
+    let mut coordinator = Coordinator::<String>::default();
+    let first = coordinator
+        .begin("host-a/slot/dimension", "r1", "first", false)
+        .unwrap();
+    let usable = Arc::new("usable".to_string());
+    assert!(coordinator.finish(&first, Some(usable.clone()), "ready"));
+    assert!(
+        coordinator
+            .begin("host-a/slot/dimension", "r1", "duplicate", false)
+            .is_none()
+    );
+    let old = coordinator
+        .begin("host-a/slot/dimension", "r2", "old", false)
+        .unwrap();
+    let next = coordinator
+        .begin("host-a/slot/dimension", "r3", "new", false)
+        .unwrap();
+    assert!(old.cancelled());
+    assert!(!coordinator.finish(&old, Some(Arc::new("stale".into())), "ready"));
+    assert!(coordinator.finish(&next, None, "failed"));
+    assert!(Arc::ptr_eq(
+        coordinator.entries["host-a/slot/dimension"]
+            .current
+            .as_ref()
+            .unwrap(),
+        &usable
+    ));
+    let cancelled = coordinator
+        .begin("host-a/slot/dimension", "r4", "cancel", false)
+        .unwrap();
+    coordinator.cancel("host-a/slot/dimension");
+    assert!(!coordinator.finish(&cancelled, Some(Arc::new("cancelled".into())), "ready"));
+    assert!(coordinator.abort(&cancelled, "cancelled"));
+    let host_b = coordinator
+        .begin("host-b/slot/dimension", "r1", "other-host", false)
+        .unwrap();
+    assert!(coordinator.finish(&host_b, Some(Arc::new("other".into())), "ready"));
+    assert!(Arc::ptr_eq(
+        coordinator.entries["host-a/slot/dimension"]
+            .current
+            .as_ref()
+            .unwrap(),
+        &usable
+    ));
+}
+
+// Essential: namespace flattening and invented opacity can hide real terrain.
+// The existing inspection regression does not exercise the production adapter
+// or prove that changing a parent texture invalidates dependent palettes.
+#[test]
+fn private_adapter_keeps_namespaces_non_occlusion_and_parent_texture_dependencies() {
+    use msc_infrastructure::map_assets::adapter::{Adapter, block_id, document, reference};
+    assert_ne!(
+        reference("alpha:block/panel").unwrap(),
+        reference("beta:block/panel").unwrap()
+    );
+    assert_eq!(reference("minecraft:block/stone").unwrap(), "block/stone");
+    assert!(block_id("alpha:panel").unwrap().ends_with("_glass"));
+    let rewritten=document("assets/alpha/models/block/panel.json",json!({"parent":"beta:block/base","textures":{"surface":"alpha:block/panel"},"elements":[{"faces":{"north":{"texture":"#surface"}}}],"payload":{"id":"alpha:original"}})).unwrap();
+    assert_eq!(rewritten["parent"], reference("beta:block/base").unwrap());
+    assert_eq!(
+        rewritten["textures"]["surface"],
+        reference("alpha:block/panel").unwrap()
+    );
+    assert_eq!(
+        rewritten["elements"][0]["faces"]["north"]["texture"],
+        "#surface"
+    );
+    assert_eq!(rewritten["payload"]["id"], "alpha:original");
+    let mut inventory = Inventory::default();
+    inventory.resources.insert(
+        "assets/alpha/blockstates/panel.json".into(),
+        resource(json!({"variants":{"facing=north":{"model":"alpha:block/panel"}}})),
+    );
+    inventory.resources.insert(
+        "assets/alpha/models/block/panel.json".into(),
+        resource(json!({"parent":"beta:block/base"})),
+    );
+    inventory.resources.insert("assets/beta/models/block/base.json".into(),resource(json!({"textures":{"surface":"beta:block/base"},"elements":[{"from":[0,0,0],"to":[16,16,16],"faces":{"north":{"texture":"#surface"}}}]})));
+    inventory.resources.insert(
+        "assets/beta/textures/block/base.png".into(),
+        Resource {
+            sha256: hash(b"first-texture"),
+            ..Default::default()
+        },
+    );
+    let state = BTreeMap::from([("facing".into(), "north".into())]);
+    let first = Adapter {
+        inventory: &inventory,
+    }
+    .palette("alpha:panel", &state, false)
+    .unwrap();
+    assert!(first.model_resolved);
+    let contextual = Adapter {
+        inventory: &inventory,
+    }
+    .palette("alpha:panel", &state, true)
+    .unwrap();
+    assert!(!contextual.model_resolved);
+    assert!(contextual.renderer_id.contains("/fallback/"));
+    inventory.resources.insert(
+        "assets/unrelated/models/block/other.json".into(),
+        resource(json!({"elements":[]})),
+    );
+    assert_eq!(
+        first.fingerprint,
+        Adapter {
+            inventory: &inventory
+        }
+        .palette("alpha:panel", &state, false)
+        .unwrap()
+        .fingerprint
+    );
+    inventory
+        .resources
+        .get_mut("assets/beta/textures/block/base.png")
+        .unwrap()
+        .sha256 = hash(b"changed-texture");
+    assert_ne!(
+        first.fingerprint,
+        Adapter {
+            inventory: &inventory
+        }
+        .palette("alpha:panel", &state, false)
+        .unwrap()
+        .fingerprint
+    );
+    let missing = Adapter {
+        inventory: &inventory,
+    }
+    .palette("missing:block", &BTreeMap::new(), false)
+    .unwrap();
+    assert!(!missing.model_resolved);
+    assert!(missing.renderer_id.ends_with("_glass"));
+    assert!(missing.renderer_id.contains("/fallback/"));
+    inventory.resources.insert(
+        "assets/alpha/models/block/panel.json".into(),
+        resource(json!({"elements":[]})),
+    );
+    let empty = Adapter {
+        inventory: &inventory,
+    }
+    .palette("alpha:panel", &state, false)
+    .unwrap();
+    assert!(!empty.model_resolved);
+    assert!(empty.classifications.contains(&C::IntentionalEmpty));
+    assert!(!empty.renderer_id.contains("/fallback/"));
+}

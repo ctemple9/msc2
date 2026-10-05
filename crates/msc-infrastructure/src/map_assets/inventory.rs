@@ -136,6 +136,7 @@ impl Inventory {
                     return Err(error("unsafe_archive_path"));
                 }
                 if !name.starts_with("assets/")
+                    && !name.starts_with("data/minecraft/worldgen/biome/")
                     && name != "pack.mcmeta"
                     && !name.contains("/assets/")
                 {
@@ -375,7 +376,11 @@ impl Inventory {
         Ok(())
     }
     fn add_resource(&mut self, name: &str, id: &str, raw: &[u8]) -> io::Result<()> {
-        if !name.starts_with("assets/") && name != "pack.mcmeta" && !name.contains("/assets/") {
+        if !name.starts_with("assets/")
+            && !name.starts_with("data/minecraft/worldgen/biome/")
+            && name != "pack.mcmeta"
+            && !name.contains("/assets/")
+        {
             return Ok(());
         }
         let sha = hash(raw);

@@ -3767,6 +3767,22 @@ pub enum MapAssetsCommand {
         #[arg(long)]
         slot: String,
     },
+    Rendering {
+        #[arg(long)]
+        slot: String,
+        #[arg(long)]
+        dimension: String,
+    },
+    Prepare {
+        #[arg(long)]
+        slot: String,
+        #[arg(long)]
+        expected_revision: String,
+        #[arg(long)]
+        dimension: String,
+        #[arg(long)]
+        no_wait: bool,
+    },
     Check {
         #[arg(long)]
         slot: String,
@@ -3796,7 +3812,9 @@ async fn run_map_assets(
     let slot = match &command {
         MapAssetsCommand::Status { slot }
         | MapAssetsCommand::Report { slot }
-        | MapAssetsCommand::Check { slot, .. } => slot,
+        | MapAssetsCommand::Check { slot, .. }
+        | MapAssetsCommand::Prepare { slot, .. }
+        | MapAssetsCommand::Rendering { slot, .. } => slot,
     };
     if uuid::Uuid::parse_str(slot).is_err() {
         return Err(CliError::usage("--slot must be a world slot UUID."));
@@ -3813,6 +3831,49 @@ async fn run_map_assets(
                 .get_json(&format!("{base}/{action}?serverId={server}"))
                 .await?;
             print_json(&value)
+        }
+        MapAssetsCommand::Rendering { dimension, .. } => {
+            let query = format!(
+                "serverId={}&dimension={}",
+                encode_uri_component(server),
+                encode_uri_component(&dimension)
+            );
+            let value: serde_json::Value = client
+                .get_json(&format!("{base}/rendering?{query}"))
+                .await?;
+            print_json(&value)
+        }
+        MapAssetsCommand::Prepare {
+            expected_revision,
+            dimension,
+            no_wait,
+            ..
+        } => {
+            let started: msc_api::dto::MapAssetsCheckStartedDto = client
+                .post_json(
+                    &format!("{base}/prepare"),
+                    &msc_api::dto::MapAssetsPrepareRequestDto {
+                        server_id: server.into(),
+                        expected_revision,
+                        dimension,
+                        area: None,
+                    },
+                )
+                .await?;
+            if no_wait {
+                return print_json(&started);
+            }
+            wait_operation(client, &started.operation_id, common.json, false).await?;
+            let report: msc_api::dto::MapAssetsReportDto = client
+                .get_json(&format!("{base}/report?serverId={server}"))
+                .await?;
+            print_json(&report)?;
+            if report.outcome != "ready" {
+                return Err(CliError::usage(
+                    "Preparation retained unresolved issues; inspect the scoped report and required client sources. No complete repair is claimed.",
+                ));
+            }
+            Ok(())
         }
         MapAssetsCommand::Check {
             expected_revision,

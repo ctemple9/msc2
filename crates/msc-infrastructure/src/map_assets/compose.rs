@@ -39,12 +39,11 @@ impl Stack {
             .resources
             .get("pack.mcmeta")
             .and_then(|r| r.json.clone());
-        if metadata.as_ref().is_some_and(|_| {
-            layer
-                .resources
-                .get("pack.mcmeta")
-                .is_some_and(|r| r.invalid)
-        }) {
+        if layer
+            .resources
+            .get("pack.mcmeta")
+            .is_some_and(|r| r.invalid)
+        {
             return Err(error("invalid_pack_metadata"));
         }
         if let Some(meta) = &metadata
@@ -117,7 +116,9 @@ impl Stack {
         let mut resources = layer.resources;
         let names = resources
             .keys()
-            .filter(|name| name.starts_with("assets/"))
+            .filter(|name| {
+                name.starts_with("assets/") || name.starts_with("data/minecraft/worldgen/biome/")
+            })
             .cloned()
             .collect::<Vec<_>>();
         for name in names {

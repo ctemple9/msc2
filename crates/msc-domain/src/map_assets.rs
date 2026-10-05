@@ -203,3 +203,37 @@ pub fn resource_path(kind: &str, id: &str, suffix: &str) -> Option<String> {
     let (namespace, path) = id.split_once(':').unwrap_or(("minecraft", id));
     Some(format!("assets/{namespace}/{kind}/{path}.{suffix}"))
 }
+
+/// Safe public requirements omit provider URLs, credentials and host paths.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RequiredClientSource {
+    pub identity: String,
+    pub file: String,
+    pub provider: String,
+    pub project_id: Option<String>,
+    pub release_id: Option<String>,
+    pub file_id: Option<String>,
+    pub hashes: BTreeMap<String, String>,
+    pub bytes: u64,
+    pub code: String,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RenderingStatus {
+    pub state: String,
+    pub operation_id: Option<String>,
+    pub generation_id: Option<String>,
+    pub resource_generation_id: Option<String>,
+    pub snapshot_id: Option<String>,
+    pub snapshot_at_unix: Option<u64>,
+    pub resources_at_unix: Option<u64>,
+    pub stale: bool,
+    pub retryable: bool,
+    pub reason_code: Option<String>,
+    pub required_sources: Vec<RequiredClientSource>,
+    pub prerequisites: Vec<String>,
+    pub affected_tiles: u64,
+    pub unchanged_tiles: u64,
+    pub note: String,
+}

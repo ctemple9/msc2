@@ -126,6 +126,20 @@ impl Store {
         report: &Report,
         cancel: &dyn Fn() -> bool,
     ) -> io::Result<()> {
+        self.publish_guarded(candidate, manifest, report, cancel, |temp, path| {
+            fs::rename(temp, path)
+        })
+    }
+    /// Expensive staging stays outside renderer coordination. The caller's short
+    /// guard rechecks its ticket and commits the final pointer and scene together.
+    pub fn publish_guarded(
+        &self,
+        candidate: &Candidate,
+        manifest: &ResourceManifest,
+        report: &Report,
+        cancel: &dyn Fn() -> bool,
+        commit: impl FnOnce(&Path, &Path) -> io::Result<()>,
+    ) -> io::Result<()> {
         let _guard = self.gate.lock().map_err(|_| error("store_unavailable"))?;
         poll(cancel)?;
         if candidate.store.root != self.root
@@ -170,7 +184,7 @@ impl Store {
         let bytes = serde_json::to_vec(&pointer).map_err(|_| error("serialization_failed"))?;
         write_new(&temp, &bytes)?;
         poll(cancel)?;
-        fs::rename(temp, path)?;
+        commit(&temp, &path)?;
         Ok(())
     }
     fn admit(&self, bytes: u64) -> io::Result<()> {

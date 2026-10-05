@@ -22,3 +22,15 @@ pub struct MapAssetsCapabilitiesDto {
     pub capture_formats: Vec<String>,
     pub renderer_adoption: bool,
 }
+
+pub use msc_domain::map_assets::{
+    RenderingStatus as MapRenderingStatusDto, RequiredClientSource as MapRequiredClientSourceDto,
+};
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MapAssetsPrepareRequestDto {
+    pub server_id: String,
+    pub expected_revision: String,
+    pub dimension: String,
+    pub area: Option<MapAssetsAreaDto>,
+}

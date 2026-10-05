@@ -1,5 +1,7 @@
 //! Bounded read-only inputs and a private immutable diagnostic-generation store.
 pub mod acquire;
+pub mod adapter;
+pub mod adoption;
 pub mod compose;
 pub mod inventory;
 pub mod resolver;

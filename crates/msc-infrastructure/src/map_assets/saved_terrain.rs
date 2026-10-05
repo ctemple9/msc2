@@ -21,6 +21,7 @@ pub struct Terrain {
     pub snapshot_id: String,
     pub chunks: u64,
 }
+#[derive(Clone)]
 pub enum WorldSource {
     Directory(PathBuf),
     Archive(PathBuf),
@@ -218,19 +219,32 @@ impl WorldSource {
                         for bx in (x * 16).max(area.min[0])..=(x * 16 + 15).min(area.max[0]) {
                             let position = [bx, y, bz];
                             let palette_state = match section_map.get(&y.div_euclid(16)) {
-                                Some(section) => block(section, bx, y, bz)?,
+                                Some(section) => palette_at(section, bx, y, bz)?,
                                 None => None,
                             };
                             let (id, state) = if let Some(palette) = palette_state {
-                                let id = palette
-                                    .get("Name")
-                                    .and_then(string)
+                                let fields = compound(palette);
+                                let id = string(palette)
+                                    .or_else(|| {
+                                        fields
+                                            .and_then(|f| {
+                                                f.get("Name")
+                                                    .or_else(|| f.get("id"))
+                                                    .or_else(|| f.get(""))
+                                            })
+                                            .and_then(string)
+                                    })
                                     .ok_or_else(|| error("invalid_palette_id"))?;
                                 if !msc_domain::map_assets::valid_resource_id(id) {
                                     return Err(error("invalid_palette_id"));
                                 }
                                 let mut state = BTreeMap::new();
-                                if let Some(props) = palette.get("Properties").and_then(compound) {
+                                if let Some(props) = fields
+                                    .and_then(|f| {
+                                        f.get("Properties").or_else(|| f.get("properties"))
+                                    })
+                                    .and_then(compound)
+                                {
                                     for (k, v) in props {
                                         state.insert(
                                             k.clone(),
@@ -239,6 +253,11 @@ impl WorldSource {
                                                 .into(),
                                         );
                                     }
+                                }
+                                if !fields.is_some_and(|f| f.contains_key("Name"))
+                                    && state.is_empty()
+                                {
+                                    state = modern_default_state(id);
                                 }
                                 (id.into(), state)
                             } else {
@@ -317,12 +336,34 @@ fn integer(value: &Value) -> Option<i32> {
         _ => None,
     }
 }
-fn block(
+/// Defaults encoded implicitly by modern vanilla palettes; do not invent mod properties.
+pub fn modern_default_state(name: &str) -> BTreeMap<String, String> {
+    let Some(block) = name.strip_prefix("minecraft:") else {
+        return BTreeMap::new();
+    };
+    let (key, value) = if ["_log", "_wood", "_stem", "_hyphae"]
+        .iter()
+        .any(|s| block.ends_with(s))
+        || block == "deepslate"
+    {
+        ("axis", "y")
+    } else if block == "grass_block" {
+        ("snowy", "false")
+    } else if matches!(block, "tall_grass" | "tall_seagrass") {
+        ("half", "lower")
+    } else if block.ends_with("_amethyst_bud") {
+        ("facing", "up")
+    } else {
+        return BTreeMap::new();
+    };
+    BTreeMap::from([(key.into(), value.into())])
+}
+pub fn palette_at(
     section: &HashMap<String, Value>,
     x: i32,
     y: i32,
     z: i32,
-) -> io::Result<Option<&HashMap<String, Value>>> {
+) -> io::Result<Option<&Value>> {
     let Some(states) = section.get("block_states").and_then(compound) else {
         return Ok(None);
     };
@@ -350,13 +391,10 @@ fn block(
         let index = (y.rem_euclid(16) * 256 + z.rem_euclid(16) * 16 + x.rem_euclid(16)) as usize;
         ((data[index / per] as u64 >> (index % per * bits)) & ((1u64 << bits) - 1)) as usize
     };
-    compound(
-        palette
-            .get(index)
-            .ok_or_else(|| error("palette_index_out_of_bounds"))?,
-    )
-    .map(Some)
-    .ok_or_else(|| error("invalid_palette_state"))
+    palette
+        .get(index)
+        .map(Some)
+        .ok_or_else(|| error("palette_index_out_of_bounds"))
 }
 fn chunk(region: &[u8], x: i32, z: i32) -> io::Result<Option<Vec<u8>>> {
     if region.len() < 8192 {
@@ -404,7 +442,7 @@ fn chunk(region: &[u8], x: i32, z: i32) -> io::Result<Option<Vec<u8>>> {
     }
     Ok(Some(raw))
 }
-fn validate_nbt(raw: &[u8]) -> io::Result<()> {
+pub fn validate_nbt(raw: &[u8]) -> io::Result<()> {
     let mut cursor = Cursor::new(raw);
     if byte(&mut cursor)? != 10 {
         return Err(error("invalid_chunk_nbt"));

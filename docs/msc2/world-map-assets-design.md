@@ -321,3 +321,92 @@ fields; arbitrary mod payload stays untouched. Unsupported models use explicitly
 reported non-occluding fallback geometry. This avoids a second executable and its
 four-platform toolchain while preserving the pinned baseline helper and explicit
 override. It does not remove the difficult-model capture acceptance requirement.
+
+## P18.17 implementation record — 2026-10-04
+
+The normal Java manifest entry point now starts exact resource preparation when
+there is a retained pack source, an installed mod JAR or a configured server
+resource pack. Ordinary vanilla servers retain their existing helper path;
+Bedrock retains its existing renderer. An explicit Worlds-authorized `prepare`
+action also adopts resources for an active Java slot. `check` remains scoped,
+read-only inspection. Renderer recovery, explicit executable/assets overrides
+and release helper pins are preserved. The adapter ships inside the Rust agent;
+there is no additional native executable, packaging input or release gate.
+
+Preparation uses the existing consistent Java saved-world capture while running
+(`save-off`, confirmed flush, bounded copy, `save-on`) or a checked private copy
+while stopped. It never edits source saves, mods or launcher state. Captures are
+limited to 2 GiB, 100,000 entries and 64 directory levels; individual regions are
+limited to 256 MiB and decoded chunks to 32 MiB with bounded NBT validation. The
+adapter changes only recognized reference fields and private palette names,
+retaining unfamiliar compound fields. Modern implicit vanilla palette defaults
+are shared between adaptation and diagnostic inspection. A saved custom
+namespace dimension is staged through the helper's private overworld layout;
+public dimension IDs and player feeds retain their original IDs.
+
+Namespace and full path bytes are encoded separately with hexadecimal strings.
+Mod block aliases have a `_glass` suffix because the pinned helper recognizes
+that name as non-occluding. This conservative rule can retain internal faces; it
+avoids inventing opaque culling for unknown mod behavior. Missing, ambiguous,
+unsupported or contextual mod appearances use explicit inset checkerboard
+models, without cull faces. These are never counted as `model_resolved`. Client
+color providers for namespaced tint indices, custom loaders/materials and
+block-entity context remain unresolved, rather than being inferred from the
+encoded name. Vanilla biome data, language, textures and metadata accompany the
+private resource tree. Supported model dependencies resolve separately from
+visual acceptance; weighted alternatives retain the pinned helper's first-choice
+policy, not an assertion of Minecraft's random weighting.
+
+At most two asset workers, eight concurrent binding records and four retained
+renderer generations are admitted. A binding includes host, server, slot, source
+location and original dimension. Each preparation has a cancellable operation
+and a monotonically distinct ticket; same-input manifest requests deduplicate,
+and tile traffic does not initiate preparation. Work, helper startup and disk
+staging occur outside renderer coordination. The final short guard rechecks the
+ticket, snapshot epoch and active-server binding, then atomically changes the
+report pointer and in-memory scene. Snapshot refresh invalidates outstanding
+tickets through that same guard. Changed inputs, failures or cancellation retain
+the prior scene; explicit retry reuses verified source downloads.
+
+Candidate validation requests saved tiles overlapping the named inspection
+area and their texture array. Default first-open scope is one saved chunk from
+Y -64 through 319, not a whole-world repair claim. HTTP artifacts are bounded to
+32 MiB, inflation to 256 MiB; tile magic and texture dimensions, pixels and
+animation tables are checked before publication. Later tile failures remain
+local and do not retire the usable scene. Scoped original-ID reports retain
+missing saved chunks as a separate classification. Their geometry generation is
+recorded, while visual acceptance remains `pending`.
+
+Java manifests carry `mscGenerationId`; subsequent texture/tile requests pin it.
+Generation leases keep old helpers and snapshots alive until 90 seconds idle.
+Tile fingerprints include original chunk bytes, selected state dependencies,
+parent/texture/animation metadata, vanilla biome data and a neighboring-chunk
+apron. Atlas identity is also context: a different layer layout invalidates
+references into that atlas. The viewer retains up to 64 MiB/128 verified compact
+tile payloads and reuses a tile only when its fingerprint and initial atlas
+identity match and all its layer indices fit that atlas. Other tiles render
+through the candidate helper. This preserves safe selective reuse, not a promise
+that a helper never recomputes a tile. Dynamic atlas growth cannot make an
+out-of-range old tile eligible for reuse.
+
+The old viewer remains visible while a hidden replacement loads. Successful
+same-dimension adoption retains camera position/orientation, flight mode, depth
+and a valid follow target; player polling continues. A failed replacement leaves
+the old viewer alive. Closing/switching dimensions requests operation cancellation;
+idle generations retire their helpers/private caches. Provider/helper HTTP waits
+remain bounded by their existing timeouts, so cancellation can wait for an
+in-flight request. Status exposes retained snapshot/resource times, stale state,
+required exact source identities, input prerequisites and explicit retry. Staleness
+uses the conservative live source/slot binding: ordinary metadata changes can
+label a retained saved scene stale. Fresh terrain requires explicit refresh;
+this is not live terrain streaming or a portable restore-identity guarantee.
+
+Essential new regression source covers late completion, failure, cancellation,
+deduplication and host isolation in the renderer coordinator, and the private
+namespace/non-occlusion/parent-texture mapping. The existing store regression does
+not cover the visible scene swap, and the inspection regression does not exercise
+the production adapter. Both use controlled data without helpers, networks,
+clocks or sleeps and are expected to take under two seconds combined locally.
+They were type-checked, not run. No release workflow was changed. Linux compile
+and viewer type checks do not establish live modded, Paper/Tectonic, Bedrock or
+Windows/macOS acceptance; those owner checks remain open.

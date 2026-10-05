@@ -26,6 +26,7 @@ sha2 = "0.10"
 subtle = "2.6"
 uuid = { version = "1.24.0", features = ["v4"] }
 include_dir = "0.7"
+png = "0.18"
 image = { version = "0.25", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
 ureq = "3"
 fastnbt = "2"

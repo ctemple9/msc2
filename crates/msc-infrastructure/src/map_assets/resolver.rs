@@ -123,6 +123,14 @@ impl Resolver<'_> {
                     continue;
                 };
                 for (face, value) in faces {
+                    if !id.starts_with("minecraft:")
+                        && value
+                            .get("tintindex")
+                            .and_then(Value::as_i64)
+                            .is_some_and(|n| n >= 0)
+                    {
+                        findings.push(finding(C::UnsupportedMaterial,"Namespaced tint indices need the matching client's color provider; the flat baseline cannot infer it from the encoded name.",vec![]));
+                    }
                     if !["north", "south", "east", "west", "up", "down"].contains(&face.as_str()) {
                         findings.push(finding(C::InvalidModel, "Unknown element face.", vec![]));
                     }

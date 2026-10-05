@@ -18,6 +18,7 @@ use std::io;
 use std::path::Path;
 type StateKey = (String, BTreeMap<String, String>, bool);
 
+#[derive(Clone)]
 pub struct Context {
     pub binding: Binding,
     pub server: ConfigServer,
@@ -113,6 +114,7 @@ pub fn context(server: &ConfigServer, host: &str, slot_id: &str) -> io::Result<C
         "modrinth.index.json",
         "manifest.json",
         "minecraftinstance.json",
+        "server.properties",
         ".msc-map-source/current",
     ] {
         let path = root.join(name);
@@ -214,6 +216,7 @@ pub fn inspect(
         "modrinth.index.json",
         "manifest.json",
         "minecraftinstance.json",
+        "server.properties",
         ".msc-map-source/current",
     ] {
         let path = root.join(name);
@@ -413,6 +416,14 @@ pub fn prepare_resources(
     progress(0, 4, "Reading version-matched vanilla resources.");
     let mut base = layer()?;
     base.scan_assets(vanilla, cancel)?;
+    if let Some(root) = vanilla.parent().and_then(Path::parent) {
+        base.scan_tree(
+            &root.join("data/minecraft/worldgen/biome"),
+            "data/minecraft/worldgen/biome/",
+            "existing_client_biomes",
+            cancel,
+        )?;
+    }
     let format_path = vanilla
         .parent()
         .and_then(Path::parent)
@@ -603,7 +614,19 @@ pub fn prepare_resources(
         selected_pack_order: None,
         selection_known: prerequisites.is_empty(),
         selection_revision: hash_json(&stack.winners)?,
-        config_fingerprint: hash_json(&config)?,
+        config_fingerprint: hash_json(&(
+            &config,
+            context
+                .revision_inputs
+                .iter()
+                .filter(|(k, _)| {
+                    matches!(
+                        k.as_str(),
+                        "configuration" | "worldServerConfiguration" | "server.properties"
+                    )
+                })
+                .collect::<BTreeMap<_, _>>(),
+        ))?,
         manifest_receipts,
         archive_entries: stack.inventory.entries,
         decompressed_bytes: stack.inventory.decompressed,
@@ -639,4 +662,73 @@ fn fs_write_receipt(
     prerequisites: &impl serde::Serialize,
 ) -> io::Result<()> {
     std::fs::write(root.join("resources.json"),serde_json::to_vec(&serde_json::json!({"manifest":manifest,"winners":winners,"missing":missing,"prerequisites":prerequisites})).map_err(|_|error("serialization_failed"))?)
+}
+
+/// Reinspect the original snapshot, retaining original namespace IDs in diagnostics.
+#[allow(clippy::too_many_arguments)]
+pub fn prepared_report(
+    context: &Context,
+    prepared: &PreparedResources,
+    world: &WorldSource,
+    dimension: &str,
+    area: Area,
+    operation: &str,
+    cancel: &dyn Fn() -> bool,
+) -> io::Result<Report> {
+    let terrain = world.inspect(dimension, area, cancel)?;
+    let mut groups: BTreeMap<StateKey, Vec<[i32; 3]>> = BTreeMap::new();
+    for b in &terrain.blocks {
+        groups
+            .entry((b.id.clone(), b.state.clone(), b.entity))
+            .or_default()
+            .push(b.position);
+    }
+    let distinct_states = groups.len() as u64;
+    let adapter = io_assets::adapter::Adapter {
+        inventory: &prepared.stack.inventory,
+    };
+    let mut counts = BTreeMap::new();
+    let mut diagnostics = Vec::new();
+    let mut omitted_issues = 0;
+    let mut omitted_samples = 0;
+    for ((id, state, entity), positions) in groups {
+        poll(cancel)?;
+        let result = adapter.palette(&id, &state, entity)?;
+        let findings = io_assets::resolver::Resolver {
+            inventory: &prepared.stack.inventory,
+        }
+        .inspect(&id, &state, entity);
+        let mut counted = BTreeSet::new();
+        for finding in findings.into_iter().filter(|f| {
+            f.classification != C::UnsupportedRendererNamespace
+                && (f.classification != C::ModelResolved || result.model_resolved)
+        }) {
+            if counted.insert(finding.classification) {
+                *counts.entry(finding.classification).or_insert(0) += positions.len() as u64;
+            }
+            if diagnostics.len() < 1000 {
+                omitted_samples += positions.len().saturating_sub(5) as u64;
+                diagnostics.push(Diagnostic{classification:finding.classification,original_id:id.clone(),state:state.clone(),detail:if result.renderer_id.contains("/fallback/"){format!("{} The map uses a marked non-occluding fallback until this input is resolved.",finding.detail)}else{finding.detail},source_ids:finding.source_ids,block_occurrences:positions.len()as u64,samples:positions.iter().take(5).copied().collect()});
+            } else {
+                omitted_issues += 1;
+                omitted_samples += positions.len() as u64;
+            }
+        }
+    }
+    if !terrain.missing.is_empty() {
+        counts.insert(C::MissingSavedChunk, terrain.missing.len() as u64);
+        if diagnostics.len() < 1000 {
+            diagnostics.push(Diagnostic{classification:C::MissingSavedChunk,original_id:"saved_chunk".into(),state:BTreeMap::new(),detail:"No fully saved chunk exists at these chunk origins; this is not a missing model or an air-block count.".into(),source_ids:vec![],block_occurrences:0,samples:terrain.missing.iter().take(5).copied().collect()});
+        } else {
+            omitted_issues += 1;
+        }
+        omitted_samples += terrain.missing.len().saturating_sub(5) as u64;
+    }
+    let needs_input = !prepared.missing.is_empty()
+        || !prepared.prerequisites.is_empty()
+        || counts
+            .keys()
+            .any(|c| !matches!(c, C::ModelResolved | C::IntentionalEmpty));
+    Ok(Report{schema_version:1,binding:context.binding.clone(),snapshot_id:terrain.snapshot_id,
+        snapshot_minecraft_version:world.recorded_game_version()?,resource_generation_id:prepared.manifest.generation_id.clone(),geometry_generation_id:None,dimension:dimension.into(),area,operation_id:operation.into(),outcome:if needs_input{"needs_input"}else{"ready"}.into(),visual_acceptance:"pending".into(),scope:"Original saved blocks in the requested bounds; candidate artifacts validated separately. Fallback geometry is not model_resolved. Visual acceptance remains pending.".into(),inspected_blocks:terrain.blocks.len()as u64,inspected_chunks:terrain.chunks,distinct_states,visible_faces:None,counts,diagnostics,omitted_issues,omitted_samples,sources:prepared.manifest.sources.clone()})
 }

@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current work:** Cameron visually confirmed the isolated P18.14a proof on 2026-10-04. P18.15–P18.19 are implemented and awaiting Cameron's verification. Batch C implementation is complete through P18.19; P18.20 has not started. Broader production/platform/mod acceptance gates remain open.
+**Current work:** Cameron visually confirmed the isolated P18.14a proof on 2026-10-04. P18.15–P18.19 are implemented and awaiting Cameron's verification. P18.20’s Forge access-rule correction now compiles/packages successfully; its isolated capture remains awaiting Cameron’s verification and broader production integration is incomplete. Cameron authorized proceeding to P18.21 evidence preparation; that work is in progress. Broader production/platform/mod acceptance gates remain open.
 
 ### P18.13 — Plan automatic modded map assets and successful repairs
 
@@ -285,7 +285,7 @@ No Verify command below runs a test suite. Essential regressions may be added on
 
 ### P18.20 — Complete recovery for custom loaders and code-rendered blocks
 
-**Status:** Planned; depends on P18.14's viable export route and Batch C; awaiting Cameron's plan review.
+**Status:** Forge build correction implemented; awaiting Cameron’s verification. Broader P18.20 production integration remains incomplete. Cameron explicitly authorized compilation retries and proceeding to P18.21 evidence preparation on 2026-10-05; no rendering pass is claimed.
 **Files:** Versioned private exporter/helper sources under `tools/java-map-export/` (new), a cross-platform build-only helper driver there, and loader-specific modules/build manifests selected in P18.14; internal renderer adapters only where evidenced; native exporter controls, map export import/application coordinator and validated format/DTO/capability updates; existing viewer decoder only if a compatible extension is needed; helper staging/packaging/license notices as required; design/acceptance documents and this plan.
 **What:** Implement the difficult-model route as part of this feature, not an indefinitely optional future promise:
 
@@ -299,8 +299,20 @@ No Verify command below runs a test suite. Essential regressions may be added on
 **Verification scope:** The build-only helper driver selects compilation/JAR assembly tasks explicitly (not a Gradle build task that brings tests with it), records loader/helper output identity, and fails if a required target cannot build. Compile helper sources with their documented build tasks without invoking test tasks; native integration type/build checks remain non-test. List exact owner-run exporter/visual commands in the acceptance document at implementation time. No automatic launches/rendering smoke suites under this Verify command. Do not expand the project into an unrestricted third-party plugin API or a second full Minecraft installation manager.
 **Verify:** `python3 tools/java-map-export/build.py --all-supported --build-only && cargo fmt --all -- --check && cargo clippy -p msc-agent --bin msc && cargo clippy --manifest-path clients/desktop-web/src-tauri/Cargo.toml --lib && npm --prefix clients/desktop-web run check`
 **Batch:** D — P18.20–P18.21; an unresolved required difficult-model remedy keeps D and the feature gate open.
-**Commit:** `P18.20: recover custom mod rendering through matching client exports`
+**Commit:** `P18.20: prepare pinned forge capture and correct access rules`
 **Acceptance evidence:** A required object that fails the static path renders correctly after the offered remedy, through the MSC map, on each supported client platform; exported output also works on a headless Ubuntu/Windows/macOS agent. The helper's captures and limitations are observable, cancellation leaves the scene intact, and no game/agent credentials or source world changes result.
+
+**Partial execution (2026-10-05):** Cameron authorized selecting a pinned public Forge fixture. Installed Prism metadata identifies `campack`/`campackBIG` as Minecraft 1.20.1 / Fabric 0.19.3; the confirmed NeoForge proof is Minecraft 1.21.1 / NeoForge 21.1.251. Selected public Minecraft 1.20.1 / Forge 47.4.10 with Supplementaries `1.20-3.1.43` (Modrinth release `S0TIJ1hU`) and Moonlight `1.20-2.16.35` (`W0ZWjZib`). Verified downloaded mod bytes against published SHA-512 hashes and recorded SHA-256/size, provider release/file IDs, exact game/loader bytes and tool pins. The older mod does not contain barnacles; selected its actual `supplementaries:goblet` loader plus intended diamond/emerald pedestal context pair. Added isolated draft Forge exporter, validator and viewer sources under `tools/java-map-export/forge-1.20.1/`; original proof artifacts and production paths remain untouched.
+
+**Historical failed check / stop:** Explicit Java 17 / Gradle 8.8 `fixture.py build` requested only `jar` and `reobfJar`. `compileJava` failed with 13 protected/private member-access errors: render-type name, composite state, texture binding and light pixels. The copied readable-name access rules do not meet Forge 1.20.1's SRG-name requirement, and the name field rule is missing. Read-only inspection of the generated mapping identified the precise member names recorded in the [draft helper README](../../tools/java-map-export/forge-1.20.1/README.md). No fix/rebuild followed that failed source check. An earlier Java 25 setup attempt failed before compilation; explicitly choosing Java 17 resolved only that toolchain issue. The consolidated Verify above has not passed and its production build driver is not yet implemented.
+
+**Remaining at the failed check (correction below supersedes the access-rule failure):** Correct Forge access rules and portable Java selection, then compile and establish its runtime capture behavior. Complete the production loader adapters, snapshot/context correspondence, portable capture validation/import/adoption, native/CLI remedy, helper distribution and owner appearance checks. This commit records partial work and the failure, not an implemented step. P18.21 remains unstarted under the batch stop rule. No tests, Minecraft launches, source-world changes or release actions.
+
+**Authorized correction (2026-10-05):** Replaced the Forge material/lighting access rules with the exact generated SRG names and added `RenderStateShard.name`. Explicit Java 17 / Gradle 8.8 `fixture.py build` now passes compilation, `jar` and `reobfJar`, checks pinned game/loader bytes, and writes the private helper build receipt. Three deprecated `ResourceLocation(String)` warnings remain. No Rust/frontend source changed, so their format/Clippy/type checks are not relevant to this narrow correction. The original failed attempt above remains historical evidence. The consolidated production Verify has not passed because its production driver/integration are not implemented. Owner verification of the Forge capture is pending.
+
+**Correction Verify:** `JAVA_HOME=/usr/lib/jvm/temurin-17-jdk python3 tools/java-map-export/forge-1.20.1/fixture.py build --gradle /home/camerontemple/.cache/msc-map-forge-capture-inputs/gradle-8.8/bin/gradle --workspace /home/camerontemple/.cache/msc-map-forge-capture`
+
+**Owner clarification:** “If verification fails, STOP” means do not advance while the current step's verification is failing; routine errors can be corrected and permitted checks rerun without further approval. Cameron specifically directed proceeding to P18.21 after this Forge correction compiles. This authorizes evidence preparation while keeping the missing production remedy and all platform/visual gates open. No tests, Minecraft launch or release actions.
 
 ### P18.21 — Record all-platform normal rendering and repair success
 

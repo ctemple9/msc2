@@ -138,3 +138,29 @@ and operation IDs, snapshot/area, resource generations, captures and observer.
   models/context offer no fake working exporter.
 - Repeat supported Fedora-to-Ubuntu remote import and native Windows/macOS path,
   cancellation and export checks. Compilation on Linux is not those passes.
+
+## P18.20 public Forge fixture selection — build passed, acceptance pending
+
+Cameron authorized selecting the public fixture on 2026-10-05. The exact input
+receipt is [pins.json](../../tools/java-map-export/forge-1.20.1/pins.json):
+Minecraft 1.20.1 / Forge 47.4.10; Supplementaries `1.20-3.1.43`, Modrinth release
+`S0TIJ1hU`, file `5cdXldaM`; Moonlight `1.20-2.16.35`, release `W0ZWjZib`, file
+`sKZHESzj`. Downloaded mod bytes matched their published SHA-512 values; the
+receipt also records exact local SHA-256/size for game, loader and mods.
+
+Intended new isolated fixture: custom-loader goblet at `9,65,3`, plus same-state
+pedestals displaying diamond/emerald at `3,65,3` and `6,65,3`. This version has
+no barnacles block model; source inspection selected its real
+`supplementaries:goblet` loader. No world, snapshot, live block states, capture,
+operation, corrected MSC appearance or owner confirmation exists for this
+fixture yet. Input identity alone fills none of those missing fields.
+
+Draft Forge capture compilation failed on 13 material/lighting member-access
+errors; details and the identified mapping correction are in the
+[helper README](../../tools/java-map-export/forge-1.20.1/README.md).
+The authorized SRG-name correction now passes Java compilation and JAR
+reobfuscation on Linux, with three deprecated-constructor warnings. The private
+build receipt records the helper digest; no capture or rendering pass is
+claimed. Cameron authorized proceeding with P18.21 evidence preparation.
+The catalogue/platform rows and feature gate remain pending. No production
+export command or supported Forge rendering range is advertised by this draft.

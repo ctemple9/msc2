@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>MSC — client mesh proof</title>
+<link rel="stylesheet" href="/style.css">
+<script type="importmap">{"imports":{"three":"/vendor/three.module.js"}}</script></head>
+<body><header><h1>Client mesh proof</h1><p id="status">Waiting for a saved-frame capture from the isolated client.</p>
+<button id="load">Load capture</button><button id="home">Home</button><button id="image">Save view</button></header>
+<main><canvas id="scene"></canvas><aside><h2>Compare with Minecraft</h2><p>Barnacles at 9,65,3 use the actual Supplementaries custom loader. Identical pedestal states at 3,65,3 and 6,65,3 display a diamond and an emerald.</p>
+<p>Orbit with the left mouse button, pan with the right, zoom with the wheel. The mesh and atlas are a saved frame; no animation is replayed.</p>
+<p id="receipt"></p><details><summary>Captured materials and geometry</summary><pre id="details"></pre></details>
+<h2>Record visual evidence</h2><label><input type="checkbox" id="custom">The custom-loader goblet match Minecraft.</label>
+<label><input type="checkbox" id="context">The equal-state pedestals show the correct distinct items.</label>
+<label><input type="checkbox" id="frame">I compared this saved frame and inspected the refusal evidence.</label>
+<button id="confirm" disabled>Save confirmed result</button><p id="confirmation">Visual acceptance remains pending.</p>
+</aside></main><script type="module" src="/viewer.js"></script></body></html>

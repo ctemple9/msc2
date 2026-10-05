@@ -1,5 +1,15 @@
 # Java map resources — renderer and repair contract
 
+**P18.20 partial update, 2026-10-05:** Public Forge input selection and isolated
+draft sources are recorded under `tools/java-map-export/forge-1.20.1/`.
+The initial compilation failed on Forge-specific access rules; the authorized
+SRG correction now compiles/packages successfully. Capture verification is
+pending. Cameron authorized P18.21 evidence preparation; no
+production supplemental-format negotiation, snapshot correspondence,
+import/adoption or difficult-model remedy is implemented by this update.
+See the helper README and acceptance record for exact pins/failure. The existing
+NeoForge visual proof remains scoped to its original isolated fixture.
+
 P18.14 findings · 2026-10-04 · **Original disposition: feasibility blocked; production unchanged.**
 
 **Current update:** Cameron confirmed the isolated matching-client proof. P18.15 resource inspection is implemented, awaiting owner verification. The original findings below are historical; see the P18.15 implementation record at the end. Production supplemental geometry and broader acceptance remain open.

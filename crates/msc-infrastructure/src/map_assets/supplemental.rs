@@ -49,9 +49,158 @@ impl Capture {
         original == *request
     }
 }
+/// Cache portable bytes, never an adopted-scene pointer. Every hit goes through
+/// the complete validator again against the current saved frame and inputs.
+pub struct Cache {
+    root: PathBuf,
+}
+fn cache_gate() -> &'static std::sync::Mutex<()> {
+    static GATE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    &GATE
+}
+impl Cache {
+    pub fn new(store: &Path) -> Self {
+        Self {
+            root: store.join("captures"),
+        }
+    }
+    fn key(request: &CaptureRequest) -> io::Result<String> {
+        let mut identity = request.clone();
+        identity.geometry_generation_id.clear();
+        hash_json(&identity)
+    }
+    pub fn retain(
+        &self,
+        path: &Path,
+        sha: &str,
+        request: &CaptureRequest,
+        cancel: &dyn Fn() -> bool,
+    ) -> io::Result<()> {
+        let _lock = cache_gate()
+            .lock()
+            .map_err(|_| error("capture_cache_unavailable"))?;
+        fs::create_dir_all(&self.root)?;
+        safe_path(&self.root)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&self.root, fs::Permissions::from_mode(0o700))?;
+        }
+        let key = Self::key(request)?;
+        let destination = self.root.join(format!("{key}.zip"));
+        if destination.exists() && file_hash(&destination, MAX_CAPTURE, cancel)? == sha {
+            return Ok(());
+        }
+        let candidate = self
+            .root
+            .join(format!("candidate-{}", uuid::Uuid::new_v4()));
+        let result = (|| {
+            let mut input = open(path)?;
+            let mut output = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&candidate)?;
+            let mut copied = 0;
+            let mut bytes = [0u8; 65536];
+            loop {
+                poll(cancel)?;
+                let n = input.read(&mut bytes)?;
+                if n == 0 {
+                    break;
+                }
+                copied += n as u64;
+                if copied > MAX_CAPTURE {
+                    return Err(error("capture_byte_limit"));
+                }
+                std::io::Write::write_all(&mut output, &bytes[..n])?;
+            }
+            output.sync_all()?;
+            if file_hash(&candidate, MAX_CAPTURE, cancel)? != sha {
+                return Err(error("capture_archive_changed"));
+            }
+            poll(cancel)?;
+            // A changed output for the same context is a new frozen frame. Replace
+            // cached data only; currently leased scenes own separate immutable copies.
+            if destination.exists() {
+                fs::remove_file(&destination)?;
+            }
+            fs::rename(&candidate, &destination)?;
+            let mut entries = fs::read_dir(&self.root)?
+                .take(33)
+                .collect::<Result<Vec<_>, _>>()?;
+            if entries.len() > 32 {
+                return Err(error("capture_cache_entry_limit"));
+            }
+            entries.sort_by_key(|e| e.metadata().and_then(|m| m.modified()).ok());
+            let mut total = entries
+                .iter()
+                .map(|e| e.metadata().map(|m| m.len()))
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .sum::<u64>();
+            let mut count = entries.len();
+            for entry in entries {
+                safe_path(&entry.path())?;
+                if (count > 8 || total > 512 * 1024 * 1024) && entry.path() != destination {
+                    total = total.saturating_sub(entry.metadata()?.len());
+                    fs::remove_file(entry.path())?;
+                    count -= 1;
+                }
+            }
+            Ok(())
+        })();
+        let _ = fs::remove_file(candidate);
+        result
+    }
+    pub fn load(
+        &self,
+        request: &CaptureRequest,
+        terrain: &Terrain,
+        cancel: &dyn Fn() -> bool,
+    ) -> io::Result<Option<Capture>> {
+        let _lock = cache_gate()
+            .lock()
+            .map_err(|_| error("capture_cache_unavailable"))?;
+        let path = self.root.join(format!("{}.zip", Self::key(request)?));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let sha = file_hash(&path, MAX_CAPTURE, cancel)?;
+        // Only the base terrain generation is rebased. No binding, frame, scope
+        // or resource identity may change on restart/rebuild.
+        let mut zip =
+            ZipArchive::new(open(&path)?).map_err(|_| error("invalid_capture_archive"))?;
+        let mut raw = Vec::new();
+        zip.by_name("capture.json")
+            .map_err(|_| error("capture_manifest_required"))?
+            .take(MAX_JSON + 1)
+            .read_to_end(&mut raw)?;
+        if raw.len() as u64 > MAX_JSON {
+            return Err(error("capture_manifest_limit"));
+        }
+        let mut manifest: CaptureManifest =
+            serde_json::from_slice(&raw).map_err(|_| error("invalid_capture_manifest"))?;
+        let original = manifest.request.clone();
+        manifest.request.geometry_generation_id = request.geometry_generation_id.clone();
+        validate_manifest(&manifest, request, terrain)?;
+        let mut capture = import_bundle(&path, &sha, &original, terrain, cancel)?;
+        capture.manifest = manifest;
+        // Keep the digest of immutable output bytes: the base-generation rebase
+        // is transport metadata, not a claim that geometry changed.
+        Ok(Some(capture))
+    }
+}
 pub fn is_bundle(path: &Path) -> io::Result<bool> {
     let mut zip = ZipArchive::new(open(path)?).map_err(|_| error("invalid_client_bundle"))?;
     Ok(zip.by_name("capture.json").is_ok())
+}
+/// Bind auxiliary saved context without transferring unrelated server config.
+pub fn context_data_fingerprint(root: &Path, cancel: &dyn Fn() -> bool) -> io::Result<String> {
+    let mut folders = BTreeMap::new();
+    for name in ["serverconfig", "datapacks", "data"] {
+        folders.insert(name, store::fingerprint_configs(&root.join(name), cancel)?);
+    }
+    hash_json(&folders)
 }
 pub fn context_area(
     area: msc_domain::map_assets::Area,
@@ -90,6 +239,10 @@ pub fn validate_manifest(
         || m.observed_snapshot_id != terrain.snapshot_id
         || m.observed_input_fingerprint != expected.input_fingerprint
         || m.request.snapshot_id != terrain.snapshot_id
+        || m.request
+            .context_data_fingerprint
+            .as_ref()
+            .is_some_and(|value| !digest(value))
         || !terrain.missing.is_empty()
         || context_area(expected.area)? != expected.context_area
         || !m.saved_frame
@@ -309,7 +462,8 @@ pub fn import_bundle(
     {
         return Err(error("capture_archive_manifest_mismatch"));
     }
-    let root = std::env::temp_dir().join(format!("msc-contextual-map-{}", uuid::Uuid::new_v4()));
+    let root = fs::canonicalize(std::env::temp_dir())?
+        .join(format!("msc-contextual-map-{}", uuid::Uuid::new_v4()));
     fs::create_dir(&root)?;
     #[cfg(unix)]
     {

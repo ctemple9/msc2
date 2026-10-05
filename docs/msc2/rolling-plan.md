@@ -43,15 +43,86 @@
 
 **Agent checks:** `cargo fmt --all -- --check`, production agent Clippy and targeted infrastructure regression Clippy passed with existing warnings only (unused uninstall request, Bedrock mutable variable and auth helper). `cargo check -p msc-infrastructure --test map_capture` compiled the three cases without running them. Svelte check passed with zero errors and eleven existing warnings; frontend production build passed with its existing large-chunk notice. API types were regenerated and checked against the updated contract; changed frontend formatting, contract JSON, collector compilation and `git diff --check` passed. No test suite, game/client, release workflow or remote operation ran.
 
+**Owner verification received (2026-10-05):** Cameron ran the P18.23 `map_capture`
+regression target and reported all three tests passing, zero failures, in 0.05s.
+This verifies those controlled data/adoption cases; it does not establish visual
+or native platform acceptance. Step closure remains Cameron's decision.
+
 ### P18.24 — Deliver matching-client exporters for all required loaders
 
-**Status:** Planned; depends on P18.23's data and correspondence contract.
-**Files:** `tools/java-map-export/` common driver, manifest/pins, loader-specific helper sources and licenses; existing isolated proofs remain preserved; native desktop map helper module and registration; headless bundle import/export CLI; helper staging/install/update packaging scripts; design/usage/acceptance records and this plan.
+**Status:** Implemented; awaiting Cameron’s verification. Real rendering/native platform acceptance remains pending.
+**Files:** Domain capture request, infrastructure preparation/saved-context/cache modules and focused regressions; `tools/java-map-export/` common driver, manifest/pins, loader-specific helper sources and licenses; existing isolated proofs remain preserved; native desktop map helper module and registration; headless bundle import/export CLI; helper staging/install/update packaging scripts; design/usage/acceptance records and this plan.
 **What:** Convert proven NeoForge and building Forge mechanisms into bounded production helpers and implement the matching Fabric adapter. Use real baked-model/block-entity entry points and captured texture output. Support the minimum/current loader/version families required by the original acceptance fixtures; pin exact ranges and refuse incompatible clients. Replace hardcoded proof fixture/mod/coordinates with explicit request receipts and a private dedicated working instance derived from matching selected inputs. Keep source client/server worlds read-only; never install into an ordinary instance or start game code during passive map opening. Capture only authorized saved area/neighbor context; refuse unloaded/generated/mismatched chunks and private context that cannot be established. Export reuseable model data separately from position-dependent content and label frame/time. Provide portable Java/Gradle selection and a build-only driver that explicitly selects compile/package tasks; no tests or implicit game tasks. Native launch must handle spaces, Unicode paths, Windows process trees, cancellation and helper failures. Stage versioned helpers with truthful checksums/licenses in all supported desktop/headless distributions without removing baseline helpers or adding workflow test gates. Headless import consumes data without running the game. Prefer shared driver/schema code to three separately maintained workflows. Record actual commands for builds and each owner-run fixture capture after implementing them.
-**Verify:** `cargo fmt --all -- --check && cargo clippy --manifest-path clients/desktop-web/src-tauri/Cargo.toml --lib && npm --prefix clients/desktop-web run check`
+**Verify:** `python3 tools/release/stage-map-capture.py --build-only && cargo fmt --all -- --check && cargo clippy --manifest-path clients/desktop-web/src-tauri/Cargo.toml --lib && npm --prefix clients/desktop-web run check`
 **Batch:** Completion A — P18.23–P18.24. Compile/package every declared supported helper target with its newly documented build-only command before handoff; update Verify to the actual driver command once it exists.
 **Commit:** `P18.24: deliver matching client map exporters`
 **Acceptance:** Named Fabric, Forge and NeoForge blocks including custom loaders and equal-state/different-content objects capture, transfer and display in production MSC. Native launch/transfer acceptance is required on Windows, Linux and both macOS architectures. No loader range is advertised solely from another loader's proof.
+
+**Implementation record (2026-10-05):** Shared production protocol/driver generates
+Fabric, Forge and NeoForge adapters at exact pins: Fabric Minecraft 1.20.1 /
+loader 0.16.14 / API 0.92.5+1.20.1, Forge 1.20.1 / 47.4.10, and NeoForge
+1.21.1 / 21.1.251. Compiled helpers verify actual running versions and the real
+resource manager. Runtime capture uses baked models, actual entity renderers,
+position-specific geometry and shared texture/material data. Reusable static
+models/resources remain in the existing resource-bundle/baseline path; contextual
+per-position content is a separate capture package, preventing equal states with
+different contents from aliasing. It restores saved
+states, entities, time/weather in the private working save, freezes simulation,
+completes bounded lighting work, and explicitly sends restored context before
+capture readiness. Atlas primitives are cropped losslessly with filtering margins
+from sources up to 8192 pixels; unsupported/repeating/shader/renderer behavior and
+exceeded budgets refuse with a bounded private diagnostic. Isolated proofs remain
+unchanged.
+
+The host context route exports authorized raw chunk records, original level data,
+resource/approved-client manifests and bounded saved server configuration,
+datapacks and world data. Delivered snapshot and auxiliary bytes are bound to the
+request; unused global host configuration values are excluded. Approved client
+closure is independently inspected again in the clone, so server-only mods do
+not become client dependencies. Complete copied input trees, configuration,
+component pins and metadata are checked against changes during preparation.
+Directories are privately and atomically owned; cancellation cleans candidates.
+Native process groups/Windows jobs own launch trees, uncertain termination retains
+files with a durable refusal, and retained outputs can be reopened. Selected client memory settings are reused, with an explicit optional
+`--memory-mib` override; launch commands/authentication settings are excluded.
+Neither map opening nor preparation launches Minecraft. The Java version probe alone is
+explicitly bounded/cancellable. CLI resource export/context export/preparation
+and existing data-only import provide the headless handoff; visible guided repair
+is still P18.25.
+
+Durable capture reuse revalidates every hit and binds all saved/client/context
+identities; only the base geometry generation is rebased. Cache errors cannot
+reject valid adopted candidates or break baseline rendering. Two essential
+controlled regressions cover cache reuse/corruption preserving leased artifacts
+and region export excluding unrelated chunk records without source mutation;
+the existing forged-context case also covers auxiliary context identity. Each
+new case should run below one second; no timing, network or game assumptions.
+Tests were compiled only. Cameron’s earlier three-case passing result remains
+recorded above; it does not execute the new cases.
+
+Packaging stages all three versioned/checksummed helpers and licenses across
+existing desktop/headless distributions, and embeds the payload into release
+binaries to cover older fixed-file archive updaters. Existing artifact/signature
+requirements and baseline dependencies remain. Installer checks occur before
+service stops or binary replacement; updates retain recursive validation/rollback.
+The existing release workflow adds build dependencies and compile/package actions
+only. No release workflow was launched.
+
+**Evidence and limits:** Agent/native Clippy, focused regression compilation,
+Svelte/API checks and Python/Node/Bash/YAML/whitespace checks pass with existing
+unrelated warnings only. Actual Windows process-module cross-compilation passes;
+that is not Windows execution. The three adapter builds and complete real-payload
+staging pass; Rust agent and native checks with the final embedded three-helper payload also
+pass. Final helper source receipt is
+`93d713cccf285d9f7efedf04815e45d3120d6694a634c2ddef198009cba27f62`;
+packaged Forge/NeoForge/Fabric JAR sizes are 45,619 / 43,386 / 46,777 bytes.
+Cached Minecraft source/bytecode confirms client rendering drains light queues
+outside the frozen client tick; this source check remains distinct from a launch.
+No new test execution, Minecraft launch, source-world change, remote action,
+push/tag or publication is claimed. Other versions, alternate Fabric renderers,
+entity/global-service context beyond this saved scope and all physical platform,
+appearance, preservation, successful-repair and resource-budget observations
+remain the original P18.26 gate. No required fixture is substituted or closed.
 
 ### P18.25 — Connect one successful guided repair process
 

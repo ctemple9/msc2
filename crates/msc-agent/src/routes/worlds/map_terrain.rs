@@ -682,6 +682,21 @@ fn http() -> ureq::Agent {
         .into()
 }
 
+pub(super) fn capture_context(
+    state: &WorldsRoutesState,
+    context: &msc_application::map_assets::Context,
+    dimension: &str,
+    area: msc_domain::map_assets::Area,
+) -> std::io::Result<Vec<u8>> {
+    state.map_renderer.0.prepared.capture_context(
+        &state.map_assets.store()?,
+        context,
+        dimension,
+        area,
+        state.map_renderer.0.snapshot_epoch.load(Ordering::Acquire),
+    )
+}
+
 pub(super) fn capture_request(
     state: &WorldsRoutesState,
     context: &msc_application::map_assets::Context,

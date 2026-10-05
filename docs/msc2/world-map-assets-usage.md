@@ -1,18 +1,67 @@
 # P18.15 resource inspection
 
-**Current continuation (P18.23):** Production capture intake and map display are
-implemented, awaiting verification. Earlier stage instructions below are
-historical. Matching-client exporters and the guided capture action are not yet
-delivered; do not relabel an isolated proof ZIP as a production capture.
+**Current continuation (P18.24):** Production intake, private matching-client
+preparation and loader adapters are implemented. The guided repair action is
+P18.25; real rendering/platform acceptance remains P18.26. Earlier instructions
+below describe historical stages. Isolated proof ZIPs are not production captures.
 
 The new API issues a request through
 `POST /v1/worlds/{slot_id}/map-assets/capture-request` using the scoped check body,
 then consumes an authenticated completed upload through the existing import
 operation with the same area. The request comes from an adopted scene, retains
 it for 30 minutes, and requires matching independently observed inputs/snapshot.
-No game code runs on a headless host. The existing resource-import CLI is not
-advertised as a complete capture workflow; P18.24 supplies its request/helper
-handoff and portable commands.
+No game code runs on a headless host. The explicit `capture-context` action
+exports bounded saved chunks and context data for private client preparation.
+
+## Private matching-client capture
+
+This route currently accepts selected Prism instances and the exact helper pins
+in `tools/java-map-export/production/README.md`; Fabric additionally requires
+API `0.92.5+1.20.1`. Other versions receive
+`matching_capture_helper_unavailable`; selecting a nearby version is not a remedy.
+Source instances, their saves and the remote running server remain unchanged.
+
+1. Export the selected client's resources with
+   `msc map-capture export-resources --instance <instance> --output <new-resources.zip>`.
+   Import that bundle through the existing world's map-assets import action and
+   adopt its checked resource generation. Re-export older bundles to add the
+   client configuration receipt required by capture preparation.
+2. On the host, run `msc world map-assets capture-context` for the active server with the same
+   `--slot`, `--expected-revision`, `--dimension`, `--min x y z`, `--max x y z`
+   and `--output <new-context.zip>`. The selected area must already have an
+   adopted, consistent saved scene. Copy this data archive to the client machine.
+3. Run `msc map-capture prepare --instance <instance> --context <context.zip>
+   --game-jar <matching-client.jar> --java <actual-java-executable>
+   --destination <new-private-directory>`. Use one line in the terminal. The
+   destination's parent must exist and the destination must be outside the
+   source instance. Release binaries restore their checked helpers automatically;
+   development builds can pass `--helpers <built-helper-directory>` explicitly.
+   Memory follows the selected instance; `--memory-mib <MiB>` explicitly overrides it.
+   Preparation copies inputs and verifies them; it does not launch Minecraft.
+4. Launch Prism explicitly with `--dir <private-directory> --launch msc-capture`.
+   This separate launcher directory has no copied account credentials. Sign in
+   there if required, open the private `msc-capture` save, and navigate to the
+   requested saved dimension/area. Only this working copy may be changed.
+   Run `/mscmapcapture prepare`, then `/mscmapcapture export` after the saved
+   context is loaded and restoration has completed. Follow any concrete refusal
+   rather than retrying with changed version or unrelated world inputs.
+5. The helper writes a unique ZIP under the private game's
+   `.msc-map-capture/exports` and records its filename in `current`.
+   Transfer that data-only ZIP to the host and use the world's existing
+   map-assets import action with the original binding and requested area.
+   The host checks it again against its retained saved snapshot before adoption.
+   Expired or changed inputs require a fresh context and preparation.
+
+The desktop native module supports explicit preparation, launch, cancellation,
+output inspection and reopening retained output. The visible guided action is
+still pending P18.25. Cancellation retains private files if process termination
+cannot be confirmed. Never run the capture helper in the original instance.
+
+Checked captures may be reused after restart only when binding, inputs, saved
+snapshot and area still match; every cache hit is fully validated. A cache miss
+or corrupt cache leaves baseline rendering available. Cached geometry is a
+saved frame, not live animation. Compare the real difficult block and its
+neighbors with Minecraft before recording acceptance.
 
 After adoption, the actual map labels saved capture time/tick. Rechecks count
 captured_appearance only for validated positions; other unresolved blocks remain

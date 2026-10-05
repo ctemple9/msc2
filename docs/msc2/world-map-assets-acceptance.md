@@ -8,6 +8,21 @@ native-platform result or test execution is inferred from that code. The earlier
 NeoForge owner confirmation remains isolated feasibility evidence. No new
 acceptance row is closed.
 
+**P18.24 continuation:** Cameron reported all three P18.23 controlled tests
+passing in 0.05s. Production helper preparation/packaging adds exact Fabric
+1.20.1/0.16.14, Forge 1.20.1/47.4.10 and NeoForge 1.21.1/21.1.251 build targets.
+These pins do not establish current-version or visual compatibility for the
+original fixture catalogue. Required versions outside these targets remain
+pending; they are not silently substituted. No additional appearance/platform
+row is closed by build, cross-compilation or checksum verification.
+
+Two essential controlled regressions extend the same `map_capture` target:
+durable-cache geometry rebasing, stale/corrupt rejection and retained capture
+readability; and chunk-limited exported context with exact snapshot identity and
+unchanged source bytes. Each should run below one second after compilation.
+No network, Minecraft, timers or platform-dependent process behavior is involved.
+These additional cases have not been executed by the agent.
+
 The three new controlled regressions in map_capture.rs protect mismatched
 binding/snapshot/client inputs, malformed portable geometry/images/archives,
 previous-capture preservation and private palette repacking including waterlogged

@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 469b3e20c0753794229ae27dc34645b92ccb1a68bf3bb6faab78eda590f67558
+// Contract SHA-256: cfafd542b9d6815d344c8288044327078e6a30fd4dd32476ef5200948a318438
 
 export interface paths {
   '/v1/active-server': {
@@ -6103,6 +6103,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/worlds/{slot_id}/map-assets/capture-context': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Export private saved context for a matching client capture */
+    post: operations['exportWorldMapCaptureContext'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/worlds/{slot_id}/map-assets/capture-request': {
     parameters: {
       query?: never;
@@ -8214,6 +8231,8 @@ export interface components {
       area: components['schemas']['MapAssetsAreaDTO'];
       binding: components['schemas']['MapAssetsBindingDTO'];
       contextArea: components['schemas']['MapAssetsAreaDTO'];
+      /** @description Production capture request binds saved server configuration, datapacks and world data. Optional only for earlier data-format readers. */
+      contextDataFingerprint?: string;
       dimension: string;
       /** @enum {string} */
       format: 'msc-contextual-mesh-1';
@@ -11135,6 +11154,60 @@ export interface operations {
         content: {
           'application/json': components['schemas']['ErrorDTO'];
         };
+      };
+    };
+  };
+  exportWorldMapCaptureContext: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slot_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['MapAssetsCheckRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Bounded saved context archive */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/zip': string;
+        };
+      };
+      /** @description Invalid map-resource request or bounds */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Worlds permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Slot or bound report is unavailable */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Binding changed, unsupported scope, consistent snapshot required, or bounded inspection refused */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
     };
   };

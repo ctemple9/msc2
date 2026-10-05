@@ -591,3 +591,44 @@ missing measurements are not zero. No production acceptance observations were
 collected in this step. The corrected Forge draft compiles, but its production
 integration and distribution remain open. Owner verification and independent
 phase review remain required.
+
+## P18.24 private client delivery
+
+The production request/context route exports only the authorized saved chunk
+records (including the one-block halo), original level data, bounded saved-world
+configuration/data and winning resource hashes. A host-issued context-data
+fingerprint binds server configuration, datapacks and world data to the request.
+Unused host-global configuration values are not transferred. It reconstructs Anvil region
+files and checks the delivered raw chunks against the saved snapshot receipt.
+Unrelated records from the same source region are excluded. It rechecks the
+current binding before responding; later host import validates the context again.
+
+Explicit preparation supports selected Prism instances at the exact helper pins.
+It independently checks the approved client
+mod/pack closure (server-only mods do not become client requirements), enabled pack order, configuration
+receipt and vanilla assets, then copies inputs into an owner-private launcher
+root outside the original instance. The immutable saved snapshot and mutable
+working save are separate. Game commands restore saved states/entities/time into
+that working save; capture requires verified loaded context and frozen saved
+frame. Winners are compared with the real resource manager, not a copied expected
+hash. Loader adapters use actual baked models/entity renderers; unsupported
+material/shader or alternate renderer behavior remains an explicit refusal.
+
+Native preparation and cancellation use opaque session identifiers. Unix owns a
+process group and Windows assigns the suspended launcher to a kill-on-close job
+before resuming it. Unconfirmed termination prevents private-directory removal.
+Durable session/output receipts support reopening an export without restarting
+the game. These mechanisms still need the original native platform observations.
+
+Capture reuse stores bounded portable ZIPs, never an adopted scene pointer.
+Every cache hit revalidates actual bytes, current saved context and exact input
+identity. Only the base geometry generation can be rebased. Cache errors cannot
+break baseline rendering or reject a valid imported candidate; cancellation still
+aborts publication. Captures remain immutable saved frames, with their time label.
+
+Release builds compile/package three adapters without tests or game tasks,
+stage their pins/hashes/licenses, and embed the small payload in Rust binaries.
+Embedding covers older archive updaters whose fixed filename list predates the
+helper directory. Restoring embedded helpers is local data extraction and never
+launches Java or downloads a game. Install/update packaging retains Vantage,
+Bedrock dependencies and the existing artifact/signature contract.

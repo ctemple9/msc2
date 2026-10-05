@@ -160,6 +160,169 @@ fn empty_status(state: &str) -> RenderingStatus {
     }
 }
 impl PreparedStore {
+    pub fn capture_context(
+        &self,
+        store: &assets::store::Store,
+        context: &Context,
+        dimension: &str,
+        area: Area,
+        epoch: u64,
+    ) -> std::io::Result<Vec<u8>> {
+        let request = self.capture_request(context, dimension, area, epoch)?;
+        let scene = self
+            .current(
+                &key(context, dimension)?,
+                Some(&request.geometry_generation_id),
+            )
+            .ok_or_else(|| assets::error("capture_scene_required"))?;
+        let (_, imported) = service::imported(context, store)?
+            .ok_or_else(|| assets::error("capture_client_manifest_receipt_required"))?;
+        if scene
+            .resource_manifest
+            .manifest_receipts
+            .get("importedClientBundle")
+            != Some(&imported.bundle_sha256)
+            || scene
+                .resource_manifest
+                .manifest_receipts
+                .get("clientManifest")
+                != Some(&assets::hash_json(&imported.manifest)?)
+        {
+            return Err(assets::error("capture_client_manifest_changed"));
+        }
+        let snapshot = scene
+            .renderer
+            ._snapshot
+            .as_ref()
+            .ok_or_else(|| assets::error("consistent_snapshot_required"))?;
+        let mut files = WorldSource::Directory(snapshot.path.clone()).capture_files(
+            dimension,
+            request.context_area,
+            &|| false,
+        )?;
+        files.insert(
+            "request.json".into(),
+            serde_json::to_vec(&request).map_err(|_| assets::error("serialization_failed"))?,
+        );
+        files.insert(
+            "resources.json".into(),
+            serde_json::to_vec(&scene.resource_manifest)
+                .map_err(|_| assets::error("serialization_failed"))?,
+        );
+        files.insert(
+            "client.json".into(),
+            serde_json::to_vec(&imported.manifest)
+                .map_err(|_| assets::error("serialization_failed"))?,
+        );
+        // Server-only mod namespaces are not client resource requirements.
+        // Overlapping client/vanilla winners still require exact real priority.
+        let client_assets = imported
+            .manifest
+            .layers
+            .iter()
+            .filter(|layer| {
+                layer.kind == "mod" || imported.manifest.selected_packs.contains(&layer.id)
+            })
+            .flat_map(|layer| layer.resources.keys())
+            .collect::<std::collections::BTreeSet<_>>();
+        let winners = scene
+            .inventory
+            .resources
+            .iter()
+            .filter(|(name, _)| {
+                name.starts_with("assets/")
+                    && (name.starts_with("assets/minecraft/") || client_assets.contains(name))
+            })
+            .map(|(name, r)| (name.clone(), r.sha256.clone()))
+            .collect::<BTreeMap<_, _>>();
+        files.insert(
+            "winners.json".into(),
+            serde_json::to_vec(&winners).map_err(|_| assets::error("serialization_failed"))?,
+        );
+        // Configuration and datapacks can change model context. Transfer copies
+        // into the dedicated instance; no credentials or ordinary player files.
+        for (source, prefix) in [
+            (snapshot.path.join("serverconfig"), "world/serverconfig"),
+            (snapshot.path.join("datapacks"), "world/datapacks"),
+            (snapshot.path.join("data"), "world/data"),
+        ] {
+            if !source.exists() {
+                continue;
+            }
+            let before = assets::store::fingerprint_configs(&source, &|| false)?;
+            for name in before.keys() {
+                if !assets::safe_member(name) {
+                    return Err(assets::error("unsafe_capture_context_path"));
+                }
+                let raw = assets::read(&source.join(name), assets::MAX_JSON)?;
+                if assets::hash(&raw) != before[name] {
+                    return Err(assets::error("input_changed"));
+                }
+                files.insert(format!("{prefix}/{name}"), raw);
+            }
+            if before != assets::store::fingerprint_configs(&source, &|| false)? {
+                return Err(assets::error("input_changed"));
+            }
+        }
+        if request.context_data_fingerprint.as_ref()
+            != Some(&assets::supplemental::context_data_fingerprint(
+                &snapshot.path,
+                &|| false,
+            )?)
+        {
+            return Err(assets::error("capture_saved_data_changed"));
+        }
+        // Bind the transferred auxiliary bytes themselves, including a source
+        // that changed and changed back while individual files were copied.
+        let mut delivered_context = BTreeMap::new();
+        for folder in ["serverconfig", "datapacks", "data"] {
+            let prefix = format!("world/{folder}/");
+            let values = files
+                .iter()
+                .filter_map(|(name, raw)| {
+                    name.strip_prefix(&prefix)
+                        .map(|relative| (relative.to_string(), assets::hash(raw)))
+                })
+                .collect::<BTreeMap<_, _>>();
+            delivered_context.insert(folder, values);
+        }
+        if request.context_data_fingerprint.as_ref()
+            != Some(&assets::hash_json(&delivered_context)?)
+        {
+            return Err(assets::error("capture_saved_data_changed"));
+        }
+        let mut total = 0u64;
+        let receipts = files
+            .iter()
+            .map(|(name, raw)| (name.clone(), assets::hash(raw)))
+            .collect::<BTreeMap<_, _>>();
+        files.insert(
+            "files.json".into(),
+            serde_json::to_vec(&receipts).map_err(|_| assets::error("serialization_failed"))?,
+        );
+        let mut zip = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        for (name, raw) in files {
+            total += raw.len() as u64;
+            if total > 256 * 1024 * 1024 {
+                return Err(assets::error("capture_context_byte_limit"));
+            }
+            zip.start_file(
+                name,
+                zip::write::SimpleFileOptions::default()
+                    .compression_method(zip::CompressionMethod::Deflated),
+            )
+            .map_err(|_| assets::error("capture_context_archive_failed"))?;
+            std::io::Write::write_all(&mut zip, &raw)?;
+        }
+        let bytes = zip
+            .finish()
+            .map_err(|_| assets::error("capture_context_archive_failed"))?
+            .into_inner();
+        if bytes.len() > 256 * 1024 * 1024 {
+            return Err(assets::error("capture_context_byte_limit"));
+        }
+        Ok(bytes)
+    }
     pub fn capture_request(
         &self,
         context: &Context,
@@ -767,13 +930,19 @@ impl PreparedStore {
                     return Err(assets::error("capture_snapshot_changed"));
                 }
                 let (path, sha) = source.ok_or_else(|| assets::error("capture_upload_required"))?;
-                Some(Arc::new(assets::supplemental::import_bundle(
+                let capture = assets::supplemental::import_bundle(
                     path,
                     sha,
                     &expected,
                     &current_terrain,
                     &cancel,
-                )?))
+                )?;
+                // Durable reuse is optional: a cache write failure must not
+                // reject already validated geometry owned by this candidate.
+                let _ = assets::supplemental::Cache::new(content.directory())
+                    .retain(path, sha, &expected, &cancel);
+                assets::poll(&cancel)?;
+                Some(Arc::new(capture))
             } else if let Some(prior) = prior_scene.as_ref()
                 && let Some(capture) = &prior.capture
             {
@@ -790,6 +959,53 @@ impl PreparedStore {
                 }
             } else {
                 None
+            };
+            let capture = if capture.is_none()
+                && !capture_upload
+                && let Some(capture_area) = area
+            {
+                let cached = (|| -> std::io::Result<Option<assets::supplemental::Capture>> {
+                    let terrain = WorldSource::Directory(snapshot.path.clone()).inspect(
+                        dimension,
+                        assets::supplemental::context_area(capture_area)?,
+                        &cancel,
+                    )?;
+                    let request = msc_domain::map_assets::CaptureRequest {
+                        format: msc_domain::map_assets::CAPTURE_FORMAT.into(),
+                        binding: context.binding.clone(),
+                        geometry_generation_id: String::new(),
+                        resource_generation_id: prepared.manifest.generation_id.clone(),
+                        input_fingerprint: assets::hash_json(&prepared.manifest)?,
+                        snapshot_id: terrain.snapshot_id.clone(),
+                        context_data_fingerprint: Some(
+                            assets::supplemental::context_data_fingerprint(
+                                &snapshot.path,
+                                &cancel,
+                            )?,
+                        ),
+                        dimension: dimension.into(),
+                        area: capture_area,
+                        context_area: assets::supplemental::context_area(capture_area)?,
+                        minecraft_version: game.clone(),
+                        loader: prepared.manifest.loader.clone(),
+                        loader_version: prepared
+                            .manifest
+                            .loader_version
+                            .clone()
+                            .unwrap_or_default(),
+                    };
+                    // A corrupt/stale optional cache is not allowed to break baseline
+                    // rendering. Cancellation still aborts instead of publishing late.
+                    assets::supplemental::Cache::new(content.directory())
+                        .load(&request, &terrain, &cancel)
+                })()
+                .ok()
+                .flatten()
+                .map(Arc::new);
+                assets::poll(&cancel)?;
+                cached
+            } else {
+                capture
             };
             let captured = capture.as_ref().map(|c| c.positions()).unwrap_or_default();
             let terrain = java_terrain_compat::prepare_adapted(
@@ -1176,6 +1392,10 @@ fn capture_request(
         resource_generation_id: manifest.generation_id.clone(),
         input_fingerprint: assets::hash_json(manifest)?,
         snapshot_id: terrain.snapshot_id.clone(),
+        context_data_fingerprint: Some(assets::supplemental::context_data_fingerprint(
+            &snapshot.path,
+            cancel,
+        )?),
         dimension: scene.report.dimension.clone(),
         area,
         context_area,

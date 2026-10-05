@@ -38,6 +38,11 @@ $sourceBinary = Join-Path $PSScriptRoot 'msc.exe'
 $sourceVantage = Join-Path $PSScriptRoot 'vantage.exe'
 $sourceBedrockMap = Join-Path $PSScriptRoot 'bedrock-map.exe'
 $sourceVantageLicense = Join-Path $PSScriptRoot 'VANTAGE-LICENSE.txt'
+$captureSource = Join-Path $PSScriptRoot 'map-capture/0.2.0'
+$captureNames = @('helpers.json', 'LICENSE', 'DEPENDENCIES.md', 'msc-map-capture-fabric-0.2.0.jar', 'msc-map-capture-forge-0.2.0.jar', 'msc-map-capture-neoforge-0.2.0.jar')
+foreach ($path in @((Join-Path $PSScriptRoot 'map-capture'), $captureSource) + @($captureNames | ForEach-Object { Join-Path $captureSource $_ })) {
+    if (-not (Test-Path -LiteralPath $path) -or ((Get-Item -LiteralPath $path).Attributes -band [IO.FileAttributes]::ReparsePoint)) { Fail "capture payload is missing or linked: $path" }
+}
 $installedBinary = Join-Path $installDirectory 'msc.exe'
 $installedVantage = Join-Path $installDirectory 'vantage.exe'
 $installedBedrockMap = Join-Path $installDirectory 'bedrock-map.exe'
@@ -71,6 +76,22 @@ if (Test-Path -LiteralPath $ownershipMarker -PathType Leaf) {
     Fail "existing non-MSC executable at $installedBinary"
 }
 
+# Inspect every existing helper path before stopping services or replacing binaries.
+$captureDestination = Join-Path $installDirectory 'map-capture/0.2.0'
+foreach ($path in @((Join-Path $installDirectory 'map-capture'), $captureDestination)) {
+    $item = Get-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+    if ($null -ne $item) {
+        if (-not $item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { Fail "installed capture helper directory is not a real directory: $path" }
+    }
+}
+foreach ($name in $captureNames) {
+    $path = Join-Path $captureDestination $name
+    $item = Get-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+    if ($null -ne $item) {
+        if ($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { Fail "installed capture helper file is not a regular file: $path" }
+    }
+}
+
 $credential = $ServiceCredential
 if (-not $credential) {
     $credential = Get-Credential -Message 'Enter the Windows account and password that will own MSC 2 servers'
@@ -91,6 +112,8 @@ Copy-Item -LiteralPath $sourceBinary -Destination $installedBinary -Force
 Copy-Item -LiteralPath $sourceVantage -Destination $installedVantage -Force
 Copy-Item -LiteralPath $sourceBedrockMap -Destination $installedBedrockMap -Force
 Copy-Item -LiteralPath $sourceVantageLicense -Destination (Join-Path $installDirectory 'VANTAGE-LICENSE.txt') -Force
+New-Item -ItemType Directory -Force -Path $captureDestination | Out-Null
+foreach ($name in $captureNames) { Copy-Item -LiteralPath (Join-Path $captureSource $name) -Destination (Join-Path $captureDestination $name) -Force }
 [IO.File]::WriteAllText($ownershipMarker, ("msc2-headless-archive" + [Environment]::NewLine))
 
 $dataDirectory = Join-Path $env:ProgramData 'MSC2'

@@ -78,6 +78,12 @@ pub struct CommonArgs {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum Command {
+    /// Prepare a dedicated matching client locally, without contacting an agent or launching it.
+    MapCapture {
+        #[command(subcommand)]
+        command: CaptureCommand,
+    },
+
     /// Permanently uninstall MSC 2 and its managed data on this computer.
     Uninstall(uninstall::UninstallArgs),
     /// Fixed, installed Linux cleanup helper; called through one OS authorization.
@@ -1435,8 +1441,97 @@ impl CliError {
     }
 }
 
+#[derive(Debug, Clone, Subcommand)]
+pub enum CaptureCommand {
+    /// Export resources and a configuration receipt without launching Minecraft.
+    ExportResources {
+        #[arg(long)]
+        instance: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+    },
+    Prepare {
+        #[arg(long)]
+        instance: PathBuf,
+        #[arg(long)]
+        context: PathBuf,
+        #[arg(long)]
+        game_jar: PathBuf,
+        #[arg(long)]
+        helpers: Option<PathBuf>,
+        #[arg(long)]
+        java: PathBuf,
+        #[arg(long)]
+        destination: PathBuf,
+        /// Override the matching client's memory allocation (512–65536 MiB).
+        #[arg(long)]
+        memory_mib: Option<u32>,
+    },
+}
+async fn run_capture(command: CaptureCommand) -> Result<(), CliError> {
+    match command {
+        CaptureCommand::ExportResources { instance, output } => {
+            let cancelled = Arc::new(AtomicBool::new(false));
+            let worker_cancel = cancelled.clone();
+            let mut worker = tokio::task::spawn_blocking(move || {
+                msc_infrastructure::map_assets::capture_client::export_resources(
+                    &instance,
+                    &output,
+                    &|| worker_cancel.load(Ordering::Acquire),
+                )
+            });
+            let result = tokio::select! { result=&mut worker=>result, _=tokio::signal::ctrl_c()=>{cancelled.store(true, Ordering::Release); worker.await} };
+            let manifest = result
+                .map_err(|_| CliError::internal("Resource export worker failed."))?
+                .map_err(|e| CliError::usage(format!("Resource export: {e}")))?;
+            print_json(&manifest)
+        }
+        CaptureCommand::Prepare {
+            instance,
+            context,
+            game_jar,
+            helpers,
+            java,
+            destination,
+            memory_mib,
+        } => {
+            let helpers = helpers
+                .map(Ok)
+                .unwrap_or_else(|| {
+                    msc_infrastructure::map_assets::capture_client::bundled_helpers(
+                        &msc_infrastructure::config_repository::default_app_data_dir()
+                            .join("map-capture-helpers"),
+                    )
+                })
+                .map_err(|e| CliError::usage(e.to_string()))?;
+            let cancelled = Arc::new(AtomicBool::new(false));
+            let worker_cancel = cancelled.clone();
+            let mut worker = tokio::task::spawn_blocking(move || {
+                msc_infrastructure::map_assets::capture_client::prepare(
+                    &msc_infrastructure::map_assets::capture_client::Prepare {
+                        instance,
+                        context,
+                        game_jar,
+                        helpers,
+                        java,
+                        destination,
+                        max_memory_mib: memory_mib,
+                    },
+                    &|| worker_cancel.load(Ordering::Acquire),
+                )
+            });
+            let result = tokio::select! {result=&mut worker=>result, _=tokio::signal::ctrl_c()=>{cancelled.store(true,Ordering::Release);worker.await}};
+            let prepared = result
+                .map_err(|_| CliError::internal("Capture preparation worker failed."))?
+                .map_err(|e| CliError::usage(format!("Capture preparation: {e}")))?;
+            print_json(&prepared)
+        }
+    }
+}
+
 pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
     match command {
+        Command::MapCapture { command } => run_capture(command).await,
         Command::Uninstall(args) => uninstall::run(common, args).await,
         #[cfg(target_os = "linux")]
         Command::UninstallPrivileged => {
@@ -3759,6 +3854,22 @@ async fn run_settings(common: CommonArgs, command: SettingsCommand) -> Result<()
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum MapAssetsCommand {
+    /// Export the adopted frame's bounded source context for a dedicated client.
+    CaptureContext {
+        #[arg(long)]
+        slot: String,
+        #[arg(long)]
+        expected_revision: String,
+        #[arg(long)]
+        dimension: String,
+        #[arg(long, num_args = 3, allow_hyphen_values = true)]
+        min: Vec<i32>,
+        #[arg(long, num_args = 3, allow_hyphen_values = true)]
+        max: Vec<i32>,
+        #[arg(long)]
+        output: PathBuf,
+    },
+
     Repair {
         #[arg(long)]
         slot: String,
@@ -3879,7 +3990,8 @@ async fn run_map_assets(
         .and_then(serde_json::Value::as_str)
         .ok_or_else(|| CliError::usage("Select an active server before inspecting map assets."))?;
     let slot = match &command {
-        MapAssetsCommand::Status { slot }
+        MapAssetsCommand::CaptureContext { slot, .. }
+        | MapAssetsCommand::Status { slot }
         | MapAssetsCommand::Report { slot, .. }
         | MapAssetsCommand::Repair { slot, .. }
         | MapAssetsCommand::Rebuild { slot, .. }
@@ -3901,6 +4013,58 @@ async fn run_map_assets(
         _ => "prepare",
     };
     match command {
+        MapAssetsCommand::CaptureContext {
+            expected_revision,
+            dimension,
+            min,
+            max,
+            output,
+            ..
+        } => {
+            let area = msc_domain::map_assets::Area {
+                min: min
+                    .try_into()
+                    .map_err(|_| CliError::usage("Supply three minimum coordinates."))?,
+                max: max
+                    .try_into()
+                    .map_err(|_| CliError::usage("Supply three maximum coordinates."))?,
+            };
+            area.validate().map_err(CliError::usage)?;
+            if output.exists() {
+                return Err(CliError::usage("Choose a new context filename."));
+            }
+            let bytes = client
+                .post_raw_bytes(
+                    &format!("{base}/capture-context"),
+                    &msc_api::dto::MapAssetsCheckRequestDto {
+                        server_id: server.into(),
+                        expected_revision,
+                        dimension,
+                        area,
+                    },
+                )
+                .await?;
+            if bytes.len() > 256 * 1024 * 1024 {
+                return Err(CliError::usage("Context exceeds the transfer budget."));
+            }
+            use std::io::Write;
+            let mut file = std::fs::OpenOptions::new()
+                .create_new(true)
+                .write(true)
+                .open(&output)
+                .map_err(|_| CliError::usage("Could not create the context export."))?;
+            if file
+                .write_all(&bytes)
+                .and_then(|_| file.sync_all())
+                .is_err()
+            {
+                let _ = std::fs::remove_file(&output);
+                return Err(CliError::internal("Could not finish context export."));
+            }
+            print_json(
+                &serde_json::json!({"output":output,"sha256":msc_infrastructure::map_assets::hash(&bytes),"bytes":bytes.len(),"gameLaunched":false}),
+            )
+        }
         MapAssetsCommand::Import {
             bundle,
             expected_revision,

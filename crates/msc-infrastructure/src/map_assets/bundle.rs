@@ -21,6 +21,10 @@ pub struct Layer {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Manifest {
     pub schema_version: u32,
+    /// Selected client configuration is hashed without sending its values to the
+    /// headless agent. Captures must use the approved configuration receipt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_config_fingerprint: Option<String>,
     pub minecraft_version: String,
     pub loader: String,
     pub loader_version: Option<String>,
@@ -61,7 +65,11 @@ fn resource(name: &str) -> bool {
 }
 impl Manifest {
     pub fn validate(&self) -> io::Result<()> {
-        if self.schema_version != 1
+        if self
+            .client_config_fingerprint
+            .as_ref()
+            .is_some_and(|h| !digest(h))
+            || self.schema_version != 1
             || self.evidence != "local_hashed"
             || self.minecraft_version.is_empty()
             || self.minecraft_version.len() > 128
@@ -246,6 +254,7 @@ pub fn export_instance(
     }
     let mut manifest = Manifest {
         schema_version: 1,
+        client_config_fingerprint: None,
         minecraft_version: game.ok_or_else(|| error("client_instance_version_required"))?,
         loader,
         loader_version,
@@ -347,6 +356,10 @@ pub fn export_instance(
             }
         }
     }
+    manifest.client_config_fingerprint = Some(hash_json(&super::store::fingerprint_configs(
+        &root.join("config"),
+        cancel,
+    )?)?);
     candidate.verify_inputs(cancel)?;
     manifest.validate()?;
     let mut writer = ZipWriter::new(

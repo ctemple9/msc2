@@ -701,6 +701,10 @@ pub fn prepare_resources(
     };
     if let Some((_, receipt)) = &imported {
         manifest_receipts.insert("importedClientBundle".into(), receipt.bundle_sha256.clone());
+        manifest_receipts.insert("clientManifest".into(), hash_json(&receipt.manifest)?);
+        if let Some(config) = &receipt.manifest.client_config_fingerprint {
+            manifest_receipts.insert("clientConfiguration".into(), config.clone());
+        }
     }
     let mut manifest = ResourceManifest {
         schema_version: 1,

@@ -133,6 +133,92 @@ impl WorldSource {
             }
         }
     }
+    /// Rebuild only the authorized saved chunks. Neighbour context never leaks
+    /// other chunks merely because Anvil stores 1024 records in one region.
+    pub fn capture_files(
+        &self,
+        dimension: &str,
+        area: Area,
+        cancel: &dyn Fn() -> bool,
+    ) -> io::Result<BTreeMap<String, Vec<u8>>> {
+        let terrain = self.inspect(dimension, area, cancel)?;
+        if !terrain.missing.is_empty() {
+            return Err(error("capture_saved_context_missing"));
+        }
+        let (namespace, path) = dimension
+            .split_once(':')
+            .ok_or_else(|| error("invalid_dimension"))?;
+        let folder = match dimension {
+            "minecraft:overworld" => "region".to_string(),
+            "minecraft:the_nether" => "DIM-1/region".into(),
+            "minecraft:the_end" => "DIM1/region".into(),
+            _ => format!("dimensions/{namespace}/{path}/region"),
+        };
+        let modern = format!("dimensions/{namespace}/{path}/region");
+        let mut regions = BTreeMap::<String, Vec<u8>>::new();
+        for x in area.min[0].div_euclid(16)..=area.max[0].div_euclid(16) {
+            for z in area.min[2].div_euclid(16)..=area.max[2].div_euclid(16) {
+                poll(cancel)?;
+                let name = format!("r.{}.{}.mca", x.div_euclid(32), z.div_euclid(32));
+                let mut bytes = self.bytes(&format!("{modern}/{name}"), MAX_ENTRY)?;
+                if bytes.is_none() && modern != folder {
+                    bytes = self.bytes(&format!("{folder}/{name}"), MAX_ENTRY)?;
+                }
+                let bytes = bytes.ok_or_else(|| error("capture_saved_context_missing"))?;
+                let raw =
+                    chunk(&bytes, x, z)?.ok_or_else(|| error("capture_saved_context_missing"))?;
+                let mut compressor =
+                    flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+                std::io::Write::write_all(&mut compressor, &raw)?;
+                let compressed = compressor.finish()?;
+                let region = regions
+                    .entry(format!("world/{folder}/{name}"))
+                    .or_insert_with(|| vec![0; 8192]);
+                let offset = region.len() / 4096;
+                let sectors = (compressed.len() + 5).div_ceil(4096);
+                if sectors > 255 {
+                    return Err(error("capture_chunk_sector_limit"));
+                }
+                let index = (x.rem_euclid(32) + z.rem_euclid(32) * 32) as usize * 4;
+                region[index] = (offset >> 16) as u8;
+                region[index + 1] = (offset >> 8) as u8;
+                region[index + 2] = offset as u8;
+                region[index + 3] = sectors as u8;
+                region.extend_from_slice(&((compressed.len() + 1) as u32).to_be_bytes());
+                region.push(2);
+                region.extend_from_slice(&compressed);
+                region.resize((offset + sectors) * 4096, 0);
+            }
+        }
+        regions.insert(
+            "world/level.dat".into(),
+            self.bytes("level.dat", MAX_JSON)?
+                .ok_or_else(|| error("missing_level_dat"))?,
+        );
+        // Check the bytes delivered, not merely two observations of the source:
+        // a save could change and change back between individual region reads.
+        let mut exported_receipts =
+            BTreeMap::from([("level.dat".to_string(), hash(&regions["world/level.dat"]))]);
+        for x in area.min[0].div_euclid(16)..=area.max[0].div_euclid(16) {
+            for z in area.min[2].div_euclid(16)..=area.max[2].div_euclid(16) {
+                poll(cancel)?;
+                let name = format!(
+                    "world/{folder}/r.{}.{}.mca",
+                    x.div_euclid(32),
+                    z.div_euclid(32)
+                );
+                let raw = chunk(&regions[&name], x, z)?
+                    .ok_or_else(|| error("capture_saved_context_missing"))?;
+                exported_receipts.insert(format!("{x},{z}"), hash(&raw));
+            }
+        }
+        if hash_json(&(dimension, area, exported_receipts))? != terrain.snapshot_id
+            || self.inspect(dimension, area, cancel)?.snapshot_id != terrain.snapshot_id
+        {
+            return Err(error("input_changed"));
+        }
+        Ok(regions)
+    }
     pub fn inspect(
         &self,
         dimension: &str,

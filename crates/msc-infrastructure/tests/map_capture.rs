@@ -44,6 +44,7 @@ fn fixture() -> (CaptureManifest, Terrain, BTreeMap<String, Vec<u8>>) {
         resource_generation_id: hash(b"resources"),
         input_fingerprint: hash(b"inputs"),
         snapshot_id: hash(b"snapshot"),
+        context_data_fingerprint: None,
         dimension: "minecraft:overworld".into(),
         area,
         context_area: supplemental::context_area(area).unwrap(),
@@ -173,7 +174,7 @@ fn zip(
 fn wrong_binding_snapshot_generation_state_and_duplicate_positions_are_refused() {
     let (m, terrain, _) = fixture();
     supplemental::validate_manifest(&m, &m.request, &terrain).unwrap();
-    for mutation in 0..8 {
+    for mutation in 0..9 {
         let mut bad = m.clone();
         match mutation {
             0 => bad.request.binding.agent_host_id = "other-host".into(),
@@ -185,7 +186,8 @@ fn wrong_binding_snapshot_generation_state_and_duplicate_positions_are_refused()
             4 => bad.blocks[1].position = bad.blocks[0].position,
             5 => bad.request.input_fingerprint = hash(b"other-client"),
             6 => bad.observed_snapshot_id = hash(b"same-state-different-entity-contents"),
-            _ => bad.observed_input_fingerprint = hash(b"wrong-client-resource-order"),
+            7 => bad.observed_input_fingerprint = hash(b"wrong-client-resource-order"),
+            _ => bad.request.context_data_fingerprint = Some(hash(b"changed-saved-data")),
         }
         assert!(supplemental::validate_manifest(&bad, &m.request, &terrain).is_err());
     }
@@ -340,4 +342,129 @@ fn position_replacement_repacks_palette_width_without_erasing_other_instances() 
     ]));
     assert_eq!(palette_at(&section, -16, 64, -15).unwrap(), Some(&water));
     assert_eq!(palette_at(&section, -15, 64, -15).unwrap(), Some(&wet));
+}
+
+// Essential: a restart may rebase geometry, but must never adopt stale inputs or
+// let a corrupt optional cache damage already leased appearance data. Generated
+// bytes only; expected runtime below one second after compilation.
+#[test]
+fn cached_capture_rebases_only_geometry_and_corruption_preserves_leased_artifacts() {
+    let scratch = Temporary::new();
+    let (manifest, terrain, data) = fixture();
+    let source = scratch.0.join("output.zip");
+    let sha = zip(&source, &manifest, &data);
+    let cache = supplemental::Cache::new(&scratch.0.join("store"));
+    cache
+        .retain(&source, &sha, &manifest.request, &|| false)
+        .unwrap();
+    let mut rebuilt = manifest.request.clone();
+    rebuilt.geometry_generation_id = hash(b"rebuilt-geometry");
+    let leased = cache.load(&rebuilt, &terrain, &|| false).unwrap().unwrap();
+    assert_eq!(leased.manifest.request, rebuilt);
+    for (path, expected) in &data {
+        assert_eq!(leased.read_artifact(path).unwrap(), *expected);
+    }
+    for changed in ["snapshot", "inputs"] {
+        let mut stale = rebuilt.clone();
+        if changed == "snapshot" {
+            stale.snapshot_id = hash(b"changed-snapshot");
+        } else {
+            stale.input_fingerprint = hash(b"changed-inputs");
+        }
+        assert!(cache.load(&stale, &terrain, &|| false).unwrap().is_none());
+    }
+    let cached_file = std::fs::read_dir(scratch.0.join("store/captures"))
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    std::fs::write(cached_file, b"corrupt archive").unwrap();
+    assert!(cache.load(&rebuilt, &terrain, &|| false).is_err());
+    for (path, expected) in &data {
+        assert_eq!(leased.read_artifact(path).unwrap(), *expected);
+    }
+}
+
+// Essential: an Anvil region groups unrelated world chunks. Context export must
+// preserve its saved identity without transferring those unrelated records or
+// modifying the source. Two controlled one-sector chunks; runtime below one second.
+#[test]
+fn capture_context_preserves_snapshot_and_excludes_unrequested_region_chunks() {
+    use msc_infrastructure::map_assets::saved_terrain::WorldSource;
+    let scratch = Temporary::new();
+    let original = scratch.0.join("original");
+    std::fs::create_dir_all(original.join("region")).unwrap();
+    std::fs::write(original.join("level.dat"), b"controlled-level-receipt").unwrap();
+    let mut region = vec![0u8; 16384];
+    for x in 0..2usize {
+        let block = Value::Compound(HashMap::from([(
+            "Name".into(),
+            Value::String("fixture:block".into()),
+        )]));
+        let section = Value::Compound(HashMap::from([
+            ("Y".into(), Value::Byte(4)),
+            (
+                "block_states".into(),
+                Value::Compound(HashMap::from([(
+                    "palette".into(),
+                    Value::List(vec![block]),
+                )])),
+            ),
+        ]));
+        let chunk = Value::Compound(HashMap::from([
+            ("xPos".into(), Value::Int(x as i32)),
+            ("zPos".into(), Value::Int(0)),
+            ("Status".into(), Value::String("minecraft:full".into())),
+            ("sections".into(), Value::List(vec![section])),
+        ]));
+        let raw = fastnbt::to_bytes(&chunk).unwrap();
+        let offset = (x + 2) * 4096;
+        region[x * 4 + 2] = (x + 2) as u8;
+        region[x * 4 + 3] = 1;
+        region[offset..offset + 4].copy_from_slice(&((raw.len() + 1) as u32).to_be_bytes());
+        region[offset + 4] = 3;
+        region[offset + 5..offset + 5 + raw.len()].copy_from_slice(&raw);
+    }
+    let region_path = original.join("region/r.0.0.mca");
+    std::fs::write(&region_path, &region).unwrap();
+    let area = Area {
+        min: [0, 64, 0],
+        max: [0, 64, 0],
+    };
+    let source = WorldSource::Directory(original);
+    let expected = source
+        .inspect("minecraft:overworld", area, &|| false)
+        .unwrap();
+    let files = source
+        .capture_files("minecraft:overworld", area, &|| false)
+        .unwrap();
+    assert_eq!(&files["world/region/r.0.0.mca"][4..8], &[0; 4]);
+    let exported = scratch.0.join("exported");
+    for (name, bytes) in files {
+        let path = exported.join(name);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, bytes).unwrap();
+    }
+    let delivered = WorldSource::Directory(exported.join("world"));
+    assert_eq!(
+        delivered
+            .inspect("minecraft:overworld", area, &|| false)
+            .unwrap()
+            .snapshot_id,
+        expected.snapshot_id
+    );
+    let unrelated = Area {
+        min: [16, 64, 0],
+        max: [16, 64, 0],
+    };
+    assert_eq!(
+        delivered
+            .inspect("minecraft:overworld", unrelated, &|| false)
+            .unwrap()
+            .missing
+            .len(),
+        1
+    );
+    assert_eq!(std::fs::read(region_path).unwrap(), region);
 }

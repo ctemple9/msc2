@@ -130,6 +130,10 @@ pub fn router(state: WorldsRoutesState) -> Router {
         )
         .route("/worlds/:slot_id/map-assets/check", post(map_assets::check))
         .route(
+            "/worlds/:slot_id/map-assets/capture-context",
+            post(map_assets::capture_context),
+        )
+        .route(
             "/worlds/:slot_id/map-assets/capture-request",
             post(map_assets::capture_request),
         )

@@ -37,13 +37,13 @@ pub async fn inspect_map_client_resources(
 ) -> Result<Inspection, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let token = format!("{:032x}", rand::random::<u128>());
-        let root = std::env::temp_dir().join(format!("msc-map-import-{token}"));
+        let root = std::fs::canonicalize(std::env::temp_dir()).map_err(|_|"Private temporary storage unavailable.")?.join(format!("msc-map-import-{token}"));
         let mut guard = sessions().lock().map_err(|_| "Resource inspector unavailable.")?;
         guard.retain(|_, session| session.touched.elapsed() < Duration::from_secs(1800));
         if guard.len() >= 2 { return Err("Close an earlier resource inspection before opening another.".into()); }
         drop(guard);
         std::fs::create_dir(&root).map_err(|_| "Could not prepare private resource scratch.")?;
-        #[cfg(unix)] { use std::os::unix::fs::PermissionsExt; std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700)).map_err(|_| "Could not protect resource scratch.")?; }
+        #[cfg(unix)] { use std::os::unix::fs::PermissionsExt; std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700)).map_err(|_| { let _ = std::fs::remove_dir_all(&root); "Could not protect resource scratch." })?; }
         let file = root.join("client-resources.zip");
         let session = Session { root: root.clone(), file: file.clone(), touched: Instant::now() };
         let source = Path::new(&source);
@@ -152,4 +152,66 @@ pub fn export_map_rendering_report(report: String, destination: String) -> Resul
     file.write_all(&bytes)
         .and_then(|_| file.sync_all())
         .map_err(|_| "Could not finish report export.".to_string())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CaptureInspection {
+    token: String,
+    size: u64,
+    sha256: String,
+    manifest: msc_domain::map_assets::CaptureManifest,
+}
+pub(super) fn retain_capture_import(
+    source: &Path,
+    sha: &str,
+    manifest: msc_domain::map_assets::CaptureManifest,
+) -> Result<CaptureInspection, String> {
+    let token = format!("{:032x}", rand::random::<u128>());
+    let root = std::fs::canonicalize(std::env::temp_dir())
+        .map_err(|_| "Private temporary storage unavailable.")?
+        .join(format!("msc-map-import-{token}"));
+    std::fs::create_dir(&root).map_err(|_| "Could not prepare capture transfer.")?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700)).map_err(|_| {
+            let _ = std::fs::remove_dir_all(&root);
+            "Could not protect capture transfer."
+        })?;
+    }
+    let file = root.join("capture.zip");
+    let session = Session {
+        root,
+        file: file.clone(),
+        touched: Instant::now(),
+    };
+    std::fs::copy(source, &file).map_err(|_| "Could not stage capture transfer.")?;
+    if msc_infrastructure::map_assets::file_hash(
+        &file,
+        msc_infrastructure::map_assets::supplemental::MAX_CAPTURE,
+        &|| false,
+    )
+    .map_err(|_| "Could not hash capture transfer.")?
+        != sha
+    {
+        return Err("Capture changed during transfer preparation.".into());
+    }
+    let size = std::fs::metadata(&file)
+        .map_err(|_| "Could not inspect capture transfer.")?
+        .len();
+    let mut guard = sessions()
+        .lock()
+        .map_err(|_| "Resource transfer unavailable.")?;
+    guard.retain(|_, s| s.touched.elapsed() < Duration::from_secs(1800));
+    if guard.len() >= 2 {
+        return Err("Close an earlier resource transfer first.".into());
+    }
+    guard.insert(token.clone(), session);
+    Ok(CaptureInspection {
+        token,
+        size,
+        sha256: sha.into(),
+        manifest,
+    })
 }

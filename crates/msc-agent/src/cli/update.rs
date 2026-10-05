@@ -770,18 +770,50 @@ fn payload_names(payload: &Path) -> Vec<String> {
     if payload.join("sidecar").is_dir() {
         names.push("sidecar".to_string());
     }
+    if fs::symlink_metadata(payload.join("map-capture")).is_ok() {
+        names.push("map-capture".to_string());
+    }
     names
+}
+
+fn validate_payload_tree(path: &Path) -> Result<(), String> {
+    let metadata = fs::symlink_metadata(path)
+        .map_err(|error| format!("Could not inspect {}: {error}", path.display()))?;
+    if metadata.file_type().is_symlink() || !(metadata.is_file() || metadata.is_dir()) {
+        return Err(format!(
+            "The signed headless archive contains an unsupported file: {}",
+            path.display()
+        ));
+    }
+    if metadata.is_dir() {
+        for entry in fs::read_dir(path)
+            .map_err(|error| format!("Could not inspect payload directory: {error}"))?
+        {
+            validate_payload_tree(
+                &entry
+                    .map_err(|error| format!("Could not inspect payload entry: {error}"))?
+                    .path(),
+            )?;
+        }
+    }
+    Ok(())
 }
 
 fn validate_payload(payload: &Path) -> Result<(), String> {
     for name in payload_names(payload) {
         let metadata = fs::symlink_metadata(payload.join(&name))
             .map_err(|_| format!("The signed headless archive is missing {name}."))?;
-        if !(metadata.is_file() || name == "sidecar" && metadata.is_dir()) {
+        let valid_kind = if name == "sidecar" || name == "map-capture" {
+            metadata.is_dir()
+        } else {
+            metadata.is_file()
+        };
+        if !valid_kind {
             return Err(format!(
                 "The signed headless archive has an invalid {name}."
             ));
         }
+        validate_payload_tree(&payload.join(&name))?;
     }
     Ok(())
 }

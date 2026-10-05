@@ -3,6 +3,7 @@ pub mod acquire;
 pub mod adapter;
 pub mod adoption;
 pub mod bundle;
+pub mod capture_client;
 pub mod compose;
 pub mod inventory;
 pub mod resolver;

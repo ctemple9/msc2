@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod map_assets;
+mod map_capture;
+mod map_capture_process;
 
 use msc_infrastructure::secret_store::SecretStore;
 use msc_infrastructure::service::{
@@ -1754,6 +1756,13 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
+            map_capture::prepare_map_capture,
+            map_capture::map_capture_helpers,
+            map_capture::resume_map_capture,
+            map_capture::launch_map_capture,
+            map_capture::cancel_map_capture,
+            map_capture::inspect_map_capture_output,
+            map_capture::discard_map_capture,
             map_assets::inspect_map_client_resources,
             map_assets::read_map_client_resources,
             map_assets::discard_map_client_resources,

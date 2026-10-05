@@ -53,6 +53,60 @@
     }
   },
   "paths": {
+    "/v1/worlds/{slot_id}/map-assets/capture-context": {
+  "post": {
+    "summary": "Export private saved context for a matching client capture",
+    "operationId": "exportWorldMapCaptureContext",
+    "x-permission-category": "worlds",
+    "x-notes": "Explicit read-only export. Includes only saved context chunks, level data, resource winner hashes and bounded configuration/data copies. Maximum archive and expanded input size 256 MiB. No game launch or server mutation. Revalidates world binding before returning.",
+    "parameters": [
+      {
+        "name": "slot_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    ],
+    "responses": {
+      "400": {
+        "description": "Invalid map-resource request or bounds"
+      },
+      "200": {
+        "description": "Bounded saved context archive",
+        "content": {
+          "application/zip": {
+            "schema": {
+              "type": "string",
+              "format": "binary"
+            }
+          }
+        }
+      },
+      "403": {
+        "description": "Worlds permission required"
+      },
+      "409": {
+        "description": "Binding changed, unsupported scope, consistent snapshot required, or bounded inspection refused"
+      },
+      "404": {
+        "description": "Slot or bound report is unavailable"
+      }
+    },
+    "requestBody": {
+      "required": true,
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/MapAssetsCheckRequestDTO"
+          }
+        }
+      }
+    }
+  }
+},
     "/v1/worlds/{slot_id}/map-assets/capture-request": {
   "post": {
     "summary": "Request capture bound to an adopted saved map",
@@ -8103,6 +8157,11 @@
     },
     "inputFingerprint": {
       "type": "string"
+    },
+    "contextDataFingerprint": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "Production capture request binds saved server configuration, datapacks and world data. Optional only for earlier data-format readers."
     },
     "snapshotId": {
       "type": "string"

@@ -64,6 +64,19 @@ impl SharedClient {
         decode_json(&response.body)
     }
 
+    pub(crate) async fn post_raw_bytes<Req: Serialize + ?Sized>(
+        &self,
+        path: &str,
+        body: &Req,
+    ) -> Result<Vec<u8>, CliError> {
+        let payload = serde_json::to_vec(body)
+            .map_err(|_| CliError::internal("Could not encode capture request."))?;
+        Ok(self
+            .request_raw(Method::POST, path, Some("application/json"), Some(payload))
+            .await?
+            .body)
+    }
+
     /// Uploads raw bytes rather than a JSON body.
     pub(crate) async fn put_bytes<Resp: DeserializeOwned>(
         &self,
@@ -419,6 +432,10 @@ async fn send_http_request(
         .write_all(&request)
         .await
         .map_err(|err| format!("failed to write request: {err}"))?;
+    let capture_limit = target
+        .split('?')
+        .next()
+        .is_some_and(|path| path.ends_with("/map-assets/capture-context"));
     let mut response = Vec::new();
     let mut chunk = [0u8; 4096];
     let mut header_end = None;
@@ -438,6 +455,9 @@ async fn send_http_request(
         if read == 0 {
             break;
         }
+        if capture_limit && response.len() + read > 256 * 1024 * 1024 + 65536 {
+            return Err("capture context response exceeds its byte limit".into());
+        }
         response.extend_from_slice(&chunk[..read]);
 
         if header_end.is_none() {
@@ -446,6 +466,9 @@ async fn send_http_request(
                 let headers = String::from_utf8(response[..end].to_vec())
                     .map_err(|err| format!("response headers were not valid UTF-8: {err}"))?;
                 expected_body_len = parse_content_length(&headers)?;
+                if capture_limit && expected_body_len.is_some_and(|size| size > 256 * 1024 * 1024) {
+                    return Err("capture context response exceeds its byte limit".into());
+                }
                 if expected_body_len == Some(0) {
                     break;
                 }
@@ -464,6 +487,9 @@ async fn send_http_request(
         .position(|window| window == b"\r\n\r\n")
         .ok_or_else(|| "response did not contain a header/body separator".to_string())?;
     let body_bytes = &response[header_end + 4..];
+    if capture_limit && expected_body_len.is_some_and(|size| body_bytes.len() < size) {
+        return Err("capture context response ended before all bytes arrived".into());
+    }
     let headers = String::from_utf8(response[..header_end].to_vec())
         .map_err(|err| format!("response headers were not valid UTF-8: {err}"))?;
     let body = if let Some(body_len) = parse_content_length(&headers)? {

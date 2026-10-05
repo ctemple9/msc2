@@ -83,6 +83,7 @@ fn malicious_or_case_colliding_resources_and_forged_objects_are_refused() {
     let sha = hash(object);
     let mut manifest = bundle::Manifest {
         schema_version: 1,
+        client_config_fingerprint: None,
         minecraft_version: "1.21.1".into(),
         loader: "vanilla".into(),
         loader_version: None,

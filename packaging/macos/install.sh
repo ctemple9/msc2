@@ -59,6 +59,13 @@ VERSION_FILE="$SCRIPT_DIR/MSC2-VERSION"
 [[ -x "$SOURCE_BEDROCK_MAP" ]] || fail "Bedrock terrain exporter is missing: $SOURCE_BEDROCK_MAP"
 [[ -f "$SOURCE_VANTAGE_LICENSE" ]] || fail "Vantage license is missing: $SOURCE_VANTAGE_LICENSE"
 [[ -f "$VERSION_FILE" ]] || fail "package version file is missing: $VERSION_FILE"
+# Helpers are public adapter code, never copied client mods or account data.
+CAPTURE_SOURCE="$SCRIPT_DIR/map-capture/0.2.0"
+[[ -d "$CAPTURE_SOURCE" && ! -L "$SCRIPT_DIR/map-capture" && ! -L "$CAPTURE_SOURCE" ]] || fail "capture helper directory is missing or linked"
+for capture_file in helpers.json LICENSE DEPENDENCIES.md msc-map-capture-fabric-0.2.0.jar msc-map-capture-forge-0.2.0.jar msc-map-capture-neoforge-0.2.0.jar; do
+  [[ -f "$CAPTURE_SOURCE/$capture_file" && ! -L "$CAPTURE_SOURCE/$capture_file" ]] || fail "capture helper file is missing or linked: $capture_file"
+done
+
 VERSION="$(sed -n '1p' "$VERSION_FILE")"
 [[ -n "$VERSION" && "$VERSION" != */* && "$VERSION" != *$'\n'* && "$VERSION" != *$'\r'* ]] || \
   fail "package version is invalid"
@@ -114,11 +121,24 @@ if [[ -f "$AGENT_PLIST" ]]; then
     "the installed agent service belongs to another MSC installation"
 fi
 
+# Refuse unsafe existing helper paths before changing the service or binaries.
+for capture_directory in "$VERSION_ROOT/map-capture" "$VERSION_ROOT/map-capture/0.2.0"; do
+  [[ ! -L "$capture_directory" && ( ! -e "$capture_directory" || -d "$capture_directory" ) ]] || fail "installed capture helper directory is not a real directory"
+done
+for capture_file in helpers.json LICENSE DEPENDENCIES.md msc-map-capture-fabric-0.2.0.jar msc-map-capture-forge-0.2.0.jar msc-map-capture-neoforge-0.2.0.jar; do
+  capture_target="$VERSION_ROOT/map-capture/0.2.0/$capture_file"
+  [[ ! -L "$capture_target" && ( ! -e "$capture_target" || -f "$capture_target" ) ]] || fail "installed capture helper file is not a regular file"
+done
+
 install -d -m 0755 "$PATH_DIR" "$VERSION_ROOT"
 install -m 0755 "$SOURCE_BINARY" "$INSTALL_BINARY"
 install -m 0755 "$SOURCE_VANTAGE" "$VANTAGE_BINARY"
 install -m 0755 "$SOURCE_BEDROCK_MAP" "$BEDROCK_MAP_BINARY"
 install -m 0644 "$SOURCE_VANTAGE_LICENSE" "$VANTAGE_LICENSE"
+install -d -m 0755 "$VERSION_ROOT/map-capture/0.2.0"
+for capture_file in helpers.json LICENSE DEPENDENCIES.md msc-map-capture-fabric-0.2.0.jar msc-map-capture-forge-0.2.0.jar msc-map-capture-neoforge-0.2.0.jar; do
+  install -m 0644 "$CAPTURE_SOURCE/$capture_file" "$VERSION_ROOT/map-capture/0.2.0/$capture_file"
+done
 if [[ -f "$SCRIPT_DIR/BEDROCK-HELPER-PLIST.in" ]]; then
   install -m 0644 "$SCRIPT_DIR/BEDROCK-HELPER-PLIST.in" "$VERSION_ROOT/BEDROCK-HELPER-PLIST.in"
 fi

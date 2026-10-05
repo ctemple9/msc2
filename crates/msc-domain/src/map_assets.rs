@@ -18,6 +18,9 @@ pub struct CaptureRequest {
     pub resource_generation_id: String,
     pub input_fingerprint: String,
     pub snapshot_id: String,
+    /// Exact saved server configuration, datapacks and per-world data receipts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_data_fingerprint: Option<String>,
     pub dimension: String,
     pub area: Area,
     pub context_area: Area,

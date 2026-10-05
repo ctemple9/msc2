@@ -51,6 +51,7 @@ fn actions() -> Vec<String> {
         "status",
         "report",
         "check",
+        "capture_request",
         "prepare",
         "rendering",
         "import",
@@ -76,7 +77,7 @@ pub(super) async fn capabilities(
             "msc-resource-inventory-1".into(),
             "msc-client-resources-1".into(),
         ],
-        capture_formats: vec![],
+        capture_formats: vec![domain::CAPTURE_FORMAT.into()],
         renderer_adoption: true,
     })
     .into_response()
@@ -543,6 +544,53 @@ pub(super) async fn prepare(
         })
         .into_response(),
         Err((code, message)) => error_response(StatusCode::CONFLICT, code, &message),
+    }
+}
+
+#[allow(clippy::result_large_err)]
+pub(super) async fn capture_request(
+    State(state): State<WorldsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    AxumPath(slot): AxumPath<String>,
+    payload: Result<Json<MapAssetsCheckRequestDto>, JsonRejection>,
+) -> Response {
+    let request = match payload {
+        Ok(Json(request)) => request,
+        _ => {
+            return invalid_body(
+                "invalid_capture_request",
+                "Supply the current binding, dimension and bounded capture area.",
+            );
+        }
+    };
+    match tokio::task::spawn_blocking(move || {
+        let _permit = state.map_assets.worker().ok_or_else(|| {
+            error_response(
+                StatusCode::CONFLICT,
+                "map_assets_worker_limit",
+                "Wait for the current map operation.",
+            )
+        })?;
+        let context = bound(&state, &credential, &request.server_id, &slot)?;
+        if request.expected_revision != context.binding.revision {
+            return Err(error_response(
+                StatusCode::CONFLICT,
+                "binding_changed",
+                "Fetch the current world binding.",
+            ));
+        }
+        map_terrain::capture_request(&state, &context, &request.dimension, request.area)
+            .map_err(|e| asset_error(&e))
+    })
+    .await
+    {
+        Ok(Ok(request)) => Json(request).into_response(),
+        Ok(Err(response)) => response,
+        _ => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "map_assets_worker_failed",
+            "Capture request could not be prepared.",
+        ),
     }
 }
 

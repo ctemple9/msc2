@@ -338,11 +338,12 @@ pub fn inspect(
     manifest.sources.sort_by(|a, b| a.id.cmp(&b.id));
     manifest.generation_id = hash_json(&manifest)?;
     let mut report=Report {schema_version:map_assets::SCHEMA_VERSION,binding:context.binding.clone(),snapshot_id:terrain.snapshot_id,snapshot_minecraft_version,resource_generation_id:manifest.generation_id.clone(),geometry_generation_id:None,dimension:dimension.into(),area,operation_id:operation_id.into(),outcome:"checked".into(),repair:None,visual_acceptance:"pending".into(),scope:"saved blocks in requested bounds only; inventory resolution, not adopted renderer output; client selection unknown".into(),inspected_blocks:terrain.blocks.len()as u64,inspected_chunks:terrain.chunks,distinct_states,visible_faces:None,counts,diagnostics,omitted_issues,omitted_samples,sources:manifest.sources.clone()};
-    if report
-        .counts
-        .keys()
-        .any(|class| !matches!(class, C::ModelResolved | C::IntentionalEmpty))
-    {
+    if report.counts.keys().any(|class| {
+        !matches!(
+            class,
+            C::ModelResolved | C::IntentionalEmpty | C::CapturedAppearance
+        )
+    }) {
         report.outcome = "needs_input".into();
     }
     progress(
@@ -806,20 +807,71 @@ pub fn report_resources(
     operation: &str,
     cancel: &dyn Fn() -> bool,
 ) -> io::Result<Report> {
+    report_resources_captured(
+        context,
+        inventory,
+        manifest,
+        missing,
+        prerequisites,
+        world,
+        dimension,
+        area,
+        operation,
+        cancel,
+        &BTreeSet::new(),
+    )
+}
+#[allow(clippy::too_many_arguments)]
+pub fn report_resources_captured(
+    context: &Context,
+    inventory: &Inventory,
+    manifest: &ResourceManifest,
+    missing: bool,
+    prerequisites: bool,
+    world: &WorldSource,
+    dimension: &str,
+    area: Area,
+    operation: &str,
+    cancel: &dyn Fn() -> bool,
+    captured: &BTreeSet<[i32; 3]>,
+) -> io::Result<Report> {
     let terrain = world.inspect(dimension, area, cancel)?;
     let mut groups: BTreeMap<StateKey, Vec<[i32; 3]>> = BTreeMap::new();
+    let mut captured_groups: BTreeMap<StateKey, Vec<[i32; 3]>> = BTreeMap::new();
     for b in &terrain.blocks {
-        groups
+        let target = if captured.contains(&b.position) {
+            &mut captured_groups
+        } else {
+            &mut groups
+        };
+        target
             .entry((b.id.clone(), b.state.clone(), b.entity))
             .or_default()
             .push(b.position);
     }
-    let distinct_states = groups.len() as u64;
+    let distinct_states = groups
+        .keys()
+        .chain(captured_groups.keys())
+        .collect::<BTreeSet<_>>()
+        .len() as u64;
     let adapter = io_assets::adapter::Adapter { inventory };
     let mut counts = BTreeMap::new();
     let mut diagnostics = Vec::new();
     let mut omitted_issues = 0;
     let mut omitted_samples = 0;
+    for ((id, state, _), positions) in captured_groups {
+        *counts.entry(C::CapturedAppearance).or_insert(0) += positions.len() as u64;
+        if diagnostics.len() < 1000 {
+            omitted_samples += positions.len().saturating_sub(5) as u64;
+            diagnostics.push(Diagnostic { classification: C::CapturedAppearance, original_id: id,
+                state, detail: "Validated position-bound captured appearance at a saved frame; visual acceptance pending.".into(),
+                source_ids: vec![], block_occurrences: positions.len() as u64,
+                samples: positions.iter().take(5).copied().collect() });
+        } else {
+            omitted_issues += 1;
+            omitted_samples += positions.len() as u64;
+        }
+    }
     for ((id, state, entity), positions) in groups {
         poll(cancel)?;
         let result = adapter.palette(&id, &state, entity)?;
@@ -852,9 +904,12 @@ pub fn report_resources(
     }
     let needs_input = missing
         || prerequisites
-        || counts
-            .keys()
-            .any(|c| !matches!(c, C::ModelResolved | C::IntentionalEmpty));
+        || counts.keys().any(|c| {
+            !matches!(
+                c,
+                C::ModelResolved | C::IntentionalEmpty | C::CapturedAppearance
+            )
+        });
     Ok(Report{schema_version:1,binding:context.binding.clone(),snapshot_id:terrain.snapshot_id,
         snapshot_minecraft_version:world.recorded_game_version()?,resource_generation_id:manifest.generation_id.clone(),geometry_generation_id:None,dimension:dimension.into(),area,operation_id:operation.into(),repair:None,outcome:if needs_input{"needs_input"}else{"ready"}.into(),visual_acceptance:"pending".into(),scope:"Original saved blocks in the requested bounds; candidate artifacts validated separately. Fallback geometry is not model_resolved. Visual acceptance remains pending.".into(),inspected_blocks:terrain.blocks.len()as u64,inspected_chunks:terrain.chunks,distinct_states,visible_faces:None,counts,diagnostics,omitted_issues,omitted_samples,sources:manifest.sources.clone()})
 }
@@ -989,7 +1044,12 @@ pub fn classify_repair(before: Option<&Report>, after: &mut Report, artifacts_va
     let failures = |r: &Report| {
         r.counts
             .iter()
-            .filter(|(c, _)| !matches!(c, C::ModelResolved | C::IntentionalEmpty))
+            .filter(|(c, _)| {
+                !matches!(
+                    c,
+                    C::ModelResolved | C::IntentionalEmpty | C::CapturedAppearance
+                )
+            })
             .map(|(_, n)| *n)
             .sum::<u64>()
     };

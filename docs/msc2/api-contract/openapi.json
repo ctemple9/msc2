@@ -53,6 +53,59 @@
     }
   },
   "paths": {
+    "/v1/worlds/{slot_id}/map-assets/capture-request": {
+  "post": {
+    "summary": "Request capture bound to an adopted saved map",
+    "operationId": "requestWorldMapCapture",
+    "x-permission-category": "worlds",
+    "x-notes": "Read-only bounded request from the adopted generation. Requires exact selected resources, loader version, saved area plus one-block context halo. Returns conflict until a usable scene exists. No client launch or snapshot mutation.",
+    "parameters": [
+      {
+        "name": "slot_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    ],
+    "responses": {
+      "400": {
+        "description": "Invalid map-resource request or bounds"
+      },
+      "200": {
+        "description": "Agent-issued saved-scene capture request",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/MapCaptureRequestDTO"
+            }
+          }
+        }
+      },
+      "403": {
+        "description": "Worlds permission required"
+      },
+      "409": {
+        "description": "Binding changed, unsupported scope, consistent snapshot required, or bounded inspection refused"
+      },
+      "404": {
+        "description": "Slot or bound report is unavailable"
+      }
+    },
+    "requestBody": {
+      "required": true,
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/MapAssetsCheckRequestDTO"
+          }
+        }
+      }
+    }
+  }
+},
   "/v1/worlds/{slot_id}/map-assets/repair": {
   "post": {
     "summary": "Re-render and validate the affected saved area with current resources",
@@ -368,7 +421,7 @@
         "summary": "Import matching client map resources",
         "operationId": "importWorldMapAssets",
         "x-permission-category": "worlds",
-        "x-notes": "Consumes a completed map-client-assets upload owned by this credential and the exact host/server/slot revision. Validation and saved tile adoption share a cancellable operation. Resource-only bundle; no remote client filesystem paths.",
+        "x-notes": "Consumes a completed map-client-assets upload owned by this credential and exact binding. Accepts backward-compatible resource bundles or msc-contextual-mesh-1 ZIP bundles with capture.json. Captures must match an agent-issued capture request, exact saved snapshot/area/context and resource generation. Validation and coherent saved terrain/capture adoption share a cancellable operation. No client code runs on the host.",
         "parameters": [
           {
             "name": "slot_id",
@@ -792,7 +845,7 @@
         "summary": "Fetch a bounded saved terrain artifact for an active world dimension",
         "operationId": "getWorldMapTerrainArtifact",
         "x-permission-category": "worlds",
-        "x-notes": "Java manifests return mscGenerationId; pin atlas and tile requests to it. Modded first-open queues exact preparation; while preparing without a candidate returns map_preparing with rendering status. Prior published generations remain available until their bounded idle leases retire.",
+        "x-notes": "Java manifests return mscGenerationId; pin atlas, tile and capture requests to it. Captured scenes require captureFormat=msc-contextual-mesh-1; older readers receive capture_viewer_required instead of geometry with missing replaced blocks. mscCapture references a checked capture/capture.json manifest and bounded meshes/textures. Modded first-open queues exact preparation; while preparing without a candidate returns map_preparing with rendering status. Prior published generations remain available until their bounded idle leases retire.",
         "parameters": [
           {
             "name": "dimension",
@@ -817,6 +870,12 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "captureFormat",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "enum": ["msc-contextual-mesh-1"] }
           },
           {
             "name": "serverId",
@@ -8009,6 +8068,264 @@
   },
   "components": {
     "schemas": {
+"MapCaptureRequestDTO": {
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "binding",
+    "geometryGenerationId",
+    "resourceGenerationId",
+    "inputFingerprint",
+    "snapshotId",
+    "dimension",
+    "area",
+    "contextArea",
+    "minecraftVersion",
+    "loader",
+    "loaderVersion"
+  ],
+  "properties": {
+    "format": {
+      "type": "string",
+      "enum": [
+        "msc-contextual-mesh-1"
+      ]
+    },
+    "binding": {
+      "$ref": "#/components/schemas/MapAssetsBindingDTO"
+    },
+    "geometryGenerationId": {
+      "type": "string"
+    },
+    "resourceGenerationId": {
+      "type": "string"
+    },
+    "inputFingerprint": {
+      "type": "string"
+    },
+    "snapshotId": {
+      "type": "string"
+    },
+    "dimension": {
+      "type": "string"
+    },
+    "area": {
+      "$ref": "#/components/schemas/MapAssetsAreaDTO"
+    },
+    "contextArea": {
+      "$ref": "#/components/schemas/MapAssetsAreaDTO"
+    },
+    "minecraftVersion": {
+      "type": "string"
+    },
+    "loader": {
+      "type": "string"
+    },
+    "loaderVersion": {
+      "type": "string"
+    }
+  }
+},
+"MapCaptureManifestDTO": {
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "request",
+    "observedSnapshotId",
+    "observedInputFingerprint",
+    "capturedAtUnix",
+    "gameTick",
+    "savedFrame",
+    "directionalLights",
+    "materials",
+    "blocks",
+    "files"
+  ],
+  "properties": {
+    "observedSnapshotId": { "type": "string" },
+    "observedInputFingerprint": { "type": "string" },
+    "request": {
+      "$ref": "#/components/schemas/MapCaptureRequestDTO"
+    },
+    "capturedAtUnix": {
+      "type": "integer"
+    },
+    "gameTick": {
+      "type": "integer"
+    },
+    "savedFrame": {
+      "type": "boolean"
+    },
+    "directionalLights": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "array",
+        "minItems": 3,
+        "maxItems": 3,
+        "items": {
+          "type": "number"
+        }
+      }
+    },
+    "materials": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "texture",
+          "mode",
+          "alphaThreshold",
+          "cull",
+          "depthWrite",
+          "directionalLighting"
+        ],
+        "properties": {
+          "texture": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "opaque",
+              "cutout",
+              "translucent",
+              "additive"
+            ]
+          },
+          "alphaThreshold": {
+            "type": "number"
+          },
+          "cull": {
+            "type": "boolean"
+          },
+          "depthWrite": {
+            "type": "boolean"
+          },
+          "directionalLighting": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "blocks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "position",
+          "id",
+          "state",
+          "meshes"
+        ],
+        "properties": {
+          "position": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "number"
+            }
+          },
+          "id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "meshes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "file",
+                "material"
+              ],
+              "properties": {
+                "file": {
+                  "type": "string"
+                },
+                "material": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "files": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sha256",
+          "bytes"
+        ],
+        "properties": {
+          "sha256": {
+            "type": "string"
+          },
+          "bytes": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  }
+},
+"MapCaptureMeshDataDTO": {
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "positions",
+    "normals",
+    "uv",
+    "colors",
+    "indices"
+  ],
+  "properties": {
+    "positions": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      }
+    },
+    "normals": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      }
+    },
+    "uv": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      }
+    },
+    "colors": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      }
+    },
+    "indices": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      }
+    }
+  }
+},
   "MapAssetsSelectionDTO": {
   "type": "object",
   "required": [
@@ -8733,7 +9050,8 @@
           "model_resolved",
           "selection_unknown",
           "unsupported_renderer_namespace",
-          "invalid_model"
+          "invalid_model",
+          "captured_appearance"
         ]
       },
       "originalId": {

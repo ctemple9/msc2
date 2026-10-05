@@ -33,6 +33,8 @@ struct Scene {
     resource_manifest: msc_domain::map_assets::ResourceManifest,
     missing_sources: bool,
     input_prerequisites: bool,
+    capture: Option<Arc<assets::supplemental::Capture>>,
+    capture_lease_until: AtomicU64,
 }
 pub(super) fn required(state: &WorldsRoutesState, server: &ConfigServer) -> bool {
     if let Ok(context) = active_context(state, server)
@@ -158,6 +160,31 @@ fn empty_status(state: &str) -> RenderingStatus {
     }
 }
 impl PreparedStore {
+    pub fn capture_request(
+        &self,
+        context: &Context,
+        dimension: &str,
+        area: Area,
+        epoch: u64,
+    ) -> std::io::Result<msc_domain::map_assets::CaptureRequest> {
+        let scene = self
+            .current(&key(context, dimension)?, None)
+            .ok_or_else(|| assets::error("capture_scene_required"))?;
+        if scene.snapshot_epoch != epoch
+            || scene.binding != context.binding
+            || self.status(context, dimension, epoch).stale
+        {
+            return Err(assets::error("stale_map_scene"));
+        }
+        let (request, _) = capture_request(&scene, area, &|| false)?;
+        // Client startup/export can outlast the renderer's ordinary 90-second
+        // idle timeout. Keep this bounded scene lease for the upload lifetime.
+        scene.capture_lease_until.store(
+            unix() + super::super::STAGING_TTL_SECONDS,
+            Ordering::Release,
+        );
+        Ok(request)
+    }
     pub fn invalidate_snapshots(&self, epoch: &AtomicU64) {
         if let Ok(mut coordinator) = self.0.coordinator.lock() {
             epoch.fetch_add(1, Ordering::AcqRel);
@@ -238,12 +265,15 @@ impl PreparedStore {
                 return Err(assets::error("stale_map_scene"));
             }
             validate_scope(&scene.renderer, area, &scene.atlas_digest, cancel)?;
+            if let Some(capture) = &scene.capture {
+                validate_retained_capture(&scene, capture, cancel)?;
+            }
             let snapshot = scene
                 .renderer
                 ._snapshot
                 .as_ref()
                 .ok_or_else(|| assets::error("consistent_snapshot_required"))?;
-            let mut report = service::report_resources(
+            let mut report = service::report_resources_captured(
                 context,
                 &scene.inventory,
                 &scene.resource_manifest,
@@ -254,6 +284,11 @@ impl PreparedStore {
                 area,
                 operation,
                 cancel,
+                &scene
+                    .capture
+                    .as_ref()
+                    .map(|c| c.positions())
+                    .unwrap_or_default(),
             )?;
             report.geometry_generation_id = Some(scene.renderer.generation.clone());
             if report.outcome == "ready" {
@@ -277,7 +312,9 @@ impl PreparedStore {
         if let Ok(mut generations) = self.0.generations.lock() {
             let keys = generations
                 .iter()
-                .filter(|(_, s)| s.renderer.idle())
+                .filter(|(_, s)| {
+                    s.renderer.idle() && s.capture_lease_until.load(Ordering::Acquire) < unix()
+                })
                 .map(|(id, _)| id.clone())
                 .collect::<Vec<_>>();
             for id in keys {
@@ -289,7 +326,10 @@ impl PreparedStore {
         let retained = if let Ok(mut coordinator) = self.0.coordinator.lock() {
             coordinator.entries.retain(|_, entry| {
                 entry.outcome == "preparing"
-                    || entry.current.as_ref().is_some_and(|s| !s.renderer.idle())
+                    || entry.current.as_ref().is_some_and(|s| {
+                        !s.renderer.idle()
+                            || s.capture_lease_until.load(Ordering::Acquire) >= unix()
+                    })
             });
             coordinator
                 .entries
@@ -571,10 +611,20 @@ impl PreparedStore {
             let _ = operations.progress(operation, n, total, line);
         };
         let mut import_ticket = ticket.clone();
+        let mut capture_upload = false;
         let import_result = (|| {
             if let Some((path, sha)) = source {
                 progress(0, 8, "Validating the matching client resource bundle.");
-                service::import_bundle(&context, &state.map_assets.store()?, path, sha, &cancel)?;
+                capture_upload = assets::supplemental::is_bundle(path)?;
+                if !capture_upload {
+                    service::import_bundle(
+                        &context,
+                        &state.map_assets.store()?,
+                        path,
+                        sha,
+                        &cancel,
+                    )?;
+                }
             }
             if let Some(mutation) = mutation {
                 service::apply_resource_mutation(
@@ -693,11 +743,61 @@ impl PreparedStore {
             let cache = std::env::temp_dir().join(format!("msc-map-renderer-{}", Uuid::new_v4()));
             std::fs::create_dir(&cache)?;
             let mut cleanup = Scratch(Some(cache.clone()));
+            let prior_scene = self.current(&ticket.key, None);
+            let capture = if capture_upload {
+                let prior = prior_scene
+                    .as_ref()
+                    .ok_or_else(|| assets::error("capture_scene_required"))?;
+                if prior.snapshot_epoch != epoch
+                    || prior.binding != context.binding
+                    || prior.resource_manifest.generation_id != prepared.manifest.generation_id
+                {
+                    return Err(assets::error("capture_inputs_changed"));
+                }
+                let capture_area = area.ok_or_else(|| assets::error("capture_area_required"))?;
+                let (expected, terrain) = capture_request(prior, capture_area, &cancel)?;
+                // Both the request and the imported objects are checked against
+                // the agent-owned snapshot, including saved entity/context bytes.
+                let current_terrain = WorldSource::Directory(snapshot.path.clone()).inspect(
+                    dimension,
+                    expected.context_area,
+                    &cancel,
+                )?;
+                if terrain.snapshot_id != current_terrain.snapshot_id {
+                    return Err(assets::error("capture_snapshot_changed"));
+                }
+                let (path, sha) = source.ok_or_else(|| assets::error("capture_upload_required"))?;
+                Some(Arc::new(assets::supplemental::import_bundle(
+                    path,
+                    sha,
+                    &expected,
+                    &current_terrain,
+                    &cancel,
+                )?))
+            } else if let Some(prior) = prior_scene.as_ref()
+                && let Some(capture) = &prior.capture
+            {
+                let (request, _) = capture_request(prior, capture.manifest.request.area, &cancel)?;
+                if prior.snapshot_epoch == epoch
+                    && prior.binding == context.binding
+                    && prior.resource_manifest.generation_id == prepared.manifest.generation_id
+                    && capture.compatible(&request)
+                {
+                    validate_retained_capture(prior, capture, &cancel)?;
+                    Some(capture.clone())
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            let captured = capture.as_ref().map(|c| c.positions()).unwrap_or_default();
             let terrain = java_terrain_compat::prepare_adapted(
                 &snapshot.path,
                 dimension,
                 &cache,
                 &prepared.stack.inventory,
+                &captured,
                 &cancel,
             )?;
             let binary = std::fs::canonicalize(
@@ -712,6 +812,7 @@ impl PreparedStore {
                 &terrain.snapshot_id,
                 &prepared.manifest.generation_id,
                 &helper_digest,
+                capture.as_ref().map(|c| &c.digest),
             ))?;
             assets::poll(&cancel)?;
             progress(
@@ -826,6 +927,22 @@ impl PreparedStore {
                 &cancel,
             )?;
             report.geometry_generation_id = Some(generation.clone());
+            if capture.is_some() {
+                report = service::report_resources_captured(
+                    &context,
+                    &prepared.stack.inventory,
+                    &prepared.manifest,
+                    !prepared.missing.is_empty(),
+                    !prepared.prerequisites.is_empty(),
+                    &WorldSource::Directory(snapshot.path.clone()),
+                    dimension,
+                    area,
+                    operation.as_str(),
+                    &cancel,
+                    &captured,
+                )?;
+                report.geometry_generation_id = Some(generation.clone());
+            }
             let mut fingerprints = BTreeMap::new();
             for tile in tiles {
                 let x = tile["x"]
@@ -899,6 +1016,8 @@ impl PreparedStore {
                 missing_sources: !prepared.missing.is_empty(),
                 input_prerequisites: !prepared.prerequisites.is_empty(),
                 inventory: prepared.stack.inventory,
+                capture,
+                capture_lease_until: AtomicU64::new(0),
             });
             progress(
                 7,
@@ -1008,6 +1127,71 @@ impl PreparedStore {
         }
     }
 }
+fn validate_retained_capture(
+    scene: &Scene,
+    capture: &assets::supplemental::Capture,
+    cancel: &dyn Fn() -> bool,
+) -> std::io::Result<()> {
+    let (request, terrain) = capture_request(scene, capture.manifest.request.area, cancel)?;
+    if !capture.compatible(&request) || request.snapshot_id != terrain.snapshot_id {
+        return Err(assets::error("capture_inputs_changed"));
+    }
+    for file in capture.manifest.files.keys() {
+        assets::poll(cancel)?;
+        capture.read_artifact(file)?;
+    }
+    Ok(())
+}
+
+fn capture_request(
+    scene: &Scene,
+    area: Area,
+    cancel: &dyn Fn() -> bool,
+) -> std::io::Result<(
+    msc_domain::map_assets::CaptureRequest,
+    assets::saved_terrain::Terrain,
+)> {
+    let context_area = assets::supplemental::context_area(area)?;
+    let snapshot = scene
+        .renderer
+        ._snapshot
+        .as_ref()
+        .ok_or_else(|| assets::error("consistent_snapshot_required"))?;
+    let terrain = WorldSource::Directory(snapshot.path.clone()).inspect(
+        &scene.report.dimension,
+        context_area,
+        cancel,
+    )?;
+    if !terrain.missing.is_empty() {
+        return Err(assets::error("capture_saved_context_missing"));
+    }
+    let manifest = &scene.resource_manifest;
+    if !manifest.selection_known || scene.missing_sources || scene.input_prerequisites {
+        return Err(assets::error("capture_exact_client_inputs_required"));
+    }
+    let request = msc_domain::map_assets::CaptureRequest {
+        format: msc_domain::map_assets::CAPTURE_FORMAT.into(),
+        binding: scene.binding.clone(),
+        geometry_generation_id: scene.renderer.generation.clone(),
+        resource_generation_id: manifest.generation_id.clone(),
+        input_fingerprint: assets::hash_json(manifest)?,
+        snapshot_id: terrain.snapshot_id.clone(),
+        dimension: scene.report.dimension.clone(),
+        area,
+        context_area,
+        minecraft_version: manifest
+            .minecraft_version
+            .clone()
+            .ok_or_else(|| assets::error("minecraft_version_required"))?,
+        loader: manifest.loader.clone(),
+        loader_version: manifest
+            .loader_version
+            .clone()
+            .ok_or_else(|| assets::error("loader_version_required"))?,
+    };
+    Ok((request, terrain))
+}
+
 struct Scratch(Option<PathBuf>);
 impl Drop for Scratch {
     fn drop(&mut self) {
@@ -1210,6 +1394,13 @@ pub(super) async fn artifact(
     query: ArtifactQuery,
     content_type: &'static str,
 ) -> Response {
+    if query.path.starts_with("capture/") && query.generation.is_none() {
+        return error_response(
+            StatusCode::CONFLICT,
+            "capture_generation_required",
+            "Read captured artifacts through the generation in the map manifest.",
+        );
+    }
     let task = state.clone();
     let task_server = server.clone();
     let context_result =
@@ -1253,11 +1444,26 @@ pub(super) async fn artifact(
     let Some(scene) = store.current(&key, query.generation.as_deref()) else {
         return (StatusCode::CONFLICT,axum::Json(serde_json::json!({"code":if query.generation.is_some(){"map_generation_retired"}else{"map_preparing"},"message":"Map preparation has not published a usable candidate yet.","details":{"rendering":status,"binding":context.binding}}))).into_response();
     };
+    if scene.capture.is_some()
+        && query.capture_format.as_deref() != Some(msc_domain::map_assets::CAPTURE_FORMAT)
+    {
+        return error_response(
+            StatusCode::CONFLICT,
+            "capture_viewer_required",
+            "This saved map contains captured geometry. Use an MSC viewer supporting msc-contextual-mesh-1; the prior map remains available.",
+        );
+    }
     let artifact = query.path.clone();
     let generation = scene.renderer.generation.clone();
     let request_generation = generation.clone();
     match tokio::task::spawn_blocking(move || {
-        let (code, mut bytes) = scene.renderer.read(&artifact)?;
+        let (code, mut bytes) = if let Some(path) = artifact.strip_prefix("capture/") {
+            let capture = scene.capture.as_ref().ok_or_else(|| TerrainError::new(
+                "capture_artifact_missing", "This generation has no captured appearance."))?;
+            let raw = capture.read_artifact(path).map_err(|_| TerrainError::new(
+                "capture_artifact_invalid", "The captured artifact failed validation; the existing scene is retained."))?;
+            (200, raw)
+        } else { scene.renderer.read(&artifact)? };
         if artifact == "manifest.json" && code == 200 {
             let mut manifest: serde_json::Value =
                 serde_json::from_slice(&bytes).map_err(|_| TerrainError::from(()))?;
@@ -1268,6 +1474,18 @@ pub(super) async fn artifact(
                 serde_json::to_value(&scene.binding).map_err(|_| TerrainError::from(()))?;
             manifest["mscRendering"] =
                 serde_json::to_value(&status).map_err(|_| TerrainError::from(()))?;
+            if let Some(capture) = &scene.capture {
+                manifest["mscCapture"] = serde_json::json!({"format":msc_domain::map_assets::CAPTURE_FORMAT,
+                    "path":"capture/capture.json", "sha256":assets::hash(&capture.read_artifact("capture.json")
+                    .map_err(|_| TerrainError::from(()))?), "digest":capture.digest});
+                let context = capture.manifest.request.context_area;
+                if let Some(range) = manifest.get_mut("yRange") {
+                    let min = range["min"].as_i64().unwrap_or(-64).min(i64::from(context.min[1]));
+                    let max = range["max"].as_i64().unwrap_or(320).max(i64::from(context.max[1]) + 1);
+                    range["min"] = min.into();
+                    range["max"] = max.into();
+                }
+            }
             if let Some(d) = manifest.get_mut("dimension") {
                 d["id"] = scene.report.dimension.clone().into();
                 if !scene.report.dimension.starts_with("minecraft:") {

@@ -14,6 +14,11 @@
   import type { Schema, ScreenApi } from '../shared/types';
   import { pollOperation } from './model';
   import MapAssetsRepairSheet from './MapAssetsRepairSheet.svelte';
+  import {
+    loadCapturedAppearance,
+    type CaptureReference,
+    type CapturedAppearance,
+  } from './captured-appearance';
 
   export let api: ScreenApi | undefined;
   export let serverId: string;
@@ -33,6 +38,7 @@
   let refreshing = false;
   let canvas: HTMLDivElement;
   let viewer: VantageViewer | undefined;
+  let capturedAppearance: CapturedAppearance | undefined;
   let viewerHost: HTMLDivElement | undefined;
   let alive = true;
   let loadGeneration = 0;
@@ -137,6 +143,8 @@
     releaseDesktopLook();
     playerLayer?.dispose();
     playerLayer = undefined;
+    capturedAppearance?.dispose();
+    capturedAppearance = undefined;
     viewer?.dispose();
     viewer = undefined;
     viewerHost?.remove();
@@ -150,7 +158,12 @@
   }
 
   function artifactPath(dimension: string, path: string, generation?: string): string {
-    const params = new URLSearchParams({ dimension, path, serverId });
+    const params = new URLSearchParams({
+      dimension,
+      path,
+      serverId,
+      captureFormat: 'msc-contextual-mesh-1',
+    });
     if (generation) params.set('generation', generation);
     return `/v1/worlds/map/terrain?${params.toString()}`;
   }
@@ -184,6 +197,7 @@
         ? 'Preparing saved Bedrock terrain and verified textures…'
         : `Preparing ${entry.displayName} terrain and Minecraft textures…`;
     let opening: VantageViewer | undefined;
+    let candidateCapture: CapturedAppearance | undefined;
     let candidateHost: HTMLDivElement | undefined;
     let pinnedGeneration: string | undefined;
     let candidateCache: SceneCache | undefined;
@@ -243,6 +257,7 @@
         mscBinding?: Schema['MapAssetsBindingDTO'];
         mscAtlasDigest?: string;
         mscAtlasLayers?: number;
+        mscCapture?: CaptureReference;
         tiles?: { path: string; revision: string }[];
       };
       try {
@@ -263,7 +278,12 @@
       rendering = manifest.mscRendering;
       binding = manifest.mscBinding;
       if (viewer && displayedDimension === dimension && displayedGeneration === pinnedGeneration) {
-        status = resourceStatus() || `Saved ${entry.displayName} terrain`;
+        status = [
+          resourceStatus() || `Saved ${entry.displayName} terrain`,
+          capturedAppearance?.label,
+        ]
+          .filter(Boolean)
+          .join(' · ');
         watchPreparation(dimension);
         return;
       }
@@ -321,6 +341,16 @@
         fetch: read,
       };
       await opening.load({ world: source });
+      if (manifest.mscCapture) {
+        candidateCapture = await loadCapturedAppearance(
+          opening,
+          manifest.mscCapture,
+          read,
+          manifest.mscBinding,
+          manifest.mscRendering?.resourceGenerationId ?? undefined,
+          () => !alive || generation !== loadGeneration,
+        );
+      }
       if (!alive || generation !== loadGeneration) return;
       const retain =
         viewer && displayedDimension === dimension
@@ -339,6 +369,8 @@
           : undefined;
       disposeViewer();
       viewer = opening;
+      capturedAppearance = candidateCapture;
+      candidateCapture = undefined;
       viewerHost = candidateHost;
       viewerHost.style.visibility = 'visible';
       candidateHost = undefined;
@@ -377,7 +409,9 @@
           ? bedrockStats
             ? bedrockTileStatus(entry.displayName, bedrockStats)
             : `Rendering saved ${entry.displayName} terrain tiles…`
-          : resourceStatus() || `Saved ${entry.displayName} terrain`;
+          : [resourceStatus() || `Saved ${entry.displayName} terrain`, capturedAppearance?.label]
+              .filter(Boolean)
+              .join(' · ');
       watchPreparation(dimension);
     } catch (error) {
       if (alive && generation === loadGeneration) {
@@ -388,6 +422,7 @@
         status = error instanceof Error ? error.message : 'Saved terrain could not be loaded.';
       }
     } finally {
+      candidateCapture?.dispose();
       opening?.dispose();
       candidateHost?.remove();
       if (alive && generation === loadGeneration) busy = false;

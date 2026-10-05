@@ -6,6 +6,120 @@ pub const SCHEMA_VERSION: u32 = 1;
 pub const RESOLVER_VERSION: &str = "msc-namespaced-inspection-1";
 pub const RENDERER_VERSION: &str = "vantage-0.15.1-baseline";
 
+pub const CAPTURE_FORMAT: &str = "msc-contextual-mesh-1";
+
+/// Issued by the agent from an adopted saved scene, never from client names.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CaptureRequest {
+    pub format: String,
+    pub binding: Binding,
+    pub geometry_generation_id: String,
+    pub resource_generation_id: String,
+    pub input_fingerprint: String,
+    pub snapshot_id: String,
+    pub dimension: String,
+    pub area: Area,
+    pub context_area: Area,
+    pub minecraft_version: String,
+    pub loader: String,
+    pub loader_version: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CaptureFile {
+    pub sha256: String,
+    pub bytes: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CaptureMaterial {
+    pub texture: String,
+    pub mode: String,
+    pub alpha_threshold: f32,
+    pub cull: bool,
+    pub depth_write: bool,
+    pub directional_lighting: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CapturedBlock {
+    pub position: [i32; 3],
+    pub id: String,
+    #[serde(deserialize_with = "unique_capture_map")]
+    pub state: BTreeMap<String, String>,
+    /// An empty list explicitly captures intentional absence of geometry.
+    pub meshes: Vec<CaptureMesh>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CaptureMesh {
+    pub file: String,
+    pub material: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CaptureManifest {
+    pub request: CaptureRequest,
+    /// Computed from the exporter's source snapshot/selected inputs, not echoed
+    /// from the request. Internal helpers must check these before and after capture.
+    pub observed_snapshot_id: String,
+    pub observed_input_fingerprint: String,
+    pub captured_at_unix: u64,
+    pub game_tick: i64,
+    pub saved_frame: bool,
+    pub directional_lights: [[f32; 3]; 2],
+    pub materials: Vec<CaptureMaterial>,
+    pub blocks: Vec<CapturedBlock>,
+    #[serde(deserialize_with = "unique_capture_map")]
+    pub files: BTreeMap<String, CaptureFile>,
+}
+
+fn unique_capture_map<'de, D, T>(deserializer: D) -> Result<BTreeMap<String, T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    struct Unique<T>(std::marker::PhantomData<T>);
+    impl<'de, T: Deserialize<'de>> serde::de::Visitor<'de> for Unique<T> {
+        type Value = BTreeMap<String, T>;
+        fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("a bounded map without duplicate keys")
+        }
+        fn visit_map<A: serde::de::MapAccess<'de>>(
+            self,
+            mut map: A,
+        ) -> Result<Self::Value, A::Error> {
+            let mut result = BTreeMap::new();
+            while let Some((key, value)) = map.next_entry::<String, T>()? {
+                if result.len() >= 4096 || result.insert(key, value).is_some() {
+                    return Err(serde::de::Error::custom(
+                        "duplicate_or_excessive_capture_keys",
+                    ));
+                }
+            }
+            Ok(result)
+        }
+    }
+    deserializer.deserialize_map(Unique(std::marker::PhantomData))
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CaptureMeshData {
+    /// Absolute world coordinates; normals/UV/colors are captured vertex data.
+    pub positions: Vec<f32>,
+    pub normals: Vec<f32>,
+    pub uv: Vec<f32>,
+    pub colors: Vec<f32>,
+    pub indices: Vec<u32>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Binding {
@@ -114,6 +228,7 @@ pub enum Classification {
     MissingSavedChunk,
     IntentionalEmpty,
     ModelResolved,
+    CapturedAppearance,
     SelectionUnknown,
     UnsupportedRendererNamespace,
     InvalidModel,

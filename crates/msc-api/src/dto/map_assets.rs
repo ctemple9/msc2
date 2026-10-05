@@ -1,6 +1,7 @@
 //! Additive read-only map-resource contract, shared with the host-local CLI.
 pub use msc_domain::map_assets::{
     Area as MapAssetsAreaDto, Binding as MapAssetsBindingDto,
+    CaptureManifest as MapCaptureManifestDto, CaptureRequest as MapCaptureRequestDto,
     CheckStarted as MapAssetsCheckStartedDto, Report as MapAssetsReportDto,
     Status as MapAssetsStatusDto,
 };

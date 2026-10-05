@@ -116,6 +116,8 @@ pub(super) struct ArtifactQuery {
     dimension: String,
     path: String,
     generation: Option<String>,
+    #[serde(rename = "captureFormat")]
+    capture_format: Option<String>,
     #[serde(rename = "serverId")]
     server_id: Option<String>,
 }
@@ -267,6 +269,18 @@ pub(super) fn is_direct_child(parent: &Path, child: &Path) -> bool {
 }
 
 fn artifact_type(path: &str) -> Option<&'static str> {
+    if let Some(member) = path.strip_prefix("capture/")
+        && path.len() <= 128
+        && msc_infrastructure::map_assets::safe_member(member)
+    {
+        if member == "capture.json" || member.starts_with("meshes/") && member.ends_with(".json") {
+            return Some("application/json");
+        }
+        if member.starts_with("textures/") && member.ends_with(".png") {
+            return Some("image/png");
+        }
+        return None;
+    }
     match path {
         "manifest.json" => return Some("application/json"),
         "viewer-world.json" => return Some("application/json"),
@@ -666,6 +680,20 @@ fn http() -> ureq::Agent {
         .http_status_as_error(false)
         .build()
         .into()
+}
+
+pub(super) fn capture_request(
+    state: &WorldsRoutesState,
+    context: &msc_application::map_assets::Context,
+    dimension: &str,
+    area: msc_domain::map_assets::Area,
+) -> std::io::Result<msc_domain::map_assets::CaptureRequest> {
+    state.map_renderer.0.prepared.capture_request(
+        context,
+        dimension,
+        area,
+        state.map_renderer.0.snapshot_epoch.load(Ordering::Acquire),
+    )
 }
 
 pub(super) fn rendering_status(

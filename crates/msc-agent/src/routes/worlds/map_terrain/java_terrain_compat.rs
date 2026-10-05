@@ -247,6 +247,7 @@ pub(super) fn prepare_adapted(
     dimension: &str,
     cache: &Path,
     inventory: &msc_infrastructure::map_assets::inventory::Inventory,
+    captured: &std::collections::BTreeSet<[i32; 3]>,
     cancel: &dyn Fn() -> bool,
 ) -> io::Result<AdaptedWorld> {
     use msc_infrastructure::map_assets::{adapter::Adapter, hash_json, *};
@@ -299,6 +300,14 @@ pub(super) fn prepare_adapted(
         palettes: BTreeMap::new(),
         chunks: BTreeMap::new(),
     };
+    let mut captured_chunks: BTreeMap<(i32, i32), std::collections::BTreeSet<[i32; 3]>> =
+        BTreeMap::new();
+    for position in captured {
+        captured_chunks
+            .entry((position[0].div_euclid(16), position[2].div_euclid(16)))
+            .or_default()
+            .insert(*position);
+    }
     let adapter = Adapter { inventory };
     adapter.materialize(&cache.join("assets/minecraft"), cancel)?;
     let mut total = 0u64;
@@ -352,6 +361,17 @@ pub(super) fn prepare_adapted(
                 }
                 let chunk_x = *x;
                 let chunk_z = *z;
+                if let Some(captured) = captured_chunks.get(&(chunk_x, chunk_z))
+                    && let Some(Value::List(sections)) = root.get_mut("sections")
+                {
+                    for section in sections {
+                        if let Value::Compound(section) = section {
+                            msc_infrastructure::map_assets::supplemental::suppress_section(
+                                section, chunk_x, chunk_z, captured,
+                            )?;
+                        }
+                    }
+                }
                 let mut entities = std::collections::BTreeSet::new();
                 if let Some(Value::List(values)) = root.get("block_entities")
                     && let Some(Value::List(sections)) = root.get("sections")
@@ -471,7 +491,10 @@ pub(super) fn prepare_adapted(
                     }
                 }
                 snapshot_chunks.insert(key.clone(), before.clone());
-                result.chunks.insert(key, hash_json(&(before, used))?);
+                let replaced = captured_chunks.get(&(chunk_x, chunk_z));
+                result
+                    .chunks
+                    .insert(key, hash_json(&(before, used, replaced))?);
                 Ok(true)
             },
             cancel,

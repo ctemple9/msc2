@@ -1,5 +1,25 @@
 # P18.15 resource inspection
 
+**Current continuation (P18.23):** Production capture intake and map display are
+implemented, awaiting verification. Earlier stage instructions below are
+historical. Matching-client exporters and the guided capture action are not yet
+delivered; do not relabel an isolated proof ZIP as a production capture.
+
+The new API issues a request through
+`POST /v1/worlds/{slot_id}/map-assets/capture-request` using the scoped check body,
+then consumes an authenticated completed upload through the existing import
+operation with the same area. The request comes from an adopted scene, retains
+it for 30 minutes, and requires matching independently observed inputs/snapshot.
+No game code runs on a headless host. The existing resource-import CLI is not
+advertised as a complete capture workflow; P18.24 supplies its request/helper
+handoff and portable commands.
+
+After adoption, the actual map labels saved capture time/tick. Rechecks count
+captured_appearance only for validated positions; other unresolved blocks remain
+unresolved. Compare shape, contents, transparency and neighboring terrain with
+Minecraft before confirming success. Older viewers get an upgrade explanation
+and keep their prior scene. The full format/bounds are in the renderer design.
+
 This inspects saved Java blocks and resource evidence. It does not adopt captured meshes or repair rendering. Existing maps keep their renderer. The isolated P18.14 proof remains separate.
 
 Build the updated executable:

@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: d2ac20df5f859451895717c4160893ee32d9394d56b32948a9f918c40fc66fac
+// Contract SHA-256: 469b3e20c0753794229ae27dc34645b92ccb1a68bf3bb6faab78eda590f67558
 
 export interface paths {
   '/v1/active-server': {
@@ -6103,6 +6103,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/worlds/{slot_id}/map-assets/capture-request': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Request capture bound to an adopted saved map */
+    post: operations['requestWorldMapCapture'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/worlds/{slot_id}/map-assets/check': {
     parameters: {
       query?: never;
@@ -8009,7 +8026,8 @@ export interface components {
         | 'model_resolved'
         | 'selection_unknown'
         | 'unsupported_renderer_namespace'
-        | 'invalid_model';
+        | 'invalid_model'
+        | 'captured_appearance';
       detail: string;
       originalId: string;
       samples: number[][];
@@ -8135,6 +8153,77 @@ export interface components {
       /** Format: int64 */
       schemaVersion: number;
       state: string;
+    } & {
+      [key: string]: unknown;
+    };
+    MapCaptureManifestDTO: {
+      blocks: ({
+        id: string;
+        meshes: ({
+          file: string;
+          material: number;
+        } & {
+          [key: string]: unknown;
+        })[];
+        position: number[];
+        state: {
+          [key: string]: string;
+        };
+      } & {
+        [key: string]: unknown;
+      })[];
+      capturedAtUnix: number;
+      directionalLights: number[][];
+      files: {
+        [key: string]: {
+          bytes: number;
+          sha256: string;
+        } & {
+          [key: string]: unknown;
+        };
+      };
+      gameTick: number;
+      materials: ({
+        alphaThreshold: number;
+        cull: boolean;
+        depthWrite: boolean;
+        directionalLighting: boolean;
+        /** @enum {string} */
+        mode: 'opaque' | 'cutout' | 'translucent' | 'additive';
+        texture: string;
+      } & {
+        [key: string]: unknown;
+      })[];
+      observedInputFingerprint: string;
+      observedSnapshotId: string;
+      request: components['schemas']['MapCaptureRequestDTO'];
+      savedFrame: boolean;
+    } & {
+      [key: string]: unknown;
+    };
+    MapCaptureMeshDataDTO: {
+      colors: number[];
+      indices: number[];
+      normals: number[];
+      positions: number[];
+      uv: number[];
+    } & {
+      [key: string]: unknown;
+    };
+    MapCaptureRequestDTO: {
+      area: components['schemas']['MapAssetsAreaDTO'];
+      binding: components['schemas']['MapAssetsBindingDTO'];
+      contextArea: components['schemas']['MapAssetsAreaDTO'];
+      dimension: string;
+      /** @enum {string} */
+      format: 'msc-contextual-mesh-1';
+      geometryGenerationId: string;
+      inputFingerprint: string;
+      loader: string;
+      loaderVersion: string;
+      minecraftVersion: string;
+      resourceGenerationId: string;
+      snapshotId: string;
     } & {
       [key: string]: unknown;
     };
@@ -11049,6 +11138,60 @@ export interface operations {
       };
     };
   };
+  requestWorldMapCapture: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slot_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['MapAssetsCheckRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Agent-issued saved-scene capture request */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MapCaptureRequestDTO'];
+        };
+      };
+      /** @description Invalid map-resource request or bounds */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Worlds permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Slot or bound report is unavailable */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Binding changed, unsupported scope, consistent snapshot required, or bounded inspection refused */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   checkWorldMapAssets: {
     parameters: {
       query?: never;
@@ -12573,6 +12716,7 @@ export interface operations {
   getWorldMapTerrainArtifact: {
     parameters: {
       query: {
+        captureFormat?: 'msc-contextual-mesh-1';
         dimension: string;
         generation?: string;
         path: string;

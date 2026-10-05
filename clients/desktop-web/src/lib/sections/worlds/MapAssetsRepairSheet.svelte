@@ -38,7 +38,8 @@
 
   $: failures =
     report?.diagnostics.filter(
-      (d) => !['model_resolved', 'intentional_empty'].includes(d.classification),
+      (d) =>
+        !['model_resolved', 'intentional_empty', 'captured_appearance'].includes(d.classification),
     ) ?? [];
   $: unsupported = failures.some((d) =>
     [

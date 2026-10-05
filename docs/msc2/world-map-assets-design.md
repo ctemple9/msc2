@@ -1,5 +1,64 @@
 # Java map resources — renderer and repair contract
 
+## P18.23 production capture intake — implementation, acceptance pending
+
+The production importer now accepts `msc-contextual-mesh-1` data bundles and
+the actual desktop map consumes their checked geometry/materials/textures with
+a matching private terrain generation. Older partial-stage descriptions below
+are historical. Helpers, guided capture repair and native/visual observations
+remain P18.24–P18.26 work; this implementation alone proves no appearance.
+
+`POST /v1/worlds/{slot_id}/map-assets/capture-request` accepts the scoped check
+body. It reads an adopted non-stale scene with known exact inputs and a loader
+version, plus a one-block context halo. The combined bounds must fit the existing
+16-chunk/262,144-block inspection budget. Missing fully saved context refuses
+issuance. A request retains its bounded scene for the 30-minute upload lifetime;
+it neither starts Minecraft nor changes the snapshot.
+
+The request binds host/server/slot/incarnation/revision, base geometry/resource
+generations, complete resource-manifest fingerprint, dimension, game/loader
+versions and both areas. Snapshot identity is independently recomputed from
+the agent-owned level.dat and decoded chunk bytes, including entity contents.
+Exporters must record independently observed snapshot/input fingerprints after
+checking their actual sources before and after rendering. Attaching a request
+to an unrelated historical proof is insufficient. Import compares those
+identities and every original block ID/state/position with the saved snapshot.
+Input correspondence is distinct from proving that submitted triangles look
+correct: the MSC-owned helper and owner visual comparison remain required.
+
+The existing authenticated map-client-assets staging/import operation accepts
+a ZIP containing capture.json. Original resource ZIPs retain their old path and
+limits. Supplemental imports publish no server mod or resource selection.
+Bounds are 64 MiB encoded, 4,096 files/blocks, 1,024 materials, one million total
+vertices, six million total indices and 16 MiB per file. PNGs must be eight-bit RGB/RGBA, at most 4,096 pixels
+per side, with at most 64 MiB decoded memory per image and 128 MiB
+for the complete capture texture set. Checksums, paths, case
+collisions, links/special files, duplicate keys/references, unused payloads,
+indices, attribute lengths, finite values, unit-range UV/colors and context-local
+bounds are checked before adoption. Unknown versions and executable/custom
+shader payloads are refused. Opaque/cutout/translucent/additive modes carry alpha,
+culling, depth-write and captured directional-light/tint data. Every capture is
+an explicitly dated saved frame. Unsupported materials remain acceptance gaps.
+
+Only captured positions change in the renderer's private copy: palettes are
+repacked across bit-width changes, neighboring faces become visible and vanilla
+water inside waterlogged blocks remains in the fluid pass. Captured meshes must
+exclude fluid geometry. Uncaptured instances of identical states stay intact.
+The existing tile apron invalidates affected neighbors. Terrain, capture and
+scoped report publish as one guarded generation; invalid/stale/cancelled
+candidates retain the previous scene. Reports use captured_appearance for only
+the validated positions, with visual acceptance pending.
+
+Terrain manifests expose mscCapture and generation-bound capture/capture.json,
+meshes and textures. Readers must send captureFormat=msc-contextual-mesh-1;
+older readers receive capture_viewer_required rather than a scene missing its
+replaced blocks. Desktop candidates validate hashes, identities, bounds and
+geometry before adoption, dispose failed/retired GPU objects, share the animated
+terrain cutaway plane, and label saved time/tick. Capture files currently live
+with their runtime scene leases. Durable exporter output reuse and complete
+helper delivery remain explicit P18.24 work; historical diagnostics alone never
+restore a captured scene after restart.
+
 **P18.20 partial update, 2026-10-05:** Public Forge input selection and isolated
 draft sources are recorded under `tools/java-map-export/forge-1.20.1/`.
 The initial compilation failed on Forge-specific access rules; the authorized

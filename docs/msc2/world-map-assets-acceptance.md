@@ -1,5 +1,30 @@
 # Java mod assets — acceptance contract and fixture availability
 
+**P18.23 update (2026-10-05):** Production capture validation, private position
+replacement, guarded terrain/capture adoption, generation-bound delivery and
+desktop display code are implemented. Build/type checks are recorded in the
+rolling plan. No production capture, Minecraft launch, visual comparison,
+native-platform result or test execution is inferred from that code. The earlier
+NeoForge owner confirmation remains isolated feasibility evidence. No new
+acceptance row is closed.
+
+The three new controlled regressions in map_capture.rs protect mismatched
+binding/snapshot/client inputs, malformed portable geometry/images/archives,
+previous-capture preservation and private palette repacking including waterlogged
+blocks. Expected runtime is below two seconds after compilation; compilation is
+not test execution. Exact candidate owner command:
+`cargo test -p msc-infrastructure --test map_capture`.
+
+Required P18.23 appearance check: once P18.24 supplies the real helper command,
+issue the agent request from the named adopted saved fixture, capture matching
+inputs, import through production staging, and compare the difficult-model/context
+objects inside MSC with Minecraft. Check same-state uncaptured objects, adjacent
+faces, water/transparency, cutaway, camera/player continuity and saved-frame
+label. Wrong source context, changed selection, cancelled import and malformed
+files must leave the existing map intact. A reader without captureFormat must
+receive capture_viewer_required. Preserve original all-platform/repair gates;
+legacy unbound proof data cannot be accepted by copying a request onto it.
+
 P18.14 · 2026-10-04 · **Open; no new live rendering passes.**
 
 The [renderer design](world-map-assets-design.md) records the inspected pin,

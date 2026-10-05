@@ -55,7 +55,7 @@ METRICS = ("firstVisibleMs", "preparationMs", "peakAgentRssBytes",
            "downloadedBytes", "reusedBytes", "scannedBlocks", "scannedChunks")
 CLASSIFICATIONS = {"missing_model", "missing_texture", "unsupported_loader",
                    "unsupported_material", "missing_context", "missing_saved_chunk",
-                   "intentional_empty", "model_resolved", "selection_unknown",
+                   "intentional_empty", "model_resolved", "captured_appearance", "selection_unknown",
                    "unsupported_renderer_namespace", "invalid_model"}
 HASH = re.compile(r"[0-9a-f]{64}\Z")
 ID = re.compile(r"[a-zA-Z0-9_.:-]{1,128}\Z")
@@ -159,7 +159,7 @@ def counts(report: dict) -> dict:
 
 def failures(report: dict) -> int:
     return sum(v for k, v in counts(report).items()
-               if k not in {"model_resolved", "intentional_empty"})
+               if k not in {"model_resolved", "intentional_empty", "captured_appearance"})
 
 
 def scope(report: dict) -> dict:

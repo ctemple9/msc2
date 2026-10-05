@@ -8,6 +8,7 @@ pub mod inventory;
 pub mod resolver;
 pub mod saved_terrain;
 pub mod store;
+pub mod supplemental;
 use sha2::{Digest, Sha256};
 use std::fs::{self, File, Metadata, OpenOptions};
 use std::io::{self, Read};

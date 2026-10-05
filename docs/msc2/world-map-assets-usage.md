@@ -74,3 +74,25 @@ change a parent texture and retry, cancel/fail a replacement while observing
 camera/player continuity, and confirm Paper/Tectonic and Bedrock baseline maps.
 Perform the supported Windows/macOS checks separately. The implementation and
 bounded limitations are recorded in the P18.17 design record.
+
+## P18.18 portable imports
+
+The desktop repair controls are P18.19. Native inspection/export commands now
+produce a resource-only portable MSC bundle from a selected instance/archive.
+An ambiguous official launcher profile requires a specific matching instance;
+Prism's `mmc-pack.json` supplies its exact game/loader identity. The bundle
+never includes launcher credentials or a private world.
+
+On the selected headless agent, after obtaining its current `status` revision:
+
+```sh
+target/debug/msc --json world map-assets import /path/to/client-resources.zip --slot SLOT_UUID --expected-revision REVISION --dimension minecraft:overworld
+```
+
+The CLI streams bounded chunks, verifies the transferred hash, waits for the
+same preparation/adoption operation and reports its scoped diagnostics. Ctrl-C
+cancels transfer or the existing operation. `--no-wait` returns the operation
+ID. Unresolved input/rendering issues return a nonzero exit code; an upload
+cannot be reported as a complete repair. No local Minecraft installation or
+GPU is needed on the agent. Native desktop import/export uses the authenticated
+selected-host transport; the next step exposes these controls in the map.

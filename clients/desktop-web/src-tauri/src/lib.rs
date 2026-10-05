@@ -1,4 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod map_assets;
 
 use msc_infrastructure::secret_store::SecretStore;
 use msc_infrastructure::service::{
@@ -1753,6 +1754,10 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
+            map_assets::inspect_map_client_resources,
+            map_assets::read_map_client_resources,
+            map_assets::discard_map_client_resources,
+            map_assets::export_map_client_resources,
             desktop_exchange_pairing,
             desktop_automate_remote_pairing,
             desktop_bootstrap_local,

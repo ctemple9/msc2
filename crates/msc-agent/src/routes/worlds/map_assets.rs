@@ -47,10 +47,17 @@ pub(super) struct AssetsQuery {
     server_id: String,
 }
 fn actions() -> Vec<String> {
-    ["status", "report", "check", "prepare", "rendering"]
-        .iter()
-        .map(|s| format!("worlds.map_assets.{s}.v1"))
-        .collect()
+    [
+        "status",
+        "report",
+        "check",
+        "prepare",
+        "rendering",
+        "import",
+    ]
+    .iter()
+    .map(|s| format!("worlds.map_assets.{s}.v1"))
+    .collect()
 }
 pub(super) async fn capabilities(
     Extension(credential): Extension<AuthenticatedCredential>,
@@ -61,7 +68,10 @@ pub(super) async fn capabilities(
     Json(MapAssetsCapabilitiesDto {
         schema_version: 1,
         actions: actions(),
-        resource_formats: vec!["msc-resource-inventory-1".into()],
+        resource_formats: vec![
+            "msc-resource-inventory-1".into(),
+            "msc-client-resources-1".into(),
+        ],
         capture_formats: vec![],
         renderer_adoption: true,
     })
@@ -505,5 +515,113 @@ pub(super) async fn prepare(
         })
         .into_response(),
         Err((code, message)) => error_response(StatusCode::CONFLICT, code, &message),
+    }
+}
+
+#[allow(clippy::result_large_err)]
+pub(super) async fn import(
+    State(state): State<WorldsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    AxumPath(slot): AxumPath<String>,
+    payload: Result<Json<msc_api::dto::MapAssetsImportRequestDto>, JsonRejection>,
+) -> Response {
+    let request = match payload {
+        Ok(Json(r)) => r,
+        _ => {
+            return invalid_body(
+                "invalid_map_assets_request",
+                "Supply the bound completed client bundle and checksum.",
+            );
+        }
+    };
+    let context = match bound(&state, &credential, &request.server_id, &slot) {
+        Ok(c) => c,
+        Err(r) => return r,
+    };
+    if request.expected_revision != context.binding.revision
+        || !domain::valid_resource_id(&request.dimension)
+        || !request.dimension.contains(':')
+        || request.area.as_ref().is_some_and(|a| a.validate().is_err())
+    {
+        return invalid_body(
+            "invalid_map_import_context",
+            "Fetch the current binding and supply a valid dimension and bounded area.",
+        );
+    }
+    if !matches!(
+        context.world,
+        msc_infrastructure::map_assets::saved_terrain::WorldSource::Directory(_)
+    ) {
+        return error_response(
+            StatusCode::CONFLICT,
+            "active_world_required",
+            "Activate this saved slot before importing map resources.",
+        );
+    }
+    let mut uploads = state.staging.uploads.lock().unwrap();
+    let Some(entry) = uploads.get(&request.staged_upload_id) else {
+        return invalid_body(
+            "upload_unavailable",
+            "Begin a matching client resource upload.",
+        );
+    };
+    if entry.purpose != StagedUploadPurposeDto::MapClientAssets
+        || !entry.complete
+        || now_unix() > entry.expires_at_unix
+        || entry.map_binding.as_ref()
+            != Some(&(context.binding.clone(), credential.credential_id.clone()))
+    {
+        return error_response(
+            StatusCode::CONFLICT,
+            "map_import_binding_mismatch",
+            "The completed upload must belong to this credential and exact world binding.",
+        );
+    }
+    let entry = uploads.remove(&request.staged_upload_id).unwrap();
+    drop(uploads);
+    let binding = context.binding.clone();
+    let path = entry.path.clone();
+    match map_terrain::import_resources(
+        state,
+        context,
+        request.dimension,
+        request.area,
+        entry.path,
+        request.sha256,
+    ) {
+        Ok(operation_id) => Json(MapAssetsCheckStartedDto {
+            result: "import_started".into(),
+            operation_id,
+            binding,
+        })
+        .into_response(),
+        Err((code, message)) => {
+            let _ = std::fs::remove_file(path);
+            error_response(StatusCode::CONFLICT, code, &message)
+        }
+    }
+}
+
+pub(super) async fn client_context(
+    State(state): State<WorldsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    AxumPath(slot): AxumPath<String>,
+    Query(query): Query<AssetsQuery>,
+) -> Response {
+    match bound(&state, &credential, &query.server_id, &slot) {
+        Ok(context) => Json(msc_api::dto::MapAssetsClientContextDto {
+            minecraft_version: context.server.minecraft_version,
+            loader: if matches!(
+                context.server.java_flavor.raw_value(),
+                "paper" | "purpur" | "spigot" | "pufferfish"
+            ) {
+                "vanilla".into()
+            } else {
+                context.server.java_flavor.raw_value().into()
+            },
+            loader_version: context.server.loader_version,
+        })
+        .into_response(),
+        Err(response) => response,
     }
 }

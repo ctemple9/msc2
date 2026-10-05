@@ -410,3 +410,54 @@ clocks or sleeps and are expected to take under two seconds combined locally.
 They were type-checked, not run. No release workflow was changed. Linux compile
 and viewer type checks do not establish live modded, Paper/Tectonic, Bedrock or
 Windows/macOS acceptance; those owner checks remain open.
+
+## P18.18 portable client imports — 2026-10-05
+
+The native inspector accepts an explicitly selected Prism instance, an
+unambiguous official game directory, a Modrinth/CurseForge archive, a portable
+MSC bundle or an individual JAR/pack with the selected map's game context.
+It reads metadata and archives without executing them. Portable bundles contain
+version/loader identity, ordered resource layers, source hashes/mod declarations,
+enabled-pack selection when actually available, and checksum-named resource
+objects. Bytecode, launcher credentials, options unrelated to pack selection,
+logs, screenshots and saves are excluded. Nested declared JAR resources use the
+existing bounded inventory. Archive client overrides outrank ordinary overrides
+independently of ZIP entry order. Exact manifest downloads use the existing
+provider boundary and agent-held credentials; unavailable/manual files remain
+specific requirements. Locally supplied metadata/hashes are local evidence,
+not publisher verification. Unknown mod versions require matching original
+JAR hashes; known overlapping declarations must match the installed release.
+
+Native inspection yields an opaque 30-minute handle and 1–8 MiB reads, plus
+summary/portable-export commands. Remote transport carries only resource bytes,
+never a client filesystem path. Map staging uses `map-client-assets` with
+`fileId` = slot UUID, `operationId` = current binding revision, and exact
+`expectedBytes`; the agent stores its own binding and credential. Worlds
+permission/ownership and the live binding are checked at begin, each chunk,
+completion and redemption. Owner-only cancellation can remove an old upload
+after a server switch. Expired map uploads are pruned at the next admission;
+two concurrent map uploads are allowed, each at most 8 GiB. Existing staging
+is best-effort across agent restarts. A completed bundle is rehashed and
+reinspected on the agent before entering the same cancellable tile/atlas
+validation and guarded scene adoption as automatic resources. Importing bytes
+alone does not prove repaired rendering.
+
+Static resource receipts live under MSC's map store, keyed by agent/server/slot.
+Their compatibility fingerprint includes slot metadata, game/loader/mod/config
+inputs and saved world generation/version identity. It excludes ordinary save
+timestamps so a consistent snapshot flush does not invalidate a matching client
+import. Snapshot-bound geometry still uses the full live binding and saved
+snapshot checks from P18.17. Restores/imports/updates with changed compatible
+inputs require a new client import. The displayed scene remains available if
+validation/adoption fails; validated source receipts can remain for an explicit
+retry. Imported client mod layers replace server-side resource copies as one
+unordered group unless an explicit mod resource order is supplied. Optional
+packs are never all enabled by the collector. Their known selection/order is
+preserved; unknown selection becomes an input requirement.
+
+Bundle admission checks expanded object plus materialized-layer bytes against
+the existing store quota/free-space policy before extraction, and reuses all
+path/link/case/image/document/reference limits. Existing reusable receipts are
+checked against captured layer hashes on every preparation. Correct appearance,
+remote Fedora-to-Ubuntu imports, Windows/macOS paths and baseline regressions
+remain owner acceptance, not results inferred from Linux compilation.

@@ -30,7 +30,14 @@ struct Scene {
     atlas_digest: String,
     atlas_layers: u32,
 }
-pub(super) fn required(server: &ConfigServer) -> bool {
+pub(super) fn required(state: &WorldsRoutesState, server: &ConfigServer) -> bool {
+    if let Ok(context) = active_context(state, server)
+        && let Ok(store) = state.map_assets.store()
+        && let Ok(root) = assets::bundle::receipt_root(&store, &context.binding)
+        && root.join("current.json").is_file()
+    {
+        return true;
+    }
     let root = Path::new(&server.server_dir);
     if root.join(".msc-map-source/current").is_file() {
         return true;
@@ -100,6 +107,19 @@ fn revision(context: &Context, epoch: u64) -> std::io::Result<String> {
     // refresh changes epoch; source age is reported separately.
     let mut inputs = context.revision_inputs.clone();
     inputs.remove("sourceIdentity");
+    let root = msc_infrastructure::config_repository::default_app_data_dir()
+        .join("map-assets/imports")
+        .join(assets::hash_json(&(
+            &context.binding.agent_host_id,
+            &context.binding.server_id,
+            &context.binding.slot_id,
+        ))?);
+    if root.join("current.json").exists() {
+        inputs.insert(
+            "importedClientResources".into(),
+            assets::hash(&assets::read(&root.join("current.json"), assets::MAX_JSON)?),
+        );
+    }
     assets::hash_json(&(
         &inputs,
         &context.server.minecraft_version,
@@ -277,6 +297,18 @@ impl PreparedStore {
         area: Option<Area>,
         force: bool,
     ) -> Result<String, TerrainError> {
+        self.start_job(state, context, dimension, area, force, None)
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub fn start_job(
+        &self,
+        state: WorldsRoutesState,
+        context: Context,
+        dimension: String,
+        area: Option<Area>,
+        force: bool,
+        source: Option<(PathBuf, String)>,
+    ) -> Result<String, TerrainError> {
         let key = key(&context, &dimension).map_err(|_| ())?;
         let epoch = state.map_renderer.0.snapshot_epoch.load(Ordering::Acquire);
         let input = revision(&context, epoch).map_err(|_| ())?;
@@ -285,6 +317,12 @@ impl PreparedStore {
             && ((!force && entry.revision == input)
                 || (entry.revision == input && entry.outcome == "preparing"))
         {
+            if source.is_some() {
+                return Err(TerrainError::new(
+                    "map_operation_busy",
+                    "Wait for the current map operation before importing resources.",
+                ));
+            }
             return Ok(entry.operation_id.clone().unwrap_or_default());
         }
         if coordinator.entries.len() >= 8 && !coordinator.entries.contains_key(&key) {
@@ -338,7 +376,7 @@ impl PreparedStore {
             let worker_store = store.clone();
             let result = tokio::task::spawn_blocking(move || {
                 let _permit = permit;
-                worker_store.prepare(
+                let result = worker_store.prepare(
                     &work_state,
                     context,
                     &dimension,
@@ -346,7 +384,12 @@ impl PreparedStore {
                     &ticket,
                     &operation_for_work,
                     epoch,
-                )
+                    source.as_ref(),
+                );
+                if let Some((path, _)) = source {
+                    let _ = std::fs::remove_file(path);
+                }
+                result
             })
             .await;
             match result {
@@ -416,13 +459,15 @@ impl PreparedStore {
         ticket: &Ticket,
         operation: &OperationId,
         epoch: u64,
+        source: Option<&(PathBuf, String)>,
     ) -> std::io::Result<RenderingStatus> {
         let operations = state.lifecycle.operations();
         let operation_cancel = operations.cancellation_check(operation);
         let server_id = context.server.id.clone();
         let server_root = context.server.server_dir.clone();
+        let cancellation_ticket = ticket.clone();
         let cancel = || {
-            ticket.cancelled()
+            cancellation_ticket.cancelled()
                 || !state
                     .lifecycle
                     .active_config_server()
@@ -435,7 +480,27 @@ impl PreparedStore {
         let progress = |n, total, line: &str| {
             let _ = operations.progress(operation, n, total, line);
         };
+        let mut import_ticket = ticket.clone();
+        let import_result = (|| {
+            if let Some((path, sha)) = source {
+                progress(0, 8, "Validating the matching client resource bundle.");
+                service::import_bundle(&context, &state.map_assets.store()?, path, sha, &cancel)?;
+                let input = revision(&context, epoch)?;
+                if !self
+                    .0
+                    .coordinator
+                    .lock()
+                    .map_err(|_| assets::error("renderer_unavailable"))?
+                    .rebase(&mut import_ticket, input)
+                {
+                    return Err(assets::error("cancelled"));
+                }
+            }
+            Ok::<_, std::io::Error>(())
+        })();
+        let ticket = &import_ticket;
         let result = (|| {
+            import_result?;
             assets::poll(&cancel)?;
             progress(0, 8, "Capturing a consistent private saved snapshot.");
             let world = match &context.world {

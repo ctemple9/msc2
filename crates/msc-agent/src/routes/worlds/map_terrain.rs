@@ -193,7 +193,9 @@ pub(super) async fn artifact(
         );
     }
     let store = state.map_renderer.clone();
-    if preparation::required(&server) || state.map_renderer.0.prepared.has_server(&server.id) {
+    if preparation::required(&state, &server)
+        || state.map_renderer.0.prepared.has_server(&server.id)
+    {
         return preparation::artifact(state, server, world, query, content_type).await;
     }
     let selected_version = crate::routes::versions::minecraft_version_from_selection(
@@ -702,4 +704,21 @@ pub(super) fn retained_report(
     context: &msc_application::map_assets::Context,
 ) -> Option<msc_domain::map_assets::Report> {
     state.map_renderer.0.prepared.report(context)
+}
+
+pub(super) fn import_resources(
+    state: WorldsRoutesState,
+    context: msc_application::map_assets::Context,
+    dimension: String,
+    area: Option<msc_domain::map_assets::Area>,
+    path: PathBuf,
+    sha: String,
+) -> Result<String, (&'static str, String)> {
+    state
+        .map_renderer
+        .0
+        .prepared
+        .clone()
+        .start_job(state, context, dimension, area, true, Some((path, sha)))
+        .map_err(|e| (e.code, e.message))
 }

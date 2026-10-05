@@ -137,6 +137,14 @@ pub fn router(state: WorldsRoutesState) -> Router {
             "/worlds/:slot_id/map-assets/rendering",
             get(map_assets::rendering),
         )
+        .route(
+            "/worlds/:slot_id/map-assets/import",
+            post(map_assets::import),
+        )
+        .route(
+            "/worlds/:slot_id/map-assets/client-context",
+            get(map_assets::client_context),
+        )
         .route("/worlds/map/dimensions", get(map_dimensions))
         .route("/worlds/map/terrain", get(map_terrain::artifact))
         .route("/worlds/map/refresh", post(refresh_map))
@@ -395,6 +403,7 @@ impl WorldsRoutesState {
 #[derive(Debug, Clone)]
 pub(crate) struct StagedUpload {
     pub(crate) purpose: StagedUploadPurposeDto,
+    pub(crate) map_binding: Option<(msc_domain::map_assets::Binding, String)>,
     pub(crate) file_name: Option<String>,
     pub(crate) operation_id: Option<String>,
     pub(crate) file_id: Option<String>,
@@ -4068,7 +4077,8 @@ pub async fn begin_staged_upload(
         StagedUploadPurposeDto::WorldImport
         | StagedUploadPurposeDto::ActiveWorldReplace
         | StagedUploadPurposeDto::WorldThumbnail => {}
-        StagedUploadPurposeDto::ModpackArchive
+        StagedUploadPurposeDto::MapClientAssets
+        | StagedUploadPurposeDto::ModpackArchive
         | StagedUploadPurposeDto::AddonLocalFile
         | StagedUploadPurposeDto::CurseforgeManualFile
         | StagedUploadPurposeDto::ModpackUnresolvedFile => {
@@ -4094,6 +4104,7 @@ pub async fn begin_staged_upload(
     state.staging.uploads.lock().unwrap().insert(
         id.clone(),
         StagedUpload {
+            map_binding: None,
             purpose: body.purpose,
             file_name: body.file_name.clone(),
             operation_id: body.operation_id.clone(),

@@ -77,6 +77,35 @@ impl SharedClient {
         decode_json(&response.body)
     }
 
+    pub(crate) async fn put_chunk(
+        &self,
+        path: &str,
+        body: Vec<u8>,
+    ) -> Result<Option<msc_api::dto::StagedUploadCompleteResultDto>, CliError> {
+        let response = self
+            .request_raw(
+                Method::PUT,
+                path,
+                Some("application/octet-stream"),
+                Some(body),
+            )
+            .await?;
+        if response.body.is_empty() {
+            Ok(None)
+        } else {
+            decode_json(&response.body).map(Some)
+        }
+    }
+    pub(crate) async fn cancel_upload(&self, id: &str) -> Result<(), CliError> {
+        self.request_raw(
+            Method::DELETE,
+            &format!("/v1/staged-uploads/{id}"),
+            None,
+            None,
+        )
+        .await?;
+        Ok(())
+    }
     /// Downloads a raw response body rather than decoding it as JSON.
     pub(crate) async fn get_raw_bytes(&self, path: &str) -> Result<Vec<u8>, CliError> {
         let response = self.request_raw(Method::GET, path, None, None).await?;

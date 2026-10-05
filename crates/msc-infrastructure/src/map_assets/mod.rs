@@ -2,6 +2,7 @@
 pub mod acquire;
 pub mod adapter;
 pub mod adoption;
+pub mod bundle;
 pub mod compose;
 pub mod inventory;
 pub mod resolver;
@@ -143,4 +144,8 @@ pub fn file_hash(path: &Path, max: u64, cancel: &dyn Fn() -> bool) -> io::Result
         return Err(error("input_changed"));
     }
     Ok(format!("{:x}", digest.finalize()))
+}
+
+pub fn available_space(path: impl AsRef<Path>) -> io::Result<u64> {
+    fs2::available_space(path)
 }

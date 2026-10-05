@@ -447,10 +447,11 @@ pub fn prepare_resources(
     } else {
         root.to_path_buf()
     };
+    let imported = imported(context, store)?;
     let mut prerequisites = Vec::new();
     let has_source =
         source.join("modrinth.index.json").exists() || source.join("manifest.json").exists();
-    if context.server.modpack_identity.is_some() && !has_source {
+    if context.server.modpack_identity.is_some() && !has_source && imported.is_none() {
         prerequisites.push("exact_client_manifest_required".into());
     }
     progress(
@@ -458,15 +459,31 @@ pub fn prepare_resources(
         4,
         "Collecting exact client files; verified downloads are reusable.",
     );
-    let requests = io_assets::acquire::requests(
-        &source,
-        transport,
-        secrets,
-        game,
-        context.server.java_flavor.raw_value(),
-        context.server.loader_version.as_deref(),
-        cancel,
-    )?;
+    let requests = if let Some((directory, receipt)) = &imported {
+        if receipt.manifest.curseforge_files.is_empty() {
+            receipt.manifest.required_sources.clone()
+        } else {
+            io_assets::acquire::requests(
+                directory,
+                transport,
+                secrets,
+                game,
+                context.server.java_flavor.raw_value(),
+                context.server.loader_version.as_deref(),
+                cancel,
+            )?
+        }
+    } else {
+        io_assets::acquire::requests(
+            &source,
+            transport,
+            secrets,
+            game,
+            context.server.java_flavor.raw_value(),
+            context.server.loader_version.as_deref(),
+            cancel,
+        )?
+    };
     let mut missing = Vec::new();
     let mut client_mods = layer()?;
     let mut manifest_paths = BTreeSet::new();
@@ -585,6 +602,85 @@ pub fn prepare_resources(
             prerequisites.push("client_pack_selection_required".into());
         }
     }
+    if let Some((directory, receipt)) = &imported {
+        let manifest = &receipt.manifest;
+        if !manifest.selection_known {
+            prerequisites.push("client_pack_selection_required".into());
+        }
+        let mut selected = manifest
+            .layers
+            .iter()
+            .filter(|l| l.kind == "mod")
+            .collect::<Vec<_>>();
+        if let Some(order) = &manifest.mod_order {
+            selected.sort_by_key(|l| order.iter().position(|id| id == &l.id));
+        }
+        let mut imported_mods = io_assets::compose::Stack::default();
+        for selected_layer in selected {
+            let mut inventory = layer()?;
+            inventory.scan_tree(
+                &directory.join("layers").join(&selected_layer.id),
+                "",
+                "imported_client_resources",
+                cancel,
+            )?;
+            if inventory.resources.len() != selected_layer.resources.len()
+                || inventory
+                    .resources
+                    .iter()
+                    .any(|(name, r)| selected_layer.resources.get(name) != Some(&r.sha256))
+            {
+                return Err(error("imported_resource_checksum"));
+            }
+            inventory.sources = selected_layer.sources.clone();
+            imported_mods.push(inventory, manifest.mod_order.is_some(), pack_format)?;
+        }
+        prerequisites.extend(imported_mods.prerequisites);
+        stack.push(imported_mods.inventory, true, pack_format)?;
+        for id in &manifest.selected_packs {
+            let selected_layer = manifest
+                .layers
+                .iter()
+                .find(|l| &l.id == id)
+                .ok_or_else(|| error("invalid_client_resource_order"))?;
+            let mut inventory = layer()?;
+            inventory.scan_tree(
+                &directory.join("layers").join(id),
+                "",
+                "imported_client_pack",
+                cancel,
+            )?;
+            if inventory.resources.len() != selected_layer.resources.len()
+                || inventory
+                    .resources
+                    .iter()
+                    .any(|(name, r)| selected_layer.resources.get(name) != Some(&r.sha256))
+            {
+                return Err(error("imported_resource_checksum"));
+            }
+            inventory.sources = selected_layer.sources.clone();
+            stack.push(inventory, true, pack_format)?;
+        }
+        for selected_layer in manifest.layers.iter().filter(|l| l.kind == "override") {
+            let mut inventory = layer()?;
+            inventory.scan_tree(
+                &directory.join("layers").join(&selected_layer.id),
+                "",
+                "imported_client_override",
+                cancel,
+            )?;
+            if inventory.resources.len() != selected_layer.resources.len()
+                || inventory
+                    .resources
+                    .iter()
+                    .any(|(name, r)| selected_layer.resources.get(name) != Some(&r.sha256))
+            {
+                return Err(error("imported_resource_checksum"));
+            }
+            inventory.sources = selected_layer.sources.clone();
+            stack.push(inventory, true, pack_format)?;
+        }
+    }
     prerequisites.extend(stack.prerequisites.clone());
     if stack.inventory.conflicts > 0 {
         prerequisites.push("client_mod_resource_order_required".into());
@@ -596,11 +692,14 @@ pub fn prepare_resources(
         .extend(stack.inventory.file_stamps.clone());
     candidate.verify_inputs(cancel)?;
     let config = store::fingerprint_configs(&root.join("config"), cancel)?;
-    let manifest_receipts = if has_source {
+    let mut manifest_receipts = if has_source {
         BTreeMap::from([("clientSource".into(), hash_json(&context.revision_inputs)?)])
     } else {
         BTreeMap::new()
     };
+    if let Some((_, receipt)) = &imported {
+        manifest_receipts.insert("importedClientBundle".into(), receipt.bundle_sha256.clone());
+    }
     let mut manifest = ResourceManifest {
         schema_version: 1,
         generation_id: String::new(),
@@ -611,9 +710,14 @@ pub fn prepare_resources(
         renderer_version: "msc-private-resource-adapter-1".into(),
         capture_formats: vec![],
         sources: stack.inventory.sources.clone(),
-        selected_pack_order: None,
+        selected_pack_order: imported
+            .as_ref()
+            .map(|(_, r)| r.manifest.selected_packs.clone()),
         selection_known: prerequisites.is_empty(),
-        selection_revision: hash_json(&stack.winners)?,
+        selection_revision: hash_json(&(
+            &stack.winners,
+            imported.as_ref().map(|(_, r)| &r.manifest),
+        ))?,
         config_fingerprint: hash_json(&(
             &config,
             context
@@ -731,4 +835,133 @@ pub fn prepared_report(
             .any(|c| !matches!(c, C::ModelResolved | C::IntentionalEmpty));
     Ok(Report{schema_version:1,binding:context.binding.clone(),snapshot_id:terrain.snapshot_id,
         snapshot_minecraft_version:world.recorded_game_version()?,resource_generation_id:prepared.manifest.generation_id.clone(),geometry_generation_id:None,dimension:dimension.into(),area,operation_id:operation.into(),outcome:if needs_input{"needs_input"}else{"ready"}.into(),visual_acceptance:"pending".into(),scope:"Original saved blocks in the requested bounds; candidate artifacts validated separately. Fallback geometry is not model_resolved. Visual acceptance remains pending.".into(),inspected_blocks:terrain.blocks.len()as u64,inspected_chunks:terrain.chunks,distinct_states,visible_faces:None,counts,diagnostics,omitted_issues,omitted_samples,sources:prepared.manifest.sources.clone()})
+}
+
+/// Imported selection is private to the exact host/server/slot incarnation and mod inputs.
+pub fn import_revision(context: &Context) -> io::Result<String> {
+    let mut inputs = context.revision_inputs.clone();
+    inputs.remove("sourceIdentity");
+    hash_json(&(
+        &inputs,
+        context.world.resource_identity()?,
+        &context.server.minecraft_version,
+        &context.server.loader_version,
+        context.server.java_flavor.raw_value(),
+    ))
+}
+
+pub fn imported(
+    context: &Context,
+    store: &Store,
+) -> io::Result<Option<(std::path::PathBuf, io_assets::bundle::Receipt)>> {
+    let root = io_assets::bundle::receipt_root(store, &context.binding)?;
+    let pointer = root.join("current.json");
+    if !pointer.exists() {
+        return Ok(None);
+    }
+    let receipt: io_assets::bundle::Receipt = serde_json::from_slice(&read(&pointer, MAX_JSON)?)
+        .map_err(|_| error("invalid_client_import_receipt"))?;
+    if receipt.input_revision != import_revision(context)?
+        || receipt.binding.agent_host_id != context.binding.agent_host_id
+        || receipt.binding.server_id != context.binding.server_id
+        || receipt.binding.slot_id != context.binding.slot_id
+    {
+        return Err(error("matching_client_reimport_required"));
+    }
+    receipt.manifest.validate()?;
+    if receipt.bundle_sha256.len() != 64
+        || !receipt.bundle_sha256.bytes().all(|b| b.is_ascii_hexdigit())
+    {
+        return Err(error("invalid_client_import_receipt"));
+    }
+    Ok(Some((root.join(&receipt.bundle_sha256), receipt)))
+}
+pub fn import_bundle(
+    context: &Context,
+    store: &Store,
+    bundle: &Path,
+    expected_hash: &str,
+    cancel: &dyn Fn() -> bool,
+) -> io::Result<io_assets::bundle::Receipt> {
+    let sha = file_hash(bundle, io_assets::bundle::MAX_BUNDLE, cancel)?;
+    if sha != expected_hash {
+        return Err(error("client_bundle_checksum"));
+    }
+    store.admit(io_assets::bundle::expanded_size(bundle)?)?;
+    let mut candidate = store.begin()?;
+    let target = candidate.directory().join("import");
+    let manifest = io_assets::bundle::unpack(bundle, &target, cancel)?;
+    if Some(manifest.minecraft_version.as_str()) != context.server.minecraft_version.as_deref() {
+        return Err(error("matching_minecraft_client_required"));
+    }
+    let expected = context.server.java_flavor.raw_value();
+    let expected = if matches!(expected, "paper" | "purpur" | "spigot" | "pufferfish") {
+        "vanilla"
+    } else {
+        expected
+    };
+    if manifest.loader != expected || manifest.loader_version != context.server.loader_version {
+        return Err(error("matching_loader_client_required"));
+    }
+    let mut installed = Inventory::default();
+    installed.scan_mods(
+        &Path::new(&context.server.server_dir).join("mods"),
+        &mut candidate,
+        cancel,
+    )?;
+    let supplied = manifest
+        .layers
+        .iter()
+        .flat_map(|l| &l.sources)
+        .flat_map(|s| &s.declared_mods)
+        .map(|m| (&m.id, &m.version))
+        .collect::<BTreeMap<_, _>>();
+    for source in &installed.sources {
+        for module in &source.declared_mods {
+            if let Some(version) = supplied.get(&module.id)
+                && (*version != &module.version
+                    || version.is_none()
+                        && !manifest
+                            .layers
+                            .iter()
+                            .flat_map(|l| &l.sources)
+                            .any(|s| s.sha256 == source.sha256))
+            {
+                return Err(error("matching_mod_release_required"));
+            }
+        }
+    }
+    candidate.verify_inputs(cancel)?;
+    if self::context(
+        &context.server,
+        &context.binding.agent_host_id,
+        &context.binding.slot_id,
+    )?
+    .binding
+        != context.binding
+    {
+        return Err(error("binding_changed"));
+    }
+    let receipt = io_assets::bundle::Receipt {
+        binding: context.binding.clone(),
+        input_revision: import_revision(context)?,
+        bundle_sha256: sha.clone(),
+        manifest,
+    };
+    let root = io_assets::bundle::receipt_root(store, &context.binding)?;
+    std::fs::create_dir_all(&root)?;
+    safe_path(&root)?;
+    let destination = root.join(&sha);
+    poll(cancel)?;
+    if !destination.exists() {
+        std::fs::rename(&target, &destination)?;
+    }
+    let temporary = root.join(format!("{}.json", uuid::Uuid::new_v4()));
+    std::fs::write(
+        &temporary,
+        serde_json::to_vec(&receipt).map_err(|_| error("serialization_failed"))?,
+    )?;
+    poll(cancel)?;
+    std::fs::rename(temporary, root.join("current.json"))?;
+    Ok(receipt)
 }

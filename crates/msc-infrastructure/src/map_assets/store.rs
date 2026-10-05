@@ -65,6 +65,9 @@ impl Store {
             gate: Arc::new(Mutex::new(())),
         })
     }
+    pub fn directory(&self) -> &Path {
+        &self.root
+    }
     pub fn begin(&self) -> io::Result<Candidate> {
         let path = self
             .root
@@ -187,7 +190,7 @@ impl Store {
         commit(&temp, &path)?;
         Ok(())
     }
-    fn admit(&self, bytes: u64) -> io::Result<()> {
+    pub fn admit(&self, bytes: u64) -> io::Result<()> {
         let mut total = 0;
         let mut count = 0;
         let mut stack = vec![self.root.clone()];

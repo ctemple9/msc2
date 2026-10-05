@@ -34,3 +34,22 @@ pub struct MapAssetsPrepareRequestDto {
     pub dimension: String,
     pub area: Option<MapAssetsAreaDto>,
 }
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MapAssetsImportRequestDto {
+    pub server_id: String,
+    pub expected_revision: String,
+    pub dimension: String,
+    pub area: Option<MapAssetsAreaDto>,
+    pub staged_upload_id: String,
+    pub sha256: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MapAssetsClientContextDto {
+    pub minecraft_version: Option<String>,
+    pub loader: String,
+    pub loader_version: Option<String>,
+}

@@ -53,6 +53,107 @@
     }
   },
   "paths": {
+    "/v1/worlds/{slot_id}/map-assets/import": {
+      "post": {
+        "summary": "Import matching client map resources",
+        "operationId": "importWorldMapAssets",
+        "x-permission-category": "worlds",
+        "x-notes": "Consumes a completed map-client-assets upload owned by this credential and the exact host/server/slot revision. Validation and saved tile adoption share a cancellable operation. Resource-only bundle; no remote client filesystem paths.",
+        "parameters": [
+          {
+            "name": "slot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Invalid map-resource request or bounds"
+          },
+          "200": {
+            "description": "Bound read-only map-resource result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MapAssetsCheckStartedDTO"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Worlds permission required"
+          },
+          "409": {
+            "description": "Binding changed, unsupported scope, consistent snapshot required, or bounded inspection refused"
+          },
+          "404": {
+            "description": "Slot or bound report is unavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MapAssetsImportRequestDTO"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/worlds/{slot_id}/map-assets/client-context": {
+      "get": {
+        "summary": "Read matching client resource versions",
+        "operationId": "worldMapAssetsClientContext",
+        "x-permission-category": "worlds",
+        "x-notes": "Bound inventory evidence. Use prepare for exact resource acquisition and guarded renderer adoption; rendering exposes live preparation and retained-scene age. Check remains a read-only scoped inspection.",
+        "parameters": [
+          {
+            "name": "slot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "serverId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bound read-only map-resource result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MapAssetsClientContextDTO"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Worlds permission required"
+          },
+          "409": {
+            "description": "Binding changed, unsupported scope, consistent snapshot required, or bounded inspection refused"
+          },
+          "404": {
+            "description": "Slot or bound report is unavailable"
+          }
+        }
+      }
+    },
   "/v1/worlds/{slot_id}/map-assets/prepare": {
     "post": {
       "summary": "Prepare guarded saved map resources",
@@ -7598,6 +7699,252 @@
   },
   "components": {
     "schemas": {
+      "MapAssetsImportRequestDTO": {
+        "type": "object",
+        "required": [
+          "serverId",
+          "expectedRevision",
+          "dimension",
+          "stagedUploadId",
+          "sha256"
+        ],
+        "properties": {
+          "serverId": {
+            "type": "string"
+          },
+          "expectedRevision": {
+            "type": "string"
+          },
+          "dimension": {
+            "type": "string"
+          },
+          "area": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MapAssetsAreaDTO"
+              }
+            ],
+            "nullable": true
+          },
+          "stagedUploadId": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "MapAssetsClientContextDTO": {
+        "type": "object",
+        "required": [
+          "minecraftVersion",
+          "loader",
+          "loaderVersion"
+        ],
+        "properties": {
+          "minecraftVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "loader": {
+            "type": "string"
+          },
+          "loaderVersion": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "MapClientResourceLayerDTO": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "label",
+          "sources",
+          "resources"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "mod",
+              "pack",
+              "override"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MapAssetsSourceEvidenceDTO"
+            }
+          },
+          "resources": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "MapClientRequiredSourceDTO": {
+        "type": "object",
+        "required": [
+          "identity",
+          "path",
+          "provider",
+          "hashes",
+          "bytes",
+          "urls"
+        ],
+        "properties": {
+          "identity": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "hashes": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "bytes": {
+            "type": "integer"
+          },
+          "urls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "projectId": {
+            "type": "string",
+            "nullable": true
+          },
+          "releaseId": {
+            "type": "string",
+            "nullable": true
+          },
+          "fileId": {
+            "type": "string",
+            "nullable": true
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "MapClientBundleManifestDTO": {
+        "type": "object",
+        "required": [
+          "schemaVersion",
+          "minecraftVersion",
+          "loader",
+          "loaderVersion",
+          "selectionKnown",
+          "layers",
+          "selectedPacks",
+          "modOrder",
+          "evidence",
+          "requiredSources",
+          "curseforgeFiles"
+        ],
+        "properties": {
+          "schemaVersion": {
+            "type": "integer"
+          },
+          "minecraftVersion": {
+            "type": "string"
+          },
+          "loader": {
+            "type": "string"
+          },
+          "loaderVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "selectionKnown": {
+            "type": "boolean"
+          },
+          "layers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MapClientResourceLayerDTO"
+            }
+          },
+          "selectedPacks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "modOrder": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "evidence": {
+            "type": "string",
+            "enum": [
+              "local_hashed"
+            ]
+          },
+          "requiredSources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MapClientRequiredSourceDTO"
+            }
+          },
+          "curseforgeFiles": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "MapClientInspectionDTO": {
+        "type": "object",
+        "required": [
+          "token",
+          "size",
+          "sha256",
+          "manifest"
+        ],
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/MapClientBundleManifestDTO"
+          }
+        }
+      },
   "MapAssetsPrepareRequestDTO": {
     "type": "object",
     "required": [
@@ -14357,6 +14704,7 @@
             "type": "string",
             "enum": [
               "world-import",
+              "map-client-assets",
               "active-world-replace",
               "world-thumbnail",
               "modpack-archive",

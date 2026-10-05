@@ -112,6 +112,7 @@ pub enum StagedUploadPurposeDto {
     ActiveWorldReplace,
     WorldThumbnail,
     ModpackArchive,
+    MapClientAssets,
     AddonLocalFile,
     CurseforgeManualFile,
     ModpackUnresolvedFile,

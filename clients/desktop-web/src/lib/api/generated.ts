@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 68ebdf51dda932afb5772bcf7f90520adb5102e862df461d5c5b482f8defaf5d
+// Contract SHA-256: 28258c8da47a16f9930fa55c12995bf8c706c7fab261d687c72153ea097fd09a
 
 export interface paths {
   '/v1/active-server': {
@@ -6120,6 +6120,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/worlds/{slot_id}/map-assets/client-context': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read matching client resource versions */
+    get: operations['worldMapAssetsClientContext'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/worlds/{slot_id}/map-assets/import': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Import matching client map resources */
+    post: operations['importWorldMapAssets'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/worlds/{slot_id}/map-assets/prepare': {
     parameters: {
       query?: never;
@@ -7877,6 +7911,13 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    MapAssetsClientContextDTO: {
+      loader: string;
+      loaderVersion: string | null;
+      minecraftVersion: string | null;
+    } & {
+      [key: string]: unknown;
+    };
     MapAssetsDeclaredModDTO: {
       id: string;
       version: string | null;
@@ -7906,6 +7947,16 @@ export interface components {
       state: {
         [key: string]: string;
       };
+    } & {
+      [key: string]: unknown;
+    };
+    MapAssetsImportRequestDTO: {
+      area?: components['schemas']['MapAssetsAreaDTO'] | null;
+      dimension: string;
+      expectedRevision: string;
+      serverId: string;
+      sha256: string;
+      stagedUploadId: string;
     } & {
       [key: string]: unknown;
     };
@@ -7983,6 +8034,58 @@ export interface components {
       /** Format: int64 */
       schemaVersion: number;
       state: string;
+    } & {
+      [key: string]: unknown;
+    };
+    MapClientBundleManifestDTO: {
+      curseforgeFiles: number[][];
+      /** @enum {string} */
+      evidence: 'local_hashed';
+      layers: components['schemas']['MapClientResourceLayerDTO'][];
+      loader: string;
+      loaderVersion: string | null;
+      minecraftVersion: string;
+      modOrder: string[] | null;
+      requiredSources: components['schemas']['MapClientRequiredSourceDTO'][];
+      schemaVersion: number;
+      selectedPacks: string[];
+      selectionKnown: boolean;
+    } & {
+      [key: string]: unknown;
+    };
+    MapClientInspectionDTO: {
+      manifest: components['schemas']['MapClientBundleManifestDTO'];
+      sha256: string;
+      size: number;
+      token: string;
+    } & {
+      [key: string]: unknown;
+    };
+    MapClientRequiredSourceDTO: {
+      bytes: number;
+      fileId?: string | null;
+      hashes: {
+        [key: string]: string;
+      };
+      identity: string;
+      path: string;
+      projectId?: string | null;
+      provider: string;
+      reason?: string | null;
+      releaseId?: string | null;
+      urls: string[];
+    } & {
+      [key: string]: unknown;
+    };
+    MapClientResourceLayerDTO: {
+      id: string;
+      /** @enum {string} */
+      kind: 'mod' | 'pack' | 'override';
+      label: string;
+      resources: {
+        [key: string]: string;
+      };
+      sources: components['schemas']['MapAssetsSourceEvidenceDTO'][];
     } & {
       [key: string]: unknown;
     };
@@ -9139,6 +9242,7 @@ export interface components {
       /** @enum {string} */
       purpose:
         | 'world-import'
+        | 'map-client-assets'
         | 'active-world-replace'
         | 'world-thumbnail'
         | 'modpack-archive'
@@ -10842,6 +10946,105 @@ export interface operations {
     requestBody: {
       content: {
         'application/json': components['schemas']['MapAssetsCheckRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Bound read-only map-resource result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MapAssetsCheckStartedDTO'];
+        };
+      };
+      /** @description Invalid map-resource request or bounds */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Worlds permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Slot or bound report is unavailable */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Binding changed, unsupported scope, consistent snapshot required, or bounded inspection refused */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  worldMapAssetsClientContext: {
+    parameters: {
+      query: {
+        serverId: string;
+      };
+      header?: never;
+      path: {
+        slot_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Bound read-only map-resource result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MapAssetsClientContextDTO'];
+        };
+      };
+      /** @description Worlds permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Slot or bound report is unavailable */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Binding changed, unsupported scope, consistent snapshot required, or bounded inspection refused */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  importWorldMapAssets: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slot_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['MapAssetsImportRequestDTO'];
       };
     };
     responses: {

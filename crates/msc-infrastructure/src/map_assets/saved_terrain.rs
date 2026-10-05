@@ -27,6 +27,30 @@ pub enum WorldSource {
     Archive(PathBuf),
 }
 impl WorldSource {
+    /// Static resource compatibility survives ordinary saves but binds the saved game's seed/version.
+    pub fn resource_identity(&self) -> io::Result<String> {
+        let compressed = self
+            .bytes("level.dat", MAX_JSON)?
+            .ok_or_else(|| error("missing_level_dat"))?;
+        let mut raw = Vec::new();
+        GzDecoder::new(compressed.as_slice())
+            .take(MAX_CHUNK + 1)
+            .read_to_end(&mut raw)?;
+        if raw.len() as u64 > MAX_CHUNK {
+            return Err(error("level_dat_decoded_limit"));
+        }
+        validate_nbt(&raw)?;
+        let value: Value = fastnbt::from_bytes(&raw).map_err(|_| error("invalid_level_dat"))?;
+        let data = compound(&value)
+            .and_then(|r| r.get("Data"))
+            .and_then(compound)
+            .ok_or_else(|| error("invalid_level_dat"))?;
+        hash_json(&(
+            data.get("WorldGenSettings"),
+            data.get("RandomSeed"),
+            data.get("Version"),
+        ))
+    }
     pub fn recorded_game_version(&self) -> io::Result<Option<String>> {
         let Some(compressed) = self.bytes("level.dat", MAX_JSON)? else {
             return Err(error("missing_level_dat"));

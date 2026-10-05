@@ -3759,6 +3759,17 @@ async fn run_settings(common: CommonArgs, command: SettingsCommand) -> Result<()
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum MapAssetsCommand {
+    Import {
+        bundle: PathBuf,
+        #[arg(long)]
+        slot: String,
+        #[arg(long)]
+        expected_revision: String,
+        #[arg(long)]
+        dimension: String,
+        #[arg(long)]
+        no_wait: bool,
+    },
     Status {
         #[arg(long)]
         slot: String,
@@ -3814,13 +3825,120 @@ async fn run_map_assets(
         | MapAssetsCommand::Report { slot }
         | MapAssetsCommand::Check { slot, .. }
         | MapAssetsCommand::Prepare { slot, .. }
-        | MapAssetsCommand::Rendering { slot, .. } => slot,
+        | MapAssetsCommand::Rendering { slot, .. }
+        | MapAssetsCommand::Import { slot, .. } => slot.clone(),
     };
-    if uuid::Uuid::parse_str(slot).is_err() {
+    if uuid::Uuid::parse_str(&slot).is_err() {
         return Err(CliError::usage("--slot must be a world slot UUID."));
     }
     let base = format!("/v1/worlds/{slot}/map-assets");
     match command {
+        MapAssetsCommand::Import {
+            bundle,
+            expected_revision,
+            dimension,
+            no_wait,
+            ..
+        } => {
+            let path = bundle.clone();
+            let sha = tokio::task::spawn_blocking(move || {
+                msc_infrastructure::map_assets::file_hash(
+                    &path,
+                    msc_infrastructure::map_assets::bundle::MAX_BUNDLE,
+                    &|| false,
+                )
+            })
+            .await
+            .map_err(|_| CliError::internal("Resource hashing worker failed."))?
+            .map_err(|_| CliError::usage("Cannot safely read the bounded client bundle."))?;
+            let mut file = msc_infrastructure::map_assets::open(&bundle)
+                .map_err(|_| CliError::usage("Cannot open the client bundle."))?;
+            let size = file
+                .metadata()
+                .map_err(|_| CliError::usage("Cannot read bundle size."))?
+                .len();
+            let begin: StagedUploadBeginResultDto = client
+                .post_json(
+                    "/v1/staged-uploads",
+                    &StagedUploadBeginRequestDto {
+                        purpose: StagedUploadPurposeDto::MapClientAssets,
+                        content_type: None,
+                        file_name: Some("client-resources.zip".into()),
+                        operation_id: Some(expected_revision.clone()),
+                        file_id: Some(slot.clone()),
+                        expected_bytes: Some(size as i64),
+                    },
+                )
+                .await?;
+            let transfer = async {
+                use std::io::Read;
+                let mut offset = 0;
+                while offset < size {
+                    let mut bytes = vec![
+                        0;
+                        (size - offset)
+                            .min(begin.max_chunk_bytes.unwrap_or(1024 * 1024) as u64)
+                            .min(8 * 1024 * 1024) as usize
+                    ];
+                    file.read_exact(&mut bytes).map_err(|_| {
+                        CliError::usage("The source bundle changed or could not be read.")
+                    })?;
+                    let next = offset + bytes.len() as u64;
+                    let response = client
+                        .put_chunk(
+                            &format!(
+                                "{}/chunks?offset={offset}&complete={}",
+                                begin.upload_path,
+                                next == size
+                            ),
+                            bytes,
+                        )
+                        .await?;
+                    if next == size
+                        && !response
+                            .is_some_and(|r| r.sha256 == sha && r.received_bytes as u64 == size)
+                    {
+                        return Err(CliError::usage(
+                            "The transferred bundle checksum did not match.",
+                        ));
+                    }
+                    offset = next;
+                }
+                Ok::<_, CliError>(())
+            };
+            let result = tokio::select! { r = transfer => r, _ = tokio::signal::ctrl_c() => Err(CliError::usage("Client import cancelled.")) };
+            if let Err(error) = result {
+                let _ = client.cancel_upload(&begin.staged_upload_id).await;
+                return Err(error);
+            }
+            let started: msc_api::dto::MapAssetsCheckStartedDto = client
+                .post_json(
+                    &format!("{base}/import"),
+                    &msc_api::dto::MapAssetsImportRequestDto {
+                        server_id: server.into(),
+                        expected_revision,
+                        dimension,
+                        area: None,
+                        staged_upload_id: begin.staged_upload_id,
+                        sha256: sha,
+                    },
+                )
+                .await?;
+            if no_wait {
+                return print_json(&started);
+            }
+            wait_operation(client, &started.operation_id, common.json, false).await?;
+            let report: msc_api::dto::MapAssetsReportDto = client
+                .get_json(&format!("{base}/report?serverId={server}"))
+                .await?;
+            print_json(&report)?;
+            if report.outcome != "ready" {
+                return Err(CliError::usage(
+                    "Imported resources still require input. Read the affected-area report; no complete repair was claimed.",
+                ));
+            }
+            Ok(())
+        }
         MapAssetsCommand::Status { .. } | MapAssetsCommand::Report { .. } => {
             let action = if matches!(command, MapAssetsCommand::Status { .. }) {
                 "status"

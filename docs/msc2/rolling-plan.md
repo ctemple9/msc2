@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current work:** Cameron visually confirmed the isolated P18.14a proof on 2026-10-04. P18.15–P18.17 are implemented and awaiting Cameron's verification; Batch B ends at P18.17. Broader production/platform/mod acceptance gates remain open.
+**Current work:** Cameron visually confirmed the isolated P18.14a proof on 2026-10-04. P18.15–P18.18 are implemented and awaiting Cameron's verification. Batch C is in progress; P18.19 is next. Broader production/platform/mod acceptance gates remain open.
 
 ### P18.13 — Plan automatic modded map assets and successful repairs
 
@@ -237,7 +237,7 @@ No Verify command below runs a test suite. Essential regressions may be added on
 
 ### P18.18 — Import matching client resources locally and across hosts
 
-**Status:** Planned; depends on Batch B; awaiting Cameron's plan review.
+**Status:** Implemented; awaiting Cameron’s verification. Live import/platform acceptance remains pending.
 **Files:** New native client-asset inspection/bundle commands in `clients/desktop-web/src-tauri/src/`, capability registrations and native transport; shared bounded upload/staging DTOs and routes; map-asset import/application modules; CLI map-asset import command; existing archive/download primitives where reused; design/acceptance documents and this plan.
 **What:** Provide the user-supplied input path for everything the server cannot resolve:
 
@@ -253,6 +253,10 @@ No Verify command below runs a test suite. Essential regressions may be added on
 **Batch:** C — P18.18–P18.19.
 **Commit:** `P18.18: import matching client map assets across hosts`
 **Acceptance evidence:** Import the matching instance from Fedora into the Ubuntu agent and see previously missing standard-model blocks render. Repeat an import on native Windows and macOS paths; final full platform coverage is P18.21. Wrong release is rejected with a correction path. Cancelled uploads leave no published candidate. Imported resources never alter the source client or server mod tree.
+
+**Implementation:** Added native resource-only instance/archive/file inspection and portable bundle export; official unambiguous game directories and explicitly selected Prism instances are supported. The agent reinspects checksummed objects, game/loader/mod compatibility and resource order. Map-purpose uploads bind the initiating credential and exact host/server/slot revision at admission, every chunk and apply; owner cancellation remains possible after switching servers. Imports share the cancellable renderer operation, reuse MSC-owned receipts and preserve the displayed scene on failure. Loose files carry explicit matching-map context and local-hash evidence, never fabricated publisher verification. Unknown mod versions require identical original JAR hashes. Existing server/client files are read only.
+
+**Checks:** Fixed both reported compiler errors. Required Rust format, agent Clippy, native-shell Clippy and Svelte checks passed with existing unrelated warnings. Generated API consistency and focused bundle regression source were checked without running tests. Two essential controlled regressions protect resource-only privacy/selection and malicious/case-colliding/checksum inputs absent from ordinary archive coverage; expected combined runtime below one second, unmeasured. Native lockfile was refreshed for infrastructure dependencies already introduced in Batch B. No tests, game launches, releases, tags or workflows.
 
 ### P18.19 — Deliver repairs that verify the affected blocks
 

@@ -2686,6 +2686,7 @@ mod tests {
         staging.uploads.lock().unwrap().insert(
             "pack-upload".to_string(),
             StagedUpload {
+                map_binding: None,
                 purpose: msc_api::dto::StagedUploadPurposeDto::ModpackArchive,
                 file_name: None,
                 operation_id: None,

@@ -72,6 +72,17 @@ impl<T> Coordinator<T> {
             cancelled: cancel,
         })
     }
+    pub fn rebase(&mut self, ticket: &mut Ticket, revision: String) -> bool {
+        if !self.matches(ticket) {
+            return false;
+        }
+        self.entries
+            .get_mut(&ticket.key)
+            .expect("matched entry")
+            .revision = revision.clone();
+        ticket.revision = revision;
+        true
+    }
     pub fn matches(&self, ticket: &Ticket) -> bool {
         !ticket.cancelled()
             && self

@@ -666,9 +666,6 @@ pub async fn begin_staged_upload(
         | StagedUploadPurposeDto::ActiveWorldReplace
         | StagedUploadPurposeDto::WorldThumbnail => MAX_STAGED_UPLOAD_BYTES,
         StagedUploadPurposeDto::ModpackArchive => MAX_STAGED_UPLOAD_BYTES,
-        StagedUploadPurposeDto::MapClientAssets => {
-            msc_infrastructure::map_assets::bundle::MAX_BUNDLE
-        }
         StagedUploadPurposeDto::AddonLocalFile => MAX_LOCAL_ADDON_UPLOAD_BYTES,
         StagedUploadPurposeDto::CurseforgeManualFile
         | StagedUploadPurposeDto::ModpackUnresolvedFile => {
@@ -709,77 +706,6 @@ pub async fn begin_staged_upload(
         }
     };
 
-    let map_binding = if body.purpose == StagedUploadPurposeDto::MapClientAssets {
-        if let Some(response) =
-            crate::routes::lifecycle::require_permission(&credential, PermissionCategoryDto::Worlds)
-        {
-            return response;
-        }
-        let Some(server) = state.lifecycle.active_config_server() else {
-            return no_active_server();
-        };
-        let host = match state.lifecycle.map_assets_host_id() {
-            Ok(h) => h,
-            Err(_) => {
-                return invalid_body("host_identity_unavailable", "Agent identity unavailable.");
-            }
-        };
-        let context = match msc_application::map_assets::context(
-            &server,
-            &host,
-            body.file_id.as_deref().unwrap_or(""),
-        ) {
-            Ok(c) => c,
-            Err(_) => {
-                return invalid_body(
-                    "invalid_map_binding",
-                    "Supply fileId as the selected world slot UUID.",
-                );
-            }
-        };
-        if body.operation_id.as_deref() != Some(&context.binding.revision)
-            || body.expected_bytes.is_none()
-        {
-            return invalid_body(
-                "binding_changed",
-                "Supply operationId as the current map binding revision and expectedBytes.",
-            );
-        }
-        Some((context.binding, credential.credential_id.clone()))
-    } else {
-        None
-    };
-    if map_binding.is_some() {
-        let mut uploads = state.staging.uploads.lock().unwrap();
-        uploads.retain(|_, entry| {
-            if entry.map_binding.is_some() && now_unix() > entry.expires_at_unix {
-                let _ = std::fs::remove_file(&entry.path);
-                false
-            } else {
-                true
-            }
-        });
-        if uploads.values().filter(|e| e.map_binding.is_some()).count() >= 2 {
-            return invalid_body(
-                "map_upload_limit",
-                "Cancel an earlier map upload before beginning another.",
-            );
-        }
-        let expected = body.expected_bytes.unwrap_or(0);
-        if expected > 0
-            && std::fs::create_dir_all(staging_root(&state.lifecycle.servers_root())).is_ok()
-            && msc_infrastructure::map_assets::available_space(staging_root(
-                &state.lifecycle.servers_root(),
-            ))
-            .unwrap_or(0)
-                < expected as u64 + 64 * 1024 * 1024
-        {
-            return invalid_body(
-                "map_upload_free_space",
-                "Free space is insufficient for the selected resource bundle.",
-            );
-        }
-    }
     let id = Uuid::new_v4().to_string();
     let expected_bytes = match body.expected_bytes {
         Some(size) if size <= 0 || size as u64 > max_bytes => {
@@ -797,7 +723,6 @@ pub async fn begin_staged_upload(
     state.staging.uploads.lock().unwrap().insert(
         id.clone(),
         StagedUpload {
-            map_binding,
             purpose: body.purpose,
             file_name: body.file_name.clone(),
             operation_id: body.operation_id.clone(),
@@ -842,9 +767,6 @@ pub async fn upload_staged_bytes(
             "Unknown or already-redeemed staged upload.",
         );
     };
-    if let Some(response) = validate_map_upload(&state, &credential, &entry, true) {
-        return response;
-    }
     if now_unix() > entry.expires_at_unix {
         state.staging.uploads.lock().unwrap().remove(&id);
         return error_response(
@@ -929,9 +851,6 @@ pub async fn upload_staged_chunk(
             "Unknown or already-redeemed staged upload.",
         );
     };
-    if let Some(response) = validate_map_upload(&state, &credential, entry, true) {
-        return response;
-    }
     if now_unix() > entry.expires_at_unix {
         uploads.remove(&id);
         return error_response(
@@ -943,7 +862,6 @@ pub async fn upload_staged_chunk(
     if !matches!(
         entry.purpose,
         StagedUploadPurposeDto::ModpackArchive
-            | StagedUploadPurposeDto::MapClientAssets
             | StagedUploadPurposeDto::WorldImport
             | StagedUploadPurposeDto::ActiveWorldReplace
     ) {
@@ -1086,9 +1004,6 @@ pub async fn cancel_staged_upload(
 ) -> Response {
     let mut uploads = state.staging.uploads.lock().unwrap();
     if let Some(entry) = uploads.get(&id) {
-        if let Some(response) = validate_map_upload(&state, &credential, entry, false) {
-            return response;
-        }
         match std::fs::remove_file(&entry.path) {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
@@ -3136,45 +3051,4 @@ mod staged_upload_tests {
             .unwrap();
         assert_eq!(repeated.status(), StatusCode::NO_CONTENT);
     }
-}
-
-// Map imports have stricter ownership than historical archive uploads.
-fn validate_map_upload(
-    state: &ComponentsRoutesState,
-    credential: &AuthenticatedCredential,
-    entry: &StagedUpload,
-    check_binding: bool,
-) -> Option<Response> {
-    let (binding, owner) = entry.map_binding.as_ref()?;
-    if let Some(response) =
-        crate::routes::lifecycle::require_permission(credential, PermissionCategoryDto::Worlds)
-    {
-        return Some(response);
-    }
-    if owner != &credential.credential_id {
-        return Some(error_response(
-            StatusCode::FORBIDDEN,
-            "upload_owner_mismatch",
-            "This upload belongs to another credential.",
-        ));
-    }
-    if !check_binding {
-        return None;
-    }
-    let valid = state
-        .lifecycle
-        .active_config_server()
-        .filter(|s| s.id == binding.server_id)
-        .and_then(|s| {
-            msc_application::map_assets::context(&s, &binding.agent_host_id, &binding.slot_id).ok()
-        })
-        .is_some_and(|c| c.binding == *binding);
-    if !valid {
-        return Some(error_response(
-            StatusCode::CONFLICT,
-            "binding_changed",
-            "The selected world or resource inputs changed. Begin a new import.",
-        ));
-    }
-    None
 }

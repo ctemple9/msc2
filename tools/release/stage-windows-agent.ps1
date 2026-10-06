@@ -43,11 +43,7 @@ try {
         throw 'could not stage the pinned Vantage Windows renderer'
     }
     Copy-Item -LiteralPath $mapSource -Destination (Join-Path $packageDirectory 'bedrock-map.exe') -Force
-    & python (Join-Path $WorkspaceRoot "tools/release/stage-map-capture.py") --output-dir $packageDirectory
-    if ($LASTEXITCODE -ne 0) { throw "could not stage capture adapters" }
     $runtimeDirectory = Split-Path -Parent $runtimeDestination
-    & python (Join-Path $WorkspaceRoot "tools/release/stage-map-capture.py") --output-dir $runtimeDirectory
-    if ($LASTEXITCODE -ne 0) { throw "could not stage runtime capture adapters" }
     foreach ($name in @('bedrock-map.exe', 'vantage.exe', 'VANTAGE-LICENSE.txt')) {
         Copy-Item -LiteralPath (Join-Path $packageDirectory $name) -Destination (Join-Path $runtimeDirectory $name) -Force
     }

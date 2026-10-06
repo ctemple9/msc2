@@ -69,6 +69,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 | D-039 | Archive automated CI and keep beta publication build-only | **Approved** | 2026-09-28 |
 | D-040 | Host-local CLI access and service control | **Approved** | 2026-09-29 |
 | D-041 | CLI task coverage and two intentional API-only tasks | **Approved** | 2026-09-29 |
+| D-042 | Retire modded map repair and private client capture | **Approved** | 2026-10-06 |
 
 ---
 
@@ -1291,6 +1292,20 @@ metadata remain required to close Phase 16. Historical CI and release evidence
 remains as a record of earlier attempts.
 
 **Revisit if:** Cameron requests automated verification for publication again.
+
+---
+
+## D-042 — Retire modded map repair and private client capture
+
+**Status:** Approved · **Origin:** Owner · **Approved by:** Cameron Temple · **Date:** 2026-10-06
+
+**Owner's instruction:** “lets retire this feature. i do not like this design”; then “go back to before we did any of the repair work.”
+
+**Decision:** Retire the map-resource repair/import and private Minecraft capture workflow introduced after v0.1.23. Restore application behavior from `f6a1f794`, before P18.13. Retain the existing standard Java and Bedrock saved-terrain maps and headless dependency preparation. MSC does not offer a Prism sign-in or private-client launch as a map repair remedy. This does not promise correct rendering of arbitrary modded blocks.
+
+**Rationale:** The launcher/account setup and repeated repair attempts impose an unacceptable user workflow. Existing source history and proof evidence remain recoverable; retirement must not delete original worlds or client instances. The previous implementation/publication objective and its modded-repair acceptance gate are withdrawn, not passed.
+
+**Revisit if:** Cameron explicitly approves a different design. Do not restore this workflow or its launcher requirement without that approval.
 
 ---
 

@@ -415,7 +415,6 @@ pub enum MrpackImportError {
     PackManaged,
     NoAddOnKind,
     ClientFileCleanup(PathBuf),
-    MapSourceRetention,
 }
 
 impl fmt::Display for MrpackImportError {
@@ -423,7 +422,6 @@ impl fmt::Display for MrpackImportError {
         match self {
             Self::PackManaged => write!(f, "this server is managed by a different modpack"),
             Self::NoAddOnKind => write!(f, "this server flavor has no add-on folder"),
-            Self::MapSourceRetention => write!(f, "could not retain exact client resource source"),
             Self::ClientFileCleanup(path) => {
                 write!(
                     f,
@@ -482,14 +480,6 @@ pub fn import_mrpack(
     }
     let _add_on_kind = flavor.add_on_kind().ok_or(MrpackImportError::NoAddOnKind)?;
 
-    crate::map_source_receipts::retain(
-        fs,
-        server_dir,
-        staged_dir,
-        MODRINTH_INDEX_ENTRY,
-        "overrides",
-    )
-    .map_err(|_| MrpackImportError::MapSourceRetention)?;
     let mut report = MrpackImportReport {
         pack_name: manifest.name.clone(),
         pack_version: manifest.version_id.clone(),
@@ -1188,7 +1178,6 @@ pub enum CurseForgeImportError {
     /// "half-resolved is worse than a clean refusal" reason.
     Provider(String),
     ClientFileCleanup(PathBuf),
-    MapSourceRetention,
 }
 
 impl fmt::Display for CurseForgeImportError {
@@ -1198,7 +1187,6 @@ impl fmt::Display for CurseForgeImportError {
             Self::NoAddOnKind => write!(f, "this server flavor has no add-on folder"),
             Self::MissingApiKey => write!(f, "no CurseForge API key is configured"),
             Self::Provider(m) => write!(f, "{m}"),
-            Self::MapSourceRetention => write!(f, "could not retain exact client resource source"),
             Self::ClientFileCleanup(path) => {
                 write!(
                     f,
@@ -1271,14 +1259,6 @@ pub fn import_curseforge(
     let add_on_kind = flavor
         .add_on_kind()
         .ok_or(CurseForgeImportError::NoAddOnKind)?;
-    crate::map_source_receipts::retain(
-        fs,
-        server_dir,
-        staged_dir,
-        CURSEFORGE_MANIFEST_ENTRY,
-        &metadata.overrides_folder,
-    )
-    .map_err(|_| CurseForgeImportError::MapSourceRetention)?;
     let add_on_folder = server_dir.join(add_on_kind.folder_name());
 
     let file_ids: Vec<i64> = metadata.files.iter().map(|f| f.file_id).collect();

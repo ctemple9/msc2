@@ -61,14 +61,6 @@ rm -f \
   "$INSTALL_ROOT/VANTAGE-LICENSE.txt" \
   "$INSTALL_MODE_MARKER"
 
-# Remove only the known public payload, leaving unexpected user files intact.
-if [[ -d "$INSTALL_ROOT/map-capture/0.2.0" && ! -L "$INSTALL_ROOT/map-capture" && ! -L "$INSTALL_ROOT/map-capture/0.2.0" ]]; then
-  for capture_file in helpers.json LICENSE DEPENDENCIES.md msc-map-capture-fabric-0.2.0.jar msc-map-capture-forge-0.2.0.jar msc-map-capture-neoforge-0.2.0.jar; do
-    rm -f "$INSTALL_ROOT/map-capture/0.2.0/$capture_file"
-  done
-  rmdir "$INSTALL_ROOT/map-capture/0.2.0" "$INSTALL_ROOT/map-capture" 2>/dev/null || true
-fi
-
 PATH_LINK_STATE="not present"
 if [[ -L "$PATH_LINK" ]]; then
   if [[ "$(readlink "$PATH_LINK")" == "$INSTALL_BIN" ]]; then

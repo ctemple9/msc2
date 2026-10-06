@@ -71,16 +71,6 @@ if ($remainingEntries.Count -ne $entries.Count) {
     $pathChange = 'The MSC-owned PATH entry was not present.'
 }
 
-$captureRoot = Join-Path $installDirectory 'map-capture'
-$captureDirectory = Join-Path $captureRoot '0.2.0'
-if ((Test-Path -LiteralPath $captureDirectory -PathType Container) -and -not ((Get-Item -LiteralPath $captureRoot).Attributes -band [IO.FileAttributes]::ReparsePoint) -and -not ((Get-Item -LiteralPath $captureDirectory).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
-    foreach ($name in @('helpers.json', 'LICENSE', 'DEPENDENCIES.md', 'msc-map-capture-fabric-0.2.0.jar', 'msc-map-capture-forge-0.2.0.jar', 'msc-map-capture-neoforge-0.2.0.jar')) {
-        Remove-Item -LiteralPath (Join-Path $captureDirectory $name) -Force -ErrorAction SilentlyContinue
-    }
-    foreach ($directory in @($captureDirectory, $captureRoot)) {
-        if (-not (Get-ChildItem -LiteralPath $directory -Force)) { Remove-Item -LiteralPath $directory -Force }
-    }
-}
 Remove-Item -LiteralPath $installedBinary, $installedVantage, $installedBedrockMap, $installedVantageLicense, $ownershipMarker -Force -ErrorAction SilentlyContinue
 if (Test-Path -LiteralPath $installDirectory -PathType Container) {
     $remaining = Get-ChildItem -LiteralPath $installDirectory -Force

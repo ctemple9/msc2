@@ -357,7 +357,6 @@ fn extract_assets(bytes: &[u8], destination: &Path) -> Result<(), String> {
         let mut entry = archive.by_index(index).map_err(|e| e.to_string())?;
         if !entry.name().starts_with("assets/minecraft/")
             && !entry.name().starts_with("data/minecraft/")
-            && entry.name() != "pack.mcmeta"
         {
             continue;
         }

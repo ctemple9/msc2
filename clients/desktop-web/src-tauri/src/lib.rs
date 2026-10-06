@@ -1,7 +1,4 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-mod map_assets;
-mod map_capture;
-mod map_capture_process;
 
 use msc_infrastructure::secret_store::SecretStore;
 use msc_infrastructure::service::{
@@ -615,18 +612,6 @@ fn hex_lower(bytes: &[u8]) -> String {
 /// the shell into a bearer-token relay to a different origin.
 #[tauri::command]
 async fn desktop_authorized_request(request: DesktopRequest) -> Result<DesktopResponse, String> {
-    authorized_request(request, None).await
-}
-
-async fn authorized_request(
-    request: DesktopRequest,
-    cancel: Option<&std::sync::atomic::AtomicBool>,
-) -> Result<DesktopResponse, String> {
-    let capture_context = request
-        .path
-        .split('?')
-        .next()
-        .is_some_and(|path| path.ends_with("/map-assets/capture-context"));
     let key = credential_key(&request.agent_host_id);
     let store = desktop_secret_store()?;
     let Some(record) = store.get(&key).map_err(|error| error.to_string())? else {
@@ -643,16 +628,7 @@ async fn authorized_request(
     let method = Method::from_bytes(request.method.as_bytes())
         .map_err(|_| "The requested HTTP method is not supported.".to_string())?;
     let url = relative_request_url(&record.base_url, &request.path)?;
-    let http = if capture_context {
-        reqwest::Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .timeout(std::time::Duration::from_secs(180))
-            .build()
-            .map_err(|_| "Could not prepare the authorized connection.")?
-    } else {
-        reqwest::Client::new()
-    };
-    let mut builder = http
+    let mut builder = reqwest::Client::new()
         .request(method, url)
         .header(header::AUTHORIZATION, format!("Bearer {}", record.token));
     for (name, value) in request.headers {
@@ -665,8 +641,9 @@ async fn authorized_request(
     if let Some(body) = request.body {
         builder = builder.body(body);
     }
-    let mut response = map_capture::cancellable(builder.send(), cancel)
-        .await?
+    let response = builder
+        .send()
+        .await
         .map_err(|error| format!("Network: Desktop request failed: {error}"))?;
     let status = response.status();
     let headers = response
@@ -679,27 +656,11 @@ async fn authorized_request(
                 .map(|value| (name.as_str().to_string(), value.to_string()))
         })
         .collect();
-    let limit = if capture_context {
-        256 * 1024 * 1024
-    } else {
-        usize::MAX
-    };
-    if response
-        .content_length()
-        .is_some_and(|length| length > limit as u64)
-    {
-        return Err("Saved capture context exceeds 256 MiB; select a smaller area.".into());
-    }
-    let mut body = Vec::new();
-    while let Some(chunk) = map_capture::cancellable(response.chunk(), cancel)
-        .await?
+    let body = response
+        .bytes()
+        .await
         .map_err(|error| format!("Network: Desktop response could not be read: {error}"))?
-    {
-        if chunk.len() > limit.saturating_sub(body.len()) {
-            return Err("Saved capture context exceeds 256 MiB; select a smaller area.".into());
-        }
-        body.extend_from_slice(&chunk);
-    }
+        .to_vec();
     if status == reqwest::StatusCode::UNAUTHORIZED {
         // A revoked or expired credential must not linger locally after the
         // agent has authoritatively rejected it.
@@ -1792,21 +1753,6 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
-            map_capture::download_map_capture_context,
-            map_capture::discard_map_capture_context,
-            map_capture::prepare_map_capture,
-            map_capture::map_capture_helpers,
-            map_capture::resume_map_capture,
-            map_capture::list_map_captures,
-            map_capture::launch_map_capture,
-            map_capture::cancel_map_capture,
-            map_capture::inspect_map_capture_output,
-            map_capture::discard_map_capture,
-            map_assets::inspect_map_client_resources,
-            map_assets::read_map_client_resources,
-            map_assets::discard_map_client_resources,
-            map_assets::export_map_client_resources,
-            map_assets::export_map_rendering_report,
             desktop_exchange_pairing,
             desktop_automate_remote_pairing,
             desktop_bootstrap_local,
@@ -1829,16 +1775,8 @@ pub fn run() {
             ssh::ssh_tunnel_retry,
             ssh::ssh_tunnel_stop
         ])
-        .build(tauri::generate_context!())
-        .expect("error while building the MSC 2 desktop shell")
-        .run(|_, event| {
-            if matches!(
-                event,
-                tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. }
-            ) {
-                map_capture::shutdown();
-            }
-        });
+        .run(tauri::generate_context!())
+        .expect("error while running the MSC 2 desktop shell");
 }
 
 #[cfg(test)]

@@ -184,19 +184,6 @@ impl HttpTransport {
         }
     }
 
-    /// Map inputs never follow a provider redirect into an arbitrary host.
-    pub fn map_resources() -> Self {
-        Self {
-            agent: ureq::Agent::new_with_config(
-                ureq::Agent::config_builder()
-                    .timeout_global(Some(REQUEST_TIMEOUT))
-                    .max_redirects(0)
-                    .http_status_as_error(false)
-                    .build(),
-            ),
-        }
-    }
-
     fn read_body(
         mut response: ureq::http::Response<ureq::Body>,
         what: &str,

@@ -1,2 +1,0 @@
-pluginManagement { repositories { gradlePluginPortal(); maven { url = 'https://maven.minecraftforge.net/' } } }
-rootProject.name = 'msc-forge-map-capture-fixture'

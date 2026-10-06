@@ -1,5 +1,7 @@
 # MSC 2 — What It Is
 
+> Owner amendment (2026-10-06, D-042): modded map repair/import and private Minecraft client capture are retired. The standard Java and Bedrock saved-terrain maps remain supported. Earlier repair-plan or capture acceptance requirements are withdrawn rather than satisfied.
+
 **Revision:** 1.7 · **Date:** 2026-09-28 · **Owner:** Cameron Temple
 
 This document describes MSC 2 in plain language: what it does, who it's for, and what using it feels like. No code, no architecture.

@@ -1141,18 +1141,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fastnbt"
-version = "2.6.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9dcc36fee27b17c9c183294d6e739cf218b01ce0fc545c31d8be3913d961731"
-dependencies = [
- "byteorder",
- "cesu8",
- "serde",
- "serde_bytes",
-]
-
-[[package]]
 name = "fastrand"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2346,21 +2334,15 @@ version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "ed25519-dalek",
- "fastnbt",
  "flate2",
- "fs2",
  "libc",
  "msc-domain",
- "png 0.18.1",
- "regex",
  "rusty-leveldb",
  "serde",
  "serde_json",
  "sha2",
  "tar",
- "toml 0.9.12+spec-1.1.0",
  "ureq",
- "uuid",
  "zip",
 ]
 
@@ -2403,8 +2385,6 @@ name = "msc2-desktop-web"
 version = "0.1.23"
 dependencies = [
  "ed25519-dalek",
- "libc",
- "msc-domain",
  "msc-infrastructure",
  "msc-platform-linux",
  "msc-platform-macos",
@@ -2419,8 +2399,6 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-fs",
  "tauri-plugin-notification",
- "tokio",
- "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3654,16 +3632,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde_bytes"
-version = "0.11.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5d440709e79d88e51ac01c4b72fc6cb7314017bb7da9eeff678aa94c10e3ea8"
-dependencies = [
- "serde",
- "serde_core",
-]
-
-[[package]]
 name = "serde_core"
 version = "1.0.229"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4572,19 +4540,7 @@ dependencies = [
  "mio",
  "pin-project-lite",
  "socket2",
- "tokio-macros",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "tokio-macros"
-version = "2.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78773a2a397f451582ce068015985c33193cf6dea8b74d2a639fe457b2f07b0e"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 3.0.4",
 ]
 
 [[package]]

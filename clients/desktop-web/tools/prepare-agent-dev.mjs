@@ -27,14 +27,6 @@ const applianceChecksums = {
 };
 
 const version = verifyVersions();
-const capturePython = process.platform === 'win32' ? 'python' : 'python3';
-const captureStager = join(workspaceRoot, 'tools/release/stage-map-capture.py');
-const captureBuild = spawnSync(capturePython, [captureStager, '--build-only'], {
-  cwd: workspaceRoot,
-  stdio: 'inherit',
-});
-if (captureBuild.status !== 0) fail('could not build capture adapters');
-process.env.MSC2_MAP_CAPTURE_HELPERS ||= join(workspaceRoot, 'target/map-capture-helpers');
 const build = spawnSync('cargo', ['build', '-p', 'msc-agent', ...cargoProfileArguments], {
   cwd: workspaceRoot,
   stdio: 'inherit',
@@ -54,7 +46,6 @@ const destination =
 stageFile(source, destination);
 stageFile(source, join(packageAgentDirectory, agentName));
 console.log(`staged ${profile} msc-agent ${version} at ${destination}`);
-stageCaptureHelpers();
 stageVantage();
 stageBedrockMap();
 
@@ -281,15 +272,4 @@ function readCargoPackageVersion(path) {
 function fail(message) {
   console.error(`MSC 2 agent packaging failed: ${message}`);
   process.exit(1);
-}
-
-function stageCaptureHelpers() {
-  const runtime = dirname(destination);
-  for (const output of [packageAgentDirectory, runtime]) {
-    const staged = spawnSync(capturePython, [captureStager, '--output-dir', output], {
-      cwd: workspaceRoot,
-      stdio: 'inherit',
-    });
-    if (staged.status !== 0) fail('could not stage capture adapters');
-  }
 }

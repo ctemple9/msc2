@@ -25,8 +25,6 @@ VERSION="$(awk -F'"' '/^[[:space:]]*version[[:space:]]*=/ { print $2; exit }' "$
 [[ -n "$VERSION" ]] || fail "could not read the msc-agent version"
 
 cd "$WORKSPACE_ROOT"
-python3 "$WORKSPACE_ROOT/tools/release/stage-map-capture.py" --build-only
-export MSC2_MAP_CAPTURE_HELPERS="${MSC2_MAP_CAPTURE_HELPERS:-$WORKSPACE_ROOT/target/map-capture-helpers}"
 cargo build --release --locked --no-default-features --target "$RUST_TARGET" -p msc-agent
 cargo build --release --locked --target "$RUST_TARGET" \
   --manifest-path "$WORKSPACE_ROOT/tools/world-map-proof/Cargo.toml"
@@ -40,7 +38,6 @@ ARCHIVE="$OUTPUT_ROOT/msc2-headless-${VERSION}-linux-x86_64.tar.gz"
 mkdir -p "$PLATFORM_DIR" "$PACKAGE_ROOT/systemd"
 install -m 0755 "$SOURCE_BINARY" "$PLATFORM_DIR/msc"
 install -m 0755 "$SOURCE_BINARY" "$PACKAGE_ROOT/msc"
-python3 "$WORKSPACE_ROOT/tools/release/stage-map-capture.py" --output-dir "$PACKAGE_ROOT"
 install -m 0755 "$WORKSPACE_ROOT/tools/world-map-proof/target/$RUST_TARGET/release/msc-world-map-proof" \
   "$PACKAGE_ROOT/bedrock-map"
 python3 "$WORKSPACE_ROOT/tools/release/stage-vantage.py" \

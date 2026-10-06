@@ -1,5 +1,7 @@
 # MSC 2 — Vision Set
 
+> Owner amendment (2026-10-06, D-042): modded map repair/import and private Minecraft client capture are retired. The standard Java and Bedrock saved-terrain maps remain supported. Earlier repair-plan or capture acceptance requirements are withdrawn rather than satisfied.
+
 **Set revision:** 1.8 · **Date:** 2026-09-28
 **Owner:** Cameron Temple
 **Baseline:** MSC 1 at commit `fccd61f0ed743086f1f5db6bef58e228a36010f3` (246 production Swift files, 97,357 lines)

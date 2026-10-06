@@ -23,11 +23,7 @@ if ([string]::IsNullOrWhiteSpace($version)) {
 
 Push-Location $workspaceRoot
 try {
-    & python (Join-Path $workspaceRoot "tools/release/stage-map-capture.py") --build-only
-    if ($LASTEXITCODE -ne 0) { Fail "could not build capture adapters" }
-    if (-not $env:MSC2_MAP_CAPTURE_HELPERS) { $env:MSC2_MAP_CAPTURE_HELPERS = Join-Path $workspaceRoot "target/map-capture-helpers" }
     cargo build --release --no-default-features --target $rustTarget -p msc-agent
-    if ($LASTEXITCODE -ne 0) { Fail "could not build the release agent" }
     cargo build --release --locked --target $rustTarget --manifest-path (Join-Path $workspaceRoot 'tools/world-map-proof/Cargo.toml')
     if ($LASTEXITCODE -ne 0) {
         Fail 'could not build the Bedrock terrain exporter'
@@ -44,8 +40,6 @@ try {
     New-Item -ItemType Directory -Force -Path $platformDirectory, $packageRoot | Out-Null
     Copy-Item $sourceBinary (Join-Path $platformDirectory 'msc.exe')
     Copy-Item $sourceBinary (Join-Path $packageRoot 'msc.exe')
-    & python (Join-Path $workspaceRoot 'tools/release/stage-map-capture.py') --output-dir $packageRoot
-    if ($LASTEXITCODE -ne 0) { Fail 'could not stage capture adapters' }
     $bedrockMap = Join-Path $workspaceRoot "tools/world-map-proof/target/$rustTarget/release/msc-world-map-proof.exe"
     if (-not (Test-Path -LiteralPath $bedrockMap -PathType Leaf)) {
         Fail "Bedrock terrain exporter is missing: $bedrockMap"

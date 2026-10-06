@@ -42,6 +42,3 @@ pub use settings::*;
 pub use status::*;
 pub use versions::*;
 pub use worlds::*;
-
-pub mod map_assets;
-pub use map_assets::*;

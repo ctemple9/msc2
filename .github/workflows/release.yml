@@ -64,32 +64,6 @@ jobs:
           cache: npm
           cache-dependency-path: clients/desktop-web/package-lock.json
 
-      - name: Install Java 17 for capture adapters
-        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Retain Java 17 location
-        shell: bash
-        run: echo "JAVA17_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
-
-      - name: Install Java 21 for capture adapters
-        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Build pinned capture adapters without launching clients
-        shell: bash
-        run: |
-          if [[ "${{ matrix.platform }}" == "windows-x86_64" ]]; then
-            python tools/release/stage-map-capture.py --build-only
-          else
-            python3 tools/release/stage-map-capture.py --build-only
-          fi
-          echo "MSC2_MAP_CAPTURE_HELPERS=$GITHUB_WORKSPACE/target/map-capture-helpers" >> "$GITHUB_ENV"
-
       - name: Install Rust
         uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
         with:

@@ -1,7 +1,5 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { ApiError } from '../../api/client';
-  import { maybeInflate, parseTileQuantized } from '@thoughts-on-things/vantage-mc/core';
   import Select from '../../components/base/Select.svelte';
   import { isTauri } from '@tauri-apps/api/core';
   import { getCurrentWindow, LogicalPosition } from '@tauri-apps/api/window';
@@ -13,18 +11,10 @@
   } from '@thoughts-on-things/vantage-mc/three';
   import type { Schema, ScreenApi } from '../shared/types';
   import { pollOperation } from './model';
-  import MapAssetsRepairSheet from './MapAssetsRepairSheet.svelte';
-  import {
-    loadCapturedAppearance,
-    type CaptureReference,
-    type CapturedAppearance,
-  } from './captured-appearance';
 
   export let api: ScreenApi | undefined;
   export let serverId: string;
   export let worldName: string;
-  export let slotId: string;
-  let repairOpen = false;
   export let onClose: () => void;
 
   type Dimension = Schema['WorldMapDimensionDTO'];
@@ -38,8 +28,6 @@
   let refreshing = false;
   let canvas: HTMLDivElement;
   let viewer: VantageViewer | undefined;
-  let capturedAppearance: CapturedAppearance | undefined;
-  let viewerHost: HTMLDivElement | undefined;
   let alive = true;
   let loadGeneration = 0;
   let frameId = 0;
@@ -69,57 +57,6 @@
   let playerRequestsInFlight = 0;
   let savedHeightAt: VantageViewer['controls']['heightAt'] | undefined;
 
-  let displayedDimension = '';
-  let displayedGeneration = '';
-  let rendering: Schema['MapRenderingStatusDTO'] | undefined;
-  let binding: Schema['MapAssetsBindingDTO'] | undefined;
-  let preparationPoll: ReturnType<typeof setTimeout> | undefined;
-  type CachedTile = { buffer: ArrayBuffer; revision: string; maxLayer: number };
-  type SceneCache = {
-    dimension: string;
-    atlas: string;
-    layers: number;
-    bytes: number;
-    revisions: Map<string, string>;
-    tiles: Map<string, CachedTile>;
-  };
-  let sceneCache: SceneCache | undefined;
-  function cancelPreparation(): void {
-    if (rendering?.state === 'preparing' && rendering.operationId) {
-      void api
-        ?.post(`/v1/operations/${encodeURIComponent(rendering.operationId)}/cancel`)
-        .catch(() => {});
-    }
-  }
-  function watchPreparation(dimension: string): void {
-    if (preparationPoll) clearTimeout(preparationPoll);
-    if (rendering?.state === 'preparing')
-      preparationPoll = setTimeout(() => {
-        if (alive && selectedDimension === dimension) void loadDimension(dimension);
-      }, 1500);
-  }
-  function resourceStatus(): string {
-    if (!rendering) return '';
-    const snapshot = rendering.snapshotAtUnix
-      ? new Date(rendering.snapshotAtUnix * 1000).toLocaleString()
-      : 'pending';
-    const resources = rendering.resourcesAtUnix
-      ? new Date(rendering.resourcesAtUnix * 1000).toLocaleString()
-      : 'pending';
-    const state =
-      rendering.state === 'needs_input'
-        ? 'Resource input required; marked fallbacks remain'
-        : rendering.state;
-    return `${state}${rendering.stale ? ' · retained stale scene' : ''} · snapshot ${snapshot} · resources ${resources}${rendering.reasonCode ? ` · ${rendering.reasonCode}` : ''}`;
-  }
-  function cameraArea(): Schema['MapAssetsAreaDTO'] {
-    const focus = viewer?.controls.position;
-    const x = Math.floor((focus?.x ?? 0) / 16) * 16;
-    const z = Math.floor((focus?.z ?? 0) / 16) * 16;
-    const y = Math.max(-2032, Math.min(2032, Math.floor(depthY)));
-    return { min: [x, y - 16, z], max: [x + 15, y + 15, z + 15] };
-  }
-
   function bedrockTileStatus(
     displayName: string,
     stats: { loaded: number; loading: number; total: number; lowres?: number },
@@ -143,12 +80,8 @@
     releaseDesktopLook();
     playerLayer?.dispose();
     playerLayer = undefined;
-    capturedAppearance?.dispose();
-    capturedAppearance = undefined;
     viewer?.dispose();
     viewer = undefined;
-    viewerHost?.remove();
-    viewerHost = undefined;
   }
 
   function asBuffer(bytes: Uint8Array): ArrayBuffer {
@@ -157,29 +90,16 @@
     return buffer;
   }
 
-  function artifactPath(dimension: string, path: string, generation?: string): string {
-    const params = new URLSearchParams({
-      dimension,
-      path,
-      serverId,
-      captureFormat: 'msc-contextual-mesh-1',
-    });
-    if (generation) params.set('generation', generation);
+  function artifactPath(dimension: string, path: string): string {
+    const params = new URLSearchParams({ dimension, path });
     return `/v1/worlds/map/terrain?${params.toString()}`;
   }
 
   async function loadDimension(dimension: string): Promise<void> {
-    if (selectedDimension && selectedDimension !== dimension) {
-      repairOpen = false;
-      cancelPreparation();
-      stopFollowing();
-      rendering = undefined;
-      binding = undefined;
-    }
     selectedDimension = dimension;
-    if (preparationPoll) clearTimeout(preparationPoll);
     const generation = ++loadGeneration;
-
+    disposeViewer();
+    spawn = undefined;
     const entry = dimensions.find((item) => item.id === dimension);
     if (!entry) return;
     if (entry.state !== 'ready') {
@@ -193,125 +113,28 @@
       return;
     }
     busy = true;
-    status =
-      serverType === 'bedrock'
-        ? 'Preparing saved Bedrock terrain and verified textures…'
-        : `Preparing ${entry.displayName} terrain and Minecraft textures…`;
+    status = serverType === 'bedrock'
+      ? 'Preparing saved Bedrock terrain and verified textures…'
+      : `Preparing ${entry.displayName} terrain and Minecraft textures…`;
     let opening: VantageViewer | undefined;
-    let candidateCapture: CapturedAppearance | undefined;
-    let candidateHost: HTMLDivElement | undefined;
-    let pinnedGeneration: string | undefined;
-    let candidateCache: SceneCache | undefined;
-    let bedrockStats:
-      { loaded: number; loading: number; total: number; lowres?: number } | undefined;
+    let bedrockStats: { loaded: number; loading: number; total: number; lowres?: number } | undefined;
     try {
       const read = async (path: string, signal?: AbortSignal): Promise<ArrayBuffer> => {
         if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
-        if (
-          path.endsWith('.vtile') &&
-          candidateCache &&
-          sceneCache?.dimension === dimension &&
-          sceneCache.atlas === candidateCache.atlas
-        ) {
-          const old = sceneCache.tiles.get(path);
-          if (
-            old &&
-            old.revision === candidateCache.revisions.get(path) &&
-            old.maxLayer < candidateCache.layers &&
-            candidateCache.bytes + old.buffer.byteLength <= 64 * 1024 * 1024 &&
-            candidateCache.tiles.size < 128
-          ) {
-            candidateCache.tiles.set(path, old);
-            candidateCache.bytes += old.buffer.byteLength;
-            return old.buffer.slice(0);
-          }
-        }
-        const bytes = await api!.getBytes!(artifactPath(dimension, path, pinnedGeneration));
-        if (signal?.aborted || !alive) {
+        const bytes = await api!.getBytes!(artifactPath(dimension, path));
+        if (signal?.aborted || !alive || generation !== loadGeneration) {
           throw new DOMException('Cancelled', 'AbortError');
         }
-        const buffer = asBuffer(bytes);
-        if (path.endsWith('.vtile') && candidateCache) {
-          // The compact decoder transforms positions in place; inspect a copy.
-          const decoded = parseTileQuantized(await maybeInflate(buffer.slice(0)));
-          if (decoded) {
-            let maxLayer = -1;
-            for (const section of [decoded.solid, decoded.fluid])
-              for (const layer of section.layer) maxLayer = Math.max(maxLayer, layer);
-            const revision = candidateCache.revisions.get(path) ?? '';
-            if (
-              candidateCache.bytes + buffer.byteLength <= 64 * 1024 * 1024 &&
-              candidateCache.tiles.size < 128 &&
-              maxLayer < candidateCache.layers
-            ) {
-              candidateCache.tiles.set(path, { buffer: buffer.slice(0), revision, maxLayer });
-              candidateCache.bytes += buffer.byteLength;
-            }
-          }
-        }
-        return buffer;
+        return asBuffer(bytes);
       };
-      let manifest: {
+      const manifest = JSON.parse(new TextDecoder().decode(await read('manifest.json'))) as {
         spawn?: { x: number; y: number; z: number };
-        mscGenerationId?: string;
-        mscRendering?: Schema['MapRenderingStatusDTO'];
-        mscBinding?: Schema['MapAssetsBindingDTO'];
-        mscAtlasDigest?: string;
-        mscAtlasLayers?: number;
-        mscCapture?: CaptureReference;
-        tiles?: { path: string; revision: string }[];
       };
-      try {
-        manifest = JSON.parse(new TextDecoder().decode(await read('manifest.json')));
-      } catch (error) {
-        if (!alive || generation !== loadGeneration) return;
-        if (error instanceof ApiError && error.error.code === 'map_preparing') {
-          rendering = error.error.details?.rendering as Schema['MapRenderingStatusDTO'] | undefined;
-          binding = error.error.details?.binding as Schema['MapAssetsBindingDTO'] | undefined;
-          status = resourceStatus() || 'Preparing exact saved-map resources…';
-          watchPreparation(dimension);
-          return;
-        }
-        throw error;
-      }
-      if (!alive || generation !== loadGeneration) return;
-      pinnedGeneration = manifest.mscGenerationId;
-      rendering = manifest.mscRendering;
-      binding = manifest.mscBinding;
-      if (viewer && displayedDimension === dimension && displayedGeneration === pinnedGeneration) {
-        status = [
-          resourceStatus() || `Saved ${entry.displayName} terrain`,
-          capturedAppearance?.label,
-        ]
-          .filter(Boolean)
-          .join(' · ');
-        watchPreparation(dimension);
-        return;
-      }
-      if (manifest.mscAtlasDigest && manifest.mscAtlasLayers) {
-        candidateCache = {
-          dimension,
-          atlas: manifest.mscAtlasDigest,
-          layers: manifest.mscAtlasLayers,
-          bytes: 0,
-          revisions: new Map(),
-          tiles: new Map(),
-        };
-        for (const tile of manifest.tiles ?? [])
-          candidateCache.revisions.set(tile.path, tile.revision);
-      }
       if (!alive || generation !== loadGeneration) return;
       const { VantageViewer: Viewer, PlayerLayer: Layer } =
         await import('@thoughts-on-things/vantage-mc/three');
       if (!alive || generation !== loadGeneration) return;
-      candidateHost = document.createElement('div');
-      Object.assign(candidateHost.style, {
-        position: 'absolute',
-        inset: '0',
-        visibility: 'hidden',
-      });
-      canvas.append(candidateHost);
-      opening = new Viewer(candidateHost, {
+      opening = new Viewer(canvas, {
         players: { enabled: false },
         urlState: false,
         // The Bedrock agent serializes tile exports while extending its shared
@@ -342,39 +165,8 @@
         fetch: read,
       };
       await opening.load({ world: source });
-      if (manifest.mscCapture) {
-        candidateCapture = await loadCapturedAppearance(
-          opening,
-          manifest.mscCapture,
-          read,
-          manifest.mscBinding,
-          manifest.mscRendering?.resourceGenerationId ?? undefined,
-          () => !alive || generation !== loadGeneration,
-        );
-      }
       if (!alive || generation !== loadGeneration) return;
-      const retain =
-        viewer && displayedDimension === dimension
-          ? {
-              position: viewer.controls.position.clone(),
-              distance: viewer.controls.distance,
-              rotation: viewer.controls.rotation,
-              angle: viewer.controls.angle,
-              mode: viewer.controls.mode,
-              depth: depthY,
-              slice: viewer.slice,
-              heldHeight: viewer.controls.heightAt === null,
-              moveSpeed: viewer.controls.moveSpeed,
-              followedId,
-            }
-          : undefined;
-      disposeViewer();
       viewer = opening;
-      capturedAppearance = candidateCapture;
-      candidateCapture = undefined;
-      viewerHost = candidateHost;
-      viewerHost.style.visibility = 'visible';
-      candidateHost = undefined;
       opening = undefined;
       const range = viewer.sliceRange;
       depthMin = Math.ceil(range.min + 2);
@@ -382,50 +174,26 @@
       if (dimension === 'minecraft:the_nether') {
         depthMax = Math.max(depthMin, Math.min(126, depthMax));
       }
-      depthY = retain ? Math.max(depthMin, Math.min(depthMax, retain.depth)) : depthMax;
-      if (retain) {
-        viewer.controls.setMode(retain.mode);
-        viewer.controls.setView(retain);
-        viewer.setSlice(retain.slice === null ? null : depthY);
-        viewer.controls.moveSpeed = retain.moveSpeed;
-        if (retain.heldHeight) holdFocusHeight();
-        followedId = retain.followedId;
-      }
-      displayedDimension = dimension;
-      displayedGeneration = pinnedGeneration ?? '';
-      sceneCache = candidateCache;
+      depthY = depthMax;
       playerLayer = new Layer({ scene: viewer.scene, camera: viewer.camera });
-      playerLayer.setFollowed(followedId ?? null);
       applyPlayers();
       viewer.controls.addEventListener('start', () => {
         if (followedId) stopFollowing();
       });
       const worldSpawn = manifest.spawn;
-      spawn =
-        worldSpawn && [worldSpawn.x, worldSpawn.y, worldSpawn.z].every(Number.isFinite)
-          ? worldSpawn
-          : undefined;
-      status =
-        serverType === 'bedrock'
-          ? bedrockStats
-            ? bedrockTileStatus(entry.displayName, bedrockStats)
-            : `Rendering saved ${entry.displayName} terrain tiles…`
-          : [resourceStatus() || `Saved ${entry.displayName} terrain`, capturedAppearance?.label]
-              .filter(Boolean)
-              .join(' · ');
-      watchPreparation(dimension);
+      spawn = worldSpawn && [worldSpawn.x, worldSpawn.y, worldSpawn.z].every(Number.isFinite)
+        ? worldSpawn : undefined;
+      status = serverType === 'bedrock'
+        ? bedrockStats
+          ? bedrockTileStatus(entry.displayName, bedrockStats)
+          : `Rendering saved ${entry.displayName} terrain tiles…`
+        : `Saved ${entry.displayName} terrain`;
     } catch (error) {
       if (alive && generation === loadGeneration) {
-        if (error instanceof ApiError && error.error.details?.rendering) {
-          rendering = error.error.details.rendering as Schema['MapRenderingStatusDTO'];
-          binding = error.error.details.binding as Schema['MapAssetsBindingDTO'];
-        }
         status = error instanceof Error ? error.message : 'Saved terrain could not be loaded.';
       }
     } finally {
-      candidateCapture?.dispose();
       opening?.dispose();
-      candidateHost?.remove();
       if (alive && generation === loadGeneration) busy = false;
     }
   }
@@ -538,7 +306,7 @@
         z: player.z,
         yaw: player.yaw,
         pitch: player.pitch,
-        foreign: player.dimension !== displayedDimension,
+        foreign: player.dimension !== selectedDimension,
         stale: false,
       })),
     };
@@ -612,7 +380,7 @@
       !livePlayers.some((entry) => entry.id === player.id && entry.dimension === selectedDimension)
     )
       return;
-    if (!viewer || !playerLayer || displayedDimension !== player.dimension) return;
+    if (!viewer || !playerLayer) return;
     leaveFly();
     stopFollowing();
     viewer.setSlice(null);
@@ -785,7 +553,7 @@
         return;
       }
       await loadDimension(dimension);
-      if (alive && rendering?.state !== 'preparing') say('Current terrain loaded');
+      if (alive) say('Current terrain loaded');
     } catch (error) {
       if (alive) say(error instanceof Error ? error.message : 'Terrain refresh failed.');
     } finally {
@@ -825,9 +593,6 @@
       window.removeEventListener('pointermove', onMove, true);
       window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('blur', releaseDesktopLook);
-      cancelPreparation();
-      if (preparationPoll) clearTimeout(preparationPoll);
-      sceneCache = undefined;
       disposeViewer();
     };
   });
@@ -849,11 +614,6 @@
           disabled={!viewer || refreshing}
           onclick={refreshTerrain}>{refreshing ? 'Refreshing…' : 'Refresh terrain'}</button
         >
-        {#if api && serverType !== 'bedrock' && selectedDimension}
-          <button type="button" class="refresh" onclick={() => (repairOpen = true)}
-            >Check rendering</button
-          >
-        {/if}
         <div class="dimension-picker">
           <span>Dimension</span>
           <Select
@@ -1032,29 +792,6 @@
     </nav>
   </div>
 </section>
-
-{#if repairOpen && api && selectedDimension}
-  {#key `${serverId}:${slotId}:${selectedDimension}`}
-    <MapAssetsRepairSheet
-      {api}
-      {serverId}
-      {slotId}
-      dimension={selectedDimension}
-      area={cameraArea()}
-      onClose={() => (repairOpen = false)}
-      onChanged={async (generation) => {
-        const dimension = selectedDimension;
-        if (!alive) return false;
-        await loadDimension(dimension);
-        return (
-          alive &&
-          selectedDimension === dimension &&
-          (!generation || displayedGeneration === generation)
-        );
-      }}
-    />
-  {/key}
-{/if}
 
 <style>
   .map-shell {

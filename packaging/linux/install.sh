@@ -96,13 +96,6 @@ for required in \
   [[ -f "$required" ]] || fail "package input is missing: $required"
 done
 
-# Helpers are public adapter code, never copied client mods or account data.
-CAPTURE_SOURCE="$SCRIPT_DIR/map-capture/0.2.0"
-[[ -d "$CAPTURE_SOURCE" && ! -L "$SCRIPT_DIR/map-capture" && ! -L "$CAPTURE_SOURCE" ]] || fail "capture helper directory is missing or linked"
-for capture_file in helpers.json LICENSE DEPENDENCIES.md msc-map-capture-fabric-0.2.0.jar msc-map-capture-forge-0.2.0.jar msc-map-capture-neoforge-0.2.0.jar; do
-  [[ -f "$CAPTURE_SOURCE/$capture_file" && ! -L "$CAPTURE_SOURCE/$capture_file" ]] || fail "capture helper file is missing or linked: $capture_file"
-done
-
 # The archive owns one stable command link. Refuse every other existing target
 # before stopping the service or replacing the binary, so an unrelated local
 # command can never be overwritten as part of an MSC upgrade.
@@ -115,15 +108,6 @@ if [[ -L "$PATH_LINK" ]]; then
 elif [[ -e "$PATH_LINK" ]]; then
   fail "existing non-MSC command target at $PATH_LINK; move it before installing"
 fi
-
-# Refuse unsafe existing helper paths before changing the service or binaries.
-for capture_directory in "$INSTALL_ROOT/map-capture" "$INSTALL_ROOT/map-capture/0.2.0"; do
-  [[ ! -L "$capture_directory" && ( ! -e "$capture_directory" || -d "$capture_directory" ) ]] || fail "installed capture helper directory is not a real directory"
-done
-for capture_file in helpers.json LICENSE DEPENDENCIES.md msc-map-capture-fabric-0.2.0.jar msc-map-capture-forge-0.2.0.jar msc-map-capture-neoforge-0.2.0.jar; do
-  capture_target="$INSTALL_ROOT/map-capture/0.2.0/$capture_file"
-  [[ ! -L "$capture_target" && ( ! -e "$capture_target" || -f "$capture_target" ) ]] || fail "installed capture helper file is not a regular file"
-done
 
 render_template() {
   local template="$1"
@@ -188,10 +172,6 @@ install -m 0755 -o root -g root "$SCRIPT_DIR/msc" "$INSTALL_BIN"
 install -m 0755 -o root -g root "$SCRIPT_DIR/vantage" "$VANTAGE_BIN"
 install -m 0755 -o root -g root "$SCRIPT_DIR/bedrock-map" "$BEDROCK_MAP_BIN"
 install -m 0644 -o root -g root "$SCRIPT_DIR/VANTAGE-LICENSE.txt" "$INSTALL_ROOT/VANTAGE-LICENSE.txt"
-install -d -m 0755 "$INSTALL_ROOT/map-capture/0.2.0"
-for capture_file in helpers.json LICENSE DEPENDENCIES.md msc-map-capture-fabric-0.2.0.jar msc-map-capture-forge-0.2.0.jar msc-map-capture-neoforge-0.2.0.jar; do
-  install -m 0644 "$CAPTURE_SOURCE/$capture_file" "$INSTALL_ROOT/map-capture/0.2.0/$capture_file"
-done
 printf 'standalone-archive\n' > "$INSTALL_MODE_MARKER"
 chown root:root "$INSTALL_MODE_MARKER"
 chmod 0644 "$INSTALL_MODE_MARKER"

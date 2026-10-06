@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { invoke } from '@tauri-apps/api/core';
   import { onDestroy, onMount } from 'svelte';
   import { observeServerRun, forgetHostRuns } from './lib/sections/shared/server-uptime';
   import { bundleIdentity } from './lib/bundle-identity';
@@ -312,33 +311,24 @@
     return client;
   }
 
-  function createScreenApi(boundClient?: ApiClient): ScreenApi {
-    const current = () => boundClient ?? requireClient();
+  function createScreenApi(): ScreenApi {
     return {
-      bindHost: () => createScreenApi(current()),
-      hostIdentity: () => current().host,
-      captureContext: (slotId, input, token) =>
-        invoke<string>('download_map_capture_context', {
-          agentHostId: current().host,
-          slotId,
-          input,
-          token,
-        }),
-      cancelUpload: (id) => current().cancelStagedUpload(id),
-      get: <T,>(path: string) => current().requestJson<T>('GET', path),
-      post: <T,>(path: string, body?: unknown) => current().requestJson<T>('POST', path, { body }),
-      getBytes: (path: string) => current().requestBytes('GET', path),
-      resourceUrl: (path: string) => current().resourceUrl(path),
-      upload: (purpose, bytes, options) => current().stagedUpload({ purpose, ...options }, bytes),
+      get: <T,>(path: string) => requireClient().requestJson<T>('GET', path),
+      post: <T,>(path: string, body?: unknown) =>
+        requireClient().requestJson<T>('POST', path, { body }),
+      getBytes: (path: string) => requireClient().requestBytes('GET', path),
+      resourceUrl: (path: string) => requireClient().resourceUrl(path),
+      upload: (purpose, bytes, options) =>
+        requireClient().stagedUpload({ purpose, ...options }, bytes),
       uploadFile: (purpose, source, options) => {
         const { onProgress, chunkSizeBytes, signal, ...uploadOptions } = options ?? {};
-        return current().stagedUploadFromFile({ purpose, ...uploadOptions }, source, {
+        return requireClient().stagedUploadFromFile({ purpose, ...uploadOptions }, source, {
           onProgress,
           chunkSizeBytes,
           signal,
         });
       },
-      download: (id, maxBytes) => current().downloadBytes(id, maxBytes),
+      download: (id, maxBytes) => requireClient().downloadBytes(id, maxBytes),
     };
   }
 
@@ -729,10 +719,13 @@
       observeServerRun(hostId, nextStatus.activeServerId ?? '', nextStatus.running);
       if (action === 'start' && nextStatus.running && activeServer?.serverType === 'java') {
         try {
-          const diagnosis =
-            await screenApi.get<Schema['HealthProblemsResponseDTO']>('/v1/health/problems');
+          const diagnosis = await screenApi.get<Schema['HealthProblemsResponseDTO']>(
+            '/v1/health/problems',
+          );
           const helperProblem = diagnosis.isSoftFail
-            ? diagnosis.problems.find((problem) => /geyser|floodgate/i.test(problem.offenderName))
+            ? diagnosis.problems.find((problem) =>
+                /geyser|floodgate/i.test(problem.offenderName),
+              )
             : undefined;
           if (helperProblem) {
             startupFailure = {

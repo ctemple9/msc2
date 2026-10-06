@@ -1,15 +1,5 @@
 # P18.2 — offline BDS terrain proof
 
-## Matching-client mesh feasibility prototype (P18.14a)
-
-See [the isolated client-capture prototype](client-capture/README.md) for pinned
-NeoForge/Supplementaries fixtures, the existing owner-run command, bounded
-geometry/texture/material export, refusal checks and visual evidence collection.
-Cameron ran and visually confirmed this pinned proof on 2026-10-04; private
-confirmation/screenshot hashes are recorded in rolling-plan P18.14e. P18.15's
-proof prerequisite is satisfied; implementation remains unstarted. Historical
-proof instructions and P18.14 findings are preserved.
-
 ## Fabric live player feed proof (P18.3m)
 
 This temporary Fabric mod targets the managed **Fabric 26.2 / Loader 0.19.5**
@@ -828,15 +818,6 @@ roster covers the active BDS feed only; it does not establish Java players,
 skins, or the final MSC Worlds-tab layout.
 
 ## Java terrain proof (P18.4)
-
-P18.14's production-resource analysis and unresolved contextual-model gate are
-recorded in [the renderer design](../../docs/msc2/world-map-assets-design.md)
-and [the acceptance catalogue](../../docs/msc2/world-map-assets-acceptance.md).
-The scripts below remain historical proof tools. Their namespace flattening,
-placeholders and `exact` audit category must not be promoted into production
-resource selection or visual-success claims. New diagnostic contracts call
-successful ordinary model lookup `model_resolved`; visual acceptance is
-separate. No client-capture exporter is implemented by these commands.
 
 Use the Vantage 0.15.1 CLI and matching Minecraft client assets. The helper
 copies only one selected 4×4-chunk area to `/private/tmp`; it reads the stopped

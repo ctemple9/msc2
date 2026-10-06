@@ -198,19 +198,28 @@ impl Transport for HttpTransport {
             }
             Err(e) => return Err(JarProviderError::Network(format!("{what}: {e}"))),
         };
-        response
+        // ureq's reader errors at the limit before checking EOF. Allow one byte
+        // of lookahead so an exact-size download succeeds, then enforce our inclusive cap.
+        let bytes = response
             .body_mut()
             .with_config()
-            .limit(max_bytes)
+            .limit(max_bytes.saturating_add(1))
             .read_to_vec()
             .map_err(|e| match e {
-                ureq::Error::BodyExceedsLimit(limit) => JarProviderError::ResponseTooLarge {
+                ureq::Error::BodyExceedsLimit(_) => JarProviderError::ResponseTooLarge {
                     what: what.to_string(),
-                    max_bytes: limit,
+                    max_bytes,
                 },
                 ureq::Error::Timeout(_) => JarProviderError::Timeout(what.to_string()),
                 other => JarProviderError::Network(format!("{what}: {other}")),
-            })
+            })?;
+        if bytes.len() as u64 > max_bytes {
+            return Err(JarProviderError::ResponseTooLarge {
+                what: what.to_string(),
+                max_bytes,
+            });
+        }
+        Ok(bytes)
     }
 }
 

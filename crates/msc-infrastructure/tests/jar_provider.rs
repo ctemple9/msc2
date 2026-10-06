@@ -704,6 +704,15 @@ fn spawn_loopback_server(body: Vec<u8>, delay: Option<Duration>) -> String {
 
 #[test]
 fn jar_provider_http_transport_enforces_size_cap() {
+    let transport = HttpTransport::new();
+    let exact = vec![b'a'; 100];
+    let url = spawn_loopback_server(exact.clone(), None);
+    assert_eq!(transport.get(&url, "exact-size body", 100).unwrap(), exact);
+    let url = spawn_loopback_server(vec![b'a'; 101], None);
+    assert!(matches!(
+        transport.get(&url, "one byte too large", 100),
+        Err(JarProviderError::ResponseTooLarge { max_bytes: 100, .. })
+    ));
     let body = vec![b'a'; 4096];
     let url = spawn_loopback_server(body, None);
     let transport = HttpTransport::new();

@@ -1,5 +1,19 @@
 # MSC 2 — Rolling Plan
 
+### P18.27 — Correct exact-size vanilla texture downloads after retirement
+
+**Status:** Implemented; awaiting Cameron's map verification.
+**Files:** `crates/msc-infrastructure/src/jar_provider.rs`, its existing `tests/jar_provider.rs` size-cap regression, this plan.
+**What:** Owner logs from the restored v0.1.23 agent show vanilla Minecraft 1.20.1 and 26.3 client downloads incorrectly failing at their exact publisher-declared byte counts. The full retirement rollback also removed the general HTTP inclusive-size correction; restore only that correction. Let ureq read one lookahead byte and independently reject payloads larger than the original bound. Preserve checksums, timeouts and maximum sizes. No retired repair/import/capture/Prism paths return.
+**Verify:** Reopen the standard Java world from the rebuilt desktop with the corrected agent and confirm textures and terrain load; inspect the service log if preparation fails. Repeat the original Bedrock verification independently.
+**Batch:** P18.27 only; the withdrawn repair gate review is not resumed.
+**Commit:** `P18.27: allow exact-size vanilla texture downloads`
+
+**Checks:** Rust formatting, agent Clippy, release agent build and whitespace checks passed with existing warnings. Exact binary `target/map-repair-retirement-v0.1.23/msc-textures-fixed` SHA-256 `5c148a1df3a3c61329d679976288edb9462f610d6c3d49fad4a29318283a331a`; highest required glibc ABI 2.39, below the host's recorded 2.43. Retired native capture registrations and agent capture routes remain absent. No tests, Minecraft launches or release actions ran. Remote installation and actual standard Java/Bedrock rendering remain owner verification.
+
+**Essential regression:** Restore the earlier owner-passed extension of the existing HTTP size-cap case: a controlled 100-byte response must succeed at cap 100 and 101 bytes must fail at cap 100. A local loopback server with no timing or external service dependency, expected runtime under one second. This protects the actual inclusive download boundary rather than test counts. Earlier owner run passed both transport cases; no new test execution is authorized or performed in this follow-up.
+
+
 ### P18.26 — Retire the map repair workflow
 
 **Status:** Implemented; awaiting Cameron's verification.

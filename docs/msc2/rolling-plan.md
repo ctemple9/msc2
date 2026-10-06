@@ -1,5 +1,20 @@
 # MSC 2 — Rolling Plan
 
+### P18.28 — Use MSC-owned disk storage for large map staging
+
+**Status:** Planned at Cameron's request on 2026-10-06; application fix not implemented.
+**Files:** Agent map staging and compatibility preparation (`crates/msc-agent/src/routes/worlds/map_terrain.rs`, `map_terrain/java_terrain_compat.rs`); inspect shared snapshot/Bedrock staging ownership before choosing any additional source files; map error reporting and headless installation documentation where necessary; this plan.
+**What:** Put large map snapshot/renderer working copies in an MSC-owned directory beneath the agent data directory by default, on disk rather than the operating system's temporary filesystem. Preserve source-world immutability, private access, unique operation directories and safe cleanup on failure, cancellation and renderer shutdown. Account for temporary-copy size, concurrent preparation and available storage; report storage or quota failures clearly, with the relevant staging location. Free-space reporting alone must not be treated as proof that user quotas permit a write. Review safe recovery of abandoned staging directories without deleting live operations, ordinary worlds or unrelated temporary files. Apply the storage ownership policy across Linux, Windows and macOS and inspect shared Bedrock paths to avoid moving the same problem elsewhere. Scope any temporary-directory setting to map work; do not require a machine-wide TMPDIR change or a manual systemd drop-in. Retired modded repair/import/Prism capture remains retired.
+**Verify:** `cargo clippy -p msc-agent --bin msc`; then Cameron manually opens the large saved Tectonic map without the workaround, confirms staging is beneath MSC2_DATA_DIR, confirms normal Java and Bedrock maps still work, and confirms temporary copies are removed after closure/cancellation/failure while original worlds remain unchanged. Physical platform observations remain pending until supplied; do not add release workflow gates or execute tests without specific owner instruction.
+**Batch:** P18.28 only, in a future execute conversation; this record authorizes no implementation or test run.
+
+**Observed failure:** On cambookpro13, the restored agent logged `Java terrain compatibility preparation failed: Disk quota exceeded (os error 122)` at 18:43:35 on 2026-10-06. The agent currently creates `msc-map-renderer-*` beneath `std::env::temp_dir()`. Host /tmp is a 3.9 GiB tmpfs, showing 2.9 GiB available after failure; the main filesystem has 14 GiB available. Inspection inside the service's mount namespace shows tmpfs with `usrquota` and PrivateTmp. The error and mount configuration are consistent with a per-user tmpfs quota; the exact quota and peak staging usage have not been measured. Main-disk free space does not rule out quota exhaustion.
+
+**Temporary workaround applied by Cameron:** Created `/home/camerontemple/.local/share/msc2/tmp` with mode 0700 and `/etc/systemd/system/com.ctemple.msc2.agent.service.d/map-temp.conf` setting `TMPDIR` to that directory. Reloaded systemd and restarted the agent; owner reported `active`. This persistent host-local override affects all agent temporary files, not just map staging. Tectonic rendering after that change remains pending. Once the application fix is installed, guide removal of only this override and verify the default staging path; retain existing temporary data until its ownership and live use are known. Original worlds and client instances were not changed by the workaround.
+
+**Related owner verification:** After installing the exact-size download correction, Cameron reported the standard Java map “looks good now.” This records the rendering observation without closing the broader map acceptance gate. Bedrock and the large Tectonic map remain pending.
+
+
 ### P18.27 — Correct exact-size vanilla texture downloads after retirement
 
 **Status:** Implemented; awaiting Cameron's map verification.

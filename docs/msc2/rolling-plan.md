@@ -110,12 +110,16 @@
 
 ### P16.49 — Complete coordinated Windows update and recovery
 
-**Status:** Planned; awaiting Cameron's review.
+**Status:** Implemented; awaiting Cameron's verification.
 **Files:** `clients/desktop-web/src-tauri/src/update.rs`, native lifecycle/staging integration from P16.47, shared verified release/update infrastructure only where necessary, Windows MSI identity/downgrade configuration, update result presentation only where needed, Windows MSI review documentation, this plan.
 **What:** Fulfil D-032 for Windows: retain a verified previous installation/package and service state, reverify the signed target at apply time, invoke the installer with no automatic reboot and a diagnostic log without secrets, coordinate the actual agent/helper payload, and distinguish success, user cancellation, failure and reboot-required results. Define one relaunch owner to avoid the MSI checkbox and updater launching twice. Observe an authenticated/identity-checked local-agent health result and desktop readiness rather than treating process spawn as success. If replacement or health fails, restore the verified prior package/payload/service state and relaunch the previous usable desktop; report recovery failure honestly. Provide the deliberate older-version restoration path before blocking ordinary accidental downgrades. Do not mutate data/settings/secrets/worlds or trust unsigned metadata. No remote service control or release workflow changes.
 **Verify:** `cargo clippy --manifest-path clients/desktop-web/src-tauri/Cargo.toml`
 **Batch:** P16.49 only.
 **Manual acceptance:** Cameron verifies successful update, cancellation, reboot-required handling and a controlled installation/health failure in disposable environments, recording the old/new exact artifacts and observed recovery. Include an initially stopped agent and remote-only desktop so the updater does not invent a local hosting installation or start previously stopped Minecraft servers.
+
+**Commit:** `P16.49: coordinate windows update and recovery`
+**Implementation:** Retain and reverify signed prior/target protocol-capable MSIs; coordinate protected local service snapshots, one desktop relaunch, authenticated agent and initialized-shell health, previous-package restoration and honest cancellation/failure/reboot outcomes. Add restart continuation and deliberate downgrade recovery. Preserve credentials during health trials, correct Windows automatic-start restoration, and recognize accepted recovery/partial staging during separately confirmed full cleanup. Legacy packages require manual migration to a signed protocol-capable release.
+**Checks:** Desktop/infrastructure/helper Clippy, Rust formatting, Svelte check/frontend build, native release staging/build, validated MSI packaging, PowerShell parsing/embedded C# compilation and read-only exact MSI/property/stream/digest inspection passed with existing warnings. No tests or live installation/service/release operations ran. Review copy `C:\Users\Cameron\Downloads\msc2-p16.49-windows-x86_64.msi`; artifact hashes, limitations and disposable-environment walkthrough are in `release/windows-msi-review.md`. Signed update/recovery acceptance remains pending with Cameron.
 
 ### P16.50 — Record complete Windows MSI acceptance and review handoff
 

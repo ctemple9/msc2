@@ -188,7 +188,7 @@
           <Condition Action="show">MsiSystemRebootPending OR ReplacedInUseFiles</Condition>
         </Control>
         <Control Id="OptionalCheckBox" Type="CheckBox" X="24" Y="228" Width="372" Height="20" Property="MSC_LAUNCH_APP" CheckBoxValue="1" Text="[WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT]">
-          <Condition Action="hide">Installed OR REMOVE OR MsiSystemRebootPending OR ReplacedInUseFiles</Condition>
+          <Condition Action="hide">Installed OR REMOVE OR MSC_UPDATER_OWNS_RELAUNCH OR MsiSystemRebootPending OR ReplacedInUseFiles</Condition>
         </Control>
         <Control Id="BottomLine" Type="Line" X="0" Y="263" Width="420" Height="0" />
         <Control Id="Finish" Type="PushButton" X="332" Y="276" Width="64" Height="17" Default="yes" Cancel="yes" Text="!(loc.WixUIFinish)">

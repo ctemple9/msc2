@@ -15,6 +15,9 @@ use std::{
 };
 
 const DEFAULT_RELEASE_REPOSITORY: &str = "ctemple9/msc2";
+#[cfg(target_os = "windows")]
+#[path = "update_windows.rs"]
+mod windows;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -49,36 +52,68 @@ pub fn report_desktop_update_ready(page_finished: bool) {
     let _ = std::fs::write(marker, token.to_string_lossy().as_bytes());
 }
 
+pub(super) fn health_trial() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        let args: Vec<_> = std::env::args_os().collect();
+        if let Some(pair) = args
+            .windows(2)
+            .find(|p| p[0] == "--msc2-update-health-file")
+        {
+            return !PathBuf::from(&pair[1]).with_extension("accepted").exists();
+        }
+    }
+    false
+}
+
 /// Runs before Tauri starts so a replacement can move the old app bundle out
 /// of the way. The normal desktop process schedules this helper and exits;
 /// the helper then verifies the same staged release again before installing.
 pub fn run_desktop_update_helper() -> bool {
+    #[cfg(target_os = "windows")]
+    if windows::run_service_helper() {
+        return true;
+    }
     let mut args = std::env::args_os();
     let Some(mode) = args.nth(1) else {
         return false;
     };
-    if mode != "--msc2-apply-desktop-update" {
+    if mode != "--msc2-apply-desktop-update"
+        && !(cfg!(target_os = "windows") && mode == "--msc2-resume-desktop-update")
+    {
         return false;
     }
     let values: Vec<String> = args.filter_map(|value| value.into_string().ok()).collect();
-    let result = (|| {
-        let release_id = argument_value(&values, "--release-id")?;
-        let data_directory = PathBuf::from(argument_value(&values, "--data-dir")?);
-        wait_for_parent(
-            argument_value(&values, "--parent-pid")?
-                .parse()
-                .map_err(|_| {
-                    "The desktop update helper received an invalid parent process ID.".to_string()
-                })?,
-        )?;
-        apply_desktop_update(&release_id, &data_directory)
-    })();
+    let result =
+        (|| {
+            let release_id = argument_value(&values, "--release-id")?;
+            let data_directory = PathBuf::from(argument_value(&values, "--data-dir")?);
+            if mode == "--msc2-apply-desktop-update" {
+                wait_for_parent(argument_value(&values, "--parent-pid")?.parse().map_err(
+                    |_| {
+                        "The desktop update helper received an invalid parent process ID."
+                            .to_string()
+                    },
+                )?)?;
+            }
+            #[cfg(target_os = "windows")]
+            return windows::apply(
+                &release_id,
+                &data_directory,
+                &PathBuf::from(argument_value(&values, "--installed-executable")?),
+                mode == "--msc2-resume-desktop-update",
+            );
+            #[cfg(not(target_os = "windows"))]
+            apply_desktop_update(&release_id, &data_directory)
+        })();
     match result {
         Ok(detail) => {
             println!("{detail}");
             std::process::exit(0);
         }
         Err(error) => {
+            #[cfg(target_os = "windows")]
+            windows::notify(&error);
             eprintln!("MSC 2 desktop update failed: {error}");
             std::process::exit(1);
         }
@@ -86,7 +121,18 @@ pub fn run_desktop_update_helper() -> bool {
 }
 
 pub fn check(data_directory: &Path) -> Result<UpdateResult, String> {
-    release_update::check_and_stage(&client_config()?, data_directory)
+    let mut result = release_update::check_and_stage(&client_config()?, data_directory)?;
+    #[cfg(target_os = "windows")]
+    if let Ok(detail) =
+        std::fs::read_to_string(data_directory.join("updates/windows-last-result.json"))
+    {
+        if let Ok(record) = serde_json::from_str::<serde_json::Value>(&detail) {
+            if let Some(detail) = record["detail"].as_str() {
+                result.detail = format!("Last Windows update: {detail}\n{}", result.detail);
+            }
+        }
+    }
+    Ok(result)
 }
 
 pub fn install(request: InstallRequest, data_directory: &Path) -> Result<InstallResult, String> {
@@ -124,25 +170,29 @@ fn argument_value(values: &[String], name: &str) -> Result<String, String> {
 }
 
 fn schedule_desktop_update(release_id: &str, data_directory: &Path) -> Result<(), String> {
-    let executable = std::env::current_exe()
-        .map_err(|error| format!("Could not resolve the desktop executable: {error}"))?;
-    Command::new(&executable)
-        .arg("--msc2-apply-desktop-update")
-        .args(["--release-id", release_id, "--parent-pid"])
-        .arg(std::process::id().to_string())
-        .args(["--data-dir"])
-        .arg(data_directory)
-        .spawn()
-        .map_err(|error| format!("Could not schedule the desktop update: {error}"))?;
-    Ok(())
+    #[cfg(target_os = "windows")]
+    return windows::schedule(release_id, data_directory);
+    #[cfg(not(target_os = "windows"))]
+    {
+        let executable = std::env::current_exe()
+            .map_err(|error| format!("Could not resolve the desktop executable: {error}"))?;
+        Command::new(&executable)
+            .arg("--msc2-apply-desktop-update")
+            .args(["--release-id", release_id, "--parent-pid"])
+            .arg(std::process::id().to_string())
+            .args(["--data-dir"])
+            .arg(data_directory)
+            .spawn()
+            .map_err(|error| format!("Could not schedule the desktop update: {error}"))?;
+        Ok(())
+    }
 }
 
+#[cfg(not(target_os = "windows"))]
 fn apply_desktop_update(release_id: &str, data_directory: &Path) -> Result<String, String> {
     let staged = release_update::verify_staged(&client_config()?, data_directory, release_id)?;
     #[cfg(target_os = "macos")]
     return install_macos_bundle(&staged);
-    #[cfg(target_os = "windows")]
-    return install_windows_msi(&staged);
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         let _ = staged;
@@ -152,17 +202,7 @@ fn apply_desktop_update(release_id: &str, data_directory: &Path) -> Result<Strin
 
 #[cfg(target_os = "windows")]
 fn wait_for_parent(parent_pid: u32) -> Result<(), String> {
-    let script = format!(
-        "$process = Get-Process -Id {parent_pid} -ErrorAction SilentlyContinue; if ($process) {{ $process.WaitForExit() }}"
-    );
-    let status = Command::new("powershell.exe")
-        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
-        .status()
-        .map_err(|error| format!("Could not wait for the desktop process: {error}"))?;
-    status
-        .success()
-        .then_some(())
-        .ok_or_else(|| "The desktop update helper could not wait for MSC 2 to close.".to_string())
+    windows::wait_parent(parent_pid)
 }
 
 #[cfg(target_os = "macos")]
@@ -176,27 +216,6 @@ fn wait_for_parent(_parent_pid: u32) -> Result<(), String> {
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn wait_for_parent(_parent_pid: u32) -> Result<(), String> {
     Ok(())
-}
-
-#[cfg(target_os = "windows")]
-fn install_windows_msi(staged: &StagedUpdate) -> Result<String, String> {
-    let status = Command::new("msiexec.exe")
-        .args(["/i"])
-        .arg(&staged.artifact_path)
-        .status()
-        .map_err(|error| format!("Could not run the MSC installer: {error}"))?;
-    if !status.success() {
-        return Err(format!("The MSC installer exited unsuccessfully: {status}"));
-    }
-    let executable = std::env::current_exe()
-        .map_err(|error| format!("Could not resolve the installed desktop executable: {error}"))?;
-    Command::new(&executable)
-        .spawn()
-        .map_err(|error| format!("Could not relaunch MSC 2 after updating: {error}"))?;
-    Ok(format!(
-        "MSC 2 {} was installed and relaunched.",
-        staged.manifest.release_id
-    ))
 }
 
 #[cfg(target_os = "macos")]
@@ -458,6 +477,7 @@ fn shell_quote(path: &Path) -> String {
     format!("'{}'", path.to_string_lossy().replace('\'', "'\\''"))
 }
 
+#[cfg(target_os = "macos")]
 fn run_command(command: &mut Command, failure: &str) -> Result<(), String> {
     let status = command
         .status()

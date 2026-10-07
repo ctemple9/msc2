@@ -40,11 +40,17 @@
         <!-- Property to forward cli args to the launched app to not lose those of the pre-update instance -->
         <Property Id="LAUNCHAPPARGS" Secure="yes" />
 
-        {{#if allow_downgrades}}
-            <MajorUpgrade Schedule="afterInstallExecute" AllowDowngrades="yes" />
-        {{else}}
-            <MajorUpgrade Schedule="afterInstallExecute" DowngradeErrorMessage="!(loc.DowngradeErrorMessage)" AllowSameVersionUpgrades="yes" />
-        {{/if}}
+        <!-- Explicit restoration remains available; ordinary older installs stop
+             before the local service or package files change. -->
+        <MajorUpgrade Schedule="afterInstallExecute" AllowDowngrades="yes" />
+        <Upgrade Id="{{upgrade_code}}">
+            <UpgradeVersion Minimum="{{version}}" IncludeMinimum="no" OnlyDetect="yes" Property="MSC_NEWER_INSTALLED" />
+        </Upgrade>
+        <Property Id="MSC_RESTORE_PREVIOUS" Secure="yes" />
+        <Property Id="MSC_UPDATE_MANAGED" Secure="yes" />
+        <Property Id="MSC_UPDATE_PROTOCOL" Value="1" />
+        <Property Id="MSC_UPDATER_OWNS_RELAUNCH" Secure="yes" />
+        <Condition Message="A newer MSC 2 version is installed. Use verified update recovery, or deliberately restore the previous package with MSC_RESTORE_PREVIOUS=1.">REMOVE OR UPGRADINGPRODUCTCODE OR NOT MSC_NEWER_INSTALLED OR MSC_RESTORE_PREVIOUS="1"</Condition>
 
         <InstallExecuteSequence>
             <!-- Flush only the queued service preparation before old-package
@@ -110,7 +116,7 @@
 
         <UI>
             <!-- launch app checkbox -->
-            <Publish Dialog="MscExitDlg" Control="Finish" Event="DoAction" Value="LaunchApplication">MSC_LAUNCH_APP = 1 AND NOT Installed AND NOT REMOVE AND NOT AUTOLAUNCHAPP AND NOT MsiSystemRebootPending AND NOT ReplacedInUseFiles</Publish>
+            <Publish Dialog="MscExitDlg" Control="Finish" Event="DoAction" Value="LaunchApplication">NOT MSC_UPDATER_OWNS_RELAUNCH AND MSC_LAUNCH_APP = 1 AND NOT Installed AND NOT REMOVE AND NOT AUTOLAUNCHAPP AND NOT MsiSystemRebootPending AND NOT ReplacedInUseFiles</Publish>
 
             <Property Id="WIXUI_INSTALLDIR" Value="INSTALLDIR" />
 
@@ -396,7 +402,7 @@
         {{/if}}
 
         <InstallExecuteSequence>
-          <Custom Action="LaunchApplication" After="InstallFinalize">AUTOLAUNCHAPP AND NOT Installed AND NOT REMOVE AND NOT MsiSystemRebootPending AND NOT ReplacedInUseFiles</Custom>
+          <Custom Action="LaunchApplication" After="InstallFinalize">NOT MSC_UPDATER_OWNS_RELAUNCH AND AUTOLAUNCHAPP AND NOT Installed AND NOT REMOVE AND NOT MsiSystemRebootPending AND NOT ReplacedInUseFiles</Custom>
         </InstallExecuteSequence>
 
         <SetProperty Id="ARPINSTALLLOCATION" Value="[INSTALLDIR]" After="CostFinalize"/>

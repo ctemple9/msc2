@@ -154,7 +154,37 @@ pub fn check_and_stage(
         });
     }
 
-    let base = release_base_url(&config.repository, &latest_id);
+    stage_exact_release(config, data_directory, &latest_id)
+}
+
+/// Retain the signed package for the running release before replacing it.
+/// Existing staging is verified, never silently replaced if it has changed.
+pub fn retain_installed_release(
+    config: &UpdateClientConfig,
+    data_directory: &Path,
+) -> Result<StagedUpdate, String> {
+    if data_directory
+        .join("updates")
+        .join(&config.current_version)
+        .exists()
+    {
+        return verify_staged(config, data_directory, &config.current_version);
+    }
+    stage_exact_release(config, data_directory, &config.current_version)?;
+    verify_staged(config, data_directory, &config.current_version)
+}
+
+fn stage_exact_release(
+    config: &UpdateClientConfig,
+    data_directory: &Path,
+    latest_id: &str,
+) -> Result<UpdateResult, String> {
+    validate_repository(&config.repository)?;
+    if !safe_version(latest_id) {
+        return Err("The requested release ID is unsafe.".into());
+    }
+    let agent = http_agent();
+    let base = release_base_url(&config.repository, latest_id);
     let manifest_bytes = download_bytes(
         &agent,
         &format!("{base}/{MANIFEST_FILE}"),
@@ -186,7 +216,7 @@ pub fn check_and_stage(
     }
     let manifest: ReleaseManifest = serde_json::from_value(manifest_value)
         .map_err(|error| format!("Update manifest has an invalid shape: {error}"))?;
-    verify_manifest(&manifest, &signature_bytes, &canonical, config, &latest_id)?;
+    verify_manifest(&manifest, &signature_bytes, &canonical, config, latest_id)?;
     let platform_key = platform_key(&config.target, config.channel, config.linux_package_format)?;
     let platform = manifest
         .platforms

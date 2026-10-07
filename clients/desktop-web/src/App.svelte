@@ -950,6 +950,11 @@
     }
     refreshHosts();
     await initializeClient();
+    if (isDesktopShell) {
+      // A loaded HTML page alone does not prove that the client shell mounted.
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('desktop_report_update_ready');
+    }
   }
 
   async function selectSection(

@@ -573,3 +573,107 @@ is now sequence 6598 and excludes removal. Embedded DLL bytes exactly match the
 staged helper and contain all four staged payload hashes. Diff checks passed.
 No tests or live installation/service/removal operations were run. The verification
 walkthrough above remains pending with Cameron.
+
+## P16.49 ? Coordinated Windows update and recovery
+
+Implemented; awaiting Cameron's verification. This step changes the in-app updater
+as well as MSI integration. It does not publish a release or close the phase gate.
+
+The updater retains the signed current-release MSI, rechecks both manifests and
+package bytes immediately before applying, validates their package family/version
+and recovery protocol, and pins files/directories against replacement. Both MSIs
+must declare `MSC_UPDATE_PROTOCOL=1`; legacy installations must first be upgraded
+manually to a signed protocol-capable release. The installed desktop must live in
+a machine-protected directory for elevated fixed service operations. The temporary
+worker runs as the original user; it is not an elevated user-writable executable.
+
+A retained worker waits for the original desktop to exit, runs MSI with passive
+presentation, a verbose log and suppressed automatic reboot, and owns relaunch.
+The MSI launch checkbox cannot launch a second desktop. Service coordination
+retains protected prior state, copied payload and the old desktop digest. Local
+ownership is checked; absent services and independent headless services remain
+separate. Previously stopped agents remain stopped, and Minecraft is not restarted.
+
+Healthy completion requires the new desktop to report shell initialization and,
+for a previously running owned service, an authenticated loopback agent with the
+expected version/API identity and a listener belonging to that service process.
+During this health trial a 401 response cannot automatically discard saved host
+credentials. Successful acceptance retains a protected previous-state record.
+Installation or health failure attempts restoration of the verified previous MSI,
+service state and desktop, then checks recovery health. Recovery failure is reported
+explicitly. User cancellation, another busy installer, failure and reboot-required
+results are distinct. Only the desktop child started by the worker is closed during
+recovery. No remote agent is controlled and no worlds/settings are reset.
+
+A restart-required result retains recovery material and displays a quoted PowerShell
+command to resume the retained worker after restarting and closing MSC. Resume checks
+that the target package is registered before health/acceptance. This is not a guarantee
+of automatic recovery from power loss at every installer stage: an interrupted
+transaction before registration requires inspection of the retained records/logs.
+See Microsoft's [installer result codes](https://learn.microsoft.com/en-us/windows/win32/msi/error-codes)
+and [REBOOT property](https://learn.microsoft.com/en-us/windows/win32/msi/reboot).
+
+Ordinary newer-to-older installation is blocked unless restoration is explicitly
+requested with `MSC_RESTORE_PREVIOUS=1`. The updater permits that flag only for its
+verified previous package. This guard applies to protocol-capable MSI packages;
+historical MSI packages cannot acquire the guard retroactively.
+
+Diagnostics are under the user's `updates` directory: `windows-last-result.json`
+and a unique `windows-worker-*` directory with `install.log`/`recovery.log`. These
+contain operation status and package diagnostics; service passwords are never
+requested or written by this path. Protected pending service records block another
+managed transaction. Separately confirmed full removal can clean accepted previous
+records and recognized partial build staging, but still refuses unknown files or
+unfinished transactions.
+
+This also corrects restoring automatic service startup: Windows reports `Auto`,
+not `Automatic`, in [Win32_Service.StartMode](https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-service).
+Use the P16.49 candidate for remaining P16.48 repair/removal acceptance.
+
+### Exact candidate and checks
+
+- Review copy: `C:\Users\Cameron\Downloads\msc2-p16.49-windows-x86_64.msi`.
+- Product version: **0.1.23**; unsigned local MSI; **19,431,424 bytes**.
+- MSI SHA-256: `83fd1b0f9b32e56e6cb6453b072ca585e4d61c81ae1c7ae57b6441fe1e26be5e`.
+- Embedded lifecycle DLL SHA-256: `bccd3fa6de8e9685bec91a0aee16ccea32ad36ce5719381b5b286e9373d6bd29`.
+- Embedded agent SHA-256: `5d0bb8199b890771f4ce5640060ecbd0bc6be7d8ffd956a74ea35e5aba9374fd`.
+
+Desktop/infrastructure/helper Clippy and Rust formatting passed. Svelte checking
+reported zero errors and eleven existing warnings; frontend build passed. Native
+release binaries/staging were produced and bundle-only MSI packaging passed. Both
+PowerShell scripts parse and their embedded C# compiles. Read-only MSI inspection
+confirmed protocol/security properties, downgrade guard, six-field managed-action
+handoff and suppressed duplicate launch; embedded DLL bytes match the staged helper
+and contain all four staged payload digests. Existing compiler/frontend warnings
+remain. No tests, live installer/service operations, release workflow, tags or
+publication were run.
+
+### Owner verification in disposable Windows environments
+
+The unsigned local review candidate permits installer inspection; it does not
+substitute for signed-update acceptance. Full updater acceptance requires two
+immutable signed protocol-capable releases matching the desktop's trusted key and
+different version numbers. Record both manifests, MSI hashes and installed paths.
+Do not alter signature verification to make a local candidate eligible.
+
+1. Verify a successful update with a running owned agent: one desktop relaunch,
+   expected desktop/agent version, unchanged service account/boot settings/data,
+   healthy result and retained previous package. Repeat with an initially stopped
+   agent, no local service, and a separate headless installation.
+2. Cancel or refuse elevation. Confirm honest cancellation/error reporting and a
+   usable prior installation. A busy Windows Installer must not trigger competing
+   recovery. Corrupt signed staging in the disposable environment before applying;
+   verification must refuse it before closing the original desktop.
+3. Exercise a controlled replacement health failure, for example close the worker's
+   new desktop before readiness is accepted. Confirm restoration, prior desktop
+   digest/version, prior service state and recovery result. Record failures rather
+   than marking them successful because MSI returned zero.
+4. Observe a genuine restart-required installation in a disposable VM. Confirm no
+   automatic reboot or healthy-success claim, retained packages and visible resume
+   command. Restart, close MSC and run that exact command; verify subsequent health
+   and acceptance. Do not fabricate a passing result if this case is unavailable.
+5. Verify ordinary downgrade refusal and deliberate previous-package restoration.
+   Recheck P16.48 repair/removal and separately confirmed full cleanup using this
+   candidate, including unknown/pending-cache refusal. Preserve valued server data.
+
+Physical acceptance remains pending. P16.50 has not been started.

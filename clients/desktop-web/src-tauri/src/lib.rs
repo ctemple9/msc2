@@ -27,6 +27,11 @@ const AGENT_SERVICE_NAME: &str = "com.ctemple.msc2.agent";
 const AGENT_PORT: u16 = 48001;
 const LOCAL_AGENT_ORIGIN: &str = "http://127.0.0.1:48001";
 const LOCAL_BOOTSTRAP_SOCKET: &str = "local-bootstrap.sock";
+
+#[tauri::command]
+fn desktop_report_update_ready() {
+    update::report_desktop_update_ready(true);
+}
 #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
 const BEDROCK_SIDECAR_DIRECTORY_ENV: &str = "MSC2_BEDROCK_SIDECAR_DIR";
 #[cfg(target_os = "macos")]
@@ -661,7 +666,7 @@ async fn desktop_authorized_request(request: DesktopRequest) -> Result<DesktopRe
         .await
         .map_err(|error| format!("Network: Desktop response could not be read: {error}"))?
         .to_vec();
-    if status == reqwest::StatusCode::UNAUTHORIZED {
+    if status == reqwest::StatusCode::UNAUTHORIZED && !update::health_trial() {
         // A revoked or expired credential must not linger locally after the
         // agent has authoritatively rejected it.
         store.delete(&key).map_err(|error| error.to_string())?;
@@ -1775,15 +1780,20 @@ pub fn run() {
 
     tauri::Builder::default()
         .on_page_load(|_webview, payload| {
+            // Windows waits for the mounted client shell, not HTML loading.
+            #[cfg(not(target_os = "windows"))]
             update::report_desktop_update_ready(
                 payload.event() == tauri::webview::PageLoadEvent::Finished,
             );
+            #[cfg(target_os = "windows")]
+            let _ = payload;
         })
         .manage(ssh::SshTunnelManager::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
+            desktop_report_update_ready,
             desktop_exchange_pairing,
             desktop_automate_remote_pairing,
             desktop_bootstrap_local,

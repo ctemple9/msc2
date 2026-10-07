@@ -126,11 +126,7 @@ public static class MscLifecyclePaths {
     }
     function Write-Json([string]$path, $value) {
         $null = Guard-Path $path
-        $temp = $path + '.tmp'
-        $null = Guard-Path $temp
-        [IO.File]::WriteAllText($temp, ($value | ConvertTo-Json -Depth 8 -Compress), (New-Object Text.UTF8Encoding($false)))
-        if (Test-Path -LiteralPath $path) { [IO.File]::Replace($temp, $path, $null) }
-        else { [IO.File]::Move($temp, $path) }
+        [MscLifecyclePaths]::AtomicText($path, ($value | ConvertTo-Json -Depth 8 -Compress))
     }
     function Protect-Directory([string]$path) {
         $null = Guard-Path $path
@@ -314,6 +310,7 @@ public static class MscLifecyclePaths {
     function Save-State { Write-Json $transactionPath $transaction }
     function Restore-Boot {
         $mode = switch ($transaction.startMode) {
+            'Auto' { if ($transaction.delayedAuto) { 'delayed-auto' } else { 'auto' } }
             'Automatic' { if ($transaction.delayedAuto) { 'delayed-auto' } else { 'auto' } }
             'Manual' { 'demand' }
             'Disabled' { 'disabled' }
@@ -330,21 +327,63 @@ public static class MscLifecyclePaths {
     $null = Guard-Path $serviceRoot
     $guid = [Guid]::Parse($request.transaction).ToString('D')
     $transactionPath = Join-Path $stateRoot ($guid + '.json')
+    if ($request.operation -in @('recover','finalize','probe-recovery','resume-health')) {
+        $transactionPath = Join-Path $stateRoot ($guid + '.recovery.json')
+        if (-not (Test-Path -LiteralPath $transactionPath)) {
+            $transactionPath = Join-Path $stateRoot ($guid + '.json')
+            if (-not (Test-Path -LiteralPath $transactionPath)) {
+                if ($request.operation -eq 'recover') { return }
+                throw 'The protected update recovery record is missing; health acceptance cannot be recorded.'
+            }
+        }
+        if ($request.operation -eq 'recover') { $request.operation = 'rollback' }
+    }
+    if ($request.operation -eq 'probe') {
+        $svc = Service
+        if (-not $svc) {
+            if (Test-Path -LiteralPath $metadataPath) { throw 'Service metadata remains without its service.' }
+            return (@{ owned=$false; running=$false; present=$false } | ConvertTo-Json -Compress)
+        }
+        $meta = Metadata
+        $owned = Owned $svc $meta $request.previousRoot
+        if ($owned -and (Bundle-Digest (Split-Path -Parent $meta.binary_path)) -ne (Bundle-Digest (Join-Path $request.previousRoot 'agent'))) { throw 'The retained service payload differs from its installed desktop package.' }
+        return (@{ owned=$owned; running=($svc.State -eq 'Running'); present=$true; pid=$svc.ProcessId; port=[int]$meta.expected_port } | ConvertTo-Json -Compress)
+    }
     if ($request.operation -eq 'prepare') {
         $svc = Service
         if (-not $svc) {
             if (Test-Path -LiteralPath $metadataPath) { throw 'MSC service metadata remains without its service; inspect it before changing this package.' }
+            if ($request.managed) {
+                Protect-Directory $stateRoot
+                if (Get-ChildItem -LiteralPath $stateRoot -File | Where-Object { $_.Name -match '^[0-9a-f-]{36}(?:\.recovery)?\.json(?:\.(?:[0-9a-f]{32}\.)?tmp)?$' }) { throw 'An unfinished update requires recovery before retrying.' }
+                $previousDesktop = Guard-Path (Join-Path $request.previousRoot 'msc2-desktop-web.exe')
+                $transaction = @{ version=1; noService=$true; oldDesktopHash=(Get-FileHash -LiteralPath $previousDesktop).Hash.ToLowerInvariant(); wasRunning=$false }
+                Save-State
+            }
             return
         }
         $meta = Metadata
-        if (-not (Owned $svc $meta $request.previousRoot)) { return }
+        if (-not (Owned $svc $meta $request.previousRoot)) {
+            if ($request.managed) {
+                Protect-Directory $stateRoot
+                if (Get-ChildItem -LiteralPath $stateRoot -File | Where-Object { $_.Name -match '^[0-9a-f-]{36}(?:\.recovery)?\.json(?:\.(?:[0-9a-f]{32}\.)?tmp)?$' }) { throw 'An unfinished update requires recovery before retrying.' }
+                $previousDesktop = Guard-Path (Join-Path $request.previousRoot 'msc2-desktop-web.exe')
+                $transaction = @{ version=1; independentService=$true; originalCommand=$svc.PathName; accountSid=(Account-Sid $svc.StartName); startMode=$svc.StartMode; oldDesktopHash=(Get-FileHash -LiteralPath $previousDesktop).Hash.ToLowerInvariant(); wasRunning=($svc.State -eq 'Running') }
+                Save-State
+            }
+            return
+        }
         if ($svc.State -notin @('Running','Stopped')) { throw 'The local agent is already changing state.' }
         Protect-Directory $stateRoot
-        if (Get-ChildItem -LiteralPath $stateRoot -File | Where-Object { $_.Name -match '^[0-9a-f-]{36}\.json(?:\.tmp)?$' }) {
+        if (Get-ChildItem -LiteralPath $stateRoot -File | Where-Object { $_.Name -match '^[0-9a-f-]{36}(?:\.recovery)?\.json(?:\.(?:[0-9a-f]{32}\.)?tmp)?$' }) {
             throw 'An unfinished package transaction requires recovery before retrying.'
         }
         $delayed = Get-ItemProperty -LiteralPath "Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\$serviceName" -Name DelayedAutoStart -ErrorAction SilentlyContinue
         $transaction = @{ version=1; originalCommand=$svc.PathName; accountSid=(Account-Sid $svc.StartName); startMode=$svc.StartMode; delayedAuto=($delayed.DelayedAutoStart -eq 1); wasRunning=($svc.State -eq 'Running'); metadata=$meta.Raw; previousRoot=$request.previousRoot; packageRoot=$request.packageRoot; oldOwner=$null; applying=$false; newCommand=$null; bootTemporarilyEnabled=$false; removing=$request.remove; removalDisabled=$false }
+        if ($request.managed) {
+            $previousDesktop = Guard-Path (Join-Path $request.previousRoot 'msc2-desktop-web.exe')
+            $transaction.oldDesktopHash = (Get-FileHash -LiteralPath $previousDesktop).Hash.ToLowerInvariant()
+        }
         if (Test-Path -LiteralPath $ownerPath) { $transaction.oldOwner = [IO.File]::ReadAllText($ownerPath) }
         Save-State
         Stop-Owned $svc $meta
@@ -360,11 +399,13 @@ public static class MscLifecyclePaths {
     }
     if (-not (Test-Path -LiteralPath $transactionPath -PathType Leaf)) { return }
     Assert-Protected $transactionPath
-    $transaction = Get-Content -LiteralPath $transactionPath -Raw | ConvertFrom-Json
+    try { $transaction = Get-Content -LiteralPath $transactionPath -Raw | ConvertFrom-Json }
+    catch { throw 'The protected service recovery record could not be parsed; retain it for inspection.' }
     if ($transaction.version -ne 1) { throw 'The local service recovery record is not recognized.' }
 
     switch ($request.operation) {
         'apply' {
+            if ($transaction.noService -or $transaction.independentService) { return }
             $svc = Service
             Assert-Unchanged $svc
             if ($svc.State -ne 'Stopped') { throw 'The agent must remain stopped while its payload changes.' }
@@ -412,12 +453,23 @@ public static class MscLifecyclePaths {
             Write-Json $ownerPath @{ version=1; packageRoot=$transaction.packageRoot; binary=$newBinary; dataRoot=$meta.working_directory; accountSid=$transaction.accountSid }
         }
         'resume' {
+            if ($transaction.noService -or $transaction.independentService) { return }
             $svc = Service
             if (-not $svc -or $svc.PathName -ne $transaction.newCommand -or (Account-Sid $svc.StartName) -ne $transaction.accountSid -or $svc.StartMode -ne $transaction.startMode) { throw 'The replacement service definition changed before restart.' }
             if ($transaction.wasRunning) { Restore-Running }
         }
         'rollback' {
             $svc = Service
+            if ($transaction.noService) {
+                if ($svc) { throw 'A local service appeared after a remote-only update; recovery will not remove it.' }
+                Remove-Item -LiteralPath $transactionPath
+                return
+            }
+            if ($transaction.independentService) {
+                Assert-Unchanged $svc
+                Remove-Item -LiteralPath $transactionPath
+                return
+            }
             if (-not $svc -and $transaction.removing) { throw 'Package rollback could not restore the detached Windows service. Worlds and settings remain. Reinstall MSC and set up local hosting again; Windows credentials must be entered again.' }
             $temporaryBoot = $transaction.bootTemporarilyEnabled -and $transaction.startMode -eq 'Disabled' -and $svc.StartMode -eq 'Manual'
             $removalBoot = $transaction.removalDisabled -and $svc.StartMode -eq 'Disabled'
@@ -454,8 +506,48 @@ public static class MscLifecyclePaths {
                 }
                 return
             }
+            if ($request.managed) {
+                $retained = Join-Path $stateRoot ($guid + '.recovery.json')
+                $null = Guard-Path $retained
+                [IO.File]::Move($transactionPath, $retained)
+                return
+            }
             # Retain previous immutable builds; P16.49 needs them for health recovery.
             Remove-Item -LiteralPath $transactionPath
+        }
+        'finalize' {
+            $svc = Service
+            if ($transaction.noService) {
+                if ($svc) { throw 'A service appeared after a remote-only update; retain the recovery record.' }
+            } elseif ($transaction.independentService) {
+                Assert-Unchanged $svc
+            } elseif (-not $svc -or $svc.PathName -ne $transaction.newCommand -or (Account-Sid $svc.StartName) -ne $transaction.accountSid -or $svc.StartMode -ne $transaction.startMode) { throw 'The updated service changed before health acceptance.' }
+            $retained = Join-Path $stateRoot ($guid + '.previous.json')
+            $null = Guard-Path $retained
+            if (Test-Path -LiteralPath $retained) {
+                Assert-Protected $retained
+                [IO.File]::Replace($transactionPath, $retained, $null)
+            } else { [IO.File]::Move($transactionPath, $retained) }
+        }
+        'probe-recovery' {
+            $svc = Service
+            if ($transaction.noService) {
+                if ($svc) { throw 'A service appeared after a remote-only update.' }
+            } elseif ($transaction.independentService) {
+                Assert-Unchanged $svc
+            } elseif (-not $svc -or ($svc.PathName -ne $transaction.newCommand -and $svc.PathName -ne $transaction.originalCommand) -or (Account-Sid $svc.StartName) -ne $transaction.accountSid) { throw 'The protected recovery record does not identify the current service.' }
+            return (@{ owned=(-not ($transaction.noService -or $transaction.independentService)); running=$transaction.wasRunning; present=([bool]$svc); pid=$svc.ProcessId; oldDesktopHash=$transaction.oldDesktopHash } | ConvertTo-Json -Compress)
+        }
+        'resume-health' {
+            $svc = Service
+            if ($transaction.noService) {
+                if ($svc) { throw 'A service appeared after a remote-only update.' }
+            } elseif ($transaction.independentService) {
+                Assert-Unchanged $svc
+            } else {
+                if (-not $svc -or $svc.PathName -ne $transaction.newCommand -or (Account-Sid $svc.StartName) -ne $transaction.accountSid -or $svc.StartMode -ne $transaction.startMode) { throw 'The service changed before post-restart health.' }
+                if ($transaction.wasRunning -and $svc.State -eq 'Stopped') { Restore-Running }
+            }
         }
         default { throw 'Unsupported native desktop lifecycle operation.' }
     }

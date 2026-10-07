@@ -53,7 +53,14 @@ if (Test-Path -LiteralPath $cache) {
     $cacheHandle = [MscCleanupPaths]::Pin($cache)
     Check-Path $cache
     $entries = @(Get-ChildItem -LiteralPath $cache -Force)
-    if ($entries | Where-Object { $_.Name -notin @('owner.json','builds') }) { throw 'An unfinished or unknown lifecycle record remains; retain it for recovery.' }
+    if ($entries | Where-Object { $_.Name -notin @('owner.json','builds') -and $_.Name -notmatch '^[0-9a-f-]{36}\.previous\.json$' }) { throw 'An unfinished or unknown lifecycle record remains; retain it for recovery.' }
+    $accepted = @($entries | Where-Object { $_.Name -match '^[0-9a-f-]{36}\.previous\.json$' })
+    foreach ($entry in $accepted) {
+        Check-Path $entry.FullName
+        if ($entry.PSIsContainer) { throw 'A retained update record must be a protected file.' }
+        $record = Get-Content -LiteralPath $entry.FullName -Raw | ConvertFrom-Json
+        if ($record.version -ne 1 -or $record.oldDesktopHash -notmatch '^[0-9a-f]{64}$') { throw 'The retained update record is not recognized.' }
+    }
     $owner = Join-Path $cache 'owner.json'
     if (Test-Path -LiteralPath $owner) {
         Check-Path $owner
@@ -69,8 +76,11 @@ if (Test-Path -LiteralPath $cache) {
             if (-not $build.PSIsContainer -or $build.Name -notmatch '^[0-9a-f]{64}$') { throw 'Unrecognized cached build remains.' }
             Check-Path $build.FullName
             $files = @(Get-ChildItem -LiteralPath $build.FullName -Force)
-            if ($files.Count -ne 4 -or ($files | Where-Object { $_.PSIsContainer -or $_.Name -notin @('msc.exe','vantage.exe','bedrock-map.exe','VANTAGE-LICENSE.txt') })) { throw 'The cached payload contains unrecognized files.' }
+            if ($files.Count -gt 4 -or ($files | Where-Object { $_.PSIsContainer -or $_.Name -notin @('msc.exe','vantage.exe','bedrock-map.exe','VANTAGE-LICENSE.txt') })) { throw 'The cached payload contains unrecognized files.' }
             foreach ($file in $files) { Check-Path $file.FullName }
+            # Failed staging can leave a protected partial build. Only these
+            # fixed payload names are removable; unknown children still block.
+            if (@($files | Where-Object { $_.Name -in @('msc.exe','vantage.exe','bedrock-map.exe') }).Count -lt 3) { continue }
             $hash = [Security.Cryptography.SHA256]::Create()
             try {
                 foreach ($name in @('msc.exe','vantage.exe','bedrock-map.exe')) {
@@ -90,6 +100,7 @@ if (Test-Path -LiteralPath $cache) {
     }
     if (Test-Path -LiteralPath $builds) { Remove-Item -LiteralPath $builds -Force }
     if (Test-Path -LiteralPath $owner) { Remove-Item -LiteralPath $owner -Force }
+    foreach ($entry in $accepted) { Remove-Item -LiteralPath $entry.FullName -Force }
     $cacheHandle.Dispose()
     Remove-Item -LiteralPath $cache -Force
 }

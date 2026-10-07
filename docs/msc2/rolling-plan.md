@@ -1,5 +1,16 @@
 # MSC 2 — Rolling Plan
 
+### P18.36 — Toggle the Components list search
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`, this plan.
+**What:** Replace the always-visible plugin/mod name search with an accessible magnifying-glass toggle beside the section heading. Opening it focuses the input; closing clears its query so the list does not stay filtered invisibly. Keep state filtering available. No tests added or run for this focused UI change.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P18.36 only.
+**Commit:** `P18.36: toggle the components list search`
+
+**Manual acceptance:** In Components, click the icon beside Plugins or Mods and confirm the search opens and receives focus. Search for an installed entry; close the search and confirm the full list returns. Reopen it and confirm it starts blank. Verify the state filter still works.
+
 ### P18.35 — Clean obsolete local app build data
 
 **Status:** Implemented; awaiting Cameron's verification.

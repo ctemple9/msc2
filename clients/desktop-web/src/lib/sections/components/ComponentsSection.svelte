@@ -117,6 +117,8 @@
     (addon) => addon.bucket === 'updateAvailable' && !managedHelper(addon),
   );
   let addonSearch = '';
+  let addonSearchVisible = false;
+  let addonSearchInput: HTMLInputElement | undefined;
   let addonFilter: ComponentState | 'all' = 'all';
   const addonFilterOptions = [
     { value: 'all', label: 'All states' },
@@ -128,6 +130,15 @@
   $: visibleAddons = filterAddons(addons, addonSearch, addonFilter);
   $: installedAddonCount = addons.filter((addon) => addonState(addon) !== 'unresolved').length;
   $: svcAddon = addons.find(isSimpleVoiceChatAddon);
+
+  function toggleAddonSearch(): void {
+    addonSearchVisible = !addonSearchVisible;
+    if (addonSearchVisible) {
+      requestAnimationFrame(() => addonSearchInput?.focus());
+    } else {
+      addonSearch = '';
+    }
+  }
 
   let notice = '';
   let downloadingBroadcastJar = false;
@@ -629,6 +640,20 @@
             <div class="addon-heading">
               <p class="msc2-type-overline">{isModded ? 'Mods' : 'Plugins'}</p>
               <span class="count-label">{installedAddonCount} installed</span>
+              <button
+                type="button"
+                class="search-toggle"
+                aria-label={`Search ${isModded ? 'mods' : 'plugins'}`}
+                aria-expanded={addonSearchVisible}
+                aria-controls="component-search"
+                title={`Search ${isModded ? 'mods' : 'plugins'}`}
+                onclick={toggleAddonSearch}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="10.8" cy="10.8" r="6.8" />
+                  <path d="m16 16 5 5" />
+                </svg>
+              </button>
             </div>
             {#if anyAddonUpdatable}
               <Button
@@ -642,13 +667,17 @@
             {/if}
           </div>
           <div class="component-controls">
-            <input
-              class="component-search"
-              type="search"
-              aria-label={`Search ${isModded ? 'mods' : 'plugins'} by name or filename`}
-              placeholder="Search name or filename"
-              bind:value={addonSearch}
-            />
+            {#if addonSearchVisible}
+              <input
+                id="component-search"
+                bind:this={addonSearchInput}
+                class="component-search"
+                type="search"
+                aria-label={`Search ${isModded ? 'mods' : 'plugins'} by name or filename`}
+                placeholder="Search name or filename"
+                bind:value={addonSearch}
+              />
+            {/if}
             <Select
               options={addonFilterOptions}
               bind:value={addonFilter}
@@ -1006,6 +1035,33 @@
     display: flex;
     align-items: baseline;
     gap: 8px;
+  }
+  .search-toggle {
+    display: inline-grid;
+    width: 28px;
+    height: 28px;
+    padding: 6px;
+    place-items: center;
+    color: var(--msc2-text-secondary);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--msc2-radius-2);
+    cursor: pointer;
+  }
+  .search-toggle:hover,
+  .search-toggle:focus-visible,
+  .search-toggle[aria-expanded='true'] {
+    color: var(--msc2-text-primary);
+    border-color: var(--msc2-hairline-field);
+    outline: none;
+  }
+  .search-toggle svg {
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
   }
   .count-label {
     font-size: 11px;

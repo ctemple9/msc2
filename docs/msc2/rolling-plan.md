@@ -50,11 +50,13 @@
 
 ### P16.44 — Establish the exact MSI dialog and lifecycle baseline
 
-**Status:** Planned; awaiting Cameron's review.
-**Files:** `docs/msc2/release/windows-msi-review.md` (new), this plan.
+**Status:** Implemented; awaiting Cameron's verification. Cameron confirmed the inspected v0.1.15 MSI is the artifact he opened.
+**Files:** `docs/msc2/release/windows-msi-review.md`, this plan.
 **What:** Confirm the owner-observed MSI version/path and inspect it read-only using Windows Installer database tables. Record its digest, product/upgrade identity, dialog text/attributes/transitions, preparation ordering, custom actions, payload, PATH, maintenance and service hooks. Compare it with the current locked CLI/template and package config. Include Cameron's observation of the brief blank page and a narrowly scoped verbose-log/manual reproduction procedure in a disposable Windows environment; do not launch/install the MSI on the development machine as part of inspection. Preserve uncertainty about painting until the exact artifact is observed. Record source links and a screen-by-screen before/after map.
 **Verify:** `git show --check --stat --oneline HEAD`
 **Batch:** P16.44 only. Stop before UI changes.
+**Commit:** `P16.44: document exact windows msi baseline`
+**Checks:** Read-only Windows Installer table inspection, artifact SHA-256/signature inspection and current-source/locked-CLI comparison completed. Cameron confirmed the baseline v0.1.15 MSI is the package he opened. Confirmed that maintenance Change/Repair are disabled and the old payload contains only desktop/agent, with no Environment or service tables. Documented the separate copied service payload and a disposable-environment opening/log procedure. No installer launched, tests/builds/service actions/release workflows run. Documentation diff check passed; Rust formatting/Clippy are not applicable because no Rust files changed.
 **Manual acceptance:** Cameron checks that the recorded artifact is the one he opened and confirms whether the preparation and Welcome screens match his observation.
 
 ### P16.45 — Give MSI preparation and installation screens an MSC introduction

@@ -34,7 +34,12 @@ pub(super) fn staging_estimate(world: &Path, dimension: &str) -> io::Result<u64>
     crate::map_staging::estimate_tree(&source)
 }
 
-pub(super) fn prepare(world: &Path, dimension: &str, cache: &Path) -> io::Result<PathBuf> {
+pub(super) fn prepare(
+    world: &Path,
+    dimension: &str,
+    cache: &Path,
+    progress: &impl Fn(usize, usize),
+) -> io::Result<PathBuf> {
     let (modern, legacy) = match dimension {
         "minecraft:overworld" => ("dimensions/minecraft/overworld/region", "region"),
         "minecraft:the_nether" => ("dimensions/minecraft/the_nether/region", "DIM-1/region"),
@@ -63,8 +68,16 @@ pub(super) fn prepare(world: &Path, dimension: &str, cache: &Path) -> io::Result
     let target = staged.join(legacy);
     fs::create_dir_all(&target)?;
     fs::copy(level, staged.join("level.dat"))?;
-    for entry in fs::read_dir(&source)? {
-        let entry = entry?;
+    let entries = fs::read_dir(&source)?.collect::<io::Result<Vec<_>>>()?;
+    let mut regions = Vec::new();
+    for entry in entries {
+        if entry.file_name().to_string_lossy().ends_with(".mca") && entry.file_type()?.is_file() {
+            regions.push(entry);
+        }
+    }
+    let total = regions.len();
+    progress(0, total);
+    for (index, entry) in regions.into_iter().enumerate() {
         let path = entry.path();
         let name = entry.file_name();
         if !name.to_string_lossy().ends_with(".mca") || !entry.file_type()?.is_file() {
@@ -79,6 +92,7 @@ pub(super) fn prepare(world: &Path, dimension: &str, cache: &Path) -> io::Result
         let normalized = normalize_region(&raw)?;
         crate::map_staging::ensure_space(cache, normalized.len() as u64 + 64 * 1024 * 1024)?;
         fs::write(target.join(name), normalized)?;
+        progress(index + 1, total);
     }
     Ok(staged)
 }

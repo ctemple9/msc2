@@ -120,6 +120,10 @@ pub fn router(state: WorldsRoutesState) -> Router {
         .route("/worlds", get(list))
         .route("/worlds/map/dimensions", get(map_dimensions))
         .route("/worlds/map/terrain", get(map_terrain::artifact))
+        .route(
+            "/worlds/map/progress",
+            get(map_terrain::preparation_progress),
+        )
         .route("/worlds/map/refresh", post(refresh_map))
         .route("/worlds/map/players", get(map_players))
         .route("/worlds/map-proof/snapshot", post(snapshot_map_proof))

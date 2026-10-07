@@ -61,6 +61,59 @@ struct RendererState {
     current: Mutex<Option<Renderer>>,
     snapshot: Mutex<Option<SavedSnapshot>>,
     sweeping: AtomicBool,
+    progress: Mutex<Option<PreparationProgress>>,
+}
+
+#[derive(Clone, serde::Serialize)]
+struct PreparationProgress {
+    #[serde(skip)]
+    server_id: String,
+    dimension: String,
+    stage: String,
+    completed: Option<usize>,
+    total: Option<usize>,
+}
+
+struct PreparationReporter<'a>(&'a Mutex<Option<PreparationProgress>>);
+impl PreparationReporter<'_> {
+    fn update(&self, stage: &str, completed: Option<usize>, total: Option<usize>) {
+        if let Ok(mut current) = self.0.lock()
+            && let Some(progress) = current.as_mut()
+        {
+            progress.stage = stage.into();
+            progress.completed = completed;
+            progress.total = total;
+        }
+    }
+}
+impl Drop for PreparationReporter<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut current) = self.0.lock() {
+            *current = None;
+        }
+    }
+}
+
+pub(super) async fn preparation_progress(
+    State(state): State<WorldsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
+        return response;
+    }
+    let server = match active_server_or_response(&state.lifecycle) {
+        Ok(server) => server,
+        Err(response) => return response,
+    };
+    let progress = state
+        .map_renderer
+        .0
+        .progress
+        .lock()
+        .ok()
+        .and_then(|current| current.clone())
+        .filter(|progress| progress.server_id == server.id);
+    axum::Json(progress).into_response()
 }
 
 struct SavedSnapshot {
@@ -316,11 +369,22 @@ impl RendererStore {
                     && renderer.child.try_wait().ok().flatten().is_none()
             });
             if !reuse {
+                if let Ok(mut progress) = self.0.progress.lock() {
+                    *progress = Some(PreparationProgress {
+                        server_id: server_id.into(),
+                        dimension: dimension.into(),
+                        stage: "Checking terrain renderer".into(),
+                        completed: None,
+                        total: None,
+                    });
+                }
+                let reporter = PreparationReporter(&self.0.progress);
                 *guard = Some(Renderer::launch(
                     server_id,
                     render_world,
                     dimension,
                     selected_version,
+                    &reporter,
                 )?);
             }
             let renderer = guard.as_mut().ok_or(())?;
@@ -389,9 +453,12 @@ impl Renderer {
         world: &Path,
         dimension: &str,
         selected_version: Option<&str>,
+        progress: &PreparationReporter<'_>,
     ) -> Result<Self, TerrainError> {
         let binary = dependencies::binary()?;
+        progress.update("Checking and preparing Minecraft textures", None, None);
         let assets = dependencies::assets(world, selected_version)?;
+        progress.update("Inspecting saved terrain", None, None);
         let listener = std::net::TcpListener::bind("127.0.0.1:0").map_err(|_| ())?;
         let port = listener.local_addr().map_err(|_| ())?.port();
         drop(listener);
@@ -400,25 +467,29 @@ impl Renderer {
         let staging = crate::map_staging::Staging::create("java-renderer", estimate)
             .map_err(|error| TerrainError::new("map_storage_failed", error.to_string()))?;
         let cache = staging.path().to_path_buf();
-        let render_world = match java_terrain_compat::prepare(world, dimension, &cache) {
-            Ok(path) => path,
-            Err(error) => {
-                eprintln!("Java terrain compatibility preparation failed: {error}");
-                return Err(TerrainError::new(
-                    "terrain_preparation_failed",
-                    format!(
-                        "Saved Java terrain preparation failed at {}: {error}",
-                        cache.display()
-                    ),
-                ));
-            }
-        };
+        let render_world =
+            match java_terrain_compat::prepare(world, dimension, &cache, &|completed, total| {
+                progress.update("Converting saved terrain", Some(completed), Some(total))
+            }) {
+                Ok(path) => path,
+                Err(error) => {
+                    eprintln!("Java terrain compatibility preparation failed: {error}");
+                    return Err(TerrainError::new(
+                        "terrain_preparation_failed",
+                        format!(
+                            "Saved Java terrain preparation failed at {}: {error}",
+                            cache.display()
+                        ),
+                    ));
+                }
+            };
         let token = format!(
             "{}{}{}",
             Uuid::new_v4().simple(),
             Uuid::new_v4().simple(),
             Uuid::new_v4().simple()
         );
+        progress.update("Starting terrain renderer", None, None);
         let mut child = Command::new(binary)
             .arg("server")
             .arg(render_world)

@@ -25,6 +25,21 @@
   let serverType = '';
   let status = 'Checking saved terrain…';
   let busy = true;
+  type PreparationProgress = { dimension: string; stage: string; completed: number | null; total: number | null };
+  let preparation: PreparationProgress | undefined;
+  let progressPoll: ReturnType<typeof setInterval> | undefined;
+  let progressRequest = false;
+  async function refreshPreparation(): Promise<void> {
+    if (!alive || !busy || progressRequest || !api?.getBytes) return;
+    progressRequest = true;
+    const generation = loadGeneration;
+    try {
+      const bytes = await api.getBytes('/v1/worlds/map/progress');
+      const result = JSON.parse(new TextDecoder().decode(bytes)) as PreparationProgress | null;
+      if (alive && busy && generation === loadGeneration) preparation = result?.dimension === selectedDimension ? result : undefined;
+    } catch { /* Older agents still use the ordinary loading status. */ }
+    finally { progressRequest = false; }
+  }
   let refreshing = false;
   let canvas: HTMLDivElement;
   let viewer: VantageViewer | undefined;
@@ -113,6 +128,7 @@
       return;
     }
     busy = true;
+    preparation = undefined;
     status = serverType === 'bedrock'
       ? 'Preparing saved Bedrock terrain and verified textures…'
       : `Preparing ${entry.displayName} terrain and Minecraft textures…`;
@@ -581,6 +597,7 @@
     window.addEventListener('blur', releaseDesktopLook);
     void loadDimensions();
     void refreshPlayers();
+    progressPoll = setInterval(() => void refreshPreparation(), 1000);
     playerPoll = setInterval(() => void refreshPlayers(), 1000);
     frameId = requestAnimationFrame(updateToolbar);
     return () => {
@@ -590,6 +607,7 @@
       cancelAnimationFrame(frameId);
       if (messageTimer) clearTimeout(messageTimer);
       if (playerPoll) clearInterval(playerPoll);
+      if (progressPoll) clearInterval(progressPoll);
       window.removeEventListener('pointermove', onMove, true);
       window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('blur', releaseDesktopLook);
@@ -645,7 +663,15 @@
     {#if !viewer}
       <div class="map-state" role="status">
         <strong>{busy ? 'Preparing map' : (selected?.displayName ?? 'Map unavailable')}</strong>
-        <p>{status}</p>
+        <p>{busy && preparation ? preparation.stage : status}</p>
+        {#if busy}
+          {#if preparation?.total && preparation.completed !== null}
+            <progress value={preparation.completed} max={preparation.total} aria-label={preparation.stage}></progress>
+            <p>{preparation.completed} / {preparation.total} region files converted</p>
+          {:else}
+            <progress aria-label={preparation?.stage ?? status}></progress>
+          {/if}
+        {/if}
       </div>
     {/if}
     <details class="players-panel" open>
@@ -891,6 +917,12 @@
     display: block;
     width: 100%;
     height: 100%;
+  }
+  .map-state progress {
+    display: block;
+    width: 100%;
+    height: 6px;
+    accent-color: var(--msc2-text-secondary, #b7b7bd);
   }
   .map-state {
     position: absolute;

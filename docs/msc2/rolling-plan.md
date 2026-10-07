@@ -1,5 +1,17 @@
 # MSC 2 — Rolling Plan
 
+### P18.31 — Show map preparation progress
+
+**Status:** Implemented; awaiting Cameron's loading-panel verification.
+**Files:** WorldMapViewer.svelte; agent Worlds progress route, Java renderer and compatibility converter; this plan.
+**What:** Show preparation stage and a native progress indicator in the existing map loading panel. Java region conversion reports files completed/total after each successful output write. Texture preparation, source inspection and renderer startup use indeterminate progress; these are stage indicators, not an overall percentage. Bedrock retains its existing preparation text with indeterminate progress. New authenticated `GET /v1/worlds/map/progress` requires Worlds permission and returns only the active server's current Java dimension/stage/counts or null. It reads a separate mutex, avoiding the renderer lock held during preparation. Clear progress on preparation success/failure. Poll once per second only while loading, avoid overlapping requests, ignore superseded loads and stop the timer on viewer disposal. Older agents fall back to the existing loading text. Preserve P18.30 fit-to-tab layout and retired repair decision.
+**Verify:** `npm --prefix clients/desktop-web run check`; Cameron builds/installs both agent and desktop, opens Tectonic with a fresh renderer, confirms conversion counts advance and startup returns to indeterminate progress, then verifies the loaded map and closes/reopens the viewer.
+**Batch:** P18.31 only, owner-requested progress display.
+**Commit:** `P18.31: show map preparation progress`
+
+**Checks:** Agent Clippy, formatting, frontend build, native desktop build and diff whitespace passed with existing warnings; Svelte check reported zero errors and eleven existing warnings. No tests or live rendering checks ran. Updated Ubuntu-compatible agent at `target/map-progress-agent/msc`, SHA-256 `a1a5c1314b436ee1c7841e19dd7591dbc88e188b25eecc338167d66e7d133b88`, highest glibc ABI 2.39. Desktop at `clients/desktop-web/src-tauri/target/debug/msc2-desktop-web`. Physical progress/loading/resize observations remain owner verification; no release workflow changes.
+
+
 ### P18.30 — Fit the world map inside its tab
 
 **Status:** Implemented; awaiting Cameron's window-resize verification.

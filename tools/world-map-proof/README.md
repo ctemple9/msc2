@@ -1,5 +1,13 @@
 # P18.2 — offline BDS terrain proof
 
+> Historical proof instructions, not the current installation workflow. The modded
+> map repair/import/private-client capture feature was retired by owner decision
+> D-042 on 2026-10-06. Do not use launcher/capture experiments here to restore
+> that feature. Standard Java/Bedrock mapping and player-feed evidence remain
+> useful historical records. See [the retirement decision](../../docs/msc2/msc2-decisions.md)
+> and [the current rolling plan](../../docs/msc2/rolling-plan.md).
+
+
 ## Fabric live player feed proof (P18.3m)
 
 This temporary Fabric mod targets the managed **Fabric 26.2 / Loader 0.19.5**

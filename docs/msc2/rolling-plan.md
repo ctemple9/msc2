@@ -1,5 +1,16 @@
 # MSC 2 — Rolling Plan
 
+### P18.33 — Clean retired modded-map build leftovers
+
+**Status:** Implemented; owner cleanup review pending.
+**Files:** Historical world-map proof README; this plan; local generated artifacts moved outside the repository.
+**What:** Archive the nine explicitly identified retired helper-build/binary/inspection paths outside the repo at `/home/camerontemple/.local/state/msc2/retired-map-repair/cleanup-20261006-224556` with a manifest. Remove both untracked retired helper directories from the working tree without destroying their recovery copies. Keep the original source recovery archive, Git history, baseline terrain/player-feed proof sources and current map-staging/map-progress/desktop builds. Label old proof instructions historical under D-042. No worlds, original client instances, credentials, remote staging or shared build/dependency caches touched.
+**Verify:** `git status --short`; inspect the external archive's manifest and confirm current map/desktop artifacts remain. No tests or release actions needed for generated-file moves and documentation.
+**Batch:** P18.33 only, owner-authorized repository cleanup.
+**Commit:** `P18.33: archive retired map repair leftovers`
+
+**Owner observation:** After reclaiming the partial staging copy, Cameron reported “dope it seems to work now.” Record restored map behavior without treating every platform, progress UI or first-connect issue as verified. Broader acceptance remains scoped to the actual observations.
+
 ### P18.32 — Initialize remote server tabs consistently
 
 **Status:** Implemented; awaiting Cameron's first-connect verification.

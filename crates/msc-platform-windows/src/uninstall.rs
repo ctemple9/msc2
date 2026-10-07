@@ -36,9 +36,9 @@ impl LocalServices for WindowsUninstall {
     }
     fn remove_data(&self, path: &Path) -> Result<(), String> {
         if path == Path::new(r"C:\ProgramData\MSC2\Services") {
-            elevate(
-                r"$ErrorActionPreference='Stop'; $p='C:\ProgramData\MSC2\Services'; if (Test-Path -LiteralPath $p) { foreach ($a in @('C:\ProgramData\MSC2',$p)) { if ((Get-Item -LiteralPath $a).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Refusing reparse point' } }; if (Get-ChildItem -LiteralPath $p -Force) { throw 'Unrecognized service metadata remains' }; Remove-Item -LiteralPath $p -Force; $root='C:\ProgramData\MSC2'; if (-not (Get-ChildItem -LiteralPath $root -Force)) { Remove-Item -LiteralPath $root -Force } }",
-            )
+            elevate(include_str!(
+                "../../../packaging/windows/full-uninstall-cache.ps1"
+            ))
         } else {
             native::remove_path(path)
         }
@@ -101,7 +101,7 @@ fn elevate(script: &str) -> Result<(), String> {
     // Base64 encoding is supplied by infrastructure without another package.
     let encoded = msc_infrastructure::uninstall::native::powershell_encoded(script);
     let launcher = format!(
-        "$ErrorActionPreference='Stop'; $p=Start-Process -FilePath powershell.exe -Verb RunAs -Wait -PassThru -ArgumentList @('-NoProfile','-NonInteractive','-EncodedCommand','{encoded}'); exit $p.ExitCode"
+        "$ErrorActionPreference='Stop'; $p=Start-Process -FilePath powershell.exe -WindowStyle Hidden -Verb RunAs -Wait -PassThru -ArgumentList @('-NoProfile','-NonInteractive','-EncodedCommand','{encoded}'); exit $p.ExitCode"
     );
     native::run(
         "powershell.exe",

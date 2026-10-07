@@ -484,3 +484,92 @@ cleanup must be checked there. Do not treat Phase 16's gate as closed.
 References: [Microsoft execution/removal sequencing](https://learn.microsoft.com/en-us/windows/win32/msi/removeexistingproducts-action),
 [WiX major-upgrade/component constraints](https://docs.firegiant.com/wix/schema/wxs/majorupgrade/),
 and [Microsoft rollback-disabled behavior](https://learn.microsoft.com/en-us/windows/win32/msi/rollbackdisabled).
+
+## P16.48 ? Repair and ordinary package removal
+
+Implementation is awaiting Cameron's exact-artifact verification. Windows app
+maintenance is no longer hidden by ARPNOREPAIR/ARPNOMODIFY. Reopened MSI offers a
+custom MSC repair/removal chooser and a final review explaining graceful shutdown
+and retained data. Repair reinstalls all package bytes (`amus`) and preserves the
+service account, password, delayed/ordinary boot policy and prior running state.
+A legacy copied payload can be identified by compiled hashes for same-product
+repair even if installed package files are missing. Major-upgrade child removal
+continues to skip all service actions.
+
+Removal prepares the same protected snapshot and graceful stop, then disables
+boot while the package is removed. It retains copied payloads and SCM credentials
+through deferred file operations. A separate checked elevated commit action
+removes metadata/ownership and finally marks the fixed service for deletion.
+Before detachment, rollback restores metadata, ownership, boot policy and agent
+state. Detachment is the last fallible native operation; transaction cleanup
+failure afterward emits a recovery-record warning rather than requesting an
+impossible password restoration. Full removal is supported after its separately
+confirmed worker removes the service: its adapter validates and removes only the
+protected, exact-name/hash copied cache before MSI performs package-only removal.
+No user-data path from an owner record is used as a deletion target.
+
+Windows service deletion can remain pending while another program holds a service
+handle. Close Services or restart before reinstalling local hosting if Windows
+reports pending deletion. A later unrelated Windows Installer commit failure
+cannot automatically recreate the deleted account password; the failure dialog
+and rollback error require reinstall/local hosting setup and preserve a recovery
+record instead of claiming complete restoration. This is a commit-boundary
+limitation, not evidence of physical rollback acceptance.
+
+Microsoft documents that [commit failures can trigger rollback which cannot undo
+every commit change](https://learn.microsoft.com/en-us/windows/win32/msi/commit-custom-actions)
+and that [service deletion waits for stopped state and open handles to close](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-deleteservice).
+
+### Cameron's P16.48 verification
+
+Use a disposable installed VM, keep worlds/settings/backup samples and record
+service account, command, boot mode and running state beforehand. Capture verbose
+MSI logs with `/l*v` to a path outside MSC data directories.
+
+1. Reopen this exact MSI. Confirm the MSC repair/remove chooser, final review and
+   readable dialog text at your display scaling; Cancel changes nothing.
+2. Delete a package-owned app/tool file in the VM and Repair. Confirm it is
+   restored, settings/worlds/credentials match and the service account/boot policy
+   remain. Check both Running and Stopped agents; Minecraft remains stopped.
+3. Remove from Windows' app list and, on a fresh disposable install, from the
+   reopened MSI. Confirm app/tools/shortcuts/PATH removal, no Launch option,
+   service detached and server/settings/backup/credential files retained.
+4. Repeat with no local service, an independently marked headless service and
+   administrator approval using another account. Unrelated services remain.
+5. Refuse UAC or cancel before changes. Separately interrupt/fail a reversible
+   removal action while the service is disabled; inspect log and confirm rollback
+   restores files/metadata/account/boot state and the previous agent state.
+6. Reinstall after ordinary removal. Confirm retained data is available and local
+   hosting setup asks for Windows credentials again. Close Services/reboot if
+   Windows still reports the deleted service as pending removal.
+7. On a separate disposable installation, run the existing confirmed full-removal
+   flow. Confirm its report records actual completion, protected copied builds are
+   removed, MSI package removal succeeds after service removal, and its reviewed
+   data/credentials are cleared. Unknown cache files or an unfinished transaction
+   must produce a retained/partial result, never recursive deletion.
+
+Commands for package building remain the P16.48 Verify line. No live install,
+removal, service mutation, tests, tags or publication are agent verification.
+
+### Exact P16.48 candidate and build evidence
+
+- Review copy: `C:\Users\Cameron\Downloads\msc2-p16.48-windows-x86_64.msi`.
+- Product version: **0.1.23**; unsigned MSI; **19,156,992 bytes**.
+- MSI SHA-256: `f4b4a12fdd17a33584f1dbca503691c2f380e219d899501ab408c0a781c317bc`.
+- Embedded lifecycle DLL: **295,936 bytes**, SHA-256
+  `6b08cf93866fec57a037bad6bd16297b1a931a80d232b5123a76231ea168af73`.
+- Embedded agent SHA-256:
+  `d47af9e62cac97dd61337daa7c0cb959cce1aa62ef9b5eec255b6189f88e0dfb`.
+
+Native build/staging and bundle-only MSI packaging passed. One targeted native
+refresh followed the final cache path-pinning correction. Rust formatting and
+platform/helper Clippy passed with the existing infrastructure dead-code warning;
+agent build has its existing four warnings. Both PowerShell scripts parse and
+both embedded C# classes compile. Read-only MSI inspection confirms no NoModify/
+NoRepair registration, the custom maintenance entry, `amus` repair, hidden Launch
+on removal, early preparation/rollback, and the separate checked commit type 3585
+at sequence 6599 (`REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE`). Normal commit cleanup
+is now sequence 6598 and excludes removal. Embedded DLL bytes exactly match the
+staged helper and contain all four staged payload hashes. Diff checks passed.
+No tests or live installation/service/removal operations were run. The verification
+walkthrough above remains pending with Cameron.

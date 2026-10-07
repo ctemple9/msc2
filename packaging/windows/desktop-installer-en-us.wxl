@@ -32,9 +32,13 @@
   <String Id="MscCompleteBody">MSC 2 version [ProductVersion] is installed. Open the app to set up local hosting or connect to another computer.</String>
   <String Id="MscCompleteCommand">The msc command is available in new terminal windows. Installing the app does not by itself confirm that the background agent is running.</String>
   <String Id="MscMaintenanceComplete">Package changes completed. Setup preserves settings and worlds, and restores the prior state of any local agent it coordinates.</String>
-  <String Id="MscRemoved">The MSC 2 application package was removed. This package operation does not perform MSC's separately confirmed complete data cleanup.</String>
+  <String Id="MscRemoved">The application package was removed. Any local agent owned by this package was detached. This package operation retained servers, worlds, backups, settings and credentials. Complete data cleanup is separate. Reinstalling requires local hosting setup again.</String>
   <String Id="MscReboot">Windows has pending restart work or Setup replaced files in use. Save your work and restart before opening MSC 2.</String>
   <String Id="MscShortcutYes">Desktop shortcut: included</String>
   <String Id="MscShortcutNo">Desktop shortcut: not selected</String>
-  <String Id="MscMaintenanceReady">Repair safely stops Minecraft for this package's local agent and updates it, retaining account and data. Removal with an owned agent is not available in this candidate.</String>
+  <String Id="MscMaintenanceReady">Restores application files, tools, shortcuts and terminal registration. Setup safely stops Minecraft and restores the local agent's prior state, preserving its account, settings and worlds.</String>
+  <String Id="MscMaintenanceTitle">Maintain MSC 2</String>
+  <String Id="MscRepairDescription">Repair restores this version's app, tools, shortcuts and terminal command. Your settings, worlds and local agent account are preserved. Setup safely stops Minecraft while repairing an owned agent.</String>
+  <String Id="MscRemoveDescription">Remove uninstalls the app and terminal command and safely stops and detaches its local agent. Servers, worlds, backups, settings and credentials remain. Complete data cleanup is a separate action in MSC.</String>
+  <String Id="MscFailureRecovery">Your server data is retained. Check the preceding error and the installer log before retrying. If removal detached the service before a later failure, reinstall MSC and set up local hosting again. Windows service credentials cannot be restored automatically after detachment.</String>
 </WixLocalization>

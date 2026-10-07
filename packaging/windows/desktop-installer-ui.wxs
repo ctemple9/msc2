@@ -74,6 +74,24 @@
         </Control>
       </Dialog>
 
+      <Dialog Id="MscMaintenanceDlg" Width="420" Height="300" Title="[ProductName] Setup">
+        <Control Id="Title" Type="Text" X="24" Y="20" Width="372" Height="25" NoPrefix="yes" Text="{\WixUI_Font_Bigger}!(loc.MscMaintenanceTitle)" />
+        <Control Id="RepairDescription" Type="Text" X="24" Y="62" Width="372" Height="55" NoPrefix="yes" Text="!(loc.MscRepairDescription)" />
+        <Control Id="Repair" Type="PushButton" X="24" Y="122" Width="86" Height="20" Default="yes" Text="!(loc.VerifyReadyDlgRepair)">
+          <Publish Property="WixUI_InstallMode" Value="Repair" Order="1">1</Publish>
+          <Publish Event="NewDialog" Value="MscReadyDlg" Order="2">1</Publish>
+        </Control>
+        <Control Id="RemoveDescription" Type="Text" X="24" Y="160" Width="372" Height="55" NoPrefix="yes" Text="!(loc.MscRemoveDescription)" />
+        <Control Id="Remove" Type="PushButton" X="24" Y="220" Width="86" Height="20" Text="!(loc.VerifyReadyDlgRemove)">
+          <Publish Property="WixUI_InstallMode" Value="Remove" Order="1">1</Publish>
+          <Publish Event="NewDialog" Value="MscReadyDlg" Order="2">1</Publish>
+        </Control>
+        <Control Id="BottomLine" Type="Line" X="0" Y="263" Width="420" Height="0" />
+        <Control Id="Cancel" Type="PushButton" X="332" Y="276" Width="64" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
+        </Control>
+      </Dialog>
+
       <Dialog Id="MscReadyDlg" Width="420" Height="300" Title="[ProductName] Setup" TrackDiskSpace="yes">
         <Control Id="Title" Type="Text" X="24" Y="20" Width="372" Height="25" NoPrefix="yes" Text="{\WixUI_Font_Bigger}!(loc.MscReadyTitle)" />
         <Control Id="Version" Type="Text" X="24" Y="55" Width="372" Height="14" NoPrefix="yes" Text="!(loc.MscReadyVersion)" />
@@ -81,8 +99,11 @@
         <Control Id="Scope" Type="Text" X="24" Y="115" Width="372" Height="38" NoPrefix="yes" Text="!(loc.MscReadyScope)">
           <Condition Action="hide">Installed AND NOT PATCH</Condition>
         </Control>
-        <Control Id="Maintenance" Type="Text" X="24" Y="115" Width="372" Height="38" Hidden="yes" NoPrefix="yes" Text="!(loc.MscMaintenanceReady)">
-          <Condition Action="show">Installed AND NOT PATCH</Condition>
+        <Control Id="Maintenance" Type="Text" X="24" Y="115" Width="372" Height="55" Hidden="yes" NoPrefix="yes" Text="!(loc.MscMaintenanceReady)">
+          <Condition Action="show">WixUI_InstallMode="Repair"</Condition>
+        </Control>
+        <Control Id="RemovalScope" Type="Text" X="24" Y="115" Width="372" Height="55" Hidden="yes" NoPrefix="yes" Text="!(loc.MscRemoveDescription)">
+          <Condition Action="show">WixUI_InstallMode="Remove"</Condition>
         </Control>
         <Control Id="ShortcutYes" Type="Text" X="24" Y="157" Width="372" Height="14" NoPrefix="yes" Text="!(loc.MscShortcutYes)">
           <Condition Action="hide">NOT MSC_DESKTOP_SHORTCUT OR Installed</Condition>
@@ -100,7 +121,7 @@
         <Control Id="BottomLine" Type="Line" X="0" Y="263" Width="420" Height="0" />
         <Control Id="Back" Type="PushButton" X="170" Y="276" Width="64" Height="17" Text="!(loc.WixUIBack)">
           <Publish Event="NewDialog" Value="MscOptionsDlg" Order="1">NOT Installed</Publish>
-          <Publish Event="NewDialog" Value="MaintenanceTypeDlg" Order="2">Installed AND NOT PATCH</Publish>
+          <Publish Event="NewDialog" Value="MscMaintenanceDlg" Order="2">Installed AND NOT PATCH</Publish>
           <Publish Event="NewDialog" Value="MscWelcomeDlg" Order="3">Installed AND PATCH</Publish>
         </Control>
         <Control Id="Install" Type="PushButton" X="240" Y="276" Width="86" Height="17" ElevationShield="yes" Default="yes" Text="!(loc.MscInstall)">
@@ -117,7 +138,7 @@
         <Control Id="Repair" Type="PushButton" X="240" Y="276" Width="86" Height="17" Hidden="yes" Text="!(loc.VerifyReadyDlgRepair)">
           <Condition Action="show">WixUI_InstallMode="Repair"</Condition>
           <Condition Action="default">WixUI_InstallMode="Repair"</Condition>
-          <Publish Event="ReinstallMode" Value="ecmus" Order="1"><![CDATA[OutOfDiskSpace <> 1]]></Publish>
+          <Publish Event="ReinstallMode" Value="amus" Order="1"><![CDATA[OutOfDiskSpace <> 1]]></Publish>
           <Publish Event="Reinstall" Value="All" Order="2"><![CDATA[OutOfDiskSpace <> 1]]></Publish>
           <Publish Event="SpawnDialog" Value="OutOfDiskDlg" Order="3">OutOfDiskSpace=1</Publish>
           <Publish Event="EndDialog" Value="Return" Order="4"><![CDATA[OutOfDiskSpace <> 1]]></Publish>
@@ -157,7 +178,7 @@
         <Control Id="Maintenance" Type="Text" X="24" Y="62" Width="372" Height="40" Hidden="yes" NoPrefix="yes" Text="!(loc.MscMaintenanceComplete)">
           <Condition Action="show">Installed AND NOT REMOVE</Condition>
         </Control>
-        <Control Id="Removed" Type="Text" X="24" Y="62" Width="372" Height="40" Hidden="yes" NoPrefix="yes" Text="!(loc.MscRemoved)">
+        <Control Id="Removed" Type="Text" X="24" Y="62" Width="372" Height="90" Hidden="yes" NoPrefix="yes" Text="!(loc.MscRemoved)">
           <Condition Action="show">REMOVE</Condition>
         </Control>
         <Control Id="Command" Type="Text" X="24" Y="119" Width="372" Height="48" NoPrefix="yes" Text="!(loc.MscCompleteCommand)">
@@ -178,7 +199,12 @@
       <Dialog Id="MscFailureDlg" Width="420" Height="300" Title="[ProductName] Setup">
         <Control Id="Title" Type="Text" X="24" Y="20" Width="372" Height="25" NoPrefix="yes" Text="{\WixUI_Font_Bigger}!(loc.MscFailureTitle)" />
         <Control Id="Body" Type="Text" X="24" Y="62" Width="372" Height="65" NoPrefix="yes" Text="!(loc.MscFailureBody)" />
-        <Control Id="Webview" Type="Text" X="24" Y="145" Width="372" Height="80" NoPrefix="yes" Text="!(loc.MscFailureWebview)" />
+        <Control Id="Webview" Type="Text" X="24" Y="145" Width="372" Height="80" NoPrefix="yes" Text="!(loc.MscFailureWebview)">
+          <Condition Action="hide">Installed OR REMOVE</Condition>
+        </Control>
+        <Control Id="Recovery" Type="Text" X="24" Y="145" Width="372" Height="80" Hidden="yes" NoPrefix="yes" Text="!(loc.MscFailureRecovery)">
+          <Condition Action="show">Installed OR REMOVE</Condition>
+        </Control>
         <Control Id="BottomLine" Type="Line" X="0" Y="263" Width="420" Height="0" />
         <Control Id="Finish" Type="PushButton" X="332" Y="276" Width="64" Height="17" Default="yes" Cancel="yes" Text="!(loc.WixUIFinish)">
           <Publish Event="EndDialog" Value="Exit">1</Publish>
@@ -203,7 +229,8 @@
         <Show Dialog="ProgressDlg" Sequence="1281">0</Show>
         <Show Dialog="ExitDialog" Sequence="1282">0</Show>
         <Show Dialog="FatalError" Sequence="1283">0</Show>
-        <Show Dialog="MaintenanceWelcomeDlg" Sequence="1292">Installed AND NOT RESUME AND NOT Preselected AND NOT PATCH</Show>
+        <Show Dialog="MaintenanceWelcomeDlg" Sequence="1291">0</Show>
+        <Show Dialog="MscMaintenanceDlg" Sequence="1292">Installed AND NOT RESUME AND NOT Preselected AND NOT PATCH</Show>
         <Show Dialog="ResumeDlg" Sequence="1293">Installed AND (RESUME OR Preselected)</Show>
         <Show Dialog="MscWelcomeDlg" Sequence="1294">NOT Installed OR PATCH</Show>
         <Show Dialog="MscProgressDlg" Sequence="1299" />

@@ -63,12 +63,16 @@ fn encoded(script: &str) -> String {
 fn invoke(session: MSIHANDLE, operation: &str) -> Result<(), String> {
     let data = property(session, "CustomActionData")?;
     let fields: Vec<_> = data.split('|').collect();
-    if fields.len() != 4 {
+    if fields.len() != 5 {
         return Err("Invalid native lifecycle request.".into());
+    }
+    if !fields[3].is_empty() && !fields[3].eq_ignore_ascii_case("ALL") {
+        return Err("MSC Setup supports complete package removal only.".into());
     }
     let request = serde_json::json!({
         "operation": operation, "transaction": fields[0], "packageRoot": fields[1],
         "previousRoot": fields[2], "remove": !fields[3].is_empty(),
+        "installed": !fields[4].is_empty(),
     })
     .to_string()
     .replace('\'', "''");

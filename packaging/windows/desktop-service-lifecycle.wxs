@@ -9,11 +9,13 @@
     <CustomAction Id="MscResumeService" BinaryKey="MscLifecycle" DllEntry="MscResumeService" Execute="deferred" Impersonate="no" Return="check" />
     <CustomAction Id="MscRollbackService" BinaryKey="MscLifecycle" DllEntry="MscRollbackService" Execute="rollback" Impersonate="no" Return="check" />
     <CustomAction Id="MscCommitService" BinaryKey="MscLifecycle" DllEntry="MscCommitService" Execute="commit" Impersonate="no" Return="ignore" />
-    <SetProperty Id="MscPrepareService" Value="[ProductCode]|[INSTALLDIR]|[MSC_COMPONENT_INSTALLDIR]|[REMOVE]" Before="InstallInitialize" Sequence="execute" />
-    <SetProperty Id="MscApplyService" Value="[ProductCode]|[INSTALLDIR]|[MSC_COMPONENT_INSTALLDIR]|[REMOVE]" Before="InstallInitialize" Sequence="execute" />
-    <SetProperty Id="MscResumeService" Value="[ProductCode]|[INSTALLDIR]|[MSC_COMPONENT_INSTALLDIR]|[REMOVE]" Before="InstallInitialize" Sequence="execute" />
-    <SetProperty Id="MscRollbackService" Value="[ProductCode]|[INSTALLDIR]|[MSC_COMPONENT_INSTALLDIR]|[REMOVE]" Before="InstallInitialize" Sequence="execute" />
-    <SetProperty Id="MscCommitService" Value="[ProductCode]|[INSTALLDIR]|[MSC_COMPONENT_INSTALLDIR]|[REMOVE]" Before="InstallInitialize" Sequence="execute" />
+    <CustomAction Id="MscCommitRemoveService" BinaryKey="MscLifecycle" DllEntry="MscCommitService" Execute="commit" Impersonate="no" Return="check" />
+    <SetProperty Id="MscCommitRemoveService" Value="[ProductCode]|[INSTALLDIR]|[MSC_COMPONENT_INSTALLDIR]|[REMOVE]|[Installed]" Before="InstallInitialize" Sequence="execute" />
+    <SetProperty Id="MscPrepareService" Value="[ProductCode]|[INSTALLDIR]|[MSC_COMPONENT_INSTALLDIR]|[REMOVE]|[Installed]" Before="InstallInitialize" Sequence="execute" />
+    <SetProperty Id="MscApplyService" Value="[ProductCode]|[INSTALLDIR]|[MSC_COMPONENT_INSTALLDIR]|[REMOVE]|[Installed]" Before="InstallInitialize" Sequence="execute" />
+    <SetProperty Id="MscResumeService" Value="[ProductCode]|[INSTALLDIR]|[MSC_COMPONENT_INSTALLDIR]|[REMOVE]|[Installed]" Before="InstallInitialize" Sequence="execute" />
+    <SetProperty Id="MscRollbackService" Value="[ProductCode]|[INSTALLDIR]|[MSC_COMPONENT_INSTALLDIR]|[REMOVE]|[Installed]" Before="InstallInitialize" Sequence="execute" />
+    <SetProperty Id="MscCommitService" Value="[ProductCode]|[INSTALLDIR]|[MSC_COMPONENT_INSTALLDIR]|[REMOVE]|[Installed]" Before="InstallInitialize" Sequence="execute" />
     <InstallExecuteSequence>
       <!-- Register recovery before any service stop. Old-product removal is
            later, so its package rollback runs before this service restoration. -->
@@ -22,7 +24,8 @@
       <Custom Action="MscPrepareService" After="MscRollbackService">NOT UPGRADINGPRODUCTCODE</Custom>
       <Custom Action="MscApplyService" After="InstallFiles">NOT REMOVE AND NOT UPGRADINGPRODUCTCODE</Custom>
       <Custom Action="MscResumeService" After="MscApplyService">NOT REMOVE AND NOT UPGRADINGPRODUCTCODE</Custom>
-      <Custom Action="MscCommitService" Before="InstallFinalize">NOT UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="MscCommitService" Before="MscCommitRemoveService">NOT REMOVE AND NOT UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="MscCommitRemoveService" Before="InstallFinalize">REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE</Custom>
     </InstallExecuteSequence>
     <UI>
       <ProgressText Action="MscPrepareService">Checking the local agent owner and stopping Minecraft safely.</ProgressText>

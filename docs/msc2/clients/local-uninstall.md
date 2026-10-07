@@ -142,3 +142,41 @@ and removes services/data/installation. Failed or partial removal keeps a
 report and exits nonzero in the worker; the parent cannot report that later
 result as its own synchronous exit code. Interactive terminals receive worker
 output. Desktop reads the scheduled report location before closing.
+
+## Windows package repair and ordinary removal (P16.48)
+
+Reopen the installed MSI or use Windows' application maintenance entry to choose
+Repair or Remove. Repair restores this version's package files and registration;
+it retains settings, worlds, account/password and agent boot policy. The owned
+agent follows the same graceful Minecraft shutdown as an update and resumes only
+if it was running beforehand. Minecraft itself remains stopped. Same-product
+repair can prove a legacy copied build against the helper's compiled hashes even
+when the installed agent files need restoration.
+
+Ordinary Remove deletes package-owned app/tools, shortcuts and PATH registration.
+It gracefully stops and disables only a proven package-owned service while file
+removal runs, then detaches that service at commit. It keeps worlds, servers,
+backups, settings, saved credentials and copied agent recovery builds. It never
+runs complete data cleanup and never offers Launch on completion. Independent
+headless services are retained. Major-upgrade child removal skips service actions.
+After ordinary removal, reinstall and set up local hosting again, including the
+Windows account password. A service pending deletion may require closing Services
+or restarting Windows before registering it again.
+
+Before commit, rollback retains the original SCM registration/password and
+restores metadata, owner record, boot policy (including delayed automatic start)
+and previous agent state. Detachment is the final fallible native operation:
+Windows cannot return the service's stored password after deletion. A failure in
+later Windows Installer commit work can therefore leave a restored app with no
+service; the recovery error/log requires reinstall and local hosting setup. A
+retained transaction record blocks another owned-service package transaction and
+must be inspected, never discarded automatically.
+
+The separately confirmed full-removal worker removes its inspected service and
+data first. Its fixed Windows adapter validates the protected DesktopLifecycle
+cache, checksum-named builds and exact four-file payload before removing those
+files and empty directories. Unknown files, unfinished transactions, redirected
+paths or an existing service refuse cleanup. It never follows data paths from the
+ownership record. MSI subsequently sees no service and performs package-only
+removal. Only that confirmed worker clears credentials/worlds; ordinary MSI does
+not invoke it.

@@ -31,6 +31,18 @@ public static class MscLifecyclePaths {
         string binary, string group, IntPtr tag, string dependencies, string account,
         string password, string display);
     [DllImport("advapi32.dll")] static extern bool CloseServiceHandle(IntPtr handle);
+    [DllImport("advapi32.dll", SetLastError=true)] static extern bool DeleteService(IntPtr handle);
+    public static void Detach() {
+        var manager = OpenSCManager(null, null, 1);
+        if (manager == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
+        try {
+            var service = OpenService(manager, "com.ctemple.msc2.agent", 0x10000);
+            if (service == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
+            try {
+                if (!DeleteService(service)) throw new Win32Exception(Marshal.GetLastWin32Error());
+            } finally { CloseServiceHandle(service); }
+        } finally { CloseServiceHandle(manager); }
+    }
     public static void SetBinary(string binary) {
         var manager = OpenSCManager(null, null, 1);
         if (manager == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
@@ -239,7 +251,14 @@ public static class MscLifecyclePaths {
         }
         $build = Split-Path -Leaf (Split-Path -Parent $binary)
         if ($build -notmatch '^[0-9a-f]{64}$' -or -not (Same-Path $binary (Join-Path $dataRoot "agent\builds\$build\msc.exe"))) { throw 'The existing service is not a recognized copied desktop build.' }
-        if (-not $previousRoot -or (Bundle-Digest (Join-Path (Guard-Path $previousRoot) 'agent')) -ne $build -or (Bundle-Digest (Split-Path -Parent $binary)) -ne $build) {
+        if ((Bundle-Digest (Split-Path -Parent $binary)) -ne $build) { throw 'The copied desktop build has changed.' }
+        # Same-product repair can restore missing package files. Its embedded
+        # manifest proves the copied payload without relying on damaged files.
+        $repairMatch = $request.installed
+        foreach ($name in @('msc.exe', 'vantage.exe', 'bedrock-map.exe')) {
+            if ((Get-FileHash -LiteralPath (Join-Path (Split-Path -Parent $binary) $name)).Hash -ine $expectedHashes.$name) { $repairMatch = $false }
+        }
+        if (-not $repairMatch -and (-not $previousRoot -or (Bundle-Digest (Join-Path (Guard-Path $previousRoot) 'agent')) -ne $build)) {
             throw 'The copied agent cannot be matched to this desktop package. Keep the installation for inspection.'
         }
         return $true
@@ -293,6 +312,15 @@ public static class MscLifecyclePaths {
         }
     }
     function Save-State { Write-Json $transactionPath $transaction }
+    function Restore-Boot {
+        $mode = switch ($transaction.startMode) {
+            'Automatic' { if ($transaction.delayedAuto) { 'delayed-auto' } else { 'auto' } }
+            'Manual' { 'demand' }
+            'Disabled' { 'disabled' }
+            default { throw 'The original service boot policy is not recognized.' }
+        }
+        Invoke-Sc @('config', $serviceName, 'start=', $mode)
+    }
     function Assert-Unchanged($svc) {
         if (-not $svc -or $svc.PathName -ne $transaction.originalCommand -or (Account-Sid $svc.StartName) -ne $transaction.accountSid -or $svc.StartMode -ne $transaction.startMode) {
             throw 'The service definition changed during Setup; refusing to overwrite another installation.'
@@ -310,17 +338,24 @@ public static class MscLifecyclePaths {
         }
         $meta = Metadata
         if (-not (Owned $svc $meta $request.previousRoot)) { return }
-        if ($request.remove) { throw 'This package still owns a local agent. Service-aware package removal is not available in this candidate; retain it until the removal step is implemented.' }
         if ($svc.State -notin @('Running','Stopped')) { throw 'The local agent is already changing state.' }
         Protect-Directory $stateRoot
         if (Get-ChildItem -LiteralPath $stateRoot -File | Where-Object { $_.Name -match '^[0-9a-f-]{36}\.json(?:\.tmp)?$' }) {
             throw 'An unfinished package transaction requires recovery before retrying.'
         }
-        $transaction = @{ version=1; originalCommand=$svc.PathName; accountSid=(Account-Sid $svc.StartName); startMode=$svc.StartMode; wasRunning=($svc.State -eq 'Running'); metadata=$meta.Raw; previousRoot=$request.previousRoot; packageRoot=$request.packageRoot; oldOwner=$null; applying=$false; newCommand=$null; bootTemporarilyEnabled=$false }
+        $delayed = Get-ItemProperty -LiteralPath "Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\$serviceName" -Name DelayedAutoStart -ErrorAction SilentlyContinue
+        $transaction = @{ version=1; originalCommand=$svc.PathName; accountSid=(Account-Sid $svc.StartName); startMode=$svc.StartMode; delayedAuto=($delayed.DelayedAutoStart -eq 1); wasRunning=($svc.State -eq 'Running'); metadata=$meta.Raw; previousRoot=$request.previousRoot; packageRoot=$request.packageRoot; oldOwner=$null; applying=$false; newCommand=$null; bootTemporarilyEnabled=$false; removing=$request.remove; removalDisabled=$false }
         if (Test-Path -LiteralPath $ownerPath) { $transaction.oldOwner = [IO.File]::ReadAllText($ownerPath) }
         Save-State
         Stop-Owned $svc $meta
         Assert-Unchanged (Service)
+        if ($transaction.removing) {
+            # Retain SCM credentials until commit; disabling prevents restart
+            # while Windows Installer removes the application package.
+            $transaction.removalDisabled = $true
+            Save-State
+            Invoke-Sc @('config', $serviceName, 'start=', 'disabled')
+        }
         return
     }
     if (-not (Test-Path -LiteralPath $transactionPath -PathType Leaf)) { return }
@@ -383,12 +418,15 @@ public static class MscLifecyclePaths {
         }
         'rollback' {
             $svc = Service
+            if (-not $svc -and $transaction.removing) { throw 'Package rollback could not restore the detached Windows service. Worlds and settings remain. Reinstall MSC and set up local hosting again; Windows credentials must be entered again.' }
             $temporaryBoot = $transaction.bootTemporarilyEnabled -and $transaction.startMode -eq 'Disabled' -and $svc.StartMode -eq 'Manual'
-            if (-not $svc -or (Account-Sid $svc.StartName) -ne $transaction.accountSid -or ($svc.StartMode -ne $transaction.startMode -and -not $temporaryBoot) -or ($svc.PathName -ne $transaction.originalCommand -and $svc.PathName -ne $transaction.newCommand)) { throw 'The service changed externally; automatic rollback cannot overwrite it.' }
+            $removalBoot = $transaction.removalDisabled -and $svc.StartMode -eq 'Disabled'
+            if (-not $svc -or (Account-Sid $svc.StartName) -ne $transaction.accountSid -or ($svc.StartMode -ne $transaction.startMode -and -not $temporaryBoot -and -not $removalBoot) -or ($svc.PathName -ne $transaction.originalCommand -and $svc.PathName -ne $transaction.newCommand)) { throw 'The service changed externally; automatic rollback cannot overwrite it.' }
+            if ($removalBoot) { Restore-Boot }
             if ($temporaryBoot) { Invoke-Sc @('config', $serviceName, 'start=', 'disabled') }
             $transaction.bootTemporarilyEnabled = $false
             Save-State
-            if ($transaction.applying) {
+            if ($transaction.applying -or $transaction.removing) {
                 if ($svc.State -ne 'Stopped') { Stop-Owned $svc (Metadata) }
                 [MscLifecyclePaths]::SetBinary($transaction.originalCommand)
                 $null = Guard-Path $metadataPath
@@ -400,6 +438,22 @@ public static class MscLifecyclePaths {
             Remove-Item -LiteralPath $transactionPath
         }
         'commit' {
+            if ($transaction.removing) {
+                $svc = Service
+                if (-not $svc -or $svc.State -ne 'Stopped' -or $svc.StartMode -ne 'Disabled' -or $svc.PathName -ne $transaction.originalCommand -or (Account-Sid $svc.StartName) -ne $transaction.accountSid) { throw 'Removal cannot detach a service whose state or owner changed.' }
+                # All reversible cleanup precedes DeleteService. A failure here
+                # retains Windows' stored password for the rollback action.
+                $null = Guard-Path $metadataPath
+                Remove-Item -LiteralPath $metadataPath
+                if (Test-Path -LiteralPath $ownerPath) { Remove-Item -LiteralPath $ownerPath }
+                [MscLifecyclePaths]::Detach()
+                # No fallible action may turn successful detachment into a
+                # rollback that would require recovering an unreadable password.
+                try { Remove-Item -LiteralPath $transactionPath } catch {
+                    [Console]::Error.WriteLine('MSC was detached, but its recovery record remains. Retain the record for inspection before another package operation.')
+                }
+                return
+            }
             # Retain previous immutable builds; P16.49 needs them for health recovery.
             Remove-Item -LiteralPath $transactionPath
         }

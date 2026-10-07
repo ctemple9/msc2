@@ -97,12 +97,16 @@
 
 ### P16.48 — Make package repair and removal safe and understandable
 
-**Status:** Planned; awaiting Cameron's review.
+**Status:** Implemented; awaiting Cameron's verification.
 **Files:** Windows MSI template/UI/lifecycle helper, `crates/msc-platform-windows/src/uninstall.rs` only for integration corrections, `docs/msc2/clients/local-uninstall.md`, `docs/msc2/release/windows-msi-review.md`, this plan.
 **What:** Implement deliberate same-version repair and ordinary package removal entry points, including Installed Apps and reopened MSI. Repair restores package-owned files/registration without resetting settings/worlds or blindly re-registering the service. Removal explains data retention, gracefully stops/detaches only this package's verified service before removing its binaries/shortcuts/PATH, and leaves recoverable server/data state. Distinguish major-upgrade removal from final uninstall so upgrade does not accidentally remove the replacement service/registration. Keep Phase 19's confirmed full cleanup separate and support its worker calling MSI after it has already stopped/removed the service. Completion/failure copy must reflect retained data and actual partial results; removal must not offer Launch MSC 2.
 **Verify:** From `clients/desktop-web`, run `npx tauri bundle --bundles msi --no-sign` after rebuilding any changed native helper.
 **Batch:** P16.48 only.
 **Manual acceptance:** Cameron verifies repair, Installed Apps removal, reopened-MSI removal, cancel/UAC refusal, data retention and subsequent reinstall in disposable environments. Separately verify the existing confirmed Phase 19 full removal still completes; never run destructive acceptance against the source checkout or a valued server.
+
+**Commit:** `P16.48: implement windows package repair and safe removal`.
+**Implementation:** Expose Windows maintenance; add an MSC repair/removal chooser and explicit retained-data/failure copy. Same-product repair restores all package bytes and can match a legacy copied agent to compiled hashes despite missing installed payload files. Owned removal snapshots/stops safely, disables boot during file removal and detaches only at checked commit; rollback before detachment retains stored Windows credentials and restores metadata, ownership and boot/running state. Major-upgrade removal skips service cleanup. Ordinary removal retains server/data/credentials and copied recovery builds; separately confirmed full removal validates/deletes only the protected fixed cache before MSI runs with no service. Later commit failure after detachment cannot recreate an unreadable Windows password; recovery is stated explicitly.
+**Checks:** Native payload/helper rebuild and MSI bundle passed; Rust formatting, platform/helper Clippy, PowerShell parsing/embedded C# compilation and exact database/stream/hash inspection passed. Existing warnings only. Review copy `C:\Users\Cameron\Downloads\msc2-p16.48-windows-x86_64.msi`; exact hashes and owner walkthrough in `release/windows-msi-review.md`. No tests, live install/removal/service mutation, release workflows, tags or publication. Physical acceptance remains Cameron's.
 
 ### P16.49 — Complete coordinated Windows update and recovery
 

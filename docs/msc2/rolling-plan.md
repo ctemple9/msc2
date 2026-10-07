@@ -1,5 +1,16 @@
 # MSC 2 — Rolling Plan
 
+### P18.38 — Align the closed component list spacing
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`, this plan.
+**What:** Remove the empty search/filter controls row from the Plugins/Mods layout while the search toggle is closed. This restores the same heading-to-list spacing used by other Components sections; opening search inserts the controls row and moves the list down. No tests added or run for this focused layout fix.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P18.38 only.
+**Commit:** `P18.38: align closed component list spacing`
+
+**Manual acceptance:** Compare Plugins/Mods heading-to-entry spacing with the other Components sections while search is closed. Open search and confirm the input and filter appear and the entries move down only then.
+
 ### P18.37 — Hide component filters with search
 
 **Status:** Implemented; awaiting Cameron's verification.

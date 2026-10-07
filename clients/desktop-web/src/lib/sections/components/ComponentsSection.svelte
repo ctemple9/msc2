@@ -666,8 +666,8 @@
               </Button>
             {/if}
           </div>
-          <div class="component-controls">
-            {#if addonSearchVisible}
+          {#if addonSearchVisible}
+            <div class="component-controls">
               <input
                 id="component-search"
                 bind:this={addonSearchInput}
@@ -677,16 +677,14 @@
                 placeholder="Search name or filename"
                 bind:value={addonSearch}
               />
-            {/if}
-            {#if addonSearchVisible}
               <Select
                 options={addonFilterOptions}
                 bind:value={addonFilter}
                 width="auto"
                 ariaLabel="Filter components by state"
               />
-            {/if}
-          </div>
+            </div>
+          {/if}
           {#if !addonsLoaded}
             <p class="loading-state" role="status">Loading installed plugins…</p>
           {:else if addons.length === 0}

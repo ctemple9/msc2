@@ -616,26 +616,6 @@
 
       {#if kind}
         <section class="zone">
-          <p class="msc2-type-overline">Update checks</p>
-          <Card padding="0">
-            <div class="row">
-              <Toggle
-                checked={checkAddonUpdates}
-                label="Check for mod/plugin updates"
-                onchange={(enabled) => void toggleAddonUpdateChecks(enabled)}
-              />
-              <div class="info">
-                <span class="name">Check for mod/plugin updates</span>
-                <span class="subtitle">
-                  {checkAddonUpdates
-                    ? 'Provider checks run when the list refreshes.'
-                    : 'Off — Components uses the local inventory only.'}
-                </span>
-              </div>
-            </div>
-          </Card>
-        </section>
-        <section class="zone">
           <div class="section-header">
             <div class="addon-heading">
               <p class="msc2-type-overline">{isModded ? 'Mods' : 'Plugins'}</p>
@@ -846,6 +826,16 @@
         label: `Open ${addonFolderName} folder`,
         disabled: !activeServer,
         onSelect: () => void openAddonFolder(),
+      },
+      {
+        label: 'Enable update checks',
+        disabled: checkAddonUpdates,
+        onSelect: () => void toggleAddonUpdateChecks(true),
+      },
+      {
+        label: 'Disable update checks',
+        disabled: !checkAddonUpdates,
+        onSelect: () => void toggleAddonUpdateChecks(false),
       },
     ]}
   />

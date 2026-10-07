@@ -1,5 +1,16 @@
 # MSC 2 — Rolling Plan
 
+### P18.39 — Move add-on update checks into the actions menu
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`, this plan.
+**What:** Remove the standalone update-check section. Add both Enable update checks and Disable update checks to the Components actions menu, leaving the current choice visible but disabled and the opposite choice selectable. Keep the server default disabled (`check_addon_updates` defaults to false for new servers) and preserve each existing server preference. No tests added or run for this UI relocation.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P18.39 only.
+**Commit:** `P18.39: move update checks into components menu`
+
+**Manual acceptance:** With checks disabled, confirm Enable update checks is selectable and Disable update checks is disabled. Enable them and confirm the two states reverse. Confirm the setting stays enabled after navigating away and back, and newly created servers start disabled.
+
 ### P18.38 — Align the closed component list spacing
 
 **Status:** Implemented; awaiting Cameron's verification.

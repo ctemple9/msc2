@@ -101,6 +101,25 @@ abandoned directory, stop the agent and its terrain helper processes and verify
 that the path is beneath map-staging. Never remove original worlds or unrelated
 temporary directories. Ordinary restarts do not automatically purge old copies.
 
+Normal service stop now handles SIGTERM/interrupt (and the Windows service-stop
+notification), stops the owned Java renderer, and releases Java/Bedrock map
+caches so their staging guards remove their copies. A forced kill, crash, or
+OS stop timeout can still leave abandoned copies.
+
+In the updated desktop, select the affected local or remote host and open
+**MSC Settings → Disk space → Check reclaimable space**. The selected agent
+previews MSC-owned abandoned map copies and render output, with paths and
+estimated logical sizes. Confirm **Delete listed rebuildable data** to remove
+only that preview's eligible folders. Administrator permission is required.
+The preview expires in five minutes and is bound to the requesting credential.
+Active map leases, terrain-helper process references, changed directories,
+symlinks and unverifiable ownership are retained. This action does not delete
+server worlds, backups, mods, settings, credentials or downloaded runtime assets.
+Opening the map recreates its working data. Old agents must be updated before
+this Settings action is available; shutdown cleanup also requires the new agent.
+Filesystem allocation and logical byte counts can differ.
+
+
 For the earlier Linux tmpfs-quota workaround, after installing the disk-staging
 agent remove **only** the `map-temp.conf` drop-in, reload systemd, and restart:
 

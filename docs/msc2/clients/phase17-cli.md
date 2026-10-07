@@ -328,3 +328,19 @@ The CLI now covers the planned local authentication, service control, server/pla
 ### Step ownership for the route audit
 
 P17.11 access administration; P17.12 server list/detail/selection/export; P17.13 performance, sessions, and console follow; P17.14–P17.15 player tasks; P17.16 world/backup gaps; P17.17 world packs; P17.18 host/network settings; P17.19 catalog inspection and installed add-ons; P17.20 modpack recovery; P17.21 operations/host reset; P17.22 files/help. P17.23 checked the shipped CLI against every inventory row. P17.25–P17.26 add the approved commands; D-041 records the two API-only exceptions.
+
+## Rebuildable map storage (P18.46)
+
+`msc storage preview` lists abandoned map staging on this host without deleting
+files. After reviewing paths and sizes, run `msc storage cleanup --preview-token
+<TOKEN>` using the preview's token within five minutes. Both commands support
+`--json`, use automatic host-local authorization, and require administrator
+permission. Over SSH, run them on the affected host. They preserve server
+worlds, backups, components, settings and credentials, and retain active or
+unverifiable copies. The desktop provides the same preview/confirm task for
+its selected local or remote agent.
+
+| Route | CLI | Permission | Scope |
+|---|---|---|---|
+| POST `/v1/host/storage/preview` | `msc storage preview` | admin | host |
+| POST `/v1/host/storage/cleanup` | `msc storage cleanup --preview-token <TOKEN>` | admin | host |

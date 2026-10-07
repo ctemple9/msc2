@@ -254,6 +254,11 @@ pub enum Command {
         #[command(subcommand)]
         command: OperationCommand,
     },
+    /// Preview and remove abandoned rebuildable map data on this host.
+    Storage {
+        #[command(subcommand)]
+        command: StorageCommand,
+    },
     /// Reset host-wide MSC configuration or all managed data.
     HostReset {
         #[command(subcommand)]
@@ -277,6 +282,17 @@ pub enum OperationCommand {
     Show { operation_id: String },
     /// Ask the operation's owner to stop it at a safe point.
     Cancel { operation_id: String },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum StorageCommand {
+    /// List eligible folders, sizes and retained entries; does not delete files.
+    Preview,
+    /// Delete only folders from your unexpired preview. Pass its previewToken.
+    Cleanup {
+        #[arg(long)]
+        preview_token: String,
+    },
 }
 
 #[derive(Debug, Clone, Subcommand)]
@@ -1506,6 +1522,7 @@ pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
         Command::Modpack { command } => run_modpack(common, command).await,
         Command::Operation { command } => run_operation(common, command).await,
         Command::HostReset { command } => run_host_reset(common, command).await,
+        Command::Storage { command } => run_storage(common, command).await,
         Command::File { command } => run_file(common, command).await,
         Command::Help { command } => run_help(common, command).await,
     }
@@ -1548,6 +1565,56 @@ async fn run_operation(common: CommonArgs, command: OperationCommand) -> Result<
         }
         if let Some(error) = operation.error {
             println!("error: {} — {}", error.code, error.message);
+        }
+    }
+    Ok(())
+}
+
+async fn run_storage(common: CommonArgs, command: StorageCommand) -> Result<(), CliError> {
+    let client = ApiClient::connect_local().await?;
+    let (path, body) = match command {
+        StorageCommand::Preview => ("/v1/host/storage/preview", serde_json::json!({})),
+        StorageCommand::Cleanup { preview_token } => (
+            "/v1/host/storage/cleanup",
+            serde_json::json!({ "previewToken": preview_token }),
+        ),
+    };
+    let result: serde_json::Value = client.post_json(path, &body).await?;
+    if common.json {
+        return print_json(&result);
+    }
+    if let Some(entries) = result["entries"].as_array() {
+        println!(
+            "Map staging on this host: {}",
+            result["root"].as_str().unwrap_or("")
+        );
+        for entry in entries {
+            println!(
+                "{}: {} ({} bytes) — {}",
+                if entry["removable"].as_bool() == Some(true) {
+                    "Will delete"
+                } else {
+                    "Retain"
+                },
+                entry["path"].as_str().unwrap_or(""),
+                entry["sizeBytes"],
+                entry["reason"].as_str().unwrap_or("")
+            );
+        }
+        println!("Eligible logical bytes: {}", result["reclaimableBytes"]);
+        println!("Review the list, then confirm within five minutes with:");
+        println!(
+            "msc storage cleanup --preview-token {}",
+            result["previewToken"].as_str().unwrap_or("")
+        );
+    } else {
+        println!("Removed {} logical bytes.", result["removedBytes"]);
+        for key in ["removed", "retained"] {
+            if let Some(items) = result[key].as_array() {
+                for item in items {
+                    println!("{key}: {}", item.as_str().unwrap_or(""));
+                }
+            }
         }
     }
     Ok(())

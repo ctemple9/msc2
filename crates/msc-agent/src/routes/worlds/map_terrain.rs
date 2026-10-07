@@ -157,6 +157,13 @@ pub(super) async fn artifact(
     Extension(credential): Extension<AuthenticatedCredential>,
     Query(query): Query<ArtifactQuery>,
 ) -> Response {
+    if state.map_shutdown.load(Ordering::Acquire) {
+        return error_response(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "agent_stopping",
+            "The agent is stopping.",
+        );
+    }
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
         return response;
     }
@@ -321,6 +328,11 @@ fn artifact_type(path: &str) -> Option<&'static str> {
 }
 
 impl RendererStore {
+    pub(super) fn release(&self) {
+        self.0.current.lock().unwrap().take();
+        self.0.snapshot.lock().unwrap().take();
+    }
+
     pub(super) fn use_snapshot(
         &self,
         server_id: String,

@@ -167,6 +167,12 @@ pub(super) async fn artifact(
 }
 
 impl BedrockStore {
+    pub(crate) fn release(&self) {
+        let mut state = self.0.lock().unwrap();
+        state.tiles.clear();
+        state.snapshot = None;
+    }
+
     pub(crate) fn use_snapshot(
         &self,
         server_id: String,

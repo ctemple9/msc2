@@ -233,9 +233,13 @@ impl<'fs> OperationJournal<'fs> {
             .map_err(AdmitError::Journal)?;
         if let Some(existing) = index.active.values().find(|candidate| {
             candidate.id != entry.id
-                && (entry.operation_type == HOST_MAINTENANCE_OPERATION_TYPE
-                    || candidate.operation_type == HOST_MAINTENANCE_OPERATION_TYPE
-                    || (entry.target.is_some() && entry.target == candidate.target))
+                && (matches!(
+                    entry.operation_type.as_str(),
+                    HOST_MAINTENANCE_OPERATION_TYPE | "host-storage-cleanup"
+                ) || matches!(
+                    candidate.operation_type.as_str(),
+                    HOST_MAINTENANCE_OPERATION_TYPE | "host-storage-cleanup"
+                ) || (entry.target.is_some() && entry.target == candidate.target))
         }) {
             let target = existing
                 .target

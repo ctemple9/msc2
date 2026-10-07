@@ -8,11 +8,9 @@
   // (Phase 10); Process Management (orphan scan, relaunch-on-crash) -> the
   // agent is itself the OS-managed persistent service, so MSC 1's "orphaned
   // by a crashed app" problem doesn't exist here. Four more -- Config
-  // Recovery, Storage, Archives, Network Ports -- have no route in the
-  // contract at all and were never superseded, just never built; Cameron's
-  // 2026-08-27 call was to drop Config Recovery and Archives, and keep
-  // Storage and Network Ports on the list for a future contract-amendment
-  // step. "Testing reset" and "Open App Support Folder" are dropped
+  // Recovery and Archives were dropped at Cameron's direction. Storage
+  // now has host-scoped preview/cleanup routes for abandoned map data;
+  // Network Ports remains a future contract-amendment step. "Testing reset" and "Open App Support Folder" are dropped
   // outright -- the former has no backend and reads as a dev-only escape
   // hatch, the latter has no meaning for a possibly-remote agent host.
   //
@@ -22,6 +20,7 @@
   // the app-level settings are intentionally small and concrete.
   import { onDestroy, onMount } from 'svelte';
   import Sheet from '../../components/base/Sheet.svelte';
+  import StorageCleanup from './StorageCleanup.svelte';
   import Card from '../../components/base/Card.svelte';
   import Button from '../../components/base/Button.svelte';
   import Toggle from '../../components/base/Toggle.svelte';
@@ -39,6 +38,7 @@
 
   export let api: ScreenApi | undefined = undefined;
   export let hostId: string;
+  export let hostName = 'Selected host';
   export let activeServerXboxBroadcastEnabled = false;
   export let serverUsesPlayit: boolean | undefined = undefined;
   export let onClose: () => void;
@@ -748,6 +748,10 @@
       </Card>
       {#if revealNotice}<p class="hint">{revealNotice}</p>{/if}
     </section>
+
+    {#key hostId}
+      <StorageCleanup {api} {hostName} />
+    {/key}
 
     <section class="zone">
       <p class="msc2-type-overline">Reset and uninstall</p>

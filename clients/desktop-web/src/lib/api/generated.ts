@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 503105b06f447aea8583bc97cd0a1ea4c8ea32c896c633d0619b04d6486b80bc
+// Contract SHA-256: 4e125d3c8563b6d7d50a2c6a71795389d390937da7ab600f1c634cad1dc19328
 
 export interface paths {
   '/v1/active-server': {
@@ -2791,6 +2791,46 @@ export interface paths {
      * @description Host-scoped, administrator-only reset. The request has no host selector: it always acts on the host serving it. The operation revokes all existing credentials, rotates the host identity, clears host setup/configuration, and either preserves the managed server tree (configuration) or removes it (everything). The route never installs or uninstalls an operating-system service; a local desktop owns that separate action.
      */
     post: operations['resetHost'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/host/storage/cleanup': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Delete only the rebuildable folders approved by an unexpired preview
+     * @description Administrator-only and host-scoped, including remote hosts. Does not delete worlds, backups, components, settings or credentials. Active leases, live terrain helper references, symlinks and unrecognized directories are retained. Cleanup tokens are credential-bound, one-use and expire after five minutes; candidates are rechecked at deletion. Sizes are logical bytes, not a filesystem allocation guarantee. Scope is MSC-owned map-staging only.
+     */
+    post: operations['cleanStorage'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/host/storage/preview': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Preview abandoned, rebuildable map staging on this host
+     * @description Administrator-only and host-scoped, including remote hosts. Does not delete worlds, backups, components, settings or credentials. Active leases, live terrain helper references, symlinks and unrecognized directories are retained. Cleanup tokens are credential-bound, one-use and expire after five minutes; candidates are rechecked at deletion. Sizes are logical bytes, not a filesystem allocation guarantee. Scope is MSC-owned map-staging only.
+     */
+    post: operations['previewStorageCleanup'];
     delete?: never;
     options?: never;
     head?: never;
@@ -8894,6 +8934,39 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    StorageCleanupEntryDTO: {
+      id: string;
+      path: string;
+      reason: string;
+      removable: boolean;
+      /** Format: int64 */
+      sizeBytes: number;
+    } & {
+      [key: string]: unknown;
+    };
+    StorageCleanupPreviewDTO: {
+      entries: components['schemas']['StorageCleanupEntryDTO'][];
+      expiresInSeconds: number;
+      previewToken: string;
+      /** Format: int64 */
+      reclaimableBytes: number;
+      root: string;
+    } & {
+      [key: string]: unknown;
+    };
+    StorageCleanupRequestDTO: {
+      previewToken: string;
+    } & {
+      [key: string]: unknown;
+    };
+    StorageCleanupResultDTO: {
+      removed: string[];
+      /** Format: int64 */
+      removedBytes: number;
+      retained: string[];
+    } & {
+      [key: string]: unknown;
+    };
     ThirdPartyWorldConfigBoundaryDTO: {
       available: boolean;
       /** @enum {string} */
@@ -9909,6 +9982,113 @@ export interface operations {
         };
       };
       /** @description internal_error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
+  cleanStorage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['StorageCleanupRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Preview or cleanup result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StorageCleanupResultDTO'];
+        };
+      };
+      /** @description Administrator permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Expired preview or conflicting operation */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Inspection or cleanup failed; uncertain files retained */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
+  previewStorageCleanup: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Preview or cleanup result */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StorageCleanupPreviewDTO'];
+        };
+      };
+      /** @description Administrator permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Expired preview or conflicting operation */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Too many unexpired previews */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Inspection or cleanup failed; uncertain files retained */
       500: {
         headers: {
           [name: string]: unknown;

@@ -133,7 +133,24 @@ fn run_credential_helper(command: cli::CredentialHelperCommand) -> Result<(), cl
 }
 
 async fn run_service(bind: SocketAddr) -> Result<(), cli::CliError> {
-    run_service_with_shutdown(bind, std::future::pending(), || Ok(())).await
+    run_service_with_shutdown(bind, shutdown_signal(), || Ok(())).await
+}
+
+async fn shutdown_signal() {
+    #[cfg(unix)]
+    {
+        let mut terminate =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                .expect("SIGTERM handler must be available");
+        tokio::select! {
+            result = tokio::signal::ctrl_c() => { result.expect("interrupt handler must be available"); }
+            _ = terminate.recv() => {}
+        }
+    }
+    #[cfg(not(unix))]
+    tokio::signal::ctrl_c()
+        .await
+        .expect("interrupt handler must be available");
 }
 
 async fn run_service_with_shutdown(
@@ -165,12 +182,37 @@ async fn run_service_with_shutdown(
         .await
         .map_err(cli::CliError::internal)?;
 
-    let app = build_app_with_auth(auth_state);
+    let (app, worlds) = build_app_with_auth_and_worlds(auth_state);
     ready()?;
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown)
+    let shutdown_worlds = worlds.clone();
+    let (stopped, received_stop) = tokio::sync::oneshot::channel();
+    let result = {
+        let serving = std::future::IntoFuture::into_future(
+            axum::serve(listener, app).with_graceful_shutdown(async move {
+                shutdown.await;
+                shutdown_worlds.begin_map_shutdown();
+                let _ = stopped.send(());
+            }),
+        );
+        tokio::pin!(serving);
+        tokio::select! {
+            result = &mut serving => result,
+            _ = received_stop => {
+                // Open desktop streams must not postpone owned-cache cleanup
+                // until the service manager forcibly kills the agent.
+                match tokio::time::timeout(std::time::Duration::from_secs(5), &mut serving).await {
+                    Ok(result) => result,
+                    Err(_) => { eprintln!("Closing remaining management connections for service stop."); Ok(()) }
+                }
+            }
+        }
+    };
+    // Cover server errors as well as normal service stop.
+    worlds.begin_map_shutdown();
+    tokio::task::spawn_blocking(move || worlds.release_map_caches())
         .await
-        .map_err(|err| cli::CliError::internal(format!("server error: {err}")))
+        .map_err(|error| cli::CliError::internal(format!("map cleanup failed: {error}")))?;
+    result.map_err(|err| cli::CliError::internal(format!("server error: {err}")))
 }
 
 #[allow(dead_code)]
@@ -179,6 +221,12 @@ pub(crate) fn build_app() -> Router {
 }
 
 fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
+    build_app_with_auth_and_worlds(auth_state).0
+}
+
+fn build_app_with_auth_and_worlds(
+    auth_state: auth::AuthState,
+) -> (Router, routes::worlds::WorldsRoutesState) {
     let secret_store = auth::production_secret_store()
         .unwrap_or_else(|error| panic!("failed to initialize production secret store: {error}"));
 
@@ -293,10 +341,11 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
     // `POST /v1/backups/config` reconfigures on a settings change).
     let shared_staging = routes::worlds::StagingStore::default();
     let pending_modpack_imports = routes::components::PendingModpackImports::default();
-    let worlds = routes::worlds::router(routes::worlds::WorldsRoutesState::with_staging(
+    let worlds_state = routes::worlds::WorldsRoutesState::with_staging(
         lifecycle_state.clone(),
         shared_staging.clone(),
-    ));
+    );
+    let worlds = routes::worlds::router(worlds_state.clone());
     let components = routes::components::router(routes::components::ComponentsRoutesState::new(
         lifecycle_state.clone(),
         shared_staging.clone(),
@@ -452,6 +501,7 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
                 .with_state(notification_state),
         )
         .merge(worlds)
+        .merge(routes::storage::router(lifecycle_state.clone()))
         .merge(components)
         .merge(backups)
         .merge(users)
@@ -463,9 +513,12 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
             auth::require_management_auth,
         ));
 
-    Router::new()
-        .nest("/v1", public.merge(protected))
-        .layer(axum::middleware::from_fn(security_headers))
+    (
+        Router::new()
+            .nest("/v1", public.merge(protected))
+            .layer(axum::middleware::from_fn(security_headers)),
+        worlds_state,
+    )
 }
 
 async fn security_headers(

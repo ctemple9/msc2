@@ -173,9 +173,347 @@ pub(crate) fn estimate_tree(path: &Path) -> io::Result<u64> {
     walk(path, 0, &mut 0)
 }
 
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CleanupEntry {
+    pub id: String,
+    pub path: String,
+    pub size_bytes: u64,
+    pub removable: bool,
+    pub reason: String,
+    #[serde(skip)]
+    fingerprint: String,
+}
+
+pub(crate) fn cleanup_root() -> PathBuf {
+    msc_infrastructure::config_repository::default_app_data_dir().join("map-staging")
+}
+
+// Old agents did not give renderer children a lease. An unlocked parent lease
+// is therefore insufficient: inspect live process arguments before offering it.
+fn process_arguments() -> io::Result<String> {
+    #[cfg(unix)]
+    let output = std::process::Command::new("ps")
+        .args(["-axww", "-o", "args="])
+        .output()?;
+    #[cfg(windows)]
+    let output = std::process::Command::new("powershell.exe").args([
+        "-NoProfile", "-NonInteractive", "-Command",
+        "$ErrorActionPreference='Stop'; Get-CimInstance Win32_Process | ForEach-Object { if (!$_.CommandLine -and $_.Name -match 'java|vantage|msc') { throw 'Cannot inspect a terrain-related process' }; $_.CommandLine }"
+    ]).output()?;
+    #[cfg(not(any(unix, windows)))]
+    return Err(io::Error::other(
+        "Process inspection is unsupported on this platform",
+    ));
+    if !output.status.success() || output.stdout.len() > 8 * 1024 * 1024 {
+        return Err(io::Error::other(
+            "Cannot verify whether terrain helpers still use staging; cleanup refused",
+        ));
+    }
+    String::from_utf8(output.stdout)
+        .map_err(|_| io::Error::other("Cannot decode process inspection; cleanup refused"))
+}
+
+fn owned_name(name: &str) -> bool {
+    ["java-renderer-", "snapshot-", "bedrock-tiles-"]
+        .iter()
+        .any(|prefix| {
+            name.strip_prefix(prefix)
+                .is_some_and(|suffix| Uuid::parse_str(suffix).is_ok())
+        })
+}
+
+fn admission(root: &Path) -> io::Result<File> {
+    let metadata = fs::symlink_metadata(root)?;
+    if !metadata.is_dir() || metadata.file_type().is_symlink() {
+        return Err(io::Error::other("Cleanup root is not a regular directory"));
+    }
+    let path = root.join("admission.lock");
+    if fs::symlink_metadata(&path).is_ok_and(|metadata| !metadata.file_type().is_file()) {
+        return Err(io::Error::other("Invalid staging admission lock"));
+    }
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(path)?;
+    file.lock_exclusive()?;
+    Ok(file)
+}
+
+fn cleanup_fingerprint(path: &Path) -> io::Result<String> {
+    use sha2::{Digest, Sha256};
+    fn walk(path: &Path, hash: &mut Sha256, depth: usize, count: &mut usize) -> io::Result<()> {
+        *count += 1;
+        if depth > 32 || *count > 1_000_000 {
+            return Err(io::Error::other("Staging tree exceeds inspection limits"));
+        }
+        let meta = fs::symlink_metadata(path)?;
+        if !meta.is_dir() && !meta.is_file() {
+            return Err(io::Error::other(
+                "Staging contains a symlink or special file",
+            ));
+        }
+        hash.update(path.as_os_str().as_encoded_bytes());
+        hash.update(meta.len().to_le_bytes());
+        let modified = meta
+            .modified()?
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(io::Error::other)?;
+        hash.update(modified.as_nanos().to_le_bytes());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            hash.update(meta.dev().to_le_bytes());
+            hash.update(meta.ino().to_le_bytes());
+        }
+        if meta.is_dir() {
+            let mut children = fs::read_dir(path)?
+                .map(|entry| entry.map(|entry| entry.path()))
+                .collect::<io::Result<Vec<_>>>()?;
+            children.sort();
+            for child in children {
+                walk(&child, hash, depth + 1, count)?;
+            }
+        }
+        Ok(())
+    }
+    let mut hash = Sha256::new();
+    walk(path, &mut hash, 0, &mut 0)?;
+    Ok(format!("{:x}", hash.finalize()))
+}
+
+fn inspect_entry(
+    root: &Path,
+    id: &str,
+    processes: &str,
+) -> io::Result<(CleanupEntry, Option<File>)> {
+    if !owned_name(id) {
+        return Err(io::Error::other("Unrecognized staging directory"));
+    }
+    let path = root.join(id);
+    let meta = fs::symlink_metadata(&path)?;
+    if !meta.is_dir() || meta.file_type().is_symlink() {
+        return Err(io::Error::other("Not a regular staging directory"));
+    }
+    let lease_path = path.join("lease");
+    let reservation = path.join("reservation");
+    for marker in [&lease_path, &reservation] {
+        if !fs::symlink_metadata(marker)?.file_type().is_file() {
+            return Err(io::Error::other("Invalid staging ownership marker"));
+        }
+    }
+    let lease = OpenOptions::new().read(true).write(true).open(lease_path)?;
+    let locked = match lease.try_lock_exclusive() {
+        Ok(()) => false,
+        Err(error) if error.raw_os_error() == fs2::lock_contended_error().raw_os_error() => true,
+        Err(error) => return Err(error),
+    };
+    let path_text = path
+        .to_str()
+        .ok_or_else(|| io::Error::other("Unsupported staging path"))?;
+    let in_use = locked || processes.contains(path_text);
+    let size_bytes = estimate_tree(&path)?;
+    let fingerprint = cleanup_fingerprint(&path)?;
+    let entry = CleanupEntry {
+        id: id.to_string(),
+        path: path_text.to_string(),
+        size_bytes,
+        fingerprint,
+        removable: !in_use,
+        reason: if in_use {
+            "In use by a map or terrain helper; retained."
+        } else {
+            "Abandoned map copy/render output; recreated when the map opens."
+        }
+        .to_string(),
+    };
+    Ok((entry, if locked { None } else { Some(lease) }))
+}
+
+pub(crate) fn preview_cleanup() -> io::Result<Vec<CleanupEntry>> {
+    let root = cleanup_root();
+    if !root.try_exists()? {
+        return Ok(Vec::new());
+    }
+    let _admission = admission(&root)?;
+    let processes = process_arguments()?;
+    let mut entries = Vec::new();
+    for entry in fs::read_dir(&root)? {
+        let entry = entry?;
+        let id = entry.file_name().to_string_lossy().to_string();
+        if !owned_name(&id) {
+            continue;
+        }
+        match inspect_entry(&root, &id, &processes) {
+            Ok((item, _lease)) => entries.push(item),
+            Err(error) => entries.push(CleanupEntry {
+                id,
+                path: entry.path().display().to_string(),
+                size_bytes: 0,
+                fingerprint: String::new(),
+                removable: false,
+                reason: format!("Cannot verify ownership or contents; retained: {error}"),
+            }),
+        }
+    }
+    entries.sort_by(|a, b| a.id.cmp(&b.id));
+    Ok(entries)
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct CleanupResult {
+    pub removed_bytes: u64,
+    pub removed: Vec<String>,
+    pub retained: Vec<String>,
+}
+
+pub(crate) fn execute_cleanup(
+    approved: &[CleanupEntry],
+    should_cancel: &impl Fn() -> bool,
+) -> io::Result<CleanupResult> {
+    let root = cleanup_root();
+    let _admission = admission(&root)?;
+    let processes = process_arguments()?;
+    execute_cleanup_inner(&root, approved, &processes, should_cancel)
+}
+
+#[cfg(test)]
+fn execute_cleanup_with_processes(
+    root: &Path,
+    approved: &[CleanupEntry],
+    processes: &str,
+) -> io::Result<CleanupResult> {
+    execute_cleanup_inner(root, approved, processes, &|| false)
+}
+
+fn execute_cleanup_inner(
+    root: &Path,
+    approved: &[CleanupEntry],
+    processes: &str,
+    should_cancel: &impl Fn() -> bool,
+) -> io::Result<CleanupResult> {
+    let mut result = CleanupResult {
+        removed_bytes: 0,
+        removed: Vec::new(),
+        retained: Vec::new(),
+    };
+    for item in approved.iter().filter(|item| item.removable) {
+        if should_cancel() {
+            result
+                .retained
+                .push(format!("{}: cleanup cancelled before removal", item.id));
+            continue;
+        }
+        let (current, lease) = match inspect_entry(root, &item.id, processes) {
+            Ok(current) => current,
+            Err(error) => {
+                result.retained.push(format!("{}: {error}", item.id));
+                continue;
+            }
+        };
+        if !current.removable
+            || current.size_bytes != item.size_bytes
+            || current.fingerprint != item.fingerprint
+        {
+            result.retained.push(format!(
+                "{}: in use or changed since preview; scan again",
+                item.id
+            ));
+            continue;
+        }
+        // Windows cannot delete an open lease; admission prevents a new MSC
+        // owner from being admitted while the lease is closed for removal.
+        drop(lease);
+        match fs::remove_dir_all(root.join(&item.id)) {
+            Ok(()) => {
+                result.removed_bytes = result.removed_bytes.saturating_add(current.size_bytes);
+                result.removed.push(item.id.clone());
+            }
+            Err(error) => result
+                .retained
+                .push(format!("{}: cleanup incomplete: {error}", item.id)),
+        }
+    }
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn abandoned(root: &Path) -> String {
+        let id = format!("java-renderer-{}", Uuid::new_v4());
+        let path = root.join(&id);
+        fs::create_dir(&path).unwrap();
+        fs::write(path.join("lease"), b"").unwrap();
+        fs::write(path.join("reservation"), b"100").unwrap();
+        fs::write(path.join("world-copy"), b"rebuild").unwrap();
+        id
+    }
+
+    #[test]
+    fn cleanup_retains_live_or_changed_copies_and_removes_only_approved_data() {
+        let root = std::env::temp_dir().join(format!("msc-cleanup-test-{}", Uuid::new_v4()));
+        fs::create_dir(&root).unwrap();
+        let source = root.join("original-world");
+        fs::write(&source, b"original").unwrap();
+        let id = abandoned(&root);
+        let path = root.join(&id);
+        let (approved, lease) = inspect_entry(&root, &id, "").unwrap();
+        drop(lease);
+        let result = execute_cleanup_with_processes(
+            &root,
+            std::slice::from_ref(&approved),
+            &format!("renderer --out {}", path.display()),
+        )
+        .unwrap();
+        assert!(result.removed.is_empty());
+        assert!(path.exists());
+        let active = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(path.join("lease"))
+            .unwrap();
+        active.lock_exclusive().unwrap();
+        assert!(!inspect_entry(&root, &id, "").unwrap().0.removable);
+        drop(active);
+        fs::write(path.join("new-file"), b"changed").unwrap();
+        assert!(
+            execute_cleanup_with_processes(&root, &[approved], "")
+                .unwrap()
+                .removed
+                .is_empty()
+        );
+        let (approved, lease) = inspect_entry(&root, &id, "").unwrap();
+        drop(lease);
+        assert_eq!(
+            execute_cleanup_with_processes(&root, &[approved], "")
+                .unwrap()
+                .removed,
+            vec![id]
+        );
+        assert!(!path.exists());
+        assert_eq!(fs::read(&source).unwrap(), b"original");
+        assert!(inspect_entry(&root, "../original-world", "").is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cleanup_refuses_symlinked_worlds() {
+        let root = std::env::temp_dir().join(format!("msc-cleanup-test-{}", Uuid::new_v4()));
+        fs::create_dir(&root).unwrap();
+        let source = root.join("original-world");
+        fs::write(&source, b"original").unwrap();
+        let id = abandoned(&root);
+        std::os::unix::fs::symlink(&source, root.join(&id).join("unsafe-link")).unwrap();
+        assert!(inspect_entry(&root, &id, "").is_err());
+        assert_eq!(fs::read(&source).unwrap(), b"original");
+        fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn staging_guard_removes_only_its_owned_copy() {
         let root = std::env::temp_dir().join(format!("msc-staging-test-{}", Uuid::new_v4()));

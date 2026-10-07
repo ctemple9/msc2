@@ -53,6 +53,128 @@
     }
   },
   "paths": {
+    "/v1/host/storage/preview": {
+      "post": {
+        "summary": "Preview abandoned, rebuildable map staging on this host",
+        "operationId": "previewStorageCleanup",
+        "description": "Administrator-only and host-scoped, including remote hosts. Does not delete worlds, backups, components, settings or credentials. Active leases, live terrain helper references, symlinks and unrecognized directories are retained. Cleanup tokens are credential-bound, one-use and expire after five minutes; candidates are rechecked at deletion. Sizes are logical bytes, not a filesystem allocation guarantee. Scope is MSC-owned map-staging only.",
+        "x-permission-category": "admin",
+        "x-authentication": "admin-bearer",
+        "responses": {
+          "200": {
+            "description": "Preview or cleanup result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageCleanupPreviewDTO"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Administrator permission required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Expired preview or conflicting operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Inspection or cleanup failed; uncertain files retained",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many unexpired previews",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/host/storage/cleanup": {
+      "post": {
+        "summary": "Delete only the rebuildable folders approved by an unexpired preview",
+        "operationId": "cleanStorage",
+        "description": "Administrator-only and host-scoped, including remote hosts. Does not delete worlds, backups, components, settings or credentials. Active leases, live terrain helper references, symlinks and unrecognized directories are retained. Cleanup tokens are credential-bound, one-use and expire after five minutes; candidates are rechecked at deletion. Sizes are logical bytes, not a filesystem allocation guarantee. Scope is MSC-owned map-staging only.",
+        "x-permission-category": "admin",
+        "x-authentication": "admin-bearer",
+        "responses": {
+          "200": {
+            "description": "Preview or cleanup result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageCleanupResultDTO"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Administrator permission required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Expired preview or conflicting operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Inspection or cleanup failed; uncertain files retained",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StorageCleanupRequestDTO"
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/worlds/map/players": {
       "get": {
         "summary": "Read fresh player positions for the selected active server",
@@ -7264,6 +7386,106 @@
   },
   "components": {
     "schemas": {
+      "StorageCleanupEntryDTO": {
+        "type": "object",
+        "required": [
+          "id",
+          "path",
+          "sizeBytes",
+          "removable",
+          "reason"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "removable": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "StorageCleanupPreviewDTO": {
+        "type": "object",
+        "required": [
+          "previewToken",
+          "root",
+          "entries",
+          "reclaimableBytes",
+          "expiresInSeconds"
+        ],
+        "properties": {
+          "previewToken": {
+            "type": "string"
+          },
+          "root": {
+            "type": "string"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StorageCleanupEntryDTO"
+            }
+          },
+          "reclaimableBytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "expiresInSeconds": {
+            "type": "integer"
+          }
+        }
+      },
+      "StorageCleanupRequestDTO": {
+        "type": "object",
+        "required": [
+          "previewToken"
+        ],
+        "properties": {
+          "previewToken": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "StorageCleanupResultDTO": {
+        "type": "object",
+        "required": [
+          "removedBytes",
+          "removed",
+          "retained"
+        ],
+        "properties": {
+          "removedBytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "removed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "retained": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "GameruleDefinitionDTO": {
         "type": "object",
         "properties": {

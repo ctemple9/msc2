@@ -1222,6 +1222,7 @@
   <AppSettingsSheet
     api={screenApi}
     {hostId}
+    hostName={hosts.find((host) => host.id === hostId)?.displayName ?? 'Selected host'}
     activeServerXboxBroadcastEnabled={activeServer?.xboxBroadcastEnabled === true}
     serverUsesPlayit={servers.find((server) => server.id === selectedServerId)?.playitEnabled}
     onClose={() => (settingsOpen = false)}

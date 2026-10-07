@@ -176,6 +176,13 @@ pub async fn convert_formats(
     Extension(credential): Extension<AuthenticatedCredential>,
 ) -> Response {
     let lifecycle = state.lifecycle.clone();
+    if state.map_shutdown.load(Ordering::Acquire) {
+        return error_response(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "agent_stopping",
+            "The agent is stopping.",
+        );
+    }
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
         return response;
     }
@@ -344,6 +351,7 @@ pub async fn download_chunker(
 
 #[derive(Clone)]
 pub struct WorldsRoutesState {
+    map_shutdown: std::sync::Arc<AtomicBool>,
     pub lifecycle: LifecycleRoutesState,
     pub(crate) staging: StagingStore,
     pub(crate) chunker_download_in_progress: std::sync::Arc<AtomicBool>,
@@ -352,9 +360,18 @@ pub struct WorldsRoutesState {
 }
 
 impl WorldsRoutesState {
+    pub(crate) fn begin_map_shutdown(&self) {
+        self.map_shutdown.store(true, Ordering::Release);
+    }
+    pub(crate) fn release_map_caches(&self) {
+        self.map_renderer.release();
+        self.bedrock_map.release();
+    }
+
     #[cfg(test)]
     pub fn new(lifecycle: LifecycleRoutesState) -> Self {
         Self {
+            map_shutdown: std::sync::Arc::new(AtomicBool::new(false)),
             lifecycle,
             staging: StagingStore::default(),
             chunker_download_in_progress: std::sync::Arc::new(AtomicBool::new(false)),
@@ -365,6 +382,7 @@ impl WorldsRoutesState {
 
     pub fn with_staging(lifecycle: LifecycleRoutesState, staging: StagingStore) -> Self {
         Self {
+            map_shutdown: std::sync::Arc::new(AtomicBool::new(false)),
             lifecycle,
             staging,
             chunker_download_in_progress: std::sync::Arc::new(AtomicBool::new(false)),
@@ -2605,6 +2623,13 @@ pub async fn snapshot_map_proof(
     Extension(credential): Extension<AuthenticatedCredential>,
 ) -> Response {
     let lifecycle = state.lifecycle.clone();
+    if state.map_shutdown.load(Ordering::Acquire) {
+        return error_response(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "agent_stopping",
+            "The agent is stopping.",
+        );
+    }
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
         return response;
     }
@@ -2706,6 +2731,13 @@ pub async fn refresh_map(
     Extension(credential): Extension<AuthenticatedCredential>,
 ) -> Response {
     let lifecycle = state.lifecycle.clone();
+    if state.map_shutdown.load(Ordering::Acquire) {
+        return error_response(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "agent_stopping",
+            "The agent is stopping.",
+        );
+    }
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
         return response;
     }
@@ -3487,6 +3519,13 @@ pub async fn repair(
     body: Option<Json<WorldRepairRequestDto>>,
 ) -> Response {
     let lifecycle = state.lifecycle.clone();
+    if state.map_shutdown.load(Ordering::Acquire) {
+        return error_response(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "agent_stopping",
+            "The agent is stopping.",
+        );
+    }
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
         return response;
     }
@@ -4209,6 +4248,13 @@ pub async fn convert(
     body: Option<Json<WorldConvertRequestDto>>,
 ) -> Response {
     let lifecycle = state.lifecycle.clone();
+    if state.map_shutdown.load(Ordering::Acquire) {
+        return error_response(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "agent_stopping",
+            "The agent is stopping.",
+        );
+    }
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
         return response;
     }

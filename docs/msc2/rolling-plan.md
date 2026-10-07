@@ -1,5 +1,16 @@
 # MSC 2 — Rolling Plan
 
+### P18.48 — Quiet cleanup preview typography
+
+**Status:** Implemented; awaiting Cameron's visual verification. EXECUTE scope: owner-requested preview styling correction.
+**Files:** `clients/desktop-web/src/lib/sections/app-settings/StorageCleanup.svelte`; this plan.
+**What:** Use 12px secondary text for the reclaimable-space summary and 11px secondary text for paths. Remove the redundant per-folder size and Will delete line; keep each folder's reason and explicitly label retained folders. Use Settings hint styling for completion/error notices.
+**Verify:** `npm --prefix clients/desktop-web run check`; Cameron scans Settings → Disk space and checks the smaller summary/paths and absence of the duplicate size line.
+**Batch:** P18.48 only.
+**Commit:** `P18.48: quiet cleanup preview typography`
+**Checks:** Svelte check passed with zero errors and eleven existing warnings; Rust formatting and agent Clippy passed with existing warnings. No tests ran. Desktop binary not rebuilt for this correction.
+
+
 ### P18.47 — Match cleanup help text to Settings typography
 
 **Status:** Implemented; awaiting Cameron's visual verification. EXECUTE scope: owner-requested correction to the cleanup description.

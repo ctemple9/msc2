@@ -64,7 +64,7 @@
     >{busy ? 'Working…' : 'Check reclaimable space…'}</Button
   >
   {#if preview}
-    <p>{bytesLabel(preview.reclaimableBytes)} can be reclaimed on {hostName}.</p>
+    <p class="summary">{bytesLabel(preview.reclaimableBytes)} can be reclaimed on {hostName}.</p>
     {#if preview.entries.length === 0}
       <p class="hint">No abandoned map staging was found.</p>
     {:else}
@@ -72,12 +72,7 @@
         {#each preview.entries as entry (entry.id)}
           <li>
             <span class="path">{entry.path}</span>
-            <span
-              >{bytesLabel(entry.sizeBytes)} — {entry.removable
-                ? 'Will delete'
-                : 'Will retain'}</span
-            >
-            <span class="hint">{entry.reason}</span>
+            <span class="hint">{entry.removable ? '' : 'Will retain — '}{entry.reason}</span>
           </li>
         {/each}
       </ul>
@@ -92,7 +87,7 @@
       >
     {/if}
   {/if}
-  {#if notice}<p role="status">{notice}</p>{/if}
+  {#if notice}<p class="hint" role="status">{notice}</p>{/if}
 </section>
 
 <style>
@@ -119,7 +114,12 @@
   }
   .path {
     overflow-wrap: anywhere;
+    font-size: 11px;
+    color: var(--msc2-text-secondary);
+  }
+  .summary {
     font-size: 12px;
+    color: var(--msc2-text-secondary);
   }
   .hint {
     color: var(--msc2-text-tertiary);

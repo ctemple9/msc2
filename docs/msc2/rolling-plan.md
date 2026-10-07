@@ -1,5 +1,16 @@
 # MSC 2 — Rolling Plan
 
+### P18.32 — Initialize remote server tabs consistently
+
+**Status:** Implemented; awaiting Cameron's first-connect verification.
+**Files:** App.svelte, ApplicationShell.svelte, this plan.
+**What:** Before presenting a restored host context, activate the sidebar's selected fallback server when the agent reports a different/no active server, then refresh status/capabilities using the selected client and retain host-generation checks. Prevent stale overlapping dynamic tab imports from appending duplicate keyed panes or overriding the newer selection by checking a per-selection request counter. Explicitly give the map's flex pane a block box instead of the ordinary pane's display:contents, completing P18.30's bounded layout. No agent update required for this desktop correction.
+**Verify:** `npm --prefix clients/desktop-web run check`; Cameron starts the rebuilt desktop, connects to cambookpro13, clicks Overview/Worlds/Settings without reselecting a server, checks rapid tab changes and host switching, and checks map fitting with console/window resizing.
+**Batch:** P18.32 only, owner-reported first-connect defect.
+**Commit:** `P18.32: initialize remote tabs consistently`
+
+**Checks:** Svelte check passed with zero errors and eleven existing warnings. Frontend build, native desktop build and diff whitespace passed. No tests or physical remote-host UI checks ran. Updated desktop at `clients/desktop-web/src-tauri/target/debug/msc2-desktop-web`. These corrections address inspected initialization and tab-load races; owner reproduction remains the acceptance check.
+
 ### P18.31 — Show map preparation progress
 
 **Status:** Implemented; awaiting Cameron's loading-panel verification.

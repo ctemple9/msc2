@@ -261,6 +261,7 @@
     overflow: hidden;
   }
   .content > :global(.tab-pane-active:has(.map-shell)) {
+    display: block;
     flex: 1;
     min-height: 0;
     min-width: 0;

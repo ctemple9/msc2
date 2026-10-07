@@ -335,6 +335,7 @@
   const screenApi: ScreenApi = createScreenApi();
 
   let activeSection = '';
+  let sectionRequest = 0;
   // Keep visited tab instances alive for this server so their lightweight UI
   // state and loaded responses are available immediately on return. The list
   // is cleared before every accepted server/host switch, keeping memory and
@@ -626,7 +627,7 @@
   ): Promise<boolean> {
     try {
       const rememberedServerId = hostStore.getState(selectedHostId).cache.activeServerId;
-      const nextCapabilities = await selectedClient.getCapabilities();
+      let nextCapabilities = await selectedClient.getCapabilities();
       if (generation !== hostOrchestrator.currentGeneration) return false;
       const me = await selectedClient.requestJson<{ permissions: string[] }>('GET', '/v1/me');
       if (generation !== hostOrchestrator.currentGeneration) return false;
@@ -635,7 +636,7 @@
         '/v1/servers',
       );
       if (generation !== hostOrchestrator.currentGeneration) return false;
-      const nextStatus = await selectedClient.requestJson<Schema['RemoteAPIStatus']>(
+      let nextStatus = await selectedClient.requestJson<Schema['RemoteAPIStatus']>(
         'GET',
         '/v1/status',
       );
@@ -645,6 +646,15 @@
         nextStatus.activeServerId,
         rememberedServerId ?? selectedServerId,
       );
+      // The sidebar's fallback selection must also become the agent's active
+      // server before section APIs can serve that server's data.
+      if (nextServerId && nextServerId !== nextStatus.activeServerId) {
+        await selectedClient.requestJson('POST', '/v1/active-server', { body: { serverId: nextServerId } });
+        if (generation !== hostOrchestrator.currentGeneration) return false;
+        nextStatus = await selectedClient.requestJson<Schema['RemoteAPIStatus']>('GET', '/v1/status');
+        nextCapabilities = await selectedClient.getCapabilities();
+        if (generation !== hostOrchestrator.currentGeneration) return false;
+      }
       client = selectedClient;
       capabilities = nextCapabilities;
       permissions = me.permissions;
@@ -948,6 +958,7 @@
     generation = hostOrchestrator.currentGeneration,
   ): Promise<void> {
     if (generation !== hostOrchestrator.currentGeneration) return;
+    const request = ++sectionRequest;
     const section = router.get(id);
     const context = currentNavigationContext();
     // Setup is deliberately reachable before an agent exists, so service
@@ -958,10 +969,10 @@
     }
     if (!loadedSections.some((loaded) => loaded.id === section.id)) {
       const component = (await section.load()).default;
-      if (generation !== hostOrchestrator.currentGeneration) return;
+      if (generation !== hostOrchestrator.currentGeneration || request !== sectionRequest) return;
       loadedSections = [...loadedSections, { id: section.id, component }];
     }
-    if (generation !== hostOrchestrator.currentGeneration) return;
+    if (generation !== hostOrchestrator.currentGeneration || request !== sectionRequest) return;
     activeSection = section.id;
     if (updateUrl) {
       history.pushState({}, '', buildSectionPath(section, hostId, selectedServerId));

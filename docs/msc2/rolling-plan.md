@@ -1,5 +1,117 @@
 # MSC 2 — Rolling Plan
 
+### P16.43 — Plan a complete Windows MSI refinement
+
+**Status:** Plan written; awaiting Cameron's review. PLAN scope: review the entire MSI process and propose improvements after the owner reported a briefly blank opening page (2026-10-07).
+**Files:** `docs/msc2/rolling-plan.md` only.
+**What:** Record the source/artifact findings, proposed installer experience and P16.44–P16.50. No installer implementation, installation, service control, tests, builds or release runs in this conversation.
+**Verify:** `git show --check --stat --oneline HEAD`
+**Batch:** P16.43 only (PLAN). Future execution requires an owner instruction naming its step or range.
+**Commit:** `P16.43: plan complete windows msi refinement`
+
+**Review findings and limits:**
+
+- The current `clients/desktop-web/src-tauri/tauri.conf.json` uses Tauri's stock WiX UI. The sole custom fragment, `packaging/windows/desktop-cli-path.wxs`, adds `[INSTALLDIR]agent` to machine PATH with a package-owned registry marker. There is no MSC-specific introductory copy, custom UI, or MSI service lifecycle integration.
+- Read-only Windows Installer database inspection of `C:\Users\Cameron\Downloads\msc2-0.1.15-windows-x86_64.msi` found `PrepareDlg` at UI sequence 49, followed by searches/costing and `WelcomeDlg` at 1298. The preparation and welcome text exists in that artifact; preparation Back/Next are disabled, while Cancel is authored visible/enabled. Cameron confirmed the blank page is brief and advances. This strongly points to preparation/initial painting, but does not prove why text or Cancel initially fails to paint/respond. Do not describe it as missing strings or a permanently stuck installer. The exact owner-observed MSI version remains unconfirmed; this older downloaded artifact is a baseline, not evidence about every current release. SHA-256: `1952d89bb5538f2487e5563135619dfe063aee395edfe5effe107e4aa247ffc2`.
+- That older MSI has machine installation, generic destination/review/progress/completion and maintenance dialogs, a checked Launch MSC 2 completion option, and no custom MSC service actions. Its download-WebView2 action silently retrieves Microsoft's runtime bootstrapper. It has no Environment table, so it predates the current CLI PATH fragment. Do not mistake that older payload for current packaging.
+- Current desktop service registration stages the agent, Vantage renderer and Bedrock exporter into a checksum-named `agent/builds` directory under the desktop agent data root. On Windows that default root is the installing user's `AppData/Roaming/MSC2`. The service therefore normally runs a copied payload rather than the MSI's packaged `agent/msc.exe`. A locked MSI agent binary is not the general cause of upgrade trouble; the important gap is coordinated replacement of the actual service payload.
+- `clients/desktop-web/src-tauri/src/update.rs::install_windows_msi` invokes `msiexec /i`, treats any nonzero status as failure, and relaunches the current executable. It has no Windows-specific previous-package retention, explicit agent replacement, health handshake or post-install rollback. It also does not distinguish cancellation from MSI success requiring reboot (3010). These are source-backed gaps against D-032 and the existing Phase 16 update gate, not evidence of a particular failed update.
+- Ordinary MSI removal is distinct from the already owner-approved Phase 19 complete local uninstall. The latter previews permanent data loss, requires typed confirmation, stops/removes services, clears data/credentials and then invokes MSI package removal. Direct MSI removal currently has no equivalent MSC service coordination and must not silently become Phase 19's destructive cleanup.
+- `allowDowngrades` is unspecified, and the installed Tauri CLI schema defaults it to true. The inspected old MSI's Upgrade table also permits older packages to replace newer ones. Repair/Modify are hidden from Installed Apps in the stock template; reopening an MSI can still expose generic maintenance dialogs. Both need deliberate behavior and wording.
+- The active `.github/workflows/release.yml` stages the complete Windows payload, prepares the ICO, builds the MSI and publishes the existing artifact set/checksums/signed update metadata. Windows installers are currently unsigned. Signed update metadata does not provide an Authenticode publisher identity for Windows/UAC. Signing enrollment is a separate owner decision, not an assumed prerequisite of this refinement.
+
+**Primary-source references:** [Tauri CLI 2.11.4 MSI template](https://github.com/tauri-apps/tauri/blob/tauri-cli-v2.11.4/crates/tauri-bundler/src/bundle/windows/msi/main.wxs), [WiX preparation dialog](https://github.com/wixtoolset/wix3/blob/develop/src/ext/UIExtension/wixlib/PrepareDlg.wxs), [Tauri Windows installer/prerequisite options](https://v2.tauri.app/distribute/windows-installer/), and [Microsoft MSI result codes](https://learn.microsoft.com/en-us/windows/win32/msi/error-codes). The local CLI package reports 2.11.4; preserve the lockfile-selected version when deriving a maintained template.
+
+**Proposed experience:** Retain the native MSI installer and use a small, maintained MSC WiX template based on the locked Tauri CLI's packaging contract. Native controls, keyboard navigation, system text and readable contrast take precedence over imitating the app's dark interface. Use the existing MSC mark and restrained neutral artwork only where it helps identification; no decorative gradients, generic marketing panels or baked-in text. Read `antiAIslop.md` before UI work.
+
+| Screen | What the user sees and can do |
+|---|---|
+| Preparation | Immediately readable “Preparing MSC 2 Setup” and a short explanation of installation checks. No empty interactive-looking page. If the stock modeless preparation dialog cannot paint reliably, suppress that transient dialog rather than adding a delay or pretending Next works before checks finish. |
+| Welcome | “Welcome to MSC 2”; a short description of Minecraft server management; what this installer includes; Next and Cancel. Distinguish a new installation from replacing an existing version. |
+| Installation options | Destination folder, clear machine-wide installation scope, Start-menu entry and optional desktop shortcut. Explain that the `msc` terminal command is included and becomes available in new terminals. Local hosting is configured on first launch. |
+| Ready to install/update | Actual destination and current/target version, required Windows administrator approval, WebView2 requirement if missing, and any local-server stop requirement. Install/Update starts changes only after this review. |
+| Progress | Name the real phase: application files, required WebView2 runtime, local-agent coordination when applicable, or recovery. Use Windows Installer progress without invented percentages. Cancel where safely supported; clearly explain any brief commit/rollback interval where cancellation cannot apply immediately. |
+| Completion | Accurate installed/updated result; Launch MSC 2 option; first-launch service setup guidance for new local hosts; explicit reboot requirement or recovery report when applicable. Do not claim the agent is Running simply because the MSI succeeded. |
+| Maintenance/removal | Repair installed application files or remove this package with clear consequences. Ordinary MSI removal preserves Minecraft worlds/backups/settings and does not promise complete cleanup. Explain the separate destructive Settings/CLI uninstall flow. |
+
+**Draft Welcome copy:** “MSC 2 helps you create and manage Minecraft Java and Bedrock servers on computers you own. This installer includes the desktop app, background-agent files, and the msc terminal command. After installation, open MSC 2 to set up local hosting or connect to another computer.” Add version/scope separately, and do not imply that Bedrock is supported on every possible remote host.
+
+**Recommended boundaries for review:**
+
+- Keep initial service installation on first launch under D-011. Its UAC and Windows-account password prompts stay in the existing local setup flow; the MSI should explain them, not duplicate them or collect service passwords into MSI properties/logs. A remote-only desktop must not create a local service just by installing.
+- Keep `msc` on PATH as a supported capability under D-040. Start-menu registration is default; propose an optional desktop shortcut instead of the stock unconditional shortcut. Avoid an unnecessary feature-selection tree.
+- Propose blocking ordinary accidental downgrades, while supporting deliberate restoration of a verified prior version in the coordinated updater. Define that recovery route before changing downgrade policy; do not break rollback by simply setting a flag. This is a proposal for Cameron's review, not a new approved decision.
+- Direct MSI repair/removal/upgrade must inspect the actual local service installation and its ownership. A headless service owned by a separate installation must not be stopped, overwritten or removed. Preserve the installing account even if a different administrator approves UAC. Any unresolved ownership blocks the affected service action with an explanation.
+- Present graceful local Minecraft shutdown explicitly before a coordinated update/removal; do not force-kill servers or perform lifecycle work when merely entering Welcome. Preserve prior running/stopped state and boot configuration in recovery. Remote agents are never targets.
+- Ordinary MSI removal removes package-owned files/shortcuts/PATH and detaches only its verified owned local service, retaining managed data. Do not call `msc uninstall --danger` from MSI actions. Phase 19's separate confirmed full removal continues to work, including when the service has already been removed by its worker.
+- Use the default small online WebView2 strategy with explicit connectivity/error messaging for now. Do not silently grow every download with the offline runtime. Missing runtime and network failure require honest completion/error states, not a blank progress page or successful launch claim.
+
+**Execution order and acceptance:** P16.44 establishes the exact-package baseline before P16.45 changes UI. P16.46 resolves identity/payload/prerequisite choices. P16.47–P16.49 handle lifecycle/removal/update recovery. P16.50 consolidates owner-observed acceptance against one exact candidate. Each future step is one commit containing its plan update; it remains awaiting Cameron's verification after implementation. Build once when a fresh native binary is necessary, then use Tauri's bundle-only command for dialog/package changes. No repeated release builds, new CI/release gates or automatic test execution. An essential new regression, if needed during execution, must name its concrete missing risk, controlled inputs and expected runtime under the workflow policy.
+
+### P16.44 — Establish the exact MSI dialog and lifecycle baseline
+
+**Status:** Planned; awaiting Cameron's review.
+**Files:** `docs/msc2/release/windows-msi-review.md` (new), this plan.
+**What:** Confirm the owner-observed MSI version/path and inspect it read-only using Windows Installer database tables. Record its digest, product/upgrade identity, dialog text/attributes/transitions, preparation ordering, custom actions, payload, PATH, maintenance and service hooks. Compare it with the current locked CLI/template and package config. Include Cameron's observation of the brief blank page and a narrowly scoped verbose-log/manual reproduction procedure in a disposable Windows environment; do not launch/install the MSI on the development machine as part of inspection. Preserve uncertainty about painting until the exact artifact is observed. Record source links and a screen-by-screen before/after map.
+**Verify:** `git show --check --stat --oneline HEAD`
+**Batch:** P16.44 only. Stop before UI changes.
+**Manual acceptance:** Cameron checks that the recorded artifact is the one he opened and confirms whether the preparation and Welcome screens match his observation.
+
+### P16.45 — Give MSI preparation and installation screens an MSC introduction
+
+**Status:** Planned; awaiting Cameron's review.
+**Files:** `packaging/windows/desktop-installer.wxs` (new maintained Tauri template), `packaging/windows/desktop-installer-ui.wxs` and `desktop-installer-en-us.wxl` (new where needed), `clients/desktop-web/src-tauri/tauri.conf.json`, `docs/msc2/release/windows-msi-review.md`, this plan; restrained existing-mark artwork only if required.
+**What:** Read antiAIslop.md. Implement the reviewed preparation/Welcome/options/review/progress/completion flow with MSC-specific copy, correct tab order/default/Escape actions, and working Next/Back/Cancel conditions. Remedy or suppress the transient blank preparation presentation without sleeps or enabled navigation before costing completes. Show installation version/scope/destination and first-launch local-service guidance. Keep text as controls/localization strings, not bitmap text. Preserve Tauri's generated resource/component placeholders, architecture handling, WebView2 behavior and upgrade identity. Optional desktop shortcut must be an actual conditional component; retain the supported CLI and Start-menu discovery. This step does not claim the future service/update steps are complete.
+**Verify:** From `clients/desktop-web`, run `npx tauri build --bundles msi --no-sign`.
+**Batch:** P16.45 only.
+**Manual acceptance:** Cameron opens the local candidate in a disposable Windows environment, reviews every screen, uses keyboard navigation, backs out and cancels before installation, and checks readable layouts at 100%, 125%, 150% and 200% display scaling. Build success alone does not establish the blank-page fix.
+
+### P16.46 — Make MSI identity, payload and prerequisites explicit
+
+**Status:** Planned; awaiting Cameron's review.
+**Files:** Tauri Windows/WiX config/template/fragments, `packaging/windows/desktop-cli-path.wxs`, `tools/release/stage-windows-agent.ps1` only if payload corrections are necessary, Windows installation documentation, `docs/msc2/release/windows-msi-review.md`, this plan.
+**What:** Pin the existing verified UpgradeCode rather than creating a new product family; preserve existing MSI upgrade compatibility and package ownership. Set accurate publisher/product/version/support metadata using owner-approved identity and real destinations. Retain desktop, agent/CLI, Vantage renderer/license and Bedrock exporter. Align machine registration, previous-install-directory discovery and shortcuts with elevation under a different administrator. Preserve the exact package-owned PATH entry without deleting another MSC/headless installation's entry. Make the selected WebView2 strategy explicit, skip its installation if present, surface prerequisite failure and explain connectivity before it is needed. Record the currently unsigned Windows publisher limitation accurately. Resolve ordinary downgrade policy with the P16.49 recovery design before enforcing a block.
+**Verify:** From `clients/desktop-web`, run `npx tauri bundle --bundles msi --no-sign` using the native binary built in P16.45.
+**Batch:** P16.46 only.
+**Manual acceptance:** Inspect the candidate's identity/payload tables, upgrade an existing package in a disposable environment, open a new PowerShell and confirm `Get-Command msc`, and exercise a missing-WebView2 installation with and without connectivity. Do not uninstall shared WebView2 from the development machine for acceptance.
+
+### P16.47 — Coordinate MSI with the actual local agent installation
+
+**Status:** Planned; awaiting Cameron's review.
+**Files:** Windows installer lifecycle helper/fragments under `packaging/windows/`, desktop native service/staging integration, existing Windows service adapter/metadata as needed, Windows MSI review documentation, this plan.
+**What:** Implement one bounded native local lifecycle seam shared by direct package operations and the updater. Inspect actual service metadata/account/binary/data roots and distinguish this desktop's copied build from a standalone headless or unrelated installation. Record prior service running/stopped and boot state; use existing graceful Minecraft/helper shutdown and refuse changes if it fails. Update only the owned staged payload/definition, retain the service account and credentials without collecting/logging passwords again for routine replacement, and recover prior state on package failure/cancellation. Run required actions in the execution sequence so reduced/silent MSI modes cannot bypass ownership and safety. Keep initial service registration on first launch. Elevation uses verified fixed native operations; no arbitrary registry command or user-controlled elevated script/path. Review rollback ordering with old-product removal before implementing it.
+**Verify:** `cargo clippy --manifest-path clients/desktop-web/src-tauri/Cargo.toml`
+**Batch:** P16.47 only.
+**Manual acceptance:** Cameron uses disposable installed environments for no service, stopped owned service, running owned service and separately installed headless service. Confirm the stop requirement, account preservation, refusal of ambiguous ownership, cancellation recovery and absence of remote service actions. Rebuild the installer before live acceptance if its native helper changed.
+
+### P16.48 — Make package repair and removal safe and understandable
+
+**Status:** Planned; awaiting Cameron's review.
+**Files:** Windows MSI template/UI/lifecycle helper, `crates/msc-platform-windows/src/uninstall.rs` only for integration corrections, `docs/msc2/clients/local-uninstall.md`, `docs/msc2/release/windows-msi-review.md`, this plan.
+**What:** Implement deliberate same-version repair and ordinary package removal entry points, including Installed Apps and reopened MSI. Repair restores package-owned files/registration without resetting settings/worlds or blindly re-registering the service. Removal explains data retention, gracefully stops/detaches only this package's verified service before removing its binaries/shortcuts/PATH, and leaves recoverable server/data state. Distinguish major-upgrade removal from final uninstall so upgrade does not accidentally remove the replacement service/registration. Keep Phase 19's confirmed full cleanup separate and support its worker calling MSI after it has already stopped/removed the service. Completion/failure copy must reflect retained data and actual partial results; removal must not offer Launch MSC 2.
+**Verify:** From `clients/desktop-web`, run `npx tauri bundle --bundles msi --no-sign` after rebuilding any changed native helper.
+**Batch:** P16.48 only.
+**Manual acceptance:** Cameron verifies repair, Installed Apps removal, reopened-MSI removal, cancel/UAC refusal, data retention and subsequent reinstall in disposable environments. Separately verify the existing confirmed Phase 19 full removal still completes; never run destructive acceptance against the source checkout or a valued server.
+
+### P16.49 — Complete coordinated Windows update and recovery
+
+**Status:** Planned; awaiting Cameron's review.
+**Files:** `clients/desktop-web/src-tauri/src/update.rs`, native lifecycle/staging integration from P16.47, shared verified release/update infrastructure only where necessary, Windows MSI identity/downgrade configuration, update result presentation only where needed, Windows MSI review documentation, this plan.
+**What:** Fulfil D-032 for Windows: retain a verified previous installation/package and service state, reverify the signed target at apply time, invoke the installer with no automatic reboot and a diagnostic log without secrets, coordinate the actual agent/helper payload, and distinguish success, user cancellation, failure and reboot-required results. Define one relaunch owner to avoid the MSI checkbox and updater launching twice. Observe an authenticated/identity-checked local-agent health result and desktop readiness rather than treating process spawn as success. If replacement or health fails, restore the verified prior package/payload/service state and relaunch the previous usable desktop; report recovery failure honestly. Provide the deliberate older-version restoration path before blocking ordinary accidental downgrades. Do not mutate data/settings/secrets/worlds or trust unsigned metadata. No remote service control or release workflow changes.
+**Verify:** `cargo clippy --manifest-path clients/desktop-web/src-tauri/Cargo.toml`
+**Batch:** P16.49 only.
+**Manual acceptance:** Cameron verifies successful update, cancellation, reboot-required handling and a controlled installation/health failure in disposable environments, recording the old/new exact artifacts and observed recovery. Include an initially stopped agent and remote-only desktop so the updater does not invent a local hosting installation or start previously stopped Minecraft servers.
+
+### P16.50 — Record complete Windows MSI acceptance and review handoff
+
+**Status:** Planned; awaiting Cameron's review.
+**Files:** `docs/msc2/release/windows-msi-review.md`, `docs/msc2/release/phase16-acceptance.md`, relevant Windows install/update/removal documentation, this plan.
+**What:** Produce a concise owner walkthrough for one exact locally built candidate: visible preparation/Welcome; options/navigation/cancel; fresh install with present/missing WebView2; first-launch local setup and remote-only use; terminal discovery; same-version repair; direct and coordinated upgrade; safe ordinary removal/reinstall; Phase 19 complete removal; headless coexistence; different-admin UAC; display scaling; reboot/cancellation/fault recovery. Record artifact digest/source and Cameron's actual observations as PASS/FAIL/UNAVAILABLE. Keep unobserved outcomes pending. Hand the gate to the other agent; no implementation agent self-review and no automatic phase closure. Candidate publication, version bump/tag and a release run require a separate owner instruction.
+**Verify:** `git show --check --stat --oneline HEAD`
+**Batch:** P16.50 only.
+**Acceptance gate:** The exact candidate has no unexplained blank preparation page; its introduction and choices are readable; Back/Next/Cancel behave honestly; installation/repair/removal own only their verified files/registration; local service transitions preserve account/data and never affect another installation or remote agent; failed Windows updates restore the prior usable local set; prerequisites and reboot/failure results are accurate. Cameron records physical evidence and the independent reviewer evaluates these outcomes. This refinement does not close unrelated Phase 16/17/19 gates.
+
+
 ### P18.48 — Quiet cleanup preview typography
 
 **Status:** Implemented; awaiting Cameron's visual verification. EXECUTE scope: owner-requested preview styling correction.

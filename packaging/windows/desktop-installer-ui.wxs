@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <UI Id="MscInstallUI">
+      <TextStyle Id="WixUI_Font_Normal" FaceName="Segoe UI" Size="9" />
+      <TextStyle Id="WixUI_Font_Bigger" FaceName="Segoe UI" Size="14" />
+      <TextStyle Id="WixUI_Font_Title" FaceName="Segoe UI" Size="11" />
+      <Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
+      <Property Id="WixUI_Mode" Value="InstallDir" />
+      <DialogRef Id="BrowseDlg" />
+      <DialogRef Id="InvalidDirDlg" />
+      <DialogRef Id="DiskCostDlg" />
+      <DialogRef Id="OutOfDiskDlg" />
+      <DialogRef Id="ErrorDlg" />
+      <DialogRef Id="FatalError" />
+      <DialogRef Id="UserExit" />
+      <DialogRef Id="CancelDlg" />
+      <DialogRef Id="FilesInUse" />
+      <DialogRef Id="MsiRMFilesInUse" />
+      <DialogRef Id="MaintenanceWelcomeDlg" />
+      <DialogRef Id="MaintenanceTypeDlg" />
+      <DialogRef Id="ResumeDlg" />
+      <DialogRef Id="LicenseAgreementDlg" />
+
+      <!-- Initial searches/costing finish before the first interactive screen.
+           Deliberately do not display the transient modeless PrepareDlg. -->
+      <Dialog Id="MscWelcomeDlg" Width="420" Height="300" Title="[ProductName] Setup">
+        <Control Id="Title" Type="Text" X="24" Y="20" Width="372" Height="25" NoPrefix="yes" Text="{\WixUI_Font_Bigger}!(loc.MscWelcomeTitle)" />
+        <Control Id="Body" Type="Text" X="24" Y="58" Width="372" Height="36" NoPrefix="yes" Text="!(loc.MscWelcomeBody)" />
+        <Control Id="Included" Type="Text" X="24" Y="104" Width="372" Height="36" NoPrefix="yes" Text="!(loc.MscIncluded)" />
+        <Control Id="FirstLaunch" Type="Text" X="24" Y="150" Width="372" Height="58" NoPrefix="yes" Text="!(loc.MscFirstLaunch)" />
+        <Control Id="Version" Type="Text" X="24" Y="220" Width="372" Height="30" NoPrefix="yes" Text="!(loc.MscNewVersion)">
+          <Condition Action="hide">WIX_UPGRADE_DETECTED OR PATCH</Condition>
+        </Control>
+        <Control Id="Existing" Type="Text" X="24" Y="220" Width="372" Height="30" Hidden="yes" NoPrefix="yes" Text="!(loc.MscExistingVersion)">
+          <Condition Action="show">WIX_UPGRADE_DETECTED OR PATCH</Condition>
+        </Control>
+        <Control Id="BottomLine" Type="Line" X="0" Y="263" Width="420" Height="0" />
+        <Control Id="Next" Type="PushButton" X="262" Y="276" Width="64" Height="17" Default="yes" Text="!(loc.WixUINext)">
+          <Publish Property="WixUI_InstallMode" Value="Update" Order="1">Installed AND PATCH</Publish>
+          <Publish Event="NewDialog" Value="MscOptionsDlg" Order="2">NOT Installed AND NOT MSC_LICENSE_REQUIRED</Publish>
+          <Publish Event="NewDialog" Value="MscReadyDlg" Order="3">Installed AND PATCH</Publish>
+          <Publish Event="NewDialog" Value="LicenseAgreementDlg" Order="4">NOT Installed AND MSC_LICENSE_REQUIRED</Publish>
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="332" Y="276" Width="64" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
+        </Control>
+      </Dialog>
+
+      <Dialog Id="MscOptionsDlg" Width="420" Height="300" Title="[ProductName] Setup">
+        <Control Id="Title" Type="Text" X="24" Y="20" Width="372" Height="25" NoPrefix="yes" Text="{\WixUI_Font_Bigger}!(loc.MscOptionsTitle)" />
+        <Control Id="Scope" Type="Text" X="24" Y="56" Width="372" Height="36" NoPrefix="yes" Text="!(loc.MscScope)" />
+        <Control Id="FolderLabel" Type="Text" X="24" Y="102" Width="372" Height="14" Text="!(loc.MscDestination)" />
+        <Control Id="Folder" Type="PathEdit" X="24" Y="122" Width="296" Height="20" Property="WIXUI_INSTALLDIR" Indirect="yes" />
+        <Control Id="ChangeFolder" Type="PushButton" X="326" Y="123" Width="70" Height="18" Text="!(loc.InstallDirDlgChange)">
+          <Publish Property="_BrowseProperty" Value="[WIXUI_INSTALLDIR]" Order="1">1</Publish>
+          <Publish Event="SpawnDialog" Value="BrowseDlg" Order="2">1</Publish>
+        </Control>
+        <Control Id="DesktopShortcut" Type="CheckBox" X="24" Y="158" Width="372" Height="20" Property="MSC_DESKTOP_SHORTCUT" CheckBoxValue="1" Text="!(loc.MscDesktopShortcut)" />
+        <Control Id="Command" Type="Text" X="24" Y="193" Width="372" Height="55" NoPrefix="yes" Text="!(loc.MscCommand)" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="263" Width="420" Height="0" />
+        <Control Id="Back" Type="PushButton" X="192" Y="276" Width="64" Height="17" Text="!(loc.WixUIBack)">
+          <Publish Event="NewDialog" Value="MscWelcomeDlg" Order="1">NOT MSC_LICENSE_REQUIRED</Publish>
+          <Publish Event="NewDialog" Value="LicenseAgreementDlg" Order="2">MSC_LICENSE_REQUIRED</Publish>
+        </Control>
+        <Control Id="Next" Type="PushButton" X="262" Y="276" Width="64" Height="17" Default="yes" Text="!(loc.WixUINext)">
+          <Publish Event="SetTargetPath" Value="[WIXUI_INSTALLDIR]" Order="1">1</Publish>
+          <Publish Event="DoAction" Value="WixUIValidatePath" Order="2">NOT WIXUI_DONTVALIDATEPATH</Publish>
+          <Publish Event="SpawnDialog" Value="InvalidDirDlg" Order="3"><![CDATA[NOT WIXUI_DONTVALIDATEPATH AND WIXUI_INSTALLDIR_VALID <> "1"]]></Publish>
+          <Publish Event="NewDialog" Value="MscReadyDlg" Order="4">WIXUI_DONTVALIDATEPATH OR WIXUI_INSTALLDIR_VALID="1"</Publish>
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="332" Y="276" Width="64" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
+        </Control>
+      </Dialog>
+
+      <Dialog Id="MscReadyDlg" Width="420" Height="300" Title="[ProductName] Setup" TrackDiskSpace="yes">
+        <Control Id="Title" Type="Text" X="24" Y="20" Width="372" Height="25" NoPrefix="yes" Text="{\WixUI_Font_Bigger}!(loc.MscReadyTitle)" />
+        <Control Id="Version" Type="Text" X="24" Y="55" Width="372" Height="14" NoPrefix="yes" Text="!(loc.MscReadyVersion)" />
+        <Control Id="Folder" Type="Text" X="24" Y="78" Width="372" Height="32" NoPrefix="yes" Text="!(loc.MscReadyFolder)" />
+        <Control Id="Scope" Type="Text" X="24" Y="115" Width="372" Height="38" NoPrefix="yes" Text="!(loc.MscReadyScope)">
+          <Condition Action="hide">Installed AND NOT PATCH</Condition>
+        </Control>
+        <Control Id="Maintenance" Type="Text" X="24" Y="115" Width="372" Height="38" Hidden="yes" NoPrefix="yes" Text="!(loc.MscMaintenanceReady)">
+          <Condition Action="show">Installed AND NOT PATCH</Condition>
+        </Control>
+        <Control Id="ShortcutYes" Type="Text" X="24" Y="157" Width="372" Height="14" NoPrefix="yes" Text="!(loc.MscShortcutYes)">
+          <Condition Action="hide">NOT MSC_DESKTOP_SHORTCUT OR Installed</Condition>
+        </Control>
+        <Control Id="ShortcutNo" Type="Text" X="24" Y="157" Width="372" Height="14" Hidden="yes" NoPrefix="yes" Text="!(loc.MscShortcutNo)">
+          <Condition Action="show">NOT MSC_DESKTOP_SHORTCUT AND NOT Installed</Condition>
+        </Control>
+        <Control Id="WebviewMissing" Type="Text" X="24" Y="179" Width="372" Height="34" NoPrefix="yes" Text="!(loc.MscWebviewMissing)">
+          <Condition Action="hide">INSTALLED_WEBVIEW2_VERSION OR REMOVE OR WixUI_InstallMode="Remove"</Condition>
+        </Control>
+        <Control Id="WebviewPresent" Type="Text" X="24" Y="179" Width="372" Height="34" Hidden="yes" NoPrefix="yes" Text="!(loc.MscWebviewPresent)">
+          <Condition Action="show">INSTALLED_WEBVIEW2_VERSION AND NOT REMOVE AND WixUI_InstallMode &lt;&gt; "Remove"</Condition>
+        </Control>
+        <Control Id="Approval" Type="Text" X="24" Y="223" Width="372" Height="30" NoPrefix="yes" Text="!(loc.MscApproval)" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="263" Width="420" Height="0" />
+        <Control Id="Back" Type="PushButton" X="170" Y="276" Width="64" Height="17" Text="!(loc.WixUIBack)">
+          <Publish Event="NewDialog" Value="MscOptionsDlg" Order="1">NOT Installed</Publish>
+          <Publish Event="NewDialog" Value="MaintenanceTypeDlg" Order="2">Installed AND NOT PATCH</Publish>
+          <Publish Event="NewDialog" Value="MscWelcomeDlg" Order="3">Installed AND PATCH</Publish>
+        </Control>
+        <Control Id="Install" Type="PushButton" X="240" Y="276" Width="86" Height="17" ElevationShield="yes" Default="yes" Text="!(loc.MscInstall)">
+          <Condition Action="hide">Installed OR WIX_UPGRADE_DETECTED</Condition>
+          <Publish Event="SpawnDialog" Value="OutOfDiskDlg" Order="1">OutOfDiskSpace=1</Publish>
+          <Publish Event="EndDialog" Value="Return" Order="2"><![CDATA[OutOfDiskSpace <> 1]]></Publish>
+        </Control>
+        <Control Id="Update" Type="PushButton" X="240" Y="276" Width="86" Height="17" ElevationShield="yes" Hidden="yes" Text="!(loc.MscUpdate)">
+          <Condition Action="show">WIX_UPGRADE_DETECTED OR PATCH</Condition>
+          <Condition Action="default">WIX_UPGRADE_DETECTED OR PATCH</Condition>
+          <Publish Event="SpawnDialog" Value="OutOfDiskDlg" Order="1">OutOfDiskSpace=1</Publish>
+          <Publish Event="EndDialog" Value="Return" Order="2"><![CDATA[OutOfDiskSpace <> 1]]></Publish>
+        </Control>
+        <Control Id="Repair" Type="PushButton" X="240" Y="276" Width="86" Height="17" Hidden="yes" Text="!(loc.VerifyReadyDlgRepair)">
+          <Condition Action="show">WixUI_InstallMode="Repair"</Condition>
+          <Condition Action="default">WixUI_InstallMode="Repair"</Condition>
+          <Publish Event="ReinstallMode" Value="ecmus" Order="1"><![CDATA[OutOfDiskSpace <> 1]]></Publish>
+          <Publish Event="Reinstall" Value="All" Order="2"><![CDATA[OutOfDiskSpace <> 1]]></Publish>
+          <Publish Event="SpawnDialog" Value="OutOfDiskDlg" Order="3">OutOfDiskSpace=1</Publish>
+          <Publish Event="EndDialog" Value="Return" Order="4"><![CDATA[OutOfDiskSpace <> 1]]></Publish>
+        </Control>
+        <Control Id="Remove" Type="PushButton" X="240" Y="276" Width="86" Height="17" ElevationShield="yes" Hidden="yes" Text="!(loc.VerifyReadyDlgRemove)">
+          <Condition Action="show">WixUI_InstallMode="Remove"</Condition>
+          <Publish Event="Remove" Value="All" Order="1"><![CDATA[OutOfDiskSpace <> 1]]></Publish>
+          <Publish Event="SpawnDialog" Value="OutOfDiskDlg" Order="2">OutOfDiskSpace=1</Publish>
+          <Publish Event="EndDialog" Value="Return" Order="3"><![CDATA[OutOfDiskSpace <> 1]]></Publish>
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="332" Y="276" Width="64" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
+        </Control>
+      </Dialog>
+
+      <Dialog Id="MscProgressDlg" Width="420" Height="300" Title="[ProductName] Setup" Modeless="yes">
+        <Control Id="Title" Type="Text" X="24" Y="20" Width="372" Height="25" NoPrefix="yes" Text="{\WixUI_Font_Bigger}!(loc.MscProgressTitle)" />
+        <Control Id="Body" Type="Text" X="24" Y="62" Width="372" Height="38" NoPrefix="yes" Text="!(loc.MscProgressBody)" />
+        <Control Id="ActionText" Type="Text" X="24" Y="118" Width="372" Height="32" NoPrefix="yes">
+          <Subscribe Event="ActionText" Attribute="Text" />
+        </Control>
+        <Control Id="ProgressBar" Type="ProgressBar" X="24" Y="162" Width="372" Height="12" ProgressBlocks="yes" Text="Progress">
+          <Subscribe Event="SetProgress" Attribute="Progress" />
+        </Control>
+        <Control Id="CancelHint" Type="Text" X="24" Y="203" Width="372" Height="38" NoPrefix="yes" Text="!(loc.MscProgressCancel)" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="263" Width="420" Height="0" />
+        <Control Id="Cancel" Type="PushButton" X="332" Y="276" Width="64" Height="17" Default="yes" Cancel="yes" Text="!(loc.WixUICancel)">
+          <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
+        </Control>
+      </Dialog>
+
+      <Dialog Id="MscExitDlg" Width="420" Height="300" Title="[ProductName] Setup">
+        <Control Id="Title" Type="Text" X="24" Y="20" Width="372" Height="25" NoPrefix="yes" Text="{\WixUI_Font_Bigger}!(loc.MscCompleteTitle)" />
+        <Control Id="Body" Type="Text" X="24" Y="62" Width="372" Height="40" NoPrefix="yes" Text="!(loc.MscCompleteBody)">
+          <Condition Action="hide">Installed OR REMOVE</Condition>
+        </Control>
+        <Control Id="Maintenance" Type="Text" X="24" Y="62" Width="372" Height="40" Hidden="yes" NoPrefix="yes" Text="!(loc.MscMaintenanceComplete)">
+          <Condition Action="show">Installed AND NOT REMOVE</Condition>
+        </Control>
+        <Control Id="Removed" Type="Text" X="24" Y="62" Width="372" Height="40" Hidden="yes" NoPrefix="yes" Text="!(loc.MscRemoved)">
+          <Condition Action="show">REMOVE</Condition>
+        </Control>
+        <Control Id="Command" Type="Text" X="24" Y="119" Width="372" Height="48" NoPrefix="yes" Text="!(loc.MscCompleteCommand)">
+          <Condition Action="hide">Installed OR REMOVE</Condition>
+        </Control>
+        <Control Id="Reboot" Type="Text" X="24" Y="177" Width="372" Height="38" Hidden="yes" NoPrefix="yes" Text="!(loc.MscReboot)">
+          <Condition Action="show">MsiSystemRebootPending OR ReplacedInUseFiles</Condition>
+        </Control>
+        <Control Id="OptionalCheckBox" Type="CheckBox" X="24" Y="228" Width="372" Height="20" Property="MSC_LAUNCH_APP" CheckBoxValue="1" Text="[WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT]">
+          <Condition Action="hide">Installed OR REMOVE OR MsiSystemRebootPending OR ReplacedInUseFiles</Condition>
+        </Control>
+        <Control Id="BottomLine" Type="Line" X="0" Y="263" Width="420" Height="0" />
+        <Control Id="Finish" Type="PushButton" X="332" Y="276" Width="64" Height="17" Default="yes" Cancel="yes" Text="!(loc.WixUIFinish)">
+          <Publish Event="EndDialog" Value="Return" Order="999">1</Publish>
+        </Control>
+      </Dialog>
+
+      <Publish Dialog="BrowseDlg" Control="OK" Event="DoAction" Value="WixUIValidatePath" Order="3">1</Publish>
+      <!-- WiX validates even unreachable stock auxiliary-dialog neighbors. -->
+      <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999">1</Publish>
+      <Publish Dialog="BrowseDlg" Control="OK" Event="SpawnDialog" Value="InvalidDirDlg" Order="4"><![CDATA[NOT WIXUI_DONTVALIDATEPATH AND WIXUI_INSTALLDIR_VALID <> "1"]]></Publish>
+      <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg">1</Publish>
+      <Publish Dialog="LicenseAgreementDlg" Control="Back" Event="NewDialog" Value="MscWelcomeDlg">1</Publish>
+      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="MscOptionsDlg">LicenseAccepted="1"</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="MscReadyDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="MscReadyDlg">1</Publish>
+      <InstallUISequence>
+        <!-- Stock auxiliary dialogs can pull in their default neighbors.
+             Only the MSC screens should enter the interactive sequence. -->
+        <Show Dialog="PrepareDlg" Sequence="48">0</Show>
+        <Show Dialog="WelcomeDlg" Sequence="1280">0</Show>
+        <Show Dialog="ProgressDlg" Sequence="1281">0</Show>
+        <Show Dialog="ExitDialog" Sequence="1282">0</Show>
+        <Show Dialog="MaintenanceWelcomeDlg" Sequence="1292">Installed AND NOT RESUME AND NOT Preselected AND NOT PATCH</Show>
+        <Show Dialog="ResumeDlg" Sequence="1293">Installed AND (RESUME OR Preselected)</Show>
+        <Show Dialog="MscWelcomeDlg" Sequence="1294">NOT Installed OR PATCH</Show>
+        <Show Dialog="MscProgressDlg" Sequence="1299" />
+        <Show Dialog="MscExitDlg" OnExit="success" />
+      </InstallUISequence>
+      <AdminUISequence>
+        <Show Dialog="ExitDialog" Sequence="10">0</Show>
+        <Show Dialog="MscExitDlg" OnExit="success" />
+      </AdminUISequence>
+    </UI>
+    <UIRef Id="WixUI_Common" />
+  </Fragment>
+</Wix>

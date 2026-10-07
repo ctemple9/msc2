@@ -223,3 +223,65 @@ close any phase gate or authorize P16.45 implementation.
 - [Microsoft MSI control attributes](https://learn.microsoft.com/en-us/windows/win32/msi/control-attributes).
 - [Microsoft MSI command-line options](https://learn.microsoft.com/en-us/windows/win32/msi/command-line-options).
 - [Microsoft MSI result codes](https://learn.microsoft.com/en-us/windows/win32/msi/error-codes).
+
+## P16.45 implementation and local candidate
+
+The maintained template derives from locked Tauri CLI 2.11.4, with MIT
+attribution retained beside it. It preserves generated resources, architecture
+handling, component identities and WebView2 bootstrap behavior. Localized
+native-control screens introduce MSC, offer destination and a real optional
+desktop shortcut, review version/scope/folder/prerequisites, show MSI progress
+and explain first launch. Text is authored in controls, not bitmap artwork.
+The CLI PATH fragment and Start-menu discovery remain in the package.
+
+The transient preparation screen is suppressed with a false sequence condition,
+without sleeps or premature navigation. Searches/costing finish before the
+interactive Welcome screen. Required stock auxiliary dialog dependencies remain
+compiled, but stock Welcome/Progress/Exit screens are disabled in the sequence.
+Custom dialogs use separate IDs. Navigation, destination validation, disk-space
+checks, cancellation and license routes are wired explicitly. Completion launch
+requires selection and excludes maintenance/removal, automatic launch and known
+reboot conditions.
+
+Local unsigned release candidate (not published or physically accepted):
+
+- Path: `clients/desktop-web/src-tauri/target/release/bundle/msi/MSC 2_0.1.23_x64_en-US.msi`.
+- Size: 16,990,208 bytes.
+- SHA-256: `3a2b768c891bd8df7fff5b316e23a6d54edf8082dfee69df2224ba249dc1518b`.
+- ProductVersion: `0.1.23`.
+- UpgradeCode: `{816BE706-5775-5A3A-917C-339FBF0976E9}`, matching the baseline.
+
+The requested build compiled the frontend, release agent and release desktop.
+Initial packaging failed on WiX dialog/event conflicts; those failures were
+inspected and corrected before successful final release packaging with
+`npx tauri bundle --bundles msi --no-sign --verbose`. Intermediate debug bundling
+encountered an in-use executable and was not used as this candidate. Release
+rebundling warned that the bundle-type marker had already been patched by the
+earlier build. No Rust source changed.
+
+Final packaging passed normal MSI validation. Retained upstream warnings were
+ICE03 (WebView2 action target length), ICE40 (REINSTALLMODE), ICE57 (shortcut
+registry/machine scope) and ICE61 (downgrade policy). Identity/scope and recovery
+policy remain for P16.46 onward; no release gates were added. XML parsing,
+config formatting and diff checks passed. No tests were run.
+
+Read-only Windows Installer database inspection of this exact candidate found:
+
+- Stock preparation/Welcome/Progress/Exit sequence conditions are `0`;
+  custom Welcome is at 1294 after costing, Progress at 1299 and Exit on success
+  in both install and administrator UI sequences.
+- Navigation, validation, cancellation and completion launch conditions are
+  present in ControlEvent/ControlCondition tables.
+- The desktop shortcut is transitive, conditioned on
+  `MSC_DESKTOP_SHORTCUT = "1"`, and retains baseline component identity
+  `{8920A060-D815-5BCF-BF89-20659E1F4D58}` and registry keypath.
+- File rows include desktop, agent/CLI, Vantage renderer/license and Bedrock
+  exporter. The Environment table retains the package-owned agent PATH entry.
+  Shortcut and launch choices default to selected.
+
+Tables establish authored behavior, not painted pixels or successful
+installation. Cameron must review screens, keyboard navigation, Back/Cancel
+before installation and layouts at 100%, 125%, 150% and 200% scaling in a
+disposable environment. No installer was launched, service action performed or
+release workflow run. Service coordination, enabled repair/removal and updater
+recovery remain P16.47–P16.49; the introduction does not claim those complete.

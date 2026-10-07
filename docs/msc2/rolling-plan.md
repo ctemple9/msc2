@@ -61,11 +61,13 @@
 
 ### P16.45 — Give MSI preparation and installation screens an MSC introduction
 
-**Status:** Planned; awaiting Cameron's review.
-**Files:** `packaging/windows/desktop-installer.wxs` (new maintained Tauri template), `packaging/windows/desktop-installer-ui.wxs` and `desktop-installer-en-us.wxl` (new where needed), `clients/desktop-web/src-tauri/tauri.conf.json`, `docs/msc2/release/windows-msi-review.md`, this plan; restrained existing-mark artwork only if required.
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `packaging/windows/desktop-installer.wxs`, `packaging/windows/desktop-installer-ui.wxs`, `packaging/windows/desktop-installer-en-us.wxl`, `packaging/windows/desktop-installer-template-LICENSE.txt`, `clients/desktop-web/src-tauri/tauri.conf.json`, `docs/msc2/release/windows-msi-review.md`, this plan.
 **What:** Read antiAIslop.md. Implement the reviewed preparation/Welcome/options/review/progress/completion flow with MSC-specific copy, correct tab order/default/Escape actions, and working Next/Back/Cancel conditions. Remedy or suppress the transient blank preparation presentation without sleeps or enabled navigation before costing completes. Show installation version/scope/destination and first-launch local-service guidance. Keep text as controls/localization strings, not bitmap text. Preserve Tauri's generated resource/component placeholders, architecture handling, WebView2 behavior and upgrade identity. Optional desktop shortcut must be an actual conditional component; retain the supported CLI and Start-menu discovery. This step does not claim the future service/update steps are complete.
 **Verify:** From `clients/desktop-web`, run `npx tauri build --bundles msi --no-sign`.
 **Batch:** P16.45 only.
+**Commit:** `P16.45: introduce msc windows installer screens`
+**Checks:** Release frontend, agent and desktop compilation succeeded. After correcting WiX dialog/event conflicts, release bundle-only packaging succeeded with normal MSI validation. Read-only candidate inspection confirmed suppressed preparation, custom navigation/launch conditions, conditional desktop shortcut, preserved upgrade identity and complete staged payload. XML/config formatting and diff checks passed. No tests, installer launch, service operations or release workflows run; no Rust source changed. Candidate details and retained upstream packaging warnings are recorded in `release/windows-msi-review.md`.
 **Manual acceptance:** Cameron opens the local candidate in a disposable Windows environment, reviews every screen, uses keyboard navigation, backs out and cancels before installation, and checks readable layouts at 100%, 125%, 150% and 200% display scaling. Build success alone does not establish the blank-page fix.
 
 ### P16.46 — Make MSI identity, payload and prerequisites explicit

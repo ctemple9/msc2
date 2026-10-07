@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WixLocalization Culture="en-us" xmlns="http://schemas.microsoft.com/wix/2006/localization">
+  <String Id="MscWelcomeTitle">Welcome to MSC 2</String>
+  <String Id="MscWelcomeBody">Create and manage Minecraft Java and Bedrock servers on computers you own.</String>
+  <String Id="MscIncluded">This installer includes the desktop app, background-agent files, terrain helpers, and the msc terminal command.</String>
+  <String Id="MscFirstLaunch">After installation, open MSC 2 to set up local hosting or connect to another computer. Local hosting setup asks for Windows approval and your account password.</String>
+  <String Id="MscNewVersion">Installing version [ProductVersion] for this computer.</String>
+  <String Id="MscExistingVersion">An existing MSC 2 installation was found. Setup will replace its application files with version [ProductVersion].</String>
+  <String Id="MscOptionsTitle">Installation options</String>
+  <String Id="MscScope">MSC 2 installs for this computer. Windows administrator approval is required to change application files.</String>
+  <String Id="MscDestination">Installation folder:</String>
+  <String Id="MscDesktopShortcut">Create a &amp;desktop shortcut</String>
+  <String Id="MscCommand">A Start-menu entry and the msc terminal command are included. Open a new PowerShell or Command Prompt window after installation to use msc.</String>
+  <String Id="MscReadyTitle">Review MSC 2 Setup</String>
+  <String Id="MscReadyVersion">Target version: [ProductVersion]</String>
+  <String Id="MscReadyFolder">Application folder: [INSTALLDIR]</String>
+  <String Id="MscReadyScope">Installs the desktop app, agent files, terrain helpers, Start-menu entry and msc command. Local hosting is configured when you open MSC 2.</String>
+  <String Id="MscWebviewMissing">Microsoft WebView2 is required for the desktop app. Setup will download and install it; an internet connection is required.</String>
+  <String Id="MscWebviewPresent">Microsoft WebView2 is already installed.</String>
+  <String Id="MscApproval">Windows may ask for administrator approval when you continue. Use Back to change the folder or shortcut choice.</String>
+  <String Id="MscInstall">&amp;Install</String>
+  <String Id="MscUpdate">&amp;Update</String>
+  <String Id="MscProgressTitle">Applying MSC 2 Setup</String>
+  <String Id="MscProgressBody">Setup is applying your selected package changes. The current Windows Installer action is shown below.</String>
+  <String Id="MscProgressCancel">Cancel requests that Setup stop safely. Committing changes or rolling them back may take a moment.</String>
+  <String Id="MscCompleteTitle">MSC 2 Setup completed</String>
+  <String Id="MscCompleteBody">MSC 2 version [ProductVersion] is installed. Open the app to set up local hosting or connect to another computer.</String>
+  <String Id="MscCompleteCommand">The msc command is available in new terminal windows. Installing the app does not by itself confirm that the background agent is running.</String>
+  <String Id="MscMaintenanceComplete">The requested package changes completed. Any running background service is managed separately from these installer screens.</String>
+  <String Id="MscRemoved">The MSC 2 application package was removed. This package operation does not perform MSC's separately confirmed complete data cleanup.</String>
+  <String Id="MscReboot">Windows has pending restart work or Setup replaced files in use. Save your work and restart before opening MSC 2.</String>
+  <String Id="MscShortcutYes">Desktop shortcut: included</String>
+  <String Id="MscShortcutNo">Desktop shortcut: not selected</String>
+  <String Id="MscMaintenanceReady">Review the requested package operation, then continue. Service coordination and complete data cleanup are separate actions.</String>
+</WixLocalization>

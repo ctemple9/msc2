@@ -1,5 +1,16 @@
 # MSC 2 — Rolling Plan
 
+### P18.37 — Hide component filters with search
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`, this plan.
+**What:** Show the state dropdown only while the Plugins/Mods search is open, so the filter controls share the same toggle. Keep the selected state filter when the controls are hidden and restore it when reopened. No tests added or run for this narrow UI adjustment.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P18.37 only.
+**Commit:** `P18.37: hide component filters with search`
+
+**Manual acceptance:** In Components, confirm the search icon is the only control beside the plugin/mod heading while closed. Open it and confirm both search and state filter appear; close it and confirm both disappear.
+
 ### P18.36 — Toggle the Components list search
 
 **Status:** Implemented; awaiting Cameron's verification.

@@ -678,12 +678,14 @@
                 bind:value={addonSearch}
               />
             {/if}
-            <Select
-              options={addonFilterOptions}
-              bind:value={addonFilter}
-              width="auto"
-              ariaLabel="Filter components by state"
-            />
+            {#if addonSearchVisible}
+              <Select
+                options={addonFilterOptions}
+                bind:value={addonFilter}
+                width="auto"
+                ariaLabel="Filter components by state"
+              />
+            {/if}
           </div>
           {#if !addonsLoaded}
             <p class="loading-state" role="status">Loading installed plugins…</p>

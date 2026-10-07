@@ -1,5 +1,16 @@
 # MSC 2 — Rolling Plan
 
+### P18.47 — Match cleanup help text to Settings typography
+
+**Status:** Implemented; awaiting Cameron's visual verification. EXECUTE scope: owner-requested correction to the cleanup description.
+**Files:** `clients/desktop-web/src/lib/sections/app-settings/StorageCleanup.svelte`; this plan.
+**What:** Apply the existing hint class to the cleanup description and use the same 12px, tertiary text color as neighboring Settings explanations. Keep cleanup behavior and wording intact.
+**Verify:** `npm --prefix clients/desktop-web run check`; Cameron opens Settings → Disk space and compares the description with the neighboring Playit and DuckDNS help text.
+**Batch:** P18.47 only.
+**Commit:** `P18.47: match cleanup help text to settings typography`
+**Checks:** Svelte check passed with zero errors and eleven existing warnings; Rust formatting and agent Clippy passed with existing warnings. No tests ran. Desktop binary has not been rebuilt for this styling correction.
+
+
 ### P18.46 — Clean renderer staging on service stop and from Settings
 
 **Status:** Implemented; awaiting Cameron's verification. Owner explicitly requested implementation after inspecting retained renderer disk usage; transfer steps P18.41–P18.45 remain planned.

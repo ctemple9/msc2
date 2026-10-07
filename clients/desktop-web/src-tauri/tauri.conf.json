@@ -28,6 +28,8 @@
   },
   "bundle": {
     "active": true,
+    "publisher": "ctemple",
+    "homepage": "https://github.com/ctemple9/msc2",
     "targets": "all",
     "icon": [
       "icons/icon-16x16.png",
@@ -55,7 +57,13 @@
       }
     },
     "windows": {
+      "allowDowngrades": true,
+      "webviewInstallMode": {
+        "type": "embedBootstrapper",
+        "silent": true
+      },
       "wix": {
+        "upgradeCode": "816be706-5775-5a3a-917c-339fbf0976e9",
         "template": "../../../packaging/windows/desktop-installer.wxs",
         "fragmentPaths": [
           "../../../packaging/windows/desktop-cli-path.wxs",

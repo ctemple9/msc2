@@ -70,21 +70,28 @@
 
         {{#if homepage}}
         <Property Id="ARPURLINFOABOUT" Value="{{homepage}}"/>
-        <Property Id="ARPHELPLINK" Value="{{homepage}}"/>
-        <Property Id="ARPURLUPDATEINFO" Value="{{homepage}}"/>
+        <Property Id="ARPHELPLINK" Value="https://github.com/ctemple9/msc2/issues"/>
+        <Property Id="ARPURLUPDATEINFO" Value="https://github.com/ctemple9/msc2/releases"/>
         {{/if}}
 
-        <!-- NOTE: The order of RegistrySearch elements below matters. In WIX, when multiple
-             RegistrySearch elements are listed under a single Property, the LAST successful
-             match wins. We list the NSIS default-key search first and the MSI InstallDir
-             search second so that the MSI-specific path takes priority when both keys exist. -->
-        <Property Id="INSTALLDIR">
-          <!-- First attempt: Search for the default key value (this is how the nsis installer stores the path) -->
-          <RegistrySearch Id="PrevInstallDirNoName" Root="HKCU" Key="Software\\{{manufacturer}}\\{{product_name}}" Type="raw" />
-
-          <!-- Second attempt: Search for "InstallDir" which takes priority if found (this is how the msi installer stores the path) -->
-          <RegistrySearch Id="PrevInstallDirWithName" Root="HKCU" Key="Software\\{{manufacturer}}\\{{product_name}}" Name="InstallDir" Type="raw" />
+        <!-- Machine registration survives approval by a different administrator.
+             MSI's registered file component also locates older packages whose
+             InstallDir marker was written only to the installing user's hive. -->
+        <Property Id="INSTALLDIR" Secure="yes" />
+        <Property Id="MSC_MACHINE_INSTALLDIR" Secure="yes">
+          <RegistrySearch Id="MscMachineInstallDir" Root="HKLM" Key="Software\CTemple\MSC2" Name="DesktopInstallDir" Type="raw" Win64="$(var.Win64)" />
         </Property>
+        <Property Id="MSC_COMPONENT_INSTALLDIR" Secure="yes">
+          <ComponentSearch Id="MscPreviousDesktopDirectory" Guid="{{path_component_guid}}" Type="file" />
+        </Property>
+        <Property Id="MSC_LEGACY_INSTALLDIR" Secure="yes">
+          <RegistrySearch Id="PrevInstallDirWithName" Root="HKCU" Key="Software\\{{manufacturer}}\\{{product_name}}" Name="InstallDir" Type="raw" Win64="no" />
+        </Property>
+        <!-- With no FileSearch signature, CompLocator returns the file's directory.
+             Explicit INSTALLDIR supplied by the operator always takes precedence. -->
+        <SetProperty Id="INSTALLDIR" Action="MscUseMachineDirectory" Value="[MSC_MACHINE_INSTALLDIR]" After="AppSearch" Sequence="both">NOT INSTALLDIR AND MSC_MACHINE_INSTALLDIR</SetProperty>
+        <SetProperty Id="INSTALLDIR" Action="MscUseComponentDirectory" Value="[MSC_COMPONENT_INSTALLDIR]" After="MscUseMachineDirectory" Sequence="both">NOT INSTALLDIR AND MSC_COMPONENT_INSTALLDIR</SetProperty>
+        <SetProperty Id="INSTALLDIR" Action="MscUseLegacyDirectory" Value="[MSC_LEGACY_INSTALLDIR]" After="MscUseComponentDirectory" Sequence="both">NOT INSTALLDIR AND WIX_UPGRADE_DETECTED AND MSC_LEGACY_INSTALLDIR</SetProperty>
 
         <!-- launch app checkbox -->
         <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="!(loc.LaunchApp)" />
@@ -102,29 +109,39 @@
 
         <UIRef Id="MscInstallUI" />
 
+        <!-- Resolve explicit common-folder aliases under this per-machine package.
+             MSI validation otherwise classifies the dual-purpose standard folder
+             identifiers as per-user even though ALLUSERS resolves them machine-wide. -->
+        <Property Id="MSC_COMMON_DESKTOP" Secure="yes" />
+        <Property Id="MSC_COMMON_PROGRAMS" Secure="yes" />
+        <SetProperty Id="MSC_COMMON_DESKTOP" Value="[DesktopFolder]" After="CostInitialize" Sequence="both" />
+        <SetProperty Id="MSC_COMMON_PROGRAMS" Value="[ProgramMenuFolder]" After="SetMSC_COMMON_DESKTOP" Sequence="both" />
+        <Condition Message="!(loc.MscMachineOnly)">ALLUSERS = 1</Condition>
+
         <Directory Id="TARGETDIR" Name="SourceDir">
-            <Directory Id="DesktopFolder" Name="Desktop">
-                <Component Id="ApplicationShortcutDesktop" Guid="*" Transitive="yes">
+            <Directory Id="MSC_COMMON_DESKTOP" Name="Desktop">
+                <Component Id="MscMachineDesktopShortcut" Guid="*" Transitive="yes" Win64="$(var.Win64)">
                     <Condition>MSC_DESKTOP_SHORTCUT = "1"</Condition>
                     <Shortcut Id="ApplicationDesktopShortcut" Name="{{product_name}}" Description="Runs {{product_name}}" Target="[!Path]" WorkingDirectory="INSTALLDIR" />
-                    <RemoveFolder Id="DesktopFolder" On="uninstall" />
-                    <RegistryValue Root="HKCU" Key="Software\\{{manufacturer}}\\{{product_name}}" Name="Desktop Shortcut" Type="integer" Value="1" KeyPath="yes" />
+                    <RemoveFolder Id="MscCommonDesktop" On="uninstall" />
+                    <!-- HKMU follows ALLUSERS=1, so this marker is machine-owned. -->
+                    <RegistryValue Root="HKMU" Key="Software\CTemple\MSC2" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
                 </Component>
             </Directory>
             <Directory Id="$(var.PlatformProgramFilesFolder)" Name="PFiles">
                 <Directory Id="INSTALLDIR" Name="{{product_name}}"/>
             </Directory>
-            <Directory Id="ProgramMenuFolder">
+            <Directory Id="MSC_COMMON_PROGRAMS" Name="Programs">
                 <Directory Id="ApplicationProgramsFolder" Name="{{product_name}}"/>
             </Directory>
         </Directory>
 
         <DirectoryRef Id="INSTALLDIR">
-            <Component Id="RegistryEntries" Guid="*">
-                <RegistryKey Root="HKCU" Key="Software\\{{manufacturer}}\\{{product_name}}">
-                    <RegistryValue Name="InstallDir" Type="string" Value="[INSTALLDIR]" KeyPath="yes" />
+            <!-- New identities are required when moving a component's registry keypath. -->
+            <Component Id="MscMachineRegistry" Guid="*" Win64="$(var.Win64)">
+                <RegistryKey Root="HKLM" Key="Software\CTemple\MSC2">
+                    <RegistryValue Name="DesktopInstallDir" Type="string" Value="[INSTALLDIR]" KeyPath="yes" />
                 </RegistryKey>
-                <!-- Change the Root to HKCU for perUser installations -->
                 {{#each deep_link_protocols as |protocol| ~}}
                 <RegistryKey Root="HKLM" Key="Software\Classes\\{{protocol}}">
                     <RegistryValue Type="string" Name="URL Protocol" Value=""/>
@@ -167,7 +184,7 @@
             </Component>
             {{/if}}
             {{resources}}
-            <Component Id="CMP_UninstallShortcut" Guid="*">
+            <Component Id="MscMachineUninstallShortcut" Guid="*" Win64="$(var.Win64)">
 
                 <Shortcut Id="UninstallShortcut"
 						  Name="Uninstall {{product_name}}"
@@ -178,9 +195,9 @@
 				<RemoveFolder Id="INSTALLDIR"
 							  On="uninstall" />
 
-				<RegistryValue Root="HKCU"
-							   Key="Software\\{{manufacturer}}\\{{product_name}}"
-							   Name="Uninstaller Shortcut"
+				<RegistryValue Root="HKLM"
+							   Key="Software\CTemple\MSC2"
+							   Name="UninstallerShortcut"
 							   Type="integer"
 							   Value="1"
 							   KeyPath="yes" />
@@ -188,7 +205,7 @@
         </DirectoryRef>
 
         <DirectoryRef Id="ApplicationProgramsFolder">
-            <Component Id="ApplicationShortcut" Guid="*">
+            <Component Id="MscMachineStartMenuShortcut" Guid="*" Win64="$(var.Win64)">
                 <Shortcut Id="ApplicationStartMenuShortcut"
                     Name="{{product_name}}"
                     Description="Runs {{product_name}}"
@@ -198,7 +215,7 @@
                     <ShortcutProperty Key="System.AppUserModel.ID" Value="{{bundle_id}}"/>
                 </Shortcut>
                 <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall"/>
-                <RegistryValue Root="HKCU" Key="Software\\{{manufacturer}}\\{{product_name}}" Name="Start Menu Shortcut" Type="integer" Value="1" KeyPath="yes"/>
+                <RegistryValue Root="HKMU" Key="Software\CTemple\MSC2" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes"/>
            </Component>
         </DirectoryRef>
 
@@ -222,7 +239,7 @@
                 Display="expand"
                 Absent="disallow">
 
-            <ComponentRef Id="RegistryEntries"/>
+            <ComponentRef Id="MscMachineRegistry"/>
 
             {{#each resource_file_ids as |resource_file_id| ~}}
                 <ComponentRef Id="{{ resource_file_id }}"/>
@@ -238,9 +255,9 @@
                 Title="Shortcuts"
                 Level="1">
                 <ComponentRef Id="Path"/>
-                <ComponentRef Id="CMP_UninstallShortcut" />
-                <ComponentRef Id="ApplicationShortcut" />
-                <ComponentRef Id="ApplicationShortcutDesktop" />
+                <ComponentRef Id="MscMachineUninstallShortcut" />
+                <ComponentRef Id="MscMachineStartMenuShortcut" />
+                <ComponentRef Id="MscMachineDesktopShortcut" />
             </Feature>
 
             <Feature
@@ -276,10 +293,11 @@
 
         {{#if install_webview}}
         <!-- WebView2 -->
-        <Property Id="INSTALLED_WEBVIEW2_VERSION">
+        <!-- Require the shared machine runtime; an administrator's private
+             runtime must not make another user's desktop installation appear ready. -->
+        <Property Id="INSTALLED_WEBVIEW2_VERSION" Secure="yes">
             <RegistrySearch Id="Webview2VersionSystemx64" Root="HKLM" Key="SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" Name="pv" Type="raw" />
             <RegistrySearch Id="Webview2VersionSystemx86" Root="HKLM" Key="SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" Name="pv" Type="raw" />
-            <RegistrySearch Id="Webview2VersionUser" Root="HKCU" Key="SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" Name="pv" Type="raw"/>
         </Property>
 
         {{#if download_bootstrapper}}
@@ -295,10 +313,13 @@
         {{#if webview2_bootstrapper_path}}
         <!-- Embedded webview bootstrapper mode -->
         <Binary Id="MicrosoftEdgeWebview2Setup.exe" SourceFile="{{webview2_bootstrapper_path}}"/>
-        <CustomAction Id='InvokeBootstrapper' BinaryKey='MicrosoftEdgeWebview2Setup.exe' Execute="deferred" ExeCommand='{{webview_installer_args}} /install' Return='check' />
+        <CustomAction Id='InvokeBootstrapper' BinaryKey='MicrosoftEdgeWebview2Setup.exe' Execute="deferred" Impersonate="no" ExeCommand='{{webview_installer_args}} /install' Return='check' />
+        <UI>
+          <ProgressText Action="InvokeBootstrapper">!(loc.MscWebviewProgress)</ProgressText>
+        </UI>
         <InstallExecuteSequence>
             <Custom Action='InvokeBootstrapper' Before='InstallFinalize'>
-                <![CDATA[NOT(REMOVE OR INSTALLED_WEBVIEW2_VERSION)]]>
+                <![CDATA[NOT REMOVE AND (NOT INSTALLED_WEBVIEW2_VERSION OR INSTALLED_WEBVIEW2_VERSION = "0.0.0.0")]]>
             </Custom>
         </InstallExecuteSequence>
         {{/if}}

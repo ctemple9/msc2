@@ -91,10 +91,10 @@
           <Condition Action="show">NOT MSC_DESKTOP_SHORTCUT AND NOT Installed</Condition>
         </Control>
         <Control Id="WebviewMissing" Type="Text" X="24" Y="179" Width="372" Height="34" NoPrefix="yes" Text="!(loc.MscWebviewMissing)">
-          <Condition Action="hide">INSTALLED_WEBVIEW2_VERSION OR REMOVE OR WixUI_InstallMode="Remove"</Condition>
+          <Condition Action="hide">(INSTALLED_WEBVIEW2_VERSION AND INSTALLED_WEBVIEW2_VERSION &lt;&gt; "0.0.0.0") OR REMOVE OR WixUI_InstallMode="Remove"</Condition>
         </Control>
         <Control Id="WebviewPresent" Type="Text" X="24" Y="179" Width="372" Height="34" Hidden="yes" NoPrefix="yes" Text="!(loc.MscWebviewPresent)">
-          <Condition Action="show">INSTALLED_WEBVIEW2_VERSION AND NOT REMOVE AND WixUI_InstallMode &lt;&gt; "Remove"</Condition>
+          <Condition Action="show">INSTALLED_WEBVIEW2_VERSION AND INSTALLED_WEBVIEW2_VERSION &lt;&gt; "0.0.0.0" AND NOT REMOVE AND WixUI_InstallMode &lt;&gt; "Remove"</Condition>
         </Control>
         <Control Id="Approval" Type="Text" X="24" Y="223" Width="372" Height="30" NoPrefix="yes" Text="!(loc.MscApproval)" />
         <Control Id="BottomLine" Type="Line" X="0" Y="263" Width="420" Height="0" />
@@ -175,6 +175,16 @@
         </Control>
       </Dialog>
 
+      <Dialog Id="MscFailureDlg" Width="420" Height="300" Title="[ProductName] Setup">
+        <Control Id="Title" Type="Text" X="24" Y="20" Width="372" Height="25" NoPrefix="yes" Text="{\WixUI_Font_Bigger}!(loc.MscFailureTitle)" />
+        <Control Id="Body" Type="Text" X="24" Y="62" Width="372" Height="65" NoPrefix="yes" Text="!(loc.MscFailureBody)" />
+        <Control Id="Webview" Type="Text" X="24" Y="145" Width="372" Height="80" NoPrefix="yes" Text="!(loc.MscFailureWebview)" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="263" Width="420" Height="0" />
+        <Control Id="Finish" Type="PushButton" X="332" Y="276" Width="64" Height="17" Default="yes" Cancel="yes" Text="!(loc.WixUIFinish)">
+          <Publish Event="EndDialog" Value="Exit">1</Publish>
+        </Control>
+      </Dialog>
+
       <Publish Dialog="BrowseDlg" Control="OK" Event="DoAction" Value="WixUIValidatePath" Order="3">1</Publish>
       <!-- WiX validates even unreachable stock auxiliary-dialog neighbors. -->
       <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999">1</Publish>
@@ -192,15 +202,19 @@
         <Show Dialog="WelcomeDlg" Sequence="1280">0</Show>
         <Show Dialog="ProgressDlg" Sequence="1281">0</Show>
         <Show Dialog="ExitDialog" Sequence="1282">0</Show>
+        <Show Dialog="FatalError" Sequence="1283">0</Show>
         <Show Dialog="MaintenanceWelcomeDlg" Sequence="1292">Installed AND NOT RESUME AND NOT Preselected AND NOT PATCH</Show>
         <Show Dialog="ResumeDlg" Sequence="1293">Installed AND (RESUME OR Preselected)</Show>
         <Show Dialog="MscWelcomeDlg" Sequence="1294">NOT Installed OR PATCH</Show>
         <Show Dialog="MscProgressDlg" Sequence="1299" />
         <Show Dialog="MscExitDlg" OnExit="success" />
+        <Show Dialog="MscFailureDlg" OnExit="error" />
       </InstallUISequence>
       <AdminUISequence>
         <Show Dialog="ExitDialog" Sequence="10">0</Show>
+        <Show Dialog="FatalError" Sequence="11">0</Show>
         <Show Dialog="MscExitDlg" OnExit="success" />
+        <Show Dialog="MscFailureDlg" OnExit="error" />
       </AdminUISequence>
     </UI>
     <UIRef Id="WixUI_Common" />

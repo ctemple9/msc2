@@ -72,11 +72,13 @@
 
 ### P16.46 — Make MSI identity, payload and prerequisites explicit
 
-**Status:** Planned; awaiting Cameron's review.
-**Files:** Tauri Windows/WiX config/template/fragments, `packaging/windows/desktop-cli-path.wxs`, `tools/release/stage-windows-agent.ps1` only if payload corrections are necessary, Windows installation documentation, `docs/msc2/release/windows-msi-review.md`, this plan.
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src-tauri/tauri.conf.json`, `packaging/windows/desktop-installer.wxs`, `packaging/windows/desktop-installer-ui.wxs`, `packaging/windows/desktop-installer-en-us.wxl`, `docs/msc2/clients/windows-installation.md`, `docs/msc2/release/windows-msi-review.md`, this plan. Existing PATH fragment and payload staging inspected; no correction needed.
 **What:** Pin the existing verified UpgradeCode rather than creating a new product family; preserve existing MSI upgrade compatibility and package ownership. Set accurate publisher/product/version/support metadata using owner-approved identity and real destinations. Retain desktop, agent/CLI, Vantage renderer/license and Bedrock exporter. Align machine registration, previous-install-directory discovery and shortcuts with elevation under a different administrator. Preserve the exact package-owned PATH entry without deleting another MSC/headless installation's entry. Make the selected WebView2 strategy explicit, skip its installation if present, surface prerequisite failure and explain connectivity before it is needed. Record the currently unsigned Windows publisher limitation accurately. Resolve ordinary downgrade policy with the P16.49 recovery design before enforcing a block.
 **Verify:** From `clients/desktop-web`, run `npx tauri bundle --bundles msi --no-sign` using the native binary built in P16.45.
 **Batch:** P16.46 only.
+**Commit:** `P16.46: pin windows installer identity and prerequisites`
+**Checks:** Release bundle-only packaging passed after correcting shortcut scope validation errors, with normal MSI validation enabled. Exact-candidate read-only table inspection confirmed identity, complete payload, machine registration and folder lookup, shared shortcuts, unchanged PATH component/entry, secure directory handoff and checked elevated WebView2 bootstrapper. Its Microsoft source signature is valid; MSC MSI remains unsigned. Downgrade permission deliberately retained for P16.49 recovery design. XML/config formatting and diff checks passed. No tests, native rebuilds, installation/service actions or release workflows run; Rust formatting/Clippy not applicable because no Rust source changed. Candidate hash and remaining warnings are recorded in `release/windows-msi-review.md`.
 **Manual acceptance:** Inspect the candidate's identity/payload tables, upgrade an existing package in a disposable environment, open a new PowerShell and confirm `Get-Command msc`, and exercise a missing-WebView2 installation with and without connectivity. Do not uninstall shared WebView2 from the development machine for acceptance.
 
 ### P16.47 — Coordinate MSI with the actual local agent installation

@@ -285,3 +285,87 @@ before installation and layouts at 100%, 125%, 150% and 200% scaling in a
 disposable environment. No installer was launched, service action performed or
 release workflow run. Service coordination, enabled repair/removal and updater
 recovery remain P16.47–P16.49; the introduction does not claim those complete.
+
+## P16.46 identity, machine registration and prerequisite candidate
+
+Cameron reported that the P16.45 installer looked good after the Sandbox review
+instructions. This records his visual observation only; exact scaling, keyboard
+and installation results were not supplied and are not inferred.
+
+P16.46 pins the verified UpgradeCode in Tauri configuration, preserves publisher
+`ctemple`, product MSC 2 and configured version, and supplies existing real
+repository/Issues/Releases destinations for Installed Apps metadata. It preserves
+the existing desktop file component and CLI PATH component identities. The old
+v0.1.15 and new candidate both identify the desktop file component as
+`{435E9180-FA08-5CE9-9162-90B8459E20F5}`; this is the component used for lookup.
+Moving InstallDir/shortcut markers out of HKCU requires new component identities because
+their registry keypaths changed; the old components are not silently repurposed.
+No service registration, payload staging or Rust source changed.
+
+Previous-directory lookup now prefers machine `DesktopInstallDir`, then MSI's
+registered desktop file component, then the old user's HKCU marker when a related
+upgrade is detected. Explicit INSTALLDIR wins. The registered component lookup
+uses the generated desktop GUID, not an arbitrary folder/file-name search, and
+works without depending on the approving administrator's HKCU marker. Lookup and
+directory-setting actions run in both UI and execution sequences, before costing.
+The old user's leftover HKCU markers are not swept across account hives.
+
+Shortcuts use common-folder aliases resolved from MSI's standard folder
+properties after CostInitialize. ALLUSERS=1 is enforced. Shortcut keypaths use
+HKMU (Registry Root=-1), which resolves to HKLM under that installation scope;
+InstallDir and uninstall shortcut markers use HKLM directly. The desktop choice
+remains an actual conditional/transitive component. Machine PATH remains the
+unchanged single Environment row `=-*PATH`, `[~];[INSTALLDIR]agent`, with CLI
+component `{6E7F2CAA-693C-598D-AC9E-C072B6B8CF58}`. No blanket PATH cleanup or
+standalone-headless marker removal was added.
+
+Decided within this step: embed the small online Evergreen bootstrapper rather
+than downloading it into a temporary path through the inherited PowerShell
+command. Both are online strategies; embedding adds about 1.85 MB and lets MSI
+invoke the binary directly and check its result. The full offline runtime is not
+bundled. Machine-runtime detection avoids treating another administrator's
+per-user runtime as available to all users. Empty/`0.0.0.0` versions schedule the
+bootstrapper; a present nonzero machine version skips it. The action runs deferred
+without user impersonation, `/silent /install`, checked return code, before
+InstallFinalize. Localized progress and an MSC failure screen explain connectivity
+and log diagnosis. Shared WebView2 is not removed on uninstall/rollback.
+
+Downgrade permission is explicitly kept at its prior value (`true`). P16.49 must
+define signed previous-version restoration before ordinary downgrades are blocked.
+This does not amend D-032 or claim recovery is implemented.
+
+Exact local unsigned candidate replacing the P16.45 bytes at the same path:
+
+| Field | Observed value |
+|---|---|
+| Path | `clients/desktop-web/src-tauri/target/release/bundle/msi/MSC 2_0.1.23_x64_en-US.msi` |
+| Bytes | 18,845,696 |
+| SHA-256 | `37238381fdd79dd606697f0e82daa94a37e7464785ce19369cde053274d243cc` |
+| Product / publisher / version | MSC 2 / ctemple / 0.1.23 |
+| UpgradeCode | `{816BE706-5775-5A3A-917C-339FBF0976E9}` |
+| MSC Authenticode status | NotSigned |
+| Embedded bootstrapper source status | Valid; Microsoft Corporation |
+| Bootstrapper source SHA-256 | `aa38a8cfce6179b87181609b1c730a29eaf26138fc833af5759e67576770f3a3` |
+
+Read-only candidate database inspection confirmed all five payload File rows
+(desktop, agent/CLI, Bedrock exporter, Vantage executable/license), support metadata,
+machine/scope-aware registry markers, folder discovery, unchanged PATH semantics,
+secure directory handoff properties, and bootstrapper CustomAction type 3074
+(deferred executable binary, no impersonation, checked result). The bootstrapper
+has ActionText and the failure dialog runs on error in both UI sequences.
+
+Bundle-only packaging reused the P16.45 release binary. Initial MSI validation
+rejected HKLM shortcut keypaths under dual-purpose standard folder identifiers;
+the inspected errors led to scope-aware keypaths and explicit common-folder
+aliases, without disabling validation. Final
+`npx tauri bundle --bundles msi --no-sign --verbose` passed. The inherited ICE03
+and ICE57 warnings are absent; ICE40 (reinstall policy) and ICE61 (deliberately
+deferred downgrade restriction) remain. Tauri also reports its previously patched
+bundle-type marker warning during rebundling. No tests, native rebuilds, installer
+launches, service operations, tags or release runs occurred.
+
+Physical results remain pending. The [Windows installation walkthrough](../clients/windows-installation.md)
+covers new-terminal CLI discovery, old-version/custom-folder upgrade, headless
+PATH coexistence, different-administrator approval and missing-runtime online/
+offline failure cases. Static authoring/packaging evidence is not proof of those
+results or of P16.47–P16.49 lifecycle/recovery behavior.

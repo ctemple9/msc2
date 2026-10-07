@@ -8,6 +8,7 @@
   <String Id="MscExistingVersion">An existing MSC 2 installation was found. Setup will replace its application files with version [ProductVersion].</String>
   <String Id="MscOptionsTitle">Installation options</String>
   <String Id="MscScope">MSC 2 installs for this computer. Windows administrator approval is required to change application files.</String>
+  <String Id="MscMachineOnly">MSC 2 requires a machine-wide installation (ALLUSERS=1). Run Setup for this computer.</String>
   <String Id="MscDestination">Installation folder:</String>
   <String Id="MscDesktopShortcut">Create a &amp;desktop shortcut</String>
   <String Id="MscCommand">A Start-menu entry and the msc terminal command are included. Open a new PowerShell or Command Prompt window after installation to use msc.</String>
@@ -15,8 +16,12 @@
   <String Id="MscReadyVersion">Target version: [ProductVersion]</String>
   <String Id="MscReadyFolder">Application folder: [INSTALLDIR]</String>
   <String Id="MscReadyScope">Installs the desktop app, agent files, terrain helpers, Start-menu entry and msc command. Local hosting is configured when you open MSC 2.</String>
-  <String Id="MscWebviewMissing">Microsoft WebView2 is required for the desktop app. Setup will download and install it; an internet connection is required.</String>
-  <String Id="MscWebviewPresent">Microsoft WebView2 is already installed.</String>
+  <String Id="MscWebviewMissing">Microsoft WebView2 is required. Setup includes its small installer, which downloads the shared runtime. An internet connection is required.</String>
+  <String Id="MscWebviewPresent">Microsoft WebView2 is already installed for this computer.</String>
+  <String Id="MscWebviewProgress">Installing Microsoft WebView2. Downloading the shared runtime requires an internet connection.</String>
+  <String Id="MscFailureTitle">MSC 2 Setup did not complete</String>
+  <String Id="MscFailureBody">Setup encountered an error. MSC 2 has not been confirmed ready to open. The preceding Windows Installer message or installation log identifies the failed action.</String>
+  <String Id="MscFailureWebview">If Microsoft WebView2 installation failed, check internet access and your organization's installation policy, then run Setup again. WebView2 is shared with other apps and is not removed by MSC Setup.</String>
   <String Id="MscApproval">Windows may ask for administrator approval when you continue. Use Back to change the folder or shortcut choice.</String>
   <String Id="MscInstall">&amp;Install</String>
   <String Id="MscUpdate">&amp;Update</String>

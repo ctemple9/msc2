@@ -795,8 +795,9 @@
 
 <style>
   .map-shell {
-    min-height: 620px;
-    height: calc(100vh - 184px);
+    min-height: 0;
+    height: 100%;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     background: var(--msc2-bg-content, #1c1c21);
@@ -805,6 +806,7 @@
     overflow: hidden;
   }
   .map-header {
+    flex-shrink: 0;
     min-height: 54px;
     padding: 8px 16px;
     display: flex;
@@ -1104,9 +1106,6 @@
     font-variant-numeric: tabular-nums;
   }
   @media (max-width: 850px) {
-    .map-shell {
-      min-height: 520px;
-    }
     .map-toolbar {
       left: 12px;
       right: 12px;

@@ -253,6 +253,18 @@
     padding: 14px;
     background: var(--msc2-tier-atmosphere);
   }
+  /* The map takes the space left by chrome and the resizable console.
+     Other tab content keeps its ordinary document scrolling. */
+  .content:has(> :global(.tab-pane-active .map-shell)) {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .content > :global(.tab-pane-active:has(.map-shell)) {
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+  }
   .content::-webkit-scrollbar {
     display: none;
   }

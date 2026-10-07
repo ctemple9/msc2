@@ -1,5 +1,17 @@
 # MSC 2 — Rolling Plan
 
+### P18.30 — Fit the world map inside its tab
+
+**Status:** Implemented; awaiting Cameron's window-resize verification.
+**Files:** ApplicationShell.svelte, WorldMapViewer.svelte, this plan.
+**What:** Replace viewport-minus-fixed-offset sizing and 620/520-pixel map minimums with the actual space remaining inside the Worlds tab. The active map pane fills a bounded flex container; the header stays visible and the canvas shrinks with window/console resizing. Preserve scrolling for the ordinary Worlds list and other tabs. Follow the existing design without adding controls or decoration.
+**Verify:** `npm --prefix clients/desktop-web run check`; Cameron opens Java/Bedrock maps, resizes the window, opens/resizes/collapses the console, and confirms the map header and bottom controls remain visible without vertical tab scrolling; return to Worlds list and check ordinary scrolling.
+**Batch:** P18.30 only, owner-requested layout fix.
+**Commit:** `P18.30: fit world map to available tab space`
+
+**Checks:** Svelte check passed with zero errors and eleven existing warnings. Frontend build, native desktop build, native Clippy and whitespace checks passed with existing warnings. Inspected the compiled map-container selectors. No tests or live visual verification ran. Rebuilt desktop: `clients/desktop-web/src-tauri/target/debug/msc2-desktop-web`; installed desktop packages are not replaced by this build. Owner visual acceptance remains pending.
+
+
 ### P18.29 — Correct map staging storage estimates
 
 **Status:** Implemented; awaiting Cameron's large-map verification.

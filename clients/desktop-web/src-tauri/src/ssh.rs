@@ -649,7 +649,15 @@ fn scan_host_key(host: &str, port: u16) -> Result<ScannedHostKey, String> {
         ])
         .output()
         .map_err(|error| format!("Network: Could not reach the SSH host: {error}"))?;
-    let output_text = String::from_utf8_lossy(&output.stdout);
+    let output_text = String::from_utf8_lossy(&output.stdout).into_owned();
+    #[cfg(target_os = "windows")]
+    let output_text = if output_text.trim().is_empty()
+        && String::from_utf8_lossy(&output.stderr).contains("choose_kex: unsupported KEX method")
+    {
+        scan_host_key_with_windows_ssh(host, port)?
+    } else {
+        output_text
+    };
     let mut lines: Vec<&str> = output_text
         .lines()
         .map(str::trim)
@@ -674,6 +682,93 @@ fn scan_host_key(host: &str, port: u16) -> Result<ScannedHostKey, String> {
         fingerprint: fingerprint?,
         known_hosts_line,
     })
+}
+
+#[cfg(target_os = "windows")]
+fn scan_host_key_with_windows_ssh(host: &str, port: u16) -> Result<String, String> {
+    use std::os::windows::process::CommandExt;
+
+    // Older Windows keyscan advertises KEX methods it cannot implement. ssh.exe
+    // filters those correctly; its isolated key file is discovery, not approval.
+    let path = temporary_key_path("windows-scan");
+    write_restricted_file(&path, b"")?;
+    let result = (|| {
+        let mut child = Command::new("ssh")
+            .args(["-F", "NUL", "-N", "-T", "-p"])
+            .arg(port.to_string())
+            .args(["-l", "msc-host-key-scan"])
+            .args(["-o", "ConnectTimeout=5", "-o", "ConnectionAttempts=1"])
+            .args(["-o", "BatchMode=yes", "-o", "PreferredAuthentications=none"])
+            .args([
+                "-o",
+                "PubkeyAuthentication=no",
+                "-o",
+                "PasswordAuthentication=no",
+            ])
+            .args([
+                "-o",
+                "KbdInteractiveAuthentication=no",
+                "-o",
+                "IdentityAgent=none",
+            ])
+            .args([
+                "-o",
+                "StrictHostKeyChecking=accept-new",
+                "-o",
+                "UpdateHostKeys=no",
+            ])
+            .args(["-o", "GlobalKnownHostsFile=NUL", "-o", "HashKnownHosts=no"])
+            .args([
+                "-o",
+                "HostKeyAlgorithms=ssh-ed25519,ecdsa-sha2-nistp256,rsa-sha2-512,rsa-sha2-256",
+            ])
+            .arg("-o")
+            .arg(format!(
+                "UserKnownHostsFile=\"{}\"",
+                path.to_string_lossy().replace('\\', "/")
+            ))
+            .arg("--")
+            .arg(host)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .creation_flags(0x08000000)
+            .spawn()
+            .map_err(|error| format!("SSH: Could not start Windows host-key discovery: {error}"))?;
+
+        // A server permitting unauthenticated access could keep -N alive. Bound
+        // discovery independently of authentication and never open a session.
+        let deadline = std::time::Instant::now() + Duration::from_secs(6);
+        loop {
+            match child.try_wait() {
+                Ok(Some(_)) => break,
+                Ok(None) if std::time::Instant::now() < deadline => {
+                    thread::sleep(Duration::from_millis(50));
+                }
+                _ => {
+                    let _ = child.kill();
+                    break;
+                }
+            }
+        }
+        let output = child.wait_with_output().map_err(|error| {
+            format!("SSH: Could not finish Windows host-key discovery: {error}")
+        })?;
+        let key = fs::read_to_string(&path).map_err(|error| {
+            format!("SSH: Could not read the discovered Windows host key: {error}")
+        })?;
+        // Authentication failure is expected: only the key written before it
+        // matters. An empty file must never be mistaken for successful discovery.
+        if key.trim().is_empty() {
+            return Err(format!(
+                "SSH: Windows host-key discovery failed: {}",
+                clean_output(&output.stderr)
+            ));
+        }
+        Ok(key)
+    })();
+    let _ = fs::remove_file(path);
+    result
 }
 
 fn host_key_rank(line: &str) -> usize {

@@ -452,6 +452,21 @@ Add MSC Settings → Disk space on the selected host → Check reclaimable space
 
 **Checks:** Inspected all three completed failed platform logs: identical unavailable serde_repr dependency, before packaging. Fourth build cancelled. Restored the original registry version/checksum from the prior tag. Locked desktop metadata, synchronized application versions, formatting and diff whitespace checks passed. Application Clippy and addon regression compilation recorded in P12.249. No tests run or workflow gates changed. Nine artifacts, SHA256SUMS and signed update metadata remain required. Expected build time about 40 minutes based on recent successful runs; physical acceptance remains Cameron's verification. Tag replacement is a specifically owner-authorized exception, not a routine retry.
 
+### P12.250 — Discover remote SSH host keys with affected Windows OpenSSH
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src-tauri/src/ssh.rs`, this plan.
+**What:** When Windows `ssh-keyscan` returns no key and reports `choose_kex: unsupported KEX method`, retry discovery with `ssh.exe`, whose key-exchange list excludes unsupported implementations. Use a separate temporary known-hosts file, no user/system SSH configuration, no credentials or authentication agent, and no remote session; bound the process to six seconds and remove the file afterward. Feed the discovered key into the existing SHA256 fingerprint, confirmation and changed-identity checks. Retain the normal scanner on Windows when it works, and leave macOS/Linux discovery unchanged. No tests added or run; physical SSH acceptance belongs to Cameron rather than an environment-dependent automated test.
+**Verify:** From `clients/desktop-web`, run `npx tauri dev` and retry connecting to the Ubuntu remote host; follow manual acceptance below.
+**Batch:** P12.250 only.
+**Commit:** `P12.250: recover windows ssh host-key discovery`
+
+**Checks:** Desktop Rust formatting and ordinary Clippy passed. Clippy retains the three existing Windows/infrastructure warnings (unused Bedrock socket-mode constant, unused desktop update helper, needless Windows return). No tests, release runs or server configuration changes.
+
+**Manual acceptance:** Restart the Windows desktop development session and connect to `10.0.0.156:22`. Confirm the unsupported-KEX error is gone, review the displayed fingerprint against the server's actual host key, and complete pairing/connection. Reconnect and confirm the remembered identity is reused. An existing mismatched fingerprint must still require approval. Confirm macOS/Linux remote connections remain functional during their next physical check; their scanner and authentication paths were not changed.
+
+**Evidence:** [Windows OpenSSH scanner defect](https://github.com/PowerShell/Win32-OpenSSH/issues/2140) documents the unsupported algorithm advertisement and explains why `ssh.exe` is unaffected. [OpenSSH client options](https://man.openbsd.org/ssh_config) document isolated known-host files, disabled prompting and authentication selection. The temporary `accept-new` key file collects an untrusted candidate only; it does not grant MSC trust or modify the user's known-hosts file.
+
 ### P12.249 — Accept modern Java datapack metadata
 
 **Status:** Implemented; awaiting Cameron's verification.

@@ -1,5 +1,16 @@
 # MSC 2 — Rolling Plan
 
+### P18.35 — Clean obsolete local app build data
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** This plan; owner-authorized local data cleanup outside the repository.
+**What:** Remove four obsolete staged agent build directories under `~/.local/share/msc2/agent/builds`, retaining the current packaged development build `d402b6e348b1af1e26f85fa4f6ecb68ecc2dbe02f942893e28ff0c5c64025c2e`, verified by hashing its three packaged executables. No removed executables were running. Remove retired map client proof/Forge capture caches and private map-capture copies under `~/.cache`. Preserve the installed desktop, current development binary, desktop WebKit storage, shared agent credentials and update data. The installed desktop's saved remote-host entry remains present; development uses a different web origin (`http://127.0.0.1:1420` versus `tauri://localhost`) and therefore separate browser settings, not a missing installed profile. No profile migration or credential changes made.
+**Verify:** `ls -1 "$HOME/.local/share/msc2/agent/builds"`
+**Batch:** P18.35 only.
+**Commit:** `P18.35: clean obsolete local app build data`
+
+**Manual acceptance:** Open the installed desktop and confirm its saved host remains. Use `npx tauri dev` from `clients/desktop-web`; its separate profile can save the remote host independently. No tests, builds or release workflows needed for this local cleanup and documentation.
+
 ### P18.34 — Hide application scrollbars
 
 **Status:** Implemented; awaiting Cameron's verification.

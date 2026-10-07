@@ -103,3 +103,69 @@ References: [Tauri Windows installer configuration](https://v2.tauri.app/distrib
 [MSI directory lookup through registered components](https://learn.microsoft.com/en-us/windows/win32/msi/complocator-table),
 [machine desktop folder resolution](https://learn.microsoft.com/en-us/windows/win32/msi/desktopfolder),
 and [MSI PATH entry semantics](https://learn.microsoft.com/en-us/windows/win32/msi/environment-table).
+
+## Local agent replacement in P16.47
+
+Setup now coordinates the fixed local Windows agent service in full, reduced and
+silent installation modes. It checks the actual service account, command and MSC
+metadata before changing anything. A copied desktop build must match the previously
+installed package and its owner's data directory; later replacements use a protected
+ownership record. A separate marked headless installation is left alone. An
+unrecognized or inconsistent installation stops Setup for inspection.
+
+For a running agent built with this step, Setup reserves the host against concurrent
+server operations, requests a graceful Minecraft stop and waits for helper cleanup.
+It replaces the service payload in a protected machine build directory and restores
+the agent's previous running/stopped state. It keeps the existing account, stored
+Windows password, startup policy, data paths and service permissions. It does not
+automatically restart Minecraft. Initial service registration remains a first-launch
+choice, including the one-time Windows service password prompt.
+
+Older agents cannot acknowledge this shutdown request. Before replacing an older
+running installation, stop Minecraft through MSC and wait until it reports stopped;
+then stop the local agent. Run Setup again. Do not force-stop Minecraft to bypass
+this requirement. A stopped older copied build can be migrated when its ownership
+and payload match the old desktop package.
+
+Failure/cancellation uses MSI rollback to restore the old package first, then the
+service command, metadata and previous agent state. Previous immutable builds remain
+for later update recovery. An externally changed service or failed restoration is
+reported as an error; Setup does not overwrite an unknown service or force success.
+Sudden power loss and post-install health rollback are not established by this step.
+
+This intermediate candidate refuses ordinary MSI removal while it owns an agent;
+P16.48 supplies safe detachment/removal. The existing confirmed complete-removal
+worker can call MSI after it has already removed the service and metadata. Updater
+health checks and coordinated older-version recovery remain P16.49.
+
+## Cameron's P16.47 verification
+
+Use disposable VMs with snapshots for service and rollback cases; Sandbox is useful
+for the no-service installation. Record old/new MSI hashes and the service's account,
+startup setting, binary/data paths and state before each case. `Get-CimInstance
+Win32_Service -Filter "Name='com.ctemple.msc2.agent'"` reads the actual registration.
+
+1. Install with no service. Confirm Setup does not create an agent service or ask
+   for its password. First-launch local setup remains available.
+2. Install an older desktop, create its local service, stop Minecraft and then the
+   agent, and upgrade. Confirm the same account/startup setting, retained data and
+   stopped agent; the binary should move to the protected digest-named machine build.
+3. With an older agent still running, try the candidate. Confirm refusal before
+   old-package removal, with the old desktop/service retained. Follow the explicit
+   stop instructions and repeat.
+4. With this candidate's agent running, reopen the candidate or upgrade with a later
+   package built from this implementation. Include a running Minecraft server.
+   Confirm Minecraft stops gracefully, helpers exit, and only the agent resumes.
+   A previously stopped agent must stay stopped. Repeat with non-default boot policy.
+5. Exercise cancellation while the service is stopped and a controlled package
+   failure after replacement in a snapshotted VM. Inspect the verbose MSI log and
+   confirm old files, service command/metadata and previous agent state return.
+   Fault injection is acceptance work; no fault switch ships in the helper.
+6. Repeat with a separately installed marked headless service, an ambiguous service
+   registration, and elevation approved by another administrator. Headless must be
+   untouched; ambiguous ownership must refuse changes; another administrator must
+   not become the service owner. No remote host should receive a service action.
+
+Record restoration failures and retained recovery records under
+`C:\ProgramData\MSC2\Services\DesktopLifecycle` for inspection. Do not delete a
+recovery record or edit its JSON to make Setup proceed.

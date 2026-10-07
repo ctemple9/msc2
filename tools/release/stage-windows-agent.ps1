@@ -53,3 +53,17 @@ finally {
 }
 
 Write-Host "staged Windows release agent and terrain helpers from $WorkspaceRoot"
+
+$lifecycleRoot = Join-Path $WorkspaceRoot 'packaging/windows/lifecycle-helper'
+$previousPayloadDirectory = $env:MSC2_MSI_PAYLOAD_DIR
+try {
+    $env:MSC2_MSI_PAYLOAD_DIR = Split-Path -Parent $packageDestination
+    & cargo build --locked --release --target $TargetTriple --manifest-path (Join-Path $lifecycleRoot 'Cargo.toml')
+    if ($LASTEXITCODE -ne 0) { throw 'could not build the native Windows MSI lifecycle helper' }
+    $msiHelperDirectory = Join-Path $tauriTarget 'package/msi'
+    New-Item -ItemType Directory -Force -Path $msiHelperDirectory | Out-Null
+    Copy-Item -LiteralPath (Join-Path $lifecycleRoot "target/$TargetTriple/release/msc2_service_lifecycle.dll") -Destination (Join-Path $msiHelperDirectory 'msc2-service-lifecycle.dll') -Force
+} finally {
+    if ($null -eq $previousPayloadDirectory) { Remove-Item Env:MSC2_MSI_PAYLOAD_DIR -ErrorAction SilentlyContinue }
+    else { $env:MSC2_MSI_PAYLOAD_DIR = $previousPayloadDirectory }
+}

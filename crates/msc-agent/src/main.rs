@@ -183,6 +183,8 @@ async fn run_service_with_shutdown(
         .map_err(cli::CliError::internal)?;
 
     let (app, worlds) = build_app_with_auth_and_worlds(auth_state);
+    #[cfg(target_os = "windows")]
+    windows_service::register_lifecycle(worlds.clone());
     ready()?;
     let shutdown_worlds = worlds.clone();
     let (stopped, received_stop) = tokio::sync::oneshot::channel();
@@ -209,9 +211,19 @@ async fn run_service_with_shutdown(
     };
     // Cover server errors as well as normal service stop.
     worlds.begin_map_shutdown();
-    tokio::task::spawn_blocking(move || worlds.release_map_caches())
-        .await
-        .map_err(|error| cli::CliError::internal(format!("map cleanup failed: {error}")))?;
+    tokio::task::spawn_blocking(move || {
+        #[cfg(target_os = "windows")]
+        if windows_service::maintenance_requested() {
+            return worlds.release_map_caches_checked();
+        }
+        worlds.release_map_caches();
+        Ok::<(), String>(())
+    })
+    .await
+    .map_err(|error| cli::CliError::internal(format!("map cleanup failed: {error}")))?
+    .map_err(cli::CliError::internal)?;
+    #[cfg(target_os = "windows")]
+    windows_service::finish_maintenance();
     result.map_err(|err| cli::CliError::internal(format!("server error: {err}")))
 }
 

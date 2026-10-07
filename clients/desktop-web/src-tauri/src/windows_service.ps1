@@ -14,6 +14,9 @@ function Invoke-ServiceController([string[]] $commandArgs) {
 
 try {
     if ($operation -eq 'install') {
+        if (Get-CimInstance -ClassName Win32_Service -Filter "Name='com.ctemple.msc2.agent'") {
+            throw 'The local service already exists. Use Setup to replace its owned package; first-launch registration cannot overwrite it.'
+        }
         Add-Type -TypeDefinition $nativeSource
         $password = [MscServiceNative]::PromptPassword($account, $owner)
         [MscServiceNative]::GrantServiceLogon($account)

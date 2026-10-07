@@ -67,6 +67,7 @@
         "template": "../../../packaging/windows/desktop-installer.wxs",
         "fragmentPaths": [
           "../../../packaging/windows/desktop-cli-path.wxs",
+          "../../../packaging/windows/desktop-service-lifecycle.wxs",
           "../../../packaging/windows/desktop-installer-ui.wxs"
         ],
         "language": {

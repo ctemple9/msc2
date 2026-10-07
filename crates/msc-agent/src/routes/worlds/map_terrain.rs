@@ -58,6 +58,7 @@ pub(super) struct RendererStore(Arc<RendererState>);
 
 #[derive(Default)]
 struct RendererState {
+    shutdown: AtomicBool,
     current: Mutex<Option<Renderer>>,
     snapshot: Mutex<Option<SavedSnapshot>>,
     sweeping: AtomicBool,
@@ -328,6 +329,29 @@ fn artifact_type(path: &str) -> Option<&'static str> {
 }
 
 impl RendererStore {
+    #[cfg(target_os = "windows")]
+    pub(super) fn set_shutdown(&self, shutdown: bool) {
+        self.0.shutdown.store(shutdown, Ordering::Release);
+    }
+    #[cfg(target_os = "windows")]
+    pub(super) fn release_checked(&self) -> Result<(), String> {
+        let mut current = self.0.current.lock().unwrap();
+        if let Some(renderer) = current.as_mut() {
+            if renderer
+                .child
+                .try_wait()
+                .map_err(|error| error.to_string())?
+                .is_none()
+            {
+                renderer.child.kill().map_err(|error| error.to_string())?;
+            }
+            renderer.child.wait().map_err(|error| error.to_string())?;
+        }
+        current.take();
+        self.0.snapshot.lock().unwrap().take();
+        Ok(())
+    }
+
     pub(super) fn release(&self) {
         self.0.current.lock().unwrap().take();
         self.0.snapshot.lock().unwrap().take();
@@ -346,6 +370,9 @@ impl RendererStore {
             _staging: snapshot.staging,
         };
         let mut renderer = self.0.current.lock().map_err(|_| ())?;
+        if self.0.shutdown.load(Ordering::Acquire) {
+            return Err(());
+        }
         let mut saved = self.0.snapshot.lock().map_err(|_| ())?;
         // Stop the renderer before deleting the previous snapshot it reads.
         *renderer = None;
@@ -363,6 +390,9 @@ impl RendererStore {
     ) -> Result<(u16, Vec<u8>), TerrainError> {
         let (port, token) = {
             let mut guard = self.0.current.lock().map_err(|_| ())?;
+            if self.0.shutdown.load(Ordering::Acquire) {
+                return Err(().into());
+            }
             let mut saved = self.0.snapshot.lock().map_err(|_| ())?;
             if saved.as_ref().is_some_and(|snapshot| {
                 snapshot.server_id != server_id || snapshot.source_world != world

@@ -5,6 +5,17 @@ use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 
 pub fn install(request: &ServiceInstallRequest, owner_window: isize) -> Result<(), String> {
+    use msc_infrastructure::service::{
+        ServiceManager, ServiceManagerCommand, ServiceName, ServiceState,
+    };
+    let existing = msc_platform_windows::service::WindowsServiceManager::new()
+        .execute(ServiceManagerCommand::Status {
+            service_name: ServiceName::new(super::AGENT_SERVICE_NAME),
+        })
+        .map_err(|error| error.to_string())?;
+    if existing.state != ServiceState::NotInstalled {
+        return Err("A local agent service already exists. Use the MSC installer to replace its package without changing the service account or asking for its password again.".into());
+    }
     let account = request
         .run_user
         .as_deref()

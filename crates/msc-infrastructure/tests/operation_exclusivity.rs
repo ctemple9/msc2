@@ -15,6 +15,42 @@ use msc_infrastructure::operation_journal::{AdmitError, JournalEntry, OperationJ
 
 const DIR: &str = "/srv/agent/operations";
 
+// Package shutdown must neither race a server mutation nor admit one after
+// shutdown starts. Fake storage isolates this check from Windows and timing.
+#[test]
+fn operation_exclusivity_service_maintenance_reserves_host_in_both_orders() {
+    for maintenance_first in [false, true] {
+        let fs = FakeFileSystem::new().with_file(format!("{DIR}/.keep"), Vec::new(), false);
+        let journal = journal(&fs);
+        let maintenance = entry(
+            "maintenance",
+            "host-service-maintenance",
+            None,
+            OperationState::Running,
+        );
+        let mutation = entry(
+            "start",
+            "server-start",
+            Some("survival2"),
+            OperationState::Queued,
+        );
+        let (first, second) = if maintenance_first {
+            (&maintenance, &mutation)
+        } else {
+            (&mutation, &maintenance)
+        };
+        journal.admit(first).expect("first operation admitted");
+        assert!(matches!(
+            journal.admit(second),
+            Err(AdmitError::Conflict(_))
+        ));
+        assert_eq!(
+            journal.load(&second.id).expect("load refused operation"),
+            None
+        );
+    }
+}
+
 fn entry(
     id: &str,
     operation_type: &str,

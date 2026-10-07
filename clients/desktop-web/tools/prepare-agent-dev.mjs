@@ -48,6 +48,23 @@ stageFile(source, join(packageAgentDirectory, agentName));
 console.log(`staged ${profile} msc-agent ${version} at ${destination}`);
 stageVantage();
 stageBedrockMap();
+if (process.platform === 'win32' && profile === 'release') {
+  const helperRoot = join(workspaceRoot, 'packaging', 'windows', 'lifecycle-helper');
+  const helper = spawnSync(
+    'cargo',
+    ['build', '--locked', '--release', '--manifest-path', join(helperRoot, 'Cargo.toml')],
+    {
+      cwd: workspaceRoot,
+      stdio: 'inherit',
+      env: { ...process.env, MSC2_MSI_PAYLOAD_DIR: packageAgentDirectory },
+    },
+  );
+  if (helper.status !== 0) fail('could not build the native Windows MSI lifecycle helper');
+  stageFile(
+    join(helperRoot, 'target', 'release', 'msc2_service_lifecycle.dll'),
+    join(destinationRoot, 'package', 'msi', 'msc2-service-lifecycle.dll'),
+  );
+}
 
 if (process.platform === 'darwin' && process.arch === 'x64') {
   stageMacosSidecar();

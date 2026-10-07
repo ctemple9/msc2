@@ -3,7 +3,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::{Component, Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -25,7 +26,22 @@ const MAX_EXTRACTED: u64 = 384 * 1024 * 1024;
 const MAX_EXPORT_TIME: Duration = Duration::from_secs(600);
 
 #[derive(Clone, Default)]
-pub(crate) struct BedrockStore(Arc<Mutex<BedrockState>>);
+pub(crate) struct BedrockStore(Arc<Mutex<BedrockState>>, Arc<ExporterLifecycle>);
+
+#[derive(Default)]
+struct ExporterLifecycle {
+    shutdown: AtomicBool,
+    cleanup_failed: AtomicBool,
+}
+
+impl ExporterLifecycle {
+    fn stop(&self, child: &mut Child) {
+        let _ = child.kill();
+        if child.wait().is_err() {
+            self.cleanup_failed.store(true, Ordering::Release);
+        }
+    }
+}
 
 #[derive(Default)]
 struct BedrockState {
@@ -167,6 +183,22 @@ pub(super) async fn artifact(
 }
 
 impl BedrockStore {
+    #[cfg(target_os = "windows")]
+    pub(crate) fn set_shutdown(&self, shutdown: bool) {
+        self.1.shutdown.store(shutdown, Ordering::Release);
+    }
+
+    #[cfg(target_os = "windows")]
+    pub(crate) fn release_checked(&self) -> Result<(), String> {
+        // The state lock waits for any active exporter, whose polling loop now
+        // observes shutdown. Retain data if its process exit was not confirmed.
+        self.release();
+        if self.1.cleanup_failed.load(Ordering::Acquire) {
+            return Err("Bedrock terrain helper exit could not be confirmed.".into());
+        }
+        Ok(())
+    }
+
     pub(crate) fn release(&self) {
         let mut state = self.0.lock().unwrap();
         state.tiles.clear();
@@ -188,6 +220,9 @@ impl BedrockStore {
             .0
             .lock()
             .map_err(|_| "The Bedrock map cache is unavailable.")?;
+        if self.1.shutdown.load(Ordering::Acquire) {
+            return Err("The local agent is shutting down.".into());
+        }
         let mut next_tiles = BTreeMap::new();
         let mut stats = RefreshStats {
             reused_tiles: 0,
@@ -220,6 +255,7 @@ impl BedrockStore {
                         .arg(&pack)
                         .arg(&next.output)
                         .arg(dimension),
+                    &self.1,
                 ) {
                     return Err(format!(
                         "The refreshed {dimension} catalog could not be exported."
@@ -252,6 +288,7 @@ impl BedrockStore {
                         .arg(old.output.join("manifest.json"))
                         .arg(next.output.join("manifest.json"))
                         .arg(&diff_path),
+                    &self.1,
                 ) {
                     return Err(format!(
                         "The refreshed {dimension} chunks could not be compared."
@@ -316,6 +353,9 @@ impl BedrockStore {
             .0
             .lock()
             .map_err(|_| "The Bedrock map cache is unavailable.")?;
+        if self.1.shutdown.load(Ordering::Acquire) {
+            return Err("The local agent is shutting down.".into());
+        }
         if current
             .snapshot
             .as_ref()
@@ -375,14 +415,14 @@ impl BedrockStore {
                             Ok(Some(status)) => break Ok(status.success()),
                             Ok(None) => {}
                             Err(error) => {
-                                let _ = child.kill();
-                                let _ = child.wait();
+                                self.1.stop(&mut child);
                                 break Err(error);
                             }
                         }
-                        if started.elapsed() >= MAX_EXPORT_TIME {
-                            let _ = child.kill();
-                            let _ = child.wait();
+                        if started.elapsed() >= MAX_EXPORT_TIME
+                            || self.1.shutdown.load(Ordering::Acquire)
+                        {
+                            self.1.stop(&mut child);
                             break Ok(false);
                         }
                         std::thread::sleep(Duration::from_millis(100));
@@ -458,6 +498,7 @@ impl BedrockStore {
                         .arg(dimension)
                         .arg(x.to_string())
                         .arg(z.to_string()),
+                    &self.1,
                 );
                 eprintln!(
                     "[world-map] Bedrock {dimension} tile {x},{z}: {} after {:.2}s",
@@ -597,7 +638,7 @@ fn exporter_binary() -> Result<PathBuf, String> {
     Ok(binary)
 }
 
-fn run_exporter(command: &mut Command) -> bool {
+fn run_exporter(command: &mut Command, lifecycle: &ExporterLifecycle) -> bool {
     command
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -612,14 +653,14 @@ fn run_exporter(command: &mut Command) -> bool {
                     Ok(Some(status)) => break Ok(status.success()),
                     Ok(None) => {}
                     Err(error) => {
-                        let _ = child.kill();
-                        let _ = child.wait();
+                        lifecycle.stop(&mut child);
                         break Err(error);
                     }
                 }
-                if started.elapsed() >= MAX_EXPORT_TIME {
-                    let _ = child.kill();
-                    let _ = child.wait();
+                if started.elapsed() >= MAX_EXPORT_TIME
+                    || lifecycle.shutdown.load(Ordering::Acquire)
+                {
+                    lifecycle.stop(&mut child);
                     break Ok(false);
                 }
                 std::thread::sleep(Duration::from_millis(100));

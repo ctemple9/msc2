@@ -235,10 +235,14 @@ impl<'fs> OperationJournal<'fs> {
             candidate.id != entry.id
                 && (matches!(
                     entry.operation_type.as_str(),
-                    HOST_MAINTENANCE_OPERATION_TYPE | "host-storage-cleanup"
+                    HOST_MAINTENANCE_OPERATION_TYPE
+                        | "host-storage-cleanup"
+                        | "host-service-maintenance"
                 ) || matches!(
                     candidate.operation_type.as_str(),
-                    HOST_MAINTENANCE_OPERATION_TYPE | "host-storage-cleanup"
+                    HOST_MAINTENANCE_OPERATION_TYPE
+                        | "host-storage-cleanup"
+                        | "host-service-maintenance"
                 ) || (entry.target.is_some() && entry.target == candidate.target))
         }) {
             let target = existing

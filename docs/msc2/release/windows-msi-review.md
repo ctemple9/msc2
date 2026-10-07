@@ -369,3 +369,118 @@ covers new-terminal CLI discovery, old-version/custom-folder upgrade, headless
 PATH coexistence, different-administrator approval and missing-runtime online/
 offline failure cases. Static authoring/packaging evidence is not proof of those
 results or of P16.47–P16.49 lifecycle/recovery behavior.
+
+## P16.47 owned local service lifecycle candidate
+
+Implemented from P16.46 source `38052be7`; commit subject
+`P16.47: coordinate windows msi with the owned local agent`. No version bump or
+publication. The exact unsigned candidate replaces the prior bytes at the build path.
+
+| Field | Observed value |
+|---|---|
+| Build path | `clients/desktop-web/src-tauri/target/release/bundle/msi/MSC 2_0.1.23_x64_en-US.msi` |
+| Review copy | `C:\Users\Cameron\Downloads\msc2-p16.47-windows-x86_64.msi` |
+| Bytes | 19,152,896 |
+| SHA-256 | `8d2e3a3f6db651c704f00a0add6eb8c35441119d21c3616b55fe163c404e8a08` |
+| Embedded x64 lifecycle DLL | 292,352 bytes; SHA-256 `a68c58b0959d5b02d1993e8baf619185480e2001b5b34adeb10b3b749c66eece` |
+| Product / version / signature | MSC 2 / 0.1.23 / NotSigned |
+
+MSI's Binary table contains the native helper; it cannot select an external helper
+script, registry command or executable supplied by a caller. The DLL launches the
+system-directory PowerShell with its fixed embedded code and literal JSON request
+through stdin. Fixed native operations inspect the local SCM service and change its
+binary command without supplying an account/password. Directory handles pin paths
+against replacement, reparse/remote/alternate-stream paths are refused, recovery
+records and immutable payload directories have administrator/System ownership and
+restricted write permissions, and metadata replacement is atomic. The four payload
+hashes are compiled into the DLL, not taken from MSI properties. Read-only stream
+inspection confirmed the embedded DLL equals the staged file and contains the hashes
+of the current agent, Vantage executable/license and Bedrock exporter.
+
+Ownership checks compare SCM command/account with metadata. A legacy copied desktop
+build also needs the original account's registered profile/data root, a recognized
+checksum-named build path and an exact digest match to the old MSI's registered
+desktop payload. An administrator-owned record binds later service replacements to
+the desktop directory, binary, data root and account SID. Marked standalone headless
+services remain independent; missing/inconsistent ownership refuses changes.
+
+SCM control 128 requests maintenance on the local agent only. The agent reserves the
+whole host against conflicting operations, closes new map work, requests Minecraft
+graceful stop and checks process state without treating errors as stopped. Playit
+reset is used here only to synchronously stop its helper and remove its temporary
+credential bridge; the stored host key/tunnels/settings are retained. Xbox Broadcast
+exit is polled, and terrain helpers' shutdown/exit errors prevent a successful
+acknowledgement. No forced Minecraft stop or remote API operation is used. Older
+running agents lack the protocol and require an explicit Minecraft stop followed
+by agent stop before Setup can proceed.
+
+Verified staged payloads move into
+`C:\ProgramData\MSC2\Services\DesktopLifecycle\builds\<digest>`; partial copies do
+not become final immutable files. Account, stored Windows password, service ACL,
+data/log/environment paths and boot policy remain. A previously running agent
+resumes; a stopped agent stays stopped. A running service configured Disabled is
+temporarily set to demand start for the explicit restart, then restored to Disabled;
+that temporary change is recorded for rollback. Minecraft is not automatically
+restarted. Previous builds remain for P16.49 health recovery. Existing recovery
+records block another transaction instead of being silently discarded.
+
+Read-only inspection found these execution positions in the exact final candidate:
+
+| Action | Sequence | Purpose |
+|---|---:|---|
+| InstallInitialize | 1500 | Begin transaction |
+| MscRequireRollback | 1501 | Refuse disabled Windows Installer rollback |
+| MscRollbackService | 1502 | Queue restoration before stopping anything |
+| MscPrepareService | 1503 | Queue ownership/snapshot/graceful stop |
+| InstallExecute | 1504 | Execute preparation before old-product removal |
+| RemoveExistingProducts | 1505 | Remove old package inside rollback |
+| ProcessComponents | 1600 | New component changes follow removal |
+| InstallFiles | 4000 | Install new payload |
+| MscApplyService | 4001 | Queue hash-verified staged replacement |
+| MscResumeService | 4002 | Queue prior agent state restoration |
+| MscCommitService | 6599 | Queue successful transaction-record cleanup |
+| InstallFinalize | 6600 | Execute remaining script and commit |
+
+This early script flush avoids relying on stable component GUIDs for Tauri-generated
+resource files: removal precedes new file installation. Rollback of old-product
+removal precedes the earlier queued service restoration. Required actions are in the
+execution sequence, so reduced/silent modes follow the same ownership rules.
+Old-product removal skips these service actions using `UPGRADINGPRODUCTCODE`.
+CustomAction types are 3073 for checked deferred elevated DLL calls, 3329 for checked
+rollback and 3649 for commit cleanup. The fixed rollback-disabled error is type 19.
+First registration remains on first launch; it refuses an existing SCM service before
+asking for credentials, rather than deleting/recreating an existing account binding.
+
+Welcome/review copy now discloses the Minecraft stop before Update/Repair is
+confirmed. Maintenance completion describes the coordinated agent's prior state
+instead of claiming that service coordination is separate. Existing dialog layouts
+are retained; the changed text still needs Cameron's physical/scaling review.
+
+Checks completed: desktop Verify Clippy, agent/infrastructure and helper Clippy,
+Rust formatting, PowerShell parsing and embedded C# compilation, native release
+build and MSI packaging with normal validation, exact database/stream/hash/signature
+inspection and diff checks. Existing Rust warnings remain; no new Rust warning.
+The first native build was followed by targeted agent/helper rebuilds for confirmed
+shutdown/rollback gaps and bundle-only refreshes; no release workflow was run.
+Final WiX warnings remain ICE40 (existing reinstall policy) and ICE61 (downgrade
+policy deferred to P16.49). No validation suppression or release/test gate was added.
+
+One essential fake-filesystem regression covers service maintenance conflicting
+with server start in both admission orders. Existing target-only exclusivity cases
+miss this host-wide reservation. Expected runtime is under one second, with no real
+processes, network, sleeps or machine-specific filesystem; it was **not run**.
+No tests, installer launches, service changes, tags or publication were performed.
+
+Physical acceptance remains pending. Follow the
+[P16.47 Windows walkthrough](../clients/windows-installation.md#camerons-p1647-verification)
+for no-service, stopped/running owned agent, legacy refusal, headless coexistence,
+different-administrator approval, non-default boot policy and cancellation/fault
+restoration. Static evidence does not establish the SCM handshake or rollback on a
+real machine. Abrupt power-loss recovery and health-triggered update rollback remain
+unverified/P16.49. This intermediate candidate refuses ordinary owned-agent removal
+until P16.48 supplies detachment; full-removal integration/remaining ownership-record
+cleanup must be checked there. Do not treat Phase 16's gate as closed.
+
+References: [Microsoft execution/removal sequencing](https://learn.microsoft.com/en-us/windows/win32/msi/removeexistingproducts-action),
+[WiX major-upgrade/component constraints](https://docs.firegiant.com/wix/schema/wxs/majorupgrade/),
+and [Microsoft rollback-disabled behavior](https://learn.microsoft.com/en-us/windows/win32/msi/rollbackdisabled).

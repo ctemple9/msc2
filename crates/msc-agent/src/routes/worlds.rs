@@ -362,6 +362,22 @@ pub struct WorldsRoutesState {
 impl WorldsRoutesState {
     pub(crate) fn begin_map_shutdown(&self) {
         self.map_shutdown.store(true, Ordering::Release);
+        #[cfg(target_os = "windows")]
+        {
+            self.bedrock_map.set_shutdown(true);
+            self.map_renderer.set_shutdown(true);
+        }
+    }
+    #[cfg(target_os = "windows")]
+    pub(crate) fn cancel_map_shutdown(&self) {
+        self.map_shutdown.store(false, Ordering::Release);
+        self.bedrock_map.set_shutdown(false);
+        self.map_renderer.set_shutdown(false);
+    }
+    #[cfg(target_os = "windows")]
+    pub(crate) fn release_map_caches_checked(&self) -> Result<(), String> {
+        self.map_renderer.release_checked()?;
+        self.bedrock_map.release_checked()
     }
     pub(crate) fn release_map_caches(&self) {
         self.map_renderer.release();

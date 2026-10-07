@@ -41,14 +41,24 @@
         <Property Id="LAUNCHAPPARGS" Secure="yes" />
 
         {{#if allow_downgrades}}
-            <MajorUpgrade Schedule="afterInstallInitialize" AllowDowngrades="yes" />
+            <MajorUpgrade Schedule="afterInstallExecute" AllowDowngrades="yes" />
         {{else}}
-            <MajorUpgrade Schedule="afterInstallInitialize" DowngradeErrorMessage="!(loc.DowngradeErrorMessage)" AllowSameVersionUpgrades="yes" />
+            <MajorUpgrade Schedule="afterInstallExecute" DowngradeErrorMessage="!(loc.DowngradeErrorMessage)" AllowSameVersionUpgrades="yes" />
         {{/if}}
 
         <InstallExecuteSequence>
+            <!-- Flush only the queued service preparation before old-package
+                 removal. File changes follow removal, avoiding reliance on
+                 stable GUIDs for Tauri's generated resource components. -->
+            <InstallExecute After="MscPrepareService" />
             <RemoveShortcuts>Installed AND NOT UPGRADINGPRODUCTCODE</RemoveShortcuts>
         </InstallExecuteSequence>
+
+        <CustomActionRef Id="MscPrepareService" />
+        <CustomActionRef Id="MscApplyService" />
+        <CustomActionRef Id="MscResumeService" />
+        <CustomActionRef Id="MscRollbackService" />
+        <CustomActionRef Id="MscCommitService" />
 
         <Media Id="1" Cabinet="app.cab" EmbedCab="yes" />
 

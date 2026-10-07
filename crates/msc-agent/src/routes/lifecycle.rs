@@ -140,6 +140,8 @@ pub trait PlayitLifecycleIntegration: Send + Sync {
     fn stop_for_server(&self, server_id: &str);
     fn stop_broadcast_for_server(&self, server_id: &str);
     fn stop_all(&self);
+    #[cfg(target_os = "windows")]
+    fn stop_for_maintenance(&self) -> Result<(), String>;
 }
 
 struct LifecycleRoutesInner {
@@ -2318,6 +2320,97 @@ impl LifecycleRoutesState {
         }
         self.inner.lifecycle.lock().unwrap().request_stop()?;
         Ok(active_server_id)
+    }
+
+    /// SCM maintenance must reserve the host before stopping Minecraft, so a
+    /// concurrent start/import/backup cannot enter while the installer waits.
+    #[cfg(target_os = "windows")]
+    pub(crate) fn prepare_service_maintenance(&self) -> Result<OperationId, String> {
+        let id = self
+            .inner
+            .operations
+            .begin_lifecycle(
+                "host-service-maintenance",
+                None,
+                "Stopping Minecraft for a local package operation.",
+            )
+            .map_err(|error| error.to_string())?;
+        let result = (|| {
+            if self.maintenance_server_running()? {
+                if self.active_bedrock_server().is_some() {
+                    self.stop_bedrock_runtime_if_needed()
+                        .map_err(|error| error.to_string())?;
+                } else {
+                    self.inner
+                        .lifecycle
+                        .lock()
+                        .unwrap()
+                        .request_stop()
+                        .map_err(|error| error.to_string())?;
+                }
+            }
+            let deadline = Instant::now() + Duration::from_secs(60);
+            while self.maintenance_server_running()? {
+                if Instant::now() >= deadline {
+                    return Err(
+                        "Minecraft did not stop gracefully; the agent and package are retained."
+                            .to_string(),
+                    );
+                }
+                std::thread::sleep(Duration::from_millis(200));
+            }
+            if let Some(integration) = self.playit_lifecycle() {
+                integration.stop_for_maintenance()?;
+            }
+            Ok(())
+        })();
+        if let Err(message) = result {
+            let _ = self
+                .inner
+                .operations
+                .fail(&id, "service_stop_refused", message.clone());
+            return Err(message);
+        }
+        // Keep admission closed until HTTP streams and map workers have closed.
+        Ok(id)
+    }
+
+    #[cfg(target_os = "windows")]
+    fn maintenance_server_running(&self) -> Result<bool, String> {
+        if self.active_bedrock_server().is_some() {
+            self.drain_bedrock_events();
+            let state = self.inner.bedrock_runtime.state();
+            return match state {
+                BedrockRuntimeState::Starting
+                | BedrockRuntimeState::Running
+                | BedrockRuntimeState::Stopping => Ok(true),
+                BedrockRuntimeState::Stopped
+                | BedrockRuntimeState::New
+                | BedrockRuntimeState::Provisioned => {
+                    Ok(self.inner.bedrock_runtime.process_id().is_some())
+                }
+                _ => Err("Bedrock shutdown could not be confirmed; retaining the package.".into()),
+            };
+        }
+        self.drain_active_process_events();
+        // Unlike the display snapshot, errors must never count as stopped.
+        let snapshot = self
+            .inner
+            .lifecycle
+            .lock()
+            .unwrap()
+            .status_snapshot()
+            .map_err(|error| error.to_string())?;
+        Ok(snapshot.running || snapshot.pid.is_some())
+    }
+
+    #[cfg(target_os = "windows")]
+    pub(crate) fn finish_service_maintenance(&self, id: &OperationId) {
+        let _ = self.inner.operations.succeed(
+            id,
+            "Local agent stopped for package maintenance.",
+            BTreeMap::new(),
+        );
     }
 
     #[allow(clippy::result_large_err)]

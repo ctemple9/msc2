@@ -1051,6 +1051,8 @@ fn agent_install_request() -> Result<ServiceInstallRequest, String> {
             sidecar_directory.display().to_string(),
         )
         .env("MSC2_MACOS_DESKTOP_REQUIREMENT", desktop_requirement);
+    #[cfg(target_os = "windows")]
+    let request = request.env("MSC2_SERVICE_MAINTENANCE_PROTOCOL", "1");
     Ok(request.run_user(installing_user()?))
 }
 
@@ -1249,9 +1251,38 @@ fn expected_local_agent_binary() -> Result<PathBuf, String> {
     linux_system_agent_path()
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(target_os = "macos")]
 fn expected_local_agent_binary() -> Result<PathBuf, String> {
     staged_packaged_agent_path()
+}
+
+#[cfg(target_os = "windows")]
+fn expected_local_agent_binary() -> Result<PathBuf, String> {
+    let staged = staged_packaged_agent_path()?;
+    let digest = staged
+        .parent()
+        .and_then(Path::file_name)
+        .ok_or("The agent build has no digest.")?;
+    let machine = PathBuf::from(r"C:\ProgramData\MSC2\Services\DesktopLifecycle\builds")
+        .join(digest)
+        .join("msc.exe");
+    let report = service_manager()?
+        .execute(ServiceManagerCommand::Status {
+            service_name: ServiceName::new(AGENT_SERVICE_NAME),
+        })
+        .map_err(|error| error.to_string())?;
+    if report
+        .definition
+        .is_some_and(|definition| definition.binary_path == machine)
+    {
+        for name in ["msc.exe", "vantage.exe", "bedrock-map.exe"] {
+            let source = staged.with_file_name(name);
+            let bytes = std::fs::read(&source).map_err(|error| error.to_string())?;
+            verify_staged_agent(&machine.with_file_name(name), &bytes)?;
+        }
+        return Ok(machine);
+    }
+    Ok(staged)
 }
 
 #[cfg(all(target_os = "macos", target_arch = "x86_64"))]

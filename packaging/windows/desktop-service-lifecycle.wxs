@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <!-- The DLL lives in MSI's Binary table, not a user-selected helper path. -->
+    <Binary Id="MscLifecycle" SourceFile="../../../package/msi/msc2-service-lifecycle.dll" />
+    <CustomAction Id="MscRequireRollback" Error="MSC Setup requires Windows Installer rollback to be enabled before changing the local agent. Enable rollback and run Setup again." />
+    <CustomAction Id="MscPrepareService" BinaryKey="MscLifecycle" DllEntry="MscPrepareService" Execute="deferred" Impersonate="no" Return="check" />
+    <CustomAction Id="MscApplyService" BinaryKey="MscLifecycle" DllEntry="MscApplyService" Execute="deferred" Impersonate="no" Return="check" />
+    <CustomAction Id="MscResumeService" BinaryKey="MscLifecycle" DllEntry="MscResumeService" Execute="deferred" Impersonate="no" Return="check" />
+    <CustomAction Id="MscRollbackService" BinaryKey="MscLifecycle" DllEntry="MscRollbackService" Execute="rollback" Impersonate="no" Return="check" />
+    <CustomAction Id="MscCommitService" BinaryKey="MscLifecycle" DllEntry="MscCommitService" Execute="commit" Impersonate="no" Return="ignore" />
+    <SetProperty Id="MscPrepareService" Value="[ProductCode]|[INSTALLDIR]|[MSC_COMPONENT_INSTALLDIR]|[REMOVE]" Before="InstallInitialize" Sequence="execute" />
+    <SetProperty Id="MscApplyService" Value="[ProductCode]|[INSTALLDIR]|[MSC_COMPONENT_INSTALLDIR]|[REMOVE]" Before="InstallInitialize" Sequence="execute" />
+    <SetProperty Id="MscResumeService" Value="[ProductCode]|[INSTALLDIR]|[MSC_COMPONENT_INSTALLDIR]|[REMOVE]" Before="InstallInitialize" Sequence="execute" />
+    <SetProperty Id="MscRollbackService" Value="[ProductCode]|[INSTALLDIR]|[MSC_COMPONENT_INSTALLDIR]|[REMOVE]" Before="InstallInitialize" Sequence="execute" />
+    <SetProperty Id="MscCommitService" Value="[ProductCode]|[INSTALLDIR]|[MSC_COMPONENT_INSTALLDIR]|[REMOVE]" Before="InstallInitialize" Sequence="execute" />
+    <InstallExecuteSequence>
+      <!-- Register recovery before any service stop. Old-product removal is
+           later, so its package rollback runs before this service restoration. -->
+      <Custom Action="MscRequireRollback" After="InstallInitialize">RollbackDisabled AND NOT UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="MscRollbackService" After="MscRequireRollback">NOT UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="MscPrepareService" After="MscRollbackService">NOT UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="MscApplyService" After="InstallFiles">NOT REMOVE AND NOT UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="MscResumeService" After="MscApplyService">NOT REMOVE AND NOT UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="MscCommitService" Before="InstallFinalize">NOT UPGRADINGPRODUCTCODE</Custom>
+    </InstallExecuteSequence>
+    <UI>
+      <ProgressText Action="MscPrepareService">Checking the local agent owner and stopping Minecraft safely.</ProgressText>
+      <ProgressText Action="MscApplyService">Updating the owned local agent and terrain helpers.</ProgressText>
+      <ProgressText Action="MscResumeService">Restoring the local agent's previous running state.</ProgressText>
+      <ProgressText Action="MscRollbackService">Restoring the previous local agent installation.</ProgressText>
+    </UI>
+  </Fragment>
+</Wix>

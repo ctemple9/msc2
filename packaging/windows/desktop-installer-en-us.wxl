@@ -5,7 +5,7 @@
   <String Id="MscIncluded">This installer includes the desktop app, background-agent files, terrain helpers, and the msc terminal command.</String>
   <String Id="MscFirstLaunch">After installation, open MSC 2 to set up local hosting or connect to another computer. Local hosting setup asks for Windows approval and your account password.</String>
   <String Id="MscNewVersion">Installing version [ProductVersion] for this computer.</String>
-  <String Id="MscExistingVersion">An existing MSC 2 installation was found. Setup will replace its application files with version [ProductVersion].</String>
+  <String Id="MscExistingVersion">Updating to version [ProductVersion]. Setup stops Minecraft safely when replacing this package's local agent.</String>
   <String Id="MscOptionsTitle">Installation options</String>
   <String Id="MscScope">MSC 2 installs for this computer. Windows administrator approval is required to change application files.</String>
   <String Id="MscMachineOnly">MSC 2 requires a machine-wide installation (ALLUSERS=1). Run Setup for this computer.</String>
@@ -15,7 +15,7 @@
   <String Id="MscReadyTitle">Review MSC 2 Setup</String>
   <String Id="MscReadyVersion">Target version: [ProductVersion]</String>
   <String Id="MscReadyFolder">Application folder: [INSTALLDIR]</String>
-  <String Id="MscReadyScope">Installs the desktop app, agent files, terrain helpers, Start-menu entry and msc command. Local hosting is configured when you open MSC 2.</String>
+  <String Id="MscReadyScope">Installs MSC 2 and its tools. Setup safely stops Minecraft for an owned local agent, updates it and restores the agent's prior state. First-time hosting is set up in the app.</String>
   <String Id="MscWebviewMissing">Microsoft WebView2 is required. Setup includes its small installer, which downloads the shared runtime. An internet connection is required.</String>
   <String Id="MscWebviewPresent">Microsoft WebView2 is already installed for this computer.</String>
   <String Id="MscWebviewProgress">Installing Microsoft WebView2. Downloading the shared runtime requires an internet connection.</String>
@@ -31,10 +31,10 @@
   <String Id="MscCompleteTitle">MSC 2 Setup completed</String>
   <String Id="MscCompleteBody">MSC 2 version [ProductVersion] is installed. Open the app to set up local hosting or connect to another computer.</String>
   <String Id="MscCompleteCommand">The msc command is available in new terminal windows. Installing the app does not by itself confirm that the background agent is running.</String>
-  <String Id="MscMaintenanceComplete">The requested package changes completed. Any running background service is managed separately from these installer screens.</String>
+  <String Id="MscMaintenanceComplete">Package changes completed. Setup preserves settings and worlds, and restores the prior state of any local agent it coordinates.</String>
   <String Id="MscRemoved">The MSC 2 application package was removed. This package operation does not perform MSC's separately confirmed complete data cleanup.</String>
   <String Id="MscReboot">Windows has pending restart work or Setup replaced files in use. Save your work and restart before opening MSC 2.</String>
   <String Id="MscShortcutYes">Desktop shortcut: included</String>
   <String Id="MscShortcutNo">Desktop shortcut: not selected</String>
-  <String Id="MscMaintenanceReady">Review the requested package operation, then continue. Service coordination and complete data cleanup are separate actions.</String>
+  <String Id="MscMaintenanceReady">Repair safely stops Minecraft for this package's local agent and updates it, retaining account and data. Removal with an owned agent is not available in this candidate.</String>
 </WixLocalization>

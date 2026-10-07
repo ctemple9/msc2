@@ -372,6 +372,29 @@ impl PlayitLifecycleIntegration for PlayitLifecycleController {
     fn stop_all(&self) {
         Self::stop_all(self);
     }
+
+    #[cfg(target_os = "windows")]
+    fn stop_for_maintenance(&self) -> Result<(), String> {
+        self.pending_starts.lock().unwrap().clear();
+        for service in self.services.lock().unwrap().values_mut() {
+            service.reset().map_err(|error| error.to_string())?;
+        }
+        for service in self.broadcast.lock().unwrap().values_mut() {
+            service.poll().map_err(|error| error.to_string())?;
+            if service.process_is_running() {
+                service.stop().map_err(|error| error.to_string())?;
+                let deadline = Instant::now() + Duration::from_secs(5);
+                while service.process_is_running() {
+                    service.poll().map_err(|error| error.to_string())?;
+                    if Instant::now() >= deadline {
+                        return Err("Xbox Broadcast helper exit could not be confirmed.".into());
+                    }
+                    std::thread::sleep(Duration::from_millis(25));
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone)]

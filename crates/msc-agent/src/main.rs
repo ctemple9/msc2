@@ -7,6 +7,7 @@ mod backup_operations;
 mod backup_scheduler;
 mod cli;
 mod help;
+mod map_staging;
 mod routes;
 #[cfg(target_os = "windows")]
 mod windows_service;

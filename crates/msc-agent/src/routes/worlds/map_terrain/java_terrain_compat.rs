@@ -11,6 +11,28 @@ const SECTOR: usize = 4096;
 const MAX_REGION_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_CHUNK_BYTES: usize = 32 * 1024 * 1024;
 
+pub(super) fn staging_estimate(world: &Path, dimension: &str) -> io::Result<u64> {
+    let relative = match dimension {
+        "minecraft:overworld" => "dimensions/minecraft/overworld/region",
+        "minecraft:the_nether" => "dimensions/minecraft/the_nether/region",
+        "minecraft:the_end" => "dimensions/minecraft/the_end/region",
+        _ => return Ok(0),
+    };
+    let mut source = world.to_path_buf();
+    for segment in Path::new(relative).components() {
+        source.push(segment);
+        match fs::symlink_metadata(&source) {
+            Ok(meta) if meta.file_type().is_dir() => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(0),
+            Err(error) => return Err(error),
+            _ => return Err(invalid("Java dimension path is not a regular directory")),
+        }
+    }
+    // Recompression can grow a region. This is an admission estimate, with
+    // actual normalized sizes checked again before each write.
+    Ok(crate::map_staging::estimate_tree(&source)?.saturating_mul(2))
+}
+
 pub(super) fn prepare(world: &Path, dimension: &str, cache: &Path) -> io::Result<PathBuf> {
     let (modern, legacy) = match dimension {
         "minecraft:overworld" => ("dimensions/minecraft/overworld/region", "region"),
@@ -34,6 +56,8 @@ pub(super) fn prepare(world: &Path, dimension: &str, cache: &Path) -> io::Result
     if !fs::symlink_metadata(&level)?.file_type().is_file() {
         return Err(invalid("Java level.dat is not a regular file"));
     }
+    let estimate = crate::map_staging::estimate_tree(&source)?;
+    crate::map_staging::ensure_space(cache, estimate.saturating_add(64 * 1024 * 1024))?;
     let staged = cache.join("world");
     let target = staged.join(legacy);
     fs::create_dir_all(&target)?;
@@ -52,6 +76,7 @@ pub(super) fn prepare(world: &Path, dimension: &str, cache: &Path) -> io::Result
         }
         let raw = fs::read(path)?;
         let normalized = normalize_region(&raw)?;
+        crate::map_staging::ensure_space(cache, normalized.len() as u64 + 64 * 1024 * 1024)?;
         fs::write(target.join(name), normalized)?;
     }
     Ok(staged)

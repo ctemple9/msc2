@@ -61,15 +61,8 @@ struct BedrockSnapshot {
     snapshot: crate::backup_operations::WorldMapSnapshot,
 }
 
-impl Drop for BedrockSnapshot {
-    fn drop(&mut self) {
-        if let Some(parent) = self.snapshot.path.parent() {
-            let _ = fs::remove_dir_all(parent);
-        }
-    }
-}
-
 struct BedrockTile {
+    _staging: Option<crate::map_staging::Staging>,
     output: PathBuf,
     tiles: BTreeSet<String>,
 }
@@ -78,12 +71,6 @@ pub(crate) struct RefreshStats {
     pub reused_tiles: usize,
     pub changed_tiles: usize,
     pub removed_tiles: usize,
-}
-
-impl Drop for BedrockTile {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.output);
-    }
 }
 
 pub(super) async fn artifact(
@@ -210,19 +197,13 @@ impl BedrockStore {
             let binary = exporter_binary()?;
             let pack = resource_pack()?;
             for (dimension, old) in &current.tiles {
-                let output =
-                    std::env::temp_dir().join(format!("msc-bedrock-tile-{}", Uuid::new_v4()));
-                fs::create_dir(&output).map_err(|error| {
-                    format!("Could not prepare refreshed Bedrock tiles: {error}")
-                })?;
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-                    fs::set_permissions(&output, fs::Permissions::from_mode(0o700)).map_err(
-                        |error| format!("Could not protect refreshed Bedrock tiles: {error}"),
-                    )?;
-                }
+                let estimate = crate::map_staging::estimate_tree(&old.output)
+                    .map_err(|error| error.to_string())?;
+                let staging = crate::map_staging::Staging::create("bedrock-tiles", estimate)
+                    .map_err(|error| error.to_string())?;
+                let output = staging.path().to_path_buf();
                 let mut next = BedrockTile {
+                    _staging: Some(staging),
                     output,
                     tiles: BTreeSet::new(),
                 };
@@ -340,15 +321,9 @@ impl BedrockStore {
         if !current.tiles.contains_key(dimension) {
             let pack = resource_pack()?;
             let binary = exporter_binary()?;
-            let output = std::env::temp_dir().join(format!("msc-bedrock-tile-{}", Uuid::new_v4()));
-            fs::create_dir(&output)
-                .map_err(|error| format!("Could not prepare the Bedrock map: {error}"))?;
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                fs::set_permissions(&output, fs::Permissions::from_mode(0o700))
-                    .map_err(|error| format!("Could not protect the Bedrock map: {error}"))?;
-            }
+            let staging = crate::map_staging::Staging::create("bedrock-tiles", 0)
+                .map_err(|error| error.to_string())?;
+            let output = staging.path().to_path_buf();
             if current.snapshot.is_none() {
                 let copied = if lifecycle.status_snapshot().running {
                     crate::backup_operations::snapshot_bedrock_world(
@@ -368,7 +343,6 @@ impl BedrockStore {
                         })
                     }
                     Err(error) => {
-                        let _ = fs::remove_dir_all(&output);
                         return Err(error);
                     }
                 }
@@ -386,13 +360,19 @@ impl BedrockStore {
                 .arg(dimension)
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())
-                .stderr(Stdio::null())
+                .stderr(Stdio::inherit())
                 .spawn()
                 .and_then(|mut child| {
                     let started = Instant::now();
                     loop {
-                        if let Some(status) = child.try_wait()? {
-                            break Ok(status.success());
+                        match child.try_wait() {
+                            Ok(Some(status)) => break Ok(status.success()),
+                            Ok(None) => {}
+                            Err(error) => {
+                                let _ = child.kill();
+                                let _ = child.wait();
+                                break Err(error);
+                            }
                         }
                         if started.elapsed() >= MAX_EXPORT_TIME {
                             let _ = child.kill();
@@ -403,8 +383,10 @@ impl BedrockStore {
                     }
                 });
             if !rendered.is_ok_and(|success| success) {
-                let _ = fs::remove_dir_all(&output);
-                return Err("The saved Bedrock catalog could not be exported. This dimension may have no generated chunks; also check the world and resource pack.".into());
+                return Err(format!(
+                    "The saved Bedrock catalog could not be exported at {}. See the agent log; check saved chunks, resources, disk space and storage quota.",
+                    output.display()
+                ));
             }
             let manifest: serde_json::Value = serde_json::from_slice(
                 &fs::read(output.join("manifest.json")).map_err(|error| error.to_string())?,
@@ -416,9 +398,14 @@ impl BedrockStore {
                 .iter()
                 .filter_map(|tile| tile["path"].as_str().map(str::to_owned))
                 .collect();
-            current
-                .tiles
-                .insert(dimension.to_owned(), BedrockTile { output, tiles });
+            current.tiles.insert(
+                dimension.to_owned(),
+                BedrockTile {
+                    output,
+                    tiles,
+                    _staging: Some(staging),
+                },
+            );
         }
         current.require_saved_terrain(dimension)?;
         let tile = current
@@ -472,7 +459,10 @@ impl BedrockStore {
                     started.elapsed().as_secs_f64()
                 );
                 if !rendered {
-                    return Err("The saved Bedrock tile could not be exported. See the agent log for the exporter error.".into());
+                    return Err(format!(
+                        "The saved Bedrock tile could not be exported at {}. See the agent log for the exporter error, including any disk or quota failure.",
+                        tile.output.display()
+                    ));
                 }
             }
         }
@@ -511,6 +501,7 @@ mod tests {
                 server_id: "server".into(),
                 world: root.join("live-world"),
                 snapshot: crate::backup_operations::WorldMapSnapshot {
+                    staging: None,
                     path: snapshot_dir.join("world"),
                     bytes: 0,
                     hold_millis: 0,
@@ -521,6 +512,7 @@ mod tests {
         state.tiles.insert(
             "minecraft:overworld".into(),
             BedrockTile {
+                _staging: None,
                 output: empty_output.clone(),
                 tiles: BTreeSet::new(),
             },
@@ -537,6 +529,7 @@ mod tests {
             server_id: "server".into(),
             world: root.join("live-world"),
             snapshot: crate::backup_operations::WorldMapSnapshot {
+                staging: None,
                 path: snapshot_dir.join("world"),
                 bytes: 1,
                 hold_millis: 0,
@@ -545,6 +538,7 @@ mod tests {
         state.tiles.insert(
             "minecraft:overworld".into(),
             BedrockTile {
+                _staging: None,
                 output: root.join("populated"),
                 tiles: BTreeSet::from(["tiles/t.0.0.vtile".into()]),
             },
@@ -552,6 +546,7 @@ mod tests {
         state.tiles.insert(
             "minecraft:the_nether".into(),
             BedrockTile {
+                _staging: None,
                 output: root.join("empty-nether"),
                 tiles: BTreeSet::new(),
             },
@@ -607,8 +602,14 @@ fn run_exporter(command: &mut Command) -> bool {
         .and_then(|mut child| {
             let started = Instant::now();
             loop {
-                if let Some(status) = child.try_wait()? {
-                    break Ok(status.success());
+                match child.try_wait() {
+                    Ok(Some(status)) => break Ok(status.success()),
+                    Ok(None) => {}
+                    Err(error) => {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                        break Err(error);
+                    }
                 }
                 if started.elapsed() >= MAX_EXPORT_TIME {
                     let _ = child.kill();

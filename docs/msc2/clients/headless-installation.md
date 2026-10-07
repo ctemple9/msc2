@@ -78,6 +78,41 @@ without elevation. An explicit `MSC2_VANTAGE_BIN` override remains authoritative
 MSC reports a missing override instead of replacing it. Renderer startup
 diagnostics go to the agent logs, with the private renderer token redacted.
 
+Map snapshots, Java compatibility copies and Bedrock tile output use unique
+working directories under `<MSC2_DATA_DIR>/map-staging` (the platform's MSC
+application-data directory when MSC2_DATA_DIR is unset). Map work does not use
+TMPDIR or the system temporary filesystem. On Unix these directories have mode
+0700; on Windows they inherit the application-data directory's access controls.
+Allow space for the world copy, compatibility conversion and renderer output.
+MSC checks free space and accounts for active copy estimates before preparation;
+these conservative estimates include 64 MiB headroom and can overestimate when
+copies already occupy disk. Renderer output can grow beyond its estimate. User
+quotas can still reject writes even when the filesystem reports free space;
+errors retain the staging location and underlying storage failure.
+
+Working copies are removed when their owning snapshot/cache is replaced or
+released, or preparation fails. A Java renderer is stopped before its copy is
+removed; renderer caches expire after 90 seconds idle. Saved snapshots and
+Bedrock tiles remain cached for reuse, so closing the viewer does not promise
+immediate removal. After an agent crash, abandoned copies are retained because
+an orphaned renderer may still read them. Before manually removing a particular
+abandoned directory, stop the agent and its terrain helper processes and verify
+that the path is beneath map-staging. Never remove original worlds or unrelated
+temporary directories. Ordinary restarts do not automatically purge old copies.
+
+For the earlier Linux tmpfs-quota workaround, after installing the disk-staging
+agent remove **only** the `map-temp.conf` drop-in, reload systemd, and restart:
+
+```bash
+sudo rm -f /etc/systemd/system/com.ctemple.msc2.agent.service.d/map-temp.conf &&
+sudo systemctl daemon-reload &&
+sudo systemctl restart com.ctemple.msc2.agent.service
+```
+
+Retain existing files in the old TMPDIR until their ownership and live use have
+been checked. Reopen the large map and inspect `<MSC2_DATA_DIR>/map-staging` to
+verify it works without the override.
+
 The Linux archive additionally contains `install.sh`, `uninstall.sh`, and the
 systemd input definitions used by its service installer. macOS archives
 contain `install.sh` and `uninstall.sh`; Windows archives contain

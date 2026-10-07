@@ -52,7 +52,6 @@ use msc_domain::app_config_schema::ConfigServer;
 use msc_domain::operation::OperationId;
 use msc_infrastructure::fs::StdFileSystem;
 use msc_infrastructure::world_store;
-use uuid::Uuid;
 
 use crate::routes::lifecycle::{BackupBoundary, LifecycleRoutesState};
 
@@ -196,6 +195,7 @@ const MAP_SNAPSHOT_COPY_LIMIT: Duration = Duration::from_secs(30);
 const MAP_SNAPSHOT_MAX_DEPTH: usize = 32;
 
 pub(crate) struct WorldMapSnapshot {
+    pub(crate) staging: Option<crate::map_staging::Staging>,
     pub(crate) path: PathBuf,
     pub(crate) bytes: u64,
     pub(crate) hold_millis: u128,
@@ -328,20 +328,18 @@ pub(crate) fn snapshot_bedrock_world(
     if !world.join("level.dat").is_file() || !world.join("db").is_dir() {
         return Err("configured BDS world has no level.dat or db directory".to_string());
     }
-    let destination = std::env::temp_dir().join(format!("msc-world-map-proof-{}", Uuid::new_v4()));
-    fs::create_dir(&destination).map_err(|error| error.to_string())?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&destination, fs::Permissions::from_mode(0o700))
-            .map_err(|error| error.to_string())?;
+    let estimate = crate::map_staging::estimate_tree(&world).map_err(|error| error.to_string())?;
+    if estimate > MAP_SNAPSHOT_MAX_BYTES {
+        return Err("snapshot exceeds 2 GiB limit".into());
     }
+    let staging = crate::map_staging::Staging::create("snapshot", estimate)
+        .map_err(|error| error.to_string())?;
+    let destination = staging.path().to_path_buf();
     let started = Instant::now();
     let console = LiveBackupConsole::new(lifecycle);
     let boundary = match console.lifecycle.send_backup_command("save hold") {
         Some(boundary) => boundary,
         None => {
-            let _ = fs::remove_dir_all(&destination);
             return Err("could not send save hold to the active BDS run".to_string());
         }
     };
@@ -353,14 +351,12 @@ pub(crate) fn snapshot_bedrock_world(
     };
     let (ready, _) = backups::wait_for_bedrock_save_ready(&console);
     if !ready {
-        let _ = fs::remove_dir_all(&destination);
         let resumed = held.resume();
         return Err(format!(
             "BDS did not confirm ready to be copied; save resume dispatched: {resumed}"
         ));
     }
     if should_cancel() {
-        let _ = fs::remove_dir_all(&destination);
         let resumed = held.resume();
         return Err(format!(
             "snapshot cancelled; save resume dispatched: {resumed}"
@@ -379,18 +375,18 @@ pub(crate) fn snapshot_bedrock_world(
     let resume_sent = held.resume();
     drop(held);
     if let Err(error) = copied {
-        let _ = fs::remove_dir_all(&destination);
         return Err(format!(
-            "BDS snapshot copy failed: {error}; save resume dispatched: {resume_sent}"
+            "BDS snapshot copy failed at {}: {error}; save resume dispatched: {resume_sent}",
+            destination.display()
         ));
     }
     if !resume_sent {
-        let _ = fs::remove_dir_all(&destination);
         return Err(
             "snapshot copied, but save resume was not dispatched to the same BDS run".to_string(),
         );
     }
     Ok(WorldMapSnapshot {
+        staging: Some(staging),
         path: destination.join("world"),
         bytes,
         hold_millis,
@@ -415,14 +411,13 @@ pub(crate) fn snapshot_stopped_bedrock_world(
     if !world.join("level.dat").is_file() || !world.join("db").is_dir() {
         return Err("configured BDS world has no level.dat or db directory".to_string());
     }
-    let destination = std::env::temp_dir().join(format!("msc-world-map-{}", Uuid::new_v4()));
-    fs::create_dir(&destination).map_err(|error| error.to_string())?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&destination, fs::Permissions::from_mode(0o700))
-            .map_err(|error| error.to_string())?;
+    let estimate = crate::map_staging::estimate_tree(&world).map_err(|error| error.to_string())?;
+    if estimate > MAP_SNAPSHOT_MAX_BYTES {
+        return Err("snapshot exceeds 2 GiB limit".into());
     }
+    let staging = crate::map_staging::Staging::create("snapshot", estimate)
+        .map_err(|error| error.to_string())?;
+    let destination = staging.path().to_path_buf();
     let mut bytes = 0;
     if let Err(error) = copy_snapshot_tree(
         &world,
@@ -432,10 +427,13 @@ pub(crate) fn snapshot_stopped_bedrock_world(
         &|| false,
         0,
     ) {
-        let _ = fs::remove_dir_all(&destination);
-        return Err(format!("BDS stopped-world map copy failed: {error}"));
+        return Err(format!(
+            "BDS stopped-world map copy failed at {}: {error}",
+            destination.display()
+        ));
     }
     Ok(WorldMapSnapshot {
+        staging: Some(staging),
         path: destination.join("world"),
         bytes,
         hold_millis: 0,
@@ -464,20 +462,18 @@ pub(crate) fn snapshot_java_world(
     if !world.join("level.dat").is_file() {
         return Err("configured Java world has no level.dat".to_string());
     }
-    let destination = std::env::temp_dir().join(format!("msc-world-map-proof-{}", Uuid::new_v4()));
-    fs::create_dir(&destination).map_err(|error| error.to_string())?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&destination, fs::Permissions::from_mode(0o700))
-            .map_err(|error| error.to_string())?;
+    let estimate = crate::map_staging::estimate_tree(&world).map_err(|error| error.to_string())?;
+    if estimate > MAP_SNAPSHOT_MAX_BYTES {
+        return Err("snapshot exceeds 2 GiB limit".into());
     }
+    let staging = crate::map_staging::Staging::create("snapshot", estimate)
+        .map_err(|error| error.to_string())?;
+    let destination = staging.path().to_path_buf();
     let started = Instant::now();
     let console = LiveBackupConsole::new(lifecycle);
     let boundary = match console.lifecycle.send_backup_command("save-off") {
         Some(boundary) => boundary,
         None => {
-            let _ = fs::remove_dir_all(&destination);
             return Err("could not send save-off to the active Java run".to_string());
         }
     };
@@ -489,7 +485,6 @@ pub(crate) fn snapshot_java_world(
     };
     if !console.send("save-all flush") {
         let resumed = held.resume();
-        let _ = fs::remove_dir_all(&destination);
         return Err(format!(
             "could not send Java save-all flush; save-on dispatched: {resumed}"
         ));
@@ -500,7 +495,6 @@ pub(crate) fn snapshot_java_world(
     });
     if !saved || should_cancel() {
         let resumed = held.resume();
-        let _ = fs::remove_dir_all(&destination);
         return Err(format!(
             "Java flush was not confirmed or snapshot cancelled; save-on dispatched: {resumed}"
         ));
@@ -518,18 +512,18 @@ pub(crate) fn snapshot_java_world(
     let resume_sent = held.resume();
     drop(held);
     if let Err(error) = copied {
-        let _ = fs::remove_dir_all(&destination);
         return Err(format!(
-            "Java snapshot copy failed: {error}; save-on dispatched: {resume_sent}"
+            "Java snapshot copy failed at {}: {error}; save-on dispatched: {resume_sent}",
+            destination.display()
         ));
     }
     if !resume_sent {
-        let _ = fs::remove_dir_all(&destination);
         return Err(
             "snapshot copied, but save-on was not dispatched to the same Java run".to_string(),
         );
     }
     Ok(WorldMapSnapshot {
+        staging: Some(staging),
         path: destination.join("world"),
         bytes,
         hold_millis,

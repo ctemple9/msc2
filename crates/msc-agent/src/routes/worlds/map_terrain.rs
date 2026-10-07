@@ -64,26 +64,19 @@ struct RendererState {
 }
 
 struct SavedSnapshot {
+    _staging: Option<crate::map_staging::Staging>,
     server_id: String,
     source_world: PathBuf,
     path: PathBuf,
 }
 
-impl Drop for SavedSnapshot {
-    fn drop(&mut self) {
-        if let Some(parent) = self.path.parent() {
-            let _ = std::fs::remove_dir_all(parent);
-        }
-    }
-}
-
 struct Renderer {
+    _staging: crate::map_staging::Staging,
     server_id: String,
     world: PathBuf,
     dimension: String,
     port: u16,
     token: String,
-    cache: PathBuf,
     child: Child,
     diagnostics: Arc<Mutex<Vec<u8>>>,
     diagnostic_reader: Option<std::thread::JoinHandle<()>>,
@@ -97,7 +90,6 @@ impl Drop for Renderer {
         if let Some(reader) = self.diagnostic_reader.take() {
             let _ = reader.join();
         }
-        let _ = std::fs::remove_dir_all(&self.cache);
     }
 }
 
@@ -286,6 +278,7 @@ impl RendererStore {
             server_id,
             source_world,
             path: snapshot.path,
+            _staging: snapshot.staging,
         };
         let mut renderer = self.0.current.lock().map_err(|_| ())?;
         let mut saved = self.0.snapshot.lock().map_err(|_| ())?;
@@ -402,16 +395,21 @@ impl Renderer {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").map_err(|_| ())?;
         let port = listener.local_addr().map_err(|_| ())?.port();
         drop(listener);
-        let cache = std::env::temp_dir().join(format!("msc-map-renderer-{}", Uuid::new_v4()));
-        std::fs::create_dir(&cache).map_err(|_| ())?;
+        let estimate = java_terrain_compat::staging_estimate(world, dimension)
+            .map_err(|error| TerrainError::new("terrain_preparation_failed", error.to_string()))?;
+        let staging = crate::map_staging::Staging::create("java-renderer", estimate)
+            .map_err(|error| TerrainError::new("map_storage_failed", error.to_string()))?;
+        let cache = staging.path().to_path_buf();
         let render_world = match java_terrain_compat::prepare(world, dimension, &cache) {
             Ok(path) => path,
             Err(error) => {
                 eprintln!("Java terrain compatibility preparation failed: {error}");
-                let _ = std::fs::remove_dir_all(&cache);
                 return Err(TerrainError::new(
                     "terrain_preparation_failed",
-                    "The saved Java terrain could not be prepared for rendering. See the agent logs on the server host for details.",
+                    format!(
+                        "Saved Java terrain preparation failed at {}: {error}",
+                        cache.display()
+                    ),
                 ));
             }
         };
@@ -450,7 +448,6 @@ impl Renderer {
             .stderr(Stdio::piped())
             .spawn()
             .map_err(|error| {
-                let _ = std::fs::remove_dir_all(&cache);
                 eprintln!("Java terrain renderer could not start: {error}");
                 TerrainError::new("renderer_start_failed", "The Java terrain renderer could not start. Repair MSC on the server host and check the agent logs for details.")
             })?;
@@ -478,7 +475,7 @@ impl Renderer {
             dimension: dimension.to_string(),
             port,
             token,
-            cache,
+            _staging: staging,
             child,
             diagnostics,
             diagnostic_reader,
@@ -518,7 +515,8 @@ impl Renderer {
             .ok()
             .map(|bytes| String::from_utf8_lossy(&bytes).replace(&self.token, "[redacted]"));
         eprintln!(
-            "Java terrain renderer {reason}: {}",
+            "Java terrain renderer {reason} at {}: {}",
+            self._staging.path().display(),
             diagnostics.unwrap_or_default()
         );
     }

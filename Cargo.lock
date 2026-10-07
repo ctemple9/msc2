@@ -944,6 +944,7 @@ dependencies = [
  "clap",
  "fastnbt",
  "flate2",
+ "fs2",
  "futures-util",
  "http-body-util",
  "image",

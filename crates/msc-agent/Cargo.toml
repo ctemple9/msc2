@@ -14,6 +14,7 @@ msc-domain = { path = "../msc-domain" }
 msc-infrastructure = { path = "../msc-infrastructure" }
 axum = { version = "0.7", features = ["ws"] }
 futures-util = "0.3"
+fs2 = "0.4"
 tokio-tungstenite = "0.24"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "fs", "signal"] }
 clap = { version = "4", features = ["derive"] }

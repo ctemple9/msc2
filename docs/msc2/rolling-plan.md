@@ -1,5 +1,16 @@
 # MSC 2 — Rolling Plan
 
+### P18.34 — Hide application scrollbars
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src/app.css`, this plan.
+**What:** Hide scrollbar visuals throughout the app, including Edit Server's detected Java list and the world pack browser's thin scrollbar override. Retain overflow behavior and wheel, trackpad, touch and keyboard scrolling. Native operating-system file dialogs are outside this document's styling. No tests added or run for this reversible CSS change; no Rust changes require formatting or Clippy.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P18.34 only.
+**Commit:** `P18.34: hide application scrollbars`
+
+**Manual acceptance:** Open Edit Server → Java → Detect Java and scroll the detected list. Confirm no scrollbar appears and every entry remains reachable. Repeat in the console, file preview and a long app sheet.
+
 ### P18.33 — Clean retired modded-map build leftovers
 
 **Status:** Implemented; owner cleanup review pending.

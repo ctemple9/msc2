@@ -10,6 +10,13 @@
 
 * {
   box-sizing: border-box;
+  /* Keep scrolling available while hiding bars, including component overrides. */
+  scrollbar-width: none !important;
+}
+*::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 body {
   margin: 0;

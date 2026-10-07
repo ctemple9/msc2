@@ -123,13 +123,17 @@
 
 ### P16.50 — Record complete Windows MSI acceptance and review handoff
 
-**Status:** Planned; awaiting Cameron's review.
+**Status:** Implemented; awaiting Cameron's verification and independent review.
 **Files:** `docs/msc2/release/windows-msi-review.md`, `docs/msc2/release/phase16-acceptance.md`, relevant Windows install/update/removal documentation, this plan.
 **What:** Produce a concise owner walkthrough for one exact locally built candidate: visible preparation/Welcome; options/navigation/cancel; fresh install with present/missing WebView2; first-launch local setup and remote-only use; terminal discovery; same-version repair; direct and coordinated upgrade; safe ordinary removal/reinstall; Phase 19 complete removal; headless coexistence; different-admin UAC; display scaling; reboot/cancellation/fault recovery. Record artifact digest/source and Cameron's actual observations as PASS/FAIL/UNAVAILABLE. Keep unobserved outcomes pending. Hand the gate to the other agent; no implementation agent self-review and no automatic phase closure. Candidate publication, version bump/tag and a release run require a separate owner instruction.
 **Verify:** `git show --check --stat --oneline HEAD`
 **Batch:** P16.50 only.
 **Acceptance gate:** The exact candidate has no unexplained blank preparation page; its introduction and choices are readable; Back/Next/Cancel behave honestly; installation/repair/removal own only their verified files/registration; local service transitions preserve account/data and never affect another installation or remote agent; failed Windows updates restore the prior usable local set; prerequisites and reboot/failure results are accurate. Cameron records physical evidence and the independent reviewer evaluates these outcomes. This refinement does not close unrelated Phase 16/17/19 gates.
 
+
+**Commit:** `P16.50: consolidate windows msi acceptance handoff`
+**Implementation:** Consolidate W01-W22 owner walkthrough and observation fields around the exact P16.49 candidate/source/digest. Keep physical cases PENDING and signed-pair/restart cases UNAVAILABLE with prerequisites; retain the earlier owner visual impression without transferring it as PASS. Link the local refinement separately from the historical published-release packet, update Windows install/removal guidance and hand report-only gate review to the other agent. No phase closure, candidate publication or version change.
+**Checks:** Existing candidate SHA-256 rechecked and matched; documentation references/observation states and diff inspected. Documentation only; Rust formatting/Clippy not applicable. No tests, builds, installer/service operations, release workflow or publication. Verify command remains the commit inspection listed above; physical acceptance remains Cameron's.
 
 ### P18.48 — Quiet cleanup preview typography
 

@@ -174,9 +174,16 @@ must be inspected, never discarded automatically.
 
 The separately confirmed full-removal worker removes its inspected service and
 data first. Its fixed Windows adapter validates the protected DesktopLifecycle
-cache, checksum-named builds and exact four-file payload before removing those
-files and empty directories. Unknown files, unfinished transactions, redirected
-paths or an existing service refuse cleanup. It never follows data paths from the
+cache, accepted previous-update records, checksum-named builds and recognized
+four-file payloads or partial staging before removing those files and empty
+directories. Complete executable sets must match their build digest; unknown
+files, pending recovery records, redirected paths or an existing service refuse
+cleanup. It never follows data paths from the
 ownership record. MSI subsequently sees no service and performs package-only
 removal. Only that confirmed worker clears credentials/worlds; ordinary MSI does
 not invoke it.
+
+For current Windows package/full-removal acceptance, use W16/W17 in the
+[P16.50 consolidated checklist](../release/windows-msi-review.md#p1650--consolidated-owner-acceptance-and-independent-review-handoff).
+Use the P16.49 candidate, which also corrects automatic-start restoration. No
+physical full-removal PASS has been recorded for this candidate.

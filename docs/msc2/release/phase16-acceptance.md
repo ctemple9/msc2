@@ -85,3 +85,28 @@ artifact to which the observation applies.
 **Not accepted.** Candidate publication succeeded; all Cameron-observed
 physical results remain pending. Do not mark Phase 16 complete until the
 evidence checker passes and the independent Phase 16 review is recorded.
+
+## P16.50 local Windows MSI refinement handoff (2026-10-07)
+
+This supplemental candidate is a local installer review, separate from the
+published v0.1.18 packet above. It does not replace published artifact identities
+or transfer observations across versions. The complete owner checklist W01-W22
+and independent-review handoff are in
+[windows-msi-review.md](windows-msi-review.md#p1650--consolidated-owner-acceptance-and-independent-review-handoff).
+
+| Field | Local refinement candidate |
+|---|---|
+| Filename | msc2-p16.49-windows-x86_64.msi |
+| Source commit | 7f07f36f0c206a37c733f4d61788d16b93f9a41d |
+| Version / bytes | 0.1.23 / 19,431,424 |
+| SHA-256 | 83fd1b0f9b32e56e6cb6453b072ca585e4d61c81ae1c7ae57b6441fe1e26be5e |
+| Provenance | Local build; unsigned MSI; no signed release manifest |
+| Package/UI/service/removal observations | PENDING (W01-W17) |
+| Signed update/recovery/downgrade observations | UNAVAILABLE pending required version pairs/environments (W18-W22) |
+| Independent review | PENDING; Claude Code, report-only REVIEW |
+
+Cameron's earlier "it looks good" followed P16.45 and is retained as a visual
+impression only, not exact-candidate acceptance. P16.50 creates no PASS results.
+Windows service and rollback rows in the published-release table remain unchanged.
+The local MSI checksum was rechecked during packet preparation; that is artifact
+identity evidence, not physical acceptance. The Phase 16 gate remains open.

@@ -677,3 +677,96 @@ Do not alter signature verification to make a local candidate eligible.
    candidate, including unknown/pending-cache refusal. Preserve valued server data.
 
 Physical acceptance remains pending. P16.50 has not been started.
+
+## P16.50 — Consolidated owner acceptance and independent review handoff
+
+**Status:** Packet prepared; physical acceptance and independent review pending.
+**Candidate:** `C:\Users\Cameron\Downloads\msc2-p16.49-windows-x86_64.msi`.
+**Source:** `7f07f36f0c206a37c733f4d61788d16b93f9a41d` (P16.49).
+**Version / size:** 0.1.23 / 19,431,424 bytes; unsigned local review MSI.
+**SHA-256:** `83fd1b0f9b32e56e6cb6453b072ca585e4d61c81ae1c7ae57b6441fe1e26be5e`.
+P16.50 changes documentation only; it reuses these exact bytes without rebuilding.
+
+Cameron reported that the v0.1.15 opening page was briefly blank before advancing.
+After P16.45 he said "it looks good." That is an owner visual impression of the
+earlier review, with no exact digest or detailed cases recorded in the conversation.
+It is not transferred as PASS to this candidate. All rows below remain PENDING
+unless marked UNAVAILABLE with a specific missing prerequisite. Use PASS or FAIL
+only for a recorded observation; neither a build nor static inspection proves it.
+
+### Run the review
+
+Use Windows Sandbox for the opening flow and fresh package review. Use disposable
+VM snapshots for service-account, upgrade, reboot and failure cases. Copy the MSI
+into the guest, verify its digest there, and keep this checklist with your notes.
+Record guest Windows version, WebView2 state, display scaling, approving account,
+and starting service state. Take a clean snapshot before each destructive case.
+Keep valued worlds and the development installation outside these environments.
+
+```powershell
+$reviewMsi = (Resolve-Path -LiteralPath '.\msc2-p16.49-windows-x86_64.msi').Path
+(Get-FileHash -LiteralPath $reviewMsi -Algorithm SHA256).Hash
+$reviewLog = Join-Path $env:TEMP 'msc2-p16.50-install.log'
+& "$env:SystemRoot\System32\msiexec.exe" /i $reviewMsi /norestart /L*V $reviewLog
+```
+
+The final command opens Setup and can change the guest installation. Back out and
+cancel for the first case, then reopen for installation. Save logs/screenshots
+before resetting Sandbox or reverting a VM. Review logs for personal information
+before sharing; never pass service passwords through MSI properties.
+
+| ID | Owner action and expected observation | Result | Observer / UTC / evidence |
+|---|---|---|---|
+| W01 | Open Setup: introduction appears without an unexplained blank preparation page; options, review, progress and completion are readable. | PENDING | Pending |
+| W02 | Use Tab/Shift+Tab, Enter/Escape and Back/Next; cancel before install and refuse UAC. Choices/navigation are honest and cancellation leaves no successful-install claim. | PENDING | Pending |
+| W03 | Repeat screen review at 100%, 125%, 150% and 200% scaling; no clipped text or inaccessible controls. | PENDING | Pending |
+| W04 | Fresh install with shared WebView2 present: chosen folder/shortcut, complete desktop/agent/helpers/license, one Installed Apps entry and successful launch. | PENDING | Pending |
+| W05 | Fresh VM missing shared WebView2, online: prerequisite is explained and installed; MSC opens. | PENDING | Pending |
+| W06 | Restore missing-runtime snapshot, disconnect network: clear failure and no successful completion/launch claim. | PENDING | Pending |
+| W07 | First launch: remote-only use creates no local service; deliberate local hosting setup uses the intended Windows account and one-time password prompt. | PENDING | Pending |
+| W08 | New PowerShell: `Get-Command msc` and `msc --help` resolve the installed CLI; compare PATH before/after with an independent headless directory. | PENDING | Pending |
+| W09 | Direct upgrade from an exact recorded prior MSI/custom folder: folder and family retained, one registration; no settings/world/credential reset. Stop legacy Minecraft/agent first when instructed. | PENDING | Pending |
+| W10 | Reopen same MSI and repair missing package files: files/registration restored, account/boot policy/data unchanged. | PENDING | Pending |
+| W11 | Owned service running: graceful Minecraft/helper stop, verified payload replacement, same account/boot settings, agent resumes and Minecraft stays stopped. | PENDING | Pending |
+| W12 | Owned service stopped: repair/update leaves it stopped. Include automatic, delayed-automatic, manual and disabled startup cases where applicable. | PENDING | Pending |
+| W13 | Independent marked headless service untouched; ambiguous ownership refuses changes. Remote connections receive no service-control operation. | PENDING | Pending |
+| W14 | Different administrator approves UAC: original service owner retained, machine registration/shortcuts correct, original user can open MSC. | PENDING | Pending |
+| W15 | Cancel/fail package work after preparation in a snapshotted VM: previous files/service metadata/state restored or explicit recovery failure with retained diagnostics. | PENDING | Pending |
+| W16 | Installed Apps removal and reopened-MSI removal: only owned package/service detached, no Launch option, data/settings/credentials retained; reinstall can reuse data and request local registration. | PENDING | Pending |
+| W17 | Separate confirmed full uninstall: inspect preview, acknowledge permanent loss and confirm phrase; reviewed data/credentials/cache/package removed, unrelated files protected, partial result honest. | PENDING | Pending |
+| W18 | In-app signed newer update: one desktop relaunch, initialized shell plus owned-agent authenticated version health, success report and retained previous package. Repeat running/stopped/no-service/headless cases. | UNAVAILABLE | No eligible signed old/new protocol-capable pair recorded |
+| W19 | Signed updater cancellation/UAC refusal, corrupted staging and busy installer: clear refusal/cancellation, usable prior installation, no competing recovery. | UNAVAILABLE | Same signed-pair prerequisite |
+| W20 | Controlled new-desktop/agent health failure: verified prior MSI/payload restored, old desktop usable, prior agent state/account retained; failed restoration reported honestly. | UNAVAILABLE | Same signed-pair prerequisite |
+| W21 | Genuine restart-required update: no automatic reboot or premature health success; retained command resumes health/acceptance after restart. | UNAVAILABLE | Signed pair and reproducible restart-required VM needed |
+| W22 | Protocol-capable ordinary downgrade blocked; deliberate verified previous restoration succeeds. Historical packages cannot acquire the guard retroactively. | UNAVAILABLE | Distinct protocol-capable version pair needed |
+
+For W09/W15/W18-W22 record both old/new MSI names, digests, source commits and,
+for the in-app updater, signed manifest identities. The local MSI has no signed
+release metadata; do not bypass signature checks or create a release merely to
+fill these rows. W18-W22 use the detailed P16.49 procedure above. A controlled
+fault needs an agreed reproducible VM procedure and stage/log evidence; failure
+to reproduce is UNAVAILABLE, not PASS. Full uninstall in W17 deliberately deletes
+reviewed guest worlds, unlike ordinary removal in W16.
+
+For each result append the observer, UTC time, VM/snapshot identity, exact artifact
+hash, observed behavior and evidence location. A FAIL includes expected versus
+actual behavior and the retained log/report. UNAVAILABLE includes the prerequisite
+or environment that prevented observation. Do not delete protected recovery records
+to force another attempt. Power-loss recovery at every installer stage is not
+established; retain records for inspection rather than claiming automatic recovery.
+
+### Handoff to the other agent
+
+The implementation was performed by Codex. Claude Code is the independent
+reviewer; no review has been performed in this step. Review P16.44?P16.50 against
+the acceptance gate in the rolling plan and the Phase 16 exit criteria in the port
+plan, using current source, this exact candidate and Cameron's recorded outcomes.
+Check ownership/elevation boundaries, rollback ordering, previous-package trust,
+health/readiness, cancellation/reboot reporting, data retention, headless coexistence
+and separately confirmed full cleanup. Report findings without implementing fixes
+in REVIEW mode. Missing signed-pair/fault-path evidence keeps acceptance open.
+
+The published-release packet remains separate in [phase16-acceptance.md](phase16-acceptance.md).
+This local refinement neither replaces its release candidate nor satisfies the
+nine-artifact/provenance or other platform gates. Publication/version/tag requires
+a separate owner instruction. No implementation agent self-review or phase advance.

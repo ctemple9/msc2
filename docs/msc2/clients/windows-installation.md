@@ -60,9 +60,10 @@ remain unsigned, so Windows can report an unknown publisher or SmartScreen
 warning. Microsoft's embedded bootstrapper has its own signature; that does not
 authenticate the enclosing MSC installer.
 
-Ordinary downgrade blocking remains deferred until P16.49 defines the verified
-older-version recovery path. This candidate retains Tauri's existing downgrade
-permission; do not treat it as a completed safe downgrade/update workflow.
+Protocol-capable MSIs now block ordinary downgrades. Deliberate restoration uses
+`MSC_RESTORE_PREVIOUS=1`; the in-app updater uses it only for a verified retained
+previous MSI. Historical MSIs do not acquire this guard retroactively. Full signed
+update/recovery acceptance remains pending.
 
 ## Cameron's P16.46 verification
 
@@ -133,10 +134,10 @@ for later update recovery. An externally changed service or failed restoration i
 reported as an error; Setup does not overwrite an unknown service or force success.
 Sudden power loss and post-install health rollback are not established by this step.
 
-This intermediate candidate refuses ordinary MSI removal while it owns an agent;
-P16.48 supplies safe detachment/removal. The existing confirmed complete-removal
-worker can call MSI after it has already removed the service and metadata. Updater
-health checks and coordinated older-version recovery remain P16.49.
+P16.48 supplies ordinary repair and safe package/service detachment with retained
+data; separately confirmed complete removal remains a different operation. P16.49
+adds signed update health checks and previous-package recovery. Physical acceptance
+is pending; use the consolidated P16.50 walkthrough below.
 
 ## Cameron's P16.47 verification
 
@@ -169,3 +170,17 @@ Win32_Service -Filter "Name='com.ctemple.msc2.agent'"` reads the actual registra
 Record restoration failures and retained recovery records under
 `C:\ProgramData\MSC2\Services\DesktopLifecycle` for inspection. Do not delete a
 recovery record or edit its JSON to make Setup proceed.
+
+## Current candidate review (P16.50)
+
+Use the exact P16.49 local candidate and
+[consolidated owner checklist](../release/windows-msi-review.md#p1650--consolidated-owner-acceptance-and-independent-review-handoff)
+for installation, maintenance, service, UAC, scaling and recovery acceptance.
+The earlier P16.46/P16.47 procedures above remain useful case details.
+The local unsigned MSI cannot replace the two signed protocol-capable releases
+required for in-app update acceptance. Both prior and target packages must support
+`MSC_UPDATE_PROTOCOL=1`; migrate legacy installations manually first. Successful
+updates require actual shell readiness and, when previously running, authenticated
+owned-agent health. Restart-required results retain an explicit resume command;
+failed replacement attempts verified prior-package/service restoration. No remote
+service is controlled and Minecraft is not restarted automatically.

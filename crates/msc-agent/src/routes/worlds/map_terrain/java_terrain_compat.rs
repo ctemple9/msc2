@@ -28,9 +28,10 @@ pub(super) fn staging_estimate(world: &Path, dimension: &str) -> io::Result<u64>
             _ => return Err(invalid("Java dimension path is not a regular directory")),
         }
     }
-    // Recompression can grow a region. This is an admission estimate, with
-    // actual normalized sizes checked again before each write.
-    Ok(crate::map_staging::estimate_tree(&source)?.saturating_mul(2))
+    // Reserve one working copy. Recompression growth is checked using the
+    // actual normalized size before every write, rather than doubling all
+    // regions and refusing worlds that already fit on disk.
+    crate::map_staging::estimate_tree(&source)
 }
 
 pub(super) fn prepare(world: &Path, dimension: &str, cache: &Path) -> io::Result<PathBuf> {

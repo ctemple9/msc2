@@ -1,5 +1,17 @@
 # MSC 2 — Rolling Plan
 
+### P18.29 — Correct map staging storage estimates
+
+**Status:** Implemented; awaiting Cameron's large-map verification.
+**Files:** Agent map staging and Java compatibility estimate; headless installation guide; this plan.
+**What:** Owner found 14 GiB in an old TMPDIR renderer copy and reclaimed it after stopping the agent. Root now reports 14 GiB available. P18.28 demanded 26,685,489,152 bytes by doubling the source estimate; remove that arbitrary multiplier and estimate one working copy plus existing headroom. Preserve actual normalized-size free-space checks and underlying write/quota failures. Subtract bytes already written from live reservations because filesystem free space already accounts for them; failed/racing inspection conservatively retains the full reservation. No source-world deletion, automatic abandoned-copy purge or retired repair feature.
+**Verify:** `cargo clippy -p msc-agent --bin msc`; Cameron installs the corrected agent and opens Tectonic, confirms terrain loads and storage errors retain useful diagnostics, and repeats standard Java/Bedrock observations.
+**Batch:** P18.29 only, continuation of P18.28 owner verification.
+**Commit:** `P18.29: correct map staging storage estimates`
+
+**Checks:** Formatting, agent Clippy, diff whitespace and locked release build passed with existing warnings. No tests or remote launches ran. Updated `target/map-staging-agent/msc` SHA-256: `175cc894204c031c2619afdc265ea44d235b11f3e7fcfbbd0c8eb8e9d6528880`; highest glibc ABI 2.39. Owner-confirmed reclamation returned root from 100% usage/7.2 MiB free to 75% usage/14 GiB free. New exact-artifact rendering remains pending.
+
+
 ### P18.28 — Use MSC-owned disk storage for large map staging
 
 **Status:** Implemented at Cameron's request on 2026-10-06; awaiting owner verification.

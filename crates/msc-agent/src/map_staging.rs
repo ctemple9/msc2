@@ -76,12 +76,15 @@ impl Staging {
                         Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
                         Err(error) => return Err(error),
                     }
-                    reserved = reserved.saturating_add(
-                        value
-                            .trim()
-                            .parse::<u64>()
-                            .map_err(|_| io::Error::other("invalid staging reservation"))?,
-                    );
+                    let promised = value
+                        .trim()
+                        .parse::<u64>()
+                        .map_err(|_| io::Error::other("invalid staging reservation"))?;
+                    // Free-space reporting already subtracts bytes written.
+                    // Reserve only the still-unwritten part of a live copy.
+                    // A racing/failed inspection falls back to the full estimate.
+                    let written = estimate_tree(&entry.path()).unwrap_or(0);
+                    reserved = reserved.saturating_add(promised.saturating_sub(written));
                 }
                 Err(error) => return Err(error),
             }

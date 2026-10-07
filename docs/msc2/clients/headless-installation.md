@@ -85,8 +85,9 @@ TMPDIR or the system temporary filesystem. On Unix these directories have mode
 0700; on Windows they inherit the application-data directory's access controls.
 Allow space for the world copy, compatibility conversion and renderer output.
 MSC checks free space and accounts for active copy estimates before preparation;
-these conservative estimates include 64 MiB headroom and can overestimate when
-copies already occupy disk. Renderer output can grow beyond its estimate. User
+these estimates include 64 MiB headroom and subtract bytes already written
+from active reservations. Java compatibility preparation estimates one copy;
+conversion growth is checked against actual output sizes before each write. Renderer output can grow beyond its estimate. User
 quotas can still reject writes even when the filesystem reports free space;
 errors retain the staging location and underlying storage failure.
 

@@ -184,3 +184,19 @@ updates require actual shell readiness and, when previously running, authenticat
 owned-agent health. Restart-required results retain an explicit resume command;
 failed replacement attempts verified prior-package/service restoration. No remote
 service is controlled and Minecraft is not restarted automatically.
+
+## Windows runtime packaging (P16.52)
+
+MSC's Windows MSVC Rust builds include their C runtime in the desktop, agent,
+Bedrock exporter and MSI helper. Repository `.cargo/config.toml` supplies
+`-C target-feature=+crt-static` to Windows MSVC targets for both local and release
+commands run from the repository. Do not override this with dynamic-runtime flags
+when producing installer payloads. P16.51 included it only in the MSI helper;
+Cameron's clean Sandbox exposed the same dependency in the desktop afterward.
+The pinned Vantage Windows binary uses Windows' Universal C Runtime APIs and
+imports no VCRUNTIME/MSVCP DLL. WebView2 remains a separate shared prerequisite.
+
+New native bytes require refreshing the helper's compiled payload hashes before
+bundling. Use the existing normal staging command rather than mixing old agent
+bytes and a new DLL. Check the current candidate identity and owner results in
+[the Windows review packet](../release/windows-msi-review.md).

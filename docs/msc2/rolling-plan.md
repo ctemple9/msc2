@@ -146,6 +146,18 @@
 **Checks:** Helper release build and Clippy/formatting, Node syntax/staging-script formatting, bundle-only MSI packaging and read-only helper import/payload-hash/MSI Binary comparison passed. No tests, installation/service mutation or publication. Retry candidate `C:\Users\Cameron\Downloads\msc2-p16.51-windows-x86_64.msi`; exact hash and owner failure recorded in the review packet.
 **Manual acceptance:** Cameron retries fresh Sandbox install/desktop launch with logging. Physical acceptance and independent review remain open; the earlier preparation delay is not claimed resolved.
 
+### P16.52 - Include the runtime across the Windows Rust payload
+
+**Status:** Implemented; awaiting Cameron's verification. Owner-authorized follow-up after P16.51 installs but desktop launch reports missing VCRUNTIME140.dll.
+**Files:** `.cargo/config.toml`, Windows installation/MSI review/Phase 16 acceptance documentation, this plan.
+**What:** Audit desktop, agent, exporter and renderer imports. Configure Windows MSVC Rust builds to link their C runtime statically, covering normal local/release staging and the desktop build without adding a runtime installer. Rebuild affected payload, refresh the helper's compiled hashes and package a distinct local candidate.
+**Verify:** From `clients/desktop-web`, run `npx tauri bundle --bundles msi --no-sign` after `node tools/prepare-agent-dev.mjs --release` and the desktop release build have refreshed native payload.
+**Batch:** P16.52 only.
+**Manual acceptance:** Cameron repeats fresh Sandbox install and desktop launch, then checks packaged CLI/helper launch. Runtime import inspection is not successful app/service acceptance. Preparation delay, signed updates and independent review remain open.
+
+**Commit:** `P16.52: include runtime across windows native payload`
+**Checks:** Normal agent/exporter/helper release staging and desktop release build, validated MSI packaging, normal/delay import inspection, cabinet/payload and embedded-helper/hash comparison, configuration/Node syntax, desktop release Clippy and diff checks passed with existing warnings. No external VC++ runtime imports remain in MSC native binaries; pinned Vantage uses OS UCRT. Desktop formatting check identifies a pre-existing P16.49 protocol-check formatting issue; no Rust source was changed. No tests, live installation/service actions or release publication. Candidate `C:\Users\Cameron\Downloads\msc2-p16.52-windows-x86_64.msi`; exact hash in review packet.
+
 ### P18.48 — Quiet cleanup preview typography
 
 **Status:** Implemented; awaiting Cameron's visual verification. EXECUTE scope: owner-requested preview styling correction.

@@ -121,3 +121,15 @@ P16.51 supplies a statically linked helper retry candidate, MSI SHA-256
 `57bd665eb122987a5c2150a5586506c59f37fbb2bb1f23fdc0ce7d5fcc2a303b`. Its identity and checks are in
 [windows-msi-review.md](windows-msi-review.md#p1651---fix-the-clean-machine-installer-helper-dependency).
 Retry installation, service/recovery and independent review remain pending.
+
+### P16.52 full-payload runtime correction
+
+Cameron reports P16.51 Setup completed, but desktop launch failed with a screenshot
+explicitly naming missing VCRUNTIME140.dll. This does not close install-and-launch
+acceptance. P16.52 supplies a distinct candidate with static runtime linkage across
+the Windows Rust payload; no signed release was published. Exact retry MSI digest:
+`59bd0445260b6206001d069f6c9845ccc1d03ede2d3a313f2af105dc58ac7859`.
+See the [P16.52 record](windows-msi-review.md#p1652---package-the-runtime-across-the-windows-native-payload)
+for packaged-file digests and import/cabinet inspection. New candidate physical
+acceptance, original window geometry/preparation delay and independent review
+remain pending. Earlier published-release rows are unchanged.

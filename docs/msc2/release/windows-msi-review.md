@@ -811,3 +811,87 @@ log, install and check desktop launch without local hosting setup first. Report
 the full log if it fails; copy it out before closing Sandbox. Keep repair/removal,
 service, signed update and independent-review results pending. The prior >1-minute
 preparation delay and uninformative progress remain open observations.
+
+## P16.52 - Package the runtime across the Windows native payload
+
+**Status:** Implemented; awaiting Cameron's verification. Current retry candidate
+supersedes the local P16.51 candidate for W01-W22; older observations remain
+attached to their original bytes, not transferred as PASS.
+
+Cameron corrected the mistaken P16.49 retry, then ran P16.51. His screenshot
+shows WebView2 installation with visible action text and a progressing bar. He
+reported Setup finished, but opening MSC produced a system error explicitly
+naming missing `VCRUNTIME140.dll`; the app window was blank. This establishes
+installation completion as reported, not successful desktop launch or hosting.
+The previously empty action area eventually displayed status; its initial delay
+remains an observation to investigate, not a claim that updates never appear.
+
+| Candidate | Owner observation | Result |
+|---|---|---|
+| P16.49, hash 83fd1b0f? | Fresh Sandbox install: helper preparation/rollback error 1723/1157 | FAIL |
+| P16.51, hash 57bd665e? | WebView2 progress shown, Setup finished; desktop launch missing VCRUNTIME140.dll | FAIL for install-and-launch acceptance |
+| P16.52, exact identity below | Fresh install, desktop and bundled-tool launch | PENDING |
+
+The complete prior native import audit found VCRUNTIME imports in the desktop,
+agent and Bedrock exporter. The P16.51 helper was already static. Pinned Vantage
+imports Universal C Runtime APIs but no VCRUNTIME/MSVCP DLLs. The
+[Universal C Runtime is part of Windows 10 and later](https://learn.microsoft.com/en-us/cpp/windows/universal-crt-deployment?view=msvc-170).
+
+Repository `.cargo/config.toml` now applies `target-feature=+crt-static` to Windows
+MSVC targets. This embeds the C runtime in all locally built Windows Rust payload,
+including normal desktop, agent, exporter and lifecycle-helper release commands.
+The existing Windows release staging script runs Cargo from the repository and
+inherits this setting, as does Tauri's desktop build. No workflow, release gate,
+extra runtime installer, signature bypass or product/service behavior was added.
+The pinned third-party Vantage binary is unchanged. Runtime-linking overrides in
+external environments can supersede Cargo configuration and must not be used for
+these packages. See [Rust runtime linkage](https://doc.rust-lang.org/reference/linkage.html#static-and-dynamic-c-runtimes).
+
+### Exact retry candidate
+
+- Review copy: `C:\Users\Cameron\Downloads\msc2-p16.52-windows-x86_64.msi`.
+- Version: 0.1.23; unsigned local MSI; 19,742,720 bytes.
+- MSI SHA-256: `59bd0445260b6206001d069f6c9845ccc1d03ede2d3a313f2af105dc58ac7859`.
+- Embedded lifecycle DLL SHA-256: `b25d93b5ed294a449949d90f995a496d266fe5c58f8379be51daaea75e800743`.
+- Code change: commit subject `P16.52: include runtime across windows native payload`.
+
+| Packaged file | SHA-256 |
+|---|---|
+| msc2-desktop-web.exe | `513d8d92900d28edca6fc326c742067cdc956a2374381eef61cc7f09ccfca665` |
+| bedrock-map.exe | `8ac304532335cb9b9d566b08975937a99836aaad662e927a479d296bc221ab95` |
+| msc.exe | `04ea96e9bfe32ef7025de93fc4d111d544b05e26ff1000cd78df4461af48a9ce` |
+| VANTAGE-LICENSE.txt | `388c961d7135c46acbbd5a99f7cd0907b43dec7e124c6441a9c6e0761b71bdbb` |
+| vantage.exe | `7cf7d374a649e1d9a072c6d2f86a852196cb4dfe7afe038c5a7beed3e9aedbc0` |
+
+Normal native staging rebuilt agent/exporter/helper and refreshed all four payload
+hashes in the helper. The desktop release build and MSI bundle passed. Read-only
+normal and delay-import inspection found no external VC++/CRT imports in our four
+native binaries; Vantage retains only its OS UCRT imports. Cabinet extraction
+confirmed all five installed payload files match staging. The desktop comparison
+accounts for precisely Tauri's `__TAURI_BUNDLE_TYPE_VAR_UNK` to `MSI` marker patch.
+The embedded MSI lifecycle Binary exactly matches the staged DLL and contains all
+four correct payload hashes. Node staging syntax/config parsing, release desktop
+Clippy and diff checks passed; existing Rust warnings remain. Workspace/exporter/
+helper Rust formatting checks passed; the desktop formatting check reports an
+existing unformatted protocol check in `src/update_windows.rs` from P16.49.
+No Rust source was changed in this fix, and that unrelated formatting was retained.
+No tests, app/installer/service execution, release workflow or publication ran.
+
+### Retry in a fresh Sandbox
+
+Close and reopen Sandbox, copy **msc2-p16.52-windows-x86_64.msi** and confirm its
+hash before starting. Install, observe prerequisite/status screens, and launch
+MSC without setting up local hosting first. Record startup/window behavior; the
+runtime fix does not claim to fix the original large/off-centre window observation.
+Then open a new PowerShell in the guest and run these bundled command entry points:
+
+```powershell
+& 'C:\Program Files\MSC 2\agent\msc.exe' --help
+& 'C:\Program Files\MSC 2\agent\bedrock-map.exe' --help
+& 'C:\Program Files\MSC 2\agent\vantage.exe' --help
+```
+
+Use the selected install folder if different. These manual checks establish loader/
+command startup only, not map rendering or service lifecycle. Keep evidence before
+closing Sandbox. Repair/removal, owned-service transitions, signed update/recovery
+and independent gate review remain pending.

@@ -135,6 +135,17 @@
 **Implementation:** Consolidate W01-W22 owner walkthrough and observation fields around the exact P16.49 candidate/source/digest. Keep physical cases PENDING and signed-pair/restart cases UNAVAILABLE with prerequisites; retain the earlier owner visual impression without transferring it as PASS. Link the local refinement separately from the historical published-release packet, update Windows install/removal guidance and hand report-only gate review to the other agent. No phase closure, candidate publication or version change.
 **Checks:** Existing candidate SHA-256 rechecked and matched; documentation references/observation states and diff inspected. Documentation only; Rust formatting/Clippy not applicable. No tests, builds, installer/service operations, release workflow or publication. Verify command remains the commit inspection listed above; physical acceptance remains Cameron's.
 
+### P16.51 - Include the installer helper runtime after Sandbox failure
+
+**Status:** Implemented; awaiting Cameron's verification. Owner-authorized fix after P16.50 acceptance failed.
+**Files:** `clients/desktop-web/tools/prepare-agent-dev.mjs`, Windows MSI review and Phase 16 acceptance packet, this plan.
+**What:** Remove the installer helper's external VC++ runtime dependency by statically linking its C runtime in the normal staging command. Rebuild only the helper and repackage the existing desktop/agent bytes; retain the original failed artifact and provide a distinct retry candidate.
+**Verify:** From `clients/desktop-web`, run `npx tauri bundle --bundles msi --no-sign` after the helper is staged with the corrected command.
+**Batch:** P16.51 only.
+**Commit:** `P16.51: include runtime in windows installer helper`
+**Checks:** Helper release build and Clippy/formatting, Node syntax/staging-script formatting, bundle-only MSI packaging and read-only helper import/payload-hash/MSI Binary comparison passed. No tests, installation/service mutation or publication. Retry candidate `C:\Users\Cameron\Downloads\msc2-p16.51-windows-x86_64.msi`; exact hash and owner failure recorded in the review packet.
+**Manual acceptance:** Cameron retries fresh Sandbox install/desktop launch with logging. Physical acceptance and independent review remain open; the earlier preparation delay is not claimed resolved.
+
 ### P18.48 — Quiet cleanup preview typography
 
 **Status:** Implemented; awaiting Cameron's visual verification. EXECUTE scope: owner-requested preview styling correction.

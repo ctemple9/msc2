@@ -720,7 +720,7 @@ before sharing; never pass service passwords through MSI properties.
 | W01 | Open Setup: introduction appears without an unexplained blank preparation page; options, review, progress and completion are readable. | PENDING | Pending |
 | W02 | Use Tab/Shift+Tab, Enter/Escape and Back/Next; cancel before install and refuse UAC. Choices/navigation are honest and cancellation leaves no successful-install claim. | PENDING | Pending |
 | W03 | Repeat screen review at 100%, 125%, 150% and 200% scaling; no clipped text or inaccessible controls. | PENDING | Pending |
-| W04 | Fresh install with shared WebView2 present: chosen folder/shortcut, complete desktop/agent/helpers/license, one Installed Apps entry and successful launch. | PENDING | Pending |
+| W04 | Fresh install with shared WebView2 present: chosen folder/shortcut, complete desktop/agent/helpers/license, one Installed Apps entry and successful launch. | FAIL | Cameron; supplied Sandbox log at local clock 21:03:21, timezone not supplied; preparation error 1723/1157; WebView2 state unrecorded |
 | W05 | Fresh VM missing shared WebView2, online: prerequisite is explained and installed; MSC opens. | PENDING | Pending |
 | W06 | Restore missing-runtime snapshot, disconnect network: clear failure and no successful completion/launch claim. | PENDING | Pending |
 | W07 | First launch: remote-only use creates no local service; deliberate local hosting setup uses the intended Windows account and one-time password prompt. | PENDING | Pending |
@@ -770,3 +770,44 @@ The published-release packet remains separate in [phase16-acceptance.md](phase16
 This local refinement neither replaces its release candidate nor satisfies the
 nine-artifact/provenance or other platform gates. Publication/version/tag requires
 a separate owner instruction. No implementation agent self-review or phase advance.
+
+## P16.51 - Fix the clean-machine installer helper dependency
+
+**Status:** Implemented; awaiting Cameron's Sandbox retry. This is the current
+retry candidate; keep the P16.49 failure and do not transfer its observations as
+PASS. Reuse W01-W22 above with this candidate's identity recorded in each result.
+
+Cameron observed preparation lasting over a minute before Welcome, followed by
+an empty Applying progress bar and error 1723. His logged repeat failed at
+`MscPrepareService` with code 1157; `MscRollbackService` also returned 1157.
+The developer-machine helper imported `VCRUNTIME140.dll` and external C runtime
+APIs. Those imports explain a likely clean-machine dependency failure, though
+the Sandbox log does not name the missing dependency. WebView2 state was not
+independently recorded, and this evidence does not prove the preparation delay's
+cause. Welcome eventually appeared; installation/launch acceptance failed.
+
+The normal payload staging command now uses `cargo rustc` with
+`-C target-feature=+crt-static` for this helper alone. This links its C runtime
+into the DLL; see the [Rust linkage reference](https://doc.rust-lang.org/reference/linkage.html#static-and-dynamic-c-runtimes).
+No service/rollback logic, desktop or agent binary was changed. No extra runtime
+installation or release workflow gate was added. Direct helper builds for MSI
+must use the same flag; `cargo build` alone still selects the default linkage.
+
+- Retry copy: `C:\Users\Cameron\Downloads\msc2-p16.51-windows-x86_64.msi`.
+- Product version: 0.1.23; unsigned local MSI; 19,521,536 bytes.
+- MSI SHA-256: `57bd665eb122987a5c2150a5586506c59f37fbb2bb1f23fdc0ce7d5fcc2a303b`.
+- Embedded helper SHA-256: `0dc2e438a214c174a6d0976b2c970f4d92202b259fdf8db8c662586f569ae2a3`.
+- Source change: commit subject `P16.51: include runtime in windows installer helper`.
+
+Helper release build, formatting/Clippy, Node syntax and staging-script formatting
+passed; bundle-only MSI packaging passed. Read-only import inspection shows only
+`kernel32.dll`, `msi.dll`, `ntdll.dll` and `api-ms-win-core-synch-l1-2-0.dll` (plus
+case-duplicate KERNEL32). No external VC++/CRT imports remain. All four staged
+payload hashes remain embedded; the MSI Binary stream matches the rebuilt DLL.
+No tests, live installation/service operations or release publication were run.
+
+Retry in a fresh Sandbox: copy this differently named MSI, launch with a verbose
+log, install and check desktop launch without local hosting setup first. Report
+the full log if it fails; copy it out before closing Sandbox. Keep repair/removal,
+service, signed update and independent-review results pending. The prior >1-minute
+preparation delay and uninformative progress remain open observations.

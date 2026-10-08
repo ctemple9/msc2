@@ -110,3 +110,14 @@ impression only, not exact-candidate acceptance. P16.50 creates no PASS results.
 Windows service and rollback rows in the published-release table remain unchanged.
 The local MSI checksum was rechecked during packet preparation; that is artifact
 identity evidence, not physical acceptance. The Phase 16 gate remains open.
+
+### P16.51 Sandbox failure and retry
+
+Cameron's P16.49 Sandbox fresh installation failed: error 1723, helper preparation
+and rollback both returned 1157. The submitted log is recorded in the Windows
+review packet; observation UTC and runtime state were not supplied. This is a
+local-candidate failure, not an observation of the historical published release.
+P16.51 supplies a statically linked helper retry candidate, MSI SHA-256
+`57bd665eb122987a5c2150a5586506c59f37fbb2bb1f23fdc0ce7d5fcc2a303b`. Its identity and checks are in
+[windows-msi-review.md](windows-msi-review.md#p1651---fix-the-clean-machine-installer-helper-dependency).
+Retry installation, service/recovery and independent review remain pending.

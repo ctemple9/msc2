@@ -52,7 +52,17 @@ if (process.platform === 'win32' && profile === 'release') {
   const helperRoot = join(workspaceRoot, 'packaging', 'windows', 'lifecycle-helper');
   const helper = spawnSync(
     'cargo',
-    ['build', '--locked', '--release', '--manifest-path', join(helperRoot, 'Cargo.toml')],
+    // MSI loads this DLL before installing files; a clean machine may lack VC++ runtime DLLs.
+    [
+      'rustc',
+      '--locked',
+      '--release',
+      '--manifest-path',
+      join(helperRoot, 'Cargo.toml'),
+      '--',
+      '-C',
+      'target-feature=+crt-static',
+    ],
     {
       cwd: workspaceRoot,
       stdio: 'inherit',

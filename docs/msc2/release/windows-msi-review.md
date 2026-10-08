@@ -1009,3 +1009,27 @@ comparison, and all four compiled payload digests still match staging. The prior
 P16.49 formatting limitation remains; no Rust source changed. No tests, live
 installer/app/service operations or release publication ran. Same-state update,
 subsequent Repair and independent acceptance remain pending with Cameron.
+# P16.57/P16.58 local follow-up — uninstall continuation and cancellation
+
+The abandoned Windows full-removal continuation contained its copied executable
+and job but no retained result report. Read-only Windows process-path inspection
+reproduced the worker's normal drive path versus the job's extended-prefix path:
+the direct parent comparison was false and canonicalizing both made it true.
+The worker now canonicalizes those paths on Windows and preserves the original
+preview environment rather than injecting a data-directory override. Linux and
+macOS continuation behavior is unchanged. This addresses an early refusal; actual
+full removal still requires Cameron's retained result and residual checks.
+
+Cancellation previously entered the stock UserExit dialog, showing generic
+artwork and blank text. Both compiled UI sequences now route cancellation (-2)
+to MscCancelledDlg, with resolved title/body/data copy and a Finish action; stock
+UserExit is disabled. Read-only package extraction confirms the staged binaries
+are included and the desktop retains Windows GUI subsystem 2.
+
+Local unsigned candidate:
+`C:\Users\Cameron\Downloads\msc2-0.1.23-windows-x86_64-local.msi`
+SHA256 `36b18c2c46f322aca89cf0f0caae206d57a2ec774fc273ea9c51c13271a094e7`.
+Build, Rust formatting/agent Clippy and package inspection passed with existing
+warnings. No live removal, test suites or publication were run. Cancel-before-
+install visual acceptance and installed Settings full-removal acceptance remain
+open; ordinary MSI removal still retains MSC data and credentials.

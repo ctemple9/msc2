@@ -20,6 +20,9 @@
   <String Id="MscWebviewPresent">Microsoft WebView2 is already installed for this computer.</String>
   <String Id="MscWebviewProgress">Installing Microsoft WebView2. Downloading the shared runtime requires an internet connection.</String>
   <String Id="MscFailureTitle">MSC 2 Setup did not complete</String>
+  <String Id="MscCancelledTitle">MSC 2 Setup was cancelled</String>
+  <String Id="MscCancelledBody">The requested installation, repair or removal did not complete. You can run Setup again when you are ready.</String>
+  <String Id="MscCancelledData">Setup retains your servers, worlds, backups, settings and credentials. Cancellation does not perform a full MSC uninstall.</String>
   <String Id="MscFailureBody">Setup encountered an error. MSC 2 has not been confirmed ready to open. The preceding Windows Installer message or installation log identifies the failed action.</String>
   <String Id="MscFailureWebview">If Microsoft WebView2 installation failed, check internet access and your organization's installation policy, then run Setup again. WebView2 is shared with other apps and is not removed by MSC Setup.</String>
   <String Id="MscApproval">Windows may ask for administrator approval when you continue. Use Back to change the folder or shortcut choice.</String>

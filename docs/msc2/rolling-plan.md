@@ -199,6 +199,16 @@
 **Commit:** `P16.57: normalize windows uninstall continuation paths`
 **Checks:** Rust formatting and agent Clippy passed with existing warnings. Read-only Windows executable-path inspection reproduced the unequal normal/extended-prefix paths and confirmed normalization makes the directory comparison equal. The abandoned worker/job existed without a result report; its help command ran, ruling out a missing runtime for that executable. Live full cleanup remains owner verification; no destructive command or tests run.
 
+### P16.58 - Show the MSC cancellation result in Windows Setup
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `packaging/windows/desktop-installer-ui.wxs`, `desktop-installer-en-us.wxl`, `docs/msc2/release/windows-msi-review.md`, this plan.
+**What:** Replace the stock blank UserExit screen with an MSC cancellation dialog using the existing installer layout. Explain that the requested operation did not complete and data is retained; provide one Finish action. Route both ordinary and administrative cancellation to the custom dialog and suppress the stock cancellation sequence. No Linux/macOS packaging changes or tests added/run.
+**Verify:** Open `C:\Users\Cameron\Downloads\msc2-0.1.23-windows-x86_64-local.msi`, cancel before installation, and confirm the titled cancellation explanation appears and Finish closes it. Then install and manually verify P16.57 full removal with a retained report.
+**Batch:** P16.58 only.
+**Commit:** `P16.58: show windows installer cancellation result`
+**Checks:** Installer XML parsing, full release MSI build and read-only MSI table/cabinet inspection passed. InstallUISequence/AdminUISequence both use the custom cancellation dialog at -2; stock UserExit is disabled; title/body/data copy are resolved and visible in Control rows. Packaged executable/resource bytes match staging, accounting for Tauri's bundle marker. SHA256 `36b18c2c46f322aca89cf0f0caae206d57a2ec774fc273ea9c51c13271a094e7`. Build includes P16.57 worker correction. No live installer, cleanup, tests or release publication; owner visual/full-removal verification remains open.
+
 ### P16.54 - Normalize executable paths in service ownership checks
 
 **Status:** Implemented; awaiting Cameron's verification; owner-authorized continuation after P16.53 update reports that the service executable differs from metadata.

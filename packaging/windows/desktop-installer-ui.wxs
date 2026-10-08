@@ -211,6 +211,16 @@
         </Control>
       </Dialog>
 
+      <Dialog Id="MscCancelledDlg" Width="420" Height="300" Title="[ProductName] Setup">
+        <Control Id="Title" Type="Text" X="24" Y="20" Width="372" Height="25" NoPrefix="yes" Text="{\WixUI_Font_Bigger}!(loc.MscCancelledTitle)" />
+        <Control Id="Body" Type="Text" X="24" Y="62" Width="372" Height="65" NoPrefix="yes" Text="!(loc.MscCancelledBody)" />
+        <Control Id="Data" Type="Text" X="24" Y="145" Width="372" Height="65" NoPrefix="yes" Text="!(loc.MscCancelledData)" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="263" Width="420" Height="0" />
+        <Control Id="Finish" Type="PushButton" X="332" Y="276" Width="64" Height="17" Default="yes" Cancel="yes" Text="!(loc.WixUIFinish)">
+          <Publish Event="EndDialog" Value="Exit">1</Publish>
+        </Control>
+      </Dialog>
+
       <Publish Dialog="BrowseDlg" Control="OK" Event="DoAction" Value="WixUIValidatePath" Order="3">1</Publish>
       <!-- WiX validates even unreachable stock auxiliary-dialog neighbors. -->
       <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999">1</Publish>
@@ -229,6 +239,7 @@
         <Show Dialog="ProgressDlg" Sequence="1281">0</Show>
         <Show Dialog="ExitDialog" Sequence="1282">0</Show>
         <Show Dialog="FatalError" Sequence="1283">0</Show>
+        <Show Dialog="UserExit" Sequence="1284">0</Show>
         <Show Dialog="MaintenanceWelcomeDlg" Sequence="1291">0</Show>
         <Show Dialog="MscMaintenanceDlg" Sequence="1292">Installed AND NOT RESUME AND NOT Preselected AND NOT PATCH</Show>
         <Show Dialog="ResumeDlg" Sequence="1293">Installed AND (RESUME OR Preselected)</Show>
@@ -236,12 +247,15 @@
         <Show Dialog="MscProgressDlg" Sequence="1299" />
         <Show Dialog="MscExitDlg" OnExit="success" />
         <Show Dialog="MscFailureDlg" OnExit="error" />
+        <Show Dialog="MscCancelledDlg" OnExit="cancel" />
       </InstallUISequence>
       <AdminUISequence>
         <Show Dialog="ExitDialog" Sequence="10">0</Show>
         <Show Dialog="FatalError" Sequence="11">0</Show>
+        <Show Dialog="UserExit" Sequence="12">0</Show>
         <Show Dialog="MscExitDlg" OnExit="success" />
         <Show Dialog="MscFailureDlg" OnExit="error" />
+        <Show Dialog="MscCancelledDlg" OnExit="cancel" />
       </AdminUISequence>
     </UI>
     <UIRef Id="WixUI_Common" />

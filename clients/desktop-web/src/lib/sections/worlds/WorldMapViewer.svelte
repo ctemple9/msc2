@@ -99,6 +99,30 @@
   let flying = false;
   let topDown = false;
   let depthY = 83;
+  let depthOpen = false;
+  const depthSteps = [1, 4, 16];
+  let depthStepIndex = 0;
+  let depthStepVisible = false;
+  let depthStepTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function showDepthStep(): void {
+    depthStepVisible = true;
+    if (depthStepTimer) clearTimeout(depthStepTimer);
+    depthStepTimer = setTimeout(() => (depthStepVisible = false), 1200);
+  }
+
+  function depthKey(event: KeyboardEvent): void {
+    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      if (!event.repeat) depthStepIndex = Math.max(0, Math.min(depthSteps.length - 1,
+        depthStepIndex + (event.key === 'ArrowRight' ? 1 : -1)));
+    } else {
+      setDepth(depthY + (event.key === 'ArrowUp' ? 1 : -1) * depthSteps[depthStepIndex]);
+    }
+    showDepthStep();
+  }
   let depthMin = 2;
   let depthMax = 126;
   let spawn: { x: number; y: number; z: number } | undefined;
@@ -343,10 +367,10 @@
     if (!viewer) return;
     stopFollowing();
     // Surface-following would lift the focus back above the selected cave level.
-    holdFocusHeight();
+    if (!viewer.isFlying) holdFocusHeight();
     depthY = Math.max(depthMin, Math.min(depthMax, Math.round(y)));
     viewer.setSlice(depthY);
-    viewer.controls.position.y = depthY;
+    if (!viewer.isFlying) viewer.controls.position.y = depthY;
     viewer.invalidate();
   }
 
@@ -495,7 +519,6 @@
   function toggleFly(): void {
     if (!viewer) return;
     stopFollowing();
-    viewer.setSlice(null);
     const controls = viewer.controls;
     const focus = controls.position.clone();
     const groundY = controls.heightAt?.(focus.x, focus.z) ?? focus.y;
@@ -669,6 +692,7 @@
       ++loadGeneration;
       cancelAnimationFrame(frameId);
       if (messageTimer) clearTimeout(messageTimer);
+      if (depthStepTimer) clearTimeout(depthStepTimer);
       if (playerPoll) clearInterval(playerPoll);
       if (progressPoll) clearInterval(progressPoll);
       window.removeEventListener('pointermove', onMove, true);
@@ -811,6 +835,22 @@
           </ul>
         {/if}
       </details>
+    {#if depthOpen && viewer}
+      <aside class="depth-position" id="map-depth-control" aria-label="Terrain depth">
+        <label for="terrain-depth">Y <output>{depthY}</output></label>
+        <div class="depth-track">
+          <input id="terrain-depth" type="range" min={depthMin} max={depthMax} step="1"
+            value={depthY} aria-label="Terrain depth Y"
+            title="Drag or use Up/Down. Left/Right changes the keyboard step."
+            onkeydown={depthKey}
+            oninput={(event) => { setDepth(Number(event.currentTarget.value)); showDepthStep(); }} />
+          {#if selectedDimension === 'minecraft:overworld' && depthMin <= 63 && depthMax >= 63}
+            <span class="sea-marker" style:bottom={`${(63 - depthMin) / (depthMax - depthMin) * 100}%`}>Sea 63</span>
+          {/if}
+        </div>
+        <span class="depth-step" class:visible={depthStepVisible} aria-live="polite">{depthStepVisible ? `${depthSteps[depthStepIndex]} / key` : ''}</span>
+      </aside>
+    {/if}
     </aside>
     <aside class="map-panels quality-position" aria-label="Map quality">
       <details class="players-panel quality-panel">
@@ -894,7 +934,6 @@
         onclick={() => {
           stopFollowing();
           leaveFly();
-          viewer?.setSlice(null);
           viewer?.setTilt(0.42);
         }}>3D</button
       >
@@ -905,20 +944,15 @@
         aria-pressed={flying}
         onclick={toggleFly}>Fly</button
       >
-      {#if viewer && topDown && !flying}
-        <label class="map-depth">
-          Depth Y
-          <input
-            type="range"
-            min={depthMin}
-            max={depthMax}
-            step="1"
-            value={depthY}
-            oninput={(event) => setDepth(Number(event.currentTarget.value))}
-          />
-          <output>{depthY}</output>
-        </label>
-      {/if}
+      <button type="button" class:chosen={depthOpen} disabled={!viewer}
+        aria-pressed={depthOpen} aria-controls="map-depth-control"
+        onclick={() => {
+          depthOpen = !depthOpen;
+          if (depthOpen) {
+            releaseDesktopLook();
+            setDepth(viewer?.slice ?? depthY);
+          }
+        }}>Depth</button>
       <output class="coordinates">{coords}</output>
       <button
         type="button"
@@ -1308,21 +1342,38 @@
     opacity: 0.45;
     cursor: default;
   }
-  .map-depth {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    white-space: nowrap;
-    font-size: 11px;
+  .depth-position {
+    position: relative;
+    padding: 10px 12px;
+    background: #141417;
+    border: 1px solid #3a3a40;
+    border-radius: 7px;
     color: #c3cad1;
+    font-size: 11px;
   }
-  .map-depth input {
-    width: 90px;
+  .depth-position label { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .depth-position output { font-variant-numeric: tabular-nums; }
+  .depth-track { position: relative; height: clamp(100px, 26vh, 260px); margin: 12px 0; }
+  .depth-track input {
+    writing-mode: vertical-lr;
+    direction: rtl;
+    width: 20px;
+    height: 100%;
+    margin: 0;
+    accent-color: #568fc5;
   }
-  .map-depth output {
-    min-width: 22px;
-    font-variant-numeric: tabular-nums;
+  .sea-marker {
+    position: absolute;
+    left: 24px;
+    white-space: nowrap;
+    transform: translateY(50%);
+    pointer-events: none;
+    background: #141417;
+    padding: 2px 4px;
+    border-left: 8px solid #568fc5;
   }
+  .depth-step { display: block; height: 14px; min-width: 42px; visibility: hidden; font-size: 10px; }
+  .depth-step.visible { visibility: visible; }
   .coordinates {
     min-width: 155px;
     padding: 0 8px;

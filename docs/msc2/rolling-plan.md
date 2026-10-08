@@ -339,3 +339,17 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Commit:** `P18.51: lower world map quality panel`
 
 **Checks:** Inspected the CSS position and passed whitespace verification. No tests run. Owner visual verification pending.
+
+
+### P18.52 — Add independent vertical depth controls
+
+**Status:** Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Replace the inline 2D-only depth slider with a toolbar Depth disclosure button and vertical slider beneath Biomes. Retain slicing when switching to 3D or Fly. Adjust terrain cutaway in all modes without moving the Fly camera. Mark standard Overworld sea level Y63. Drag or focus and use Up/Down with native keyboard repeat; Left/Right chooses 1/4/16 blocks per repeat and ignores held-key repeats. Briefly show the step while interacting. Hiding controls retains the cutaway; Home restores the surface. Sea marker indicates the standard reference, not custom generator water levels.
+**Verify:** `cd clients/desktop-web && npm run check && npm run build`
+**Batch:** P18.52 only.
+**Commit:** `P18.52: add independent vertical depth controls`
+
+**Owner verification:** Open Depth in 2D, 3D and Fly; drag, focus and hold Up/Down, change step with Left/Right, and confirm clamping, sea marker and transient step label. Confirm slicing survives mode changes, Fly depth edits leave the camera still, and Home restores surface terrain.
+
+**Checks:** Frontend/Svelte check and production build passed with existing unrelated warnings; whitespace check passed. No tests run. Native slider dragging, held-key behavior and Fly camera acceptance remain for Cameron.

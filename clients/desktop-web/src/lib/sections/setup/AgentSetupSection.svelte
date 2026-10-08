@@ -350,7 +350,7 @@
 <div class="agent-home">
   <header class="home-heading">
     <p class="msc2-type-overline">MSC 2</p>
-    <h1>Agents</h1>
+    <h1>Manage Agents</h1>
     <p>
       {readiness === 'ready'
         ? 'Manage the MSC Agent here.'

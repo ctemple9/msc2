@@ -7,6 +7,74 @@ use msc_infrastructure::service::{
 use msc_infrastructure::uninstall::native::{self, Installation, LocalServices};
 use std::path::Path;
 
+/// Launch the fixed continuation without inheriting the scheduling command's
+/// output pipes. Otherwise the desktop waits for EOF while this worker waits
+/// for the desktop to exit, even when its own standard streams are null.
+pub fn launch_uninstall_worker(worker: &Path, job: &Path) -> Result<(), String> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{
+        CREATE_NO_WINDOW, CreateProcessW, PROCESS_INFORMATION, STARTUPINFOW,
+    };
+
+    if !worker.is_absolute()
+        || worker
+            .file_name()
+            .is_none_or(|name| name != "msc-uninstall-worker.exe")
+        || job.parent() != worker.parent()
+        || job.file_name().is_none_or(|name| name != "job.json")
+    {
+        return Err("Invalid uninstall continuation paths.".into());
+    }
+    let application: Vec<u16> = worker.as_os_str().encode_wide().chain([0]).collect();
+    let mut arguments = std::ffi::OsString::from("\"");
+    arguments.push(worker);
+    arguments.push("\" uninstall --danger --confirm \"UNINSTALL MSC 2\" --apply \"");
+    arguments.push(job);
+    arguments.push("\"");
+    let mut arguments: Vec<u16> = arguments.encode_wide().chain([0]).collect();
+    if application[..application.len() - 1].contains(&0)
+        || arguments[..arguments.len() - 1].contains(&0)
+    {
+        return Err("Invalid uninstall continuation path encoding.".into());
+    }
+    let startup = STARTUPINFOW {
+        cb: std::mem::size_of::<STARTUPINFOW>() as u32,
+        ..Default::default()
+    };
+    let mut process = PROCESS_INFORMATION::default();
+    // SAFETY: Both UTF-16 buffers are terminated and live through the call;
+    // arguments is writable. All optional pointers are null. Inheritance is
+    // explicitly disabled; no parent pipes or file handles reach the worker.
+    let created = unsafe {
+        CreateProcessW(
+            application.as_ptr(),
+            arguments.as_mut_ptr(),
+            std::ptr::null(),
+            std::ptr::null(),
+            0,
+            CREATE_NO_WINDOW,
+            std::ptr::null(),
+            std::ptr::null(),
+            &startup,
+            &mut process,
+        )
+    };
+    if created == 0 {
+        return Err(format!(
+            "Could not launch uninstall worker: {}",
+            std::io::Error::last_os_error()
+        ));
+    }
+    // SAFETY: CreateProcessW succeeded and owns these two handles. Closing our
+    // copies does not terminate the independent continuation process.
+    unsafe {
+        CloseHandle(process.hThread);
+        CloseHandle(process.hProcess);
+    }
+    Ok(())
+}
+
 pub struct WindowsUninstall;
 impl LocalServices for WindowsUninstall {
     fn inspect(&self) -> Result<Vec<ServiceStatusReport>, String> {
@@ -28,9 +96,9 @@ impl LocalServices for WindowsUninstall {
             .iter()
             .any(|report| report.state != ServiceState::NotInstalled)
         {
-            elevate(
-                r"$ErrorActionPreference='Stop'; & sc.exe stop com.ctemple.msc2.agent; if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 1062) { exit $LASTEXITCODE }; $deadline=(Get-Date).AddSeconds(45); do { $s=Get-Service -Name com.ctemple.msc2.agent -ErrorAction Stop; if ($s.Status -eq 'Stopped') { break }; Start-Sleep -Milliseconds 250 } while ((Get-Date) -lt $deadline); if ($s.Status -ne 'Stopped') { throw 'Agent did not stop' }; & sc.exe delete com.ctemple.msc2.agent; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; $p='C:\ProgramData\MSC2\Services\com.ctemple.msc2.agent.metadata'; if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p -Force }",
-            )?;
+            elevate(include_str!(
+                "../../../packaging/windows/full-uninstall-service.ps1"
+            ))?;
         }
         Ok(())
     }
@@ -53,7 +121,8 @@ impl LocalServices for WindowsUninstall {
                     .status()
                     .map_err(|error| error.to_string())?;
                 match status.code() {
-                    Some(0 | 3010) => Ok(()),
+                    Some(0) => Ok(()),
+                    Some(3010) => Err("Windows Installer requires a restart to finish package removal. Save your work and restart Windows; removal is not yet confirmed complete.".into()),
                     _ => Err(format!("MSI uninstall failed ({status}).")),
                 }
             }

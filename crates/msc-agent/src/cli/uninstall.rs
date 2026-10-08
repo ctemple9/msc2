@@ -285,6 +285,16 @@ fn schedule(job: Job, data_dir: &Path, quiet: bool) -> Result<Scheduled, CliErro
             use std::os::windows::process::CommandExt;
             command.creation_flags(0x08000000);
         }
+        #[cfg(windows)]
+        if job.desktop_pid.is_some() || quiet {
+            msc_platform_windows::uninstall::launch_uninstall_worker(&worker, &job_path)
+                .map_err(CliError::internal)?;
+        } else {
+            command.spawn().map_err(|error| {
+                CliError::internal(format!("Could not launch uninstall worker: {error}"))
+            })?;
+        }
+        #[cfg(not(windows))]
         command.spawn().map_err(|error| {
             CliError::internal(format!("Could not launch uninstall worker: {error}"))
         })?;

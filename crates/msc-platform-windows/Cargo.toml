@@ -18,3 +18,7 @@ windows-sys = { version = "0.61", features = [
     "Win32_System_Pipes",
 ] }
 tokio = { version = "1", features = ["net"] }
+
+[[test]]
+name = "uninstall_handoff"
+harness = false

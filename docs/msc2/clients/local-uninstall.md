@@ -199,3 +199,19 @@ a new data-directory override. Linux/macOS continuation behavior is unchanged.
 Reinstall the corrected local MSI before retrying Settings full removal, and
 retain its report. An ordinary MSI Remove still preserves data and credentials;
 it is not a substitute for this confirmed full-removal flow.
+
+### Windows scheduling handoff correction (P16.59)
+
+The P16.58 owner retry produced a timeout report: the worker waited for the app
+to close, while inherited scheduler pipe handles kept the app waiting for its
+scheduling response. Windows desktop/JSON continuations now launch without
+inheriting any parent handles. A controlled, owner-authorized regression
+reproduced the old blocked output and confirmed the corrected scheduler returns
+while its worker waits. This does not establish a physical full-removal PASS.
+
+Full removal now disposes each polling service handle and waits for SCM deletion
+before removing metadata, data or credentials. An externally held service handle
+can still delay deletion; that failure retains data for a retry. Windows Installer
+restart-required removal is reported as incomplete, requiring a restart rather
+than claiming that everything is gone. Linux/macOS continuation behavior remains
+unchanged. Retry the newly rebuilt installer and retain the full-removal report.

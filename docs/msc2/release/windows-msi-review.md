@@ -1033,3 +1033,32 @@ Build, Rust formatting/agent Clippy and package inspection passed with existing
 warnings. No live removal, test suites or publication were run. Cancel-before-
 install visual acceptance and installed Settings full-removal acceptance remain
 open; ordinary MSI removal still retains MSC data and credentials.
+# P16.59 — Windows full-removal scheduling and adjacent cleanup audit
+
+The P16.58 owner attempt launched its worker but left the desktop scheduling until
+the worker's 60-second wait failed. The retained report stated that nothing was
+removed; read-only residual inspection confirmed the installed MSI, service,
+data and five credentials remained. The agent did not close or uninstall it.
+
+Windows desktop/JSON continuation now uses CreateProcessW with handle inheritance
+disabled. This prevents inherited scheduler pipes from holding the desktop's
+response open while the worker waits for the desktop. The owner explicitly
+authorized `cargo test -p msc-platform-windows --test uninstall_handoff`.
+Its controlled temporary helpers use named events rather than sleeps; the normal
+case passes, and a negative control reproduces the old inherited-pipe deadlock.
+Neither scenario touches MSC installations or data. Interactive CLI and Unix
+launch behavior are preserved.
+
+The adjacent cleanup audit corrected undisposed Windows service polling handles,
+added confirmation of SCM deletion before metadata/data removal, and made MSI
+restart-required removal report incomplete rather than successful. The audit
+also inspected credential scope, inventory revalidation, graceful shutdown,
+protected targets, worker reports and existing cancellation routing. It is an
+implementation audit, not an independent phase review or a physical gate PASS.
+
+Rebuilt unsigned local candidate:
+`C:\Users\Cameron\Downloads\msc2-0.1.23-windows-x86_64-local.msi`
+SHA256 `517d868341057542f275756cdc2db4951959fac3cc54d88d6386bd2c42783f13`.
+Rust formatting/Clippy, PowerShell parsing, authorized regression, MSI build and
+read-only embedded-file/UI table inspection passed with existing warnings.
+Actual installed Settings full removal and residual verification remain open.

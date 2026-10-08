@@ -22,7 +22,7 @@
   // inline card confirm like Activate/Delete (WorldSlotCard.svelte).
   //
   // Per-card actions (Set as Active/Convert/Rename/Duplicate/Delete) were a
-  // persistent 5-button grid; Cameron's follow-up call collapsed that into
+  // persistent 5-button grid; the owner's follow-up call collapsed that into
   // the same anchored `Menu` list ComponentsSection.svelte's addon rows and
   // ManageSheet.svelte's server rows already use, one shared overlay owned
   // here (`actionMenu`) rather than one per card.

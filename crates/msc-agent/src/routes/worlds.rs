@@ -3477,12 +3477,12 @@ pub async fn rename(
     .await
 }
 
-/// `POST /v1/worlds/replace` — **corrected post-review (Cameron)**: this
+/// `POST /v1/worlds/replace` — **corrected post-review (the owner)**: this
 /// is `WorldSlotManager.copySlotIntoExisting(source, into: dest, ...)`,
 /// a saved-slot-to-saved-slot copy, not `AppViewModel+WorldManagement
 /// .swift::replaceWorld`'s live-world operation the original P6.21 pass
 /// guessed at (that guess is what the "flagged as a genuinely open
-/// question" comment previously here recorded — Cameron's answer:
+/// question" comment previously here recorded — the owner's answer:
 /// "slotId is the existing destination slot, and sourceSlotId is the
 /// slot whose saved contents replace it. This is not a concurrency
 /// check and does not operate on the live world."). No new level name
@@ -4243,7 +4243,7 @@ pub use import_activation::*;
 // (phase6-api.md SS3: Chunker's process lifetime).
 // =====================================================================
 
-/// **Corrected post-review (Cameron).** MSC 1 conversion always names a
+/// **Corrected post-review (the owner).** MSC 1 conversion always names a
 /// separate, opposite-edition *target* server
 /// (`AppViewModel+WorldConversion.swift::performWorldConversion`'s own
 /// `sourceServer`/`targetServer` parameters,

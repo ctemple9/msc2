@@ -21,13 +21,13 @@
 //! through a scripted `FakeWorldConverter` in `tests/world_conversion.rs`.
 //!
 //! **One real MSC 1 gap is preserved, not corrected**, per its fixture's
-//! own notes (P6.7) — raised as a question and left as-is on Cameron's
+//! own notes (P6.7) — raised as a question and left as-is on the owner's
 //! call: a later activation failure (this function's own final step)
 //! does not revert the slot already written in the placement step — the
 //! new/replaced slot is left on disk, inactive, exactly as source leaves
 //! it.
 //!
-//! **One real MSC 1 gap *is* corrected**, also on Cameron's call:
+//! **One real MSC 1 gap *is* corrected**, also on the owner's call:
 //! source's `replaceSlotWithConvertedZip` removes the destination's
 //! existing archive *before* copying the new one in — a plain
 //! remove-then-copy, unlike every other overwrite in this phase
@@ -575,7 +575,7 @@ fn create_converted_slot(
 }
 
 /// `replaceSlotWithConvertedZip(existingSlot:zipURL:targetServer:
-/// targetLevelName:)` (source line 258-283), **corrected** on Cameron's
+/// targetLevelName:)` (source line 258-283), **corrected** on the owner's
 /// call: source is a plain remove-then-copy straight to the destination
 /// (`fixtures/world-conversion/
 /// replace-existing-slot-overwrite-is-not-atomic-unlike-other-slot-mutations.json`),

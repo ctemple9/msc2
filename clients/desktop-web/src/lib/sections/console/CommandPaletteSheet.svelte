@@ -13,7 +13,7 @@
   // MSC 1's player-argument field is one view with two states, not two
   // sheets: a row of tappable online-player chips plus a text field when
   // players are online, or just the text field when nobody is -- exactly
-  // what Cameron's own reference screenshot (no players online) shows.
+  // what the owner's own reference screenshot (no players online) shows.
   import Sheet from '../../components/base/Sheet.svelte';
   import Button from '../../components/base/Button.svelte';
   import Field from '../../components/base/Field.svelte';

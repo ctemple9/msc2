@@ -7,7 +7,7 @@
   // Server Editor tab per the 2026-08-27 "Java tab decision" recorded at
   // the top of rolling-plan.md: the value (`AppConfig.javaPath`/
   // `extraFlags`) is genuinely host-wide, edited here only because a Java
-  // server is the moment it's actually relevant. Per Cameron's 2026-08-27
+  // server is the moment it's actually relevant. Per the owner's 2026-08-27
   // review, the tab carries no host-wide-warning banner -- the path and
   // flags sections speak for themselves.
   //

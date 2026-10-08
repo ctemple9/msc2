@@ -2,7 +2,7 @@ import type { Schema } from '../shared/types';
 import { parseChatFeed, type ChatFeedMessage } from '../home/chatFeed';
 
 export const demoPlayers: Schema['PlayerDTO'][] = [
-  { id: 'player-1', name: 'cameron', displayName: 'Cameron', level: 42 },
+  { id: 'player-1', name: 'ExamplePlayer', displayName: 'Example Player', level: 42 },
 ];
 
 export function playerSearch(

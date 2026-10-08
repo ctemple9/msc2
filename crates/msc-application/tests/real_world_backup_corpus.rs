@@ -15,7 +15,7 @@
 //! corpus hashes the exact real files it reads before and after and
 //! panics if anything changed.
 //!
-//! Both real worlds (`Paper`, a vanilla-Paper server, and `campack`, a
+//! Both real worlds (`Paper`, a vanilla-Paper server, and `modded-sample`, a
 //! larger ~11MB Fabric-modded one) are exercised by the cheap, read-only
 //! checks (repository load, archive-safety validation, NBT parsing).
 //! Reconciliation/restore/save-reload -- the checks that copy real data
@@ -24,7 +24,7 @@
 //! `tools/phase6/corpus-check.py check_worlds_structure`'s own
 //! `level_dats[0]` selection: "where size permits" (per this phase's own
 //! plan text) rather than doubling every write-path exercise against
-//! campack's larger corpus too.
+//! modded-sample's larger corpus too.
 //!
 //! P6.35 note: every check in this file calls straight into
 //! `msc_application`/`msc_infrastructure` — never through the agent's own

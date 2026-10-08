@@ -6,7 +6,7 @@
   // earlier pass had flattened away: the front face is title + status only,
   // tapping flips to a back face carrying the detail line
   // and any repair action, one card flipped at a time (matching MSC 1's
-  // single `flippedCardID`). Server Directory is dropped per Cameron's
+  // single `flippedCardID`). Server Directory is dropped per the owner's
   // 2026-08-26 call -- not useful enough to earn a card. The backend's
   // real card ids (crates/msc-agent/src/routes/health.rs) differ from
   // MSC 1's id set. Overview keeps the three actionable checks plus Bedrock's

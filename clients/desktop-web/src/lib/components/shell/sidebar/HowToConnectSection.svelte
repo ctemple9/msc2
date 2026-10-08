@@ -1,6 +1,6 @@
 <script lang="ts">
   // Ports MSC 1 SidebarView.swift's HowToConnectSidebarSection -- a plain
-  // list (icon+label was tried and dropped per Cameron's own visual review;
+  // list (icon+label was tried and dropped per the owner's own visual review;
   // addresses are always shown here so connection values are immediately usable)
   // of one pill-shaped value row per connection method, every method with
   // data shown at once (no Local/Public switch). Keeps ConnectionCard's

@@ -884,7 +884,7 @@ stops. Measure these targets on each server type before making release claims.
 - The repository's Bedrock fixtures are JSON behavior cases, not a real BDS
   chunk save. Cameron has supplied private local inputs outside Git:
   `~/msc2-servers/bedrock/juice/worlds/Juice!` (BDS `level.dat` plus LevelDB)
-  and `~/msc2-servers/java/campack/campak-ubuntu` (modded Java Anvil).
+  and `~/msc2-servers/java/modded-sample/modded-sample-ubuntu` (modded Java Anvil).
   Use a consistent, read-only working copy for the first proof, and keep
   these worlds and any derived player data out of the repository. Inspect
   whether the BDS save actually contains every named shape; if it does not,

@@ -4,8 +4,8 @@
 
 **Incident window:** 2026-09-22 through 2026-09-23  
 **Affected server:** official Bedrock Dedicated Server 1.26.51.1, build 51061372, protocol 2193  
-**Affected client used for final proof:** Minecraft Bedrock 1.26.51 on iPadOS 18.7.8  
-**Host:** Intel MacBook Pro at `192.168.1.10`, running BDS inside MSC's Virtualization.framework appliance<br>
+**Affected client used for final proof:** Minecraft Bedrock 1.26.51 on iPadOS (version omitted)<br>
+**Host:** Intel Mac at `192.168.1.10`, running BDS inside MSC's Virtualization.framework appliance<br>
 **Public address during diagnosis:** `203.0.113.10`<br>
 **Current working transport:** RakNet on UDP `19001`
 
@@ -54,7 +54,7 @@ transport=raknet
 ```
 
 `server-ip` and `server-udp-ports` are absent. MSC binds UDP `19001` on the Mac
-and relays it to UDP `19001` in the VZ guest. Xfinity forwards UDP `19001` to
+and relays it to UDP `19001` in the VZ guest. The router forwards UDP `19001` to
 `192.168.1.10`. With that configuration Cameron successfully joined:
 
 - directly from the iPad on the home LAN at `192.168.1.10:19001`;
@@ -73,13 +73,13 @@ supported transport, but the tested 1.26.51 iPad still speaks RakNet.
 | BDS property | `server-port=19001` |
 | BDS transport | `transport=raknet` |
 | Mac host relay | UDP `0.0.0.0:19001` to guest UDP `19001` |
-| Xfinity forward | UDP `19001` to `192.168.1.10` |
+| Router forward | UDP `19001` to `192.168.1.10` |
 | LAN manual address | `192.168.1.10:19001` |
 | Remote manual address | `203.0.113.10:19001` during this incident |
 | Xbox Broadcast target | public address, port `19001` |
 | MCXboxBroadcast build | 155, advertising Bedrock protocol 2193 |
 
-TCP `19001` is not required in RakNet mode. Xfinity would not allow separate
+TCP `19001` is not required in RakNet mode. The router would not allow separate
 TCP and UDP entries for the same port, so the former TCP `19001` rule was
 replaced with UDP `19001`. UDP `19002-19049` belonged to the abandoned
 NetherNet experiment and can be removed once no rollback test is pending.
@@ -135,8 +135,8 @@ The cellular client at `198.51.100.20` completed a TCP handshake with
 `192.168.1.10:19001`, sent 517 bytes, received seven bytes, and the server closed
 the connection. There was no UDP traffic. This proved all of the following:
 
-- the public address reached the Xfinity gateway;
-- Xfinity's TCP forward reached the Mac;
+- the public address reached router gateway;
+- the router's TCP forward reached the Mac;
 - macOS accepted and answered the connection;
 - the MSC TCP relay reached BDS;
 - failure occurred after the client payload reached the server but before ICE.
@@ -155,7 +155,7 @@ Its response payload ended in:
 ```
 
 The localhost HTTP/HTTPS comparison then reproduced the distinction without
-Xfinity, cellular NAT, or the iPad in the path. That was the evidence that
+the router, cellular NAT, or the iPad in the path. That was the evidence that
 stopped further router changes.
 
 ## Chronology and lessons
@@ -245,7 +245,7 @@ The upstream reports included users whose 1.26.51 Windows and Switch paths
 still connected after removing `transport`, `server-udp-ports`, and
 `server-ip`, despite BDS's NetherNet-only warning. MSC's earlier RakNet attempt
 had never exposed UDP on the main port: the then-current helper bound TCP
-`19001` and UDP `19002-19017`, while Xfinity forwarded TCP `19001`.
+`19001` and UDP `19002-19017`, while the router forwarded TCP `19001`.
 
 P15.79 made a real A/B test for the Intel-macOS sidecar only:
 
@@ -253,7 +253,7 @@ P15.79 made a real A/B test for the Intel-macOS sidecar only:
 - remove `server-udp-ports` and `server-ip`;
 - replace the TCP-plus-UDP-range relays with one UDP relay on `19001`;
 - require a valid RakNet pong through that relay before reporting ready;
-- replace Xfinity's TCP `19001` forward with UDP `19001`.
+- replace the router's TCP `19001` forward with UDP `19001`.
 
 The direct LAN, direct cellular, and hotspot Xbox Broadcast joins then worked.
 Native Linux and Windows remain on their existing NetherNet path; P15.79 did
@@ -305,7 +305,7 @@ builds.
    TCP signaling on `19001`, no UDP listener on the same host port, exactly the
    BDS-supported number and syntax of explicit `server-udp-ports` mappings,
    and a non-overlapping Xbox Broadcast ICE range.
-6. Change Xfinity from UDP `19001` back to TCP `19001`. Xfinity cannot retain
+6. Change the router from UDP `19001` back to TCP `19001`. The router cannot retain
    both separate rules for this device, so treat this as the rollback point.
 7. Start BDS and verify all boundaries in order:
    local `/v1/join`, LAN client, remote cellular client, observed UDP ICE

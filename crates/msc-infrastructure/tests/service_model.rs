@@ -14,7 +14,7 @@ fn request() -> ServiceInstallRequest {
     .args(["serve", "--bind", "127.0.0.1:48001"])
     .env("RUST_LOG", "info")
     .env("MSC2_CONFIG_DIR", "/Users/example/.msc2")
-    .run_user("cameron")
+    .run_user("example")
 }
 
 #[test]
@@ -32,7 +32,7 @@ fn service_model_install_request_carries_platform_definition_fields() {
         "/Users/example/Library/Logs/MSC2/agent.log"
     );
     assert_eq!(request.expected_port, 48001);
-    assert_eq!(request.run_user.as_deref(), Some("cameron"));
+    assert_eq!(request.run_user.as_deref(), Some("example"));
     assert_eq!(
         request.arguments,
         vec!["serve", "--bind", "127.0.0.1:48001"]

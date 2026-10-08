@@ -86,7 +86,7 @@
         <label for="token-label">Label</label><input
           id="token-label"
           bind:value={label}
-          placeholder="Cameron's desktop"
+          placeholder="My desktop"
         />
       </div>
       <div class="field">

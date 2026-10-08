@@ -1,4 +1,4 @@
-See `../README.md`. **Populated by P6.3** with real evidence from Cameron's
+See `../README.md`. **Populated by P6.3** with real evidence from the owner's
 live MSC 1 install — the actual `level.dat`/`world.zip`/backup-zip bytes are
 git-ignored (`.gitignore` in this directory), since they carry real
 per-player NBT data; `manifest.json` (committed) records their source,
@@ -44,20 +44,20 @@ An initial search (both MSC 1-managed Java servers, an older unmanaged
 modpack copy, Desktop/Downloads, local Time Machine snapshots) found real
 `world_slots/` metadata but every real slot was archive-less and no real
 backup existed anywhere — recorded below as "Original gap 1/3", both now
-closed. Cameron then generated the missing evidence for real, in the real
+closed. the owner then generated the missing evidence for real, in the real
 app: MSC 1's **Back Up** (Backups tab) and **Save Current World** (Worlds
-tab) actions, run against both `campack` and `paper`, 2026-08-13 22:29.
+tab) actions, run against both `modded-sample` and `paper`, 2026-08-13 22:29.
 
 **What's here now**, all real, hashed and provenance-recorded in
 `manifest.json`, actual bytes git-ignored:
 
-- `Paper/` and `campack/` — two real live Java worlds (vanilla-Paper and
+- `Paper/` and `modded-sample/` — two real live Java worlds (vanilla-Paper and
   Fabric-modded), each with a real `level.dat`.
 - `world_slots/` — `paper`'s real slot, now **with** a real `world.zip`
   (565,734 bytes; see `manifest.json` for the exact hash), produced live by
-  "Save Current World." `campack`'s equally real `world_slots/world.zip`
-  (11,269,354 bytes) exists on Cameron's own disk at
-  `~/MinecraftServers/java/campack/world_slots/` and can swap in if a
+  "Save Current World." `modded-sample`'s equally real `world_slots/world.zip`
+  (11,269,354 bytes) exists on the owner's own disk at
+  `~/MinecraftServers/java/modded-sample/world_slots/` and can swap in if a
   modded-server slot example is ever needed instead — only one server's
   `world_slots/` tree fits this checker's single `corpus/worlds/world_slots/`
   path at a time.
@@ -79,7 +79,7 @@ provenance/hash/manifest/safety check and failed on exactly one line —
 Paper_the_end) -- not a Java multi-folder world`. That wasn't a
 missing-evidence problem, it was a real, structural mismatch between what
 the checker expected (MSC 1's classic split-folder Java world layout) and
-what both of Cameron's real servers actually produce: `campack` is Fabric,
+what both of the owner's real servers actually produce: `modded-sample` is Fabric,
 whose vanilla world format nests dimensions inside the main world folder
 (`DIM-1`/`DIM1`) and structurally can never produce sibling folders, and
 `paper` uses a newer nested
@@ -87,7 +87,7 @@ whose vanilla world format nests dimensions inside the main world folder
 of the classic sibling convention `WorldSlotManager.swift`'s multi-folder
 assumption was written against.
 
-Cameron chose to relax the checker (`docs/msc2/rolling-plan.md`'s P6.3
+the owner chose to relax the checker (`docs/msc2/rolling-plan.md`'s P6.3
 entry records the question and the choice) rather than chase evidence for a
 layout neither real server produces. `check_worlds_structure` now accepts
 all three real shapes — see this file's own requirements list above — and
@@ -114,7 +114,7 @@ real worlds and both real backups: `world_store::load_slots` on the real
 `world_slots/` tree; `archive::validate_archive_safety` on every real
 `.zip` (`world_slots/.../world.zip` and both backup zips);
 `imported_world_metadata_from_level_dat` on both real `level.dat` files
-(`Paper` parses to `gamemode=survival`, `campack` to
+(`Paper` parses to `gamemode=survival`, `modded-sample` to
 `difficulty=normal, gamemode=survival` — real values, not fixture ones);
 `worlds::reconcile_imported_worlds` against a temporary copy of `Paper/` +
 `world_slots/` (resolves to `RecoverySnapshotCreated`, not
@@ -128,7 +128,7 @@ file touched is hashed before and after, both inside the Rust test and
 again by the Python wrapper, independently.
 
 `Paper` (the smaller, ~600KB real world) carries the write-path exercises
-(reconciliation, restore, save/reload); `campack` (~11MB, Fabric-modded)
+(reconciliation, restore, save/reload); `modded-sample` (~11MB, Fabric-modded)
 is exercised by every read-only check (repository load, archive safety,
 NBT parsing) but not doubled through the write-path ones — this phase's
 own plan text ("where size permits") for that split.
@@ -158,10 +158,10 @@ list): a live server's mandatory pre-activation safety backup
 rather than re-reading `server.properties` — so it only works correctly
 when the server's real `level-name` happens to already be `"world"`, true
 of `--synthetic`'s own fixture but not of either real corpus server here
-(`Paper`, `campack`). The private-corpus smoke works around this by
+(`Paper`, `modded-sample`). The private-corpus smoke works around this by
 staging its copy of the real world folder under the name `world` (with a
 matching `level-name=world` in its copy of `server.properties`) rather
 than the server's own real name — every byte *inside* the world (region
 files, playerdata, per-dimension mod data) stays real and untouched, only
 the outer folder/config name is normalized. See `rolling-plan.md`'s
-P6.35 entry for the open question this leaves for Cameron.
+P6.35 entry for the open question this leaves for the owner.

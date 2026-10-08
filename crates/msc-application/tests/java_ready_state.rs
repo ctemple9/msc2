@@ -115,9 +115,12 @@ fn java_ready_state_java_join_line_parses_player_name() {
             case["input"]["lines"][0].as_str().unwrap(),
             " joined the game"
         ),
-        Some("camkage".to_string())
+        Some("ExamplePlayer".to_string())
     );
-    assert_eq!(events, vec![OutputEvent::PlayerJoined("camkage".into())]);
+    assert_eq!(
+        events,
+        vec![OutputEvent::PlayerJoined("ExamplePlayer".into())]
+    );
 }
 
 #[test]
@@ -131,8 +134,8 @@ fn java_ready_state_java_leave_line_removes_online_player() {
     assert_eq!(
         events,
         vec![
-            OutputEvent::PlayerJoined("camkage".into()),
-            OutputEvent::PlayerLeft("camkage".into())
+            OutputEvent::PlayerJoined("ExamplePlayer".into()),
+            OutputEvent::PlayerLeft("ExamplePlayer".into())
         ]
     );
     let expected_players = case["expected"]["onlinePlayers"]

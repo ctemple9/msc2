@@ -14,7 +14,7 @@
   // takes no name argument at all, so it's a plain inline confirm like
   // Activate/Delete rather than a name-entry sheet -- rename the copy
   // afterward with the existing Rename action if wanted.
-  // Cameron's own follow-up call: a persistent 5-button grid per card read
+  // the owner's own follow-up call: a persistent 5-button grid per card read
   // as cluttered. Actions collapse into the same anchored-Menu pattern
   // ComponentsSection.svelte's addon rows and ManageSheet.svelte's server
   // rows already use (a small "more actions" trigger opens a floating list;

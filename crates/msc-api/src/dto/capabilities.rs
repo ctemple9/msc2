@@ -1,5 +1,5 @@
 //! `CapabilitiesDTO` — `capability-model.md` §3's `GET /v1/capabilities`
-//! response shape, confirmed by Cameron Temple 2026-07-31.
+//! response shape, confirmed by the owner 2026-07-31.
 //!
 //! Deliberately independent of `msc_domain::capability`, for the same
 //! module-boundary reason `operation.rs` gives: the domain crate carries
@@ -20,7 +20,7 @@ pub enum HostOsDto {
 }
 
 /// D-019's nine-category permission vocabulary (still **Proposed**,
-/// pending Cameron's confirmation) — P2.1's validation against all 88
+/// pending the owner's confirmation) — P2.1's validation against all 88
 /// baseline routes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

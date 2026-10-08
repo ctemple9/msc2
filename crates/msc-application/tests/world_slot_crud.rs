@@ -508,7 +508,7 @@ fn world_slot_crud_import_zip_as_new_slot_infers_level_name_and_seed_no_structur
     let file = fs::File::create(&source_zip).unwrap();
     let mut zip = ZipWriter::new(file);
     let opts = SimpleFileOptions::default();
-    zip.start_file("campack/level.dat", opts).unwrap();
+    zip.start_file("modded-sample/level.dat", opts).unwrap();
     zip.write_all(&level_dat).unwrap();
     zip.finish().unwrap();
     let raw_zip_bytes = fs::read(&source_zip).unwrap();
@@ -525,7 +525,7 @@ fn world_slot_crud_import_zip_as_new_slot_infers_level_name_and_seed_no_structur
     .unwrap();
 
     assert_eq!(slot.name, "Imported from friend");
-    assert_eq!(slot.world_level_name.as_deref(), Some("campack"));
+    assert_eq!(slot.world_level_name.as_deref(), Some("modded-sample"));
     assert_eq!(slot.world_seed.as_deref(), Some("0"));
 
     // Copied verbatim, byte-for-byte — no structural validation, no

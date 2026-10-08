@@ -188,7 +188,7 @@
 </div>
 
 <style>
-  /* Router Guide runs a size step above the shared type scale -- Cameron's
+  /* Router Guide runs a size step above the shared type scale -- the owner's
      own visual-review call, this component only. */
   .panel :global(.msc2-type-overline) {
     font-size: 11px;

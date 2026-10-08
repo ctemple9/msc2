@@ -1027,7 +1027,7 @@ pub(super) fn transfer_error_message(error: &TransferImportRouteError) -> String
 /// comment), so this resolves the same way `auth.rs`'s
 /// `default_persistent_service_store` resolves the credential registry
 /// path: an env var override, falling back to the OS temp dir. Not
-/// durable-by-default; flagged for Cameron alongside the registry-split
+/// durable-by-default; flagged for the owner alongside the registry-split
 /// gap above.
 pub(super) fn transfer_staging_root() -> PathBuf {
     std::env::temp_dir().join(format!("msc2-transfer-staging-{}", unique_suffix()))

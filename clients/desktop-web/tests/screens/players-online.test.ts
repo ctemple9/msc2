@@ -20,7 +20,7 @@ import type { Schema } from '../../src/lib/sections/shared/types';
 
 describe('online roster', () => {
   it('searches the generic online roster', () => {
-    expect(playerSearch(demoPlayers, 'cam')).toHaveLength(1);
+    expect(playerSearch(demoPlayers, 'example')).toHaveLength(1);
     expect(playerPaths.players).toBe('/v1/players');
   });
 });
@@ -90,9 +90,9 @@ describe('player data (profiles)', () => {
 
   it('uses the isometric head endpoint for Bedrock and the avatar endpoint for Java', () => {
     const bedrockProfile: Schema['PlayerProfileDTO'] = {
-      id: 'xuid_2535416409816137',
-      username: 'camkage',
-      imageIdentifier: '.camkage',
+      id: 'xuid_123456789',
+      username: 'ExamplePlayer',
+      imageIdentifier: '.ExamplePlayer',
       isOnline: false,
       isOp: false,
       isBedrockPlayer: true,
@@ -105,8 +105,8 @@ describe('player data (profiles)', () => {
       'https://mc-heads.net/body/11111111111141118111111111111111/96',
     );
     // The Bedrock gamertag is normalized by removing the Floodgate dot.
-    expect(avatarUrl(bedrockProfile)).toBe('https://mc-heads.net/head/camkage/40');
-    expect(bodyUrl(bedrockProfile)).toBe('https://mc-heads.net/body/camkage/96');
+    expect(avatarUrl(bedrockProfile)).toBe('https://mc-heads.net/head/ExamplePlayer/40');
+    expect(bodyUrl(bedrockProfile)).toBe('https://mc-heads.net/body/ExamplePlayer/96');
   });
 });
 

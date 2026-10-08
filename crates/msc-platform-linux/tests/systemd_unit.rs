@@ -131,7 +131,7 @@ fn request() -> ServiceInstallRequest {
     )
     .args(["serve", "--bind", "127.0.0.1:48001"])
     .env("MSC2_TEST_BOOTSTRAP_TOKEN", "secret")
-    .run_user("cameron")
+    .run_user("example")
 }
 
 #[test]
@@ -148,8 +148,8 @@ fn install_writes_systemd_unit_with_user_group_and_expected_port_metadata() {
     assert_eq!(report.state, ServiceState::Stopped);
     let unit_path = temp.path.join("msc2-agent.service");
     let unit = std::fs::read_to_string(&unit_path).expect("unit exists");
-    assert!(unit.contains("User=cameron"));
-    assert!(unit.contains("Group=cameron"));
+    assert!(unit.contains("User=example"));
+    assert!(unit.contains("Group=example"));
     assert!(unit.contains("Environment=\"MSC2_EXPECTED_PORT=48001\""));
     assert_eq!(
         systemctl.calls(),
@@ -236,7 +236,7 @@ fn archive_status_and_control_preserve_custom_data_directory_without_metadata() 
     let unit_path = temp.path.join(&unit_name);
     let data_dir = "/srv/minecraft data";
     let unit = include_str!("../../../packaging/linux/systemd/com.ctemple.msc2.agent.service.in")
-        .replace("@MSC2_USER@", "cameron")
+        .replace("@MSC2_USER@", "example")
         .replace("@MSC2_GROUP@", "games")
         .replace("@MSC2_DATA_DIR@", data_dir);
     std::fs::write(&unit_path, &unit).unwrap();
@@ -256,7 +256,7 @@ fn archive_status_and_control_preserve_custom_data_directory_without_metadata() 
         definition.environment.get("MSC2_DATA_DIR").unwrap(),
         data_dir
     );
-    assert_eq!(definition.run_user.as_deref(), Some("cameron"));
+    assert_eq!(definition.run_user.as_deref(), Some("example"));
     assert_eq!(definition.arguments, ["serve", "--bind", "127.0.0.1:48001"]);
     manager
         .execute(ServiceManagerCommand::Start {
@@ -363,13 +363,13 @@ fn install_rejects_missing_run_user_for_installing_user_service_scope() {
 
 #[test]
 fn credential_helper_units_render_expected_socket_permissions_and_execstart() {
-    let install = CredentialHelperInstall::new("/usr/local/bin/msc", 501, "cameron", "staff")
+    let install = CredentialHelperInstall::new("/usr/local/bin/msc", 501, "example", "staff")
         .socket_path("/run/msc2/credential-helper.sock")
         .store_dir("/var/lib/msc2/credentials");
 
     let socket_unit = install.render_socket_unit().expect("socket unit renders");
     assert!(socket_unit.contains("ListenStream=/run/msc2/credential-helper.sock"));
-    assert!(socket_unit.contains("SocketUser=cameron"));
+    assert!(socket_unit.contains("SocketUser=example"));
     assert!(socket_unit.contains("SocketGroup=staff"));
     assert!(socket_unit.contains("SocketMode=0600"));
 
@@ -390,7 +390,7 @@ fn credential_helper_rejects_binary_path_hidden_by_its_own_hardening() {
         "/root/.cargo/bin/msc",
         "/run/user/1000/msc",
     ] {
-        let install = CredentialHelperInstall::new(hidden_path, 501, "cameron", "staff");
+        let install = CredentialHelperInstall::new(hidden_path, 501, "example", "staff");
         let error = install
             .render_service_unit()
             .expect_err("binary path hidden by PrivateTmp=yes/ProtectHome=yes must be rejected");

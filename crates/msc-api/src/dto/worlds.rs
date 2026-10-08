@@ -322,7 +322,7 @@ pub struct WorldRenameRequestDto {
 /// `WorldSlotManager.copySlotIntoExisting` — a saved-slot-to-saved-slot
 /// copy, not a live-world operation: `slot_id` is the existing
 /// *destination* slot being overwritten, `source_slot_id` is the slot
-/// whose saved content replaces it. Corrected post-review (Cameron):
+/// whose saved content replaces it. Corrected post-review (the owner):
 /// this route does not touch the active/live world and needs no new
 /// level name.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -433,7 +433,7 @@ pub struct WorldRenameActiveWorldRequestDto {
 /// `AppViewModel+WorldManagement.swift::replaceWorld` — direct live-world
 /// replacement. Separately named from [`WorldReplaceRequestDto`]
 /// (`WorldSlotManager.copySlotIntoExisting`, a saved-slot-to-saved-slot
-/// copy that never touches the live world) per Cameron's post-P6.21-review
+/// copy that never touches the live world) per the owner's post-P6.21-review
 /// correction (`phase6-api.md` SS9/SS10). Accepts only a bounded staged
 /// upload — redeemed once, `purpose: "active-world-replace"` — plus the
 /// new level name; never an arbitrary server-local path. Omitting
@@ -458,7 +458,7 @@ pub struct WorldReplaceActiveResultDto {
     pub operation_id: Option<String>,
 }
 
-/// Corrected post-review (Cameron): MSC 1 conversion always names a
+/// Corrected post-review (the owner): MSC 1 conversion always names a
 /// separate, opposite-edition *target* server (`targetServerId`) — the
 /// source slot lives on the currently-active server, but the converted
 /// world is placed on a different, explicitly-named one. `targetFormat`

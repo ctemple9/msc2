@@ -4,7 +4,7 @@
 //! Greenfield MSC 2 construction, not a port — MSC 1 has no equivalent
 //! route or type. The specification is
 //! `docs/msc2/api-contract/capability-model.md` (P2.6, confirmed by
-//! Cameron Temple 2026-07-31) and `docs/msc2/msc2-decisions.md`'s D-019
+//! the owner 2026-07-31) and `docs/msc2/msc2-decisions.md`'s D-019
 //! (the nine-category permission vocabulary, P2.1). This module implements
 //! their data shape only.
 //!
@@ -50,7 +50,7 @@ impl HostOs {
 }
 
 /// The nine-category permission vocabulary D-019 validated against all 88
-/// baseline routes (P2.1) — still **Proposed**, pending Cameron's
+/// baseline routes (P2.1) — still **Proposed**, pending the owner's
 /// confirmation, per D-019's own status. `Admin` formalizes what MSC 1
 /// left as an implicit "absent from the permission map" gate (D-019
 /// finding 2); the other eight carry MSC 1's own enforced category

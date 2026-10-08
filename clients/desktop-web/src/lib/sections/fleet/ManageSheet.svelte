@@ -60,7 +60,7 @@
    *  does this for the sidebar's server picker, but this sheet posted the
    *  same mutation directly and never told the parent, so "Set Active" here
    *  changed the agent's active server without the client ever finding out.
-   *  Real bug Cameron hit verifying P12.18g: a just-created server's own
+   *  Real bug the owner hit verifying P12.18g: a just-created server's own
    *  "Set Active" button did nothing visible until picked again from the
    *  sidebar dropdown, which goes through `selectServer` instead. */
   export let onActivated: (serverId: string) => void = () => {};

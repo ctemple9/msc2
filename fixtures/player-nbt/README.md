@@ -1,5 +1,7 @@
 # Java player NBT fixture boundary
 
+> Privacy cleanup (2026-10-08): world/server names use sample aliases, and private locations are omitted. Historical counts and results still describe the original private captures. Set `CHUNK_X` and `CHUNK_Z` to a suitable complete tile in your own world before running map commands. Raw private captures are not modified; local corpus copies must use the documented alias paths.
+
 These fixtures split the reader's behavior into two layers.
 
 `crates/msc-domain/src/nbt.rs` already covers the generic Java NBT machinery
@@ -19,8 +21,8 @@ damage. `iconName`, `displayName`, and enchantment display names are the
 small DTO projections that the frozen player contract derives from the
 reader's `InventoryItem`/`ItemEnchantment` values.
 
-`samples/campak-live-player.dat` is an unchanged, local-only capture from
-Cameron's live MSC 1 Java `campak` server. The JSON fixture records its hash
+`samples/modded-sample-live-player.dat` is an unchanged, local-only capture from
+the owner's live MSC 1 Java `modded-sample` server. The JSON fixture records its hash
 and provenance; the raw file is intentionally ignored. The remaining valid
 NBT payloads are hand-built synthetic cases, labeled as such because the live
 capture does not happen to contain every legacy/modern item-tag variant.

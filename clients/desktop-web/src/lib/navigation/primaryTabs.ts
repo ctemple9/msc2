@@ -1,7 +1,7 @@
 // The seven MSC 2 detail tabs, in their fixed order (docs/msc2/renderings/shell.html,
 // MSC 1 DetailsView/MSCTabBar). MSC 1 has an eighth tab, Packs (DetailsPacksTabView) --
 // deliberately dropped for MSC 2 (rolling-plan.md P12.5, owner decision 2026-08-26):
-// Cameron doesn't use it, and it's the one named exception to Phase 12's
+// the owner doesn't use it, and it's the one named exception to Phase 12's
 // every-MSC-1-screen gate (msc2-port-plan.md). This is deliberately not the
 // extensible section registry in registry.ts/route.ts — Bedrock/profile
 // extensibility is a separate reserved route family there. A tab is only

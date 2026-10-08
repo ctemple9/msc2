@@ -93,7 +93,7 @@ fn status_metrics_snapshot_reports_active_paper_process_state() {
         )
         .unwrap();
     service
-        .ingest_console_line("camkage joined the game", "2026-08-20T00:00:00Z")
+        .ingest_console_line("ExamplePlayer joined the game", "2026-08-20T00:00:00Z")
         .unwrap();
     service
         .ingest_console_line(

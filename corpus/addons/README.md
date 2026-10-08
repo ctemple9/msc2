@@ -29,7 +29,7 @@ the same ordering `tools/phase7/provider-corpus-check.py` and
   response (status, `content-type`, `content-length`, filename) against a
   genuine direct-download URL (LuckPerms' own download host), so the
   direct-source shape is evidence-backed rather than invented.
-- **`curseforge/`** — captured with a real, Cameron-supplied CurseForge
+- **`curseforge/`** — captured with a real, the owner-supplied CurseForge
   Core API key (`x-api-key`), same as `CurseForgeAPI.swift`'s own gate.
   `mods-files-blocked-entityculling.json` is a real `POST /v1/mods/files`
   response for a genuinely author-blocked file (Entity Culling

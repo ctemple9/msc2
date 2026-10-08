@@ -2,6 +2,17 @@
 
 Implemented steps awaiting verification were marked Done and moved to [the archive](rolling-plan-archive.md) at Cameron's direction on 2026-10-08. Planned work, pending publications and independent phase acceptance remain below.
 
+### P16.61 — Anonymize personal examples and machine observations
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** Desktop examples/comments and matching tests; Rust comments/service-account fixtures; world/player fixtures and corpus metadata; documentation; map-proof helper; this plan.
+**What:** Use generic SSH/access/player examples and service accounts. Remove personal attribution from implementation comments while keeping the reasons and decision references. Replace personal gamertags and test XUIDs with synthetic examples, updating paired expectations. Use anonymous world/server aliases consistently, rename their tracked evidence labels, and update the sanitized backup sidecar digest. Omit private world locations, hardware model/year and client OS patch details; describe the diagnosed router without naming the owner's ISP. Preserve copyright/author attribution, GitHub release and publisher identity, installed service identifiers and the uninstall publisher compatibility check. Keep router-brand support and platform-relevant Intel/macOS/iPad facts. Raw private captures and Git history remain unchanged; private corpus checks require local copies at the documented alias paths. No tests added or run, no service migration, publication or live installation.
+**Verify:** `git show --check --stat --oneline HEAD`
+**Batch:** P16.61 only; owner-authorized follow-up privacy cleanup.
+**Commit:** `P16.61: anonymize personal examples and machine observations`
+
+**Checks:** Frontend type check passes with 11 existing warnings. Application Clippy passes with the existing unused `auth::forbidden` warning; all affected Rust test targets compile/lint with warnings denied without executing tests. Rust formatting, changed JSON parsing, helper Python syntax, committed backup sidecar digests, synthetic XUID arithmetic and diff whitespace checks pass. Regenerated API types include the anonymized contract comment and matching source digest. Targeted personal example labels are absent from source/tests/fixtures/corpus/map tools. No tests run.
+
 ### P16.60 — Remove personal paths and captured network addresses
 
 **Status:** Implemented; awaiting owner verification.

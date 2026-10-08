@@ -360,12 +360,12 @@ fn raw_server_import_sanitizes_and_length_limits_destination_name() {
         RawImportSource::Folder(temp.source_dir()),
         ServerType::Java,
     );
-    request.display_name = "  Cam's Modded!! Server (2)  ".to_string();
+    request.display_name = "  Player's Modded!! Server (2)  ".to_string();
 
     let imported = import_raw_server(&request, &temp.home_dir()).expect("import should succeed");
     let dest = PathBuf::from(&imported.config.server_dir);
     let folder_name = dest.file_name().unwrap().to_string_lossy().into_owned();
-    assert_eq!(folder_name, "cams_modded_server_2");
+    assert_eq!(folder_name, "players_modded_server_2");
     assert!(
         folder_name
             .chars()

@@ -12,7 +12,7 @@
 //! P8.10 found in `plugin-source-resolution`'s `strip-scheme` fixture.
 //! Both tests below exercise the confirmed real behavior (a genuinely
 //! prefix-related pair) rather than hard-coding the fixture's own
-//! internally-inconsistent expectation; flagged for Cameron in
+//! internally-inconsistent expectation; flagged for example in
 //! `rolling-plan.md`'s P8.11 report.
 
 mod support;

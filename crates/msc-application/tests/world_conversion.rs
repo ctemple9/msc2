@@ -832,7 +832,7 @@ fn world_conversion_activation_failure_leaves_slot_written_but_inactive() {
 // ---------------------------------------------------------------------
 // replace-existing-slot-overwrite-is-not-atomic-unlike-other-slot-mutations
 //
-// Corrected on Cameron's call (see `world_conversion.rs`'s module doc
+// Corrected on example's call (see `world_conversion.rs`'s module doc
 // and `replace_slot_with_converted_zip`'s own doc): the overwrite now
 // stages to a temp file first, so a write failure never touches the
 // destination's existing archive.

@@ -1,5 +1,7 @@
 # P18.2 — offline BDS terrain proof
 
+> Privacy cleanup (2026-10-08): world/server names use sample aliases, and private locations are omitted. Historical counts and results still describe the original private captures. Set `CHUNK_X` and `CHUNK_Z` to a suitable complete tile in your own world before running map commands. Raw private captures are not modified; local corpus copies must use the documented alias paths.
+
 > Privacy cleanup (2026-10-08): personal account paths and captured network addresses in this record have been replaced with examples. Substitute your own paths and addresses when following commands; example values are not the original observations.
 
 > Historical proof instructions, not the current installation workflow. The modded
@@ -376,13 +378,13 @@ can include a console-connected player. It does not require the Beta APIs
 experiment, network APIs, or a client map mod. This is a **server console
 proof**, not yet an authenticated MSC player-position endpoint.
 
-To try it on the imported `theboyslatest` server, **stop that server in MSC**
+To try it on the imported `bedrock-sample` server, **stop that server in MSC**
 first. Then run:
 
 ```sh
 cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/install_bedrock_player_feed.py \
-  --server-dir "$HOME/Library/Application Support/MSC 2/servers/bedrock/theboyslatest" \
+  --server-dir "$HOME/Library/Application Support/MSC 2/servers/bedrock/bedrock-sample" \
   --server-stopped
 ```
 
@@ -396,7 +398,7 @@ installed agent:
 ```sh
 cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/watch_bedrock_player_feed.py --poll \
-  --server theboyslatest
+  --server bedrock-sample
 ```
 
 After a development agent containing P18.3b is loaded, the streaming path can
@@ -405,7 +407,7 @@ also be checked with:
 ```sh
 cd /Users/example/msc2-world-map
 MSC2_DATA_DIR="$HOME/Library/Application Support/MSC 2" \
-  target/debug/msc console follow --server theboyslatest \
+  target/debug/msc console follow --server bedrock-sample \
   | python3 tools/world-map-proof/watch_bedrock_player_feed.py
 ```
 
@@ -445,7 +447,7 @@ python3 tools/world-map-proof/export_changed_tiles.py \
   --after '/path/from/second/snapshot/result/worldPath' \
   --resource-pack /private/tmp/msc-bedrock-samples/resource_pack \
   --output-root /private/tmp/msc-bds-changed-tiles-proof \
-  --chunk-x -6 --chunk-z 2 --tiles-x 2 --tiles-z 2
+  --chunk-x "$CHUNK_X" --chunk-z "$CHUNK_Z" --tiles-x 2 --tiles-z 2
 ```
 
 The JSON report lists changed tile origins, output directories, comparison
@@ -503,9 +505,9 @@ the final MSC in-window flow.
 
 ### Mature BDS base proof (P18.2c)
 
-Cameron's transferred MSC1 BDS world is copied read-only to
+the owner's transferred MSC1 BDS world is copied read-only to
 `/private/tmp/msc-bds-base-proof/world`. The copy stays outside Git. Its base at
-`(-50, 87, 65)` is inside the selected 4×4 chunks beginning at `(-6, 2)`.
+`(private coordinates omitted)` is inside the selected 4×4 chunks beginning at `(private chunk origin omitted)`.
 The generated files are `/private/tmp/msc-bds-base-proof/output`.
 
 ```sh
@@ -520,36 +522,36 @@ cd /Users/example/msc2-world-map
 cargo run --release --manifest-path tools/world-map-proof/Cargo.toml -- \
   /private/tmp/msc-bds-base-proof/world \
   /private/tmp/msc-bedrock-samples/resource_pack \
-  /private/tmp/msc-bds-base-proof/output -6,2
+  /private/tmp/msc-bds-base-proof/output "$CHUNK_X,$CHUNK_Z"
 ```
 
 This area contains 786 placed stairs and 124 glass panes. The exporter now
 converts the block resolver's per-face UV coordinates to the tile's face corner
-order and bottom-origin texture coordinates. Cameron's first screenshots of
+order and bottom-origin texture coordinates. the owner's first screenshots of
 this area showed vertical grass-side fringe and sideways wood before that
 conversion; reload the regenerated tile to inspect the correction.
 `glass.png` has transparent and opaque texels, which the Vantage
 terrain shader cuts out; pane geometry and visual correctness still require
-Cameron's inspection. There are no full glass blocks here, so this cannot
+the owner's inspection. There are no full glass blocks here, so this cannot
 establish all glass behavior.
 
 P18.2c's first visual pass found wrong-facing stairs, disconnected fences,
 crossed panes and lantern texture artifacts. P18.2d regenerates the same tile
 after interpreting the saved stair direction, deriving fence/pane neighbor
 connections, and assigning regions of the lantern atlas to its body, cap and
-hook. Cameron confirmed the stair, fence and lantern changes, then found that
+hook. the owner confirmed the stair, fence and lantern changes, then found that
 the connected pane cuboids sampled opaque parts of the glass texture. P18.2e
 uses flat, two-sided panes along the connected axis with the full transparent
-glass texture. Cameron's screenshots then showed one pane direction still
+glass texture. the owner's screenshots then showed one pane direction still
 opaque: Bedrock's east pane face resolves to its narrow edge texture. P18.2f
-resolves both flat pane directions through the broad transparent face. Cameron
+resolves both flat pane directions through the broad transparent face. the owner
 confirmed both directions now show clear centers. The lantern treatment
 remains a bounded approximation of its first texture frame.
 
 ### Gold farm full glass proof (P18.2g)
 
-The same private offline world copy contains Cameron's gold farm near
-`(-11, 113, -53)`. Its complete 4×4 tile starts at chunk `(-3, -5)` and is
+The same private offline world copy contains the owner's gold farm near
+`(private coordinates omitted)`. Its complete 4×4 tile starts at chunk `(private chunk origin omitted)` and is
 generated outside Git at `/private/tmp/msc-bds-gold-proof/output`:
 
 ```sh
@@ -557,20 +559,20 @@ cd /Users/example/msc2-world-map
 tools/world-map-proof/target/release/msc-world-map-proof \
   /private/tmp/msc-bds-base-proof/world \
   /private/tmp/msc-bedrock-samples/resource_pack \
-  /private/tmp/msc-bds-gold-proof/output -3,-5
+  /private/tmp/msc-bds-gold-proof/output "$CHUNK_X,$CHUNK_Z"
 ```
 
 To inspect the full glass blocks, run the viewer with
 `MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-gold-proof/output`. This tile
 contains 208 full glass blocks. Its 42 texture fallback faces are all from
-`minecraft:sticky_piston_arm_collision`, not glass. Cameron confirmed the full
+`minecraft:sticky_piston_arm_collision`, not glass. the owner confirmed the full
 glass looks good; this area does not prove stained glass or distinct
 biome climate tint.
 
 ### Ice mountain biome tint proof (P18.2h)
 
-Cameron's ice mountain at `(-516, 188, -225)` falls inside a complete 4×4
-tile starting at chunk `(-35, -17)`. Its private generated files are at
+the owner's ice mountain at `(private coordinates omitted)` falls inside a complete 4×4
+tile starting at chunk `(private chunk origin omitted)`. Its private generated files are at
 `/private/tmp/msc-bds-ice-proof/output`:
 
 ```sh
@@ -578,7 +580,7 @@ cd /Users/example/msc2-world-map
 tools/world-map-proof/target/release/msc-world-map-proof \
   /private/tmp/msc-bds-base-proof/world \
   /private/tmp/msc-bedrock-samples/resource_pack \
-  /private/tmp/msc-bds-ice-proof/output -35,-17
+  /private/tmp/msc-bds-ice-proof/output "$CHUNK_X,$CHUNK_Z"
 ```
 
 Run the viewer with
@@ -590,7 +592,7 @@ and `0.3`. This bounded proof provisionally maps biome IDs `183`, `185`, and
 Frozen temperatures clamp to `0` for colormap lookup, so frozen peaks and
 grove yield the same cold grass tint here. IDs `4`, `188`, and the unresolved
 `4294967295` remain on representative tints. Biome ID mapping varies with
-Bedrock versions. Cameron confirmed the visible mountain result.
+Bedrock versions. the owner confirmed the visible mountain result.
 
 ### Block-height biome sampling (P18.2i)
 
@@ -644,15 +646,15 @@ biome ID mapping remains future work.
 
 ## What this proves and what it leaves open
 
-The selected complete 4×4 area begins at chunk `(-3, 2)` near the save's
+The selected complete 4×4 area begins at chunk `(private chunk origin omitted)` near the save's
 spawn. This save yields real terrain, foliage and water states. P18.2b exports
 all blocks in the bounded area and emits their exposed faces: 67,266 solid
 faces, 1,596 water faces, 53 texture layers, 25 log blocks, no texture
 fallback faces and no missing-shape blocks. It flips decoded texture rows
 before writing Vantage's WebGL texture array, correcting the grass-side fringe
-that Cameron saw below the dirt and the upside-looking plant artwork. These
+that the owner saw below the dirt and the upside-looking plant artwork. These
 counts show that a Bedrock chunk reader can feed the Vantage format and
-renderer with supplied Bedrock assets; Cameron's visual check of this revision
+renderer with supplied Bedrock assets; the owner's visual check of this revision
 is pending. The mesher conservatively culls faces next to full opaque blocks
 and between neighboring leaves or water; its behavior for complex shapes and
 waterlogged blocks is not yet established. P18.2a reads grass/foliage
@@ -664,15 +666,15 @@ their shape, transparency and texture behavior need a separate representative
 Bedrock fixture before any coverage claim. The tool currently emits fallback
 checker texture for missing assets and counts affected faces.
 
-P18.2l adds a running-BDS snapshot operation, awaiting Cameron's physical
+P18.2l adds a running-BDS snapshot operation, awaiting the owner's physical
 verification below. Live tile replacement, in-window Worlds navigation and
 player movement are still absent. The later user-facing slice brings the viewer into MSC
-with the Vantage-style bottom toolbar and biome panel Cameron requested.
+with the Vantage-style bottom toolbar and biome panel the owner requested.
 Repeated reads of this offline copy varied by three buried grass-block counts;
 the exported face counts stayed stable. Resolve that reader inconsistency
 before using counts or changes as running-world evidence.
 
-For Cameron's visual verification, reload the viewer and orbit above and below
+For the owner's visual verification, reload the viewer and orbit above and below
 the same area. Check that the grass-side fringe sits above the dirt, plants
 stand upright, logs appear under leaf canopies, and the large sky holes are
 filled by real lower terrain. `summary.txt` in the private output reports
@@ -737,7 +739,7 @@ then run from the worktree root:
 python3 tools/world-map-proof/measure_refresh.py \
   --resource-pack /private/tmp/msc-bedrock-samples/resource_pack \
   --output-root /private/tmp/msc-bds-live-proof/output \
-  --chunk-x -2 --chunk-z -1
+  --chunk-x "$CHUNK_X" --chunk-z "$CHUNK_Z"
 ```
 
 The command captures a new BDS snapshot and exports it to a unique revision.
@@ -751,16 +753,16 @@ command, and do not establish a safe automatic polling interval by themselves.
 
 ### Repeat on the mature running BDS world (P18.2p)
 
-After Cameron imports the mature `theboyslatest` world into MSC and starts it,
-capture three samples around the developed base at `(-50, 87, 65)`. The 4×4
-origin for that base is `(-6, 2)`:
+After the owner imports the mature `bedrock-sample` world into MSC and starts it,
+capture three samples around the developed base at `(private coordinates omitted)`. The 4×4
+origin for that base is `(private chunk origin omitted)`:
 
 ```sh
 cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/measure_refresh_series.py \
   --resource-pack /private/tmp/msc-bedrock-samples/resource_pack \
   --output-root /private/tmp/msc-bds-base-proof/output \
-  --chunk-x -6 --chunk-z 2 --samples 3
+  --chunk-x "$CHUNK_X" --chunk-z "$CHUNK_Z" --samples 3
 ```
 
 The script waits for Enter before each capture, prints each result, then reports
@@ -801,7 +803,7 @@ The local Vite proof server calls the authorized CLI on behalf of the browser;
 the browser never receives an agent token. Visit the local address Vite prints.
 Keep that Vite process running: it now uses one CLI session for live updates
 and renews its credential before expiry, instead of authorizing every second.
-Join the Bedrock server near the exported base at `(-50, 87, 65)`, walk and
+Join the Bedrock server near the exported base at `(private coordinates omitted)`, walk and
 turn, and compare the 3D model with your client. The label should show one
 live Bedrock player. Leave the server or stop the agent and confirm the model
 disappears and the label reports an unavailable feed within roughly five
@@ -812,7 +814,7 @@ If blocks placed after the initial export are missing, the player feed is
 working independently of the saved terrain. From the worktree root, create a
 new base-area revision with `measure_refresh.py --resource-pack
 /private/tmp/msc-bedrock-samples/resource_pack --output-root
-/private/tmp/msc-bds-base-proof/output --chunk-x -6 --chunk-z 2`. Enter the
+/private/tmp/msc-bds-base-proof/output --chunk-x "$CHUNK_X" --chunk-z "$CHUNK_Z"`. Enter the
 printed `revision` in the viewer and select **Replace terrain**.
 
 The **Players** roster lists current Bedrock players in the map's dimension.
@@ -846,7 +848,7 @@ python3 -m pip install --target /private/tmp/msc-java-pydeps \
 PYTHONPATH=/private/tmp/msc-java-pydeps python3 \
   tools/world-map-proof/prepare_java_terrain_region.py \
   --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/vanilla" \
-  --chunk-x 6 --chunk-z -10 \
+  --chunk-x "$CHUNK_X" --chunk-z "$CHUNK_Z" \
   --output-dir /private/tmp/msc-java-terrain-proof/vanilla-26.3
 /private/tmp/msc-vantage-bin/vantage meshtex \
   /private/tmp/msc-java-terrain-proof/vanilla-26.3/r.0.-1.mca \
@@ -874,7 +876,7 @@ counted limitation instead of inventing a plausible texture:
 PYTHONPATH=/private/tmp/msc-java-pydeps python3 \
   tools/world-map-proof/prepare_java_terrain_region.py \
   --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/all_the_mods_10_lite" \
-  --chunk-x 0 --chunk-z 0 --flatten-mod-namespaces \
+  --chunk-x "$CHUNK_X" --chunk-z "$CHUNK_Z" --flatten-mod-namespaces \
   --output-dir /private/tmp/msc-java-terrain-proof/atm10-1.21.1
 python3 tools/world-map-proof/stage_java_mod_assets.py \
   --vanilla-assets "$HOME/.cache/vantage/assets/minecraft-1.21.1-client/assets/minecraft" \
@@ -923,7 +925,7 @@ PYTHONPATH=/private/tmp/msc-java-pydeps python3 \
   tools/world-map-proof/export_changed_java_tile.py \
   --before-region /private/tmp/before/r.0.0.mca \
   --after-region /private/tmp/after/r.0.0.mca \
-  --chunk-x 0 --chunk-z 0 \
+  --chunk-x "$CHUNK_X" --chunk-z "$CHUNK_Z" \
   --assets "$HOME/.cache/vantage/assets/minecraft-26.2-client/assets/minecraft" \
   --vantage /private/tmp/msc-vantage-bin/vantage \
   --output-dir /private/tmp/msc-java-changed-tile

@@ -548,7 +548,7 @@ MSC 2 is a new project in a new repository (D-001), but that repository does not
 **Status:** **Approved** (the requirement) · **Proposed** (the specific benchmark values)
 **Origin:** Owner — `msc2.md` establishes the 8 GB constraint as the project's founding motivation; made measurable following Codex review · **Approved by:** Cameron Temple · **Date:** 2026-07-29
 
-**Context.** The originating motivation for MSC 2 is that an 8 GB 2019 MacBook Pro cannot safely give a large modpack the 5–5.5 GB it needs while macOS consumes the rest. Revision 1.0 discussed bounded memory in passing but made the central objective unmeasurable.
+**Context.** The originating motivation for MSC 2 is that an 8 GB laptop cannot safely give a large modpack the 5–5.5 GB it needs while macOS consumes the rest. Revision 1.0 discussed bounded memory in passing but made the central objective unmeasurable.
 
 **Decision.** Resource efficiency is a stated requirement with acceptance criteria, not an aspiration:
 

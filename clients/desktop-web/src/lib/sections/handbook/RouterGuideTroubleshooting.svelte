@@ -224,7 +224,7 @@
 
 <style>
   /* Router Guide runs a size step above the shared type scale, and this
-     screen a step above that again -- Cameron's own visual-review call. */
+     screen a step above that again -- the owner's own visual-review call. */
   .troubleshooting :global(.msc2-type-overline) {
     font-size: 12px;
   }

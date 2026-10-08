@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 4e125d3c8563b6d7d50a2c6a71795389d390937da7ab600f1c634cad1dc19328
+// Contract SHA-256: 544a664be05facedbfca27ff695a4959c47380138886e2a9c78d09910ceacbed
 
 export interface paths {
   '/v1/active-server': {
@@ -7940,7 +7940,7 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
-    /** @description P2.8's resolution of helpid-contract.md SS4's open item: PerformanceSnapshotDTO's bare scalars wrap into {value, helpId} (option b) rather than a separate static client-side name->helpId map (option a) -- consistent with every other helpId-bearing DTO in this contract attaching the pointer directly on the field's own object, at the cost of a DTO-shape change from the baseline. Proposed, pending Cameron's confirmation. */
+    /** @description P2.8's resolution of helpid-contract.md SS4's open item: PerformanceSnapshotDTO's bare scalars wrap into {value, helpId} (option b) rather than a separate static client-side name->helpId map (option a) -- consistent with every other helpId-bearing DTO in this contract attaching the pointer directly on the field's own object, at the cost of a DTO-shape change from the baseline. Proposed, pending the owner's confirmation. */
     PerformanceMetricNumberDTO: {
       helpId?: string | null;
       value: number;

@@ -1,6 +1,6 @@
 # Real per-player/world evidence collected by P6.3 -- large and/or private
 # (contains real Minecraft account UUIDs, inventories, and world state).
-# The live world folders (Paper/, campack/) and every world_slots/*/world.zip
+# The live world folders (Paper/, modded-sample/) and every world_slots/*/world.zip
 # stay local-only; provenance/hashes for all of it are recorded in
 # manifest.json instead, which IS committed. See README.md's "P6.3 real
 # evidence collected" section.

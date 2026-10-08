@@ -13,7 +13,7 @@
   // step dropped Browse Modrinth entirely, because GET /v1/catalog/search and
   // POST /v1/components/install both hard-required an already-active server
   // (crates/msc-agent/src/routes/components.rs), which doesn't exist yet
-  // during the wizard. Cameron asked for real parity with MSC 1 here --
+  // during the wizard. the owner asked for real parity with MSC 1 here --
   // AddServerWizardView.swift's own Add-ons step really does let you search
   // Modrinth and add your own files, via ModrinthBrowserView reused in a
   // staging mode (`onAddToStaging`, `wizardStagingConfig` carrying the

@@ -318,7 +318,7 @@
       <div class="field-grid two-up">
         <label class="field-label">
           Username
-          <Field bind:value={sshUsername} placeholder="camerontemple" />
+          <Field bind:value={sshUsername} placeholder="username" />
         </label>
         <label class="field-label">
           Authentication

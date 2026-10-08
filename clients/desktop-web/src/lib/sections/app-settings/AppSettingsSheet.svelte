@@ -8,7 +8,7 @@
   // (Phase 10); Process Management (orphan scan, relaunch-on-crash) -> the
   // agent is itself the OS-managed persistent service, so MSC 1's "orphaned
   // by a crashed app" problem doesn't exist here. Four more -- Config
-  // Recovery and Archives were dropped at Cameron's direction. Storage
+  // Recovery and Archives were dropped at the owner's direction. Storage
   // now has host-scoped preview/cleanup routes for abandoned map data;
   // Network Ports remains a future contract-amendment step. "Testing reset" and "Open App Support Folder" are dropped
   // outright -- the former has no backend and reads as a dev-only escape

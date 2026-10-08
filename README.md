@@ -38,6 +38,10 @@ v0.1.24 adds biome colors and legends, live map quality
 presets and sliders, and vertical depth controls in 2D, 3D and Fly. Use
 Alt/Option+arrows with Depth open to change height and keyboard step.
 
+v0.1.25 is being prepared with generic app examples and anonymized personal
+paths, network addresses, player/world labels and machine observations. Installed
+app/service identifiers remain the same.
+
 | Installation | Published platform and architecture | Supported control surface |
 |---|---|---|
 | Desktop app | macOS Intel (`x86_64`) and Apple Silicon (`aarch64`); Windows 64-bit (`x86_64`); Linux 64-bit (`x86_64`) as `.deb` and `.rpm` | Tauri desktop app |

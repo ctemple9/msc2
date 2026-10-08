@@ -2,6 +2,17 @@
 
 Implemented steps awaiting verification were marked Done and moved to [the archive](rolling-plan-archive.md) at Cameron's direction on 2026-10-08. Planned work, pending publications and independent phase acceptance remain below.
 
+### P16.62 — Publish v0.1.25 with anonymized examples
+
+**Status:** Prepared; publication requested, owner artifact verification pending.
+**Files:** Agent/desktop/frontend manifests and lockfiles; bundle identity and existing assertion; README; `docs/msc2/release/v0.1.25.md`; this plan.
+**What:** Increment the latest remote tag v0.1.24 to v0.1.25 and synchronize owned versions without modifying registry dependency versions. Include P16.60–P16.61 privacy cleanup, preserving service/publisher identity and existing world map controls. Push main and the new immutable tag through the unchanged build-only release workflow. Preserve nine platform artifacts, checksums, helper bundles and signed update metadata. No tests or release gates added. Owner explicitly requested the next release/tag. The preceding v0.1.24 run was still finishing macOS builds during preparation; Linux and Windows passed and no failures were reported.
+**Verify:** `gh release view v0.1.25 --json tagName,isPrerelease,assets,url`
+**Batch:** P16.62 only.
+**Commit:** `P16.62: prepare v0.1.25 release`
+
+**Preparation:** Inspected active workflow, recent successful runs, preceding run jobs, remote tags/main and signing-secret/public-key configuration. No remote main changes to integrate. Recent complete runs took 33–47 minutes. Locked agent/desktop metadata, synchronized release identity, unchanged registry lock entries, Rust formatting, frontend production build and diff whitespace checks pass with existing frontend warnings. Privacy checks are recorded under P16.61; physical acceptance remains owner verification.
+
 ### P16.61 — Anonymize personal examples and machine observations
 
 **Status:** Implemented; awaiting owner verification.

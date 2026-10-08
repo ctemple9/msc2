@@ -1762,8 +1762,8 @@ mod tests {
     #[test]
     fn auth_production_store_registry_defaults_to_durable_app_data() {
         let path = default_registry_path_from_env(|key| match key {
-            "HOME" => Some(OsString::from("/Users/cameron")),
-            "USERPROFILE" => Some(OsString::from(r"C:\Users\cameron")),
+            "HOME" => Some(OsString::from("/Users/example")),
+            "USERPROFILE" => Some(OsString::from(r"C:\Users\example")),
             _ => None,
         });
 

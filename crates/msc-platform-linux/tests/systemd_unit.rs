@@ -386,7 +386,7 @@ fn credential_helper_rejects_binary_path_hidden_by_its_own_hardening() {
     for hidden_path in [
         "/tmp/msc2-run/bin/msc",
         "/var/tmp/msc2-run/bin/msc",
-        "/home/cameron/.cargo/bin/msc",
+        "/home/example/.cargo/bin/msc",
         "/root/.cargo/bin/msc",
         "/run/user/1000/msc",
     ] {

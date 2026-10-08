@@ -2,6 +2,17 @@
 
 Implemented steps awaiting verification were marked Done and moved to [the archive](rolling-plan-archive.md) at Cameron's direction on 2026-10-08. Planned work, pending publications and independent phase acceptance remain below.
 
+### P16.60 — Remove personal paths and captured network addresses
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** Documentation and rendering examples; desktop gallery/browser harness; existing Rust and JSON path fixtures; this plan.
+**What:** Replace personal macOS/Linux/Windows account paths with the example account. Replace captured public/cellular addresses with reserved documentation addresses, and host/guest LAN addresses with consistent private-network examples. Label sanitized historical records so example values cannot be mistaken for original observations; make archived source links relative. Keep path-safety fixture relationships and platform path syntax intact. Preserve owner/copyright attribution, GitHub and installed app/service identity, and Git history. No tests added or run; no publication.
+**Verify:** `git show --check --stat --oneline HEAD`
+**Batch:** P16.60 only; owner-authorized privacy cleanup.
+**Commit:** `P16.60: remove personal paths and captured network addresses`
+
+**Checks:** Targeted scan of tracked text found no remaining personal account paths or captured addresses selected for this cleanup. Changed JSON parses; browser harness syntax, Rust formatting and diff whitespace checks pass. Affected service-model/systemd fixtures pass Clippy with warnings denied. Application libraries/binaries pass normal Clippy with one existing warning because warnings-denied compilation encounters the unchanged unused `auth::forbidden` function. The broad all-targets check is also blocked by unchanged provisioning dead code and outdated CLI test fields; no unrelated fixes or test execution.
+
 ### P16.43 — Plan a complete Windows MSI refinement
 
 **Status:** Plan written; awaiting Cameron's review. PLAN scope: review the entire MSI process and propose improvements after the owner reported a briefly blank opening page (2026-10-07).
@@ -14,7 +25,7 @@ Implemented steps awaiting verification were marked Done and moved to [the archi
 **Review findings and limits:**
 
 - The current `clients/desktop-web/src-tauri/tauri.conf.json` uses Tauri's stock WiX UI. The sole custom fragment, `packaging/windows/desktop-cli-path.wxs`, adds `[INSTALLDIR]agent` to machine PATH with a package-owned registry marker. There is no MSC-specific introductory copy, custom UI, or MSI service lifecycle integration.
-- Read-only Windows Installer database inspection of `C:\Users\Cameron\Downloads\msc2-0.1.15-windows-x86_64.msi` found `PrepareDlg` at UI sequence 49, followed by searches/costing and `WelcomeDlg` at 1298. The preparation and welcome text exists in that artifact; preparation Back/Next are disabled, while Cancel is authored visible/enabled. Cameron confirmed the blank page is brief and advances. This strongly points to preparation/initial painting, but does not prove why text or Cancel initially fails to paint/respond. Do not describe it as missing strings or a permanently stuck installer. The exact owner-observed MSI version remains unconfirmed; this older downloaded artifact is a baseline, not evidence about every current release. SHA-256: `1952d89bb5538f2487e5563135619dfe063aee395edfe5effe107e4aa247ffc2`.
+- Read-only Windows Installer database inspection of `C:\Users\example\Downloads\msc2-0.1.15-windows-x86_64.msi` found `PrepareDlg` at UI sequence 49, followed by searches/costing and `WelcomeDlg` at 1298. The preparation and welcome text exists in that artifact; preparation Back/Next are disabled, while Cancel is authored visible/enabled. Cameron confirmed the blank page is brief and advances. This strongly points to preparation/initial painting, but does not prove why text or Cancel initially fails to paint/respond. Do not describe it as missing strings or a permanently stuck installer. The exact owner-observed MSI version remains unconfirmed; this older downloaded artifact is a baseline, not evidence about every current release. SHA-256: `1952d89bb5538f2487e5563135619dfe063aee395edfe5effe107e4aa247ffc2`.
 - That older MSI has machine installation, generic destination/review/progress/completion and maintenance dialogs, a checked Launch MSC 2 completion option, and no custom MSC service actions. Its download-WebView2 action silently retrieves Microsoft's runtime bootstrapper. It has no Environment table, so it predates the current CLI PATH fragment. Do not mistake that older payload for current packaging.
 - Current desktop service registration stages the agent, Vantage renderer and Bedrock exporter into a checksum-named `agent/builds` directory under the desktop agent data root. On Windows that default root is the installing user's `AppData/Roaming/MSC2`. The service therefore normally runs a copied payload rather than the MSI's packaged `agent/msc.exe`. A locked MSI agent binary is not the general cause of upgrade trouble; the important gap is coordinated replacement of the actual service payload.
 - `clients/desktop-web/src-tauri/src/update.rs::install_windows_msi` invokes `msiexec /i`, treats any nonzero status as failure, and relaunches the current executable. It has no Windows-specific previous-package retention, explicit agent replacement, health handshake or post-install rollback. It also does not distinguish cancellation from MSI success requiring reboot (3010). These are source-backed gaps against D-032 and the existing Phase 16 update gate, not evidence of a particular failed update.
@@ -412,7 +423,7 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Status:** Cleanup performed; awaiting Cameron verification.
 **Files:** This plan; local generated outputs and MSC 2 installation/data outside Git.
 **What:** At Cameron's request, remove generated Rust/Tauri/Node/frontend outputs from the main repo and world-map worktree, ignored local test worlds/backups/player samples, MSC 2 application data, WebKit/cache/preferences, installed agent/Bedrock helper services and root helper files, and the MSC command symlink. Preserve tracked source in both checkouts and MSC 1. No installed application was found in standard Applications folders; development app bundles were removed with build trees. Administrator cleanup was required for launch daemons and root-owned Bedrock data. Shared compiler/package/tool caches were preserved.
-**Verify:** `du -sh /Users/camerontemple/msc2 /Users/camerontemple/msc2-world-map && df -h /Users/camerontemple/msc2`
+**Verify:** `du -sh /Users/example/msc2 /Users/example/msc2-world-map && df -h /Users/example/msc2`
 **Batch:** P18.55 only.
 **Commit:** `P18.55: record local mac artifact cleanup`
 

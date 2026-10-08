@@ -1,5 +1,7 @@
 # P18.2 — offline BDS terrain proof
 
+> Privacy cleanup (2026-10-08): personal account paths and captured network addresses in this record have been replaced with examples. Substitute your own paths and addresses when following commands; example values are not the original observations.
+
 > Historical proof instructions, not the current installation workflow. The modded
 > map repair/import/private-client capture feature was retired by owner decision
 > D-042 on 2026-10-06. Do not use launcher/capture experiments here to restore
@@ -26,7 +28,7 @@ world data are not edited.
 Stop **Fabric** in MSC before installing:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/install_fabric_player_feed.py \
   --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/fabric" \
   --server-stopped
@@ -36,7 +38,7 @@ Start Fabric through MSC. From another terminal, watch its authenticated MSC
 console:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/watch_java_player_feed.py --server Fabric
 ```
 
@@ -51,7 +53,7 @@ rendering.
 After the proof, stop Fabric in MSC and remove the temporary files:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/remove_fabric_player_feed.py \
   --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/fabric" \
   --server-stopped
@@ -74,7 +76,7 @@ Do not post watcher output publicly; names and coordinates are private.
 Stop **Forge** in MSC before installing:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/install_forge_player_feed.py \
   --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/forge" \
   --server-stopped
@@ -84,7 +86,7 @@ Start Forge through MSC. From another terminal, watch its authenticated
 console:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/watch_java_player_feed.py --server Forge
 ```
 
@@ -93,7 +95,7 @@ samples track XYZ and yaw/pitch. Disconnect and confirm the next sample has
 `"players": []`. Stop Forge in MSC and remove the probe:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/remove_forge_player_feed.py \
   --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/forge" \
   --server-stopped
@@ -122,7 +124,7 @@ do not post output publicly.
 With Vanilla stopped, temporarily enable loopback RCON:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/enable_vanilla_rcon_player_feed.py \
   --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/vanilla" \
   --server-stopped
@@ -132,7 +134,7 @@ Start Vanilla through MSC. Join from this Mac at `127.0.0.1:25565`. In another
 terminal, poll the local RCON endpoint:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/watch_vanilla_rcon_player_feed.py \
   --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/vanilla"
 ```
@@ -149,7 +151,7 @@ datapack disable "file/msc-map-player-feed-proof.zip"
 With Vanilla stopped, restore its original bind and RCON settings:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/disable_vanilla_rcon_player_feed.py \
   --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/vanilla" \
   --server-stopped
@@ -181,7 +183,7 @@ time but still needs its own live proof.
 Stop **Pupur** in MSC before installing:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/install_purpur_player_feed.py \
   --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/pupur" \
   --server-stopped
@@ -190,7 +192,7 @@ python3 tools/world-map-proof/install_purpur_player_feed.py \
 Start it through MSC and watch the authenticated console:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/watch_java_player_feed.py --server Pupur
 ```
 
@@ -199,7 +201,7 @@ confirm fresh positions/look; disconnect and confirm an empty roster. Stop
 Pupur in MSC and remove the plugin:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/remove_purpur_player_feed.py \
   --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/pupur" \
   --server-stopped
@@ -227,7 +229,7 @@ Player names and coordinates are private; do not post watcher output publicly.
 Stop **Neoforge** in MSC before installing:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/install_neoforge_player_feed.py \
   --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/neoforge" \
   --server-stopped
@@ -236,7 +238,7 @@ python3 tools/world-map-proof/install_neoforge_player_feed.py \
 Start Neoforge through MSC, then watch from another terminal:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/watch_java_player_feed.py --server Neoforge
 ```
 
@@ -245,7 +247,7 @@ positions/look; disconnect and confirm an empty roster. After stopping
 Neoforge in MSC, remove the probe:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/remove_neoforge_player_feed.py \
   --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/neoforge" \
   --server-stopped
@@ -272,7 +274,7 @@ pitch. Names and coordinates are private; do not publish watcher output.
 Stop **Paper** in MSC before installing the plugin:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/install_paper_player_feed.py \
   --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/paper" \
   --server-stopped
@@ -283,7 +285,7 @@ process is using this server directory. Start Paper through MSC. From a second
 terminal, watch its authenticated console:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/watch_java_player_feed.py --server Paper
 ```
 
@@ -297,7 +299,7 @@ does not prove other Paper versions or Java terrain rendering.
 After the proof, stop Paper in MSC and remove the plugin:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/remove_paper_player_feed.py \
   --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/paper" \
   --server-stopped
@@ -325,7 +327,7 @@ runtime: [event list](https://kubejs.com/wiki/events),
 Stop **All The Mods 10 LITE** in MSC, then install the probe:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/install_java_player_feed.py \
   --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/all_the_mods_10_lite" \
   --server-stopped
@@ -336,7 +338,7 @@ process whose working directory is this server. Start the server in MSC, then
 watch its authenticated MSC console from another terminal:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/watch_java_player_feed.py \
   --server "All The Mods 10 LITE"
 ```
@@ -351,7 +353,7 @@ open, not a connection to the server log file.
 To remove the probe, stop the server in MSC and run:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/remove_java_player_feed.py \
   --server-dir "$HOME/Library/Application Support/MSC 2/servers/java/all_the_mods_10_lite" \
   --server-stopped
@@ -378,7 +380,7 @@ To try it on the imported `theboyslatest` server, **stop that server in MSC**
 first. Then run:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/install_bedrock_player_feed.py \
   --server-dir "$HOME/Library/Application Support/MSC 2/servers/bedrock/theboyslatest" \
   --server-stopped
@@ -392,7 +394,7 @@ the authenticated `msc console tail` endpoint and works with the currently
 installed agent:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/watch_bedrock_player_feed.py --poll \
   --server theboyslatest
 ```
@@ -401,7 +403,7 @@ After a development agent containing P18.3b is loaded, the streaming path can
 also be checked with:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 MSC2_DATA_DIR="$HOME/Library/Application Support/MSC 2" \
   target/debug/msc console follow --server theboyslatest \
   | python3 tools/world-map-proof/watch_bedrock_player_feed.py
@@ -437,7 +439,7 @@ separate `msc --json world map-snapshot` results; do not compare a live BDS
 LevelDB directory. Use a new output directory for each comparison:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/export_changed_tiles.py \
   --before '/path/from/first/snapshot/result/worldPath' \
   --after '/path/from/second/snapshot/result/worldPath' \
@@ -482,7 +484,7 @@ BDS is stopped, obtain a Bedrock resource pack containing
 `textures/terrain_texture.json` and block images, then run:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 cargo run --release --manifest-path tools/world-map-proof/Cargo.toml -- \
   /path/to/offline-world-copy /path/to/resource_pack \
   /path/to/private-output-directory
@@ -491,7 +493,7 @@ cargo run --release --manifest-path tools/world-map-proof/Cargo.toml -- \
 To view the existing artifact:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map/tools/world-map-proof/viewer
+cd /Users/example/msc2-world-map/tools/world-map-proof/viewer
 MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-world-map-output npm run dev
 ```
 
@@ -507,14 +509,14 @@ Cameron's transferred MSC1 BDS world is copied read-only to
 The generated files are `/private/tmp/msc-bds-base-proof/output`.
 
 ```sh
-cd /Users/camerontemple/msc2-world-map/tools/world-map-proof/viewer
+cd /Users/example/msc2-world-map/tools/world-map-proof/viewer
 MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-bds-base-proof/output npm run dev
 ```
 
 To regenerate from the offline copy, run:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 cargo run --release --manifest-path tools/world-map-proof/Cargo.toml -- \
   /private/tmp/msc-bds-base-proof/world \
   /private/tmp/msc-bedrock-samples/resource_pack \
@@ -551,7 +553,7 @@ The same private offline world copy contains Cameron's gold farm near
 generated outside Git at `/private/tmp/msc-bds-gold-proof/output`:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 tools/world-map-proof/target/release/msc-world-map-proof \
   /private/tmp/msc-bds-base-proof/world \
   /private/tmp/msc-bedrock-samples/resource_pack \
@@ -572,7 +574,7 @@ tile starting at chunk `(-35, -17)`. Its private generated files are at
 `/private/tmp/msc-bds-ice-proof/output`:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 tools/world-map-proof/target/release/msc-world-map-proof \
   /private/tmp/msc-bds-base-proof/world \
   /private/tmp/msc-bedrock-samples/resource_pack \
@@ -754,7 +756,7 @@ capture three samples around the developed base at `(-50, 87, 65)`. The 4×4
 origin for that base is `(-6, 2)`:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 python3 tools/world-map-proof/measure_refresh_series.py \
   --resource-pack /private/tmp/msc-bedrock-samples/resource_pack \
   --output-root /private/tmp/msc-bds-base-proof/output \
@@ -838,7 +840,7 @@ upright logs and deepslate, including compact string palette entries. Vantage
 as air. The helper requires pinned `nbtlib`:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map
+cd /Users/example/msc2-world-map
 python3 -m pip install --target /private/tmp/msc-java-pydeps \
   -r tools/world-map-proof/requirements-java-terrain.txt
 PYTHONPATH=/private/tmp/msc-java-pydeps python3 \
@@ -895,7 +897,7 @@ python3 tools/world-map-proof/audit_java_terrain_assets.py \
 Open any generated case in the existing proof viewer:
 
 ```sh
-cd /Users/camerontemple/msc2-world-map/tools/world-map-proof/viewer
+cd /Users/example/msc2-world-map/tools/world-map-proof/viewer
 MSC_WORLD_MAP_PROOF_OUTPUT=/private/tmp/msc-java-terrain-proof/atm10-1.21.1 npm run dev
 ```
 

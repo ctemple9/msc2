@@ -1,10 +1,12 @@
 # Troubleshooting Bedrock on Intel macOS
 
+> Privacy cleanup (2026-10-08): personal account paths and captured network addresses in this record have been replaced with examples. Substitute your own paths and addresses when following commands; example values are not the original observations.
+
 **Incident window:** 2026-09-22 through 2026-09-23  
 **Affected server:** official Bedrock Dedicated Server 1.26.51.1, build 51061372, protocol 2193  
 **Affected client used for final proof:** Minecraft Bedrock 1.26.51 on iPadOS 18.7.8  
-**Host:** Intel MacBook Pro at `10.0.0.142`, running BDS inside MSC's Virtualization.framework appliance  
-**Public address during diagnosis:** `73.135.129.135`  
+**Host:** Intel MacBook Pro at `192.168.1.10`, running BDS inside MSC's Virtualization.framework appliance<br>
+**Public address during diagnosis:** `203.0.113.10`<br>
 **Current working transport:** RakNet on UDP `19001`
 
 This document records the full investigation because a later BDS release may
@@ -53,11 +55,11 @@ transport=raknet
 
 `server-ip` and `server-udp-ports` are absent. MSC binds UDP `19001` on the Mac
 and relays it to UDP `19001` in the VZ guest. Xfinity forwards UDP `19001` to
-`10.0.0.142`. With that configuration Cameron successfully joined:
+`192.168.1.10`. With that configuration Cameron successfully joined:
 
-- directly from the iPad on the home LAN at `10.0.0.142:19001`;
+- directly from the iPad on the home LAN at `192.168.1.10:19001`;
 - directly from the iPad over a cellular hotspot at
-  `73.135.129.135:19001`;
+  `203.0.113.10:19001`;
 - through MCXboxBroadcast build 155 while the iPad was on the hotspot.
 
 This live evidence disproved the warning's practical implication that all
@@ -71,9 +73,9 @@ supported transport, but the tested 1.26.51 iPad still speaks RakNet.
 | BDS property | `server-port=19001` |
 | BDS transport | `transport=raknet` |
 | Mac host relay | UDP `0.0.0.0:19001` to guest UDP `19001` |
-| Xfinity forward | UDP `19001` to `10.0.0.142` |
-| LAN manual address | `10.0.0.142:19001` |
-| Remote manual address | `73.135.129.135:19001` during this incident |
+| Xfinity forward | UDP `19001` to `192.168.1.10` |
+| LAN manual address | `192.168.1.10:19001` |
+| Remote manual address | `203.0.113.10:19001` during this incident |
 | Xbox Broadcast target | public address, port `19001` |
 | MCXboxBroadcast build | 155, advertising Bedrock protocol 2193 |
 
@@ -129,8 +131,8 @@ The decisive capture was:
 sudo tcpdump -ni en0 -vv 'tcp port 19001 or udp portrange 19002-19017'
 ```
 
-The cellular client at `172.58.241.250` completed a TCP handshake with
-`10.0.0.142:19001`, sent 517 bytes, received seven bytes, and the server closed
+The cellular client at `198.51.100.20` completed a TCP handshake with
+`192.168.1.10:19001`, sent 517 bytes, received seven bytes, and the server closed
 the connection. There was no UDP traffic. This proved all of the following:
 
 - the public address reached the Xfinity gateway;
@@ -143,7 +145,7 @@ The focused capture was:
 
 ```text
 sudo tcpdump -ni en0 -s 96 -XX \
-  'src host 10.0.0.142 and src port 19001'
+  'src host 192.168.1.10 and src port 19001'
 ```
 
 Its response payload ended in:
@@ -166,9 +168,9 @@ restored NetherNet after BDS printed that RakNet was unsupported. Those early
 transport conclusions were not reliable because the macOS host UDP relay was
 itself broken.
 
-Directly querying the VZ guest at `192.168.64.64:19000` returned a valid
+Directly querying the VZ guest at `192.168.64.2:19000` returned a valid
 1.26.51/protocol-2193 RakNet pong, while `127.0.0.1:19000` and
-`10.0.0.142:19000` timed out. P15.65 repaired the reusable wildcard UDP bind,
+`192.168.1.10:19000` timed out. P15.65 repaired the reusable wildcard UDP bind,
 per-client forwarding, idle cleanup, and real RakNet-ping readiness check.
 Twelve stale detached sidecars from earlier agent runs were also identified
 and stopped. MCXboxBroadcast build 155 was confirmed current, the configured

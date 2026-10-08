@@ -75,7 +75,7 @@
       <span class="msc2-type-body"
         >The background agent keeps servers running after this window closes.</span
       >
-      <span class="msc2-type-meta">/Users/cameron/MinecraftServers/java/test · port 25565</span>
+      <span class="msc2-type-meta">/Users/example/MinecraftServers/java/test · port 25565</span>
       <span class="msc2-type-overline">Server controls</span>
       <span class="msc2-type-mono">[02:11:43 INFO]: Done (5.231s)! For help, type "help"</span>
     </div>

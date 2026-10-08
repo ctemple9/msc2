@@ -9,7 +9,7 @@
   "input": {
     "operation": "import_zip_as_new_slot",
     "server_type": "java",
-    "source_zip_path": "/Users/cameron/Downloads/my-world.zip",
+    "source_zip_path": "/Users/example/Downloads/my-world.zip",
     "slot_name": "Imported from friend"
   },
   "expected": {

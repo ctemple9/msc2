@@ -4681,11 +4681,11 @@ mod tests {
     #[test]
     fn durable_server_state_default_paths_are_app_data_not_temp() {
         let app_config_path = default_app_config_path_from_env(|key| match key {
-            "HOME" => Some(OsString::from("/Users/cameron")),
+            "HOME" => Some(OsString::from("/Users/example")),
             _ => None,
         });
         let servers_root = default_servers_root_from_env(|key| match key {
-            "HOME" => Some(OsString::from("/Users/cameron")),
+            "HOME" => Some(OsString::from("/Users/example")),
             _ => None,
         });
 

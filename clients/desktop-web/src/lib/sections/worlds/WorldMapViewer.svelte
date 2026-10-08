@@ -46,6 +46,52 @@
   let biomes: BiomeEntry[] = [];
   let biomeEnabled = false;
   let highlightedBiome: number | null = null;
+  const qualityPresets = [
+    { name: 'Low', viewDistance: 448, maxTiles: 44, memoryMiB: 320, renderScale: 0.75, mapMemory: 32 },
+    { name: 'Medium', viewDistance: 768, maxTiles: 120, memoryMiB: 512, renderScale: 1, mapMemory: 64 },
+    { name: 'High', viewDistance: 1152, maxTiles: 264, memoryMiB: 768, renderScale: 1, mapMemory: 128 },
+    { name: 'Ultra', viewDistance: 1408, maxTiles: 400, memoryMiB: 1024, renderScale: 1, mapMemory: 128 },
+  ];
+  let quality = { ...qualityPresets[1], fog: 1 };
+  type QualityKnob = 'viewDistance' | 'maxTiles' | 'memoryMiB' | 'renderScale' | 'fog' | 'mapMemory';
+  const qualitySliders: { key: QualityKnob; label: string; min: number; max: number; step: number; hint: string }[] = [
+    { key: 'viewDistance', label: 'View distance', min: 256, max: 2048, step: 64, hint: 'Radius of detailed terrain around the camera, in blocks.' },
+    { key: 'maxTiles', label: 'Tile budget', min: 24, max: 512, step: 8, hint: 'Maximum number of detailed terrain tiles kept loaded.' },
+    { key: 'memoryMiB', label: 'Terrain memory', min: 128, max: 1536, step: 64, hint: 'Estimated loaded-terrain budget, not total app memory.' },
+    { key: 'renderScale', label: 'Render scale', min: 0.5, max: 2, step: 0.05, hint: 'Lower is faster and softer; higher uses more GPU work.' },
+    { key: 'fog', label: 'Haze', min: 0, max: 1, step: 0.05, hint: 'Distance fog strength. Lower values can reveal terrain loading boundaries.' },
+    { key: 'mapMemory', label: 'Map memory', min: 0, max: 128, step: 32, hint: 'Snapshot resolution for previously explored terrain after detailed tiles unload.' },
+  ];
+  $: activeQuality = qualityPresets.find((preset) =>
+    preset.viewDistance === quality.viewDistance && preset.maxTiles === quality.maxTiles &&
+    preset.memoryMiB === quality.memoryMiB && preset.renderScale === quality.renderScale &&
+    (serverType === 'bedrock' || preset.mapMemory === quality.mapMemory));
+
+  function applyQuality(): void {
+    viewer?.setStreaming({
+      viewDistance: quality.viewDistance,
+      maxTiles: quality.maxTiles,
+      maxBytes: quality.memoryMiB * 1024 * 1024,
+      // Bedrock's overview already represents unloaded terrain.
+      mapMemory: serverType === 'bedrock' ? 0 : quality.mapMemory,
+    });
+    viewer?.setDisplay({ renderScale: quality.renderScale, fog: quality.fog });
+  }
+
+  function setQualityKnob(key: QualityKnob, value: number): void {
+    quality = { ...quality, [key]: value };
+    applyQuality();
+  }
+
+  function qualityValue(key: QualityKnob): string {
+    const value = quality[key];
+    if (key === 'viewDistance') return `${value} blocks`;
+    if (key === 'memoryMiB') return `${value} MiB`;
+    if (key === 'renderScale') return `${value.toFixed(2)}×`;
+    if (key === 'fog') return value.toFixed(2);
+    if (key === 'mapMemory') return value ? `${value} px` : 'Off';
+    return String(value);
+  }
   let alive = true;
   let loadGeneration = 0;
   let frameId = 0;
@@ -199,6 +245,7 @@
       viewer = opening;
       biomes = viewer.biomes;
       viewer.setBiomeLayer(biomeEnabled);
+      applyQuality();
       opening = undefined;
       const range = viewer.sliceRange;
       depthMin = Math.ceil(range.min + 2);
@@ -765,6 +812,36 @@
         {/if}
       </details>
     </aside>
+    <aside class="map-panels quality-position" aria-label="Map quality">
+      <details class="players-panel quality-panel">
+        <summary class="players-heading">
+          <span class="panel-caret" aria-hidden="true">▾</span>
+          <strong>Quality</strong><span>{activeQuality?.name ?? 'Custom'}</span>
+        </summary>
+        <div class="quality-presets" role="group" aria-label="Quality presets">
+          {#each qualityPresets as preset}
+            <button type="button" disabled={!viewer} aria-pressed={activeQuality?.name === preset.name}
+              onclick={() => {
+                quality = { ...preset, fog: quality.fog };
+                applyQuality();
+              }}>{preset.name}</button>
+          {/each}
+        </div>
+        <p>Higher budgets load more terrain and can increase agent work.</p>
+        <div class="quality-sliders">
+          {#each qualitySliders as slider}
+            {#if slider.key !== 'mapMemory' || serverType !== 'bedrock'}
+              <label title={slider.hint}>
+                <span class="quality-label">{slider.label}<output>{qualityValue(slider.key)}</output></span>
+                <input type="range" min={slider.min} max={slider.max} step={slider.step}
+                  value={quality[slider.key]} disabled={!viewer}
+                  oninput={(event) => setQualityKnob(slider.key, Number(event.currentTarget.value))} />
+              </label>
+            {/if}
+          {/each}
+        </div>
+      </details>
+    </aside>
     {#if desktopLook}
       <div class="look-indicator" role="status">Mouse look active · Esc releases pointer</div>
     {/if}
@@ -1014,6 +1091,26 @@
     right: auto;
     align-items: flex-start;
   }
+  .quality-position { top: auto; bottom: 64px; }
+  .quality-presets { display: flex; gap: 3px; margin-top: 12px; }
+  .quality-presets button {
+    flex: 1;
+    padding: 5px 3px;
+    background: #242428;
+    border: 1px solid #48484e;
+    border-radius: 4px;
+    color: #d7dce1;
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .quality-presets button[aria-pressed='true'] { background: #244b71; border-color: #568fc5; color: #fff; }
+  .quality-presets button:disabled { opacity: 0.45; cursor: default; }
+  .quality-sliders { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+  .quality-sliders label { display: flex; flex-direction: column; gap: 4px; }
+  .quality-label { display: flex; justify-content: space-between; gap: 8px; color: #aeb4bb; font-size: 11px; }
+  .quality-label output { color: #d7dce1; font-variant-numeric: tabular-nums; }
+  .quality-sliders input { width: 100%; margin: 0; accent-color: #568fc5; }
   .players-panel {
     width: 224px;
     padding: 12px 14px;

@@ -313,3 +313,17 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Commit:** `P18.49: toggle biome colors from panel heading`
 
 **Checks:** Frontend check passed with zero errors and 11 existing unrelated warnings; whitespace check passed. No tests run. Owner verification: click On/Off with the panel expanded and collapsed; confirm only the colors change.
+
+
+### P18.50 — Add live world-map quality controls
+
+**Status:** Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Add a collapsed bottom-right Quality panel with Vantage 0.15.1 Low/Medium/High/Ultra presets and live view-distance, tile-budget, terrain-memory, render-scale, haze and Java map-memory sliders. Default to Medium; retain choices across refresh/dimension changes within the viewer. Presets preserve haze and identify manually modified settings as Custom. Hide ineffective map memory for Bedrock and preserve its single-request loading configuration and overview. Budgets are terrain estimates, not total-app memory limits. No tests added or run.
+**Verify:** `cd clients/desktop-web && npm run check && npm run build`
+**Batch:** P18.50 only.
+**Commit:** `P18.50: add world map quality controls`
+
+**Owner verification:** Expand Quality in Java and Bedrock maps; switch presets, adjust sliders, refresh and change dimension. Confirm settings persist within the viewer, haze is retained when choosing presets, Bedrock lacks map memory, and terrain remains navigable. Evaluate higher-budget cost on the host; runtime visual acceptance remains pending.
+
+**Checks:** Frontend/Svelte check and production build passed with existing unrelated warnings; whitespace check passed. No Rust changes or tests. Runtime acceptance remains with Cameron.

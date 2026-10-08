@@ -393,3 +393,15 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Commit:** `P16.44: prepare v0.1.24 release`
 
 **Preparation checks:** Locked Cargo metadata resolved for agent and desktop; frontend production build and whitespace check passed with existing warnings. Headless packaging/installer inspection confirms both terrain helpers are bundled and installed. No tests run.
+
+
+### P16.45 — Present v0.1.24 as current in the README
+
+**Status:** Implemented; awaiting Cameron verification.
+**Files:** `README.md`, this plan.
+**What:** At Cameron's explicit request, write the README as though v0.1.24 is published: update the current release link and remove next-candidate wording. This documentation edit does not establish workflow completion or artifact acceptance; the immutable release tag remains unchanged.
+**Verify:** `git show --format= -- README.md`
+**Batch:** P16.45 only.
+**Commit:** `P16.45: update readme for v0.1.24 publication`
+
+**Checks:** Inspected release wording and link; whitespace check passed. No tests run.

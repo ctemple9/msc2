@@ -301,3 +301,15 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Commit:** `P18.48: correct biome legend color scale`
 
 **Checks:** Frontend check passed with zero errors and 11 existing unrelated warnings; whitespace check passed. No tests run. Cameron should reopen Biomes and compare the swatches with the colored terrain.
+
+
+### P18.49 — Toggle biome colors from the heading
+
+**Status:** Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Replace the separate show/hide button with an accessible On/Off button in the Biomes heading. Prevent its click from collapsing the panel. Vantage clears highlighting when colors are disabled.
+**Verify:** `cd clients/desktop-web && npm run check`
+**Batch:** P18.49 only.
+**Commit:** `P18.49: toggle biome colors from panel heading`
+
+**Checks:** Frontend check passed with zero errors and 11 existing unrelated warnings; whitespace check passed. No tests run. Owner verification: click On/Off with the panel expanded and collapsed; confirm only the colors change.

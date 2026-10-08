@@ -736,15 +736,15 @@
       <details class="players-panel biomes-panel">
         <summary class="players-heading">
           <span class="panel-caret" aria-hidden="true">▾</span>
-          <strong>Biomes</strong><span>{biomeEnabled ? 'On' : 'Off'}</span>
-        </summary>
-        <div class="player-actions">
-          <button type="button" disabled={!viewer || biomes.length === 0} aria-pressed={biomeEnabled}
-            onclick={() => {
-              if (biomeEnabled) viewer?.setHighlightedBiome(null);
+          <strong>Biomes</strong>
+          <button class="biome-toggle" type="button" disabled={!viewer || biomes.length === 0}
+            aria-label="Biome colors" aria-pressed={biomeEnabled}
+            onclick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
               viewer?.setBiomeLayer(!biomeEnabled);
-            }}>{biomeEnabled ? 'Hide biome colors' : 'Show biome colors'}</button>
-        </div>
+            }}>{biomeEnabled ? 'On' : 'Off'}</button>
+        </summary>
         {#if biomes.length === 0}
           <p>{viewer ? 'Biome data unavailable for this terrain.' : 'Load terrain to see biomes.'}</p>
         {:else}
@@ -1025,7 +1025,18 @@
   .players-panel:not([open]) {
     width: fit-content;
   }
-  .biomes-panel .player-actions { margin-top: 10px; }
+  .biome-toggle {
+    border: 1px solid #48484e;
+    border-radius: 4px;
+    background: #242428;
+    color: #d7dce1;
+    font: inherit;
+    font-size: 11px;
+    padding: 3px 8px;
+    cursor: pointer;
+  }
+  .biome-toggle[aria-pressed='true'] { background: #244b71; border-color: #568fc5; color: #fff; }
+  .biome-toggle:disabled { opacity: 0.45; cursor: default; }
   .biomes-panel li { padding: 3px 0; border: 0; }
   .biome-row {
     display: flex;

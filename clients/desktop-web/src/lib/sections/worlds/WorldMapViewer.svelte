@@ -690,7 +690,7 @@
         {/if}
       </div>
     {/if}
-    <aside class="map-panels" aria-label="Map layers">
+    <aside class="map-panels" aria-label="Map players">
       <details class="players-panel" open>
         <summary class="players-heading">
           <span class="panel-caret" aria-hidden="true">▾</span>
@@ -731,6 +731,8 @@
           </ul>
         {/if}
       </details>
+    </aside>
+    <aside class="map-panels biome-position" aria-label="Map biomes">
       <details class="players-panel biomes-panel">
         <summary class="players-heading">
           <span class="panel-caret" aria-hidden="true">▾</span>
@@ -1006,6 +1008,11 @@
     gap: 8px;
     max-height: calc(100% - 90px);
     overflow-y: auto;
+  }
+  .biome-position {
+    left: 16px;
+    right: auto;
+    align-items: flex-start;
   }
   .players-panel {
     width: 224px;

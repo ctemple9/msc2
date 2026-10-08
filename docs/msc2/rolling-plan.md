@@ -277,3 +277,15 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Owner visual verification:** Open the modded Java map, expand Biomes beneath Players, enable colors, select/deselect a biome, stream terrain, refresh and switch dimensions. Confirm the toggle persists, highlighting clears on reload, and both panels collapse independently.
 
 **Implementation checks:** Frontend type/Svelte check passed with zero errors and existing unrelated warnings; production build and whitespace check passed. No Rust changes or tests. Runtime visual acceptance remains pending.
+
+
+### P18.47 — Move the biome panel to the top left
+
+**Status:** Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Place the independent collapsible Biomes panel in the map's top left at Cameron's request. Players remains in the top right. Preserve biome controls and scrolling.
+**Verify:** `cd clients/desktop-web && npm run check`
+**Batch:** P18.47 only.
+**Commit:** `P18.47: move biome panel to top left`
+
+**Checks:** Svelte/frontend check passed with 0 errors and 11 existing unrelated warnings; whitespace check passed. No tests run. Owner visual verification pending.

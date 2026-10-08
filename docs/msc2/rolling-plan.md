@@ -405,3 +405,15 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Commit:** `P16.45: update readme for v0.1.24 publication`
 
 **Checks:** Inspected release wording and link; whitespace check passed. No tests run.
+
+
+### P18.55 — Reclaim local Mac build and test-installation space
+
+**Status:** Cleanup performed; awaiting Cameron verification.
+**Files:** This plan; local generated outputs and MSC 2 installation/data outside Git.
+**What:** At Cameron's request, remove generated Rust/Tauri/Node/frontend outputs from the main repo and world-map worktree, ignored local test worlds/backups/player samples, MSC 2 application data, WebKit/cache/preferences, installed agent/Bedrock helper services and root helper files, and the MSC command symlink. Preserve tracked source in both checkouts and MSC 1. No installed application was found in standard Applications folders; development app bundles were removed with build trees. Administrator cleanup was required for launch daemons and root-owned Bedrock data. Shared compiler/package/tool caches were preserved.
+**Verify:** `du -sh /Users/camerontemple/msc2 /Users/camerontemple/msc2-world-map && df -h /Users/camerontemple/msc2`
+**Batch:** P18.55 only.
+**Commit:** `P18.55: record local mac artifact cleanup`
+
+**Evidence:** Filesystem available space rose from 53,081,192 KiB to 116,644,552 KiB (about 60.6 GiB reclaimed). Main source checkout is 99 MiB and world-map source checkout 36 MiB. Both launchd services are absent; tracked source status was clean before this record. No tests run. Rebuilding requires restoring dependencies and compiling again.

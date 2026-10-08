@@ -381,3 +381,15 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Owner verification:** Open Depth and hold Alt/Option+Up/Down; tap Alt/Option+Left/Right to change step. In Fly, confirm Shift still descends with Depth open.
 
 **Checks:** Frontend check passed with zero errors and 11 existing unrelated warnings; whitespace check passed. No tests run. Owner keyboard verification pending.
+
+
+### P16.44 — Publish v0.1.24 with world map controls
+
+**Status:** Prepared; publication requested, owner artifact verification pending.
+**Files:** Agent/desktop/frontend manifests and lockfiles, bundle identity and existing assertion, README, `docs/msc2/release/v0.1.24.md`, this plan.
+**What:** Increment latest published v0.1.23 to v0.1.24, including biome, quality and depth controls. Push main and a new immutable tag once to trigger the existing build-only release workflow. Preserve all nine artifacts, helper bundles, checksums and signed metadata. No tests or gates added.
+**Verify:** `gh release view v0.1.24 --json tagName,isPrerelease,assets,url`
+**Batch:** P16.44 only.
+**Commit:** `P16.44: prepare v0.1.24 release`
+
+**Preparation checks:** Locked Cargo metadata resolved for agent and desktop; frontend production build and whitespace check passed with existing warnings. Headless packaging/installer inspection confirms both terrain helpers are bundled and installed. No tests run.

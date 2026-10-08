@@ -17,7 +17,7 @@ everything first.
 
 ## Current release and support
 
-The latest published build is [MSC 2 v0.1.22](https://github.com/ctemple9/msc2/releases/tag/v0.1.22),
+The latest published build is [MSC 2 v0.1.23](https://github.com/ctemple9/msc2/releases/tag/v0.1.23),
 an unsigned prerelease. There is no stable release yet. Download the
 platform-specific installer or archive from that release page and verify its
 entry in `SHA256SUMS` before installing. The Phase 16 acceptance record
@@ -27,12 +27,16 @@ release acceptance gate.
 v0.1.22 fixes headless Linux service status and routine CLI control, and
 accepts modern Java datapack metadata such as Tectonic 3.0.29 for Minecraft 26.3.
 
-The next candidate, v0.1.23, fixes headless updates omitting terrain helpers and
+v0.1.23 fixes headless updates omitting terrain helpers and
 prepares Java map dependencies automatically on the server host. The first map
 launch can recover a missing Vantage renderer and downloads verified Minecraft
 textures for the saved world's version; later launches reuse the cache. Renderer
 failures now identify the affected dependency and retain diagnostics in agent
 logs. Publication uses the existing build-only release workflow.
+
+The next candidate, v0.1.24, adds biome colors and legends, live map quality
+presets and sliders, and vertical depth controls in 2D, 3D and Fly. Use
+Alt/Option+arrows with Depth open to change height and keyboard step.
 
 | Installation | Published platform and architecture | Supported control surface |
 |---|---|---|

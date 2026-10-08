@@ -327,3 +327,15 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Owner verification:** Expand Quality in Java and Bedrock maps; switch presets, adjust sliders, refresh and change dimension. Confirm settings persist within the viewer, haze is retained when choosing presets, Bedrock lacks map memory, and terrain remains navigable. Evaluate higher-budget cost on the host; runtime visual acceptance remains pending.
 
 **Checks:** Frontend/Svelte check and production build passed with existing unrelated warnings; whitespace check passed. No Rust changes or tests. Runtime acceptance remains with Cameron.
+
+
+### P18.51 — Lower the quality panel
+
+**Status:** Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Move Quality from 64px to 16px above the map bottom, matching the toolbar and terrain caption.
+**Verify:** `git diff HEAD~1 HEAD --check`
+**Batch:** P18.51 only.
+**Commit:** `P18.51: lower world map quality panel`
+
+**Checks:** Inspected the CSS position and passed whitespace verification. No tests run. Owner visual verification pending.

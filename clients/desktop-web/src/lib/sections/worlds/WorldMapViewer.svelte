@@ -1091,7 +1091,7 @@
     right: auto;
     align-items: flex-start;
   }
-  .quality-position { top: auto; bottom: 64px; }
+  .quality-position { top: auto; bottom: 16px; }
   .quality-presets { display: flex; gap: 3px; margin-top: 12px; }
   .quality-presets button {
     flex: 1;

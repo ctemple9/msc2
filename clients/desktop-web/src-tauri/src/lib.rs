@@ -1,5 +1,3 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-
 use msc_infrastructure::secret_store::SecretStore;
 use msc_infrastructure::service::{
     ServiceInstallRequest, ServiceManager, ServiceManagerCommand, ServiceName, ServiceState,

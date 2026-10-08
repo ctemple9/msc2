@@ -170,6 +170,15 @@
 **Commit:** `P16.53: resolve local service account aliases for maintenance`
 **Checks:** Read-only real-account lookup reproduced dot-prefix failure and resolved the equivalent qualified name. PowerShell parsing/C# compilation, helper/desktop release builds and Clippy, validated MSI bundle, runtime import inspection and embedded code/DLL/desktop/payload-hash comparisons passed with existing warnings. No tests, live installation/service operations or publication. Retry `C:\Users\Cameron\Downloads\msc2-p16.53-windows-x86_64.msi` in the same disposable stopped-service state; exact digest in review packet. Original guest SCM name remains uninspected; identity failures still refuse maintenance.
 
+### P16.55 - Suppress the release desktop console on Windows
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src-tauri/src/main.rs`, `lib.rs`, this plan.
+**What:** Move the release-only Windows GUI subsystem attribute from the library to the executable entry point. Windows should launch the installed desktop without allocating a terminal; development builds retain their console. Rebuild the local MSI and replace the Downloads copy. No tests added or run for this executable metadata correction.
+**Verify:** From `clients/desktop-web`, run `npx tauri build --bundles msi --no-sign`; install the resulting MSI and launch MSC from its shortcut, confirming no extra terminal opens.
+**Batch:** P16.55 only.
+**Commit:** `P16.55: suppress windows release desktop console`
+
 ### P16.54 - Normalize executable paths in service ownership checks
 
 **Status:** Implemented; awaiting Cameron's verification; owner-authorized continuation after P16.53 update reports that the service executable differs from metadata.

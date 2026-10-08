@@ -179,6 +179,16 @@
 **Batch:** P16.55 only.
 **Commit:** `P16.55: suppress windows release desktop console`
 
+### P16.56 - Correct Windows uninstall discovery
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `clients/desktop-web/src-tauri/src/uninstall.rs`, `crates/msc-infrastructure/src/uninstall.rs`, `crates/msc-infrastructure/src/uninstall/native.rs`, this plan.
+**What:** Accept the shipped MSI publisher `ctemple` alongside the historical `Cameron Temple`, retaining exact product name, WindowsInstaller registration and GUID checks. On Windows, discover data from local service metadata and platform defaults rather than imposing the desktop's Roaming staging directory as a custom configuration root. Standard Windows MSC data roots remain recognized without configuration files, while arbitrary custom roots still require ownership proof. Skip the drive-relative prefix during Windows ancestor inspection so launching from a checkout does not falsely classify unrelated folders as source trees. Linux/macOS command environments, ownership checks and package discovery remain unchanged. No tests added or run; use read-only local preview and build checks.
+**Verify:** From `clients/desktop-web`, run `npx tauri build --bundles msi --no-sign`; update the installed app and reopen Settings uninstall preview, confirming its registered MSI and Windows data directories no longer show these two blockers.
+**Batch:** P16.56 only.
+**Commit:** `P16.56: correct windows uninstall discovery`
+**Checks:** Changed-file Rust formatting, desktop and agent Clippy, full release MSI build and embedded cabinet file comparisons passed with existing warnings. Read-only native uninstall preview against the actual installed package/service reports zero blocked targets, including when launched from the repository. The packaged desktop uses Windows GUI subsystem 2 (P16.55). Downloads candidate: `C:\Users\Cameron\Downloads\msc2-0.1.23-windows-x86_64-local.msi`; SHA256 `03e86bd05529c0a06d676c3c35984950c783ffa37c2695e1ecc59c618b7a9a41`. No live uninstall, service mutation, tests or release publication. Actual Settings preview/removal and Linux physical acceptance remain Cameron's verification.
+
 ### P16.54 - Normalize executable paths in service ownership checks
 
 **Status:** Implemented; awaiting Cameron's verification; owner-authorized continuation after P16.53 update reports that the service executable differs from metadata.

@@ -359,7 +359,7 @@ pub fn inspect_installations(
                 "-NoProfile",
                 "-NonInteractive",
                 "-Command",
-                "$ErrorActionPreference='Stop'; Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*','HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*','HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*' -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq 'MSC 2' -and $_.Publisher -eq 'Cameron Temple' -and $_.WindowsInstaller -eq 1 } | ForEach-Object { $_.PSChildName }",
+                "$ErrorActionPreference='Stop'; Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*','HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*','HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*' -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq 'MSC 2' -and $_.Publisher -in @('ctemple','Cameron Temple') -and $_.WindowsInstaller -eq 1 } | ForEach-Object { $_.PSChildName }",
             ],
         )?;
         for product in output

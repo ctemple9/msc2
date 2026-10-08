@@ -346,7 +346,14 @@ fn add_data(
     let bytes = match fs.read(&config) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            if overrides.data_dir.is_some() && fs.stat(root).is_ok() {
+            // Windows service metadata can name a standard MSC directory that
+            // only holds staged binaries/logs. It is already an owned default;
+            // arbitrary custom directories still require configuration proof.
+            let windows_default = request.platform == Platform::Windows
+                && ["AppData/Roaming/MSC2", "AppData/Local/MSC2"]
+                    .iter()
+                    .any(|relative| root == request.home.join(relative));
+            if overrides.data_dir.is_some() && !windows_default && fs.stat(root).is_ok() {
                 result.entries.push(blocked(EntryKind::DataTree, root, "Custom local data path", "Custom data directory has no readable MSC configuration; ownership is ambiguous."));
             }
             if let Some(server_root) = &overrides.servers_root {
@@ -500,6 +507,11 @@ pub fn validate_target(fs: &dyn FileSystem, request: &Request, path: &Path) -> R
     let mut prefix = PathBuf::new();
     for part in path.components() {
         prefix.push(part);
+        // A bare Windows drive prefix (C:) is relative to that drive's current
+        // directory. Inspect ancestors only after its root separator is added.
+        if request.platform == Platform::Windows && !prefix.is_absolute() {
+            continue;
+        }
         if fs.stat(&prefix.join(".git")).is_ok() || fs.stat(&prefix.join("Cargo.toml")).is_ok() {
             return Err("Target is inside a developer source tree.".into());
         }

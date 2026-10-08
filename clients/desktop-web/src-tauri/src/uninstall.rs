@@ -33,8 +33,11 @@ fn local_command(installers: &[PathBuf]) -> Result<std::process::Command, String
     let mut command = std::process::Command::new(binary);
     command
         .args(["uninstall", "--json", "--desktop-origin"])
-        .arg(std::env::current_exe().map_err(|error| error.to_string())?)
-        .env("MSC2_DATA_DIR", super::agent_data_directory()?);
+        .arg(std::env::current_exe().map_err(|error| error.to_string())?);
+    // Windows discovers the agent's data path from its service metadata. The
+    // desktop's staging directory is not an override for that configuration.
+    #[cfg(not(target_os = "windows"))]
+    command.env("MSC2_DATA_DIR", super::agent_data_directory()?);
     for installer in installers {
         command.arg("--installer").arg(installer);
     }

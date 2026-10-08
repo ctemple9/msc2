@@ -191,7 +191,16 @@ public static class MscLifecyclePaths {
         return (New-Object Text.UTF8Encoding($false, $true)).GetString($bytes)
     }
     function Account-Sid([string]$account) {
-        return (New-Object Security.Principal.NTAccount($account)).Translate([Security.Principal.SecurityIdentifier]).Value
+        # SCM returns local users as .\name; NTAccount lookup requires the machine domain.
+        $lookup = $account
+        if ($lookup.StartsWith('.\', [StringComparison]::Ordinal)) {
+            $lookup = [Environment]::MachineName + '\' + $lookup.Substring(2)
+        }
+        try {
+            return (New-Object Security.Principal.NTAccount($lookup)).Translate([Security.Principal.SecurityIdentifier]).Value
+        } catch {
+            throw 'Windows could not resolve the recorded local agent account. Package maintenance cannot safely continue; retain the service and its metadata for inspection.'
+        }
     }
     function Assert-Definition($svc, $meta) {
         if ((Account-Sid $svc.StartName) -ne (Account-Sid $meta.run_user)) { throw 'The service account differs from its recorded owner.' }

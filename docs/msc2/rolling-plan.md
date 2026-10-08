@@ -158,6 +158,18 @@
 **Commit:** `P16.52: include runtime across windows native payload`
 **Checks:** Normal agent/exporter/helper release staging and desktop release build, validated MSI packaging, normal/delay import inspection, cabinet/payload and embedded-helper/hash comparison, configuration/Node syntax, desktop release Clippy and diff checks passed with existing warnings. No external VC++ runtime imports remain in MSC native binaries; pinned Vantage uses OS UCRT. Desktop formatting check identifies a pre-existing P16.49 protocol-check formatting issue; no Rust source was changed. No tests, live installation/service actions or release publication. Candidate `C:\Users\Cameron\Downloads\msc2-p16.52-windows-x86_64.msi`; exact hash in review packet.
 
+### P16.53 - Resolve local service account identities during maintenance
+
+**Status:** Implemented; awaiting Cameron's verification. Owner requested repair-failure investigation and fix after P16.52 Sandbox installation/desktop launch succeeded.
+**Files:** `packaging/windows/desktop-service-lifecycle.ps1`, Windows MSI review/acceptance packet, this plan.
+**What:** Normalize SCM local-account shorthand to the real machine domain before SID resolution, preserve identity/ownership checks, and explain unresolved identities in product language. Rebuild both embedding native consumers and provide a distinct candidate for repair of the stopped service left by failed Sandbox logon.
+**Verify:** From `clients/desktop-web`, run `npx tauri bundle --bundles msi --no-sign` after refreshing the helper and desktop release binaries.
+**Batch:** P16.53 only.
+**Manual acceptance:** Cameron retries repair in the same disposable Sandbox state, confirms no account-translation exception and the agent stays stopped, then checks package removal/reinstall separately. Successful service logon still needs a normal disposable Windows account/password; this step never changes credentials or makes Sandbox use the host account.
+
+**Commit:** `P16.53: resolve local service account aliases for maintenance`
+**Checks:** Read-only real-account lookup reproduced dot-prefix failure and resolved the equivalent qualified name. PowerShell parsing/C# compilation, helper/desktop release builds and Clippy, validated MSI bundle, runtime import inspection and embedded code/DLL/desktop/payload-hash comparisons passed with existing warnings. No tests, live installation/service operations or publication. Retry `C:\Users\Cameron\Downloads\msc2-p16.53-windows-x86_64.msi` in the same disposable stopped-service state; exact digest in review packet. Original guest SCM name remains uninspected; identity failures still refuse maintenance.
+
 ### P18.48 — Quiet cleanup preview typography
 
 **Status:** Implemented; awaiting Cameron's visual verification. EXECUTE scope: owner-requested preview styling correction.

@@ -895,3 +895,65 @@ Use the selected install folder if different. These manual checks establish load
 command startup only, not map rendering or service lifecycle. Keep evidence before
 closing Sandbox. Repair/removal, owned-service transitions, signed update/recovery
 and independent gate review remain pending.
+
+## P16.53 - Repair local-account identity lookup
+
+**Status:** Implemented; awaiting Cameron's repair retry. Candidate identity is
+recorded below after packaging. Reuse W01-W22 with the exact candidate identity;
+this fix does not close independent review or signed-update acceptance.
+
+Cameron's P16.52 screenshot confirms the desktop shell opened. He entered his
+host Windows password during Sandbox local hosting setup; starting the guest
+agent reported SCM 1069 (logon failure). Subsequent MSI repair displayed
+`Exception calling Translate ... Some or all identity references could not be
+translated.` The exact guest SCM account string/log was not supplied. Therefore
+service authentication and repair are failed observations, not accepted hosting.
+The desktop's oversized/off-centre geometry and content under the tabs remain
+separate open observations.
+
+The helper passed SCM `StartName` directly to `NTAccount.Translate`. SCM can
+represent a local account as `.\username`; lookup of that form failed with the
+same exception during read-only inspection of this development machine's current
+account, whereas its fully qualified machine/user name resolved to a SID. This
+identifies a concrete repair defect consistent with the screenshot, without
+claiming the unrecorded guest account string was inspected. See Microsoft's
+[local service account name form](https://learn.microsoft.com/en-us/windows/win32/ad/local-user-accounts).
+
+`Account-Sid` now expands only the exact `.\` prefix to
+`[Environment]::MachineName + '\'` before lookup. Domain-qualified, UPN and other
+account names retain their existing lookup behavior. It still compares actual
+resolved SIDs against metadata/recovery ownership; no fallback guesses identity
+or bypasses failed lookup. A remaining unresolved identity produces a clear
+maintenance refusal instead of the raw .NET Translate exception. The service
+account, stored password and running/stopped policy are not changed by this fix.
+Both the MSI DLL and desktop updater embed the script, so both are refreshed.
+The agent, renderer/exporter and runtime-linking policy remain unchanged.
+
+The guest account is separate from the host login. This repair fix is not a
+credential fix and makes no promise that a host password authenticates the guest
+service. Use a disposable ordinary-account VM for successful hosting acceptance.
+In the existing Sandbox, retry repair first: the stopped registered service must
+stay stopped, settings/data remain, and account translation must not fail. If an
+ownership or credential failure remains, retain its log instead of deleting the
+service/metadata to make the result pass. Then review ordinary removal/reinstall
+as separate cases. The original preparation delay remains open.
+
+### Exact P16.53 candidate and checks
+
+- Review copy: `C:\Users\Cameron\Downloads\msc2-p16.53-windows-x86_64.msi`.
+- Version: 0.1.23; unsigned local MSI; 19,746,816 bytes.
+- MSI SHA-256: `8515836fa62a3c5c12edaca3cc5b67814b16789d48a26d09bf2ac545f3afdad6`.
+- Packaged desktop SHA-256: `26b549bc3f912ec4f2c868683dc4fd7c2f09b5f4adba3a7500b9c50d3f159399`.
+- Embedded lifecycle DLL SHA-256: `d26271439022054b327c5209904f291c32461c574756a0833b3e0194798329b8`.
+- Code change: `P16.53: resolve local service account aliases for maintenance`.
+
+PowerShell parsing/embedded C# compilation, helper and desktop native release
+builds, both release Clippy checks, validated bundle-only packaging, normal/delay
+runtime import inspection and diff checks passed. The final desktop build refresh
+includes the final diagnostic wording. Cabinet comparison confirms the desktop
+matches its fresh binary with Tauri's expected MSI marker; the Binary stream
+matches the refreshed DLL. Both contain the normalized-account code and the DLL
+contains the unchanged four payload digests. Existing compiler warnings and the
+previously documented P16.49 desktop formatting issue remain; no Rust source was
+changed. No tests, installer/app/service execution or release publication ran.
+Physical repair acceptance remains Cameron's.

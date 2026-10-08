@@ -133,3 +133,13 @@ See the [P16.52 record](windows-msi-review.md#p1652---package-the-runtime-across
 for packaged-file digests and import/cabinet inspection. New candidate physical
 acceptance, original window geometry/preparation delay and independent review
 remain pending. Earlier published-release rows are unchanged.
+
+### P16.53 observed launch and repair failure
+
+P16.52 desktop launch is owner-observed in the supplied screenshot. After attempted
+Sandbox local service setup, SCM start failed with 1069; MSI repair then failed
+account translation. These are distinct observations. No successful hosting or
+repair PASS is recorded. P16.53 normalizes local-account shorthand without
+changing credentials or bypassing identity checks; candidate details and retry
+instructions are in the [Windows review packet](windows-msi-review.md#p1653---repair-local-account-identity-lookup).
+Physical retry and independent review remain pending.

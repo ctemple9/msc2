@@ -677,6 +677,15 @@
     const onMove = (event: PointerEvent) => moveDesktopLook(event);
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') releaseDesktopLook();
+      if (!depthOpen || !viewer) return;
+      // Capture before Vantage's window handler so depth shortcuts cannot pan
+      // the map, and Shift cannot also move the Fly camera downward.
+      if (event.key === 'Shift' || (event.shiftKey &&
+          ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key))) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (event.key !== 'Shift') depthKey(event);
+      }
     };
     window.addEventListener('pointermove', onMove, true);
     window.addEventListener('keydown', onKey, true);
@@ -841,7 +850,7 @@
         <div class="depth-track">
           <input id="terrain-depth" type="range" min={depthMin} max={depthMax} step="1"
             value={depthY} aria-label="Terrain depth Y"
-            title="Drag or use Up/Down. Left/Right changes the keyboard step."
+            title="Drag, or hold Shift and use Up/Down. Shift+Left/Right changes the step."
             onkeydown={depthKey}
             oninput={(event) => { setDepth(Number(event.currentTarget.value)); showDepthStep(); }} />
           {#if selectedDimension === 'minecraft:overworld' && depthMin <= 63 && depthMax >= 63}

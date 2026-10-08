@@ -353,3 +353,17 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Owner verification:** Open Depth in 2D, 3D and Fly; drag, focus and hold Up/Down, change step with Left/Right, and confirm clamping, sea marker and transient step label. Confirm slicing survives mode changes, Fly depth edits leave the camera still, and Home restores surface terrain.
 
 **Checks:** Frontend/Svelte check and production build passed with existing unrelated warnings; whitespace check passed. No tests run. Native slider dragging, held-key behavior and Fly camera acceptance remain for Cameron.
+
+
+### P18.53 — Route Shift arrows to visible depth controls
+
+**Status:** Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Capture Shift+arrow shortcuts at the window while Depth is open, before Vantage receives them. Shift+Up/Down adjusts depth with held-key repeat; Shift+Left/Right changes 1/4/16-block steps once per press. Slider focus is no longer required. Reserve Shift while Depth is open so Fly cannot simultaneously descend; key releases still reach map controls to clear held movement. Update the slider hint.
+**Verify:** `cd clients/desktop-web && npm run check`
+**Batch:** P18.53 only.
+**Commit:** `P18.53: route shift arrows to depth controls`
+
+**Owner verification:** With Depth open and without focusing the slider, hold Shift+Up/Down in 2D, 3D and Fly. Confirm depth changes without camera movement; tap Shift+Left/Right and confirm step changes. Close Depth and confirm normal Shift/camera controls return.
+
+**Checks:** Frontend check passed with zero errors and 11 existing unrelated warnings; whitespace check passed. No tests run. Desktop keyboard verification remains pending.

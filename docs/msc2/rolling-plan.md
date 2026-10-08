@@ -367,3 +367,17 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Owner verification:** With Depth open and without focusing the slider, hold Shift+Up/Down in 2D, 3D and Fly. Confirm depth changes without camera movement; tap Shift+Left/Right and confirm step changes. Close Depth and confirm normal Shift/camera controls return.
 
 **Checks:** Frontend check passed with zero errors and 11 existing unrelated warnings; whitespace check passed. No tests run. Desktop keyboard verification remains pending.
+
+
+### P18.54 — Use Alt or Option for depth shortcuts
+
+**Status:** Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Change visible-depth shortcuts to Alt/Option+arrows. Restore Shift handling to Vantage so Fly descent works even with Depth open. Preserve held Up/Down repeat and single-press Left/Right step selection; update the hint. Supersedes P18.53's Shift reservation.
+**Verify:** `cd clients/desktop-web && npm run check`
+**Batch:** P18.54 only.
+**Commit:** `P18.54: use alt option for depth shortcuts`
+
+**Owner verification:** Open Depth and hold Alt/Option+Up/Down; tap Alt/Option+Left/Right to change step. In Fly, confirm Shift still descends with Depth open.
+
+**Checks:** Frontend check passed with zero errors and 11 existing unrelated warnings; whitespace check passed. No tests run. Owner keyboard verification pending.

@@ -2,6 +2,17 @@
 
 Implemented steps awaiting verification were marked Done and moved to [the archive](rolling-plan-archive.md) at Cameron's direction on 2026-10-08. Planned work, pending publications and independent phase acceptance remain below.
 
+### P16.63 — Present v0.1.25 as current in the README
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `README.md`; this plan.
+**What:** At the owner's explicit request, present v0.1.25 as released: update the current release link, platform download links, Linux installer filenames and headless update example; describe the privacy cleanup in present tense. Preserve previous-version change descriptions and physical acceptance caveats. This documentation edit does not establish workflow completion; release monitoring remains stopped at the owner's request and the release tag is unchanged.
+**Verify:** `git show --check --stat --oneline HEAD`
+**Batch:** P16.63 only.
+**Commit:** `P16.63: update readme for v0.1.25 publication`
+
+**Checks:** Inspected release wording, download links and command examples; diff whitespace check passed. No tests, builds, release runs or monitoring.
+
 ### P16.62 — Publish v0.1.25 with anonymized examples
 
 **Status:** Prepared; publication requested, owner artifact verification pending.

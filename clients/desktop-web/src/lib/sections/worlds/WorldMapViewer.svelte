@@ -3,7 +3,7 @@
   import Select from '../../components/base/Select.svelte';
   import { isTauri } from '@tauri-apps/api/core';
   import { getCurrentWindow, LogicalPosition } from '@tauri-apps/api/window';
-  import type { WorldSource } from '@thoughts-on-things/vantage-mc/core';
+  import type { BiomeEntry, WorldSource } from '@thoughts-on-things/vantage-mc/core';
   import type {
     PlayerLayer,
     PlayerSnapshot,
@@ -43,6 +43,9 @@
   let refreshing = false;
   let canvas: HTMLDivElement;
   let viewer: VantageViewer | undefined;
+  let biomes: BiomeEntry[] = [];
+  let biomeEnabled = false;
+  let highlightedBiome: number | null = null;
   let alive = true;
   let loadGeneration = 0;
   let frameId = 0;
@@ -97,6 +100,8 @@
     playerLayer = undefined;
     viewer?.dispose();
     viewer = undefined;
+    biomes = [];
+    highlightedBiome = null;
   }
 
   function asBuffer(bytes: Uint8Array): ArrayBuffer {
@@ -168,6 +173,15 @@
             }
           : {}),
       });
+      opening.on('biomes', (entries) => {
+        if (alive && generation === loadGeneration) biomes = entries;
+      });
+      opening.on('biomelayer', (state) => {
+        if (alive && generation === loadGeneration) {
+          biomeEnabled = state.enabled;
+          highlightedBiome = state.highlight;
+        }
+      });
       if (serverType === 'bedrock') {
         opening.on('stats', (stats) => {
           if (!alive || generation !== loadGeneration) return;
@@ -183,6 +197,8 @@
       await opening.load({ world: source });
       if (!alive || generation !== loadGeneration) return;
       viewer = opening;
+      biomes = viewer.biomes;
+      viewer.setBiomeLayer(biomeEnabled);
       opening = undefined;
       const range = viewer.sliceRange;
       depthMin = Math.ceil(range.min + 2);
@@ -674,46 +690,79 @@
         {/if}
       </div>
     {/if}
-    <details class="players-panel" open>
-      <summary class="players-heading">
-        <span class="panel-caret" aria-hidden="true">▾</span>
-        <strong>Players</strong><span>{livePlayers.length}</span>
-      </summary>
-      {#if livePlayers.length === 0}
-        <p>{playerFeedStatus}</p>
-      {:else}
-        <ul>
-          {#each livePlayers as player (player.id)}
-            <li>
-              <div class="player-name">
-                <span>{player.name}</span>
-                {#if player.dimension !== selectedDimension}<small
-                    >{dimensions.find((entry) => entry.id === player.dimension)?.displayName ??
-                      player.dimension}</small
-                  >{/if}
-              </div>
-              <div class="player-actions">
-                <button
-                  type="button"
-                  disabled={!viewer}
-                  aria-label={`Fly to ${player.name}`}
-                  onclick={() => void focusPlayer(player, false)}>Fly</button
-                >
-                <button
-                  type="button"
-                  disabled={!viewer}
-                  aria-label={`${followedId === player.id ? 'Stop following' : 'Follow'} ${player.name}`}
-                  aria-pressed={followedId === player.id}
-                  onclick={() =>
-                    followedId === player.id ? stopFollowing() : void focusPlayer(player, true)}
-                  >{followedId === player.id ? 'Following' : 'Follow'}</button
-                >
-              </div>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    </details>
+    <aside class="map-panels" aria-label="Map layers">
+      <details class="players-panel" open>
+        <summary class="players-heading">
+          <span class="panel-caret" aria-hidden="true">▾</span>
+          <strong>Players</strong><span>{livePlayers.length}</span>
+        </summary>
+        {#if livePlayers.length === 0}
+          <p>{playerFeedStatus}</p>
+        {:else}
+          <ul>
+            {#each livePlayers as player (player.id)}
+              <li>
+                <div class="player-name">
+                  <span>{player.name}</span>
+                  {#if player.dimension !== selectedDimension}<small
+                      >{dimensions.find((entry) => entry.id === player.dimension)?.displayName ??
+                        player.dimension}</small
+                    >{/if}
+                </div>
+                <div class="player-actions">
+                  <button
+                    type="button"
+                    disabled={!viewer}
+                    aria-label={`Fly to ${player.name}`}
+                    onclick={() => void focusPlayer(player, false)}>Fly</button
+                  >
+                  <button
+                    type="button"
+                    disabled={!viewer}
+                    aria-label={`${followedId === player.id ? 'Stop following' : 'Follow'} ${player.name}`}
+                    aria-pressed={followedId === player.id}
+                    onclick={() =>
+                      followedId === player.id ? stopFollowing() : void focusPlayer(player, true)}
+                    >{followedId === player.id ? 'Following' : 'Follow'}</button
+                  >
+                </div>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </details>
+      <details class="players-panel biomes-panel">
+        <summary class="players-heading">
+          <span class="panel-caret" aria-hidden="true">▾</span>
+          <strong>Biomes</strong><span>{biomeEnabled ? 'On' : 'Off'}</span>
+        </summary>
+        <div class="player-actions">
+          <button type="button" disabled={!viewer || biomes.length === 0} aria-pressed={biomeEnabled}
+            onclick={() => {
+              if (biomeEnabled) viewer?.setHighlightedBiome(null);
+              viewer?.setBiomeLayer(!biomeEnabled);
+            }}>{biomeEnabled ? 'Hide biome colors' : 'Show biome colors'}</button>
+        </div>
+        {#if biomes.length === 0}
+          <p>{viewer ? 'Biome data unavailable for this terrain.' : 'Load terrain to see biomes.'}</p>
+        {:else}
+          <p>Click a biome to highlight it. Shares reflect loaded terrain.</p>
+          <ul>
+            {#each biomes as biome (biome.id)}
+              <li>
+                <button class="biome-row" type="button" title={biome.name}
+                  aria-pressed={highlightedBiome === biome.id}
+                  onclick={() => viewer?.setHighlightedBiome(highlightedBiome === biome.id ? null : biome.id)}>
+                  <span class="biome-swatch" style:background={`rgb(${biome.color.join(',')})`} aria-hidden="true"></span>
+                  <span class="biome-label">{biome.label}</span>
+                  <span class="biome-share">{Math.round(biome.fraction * 100)}%</span>
+                </button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </details>
+    </aside>
     {#if desktopLook}
       <div class="look-indicator" role="status">Mouse look active · Esc releases pointer</div>
     {/if}
@@ -947,10 +996,18 @@
     font-size: 12px;
     line-height: 1.5;
   }
-  .players-panel {
+  .map-panels {
     position: absolute;
     right: 16px;
     top: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    max-height: calc(100% - 90px);
+    overflow-y: auto;
+  }
+  .players-panel {
     width: 224px;
     padding: 12px 14px;
     background: #141417;
@@ -961,6 +1018,28 @@
   .players-panel:not([open]) {
     width: fit-content;
   }
+  .biomes-panel .player-actions { margin-top: 10px; }
+  .biomes-panel li { padding: 3px 0; border: 0; }
+  .biome-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: #f1f1f2;
+    font: inherit;
+    font-size: 11px;
+    padding: 5px 7px;
+    cursor: pointer;
+  }
+  .biome-row:hover { background: #242428; }
+  .biome-row[aria-pressed='true'] { background: #244b71; border-color: #568fc5; }
+  .biome-swatch { width: 10px; height: 10px; flex-shrink: 0; }
+  .biome-label { flex: 1; overflow-wrap: anywhere; }
+  .biome-share { color: #aeb4bb; font-variant-numeric: tabular-nums; }
   .players-panel summary,
   .map-caption summary {
     list-style: none;

@@ -263,3 +263,17 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Downloaded installers:** MSC cannot prove ownership of every renamed/moved installer or its original download location. Include verified MSC release installers in known download/update locations and let the operator explicitly select additional installers. Show every selected file before confirmation, validate its package/bundle identity or signed release checksum, and remove only those files. No filename-only recursive disk search. Never promise that an unknown original DMG has been found. A mounted disk image needs explicit unmount handling; if another application holds it open, report the remaining file instead of claiming full removal. Do not delete MSI/OS package-manager caches directly.
 
 **Completion contract:** Gracefully stop Minecraft and MSC-managed helpers before removing services/data. If shutdown or service removal fails, stop and report what remains. Remove the app through its OS installation mechanism: verified macOS bundle removal, Windows registered MSI uninstall, Linux owning package removal (or a verified standalone AppImage). Use a narrowly scoped detached continuation where the running app/command cannot remove itself. The continuation must validate its inventory again, propagate failures, and leave a readable result outside the deleted MSC trees; let the owner choose whether to retain that report. “Scheduled” is not “Uninstalled.” Reject unsupported/dev installations rather than deleting a source checkout. Clean up continuation files when finished.
+
+
+### P18.46 — Add biome colors and legend to the world viewer
+
+**Status:** Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Add a collapsed Biomes panel beneath Players with Vantage's existing biome colors and click-to-highlight legend. Update shares as tiles stream; preserve the color toggle across refresh/dimension changes and clear highlighting. Shares describe loaded terrain. Missing biome data is explicit. Generic modded shapes remain unchanged; D-042 stays in force. No tests added or run.
+**Verify:** `cd clients/desktop-web && npm run check && npm run build`
+**Batch:** P18.46 only.
+**Commit:** `P18.46: add world map biome colors and legend`
+
+**Owner visual verification:** Open the modded Java map, expand Biomes beneath Players, enable colors, select/deselect a biome, stream terrain, refresh and switch dimensions. Confirm the toggle persists, highlighting clears on reload, and both panels collapse independently.
+
+**Implementation checks:** Frontend type/Svelte check passed with zero errors and existing unrelated warnings; production build and whitespace check passed. No Rust changes or tests. Runtime visual acceptance remains pending.

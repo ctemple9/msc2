@@ -187,3 +187,15 @@ For current Windows package/full-removal acceptance, use W16/W17 in the
 [P16.50 consolidated checklist](../release/windows-msi-review.md#p1650--consolidated-owner-acceptance-and-independent-review-handoff).
 Use the P16.49 candidate, which also corrects automatic-start restoration. No
 physical full-removal PASS has been recorded for this candidate.
+
+### Windows continuation correction (P16.57)
+
+Windows returns the worker executable with an ordinary drive path, while the
+private job directory is saved with the extended `\\?\` prefix. Both paths are
+now canonicalized before validating that the job is beside the worker. Previously
+that mismatch rejected the continuation before its result report was written.
+The Windows worker also inherits the reviewed environment rather than injecting
+a new data-directory override. Linux/macOS continuation behavior is unchanged.
+Reinstall the corrected local MSI before retrying Settings full removal, and
+retain its report. An ordinary MSI Remove still preserves data and credentials;
+it is not a substitute for this confirmed full-removal flow.

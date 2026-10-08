@@ -270,8 +270,13 @@ fn schedule(job: Job, data_dir: &Path, quiet: bool) -> Result<Scheduled, CliErro
                 "--apply",
             ])
             .arg(&job_path)
-            .env("MSC2_DATA_DIR", data_dir)
             .stdin(Stdio::null());
+        // Preserve the preview's Windows environment; service discovery already
+        // supplies its data directory. A new override changes the inventory.
+        #[cfg(not(windows))]
+        command.env("MSC2_DATA_DIR", data_dir);
+        #[cfg(windows)]
+        let _ = data_dir;
         if job.desktop_pid.is_some() || quiet {
             command.stdout(Stdio::null()).stderr(Stdio::null());
         }
@@ -293,6 +298,15 @@ fn schedule(job: Job, data_dir: &Path, quiet: bool) -> Result<Scheduled, CliErro
 
 async fn apply(common: &CommonArgs, job_path: &Path) -> Result<(), CliError> {
     let worker = std::env::current_exe().map_err(|error| CliError::internal(error.to_string()))?;
+    // Windows current_exe omits the extended prefix used by canonicalize when
+    // the private job is created. Compare the same path representation.
+    #[cfg(windows)]
+    let worker = fs::canonicalize(worker).map_err(|error| CliError::internal(error.to_string()))?;
+    #[cfg(windows)]
+    let canonical_job =
+        fs::canonicalize(job_path).map_err(|error| CliError::internal(error.to_string()))?;
+    #[cfg(windows)]
+    let job_path = canonical_job.as_path();
     let directory = worker
         .parent()
         .ok_or_else(|| CliError::usage("Invalid worker location."))?;

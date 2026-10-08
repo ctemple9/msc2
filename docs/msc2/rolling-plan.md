@@ -189,6 +189,16 @@
 **Commit:** `P16.56: correct windows uninstall discovery`
 **Checks:** Changed-file Rust formatting, desktop and agent Clippy, full release MSI build and embedded cabinet file comparisons passed with existing warnings. Read-only native uninstall preview against the actual installed package/service reports zero blocked targets, including when launched from the repository. The packaged desktop uses Windows GUI subsystem 2 (P16.55). Downloads candidate: `C:\Users\Cameron\Downloads\msc2-0.1.23-windows-x86_64-local.msi`; SHA256 `03e86bd05529c0a06d676c3c35984950c783ffa37c2695e1ecc59c618b7a9a41`. No live uninstall, service mutation, tests or release publication. Actual Settings preview/removal and Linux physical acceptance remain Cameron's verification.
 
+### P16.57 - Correct Windows uninstall continuation paths
+
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `crates/msc-agent/src/cli/uninstall.rs`, `docs/msc2/clients/local-uninstall.md`, this plan.
+**What:** Canonicalize the Windows worker executable and job paths before comparing their private directory. Windows current_exe strips the extended prefix used when scheduling; the old comparison refused its own continuation before producing a result. Preserve the Windows preview environment rather than adding a data-directory override in the worker. Linux/macOS path validation and continuation environment remain unchanged. No tests added or run for this OS path representation correction.
+**Verify:** From `clients/desktop-web`, run `npx tauri build --bundles msi --no-sign`; install, use Settings full uninstall with a retained result report, and confirm service/data/credentials/package removal while preserving the repository.
+**Batch:** P16.57 only.
+**Commit:** `P16.57: normalize windows uninstall continuation paths`
+**Checks:** Rust formatting and agent Clippy passed with existing warnings. Read-only Windows executable-path inspection reproduced the unequal normal/extended-prefix paths and confirmed normalization makes the directory comparison equal. The abandoned worker/job existed without a result report; its help command ran, ruling out a missing runtime for that executable. Live full cleanup remains owner verification; no destructive command or tests run.
+
 ### P16.54 - Normalize executable paths in service ownership checks
 
 **Status:** Implemented; awaiting Cameron's verification; owner-authorized continuation after P16.53 update reports that the service executable differs from metadata.

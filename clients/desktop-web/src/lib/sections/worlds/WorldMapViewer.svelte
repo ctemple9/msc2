@@ -755,7 +755,7 @@
                 <button class="biome-row" type="button" title={biome.name}
                   aria-pressed={highlightedBiome === biome.id}
                   onclick={() => viewer?.setHighlightedBiome(highlightedBiome === biome.id ? null : biome.id)}>
-                  <span class="biome-swatch" style:background={`rgb(${biome.color.join(',')})`} aria-hidden="true"></span>
+                  <span class="biome-swatch" style:background={`rgb(${biome.color.map((channel) => Math.round(channel * 255)).join(',')})`} aria-hidden="true"></span>
                   <span class="biome-label">{biome.label}</span>
                   <span class="biome-share">{Math.round(biome.fraction * 100)}%</span>
                 </button>

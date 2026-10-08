@@ -289,3 +289,15 @@ into main; no release publication or exact-artifact acceptance is implied.
 **Commit:** `P18.47: move biome panel to top left`
 
 **Checks:** Svelte/frontend check passed with 0 errors and 11 existing unrelated warnings; whitespace check passed. No tests run. Owner visual verification pending.
+
+
+### P18.48 — Correct biome legend color values
+
+**Status:** Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Convert Vantage's RGB channels from 0–1 to CSS RGB's 0–255 scale. The previous direct conversion made every legend swatch nearly black. Match the renderer's categorical biome palette.
+**Verify:** `cd clients/desktop-web && npm run check`
+**Batch:** P18.48 only.
+**Commit:** `P18.48: correct biome legend color scale`
+
+**Checks:** Frontend check passed with zero errors and 11 existing unrelated warnings; whitespace check passed. No tests run. Cameron should reopen Biomes and compare the swatches with the colored terrain.

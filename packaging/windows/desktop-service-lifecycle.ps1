@@ -205,12 +205,19 @@ public static class MscLifecyclePaths {
     function Assert-Definition($svc, $meta) {
         if ((Account-Sid $svc.StartName) -ne (Account-Sid $meta.run_user)) { throw 'The service account differs from its recorded owner.' }
         $binary = Guard-Path $meta.binary_path
-        $prefix = '"' + $binary + '"'
-        if (-not $svc.PathName.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
-            $prefix = $binary
-            if ($binary.Contains(' ') -or -not $svc.PathName.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) { throw 'The service executable differs from its recorded installation.' }
+        # Rust's copied-build path can contain mixed separators. Compare guarded
+        # executable paths, not a normalized path against the raw SCM command.
+        $command = [string]$svc.PathName
+        if ($command -match '^"([^"\r\n]+)"(\s+.*)$') {
+            $executable = $Matches[1]
+            $tail = $Matches[2]
+        } elseif ($command -match '^([^\s"]+)(\s+.*)$') {
+            $executable = $Matches[1]
+            $tail = $Matches[2]
+        } else {
+            throw 'The local service executable is not an unambiguous Windows command.'
         }
-        $tail = $svc.PathName.Substring($prefix.Length)
+        if (-not (Same-Path $executable $binary)) { throw 'The service executable differs from its recorded installation.' }
         if ($tail -notmatch '^\s+service-run\s+--service-name\s+com\.ctemple\.msc2\.agent\s+--bind\s+127\.0\.0\.1:[0-9]+$' -or $tail.Trim() -ne "service-run --service-name $serviceName --bind 127.0.0.1:$($meta.expected_port)") {
             throw 'The service command is not the fixed local MSC service entry point.'
         }

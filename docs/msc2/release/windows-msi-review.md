@@ -957,3 +957,55 @@ contains the unchanged four payload digests. Existing compiler warnings and the
 previously documented P16.49 desktop formatting issue remain; no Rust source was
 changed. No tests, installer/app/service execution or release publication ran.
 Physical repair acceptance remains Cameron's.
+
+## P16.54 - Normalize the service executable before comparison
+
+**Status:** Implemented; awaiting Cameron's same-state update/repair verification.
+Cameron's P16.53 screenshot shows update mode, followed by preparation refusal:
+`The service executable differs from its recorded installation.` This is an update
+failure; no successful repair or service replacement is recorded. It advances
+beyond the preceding account-translation exception but does not prove full recovery.
+
+Source inspection found that the desktop stages the agent beneath
+`data_directory.join("agent/builds")`, so Windows paths can contain mixed forward
+and backward separators. The service writer renders that path into SCM's command
+and metadata. The installer normalized metadata with `Guard-Path` but compared
+that result to a raw SCM prefix. Equivalent path spellings can therefore fail.
+The exact guest SCM command has not been supplied; this is a concrete source defect
+consistent with the reported refusal, not a claim that the guest command was read.
+
+`Assert-Definition` now extracts either a quoted executable token or an unquoted
+no-whitespace token, then uses the existing guarded normalized-path comparison on
+both sides. Ambiguous commands still refuse maintenance. The tail must still be
+the fixed `service-run --service-name com.ctemple.msc2.agent --bind 127.0.0.1:port`
+with the metadata port. Account SID, profile/data roots, copied-build hashes,
+protected ownership and transaction checks remain enforced. No prefix-only match,
+service re-registration, credential change or ownership bypass is introduced.
+Both the helper DLL and updater embed this script and are rebuilt.
+
+Use the new candidate in the same Sandbox, close MSC and proceed through update
+mode if offered. After the update actually succeeds, reopening its installed MSI
+can exercise Repair separately. Do not call an update result a repair result.
+The registered guest service should remain stopped; its prior failed credentials
+are neither repaired nor replaced by package maintenance. Keep Sandbox and logs
+if another refusal appears. Window geometry, preparation delay, normal-account
+service logon, signed update recovery and independent review remain open.
+
+### Exact P16.54 candidate and checks
+
+- Review copy: `C:\Users\Cameron\Downloads\msc2-p16.54-windows-x86_64.msi`.
+- Version: 0.1.23; unsigned local MSI; 19,746,816 bytes.
+- MSI SHA-256: `054a0da809b008cd51904c8b6cc1a827c815e2e6e49020a11b054265371cb2cf`.
+- Packaged desktop SHA-256: `f189df7834bb2b693cdf04b979929a9f9dcbf4a3a846daced3e4ffa361cb485d`.
+- Embedded lifecycle DLL SHA-256: `0587665d8194ffc40273f2a0a642b46b2c1f330c5445367e01ddca1266e8166c`.
+- Code change: `P16.54: normalize service executable ownership comparisons`.
+
+PowerShell parsing and embedded C# compilation, desktop/helper release builds and
+Clippy, validated bundle-only packaging and diff checks passed with existing
+warnings. No external VC++ dependency returned in normal/delay import inspection.
+MSI cabinet desktop bytes match the fresh binary with the expected Tauri MSI marker;
+its lifecycle Binary matches the refreshed helper. Both contain the new path
+comparison, and all four compiled payload digests still match staging. The prior
+P16.49 formatting limitation remains; no Rust source changed. No tests, live
+installer/app/service operations or release publication ran. Same-state update,
+subsequent Repair and independent acceptance remain pending with Cameron.

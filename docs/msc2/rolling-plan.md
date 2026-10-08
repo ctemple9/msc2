@@ -170,6 +170,18 @@
 **Commit:** `P16.53: resolve local service account aliases for maintenance`
 **Checks:** Read-only real-account lookup reproduced dot-prefix failure and resolved the equivalent qualified name. PowerShell parsing/C# compilation, helper/desktop release builds and Clippy, validated MSI bundle, runtime import inspection and embedded code/DLL/desktop/payload-hash comparisons passed with existing warnings. No tests, live installation/service operations or publication. Retry `C:\Users\Cameron\Downloads\msc2-p16.53-windows-x86_64.msi` in the same disposable stopped-service state; exact digest in review packet. Original guest SCM name remains uninspected; identity failures still refuse maintenance.
 
+### P16.54 - Normalize executable paths in service ownership checks
+
+**Status:** Implemented; awaiting Cameron's verification; owner-authorized continuation after P16.53 update reports that the service executable differs from metadata.
+**Files:** `packaging/windows/desktop-service-lifecycle.ps1`, Windows MSI review/acceptance packet, this plan.
+**What:** Extract an unambiguous executable token from SCM's command, compare guarded normalized paths on both sides, and retain exact fixed service arguments and account/payload ownership checks. Rebuild both embedding native consumers and provide a new candidate for the existing Sandbox state.
+**Verify:** From `clients/desktop-web`, run `npx tauri bundle --bundles msi --no-sign` after refreshing helper and desktop release binaries.
+**Batch:** P16.54 only.
+**Manual acceptance:** Cameron updates the existing Sandbox installation, checks ownership preparation succeeds and the service remains stopped, then reopens the installed MSI for actual Repair. Record any further errors honestly. No credential change or original window-size fix is implied.
+
+**Commit:** `P16.54: normalize service executable ownership comparisons`
+**Checks:** PowerShell parsing/C# compilation, both embedding release builds and Clippy, validated MSI packaging, runtime imports and embedded code/DLL/cabinet-desktop/payload-hash inspection passed with existing warnings. No tests, live installer/service actions or release publication. Review copy `C:\Users\Cameron\Downloads\msc2-p16.54-windows-x86_64.msi`; exact digest in review packet. The exact guest command remains uninspected; next owner retry must distinguish update from Repair.
+
 ### P18.48 — Quiet cleanup preview typography
 
 **Status:** Implemented; awaiting Cameron's visual verification. EXECUTE scope: owner-requested preview styling correction.

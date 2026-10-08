@@ -143,3 +143,13 @@ repair PASS is recorded. P16.53 normalizes local-account shorthand without
 changing credentials or bypassing identity checks; candidate details and retry
 instructions are in the [Windows review packet](windows-msi-review.md#p1653---repair-local-account-identity-lookup).
 Physical retry and independent review remain pending.
+
+### P16.54 service-path comparison follow-up
+
+P16.53 opened in update mode and refused service executable ownership comparison,
+as shown in Cameron's screenshot. No successful update or Repair is recorded.
+P16.54 compares guarded normalized executable paths while retaining fixed command
+and ownership checks. Exact candidate and check evidence are in the
+[Windows review packet](windows-msi-review.md#p1654---normalize-the-service-executable-before-comparison).
+The guest SCM command remains uninspected; physical retry and independent review
+remain pending. Published-release observations are unchanged.

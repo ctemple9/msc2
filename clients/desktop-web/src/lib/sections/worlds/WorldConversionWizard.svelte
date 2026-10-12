@@ -78,7 +78,7 @@
       if (!response.javaAvailable) {
         formatsState = {
           kind: 'unavailable',
-          message: 'Java is required on the agent to run Chunker. Install Java, then try again.',
+          message: 'Java 17 or newer is required on the agent to run Chunker. Install or repair Java in MSC’s Java settings, then try again.',
         };
       } else if (response.downloading) {
         formatsState = { kind: 'downloading', statusLine: 'Chunker is downloading…' };

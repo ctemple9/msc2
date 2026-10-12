@@ -186,16 +186,36 @@ pub async fn convert_formats(
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
         return response;
     }
-    let converter = LiveWorldConverter;
-    let java_available = converter.resolve_java_path("").is_some();
-    let installed = converter.is_installed();
-    let formats = if installed && java_available {
-        converter
-            .resolve_java_path("")
-            .map(|path| converter.supported_formats(&path))
-            .unwrap_or_default()
-    } else {
-        Vec::new()
+    let configured_java = lifecycle.app_config_snapshot().java_path;
+    let lookup = tokio::task::spawn_blocking(move || -> Result<_, String> {
+        msc_infrastructure::chunker::migrate_legacy_installation()
+            .map_err(|error| error.to_string())?;
+        let converter = LiveWorldConverter;
+        let installed = converter.is_installed();
+        let (java_available, formats) = if installed {
+            let (_, formats) = converter.runtime_with_formats(&configured_java)?;
+            (true, formats)
+        } else {
+            (
+                converter.resolve_java_path(&configured_java).is_some(),
+                Vec::new(),
+            )
+        };
+        Ok((installed, java_available, formats))
+    })
+    .await;
+    let (installed, java_available, formats) = match lookup {
+        Ok(Ok(result)) => result,
+        Ok(Err(message)) => {
+            return error_response(StatusCode::CONFLICT, "chunker_unavailable", &message);
+        }
+        Err(error) => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "chunker_check_failed",
+                &error.to_string(),
+            );
+        }
     };
     let response = Json(WorldConvertFormatsResponseDto {
         formats,
@@ -4341,21 +4361,29 @@ pub async fn convert(
     };
 
     let converter = LiveWorldConverter;
-    let Some(resolved_java_path) = converter.resolve_java_path("") else {
-        return error_response(
-            StatusCode::CONFLICT,
-            "capability_unavailable",
-            "No Java runtime could be resolved for Chunker.",
-        );
+    let configured_java = lifecycle.app_config_snapshot().java_path;
+    let lookup = tokio::task::spawn_blocking(move || {
+        msc_infrastructure::chunker::migrate_legacy_installation()
+            .map_err(|error| error.to_string())?;
+        if !LiveWorldConverter.is_installed() {
+            return Err("Chunker is not installed on this agent.".into());
+        }
+        LiveWorldConverter.runtime_with_formats(&configured_java)
+    })
+    .await;
+    let (resolved_java_path, supported_formats) = match lookup {
+        Ok(Ok(result)) => result,
+        Ok(Err(message)) => {
+            return error_response(StatusCode::CONFLICT, "chunker_unavailable", &message);
+        }
+        Err(error) => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "chunker_check_failed",
+                &error.to_string(),
+            );
+        }
     };
-    if !converter.is_installed() {
-        return error_response(
-            StatusCode::CONFLICT,
-            "capability_unavailable",
-            "Chunker is not installed on this agent.",
-        );
-    }
-    let supported_formats = converter.supported_formats(&resolved_java_path);
     if !supported_formats.contains(&body.target_format) {
         return invalid_body(
             "unsupported_target_format",
@@ -4558,10 +4586,8 @@ pub async fn convert(
 }
 
 // =====================================================================
-// Production `WorldConverter` — real java-path resolution and a real
-// Chunker jar-path check; deliberately does **not** implement the
-// GitHub-release auto-download flow (a separate, larger feature with no
-// route/fixture in this contract calling for it) — see the P6.21 report.
+// Production converter: shared managed-Java discovery, bounded format probes,
+// and the same resolved runtime for preflight and conversion.
 // =====================================================================
 
 #[derive(Default)]
@@ -4571,6 +4597,126 @@ impl LiveWorldConverter {
     fn chunker_jar_path() -> PathBuf {
         msc_infrastructure::chunker::jar_path()
     }
+
+    fn java_candidates(configured: &str) -> Vec<String> {
+        use msc_infrastructure::java_runtime_detection::{
+            detect_installed_java_runtimes, normalized_java_executable_path,
+        };
+        let mut candidates = Vec::new();
+        if !configured.trim().is_empty() {
+            candidates.push(configured.to_string());
+        }
+        // Use the same managed and system locations as MSC's Java settings.
+        candidates.extend(
+            detect_installed_java_runtimes(
+                &StdFileSystem,
+                &super::versions::java_runtime_search_roots(),
+            )
+            .into_iter()
+            .map(|runtime| runtime.executable_path),
+        );
+        if let Some(home) = std::env::var_os("JAVA_HOME") {
+            candidates.push(PathBuf::from(home).to_string_lossy().into_owned());
+        }
+        candidates.extend(
+            [
+                "java",
+                "/usr/bin/java",
+                "/usr/local/bin/java",
+                "/opt/homebrew/bin/java",
+            ]
+            .map(str::to_string),
+        );
+        let mut normalized = Vec::new();
+        for candidate in candidates {
+            if let Ok(path) = normalized_java_executable_path(&StdFileSystem, &candidate)
+                && !normalized.contains(&path)
+            {
+                normalized.push(path);
+            }
+        }
+        normalized
+    }
+
+    fn runtime_with_formats(&self, configured: &str) -> Result<(String, Vec<String>), String> {
+        msc_infrastructure::chunker::select_runtime_with_formats(
+            Self::java_candidates(configured),
+            Self::query_formats,
+        )
+    }
+
+    fn query_formats(java: &str) -> Result<Vec<String>, String> {
+        let jar = Self::chunker_jar_path();
+        let jar = jar
+            .to_str()
+            .ok_or_else(|| "Chunker path is not valid UTF-8".to_string())?;
+        let output = bounded_java_output(java, &["-jar", jar, "-f", "?"])?;
+        let combined = format!(
+            "{} {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let mut formats = Vec::new();
+        for token in combined.split(|c: char| !c.is_alphanumeric() && c != '_') {
+            if is_chunker_format_token(token) && !formats.iter().any(|format| format == token) {
+                formats.push(token.to_string());
+            }
+        }
+        // Chunker deliberately uses an invalid format to print its supported list,
+        // so a nonzero exit with real format tokens is a successful discovery.
+        if formats.is_empty() {
+            return Err(format!(
+                "{java}: Chunker returned no conversion formats ({}). {}",
+                output.status,
+                combined.trim().chars().take(2000).collect::<String>()
+            ));
+        }
+        Ok(formats)
+    }
+}
+
+/// Bound discovery time/output so a broken runtime cannot hang the agent.
+fn bounded_java_output(java: &str, args: &[&str]) -> Result<std::process::Output, String> {
+    use std::io::Read;
+    use std::process::{Command, Stdio};
+    let mut child = Command::new(java)
+        .args(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| format!("{java}: {error}"))?;
+    let stdout = child.stdout.take().expect("piped stdout");
+    let stderr = child.stderr.take().expect("piped stderr");
+    let read = |stream: Box<dyn Read + Send>| {
+        let mut bytes = Vec::new();
+        let _ = stream.take(64 * 1024).read_to_end(&mut bytes);
+        bytes
+    };
+    let out = std::thread::spawn(move || read(Box::new(stdout)));
+    let err = std::thread::spawn(move || read(Box::new(stderr)));
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break Ok(status),
+            Ok(None) if std::time::Instant::now() < deadline => {
+                std::thread::sleep(std::time::Duration::from_millis(25))
+            }
+            result => {
+                let _ = child.kill();
+                let _ = child.wait();
+                break Err(format!(
+                    "{java}: Java/Chunker discovery failed or exceeded 20 seconds: {result:?}"
+                ));
+            }
+        }
+    };
+    let stdout = out.join().unwrap_or_default();
+    let stderr = err.join().unwrap_or_default();
+    Ok(std::process::Output {
+        status: status?,
+        stdout,
+        stderr,
+    })
 }
 
 impl WorldConverter for LiveWorldConverter {
@@ -4579,32 +4725,19 @@ impl WorldConverter for LiveWorldConverter {
     }
 
     fn resolve_java_path(&self, configured_java_path: &str) -> Option<String> {
-        if !configured_java_path.trim().is_empty()
-            && let Ok(path) =
-                msc_infrastructure::java_runtime_detection::normalized_java_executable_path(
-                    &StdFileSystem,
-                    configured_java_path,
-                )
-        {
-            return Some(path);
-        }
-        for candidate in [
-            "/usr/bin/java",
-            "/usr/local/bin/java",
-            "/opt/homebrew/bin/java",
-        ] {
-            if std::fs::metadata(candidate).is_ok() {
-                return Some(candidate.to_string());
-            }
-        }
-        std::process::Command::new("which")
-            .arg("java")
-            .output()
-            .ok()
-            .filter(|output| output.status.success())
-            .and_then(|output| String::from_utf8(output.stdout).ok())
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
+        Self::java_candidates(configured_java_path)
+            .into_iter()
+            .find(|candidate| {
+                bounded_java_output(candidate, &["-version"]).is_ok_and(|output| {
+                    output.status.success()
+                        && msc_domain::java_runtime::parse_major(&format!(
+                            "{} {}",
+                            String::from_utf8_lossy(&output.stdout),
+                            String::from_utf8_lossy(&output.stderr)
+                        ))
+                        .is_some_and(|major| major >= 17)
+                })
+            })
     }
 
     fn convert(
@@ -4664,29 +4797,7 @@ impl WorldConverter for LiveWorldConverter {
     }
 
     fn supported_formats(&self, resolved_java_path: &str) -> Vec<String> {
-        use std::process::Command;
-
-        let jar_path = Self::chunker_jar_path();
-        let Ok(output) = Command::new(resolved_java_path)
-            .arg("-jar")
-            .arg(&jar_path)
-            .arg("-f")
-            .arg("?")
-            .output()
-        else {
-            return Vec::new();
-        };
-        let mut combined = String::from_utf8_lossy(&output.stdout).into_owned();
-        combined.push(' ');
-        combined.push_str(&String::from_utf8_lossy(&output.stderr));
-
-        let mut results = Vec::new();
-        for token in combined.split(|c: char| !c.is_alphanumeric() && c != '_') {
-            if is_chunker_format_token(token) && !results.contains(&token.to_string()) {
-                results.push(token.to_string());
-            }
-        }
-        results
+        Self::query_formats(resolved_java_path).unwrap_or_default()
     }
 }
 

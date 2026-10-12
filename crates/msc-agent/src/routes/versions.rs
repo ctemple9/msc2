@@ -767,34 +767,39 @@ fn change_version_error_code(error: &ChangeVersionError) -> &'static str {
 
 // ---------- GET /v1/java-runtimes ----------
 
-pub async fn java_runtimes(State(state): State<LifecycleRoutesState>) -> Response {
+pub(super) fn java_runtime_search_roots() -> Vec<String> {
     let home_dir = agent_home_dir();
     let host = current_host_os();
-    let configured_path = state.app_config_snapshot().java_path;
-    let detected = tokio::task::spawn_blocking(move || {
-        let mut roots = vec![runtimes_root().to_string_lossy().into_owned()];
-        // The desktop service uses Roaming through MSC2_DATA_DIR, while
-        // runtimes installed by an earlier/default agent live under Local.
-        // Discover both so Repair does not hide already installed Windows JDKs.
-        if host == HostOs::Windows {
-            // SCM services may lack the interactive user's LOCALAPPDATA.
-            // The desktop installer explicitly records HOME for this user.
-            roots.push(
-                home_dir
-                    .join("AppData/Local/MSC2/runtimes")
-                    .to_string_lossy()
-                    .into_owned(),
-            );
-            if let Some(local_app_data) = std::env::var_os("LOCALAPPDATA")
-                && !local_app_data.is_empty()
-            {
-                let local_runtimes = PathBuf::from(local_app_data).join("MSC2").join("runtimes");
-                if local_runtimes != runtimes_root() {
-                    roots.push(local_runtimes.to_string_lossy().into_owned());
-                }
+    let mut roots = vec![runtimes_root().to_string_lossy().into_owned()];
+    // The desktop service uses Roaming through MSC2_DATA_DIR, while
+    // runtimes installed by an earlier/default agent live under Local.
+    // Discover both so Repair does not hide already installed Windows JDKs.
+    if host == HostOs::Windows {
+        // SCM services may lack the interactive user's LOCALAPPDATA.
+        // The desktop installer explicitly records HOME for this user.
+        roots.push(
+            home_dir
+                .join("AppData/Local/MSC2/runtimes")
+                .to_string_lossy()
+                .into_owned(),
+        );
+        if let Some(local_app_data) = std::env::var_os("LOCALAPPDATA")
+            && !local_app_data.is_empty()
+        {
+            let local_runtimes = PathBuf::from(local_app_data).join("MSC2").join("runtimes");
+            if local_runtimes != runtimes_root() {
+                roots.push(local_runtimes.to_string_lossy().into_owned());
             }
         }
-        roots.extend(default_java_runtime_search_roots(host, &home_dir));
+    }
+    roots.extend(default_java_runtime_search_roots(host, &home_dir));
+    roots
+}
+
+pub async fn java_runtimes(State(state): State<LifecycleRoutesState>) -> Response {
+    let configured_path = state.app_config_snapshot().java_path;
+    let detected = tokio::task::spawn_blocking(move || {
+        let roots = java_runtime_search_roots();
         let mut detected =
             java_runtime_detection::detect_installed_java_runtimes(&StdFileSystem, &roots);
 

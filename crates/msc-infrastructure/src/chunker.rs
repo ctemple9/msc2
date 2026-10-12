@@ -73,10 +73,90 @@ struct ReleaseAsset {
     digest: Option<String>,
 }
 
+/// Try real format discovery rather than accepting a launcher merely because it exists.
+pub fn select_runtime_with_formats(
+    candidates: Vec<String>,
+    mut query: impl FnMut(&str) -> Result<Vec<String>, String>,
+) -> Result<(String, Vec<String>), String> {
+    let mut failures = Vec::new();
+    for candidate in candidates {
+        match query(&candidate) {
+            Ok(formats) if !formats.is_empty() => return Ok((candidate, formats)),
+            Ok(_) => failures.push(format!("{candidate}: no conversion formats returned")),
+            Err(error) => failures.push(error),
+        }
+    }
+    Err(format!(
+        "MSC could not run Chunker with the available Java runtimes. Chunker requires Java 17 or newer. Install or repair Java in MSC's Java settings.\n{}",
+        failures.join("\n")
+    ))
+}
+
 pub fn jar_path() -> PathBuf {
     std::env::var_os("MSC2_CHUNKER_JAR_PATH")
         .map(PathBuf::from)
-        .unwrap_or_else(|| app_support_directory().join("chunker-cli.jar"))
+        .unwrap_or_else(|| crate::config_repository::default_app_data_dir().join("chunker-cli.jar"))
+}
+
+/// Move only Chunker's own cache files; the legacy directory may hold unrelated state.
+pub fn migrate_legacy_installation() -> Result<(), ChunkerError> {
+    static MIGRATION: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _guard = MIGRATION
+        .lock()
+        .map_err(|_| ChunkerError::Filesystem("Chunker migration lock failed".into()))?;
+    if std::env::var_os("MSC2_CHUNKER_JAR_PATH").is_some() {
+        return Ok(());
+    }
+    let old = legacy_app_support_directory().join("chunker-cli.jar");
+    let new = jar_path();
+    if old == new || new.exists() || !old.is_file() {
+        return Ok(());
+    }
+    migrate_cache(&crate::fs::StdFileSystem, &old, &new)?;
+    if let Some(parent) = old.parent() {
+        // remove_dir only removes an empty directory, never other application data.
+        let _ = std::fs::remove_dir(parent);
+    }
+    Ok(())
+}
+
+fn migrate_cache(fs: &dyn FileSystem, old: &Path, new: &Path) -> Result<(), ChunkerError> {
+    let error =
+        |error: std::io::Error| ChunkerError::Filesystem(format!("migrate Chunker cache: {error}"));
+    let bytes = fs.read(old).map_err(error)?;
+    validate_jar(&bytes)?;
+    let old_metadata = old.with_file_name("chunker-cli.jar.metadata.json");
+    let new_metadata = new.with_file_name("chunker-cli.jar.metadata.json");
+    let metadata = match fs.read(&old_metadata) {
+        Ok(bytes) => Some(bytes),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(cause) => return Err(error(cause)),
+    };
+    fs.create_dir_all(
+        new.parent()
+            .ok_or_else(|| ChunkerError::Filesystem("Chunker cache has no parent".into()))?,
+    )
+    .map_err(error)?;
+    if let Some(metadata) = &metadata {
+        atomic_write(fs, &new_metadata, metadata)
+            .map_err(|cause| ChunkerError::Filesystem(cause.to_string()))?;
+    }
+    atomic_write(fs, new, &bytes).map_err(|cause| ChunkerError::Filesystem(cause.to_string()))?;
+    if fs.read(new).map_err(error)? != bytes {
+        return Err(ChunkerError::Filesystem(
+            "Migrated Chunker JAR readback mismatch; original retained".into(),
+        ));
+    }
+    if let Some(metadata) = &metadata {
+        if fs.read(&new_metadata).map_err(error)? != *metadata {
+            return Err(ChunkerError::Filesystem(
+                "Migrated Chunker metadata readback mismatch; original retained".into(),
+            ));
+        }
+        fs.remove(&old_metadata).map_err(error)?;
+    }
+    fs.remove(old).map_err(error)?;
+    Ok(())
 }
 
 pub fn metadata_path() -> PathBuf {
@@ -190,7 +270,7 @@ pub fn download_latest(
     })
 }
 
-fn app_support_directory() -> PathBuf {
+fn legacy_app_support_directory() -> PathBuf {
     if let Some(home) = std::env::var_os("HOME") {
         let home = PathBuf::from(home);
         #[cfg(target_os = "macos")]
@@ -291,4 +371,65 @@ fn jar_asset(release: &ReleaseMetadata) -> Result<&ReleaseAsset, ChunkerError> {
     }
 
     Ok(asset)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::fs::FakeFileSystem;
+    use std::io::Write;
+
+    #[test]
+    fn runtime_selection_skips_broken_launchers_and_preserves_failure_details() {
+        let candidates = vec![
+            "managed-java".into(),
+            "system-stub".into(),
+            "working-java".into(),
+        ];
+        let chosen = select_runtime_with_formats(candidates.clone(), |path| match path {
+            "managed-java" => Ok(Vec::new()),
+            "system-stub" => Err("Unable to locate a Java Runtime".into()),
+            _ => Ok(vec!["BEDROCK_1_21_0".into()]),
+        })
+        .unwrap();
+        assert_eq!(chosen.0, "working-java");
+        assert_eq!(chosen.1, vec!["BEDROCK_1_21_0"]);
+        let failure =
+            select_runtime_with_formats(candidates, |_| Err("UnsupportedClassVersionError".into()))
+                .unwrap_err();
+        assert!(failure.contains("UnsupportedClassVersionError"));
+        assert!(failure.contains("Java 17"));
+    }
+
+    #[test]
+    fn cache_migration_preserves_metadata_and_originals_on_failed_promotion() {
+        let old = Path::new("/old/chunker-cli.jar");
+        let new = Path::new("/data/chunker-cli.jar");
+        let old_meta = Path::new("/old/chunker-cli.jar.metadata.json");
+        let new_meta = Path::new("/data/chunker-cli.jar.metadata.json");
+        let mut archive = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        archive
+            .start_file(
+                "META-INF/MANIFEST.MF",
+                zip::write::SimpleFileOptions::default(),
+            )
+            .unwrap();
+        archive.write_all(b"Manifest-Version: 1.0\n").unwrap();
+        let jar = archive.finish().unwrap().into_inner();
+        let metadata = br#"{"version":"example","sha256":"example"}"#;
+        let fs = FakeFileSystem::new()
+            .with_file(old, jar.clone(), false)
+            .with_file(old_meta, metadata.to_vec(), false)
+            .with_file("/old/unrelated.json", b"keep".to_vec(), false)
+            .with_failing_rename(new);
+        assert!(migrate_cache(&fs, old, new).is_err());
+        assert_eq!(fs.read(old).unwrap(), jar);
+        assert_eq!(fs.read(old_meta).unwrap(), metadata);
+        migrate_cache(&fs, old, new).unwrap();
+        assert_eq!(fs.read(new).unwrap(), jar);
+        assert_eq!(fs.read(new_meta).unwrap(), metadata);
+        assert!(fs.stat(old).is_err());
+        assert!(fs.stat(old_meta).is_err());
+        assert_eq!(fs.read(Path::new("/old/unrelated.json")).unwrap(), b"keep");
+    }
 }

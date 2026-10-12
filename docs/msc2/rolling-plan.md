@@ -2,6 +2,46 @@
 
 Implemented steps awaiting verification were marked Done and moved to [the archive](rolling-plan-archive.md) at Cameron's direction on 2026-10-08. Planned work, pending publications and independent phase acceptance remain below.
 
+### P16.64 — Record ATM10 investigation and compact correction plan
+
+**Status:** Plan written; awaiting Cameron's review. No implementation in this conversation.
+**Files:** `docs/msc2/rolling-plan.md` only.
+**What:** Record the October 12 ATM10 8.2 / MSC 2 v0.1.25 report, confirmed causes, evidence limits and two execution steps below. Cameron requested a short sequence whose last execution delivers the correction without a separate release-planning conversation.
+**Verify:** `git show --check --stat --oneline HEAD`
+**Batch:** P16.64 only (PLAN).
+**Commit:** `P16.64: plan atm10 restart and import reporting fixes`
+
+**Investigation results:**
+
+- Owner reported an Intel Mac on v0.1.25: inspection warned that six files might require manual completion; completion showed four Modrinth recoveries and 445 direct downloads; First Start succeeded; the next start failed with “Invalid data pack ID.” Creating a new world allowed one start, followed by the same restart failure. Screenshots confirm the warning, recovery summary, setup confirmation and error.
+- Confirmed restart cause: `java_world_settings.rs::apply_existing_world` preserves enabled loader-owned packs from `level.dat`, then passes them through `valid_pack_id`, which incorrectly treats non-file pack identifiers as lowercase Minecraft resource identifiers. The local saved world's enabled list contains an OpenLoader identifier shaped like `openloader//Users/example/Library/Application Support/MSC 2/servers/java/all_the_mods_10/datapacks/sawmill.zip`. Its uppercase letters and spaces fail that rule. This is a loader-generated identifier already accepted by Minecraft, not evidence of world corruption. Personal path components above are anonymized.
+- `routes/lifecycle.rs::apply_active_java_world_profile` chooses Creation without `level.dat` and Activation once it exists. Profile application happens before Java launch. The retained failed `java-start` operation records `world_settings_failed` / “Invalid data pack ID.” This explains both initialization success and new-world first-start success followed by restart failure. Relevant application source matches v0.1.25.
+- Confirmed diagnostic defect: `validate_pack_files` omits the offending identifier and reason; the startup UI presents the resulting error with general Java/server/port advice. The saved clean-start record is not evidence that the later pre-launch profile application succeeded.
+- Confirmed accounting defect: inspection's `resolve_manual_downloads` counts every CurseForge file lacking a download URL before import classification. Import subsequently skips non-JAR/client-only files and may classify a recovery match as client-only. The completion DTO/UI exposes downloads, recoveries and unresolved files without reconciling the preliminary warning. The two other flagged files were not individually identified in retained evidence; client-only/non-JAR exclusion is a likely explanation, not a proven historical disposition. Do not claim two missing server mods or a connection to the restart failure.
+- Investigation was read-only; no tests or live launches. MSC 1 was unavailable at its documented path on this laptop; no parity claim was established from its source.
+
+### P16.65 — Fix saved modded-world starts and reconcile import outcomes
+
+**Status:** Planned.
+**Files:** `crates/msc-application/src/java_world_settings.rs`; `crates/msc-application/src/modpacks.rs`; relevant existing domain/agent DTO, lifecycle/components routes and startup diagnostics; generated API types when needed; desktop wizard model/summary and startup failure presentation; focused existing regression files as necessary; this plan.
+**What:** Deliver both corrections together. Treat loader-owned identifiers read from saved world metadata as opaque pack identities rather than resource-location syntax, preserving enabled built-in packs and disabled metadata appropriately. Keep strict path containment and filename validation for MSC-managed `file/` packs and user-supplied input; do not broadly relax world-type/resource-ID validation, remove mods/packs, recreate worlds, or rewrite installation paths. Make actual pack-validation errors identify the pack and actionable cause, and carry the world-settings context to the startup sheet instead of irrelevant generic advice. Trace every initially flagged CurseForge file to an explicit outcome (recovered, excluded with a concrete reason, directly installed, unresolved, or otherwise actually handled), preserving file identity through classification. Present enough names/reasons in the existing summary to reconcile the initial warning; do not invent the historical two files' identities or double-count downloads. Update generated contracts and retained CLI consumers if DTOs change. Read `antiAIslop.md` before frontend work; reuse the existing sheet layout. Inspect existing coverage and extend only essential controlled regressions: loader IDs containing spaces/uppercase survive saved-world application while file paths remain contained, and blocked-file classification produces a reconciled summary. Record runtime expectations and why existing coverage missed these failures. Do not run tests without a specific owner command. Run relevant non-test format, Clippy, API-generation/type and frontend production-build checks; commit all implementation and plan evidence once, leaving status awaiting owner verification.
+**Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-application -p msc-agent --lib --bins && npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run build && git diff --check`
+**Batch:** P16.65 only; includes both bugs and their diagnostics, no publication.
+**Commit:** `P16.65: fix modded world restart and reconcile pack imports`
+
+**Owner verification:** No automated test command is required by this plan. Physical acceptance is one short exercise on the corrected app, after P16.66: start/stop/start the existing affected world without recreating it; import ATM10 8.2 and confirm all initially flagged files have named outcomes; complete First Start, then start/stop/start its world. Confirm no “Invalid data pack ID” and no unexplained six-versus-four discrepancy. Report the result so Cameron can close the steps; source/build checks alone do not establish this result.
+
+### P16.66 — Publish the corrections and complete the ATM10 handoff
+
+**Status:** Planned; execute after P16.65's permitted checks pass.
+**Files:** Owned version manifests/lockfiles and bundle identity; README; `docs/msc2/release/` notes for the next unused version; this plan. Existing release workflow is inspected, not expanded.
+**What:** This is the final execution step for these issues. An owner instruction “execute P16.66” authorizes preparing and publishing the corrected release: inspect current remote main/tags and available workflow failures, choose the next unused patch version, synchronize owned versions, document the fixes and evidence limits, and commit once. Push the authorized branch and a new immutable tag through the unchanged build-only release workflow. Preserve all nine artifacts, helper payloads, checksums and signed update metadata. Monitor that run to a definite result, inspect any failure before retrying, and do not move the tag or add release gates. Report the actual release URL/version and the single physical acceptance exercise above; no separate README, release-planning or closure execution step follows. Do not describe the bugs as physically verified or mark the steps Done before Cameron reports success. If publication fails, explicitly report the blocker rather than claim closure. Routine corrective work remains within this final step's scope, subject to the one-commit-per-step rule; an unforeseen change requiring another commit must be disclosed rather than hidden.
+**Verify:** `gh release view --json tagName,isPrerelease,assets,url`
+**Batch:** P16.66 only; final publication/handoff for P16.65, no unrelated pending plans.
+**Commit:** `P16.66: publish atm10 restart and import reporting fixes`
+
+**Release cost and acceptance:** Recent complete release builds took 33–47 minutes; execution must reassess the current estimate before starting. The published artifact is what Cameron verifies using P16.65's single exercise. His success report closes these issues without another execute command. This narrow closure does not close unrelated phase acceptance.
+
 ### P16.63 — Present v0.1.25 as current in the README
 
 **Status:** Implemented; awaiting owner verification.

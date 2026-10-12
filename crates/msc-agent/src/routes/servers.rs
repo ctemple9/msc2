@@ -1123,6 +1123,43 @@ fn pack_unresolved_files(
 }
 
 fn pack_summary(report: &provisioning::PackApplyReport) -> serde_json::Value {
+    let flagged_file_outcomes: Vec<serde_json::Value> = match report {
+        provisioning::PackApplyReport::CurseForge(report) => report
+            .inspection_flagged_files
+            .iter()
+            .map(|name| {
+                let outcome = if let Some(file) = report
+                    .excluded_manifest_files
+                    .iter()
+                    .find(|file| &file.file_name == name)
+                {
+                    format!("Excluded: {}", file.reason)
+                } else if report
+                    .recovered_modrinth_files
+                    .iter()
+                    .any(|path| path.file_name().is_some_and(|file| file == name.as_str()))
+                {
+                    "Recovered from Modrinth".into()
+                } else if report
+                    .installed_files
+                    .iter()
+                    .any(|path| path.file_name().is_some_and(|file| file == name.as_str()))
+                {
+                    "Downloaded directly; available during installation".into()
+                } else if let Some(file) = report
+                    .unresolved_files
+                    .iter()
+                    .find(|file| &file.file_name == name)
+                {
+                    format!("Needs attention: {}", file.reason)
+                } else {
+                    "Could not reconcile provider metadata; review the unresolved files".into()
+                };
+                serde_json::json!({"fileName": name, "outcome": outcome})
+            })
+            .collect(),
+        provisioning::PackApplyReport::Mrpack(_) => Vec::new(),
+    };
     let (
         pack_name,
         pack_version,
@@ -1190,6 +1227,7 @@ fn pack_summary(report: &provisioning::PackApplyReport) -> serde_json::Value {
         "installedCount": installed_count,
         "recoveredModrinthFiles": recovered_modrinth_files,
         "recoveredModrinthCount": recovered_modrinth_count,
+        "flaggedFileOutcomes": flagged_file_outcomes,
         "unresolvedFiles": unresolved_files,
         "unresolvedCount": unresolved_count,
     })

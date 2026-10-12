@@ -2067,6 +2067,9 @@ impl LifecycleRoutesState {
         }
 
         apply_active_java_world_profile(&registered).map_err(|message| {
+            let message = format!(
+                "MSC could not apply the saved world settings before launching Java: {message}"
+            );
             let _ =
                 self.inner
                     .operations

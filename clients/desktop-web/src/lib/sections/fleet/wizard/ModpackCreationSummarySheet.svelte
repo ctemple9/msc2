@@ -106,6 +106,21 @@
       </section>
     {/if}
 
+    {#if summary.flaggedFileOutcomes?.length}
+      <section class="recovered" aria-label="Inspection warning outcomes">
+        <h3>Files flagged during inspection</h3>
+        <p>
+          Here is what happened to each of the {summary.flaggedFileOutcomes.length} files that might have
+          needed manual completion. Recovered downloads are also listed above.
+        </p>
+        <div class="file-list">
+          {#each summary.flaggedFileOutcomes as file}
+            <span>{file.fileName} — {file.outcome}</span>
+          {/each}
+        </div>
+      </section>
+    {/if}
+
     <section class="downloaded" aria-labelledby="modpack-downloaded-title">
       <div class="section-heading">
         <div>

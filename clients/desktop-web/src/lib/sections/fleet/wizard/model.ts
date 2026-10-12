@@ -531,6 +531,7 @@ export interface ModpackCreationSummary {
   provider: string;
   installedFiles: string[];
   recoveredModrinthFiles: string[];
+  flaggedFileOutcomes?: { fileName: string; outcome: string }[];
   unresolvedFiles: Schema['ModpackManualFileEntryDTO'][];
 }
 
@@ -566,6 +567,15 @@ export function modpackCreationSummary(
       provider: summary.provider,
       installedFiles,
       recoveredModrinthFiles,
+      flaggedFileOutcomes: Array.isArray(summary.flaggedFileOutcomes)
+        ? summary.flaggedFileOutcomes.filter(
+            (file): file is { fileName: string; outcome: string } =>
+              typeof file === 'object' &&
+              file !== null &&
+              typeof file.fileName === 'string' &&
+              typeof file.outcome === 'string',
+          )
+        : [],
       unresolvedFiles,
     };
   } catch {

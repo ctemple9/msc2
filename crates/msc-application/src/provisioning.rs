@@ -1856,7 +1856,7 @@ pub fn create_server_from_pack(
                 PackApplyReport::Mrpack(report)
             }
             modpacks::InspectedFormat::CurseForge(metadata) => {
-                let report = modpacks::import_curseforge(
+                let mut report = modpacks::import_curseforge(
                     addon_transport,
                     secrets,
                     fs,
@@ -1872,6 +1872,11 @@ pub fn create_server_from_pack(
                 if report.cancelled {
                     return Err(CreateFromPackError::Cancelled);
                 }
+                report.inspection_flagged_files = inspection
+                    .manual_downloads
+                    .iter()
+                    .map(|file| file.file_name.clone())
+                    .collect();
                 PackApplyReport::CurseForge(report)
             }
             modpacks::InspectedFormat::PlainJarZip { .. } => {

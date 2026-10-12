@@ -34,9 +34,6 @@ pub struct InstallRequest {
 }
 
 pub fn report_desktop_update_ready(page_finished: bool) {
-    if !page_finished {
-        return;
-    }
     let args: Vec<_> = std::env::args_os().collect();
     let value_after = |name: &str| {
         args.windows(2)
@@ -49,18 +46,27 @@ pub fn report_desktop_update_ready(page_finished: bool) {
     ) else {
         return;
     };
-    let _ = std::fs::write(marker, token.to_string_lossy().as_bytes());
+    #[cfg(target_os = "macos")]
+    let _ = std::fs::write(
+        PathBuf::from(&marker).with_extension("pid"),
+        std::process::id().to_string(),
+    );
+    if page_finished {
+        let _ = std::fs::write(marker, token.to_string_lossy().as_bytes());
+    }
 }
 
 pub(super) fn health_trial() -> bool {
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     {
         let args: Vec<_> = std::env::args_os().collect();
         if let Some(pair) = args
             .windows(2)
             .find(|p| p[0] == "--msc2-update-health-file")
         {
-            return !PathBuf::from(&pair[1]).with_extension("accepted").exists();
+            let marker = PathBuf::from(&pair[1]);
+            return marker.parent().is_some_and(Path::exists)
+                && !marker.with_extension("accepted").exists();
         }
     }
     false
@@ -78,6 +84,16 @@ pub fn run_desktop_update_helper() -> bool {
     let Some(mode) = args.nth(1) else {
         return false;
     };
+    #[cfg(target_os = "macos")]
+    if mode == "--msc2-repair-update-agent" {
+        if let Err(error) =
+            super::manage_agent_service_blocking(super::AgentServiceAction::Repair, 0)
+        {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
+        return true;
+    }
     if mode != "--msc2-apply-desktop-update"
         && !(cfg!(target_os = "windows") && mode == "--msc2-resume-desktop-update")
     {
@@ -121,7 +137,9 @@ pub fn run_desktop_update_helper() -> bool {
 }
 
 pub fn check(data_directory: &Path) -> Result<UpdateResult, String> {
-    let mut result = release_update::check_and_stage(&client_config()?, data_directory)?;
+    let result = release_update::check_and_stage(&client_config()?, data_directory)?;
+    #[cfg(target_os = "windows")]
+    let mut result = result;
     #[cfg(target_os = "windows")]
     if let Ok(detail) =
         std::fs::read_to_string(data_directory.join("updates/windows-last-result.json"))
@@ -141,6 +159,8 @@ pub fn install(request: InstallRequest, data_directory: &Path) -> Result<Install
 
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     if staged.install_mode == "tauri-coordinated" {
+        #[cfg(target_os = "macos")]
+        require_stopped_macos_server()?;
         schedule_desktop_update(&request.release_id, data_directory)?;
         return Ok(InstallResult {
             state: "scheduled",
@@ -220,6 +240,7 @@ fn wait_for_parent(_parent_pid: u32) -> Result<(), String> {
 
 #[cfg(target_os = "macos")]
 fn install_macos_bundle(staged: &StagedUpdate) -> Result<String, String> {
+    require_stopped_macos_server()?;
     let current_bundle = current_app_bundle()?;
     let work_directory = staged
         .artifact_path
@@ -259,6 +280,9 @@ fn install_macos_bundle(staged: &StagedUpdate) -> Result<String, String> {
             "Could not copy the new MSC app bundle",
         )?;
         rollback = Some(replace_app_bundle(&current_bundle, &replacement)?);
+        // Bind the service and desktop trust identity to the replacement before
+        // asking it to connect. The same transaction restores both on rollback.
+        repair_macos_bundle_agent(&current_bundle)?;
         let marker = work_directory.join("desktop-ready");
         let token = format!(
             "{}-{}",
@@ -278,6 +302,8 @@ fn install_macos_bundle(staged: &StagedUpdate) -> Result<String, String> {
             "Could not relaunch MSC 2",
         )?;
         wait_for_macos_health(&marker, &token)?;
+        fs::write(marker.with_extension("accepted"), &token)
+            .map_err(|error| format!("Could not accept the update health trial: {error}"))?;
         if let Some(previous_installation) = rollback.take() {
             finalize_macos_replacement(&previous_installation)?;
         }
@@ -287,12 +313,15 @@ fn install_macos_bundle(staged: &StagedUpdate) -> Result<String, String> {
         ))
     })();
     if let (Err(error), Some(rollback)) = (&result, rollback.take()) {
-        let recovery = rollback_macos_replacement(rollback).and_then(|_| {
-            run_command(
-                Command::new("/usr/bin/open").arg(&current_bundle),
-                "Could not relaunch the previous MSC app",
-            )
-        });
+        let recovery = stop_macos_trial(&work_directory.join("desktop-ready"))
+            .and_then(|_| rollback_macos_replacement(rollback))
+            .and_then(|_| {
+                repair_macos_bundle_agent(&current_bundle)?;
+                run_command(
+                    Command::new("/usr/bin/open").arg(&current_bundle),
+                    "Could not relaunch the previous MSC app",
+                )
+            });
         if let Err(recovery_error) = recovery {
             return Err(format!(
                 "{error}; restoring the previous MSC app failed: {recovery_error}"
@@ -340,7 +369,7 @@ fn macos_agent_is_healthy() -> bool {
         return false;
     }
     let mut response = String::new();
-    stream.read_to_string(&mut response).is_ok() && response.starts_with("HTTP/1.1 200")
+    stream.read_to_string(&mut response).is_ok() && healthy_macos_agent_response(&response)
 }
 
 #[cfg(target_os = "macos")]
@@ -636,4 +665,122 @@ fn installation_detail(staged: &StagedUpdate) -> String {
         ),
         _ => "The verified update was handed to its local installer.".to_string(),
     }
+}
+
+#[cfg(any(target_os = "macos", test))]
+fn healthy_macos_agent_response(response: &str) -> bool {
+    // /v1/healthz's documented liveness response has no body (204).
+    matches!(
+        response
+            .lines()
+            .next()
+            .and_then(|line| line.split_whitespace().nth(1)),
+        Some("204")
+    ) && response.starts_with("HTTP/1.")
+}
+
+#[cfg(test)]
+mod health_response_tests {
+    use super::*;
+    #[test]
+    fn accepts_agent_liveness_contract_and_rejects_failures() {
+        assert!(healthy_macos_agent_response(
+            "HTTP/1.1 204 No Content\r\n\r\n"
+        ));
+        for response in [
+            "HTTP/1.1 401 Unauthorized\r\n",
+            "HTTP/1.1 503 Unavailable\r\n",
+            "garbage 204",
+            "HTTP/1.1 2040 Invalid",
+        ] {
+            assert!(!healthy_macos_agent_response(response));
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn repair_macos_bundle_agent(bundle: &Path) -> Result<(), String> {
+    // Execute the installed bundle's code: the old helper may now reside in
+    // the rollback folder, with the old package and signing requirement.
+    let executable_name = std::env::current_exe()
+        .map_err(|error| error.to_string())?
+        .file_name()
+        .ok_or("The desktop executable has no filename.")?
+        .to_owned();
+    run_command(
+        Command::new(bundle.join("Contents/MacOS").join(executable_name))
+            .arg("--msc2-repair-update-agent"),
+        "Could not register the installed bundle's matching agent",
+    )
+}
+
+#[cfg(target_os = "macos")]
+fn require_stopped_macos_server() -> Result<(), String> {
+    let (report, _) = super::current_local_agent_report()?;
+    if report.state != super::ServiceState::Running {
+        return Ok(());
+    }
+    let binary = report
+        .definition
+        .ok_or("Could not identify the running agent. Stop the server and agent before updating.")?
+        .binary_path;
+    let output = Command::new(binary)
+        .args(["status", "--json"])
+        .output()
+        .map_err(|error| format!("Could not check the running server: {error}"))?;
+    let status: serde_json::Value = serde_json::from_slice(&output.stdout).map_err(|_| {
+        "Could not confirm the server is stopped. Stop the server and agent before updating."
+            .to_string()
+    })?;
+    if !output.status.success() || status["running"].as_bool() != Some(false) {
+        return Err(
+            "Stop the Minecraft server before updating MSC 2. The update must restart its agent."
+                .into(),
+        );
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn stop_macos_trial(marker: &Path) -> Result<(), String> {
+    let Ok(pid) = fs::read_to_string(marker.with_extension("pid")) else {
+        return Ok(());
+    };
+    let pid: u32 = pid
+        .trim()
+        .parse()
+        .map_err(|_| "The update trial PID is invalid.".to_string())?;
+    let output = Command::new("/bin/ps")
+        .args(["-p", &pid.to_string(), "-o", "command="])
+        .output()
+        .map_err(|error| format!("Could not inspect the update trial: {error}"))?;
+    if !output.status.success() {
+        return Ok(());
+    }
+    let command = String::from_utf8_lossy(&output.stdout);
+    if !command.contains("--msc2-update-health-file")
+        || !command.contains(marker.to_string_lossy().as_ref())
+    {
+        return Err(
+            "The update trial PID now belongs to another process; it was left untouched.".into(),
+        );
+    }
+    run_command(
+        Command::new("/bin/kill").args(["-TERM", &pid.to_string()]),
+        "Could not stop the failed update trial",
+    )?;
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while Instant::now() < deadline {
+        if !Command::new("/bin/kill")
+            .args(["-0", &pid.to_string()])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok_and(|status| status.success())
+        {
+            return Ok(());
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    Err("The failed desktop trial did not exit. Close it before recovering the update.".into())
 }

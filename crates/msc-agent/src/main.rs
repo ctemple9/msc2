@@ -165,15 +165,29 @@ async fn run_service_with_shutdown(
     println!("msc listening on {bind}");
 
     let auth_state = auth::production_auth_state();
-    if msc_application::host_reset::recover_files(&StdFileSystem, default_app_config_path())
-        .expect("host reset recovery must be readable")
-        .is_some()
-    {
-        auth_state
-            .reset_for_host_reset(&[])
-            .expect("interrupted host reset auth recovery must succeed");
-        msc_application::host_reset::finish_recovery(&StdFileSystem, default_app_config_path())
-            .expect("interrupted host reset marker must be removable");
+    let recovery =
+        msc_application::host_reset::recover_files(&StdFileSystem, default_app_config_path())
+            .and_then(|pending| {
+                if pending.is_some() {
+                    auth_state.reset_for_host_reset(&[]).map_err(|error| {
+                        msc_application::host_reset::HostResetError::Io(error.to_string())
+                    })?;
+                    msc_application::host_reset::finish_recovery(
+                        &StdFileSystem,
+                        default_app_config_path(),
+                    )?;
+                }
+                Ok(())
+            });
+    if let Err(error) = recovery {
+        let message =
+            format!("Host reset recovery paused: {error}. Open Settings > Reset for recovery.");
+        eprintln!("{message}");
+        let _ = msc_application::host_reset::record_failure(
+            &StdFileSystem,
+            &default_app_config_path(),
+            &error.to_string(),
+        );
     }
     #[cfg(target_os = "macos")]
     auth::spawn_local_bootstrap(auth_state.clone());
@@ -322,6 +336,10 @@ fn build_app_with_auth_and_worlds(
     let public = Router::new()
         .route("/health", get(routes::health::health))
         .route("/healthz", get(routes::health::healthz))
+        .route(
+            "/host/reset/result/{token}",
+            get(routes::host_reset::completion),
+        )
         .merge(desktop_public)
         .with_state(lifecycle_state.clone());
 
@@ -338,7 +356,9 @@ fn build_app_with_auth_and_worlds(
     let backup_scheduler = Box::leak(Box::new(backup_scheduler::BackupScheduler::new(
         scheduler_backend,
     )));
-    backup_scheduler.reconfigure(&app_config.servers());
+    if !msc_application::host_reset::blocks_mutation(&StdFileSystem, &default_app_config_path()) {
+        backup_scheduler.reconfigure(&app_config.servers());
+    }
 
     let console = Router::new()
         .route("/console/stream", get(ws::console::upgrade))
@@ -463,7 +483,11 @@ fn build_app_with_auth_and_worlds(
         .layer(Extension(pending_modpack_imports));
 
     let host_reset = Router::new()
-        .route("/host/reset", post(routes::host_reset::reset))
+        .route(
+            "/host/reset",
+            get(routes::host_reset::status).post(routes::host_reset::reset),
+        )
+        .route("/host/reset/cancel", post(routes::host_reset::cancel))
         .with_state(host_reset_state);
 
     let players = routes::players::router(lifecycle_state.clone());

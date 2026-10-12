@@ -297,6 +297,10 @@ pub enum StorageCommand {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum HostResetCommand {
+    /// Show pending reset recovery and its last failure.
+    Status,
+    /// Stop further pending reset deletion; already removed files stay removed.
+    Cancel,
     /// Clear host configuration while preserving managed server data.
     Configuration {
         /// Must be exactly `RESET AGENT`.
@@ -1621,7 +1625,25 @@ async fn run_storage(common: CommonArgs, command: StorageCommand) -> Result<(), 
 }
 
 async fn run_host_reset(common: CommonArgs, command: HostResetCommand) -> Result<(), CliError> {
+    if matches!(command, HostResetCommand::Status | HostResetCommand::Cancel) {
+        let client = ApiClient::connect_local().await?;
+        let status: msc_api::dto::HostResetStatusDto =
+            if matches!(command, HostResetCommand::Cancel) {
+                client
+                    .post_json("/v1/host/reset/cancel", &serde_json::json!({}))
+                    .await?
+            } else {
+                client.get_json("/v1/host/reset").await?
+            };
+        if common.json {
+            print_json(&status)?;
+        } else {
+            println!("{}: {}", status.state, status.message);
+        }
+        return Ok(());
+    }
     let (mode, confirmation) = match command {
+        HostResetCommand::Status | HostResetCommand::Cancel => unreachable!(),
         HostResetCommand::Configuration { confirm } => ("configuration", confirm),
         HostResetCommand::Everything { confirm } => ("everything", confirm),
     };

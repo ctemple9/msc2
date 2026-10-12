@@ -1018,6 +1018,27 @@ pub(crate) async fn require_management_auth(
 
     match auth.authenticate_headers(request.headers(), "unknown-client") {
         Ok(credential) => {
+            let path = request.uri().path().trim_start_matches("/v1");
+            let read_only = matches!(
+                *request.method(),
+                axum::http::Method::GET | axum::http::Method::HEAD | axum::http::Method::OPTIONS
+            );
+            let reset_control = path == "/host/reset"
+                || path == "/host/reset/cancel"
+                || (path.starts_with("/operations/") && path.ends_with("/cancel"));
+            if !read_only
+                && !reset_control
+                && msc_application::host_reset::blocks_mutation(
+                    &msc_infrastructure::fs::StdFileSystem,
+                    &msc_infrastructure::config_repository::default_app_config_path(),
+                )
+            {
+                return crate::routes::lifecycle::error_response(
+                    axum::http::StatusCode::CONFLICT,
+                    "host_reset_pending",
+                    "Host reset recovery is pending. Open Settings > Reset to retry or cancel before making changes.",
+                );
+            }
             request.extensions_mut().insert(credential.clone());
             request.extensions_mut().insert(StreamAuthentication {
                 credential: credential.clone(),

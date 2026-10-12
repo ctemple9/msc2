@@ -183,6 +183,27 @@ fn stage_exact_release(
     if !safe_version(latest_id) {
         return Err("The requested release ID is unsafe.".into());
     }
+    let staged_directory = data_directory.join("updates").join(latest_id);
+    if staged_directory.exists() {
+        // Installation failure does not invalidate intact staging. Reverify
+        // its signature, compatibility and artifact bytes before every retry.
+        let staged = verify_staged(config, data_directory, latest_id)?;
+        let release_notes = fs::read(staged_directory.join(RELEASE_NOTES_FILE))
+            .map_err(|error| format!("Could not read staged release notes: {error}"))?;
+        return Ok(UpdateResult {
+            state: "staged",
+            release_id: Some(staged.manifest.release_id),
+            release_notes: String::from_utf8_lossy(&release_notes).into_owned(),
+            install_mode: Some(staged.install_mode),
+            target: Some(config.target.clone()),
+            artifact_filename: staged
+                .artifact_path
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned()),
+            staged_directory: Some(staged_directory),
+            detail: "Previously staged release verified and ready to install.".into(),
+        });
+    }
     let agent = http_agent();
     let base = release_base_url(&config.repository, latest_id);
     let manifest_bytes = download_bytes(
@@ -245,9 +266,6 @@ fn stage_exact_release(
     fs::create_dir_all(&updates_directory)
         .map_err(|error| format!("Could not create the update directory: {error}"))?;
     let staged_directory = updates_directory.join(&manifest.release_id);
-    if staged_directory.exists() {
-        return Err("This release is already staged; it will not be overwritten.".to_string());
-    }
     let temporary_directory = updates_directory.join(format!(".{}.staging", manifest.release_id));
     if temporary_directory.exists() {
         fs::remove_dir_all(&temporary_directory)
@@ -896,8 +914,7 @@ fn write_bytes(path: PathBuf, bytes: &[u8]) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{BASE64, decode_manifest_signature};
-    use base64::Engine as _;
+    use super::*;
 
     #[test]
     fn accepts_signer_signature_file_with_trailing_newline() {
@@ -905,5 +922,69 @@ mod tests {
         let signature_file = format!("{encoded}\n");
 
         assert!(decode_manifest_signature(signature_file.as_bytes()).is_ok());
+    }
+    #[test]
+    fn intact_staging_can_be_retried_but_modified_artifacts_are_refused() {
+        use ed25519_dalek::{Signer, SigningKey};
+        struct Scratch(PathBuf);
+        impl Drop for Scratch {
+            fn drop(&mut self) {
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+        let scratch = Scratch(std::env::temp_dir().join(
+            format!("msc2-staged-retry-{}-{}", std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()),
+        ));
+        fs::create_dir(&scratch.0).unwrap();
+        let key = SigningKey::from_bytes(&[7; 32]);
+        let (target, linux_format) = match std::env::consts::OS {
+            "macos" => ("x86_64-apple-darwin", None),
+            "windows" => ("x86_64-pc-windows-msvc", None),
+            "linux" => ("x86_64-unknown-linux-gnu", Some(LinuxPackageFormat::Deb)),
+            _ => return,
+        };
+        let config = UpdateClientConfig {
+            repository: "ctemple9/msc2".into(),
+            current_version: "0.1.25".into(),
+            api_major: 1,
+            api_minor: 0,
+            target: target.into(),
+            trusted_key: key.verifying_key().to_bytes(),
+            channel: UpdateChannel::Desktop,
+            linux_package_format: linux_format,
+        };
+        let platform = platform_key(target, config.channel, linux_format).unwrap();
+        let artifact = b"controlled installer bytes";
+        let manifest = serde_json::json!({
+            "schemaVersion": 1, "releaseSet": RELEASE_SET, "releaseId": "0.1.26", "tag": "v0.1.26",
+            "api": { "major": 1, "minMinor": 0, "maxMinor": 0 },
+            "platforms": { (platform): {
+                "target": target,
+                "installMode": if linux_format.is_some() { "authorized-package-install" } else { "tauri-coordinated" },
+                "assets": [{ "role": if linux_format.is_some() { "package-deb" } else { "desktop" },
+                    "filename": "installer.bin", "bytes": artifact.len(), "sha256": format!("{:x}", Sha256::digest(artifact)) }]
+            }}
+        });
+        let canonical = serde_json::to_vec(&manifest).unwrap();
+        let staged = scratch.0.join("updates/0.1.26");
+        fs::create_dir_all(&staged).unwrap();
+        fs::write(staged.join(MANIFEST_FILE), &canonical).unwrap();
+        fs::write(
+            staged.join(SIGNATURE_FILE),
+            BASE64.encode(key.sign(&canonical).to_bytes()),
+        )
+        .unwrap();
+        fs::write(staged.join(RELEASE_NOTES_FILE), b"Release notes").unwrap();
+        fs::write(staged.join("installer.bin"), artifact).unwrap();
+        let first = stage_exact_release(&config, &scratch.0, "0.1.26").unwrap();
+        let retry = stage_exact_release(&config, &scratch.0, "0.1.26").unwrap();
+        assert_eq!(first, retry);
+        assert_eq!(retry.state, "staged");
+        let mut modified = artifact.to_vec();
+        modified[0] ^= 1;
+        fs::write(staged.join("installer.bin"), &modified).unwrap();
+        assert!(stage_exact_release(&config, &scratch.0, "0.1.26").is_err());
+        assert_eq!(fs::read(staged.join("installer.bin")).unwrap(), modified);
     }
 }

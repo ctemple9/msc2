@@ -54,6 +54,11 @@ pub trait FileSystem: Send + Sync {
     fn list(&self, path: &Path) -> io::Result<Vec<PathBuf>>;
     fn rename(&self, from: &Path, to: &Path) -> io::Result<()>;
     fn remove(&self, path: &Path) -> io::Result<()>;
+    /// Removes one file, link or empty directory, without recursively deleting
+    /// entries that have not passed the caller's cancellation boundary.
+    fn remove_entry(&self, path: &Path) -> io::Result<()> {
+        self.remove(path)
+    }
     /// Creates `path` and any missing intermediate directories, matching
     /// `std::fs::create_dir_all`'s "already exists" tolerance — a no-op,
     /// not an error, when `path` is already a directory. No earlier
@@ -133,6 +138,14 @@ impl FileSystem for StdFileSystem {
     fn remove(&self, path: &Path) -> io::Result<()> {
         if std::fs::metadata(path)?.is_dir() {
             std::fs::remove_dir_all(path)
+        } else {
+            std::fs::remove_file(path)
+        }
+    }
+
+    fn remove_entry(&self, path: &Path) -> io::Result<()> {
+        if std::fs::symlink_metadata(path)?.is_dir() {
+            std::fs::remove_dir(path)
         } else {
             std::fs::remove_file(path)
         }
@@ -257,11 +270,24 @@ pub struct FakeFileSystem {
     /// calling the primitive at all (the way `fixtures/atomic-write/
     /// destination-untouched-before-rename` does at the primitive level).
     fail_rename_to: Mutex<BTreeSet<PathBuf>>,
+    deny_remove: Mutex<BTreeSet<PathBuf>>,
 }
 
 impl FakeFileSystem {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Inject a persistent permission failure without depending on the host
+    /// user, privilege level or platform's permission semantics.
+    pub fn set_remove_denied(&self, path: impl Into<PathBuf>, denied: bool) {
+        let path = path.into();
+        let mut paths = self.deny_remove.lock().unwrap();
+        if denied {
+            paths.insert(path);
+        } else {
+            paths.remove(&path);
+        }
     }
 
     /// `tree` is the fixture-format `fsTree` object. Every file entry
@@ -308,6 +334,7 @@ impl FakeFileSystem {
             symlinks: Mutex::new(symlinks),
             dirs: Mutex::new(BTreeSet::new()),
             fail_rename_to: Mutex::new(BTreeSet::new()),
+            deny_remove: Mutex::new(BTreeSet::new()),
         }
     }
 
@@ -523,6 +550,12 @@ impl FileSystem for FakeFileSystem {
     /// is the first caller that needs this; before it, every `remove`
     /// call in this codebase targeted a single already-known file.
     fn remove(&self, path: &Path) -> io::Result<()> {
+        if self.deny_remove.lock().unwrap().contains(path) {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "simulated permission failure",
+            ));
+        }
         let mut files = self.files.lock().unwrap();
         if files.remove(path).is_some() {
             self.dirs.lock().unwrap().remove(path);

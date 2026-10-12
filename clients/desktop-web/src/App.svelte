@@ -649,9 +649,21 @@
       // The sidebar's fallback selection must also become the agent's active
       // server before section APIs can serve that server's data.
       if (nextServerId && nextServerId !== nextStatus.activeServerId) {
-        await selectedClient.requestJson('POST', '/v1/active-server', { body: { serverId: nextServerId } });
+        try {
+          await selectedClient.requestJson('POST', '/v1/active-server', {
+            body: { serverId: nextServerId },
+          });
+        } catch (error) {
+          // Pending reset recovery must stay connected so its controls remain
+          // accessible, even when automatic server selection is blocked.
+          if (!(error instanceof ApiError) || error.error.code !== 'host_reset_pending')
+            throw error;
+        }
         if (generation !== hostOrchestrator.currentGeneration) return false;
-        nextStatus = await selectedClient.requestJson<Schema['RemoteAPIStatus']>('GET', '/v1/status');
+        nextStatus = await selectedClient.requestJson<Schema['RemoteAPIStatus']>(
+          'GET',
+          '/v1/status',
+        );
         nextCapabilities = await selectedClient.getCapabilities();
         if (generation !== hostOrchestrator.currentGeneration) return false;
       }
@@ -729,13 +741,10 @@
       observeServerRun(hostId, nextStatus.activeServerId ?? '', nextStatus.running);
       if (action === 'start' && nextStatus.running && activeServer?.serverType === 'java') {
         try {
-          const diagnosis = await screenApi.get<Schema['HealthProblemsResponseDTO']>(
-            '/v1/health/problems',
-          );
+          const diagnosis =
+            await screenApi.get<Schema['HealthProblemsResponseDTO']>('/v1/health/problems');
           const helperProblem = diagnosis.isSoftFail
-            ? diagnosis.problems.find((problem) =>
-                /geyser|floodgate/i.test(problem.offenderName),
-              )
+            ? diagnosis.problems.find((problem) => /geyser|floodgate/i.test(problem.offenderName))
             : undefined;
           if (helperProblem) {
             startupFailure = {
@@ -1252,7 +1261,10 @@
     {permissions}
     {isDesktopShell}
     isLocalHost={isLocalHostForReset()}
-    onClose={() => (resetOpen = false)}
+    onClose={() => {
+      resetOpen = false;
+      window.dispatchEvent(new CustomEvent('msc:reset-recovery-closed'));
+    }}
     onClientReset={resetClientState}
     onHostResetComplete={completeHostReset}
   />
@@ -1260,7 +1272,13 @@
 
 <SplashGate onComplete={completeSplash} />
 {#if splashComplete && clientReady}
-  <FirstLaunchGate api={screenApi} agentReady={agentReadiness === 'ready'} />
+  <FirstLaunchGate
+    api={screenApi}
+    agentReady={agentReadiness === 'ready'}
+    onResetRecovery={() => {
+      resetOpen = true;
+    }}
+  />
 {/if}
 
 <style>

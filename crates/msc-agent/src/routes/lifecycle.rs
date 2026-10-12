@@ -1192,7 +1192,7 @@ impl LifecycleRoutesState {
         }
     }
 
-    fn stop_all_playit_helpers(&self) {
+    pub(crate) fn stop_all_playit_helpers(&self) {
         if let Some(integration) = self.playit_lifecycle() {
             integration.stop_all();
         }

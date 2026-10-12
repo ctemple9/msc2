@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 544a664be05facedbfca27ff695a4959c47380138886e2a9c78d09910ceacbed
+// Contract SHA-256: fb2b4bec15df75f84841826f3a8c6da1bcfddb826dc62f8a47b61d3a543ed2c7
 
 export interface paths {
   '/v1/active-server': {
@@ -2784,13 +2784,54 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /** Read pending reset recovery */
+    get: operations['getHostResetStatus'];
     put?: never;
     /**
      * Reset this host's MSC state
      * @description Host-scoped, administrator-only reset. The request has no host selector: it always acts on the host serving it. The operation revokes all existing credentials, rotates the host identity, clears host setup/configuration, and either preserves the managed server tree (configuration) or removes it (everything). The route never installs or uninstalls an operating-system service; a local desktop owns that separate action.
      */
     post: operations['resetHost'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/host/reset/cancel': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Durably cancel pending reset deletion
+     * @description Stops at the next individual file boundary. Already removed files cannot be restored. Identity finalization cannot be cancelled. Does not revoke credentials or uninstall the service.
+     */
+    post: operations['cancelHostReset'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/host/reset/result/{token}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Read one reset completion receipt
+     * @description The random completionToken returned to the initiating administrator is the sole read capability. This endpoint survives reset credential revocation and exposes only a state; invalid or superseded tokens return 404.
+     */
+    get: operations['getHostResetCompletion'];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -7657,13 +7698,15 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
-    /** @description The last reliable response may be returned under the old credential. Poll the operation when the agent remains reachable; otherwise follow the state-specific recovery path. */
+    /** @description Reset admitted. Acceptance is not completion; poll the narrow completion receipt, which survives credential revocation. */
     HostResetAcceptedDTO: {
       /**
        * @description Truthful post-admission state: the agent will restart, remains installed but requires fresh pairing, or cannot be reached to report completion.
        * @enum {string}
        */
       agentState: 'restarting' | 'needs_pairing' | 'unavailable';
+      /** @description Random capability for reading only this reset outcome after credentials are revoked. Keep private. */
+      completionToken?: string;
       /** @description The pre-reset agent host identity, for client-side correlation only. */
       hostId: string;
       message: string;
@@ -7671,6 +7714,12 @@ export interface components {
       mode: 'configuration' | 'everything';
       /** @description Journaled reset operation ID. */
       operationId: string;
+    } & {
+      [key: string]: unknown;
+    };
+    HostResetCompletionDTO: {
+      /** @enum {string} */
+      state: 'running' | 'succeeded' | 'failed' | 'cancelled';
     } & {
       [key: string]: unknown;
     };
@@ -7683,6 +7732,15 @@ export interface components {
        * @enum {string}
        */
       mode: 'configuration' | 'everything';
+    } & {
+      [key: string]: unknown;
+    };
+    HostResetStatusDTO: {
+      canCancel: boolean;
+      message: string;
+      mode: string | null;
+      /** @enum {string} */
+      state: 'idle' | 'pending' | 'blocked' | 'cancelled';
     } & {
       [key: string]: unknown;
     };
@@ -9932,6 +9990,26 @@ export interface operations {
       };
     };
   };
+  getHostResetStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Recovery state and last failure. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HostResetStatusDTO'];
+        };
+      };
+    };
+  };
   resetHost: {
     parameters: {
       query?: never;
@@ -9989,6 +10067,64 @@ export interface operations {
         content: {
           'application/json': components['schemas']['ErrorDTO'];
         };
+      };
+    };
+  };
+  cancelHostReset: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Cancellation recorded; recovery state returned. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HostResetStatusDTO'];
+        };
+      };
+      /** @description Reset is finalizing; cancellation is too late. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
+  getHostResetCompletion: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        token: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Outcome of the admitted reset. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HostResetCompletionDTO'];
+        };
+      };
+      /** @description Unknown or superseded completion token. */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
     };
   };

@@ -320,7 +320,9 @@ fn packages(
     let previous = release_update::verify_staged(&config, data, env!("CARGO_PKG_VERSION"))?;
     let target = release_update::verify_staged(&config, data, release)?;
     for package in [&previous, &target] {
-        if property(&package.artifact_path,"MSC_UPDATE_PROTOCOL")? != "1" { return Err("Both Windows MSIs must support the coordinated recovery protocol. Upgrade legacy installations manually to a protocol-capable signed release first.".into()); }
+        if property(&package.artifact_path, "MSC_UPDATE_PROTOCOL")? != "1" {
+            return Err("Both Windows MSIs must support the coordinated recovery protocol. Upgrade legacy installations manually to a protocol-capable signed release first.".into());
+        }
         if property(&package.artifact_path, "UpgradeCode")?
             .trim_matches(['{', '}'])
             .to_ascii_lowercase()

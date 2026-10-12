@@ -1776,6 +1776,9 @@ pub fn run() {
     #[cfg(target_os = "macos")]
     ensure_ad_hoc_signed_or_reexec();
 
+    #[cfg(target_os = "macos")]
+    update::report_desktop_update_ready(false);
+
     tauri::Builder::default()
         .on_page_load(|_webview, payload| {
             // Windows waits for the mounted client shell, not HTML loading.

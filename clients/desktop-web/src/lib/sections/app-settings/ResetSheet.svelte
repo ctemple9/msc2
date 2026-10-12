@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import Button from '../../components/base/Button.svelte';
   import Card from '../../components/base/Card.svelte';
   import ConfirmDialog from '../../components/ConfirmDialog.svelte';
@@ -13,6 +13,7 @@
 
   type HostResetAccepted = {
     operationId: string;
+    completionToken?: string;
     hostId: string;
     mode: ResetMode;
     agentState: 'restarting' | 'needs_pairing' | 'unavailable';
@@ -50,6 +51,38 @@
   let showClientConfirmation = false;
   let clientBusy = false;
   let resetClientAfterHost = false;
+  let canCancel = false;
+  let recoveryMessage = '';
+  let disposed = false;
+  onDestroy(() => {
+    disposed = true;
+  });
+
+  async function loadResetStatus(): Promise<void> {
+    if (!api || !isAdmin) return;
+    const status = await api.get<{
+      state: string;
+      mode?: ResetMode;
+      message: string;
+      canCancel: boolean;
+    }>('/v1/host/reset');
+    recoveryMessage = status.message;
+    canCancel = status.canCancel;
+    if (status.mode && status.state !== 'cancelled') mode = status.mode;
+  }
+
+  async function cancelReset(): Promise<void> {
+    if (!api) return;
+    try {
+      await api.post('/v1/host/reset/cancel');
+      canCancel = false;
+      resetClientAfterHost = false;
+      statusLine = 'Cancellation recorded. Waiting for file cleanup to stop…';
+      await loadResetStatus();
+    } catch (caught) {
+      error = errorMessage(caught);
+    }
+  }
 
   const isAdmin = permissions.includes('admin');
   const expectedConfirmation = 'RESET AGENT';
@@ -66,6 +99,7 @@
     try {
       const response = await api.get<{ path: string }>('/v1/config/servers-root');
       serversRootPath = response.path;
+      await loadResetStatus();
     } catch (caught) {
       rootError = errorMessage(caught);
     }
@@ -110,40 +144,41 @@
       operationId = accepted.operationId;
       resultMessage = accepted.message;
       statusLine = 'Reset accepted. Waiting for the agent to finish…';
-      await followOperation(accepted.operationId);
+      canCancel = true;
+      await followOperation(accepted.operationId, accepted.completionToken);
+      if (disposed) return;
       phase = 'finished';
       await onHostResetComplete(accepted, resetClientAfterHost);
     } catch (caught) {
       phase = 'ready';
       error = errorMessage(caught);
+      await loadResetStatus().catch(() => {});
     }
   }
 
-  async function followOperation(id: string): Promise<void> {
-    if (!api) return;
-    for (let attempt = 0; attempt < 12; attempt += 1) {
-      try {
-        const operation = await api.get<OperationSnapshot>(
-          `/v1/operations/${encodeURIComponent(id)}`,
+  async function followOperation(id: string, completionToken?: string): Promise<void> {
+    if (!api) throw new Error('The agent connection is unavailable.');
+    while (!disposed) {
+      // The narrow receipt remains readable after reset revokes this client's
+      // credential. An accepted request or a lost connection is not completion.
+      const operation = completionToken
+        ? await api.get<OperationSnapshot>(
+            `/v1/host/reset/result/${encodeURIComponent(completionToken)}`,
+          )
+        : await api.get<OperationSnapshot>(`/v1/operations/${encodeURIComponent(id)}`);
+      statusLine = operation.statusLine ?? 'Resetting host state…';
+      if (operation.state === 'succeeded') return;
+      if (operation.state === 'failed' || operation.state === 'cancelled') {
+        throw new Error(
+          operation.error?.message ??
+            (operation.state === 'cancelled'
+              ? 'Reset cancelled. Files already removed cannot be restored.'
+              : 'Reset paused after a failure. Review the recovery message below.'),
         );
-        statusLine = operation.statusLine ?? 'Resetting host state…';
-        if (['succeeded', 'failed', 'cancelled'].includes(operation.state)) {
-          if (operation.state !== 'succeeded') {
-            throw new Error(operation.error?.message ?? 'The host reset did not complete.');
-          }
-          return;
-        }
-      } catch (caught) {
-        // The old credential is allowed to disappear before the terminal
-        // operation snapshot is readable. The accepted response is already
-        // the source of truth for the recovery path.
-        void caught;
-        statusLine = 'The agent went offline as the reset took effect.';
-        return;
       }
       await new Promise((resolve) => setTimeout(resolve, 350));
     }
-    statusLine = 'The reset was accepted; the agent is taking longer than expected.';
+    throw new Error('Reset monitoring closed. Reconnect to check the outcome.');
   }
 
   function hostStateLabel(result: HostResetAccepted): string {
@@ -197,6 +232,10 @@
         </Card>
       </section>
 
+      {#if isAdmin && recoveryMessage}<p class="copy" role="status">{recoveryMessage}</p>{/if}
+      {#if isAdmin && canCancel}
+        <Button variant="secondary" onclick={() => void cancelReset()}>Cancel reset</Button>
+      {/if}
       {#if isAdmin}
         <section class="host-reset">
           <p class="msc2-type-overline">Host reset mode</p>

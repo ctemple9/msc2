@@ -5481,6 +5481,70 @@
         "x-permission-category": "none"
       }
     },
+    "/v1/host/reset/cancel": {
+      "post": {
+        "summary": "Durably cancel pending reset deletion",
+        "description": "Stops at the next individual file boundary. Already removed files cannot be restored. Identity finalization cannot be cancelled. Does not revoke credentials or uninstall the service.",
+        "operationId": "cancelHostReset",
+        "responses": {
+          "409": {
+            "description": "Reset is finalizing; cancellation is too late.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Cancellation recorded; recovery state returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostResetStatusDTO"
+                }
+              }
+            }
+          }
+        },
+        "x-permission-category": "admin"
+      }
+    },
+    "/v1/host/reset/result/{token}": {
+      "get": {
+        "summary": "Read one reset completion receipt",
+        "description": "The random completionToken returned to the initiating administrator is the sole read capability. This endpoint survives reset credential revocation and exposes only a state; invalid or superseded tokens return 404.",
+        "operationId": "getHostResetCompletion",
+        "security": [],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Outcome of the admitted reset.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostResetCompletionDTO"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or superseded completion token."
+          }
+        },
+        "x-permission-category": "none"
+      }
+    },
     "/v1/host/reset": {
       "post": {
         "summary": "Reset this host's MSC state",
@@ -5596,6 +5660,23 @@
           ],
           "remoteRecovery": "fresh-one-use-host-local-pairing"
         }
+      },
+      "get": {
+        "summary": "Read pending reset recovery",
+        "operationId": "getHostResetStatus",
+        "responses": {
+          "200": {
+            "description": "Recovery state and last failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostResetStatusDTO"
+                }
+              }
+            }
+          }
+        },
+        "x-permission-category": "admin"
       }
     },
     "/v1/auth/desktop-pairings": {
@@ -9152,9 +9233,60 @@
         ],
         "additionalProperties": false
       },
+      "HostResetStatusDTO": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "idle",
+              "pending",
+              "blocked",
+              "cancelled"
+            ]
+          },
+          "mode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "canCancel": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "state",
+          "mode",
+          "message",
+          "canCancel"
+        ],
+        "additionalProperties": false
+      },
+      "HostResetCompletionDTO": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ]
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "additionalProperties": false
+      },
       "HostResetAcceptedDTO": {
         "type": "object",
-        "description": "The last reliable response may be returned under the old credential. Poll the operation when the agent remains reachable; otherwise follow the state-specific recovery path.",
+        "description": "Reset admitted. Acceptance is not completion; poll the narrow completion receipt, which survives credential revocation.",
         "properties": {
           "operationId": {
             "type": "string",
@@ -9182,6 +9314,10 @@
           },
           "message": {
             "type": "string"
+          },
+          "completionToken": {
+            "type": "string",
+            "description": "Random capability for reading only this reset outcome after credentials are revoked. Keep private."
           }
         },
         "required": [

@@ -433,3 +433,131 @@ mod tests {
         assert_eq!(fs.read(Path::new("/old/unrelated.json")).unwrap(), b"keep");
     }
 }
+
+/// Runs conversion with bounded logs, a memory budget and disk monitoring.
+pub fn run_conversion(
+    jar_path: &Path,
+    input_dir: &Path,
+    output_dir: &Path,
+    target_format: &str,
+    java_path: &str,
+    progress: &mut dyn FnMut(&str),
+) -> Result<(), String> {
+    use std::io::BufReader;
+    use std::process::{Command, Stdio};
+
+    let heap = crate::conversion_resources::available_heap_mib()?;
+    progress(&format!("Chunker memory budget: {heap} MiB Java heap"));
+    let mut child = Command::new(java_path)
+        .arg("-Xms128m")
+        .arg(format!("-Xmx{heap}m"))
+        .arg("-jar")
+        .arg(jar_path)
+        .arg("-i")
+        .arg(input_dir)
+        .arg("-f")
+        .arg(target_format)
+        .arg("-o")
+        .arg(output_dir)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| format!("failed to start Chunker: {error}"))?;
+
+    // Drain both pipes concurrently: a verbose stderr must not block Java
+    // while MSC waits for stdout. Retain only a bounded diagnostic tail.
+    let stderr = child.stderr.take().expect("piped stderr");
+    let errors = std::thread::spawn(move || {
+        use std::io::Read;
+        let mut tail = std::collections::VecDeque::with_capacity(8192);
+        let mut reader = stderr;
+        let mut buffer = [0_u8; 4096];
+        while let Ok(count) = reader.read(&mut buffer) {
+            if count == 0 {
+                break;
+            }
+            for byte in &buffer[..count] {
+                if tail.len() == 8192 {
+                    tail.pop_front();
+                }
+                tail.push_back(*byte);
+            }
+        }
+        String::from_utf8_lossy(&tail.into_iter().collect::<Vec<_>>()).into_owned()
+    });
+    let stdout = child.stdout.take().expect("piped stdout");
+    let (sender, receiver) = std::sync::mpsc::sync_channel(32);
+    let output = std::thread::spawn(move || {
+        use std::io::Read;
+        let mut line = Vec::new();
+        for byte in BufReader::new(stdout).bytes().map_while(Result::ok) {
+            if byte == b'\n' || line.len() >= 8192 {
+                if sender
+                    .send(String::from_utf8_lossy(&line).into_owned())
+                    .is_err()
+                {
+                    return;
+                }
+                line.clear();
+            }
+            if byte != b'\n' {
+                line.push(byte);
+            }
+        }
+        if !line.is_empty() {
+            let _ = sender.send(String::from_utf8_lossy(&line).into_owned());
+        }
+    });
+    let mut resource_error = None;
+    let mut next_disk_check = std::time::Instant::now();
+    loop {
+        if std::time::Instant::now() >= next_disk_check {
+            if let Err(error) = crate::conversion_resources::require_space(
+                output_dir,
+                0,
+                "running Chunker conversion",
+            ) {
+                let _ = child.kill();
+                resource_error = Some(error.to_string());
+                break;
+            }
+            next_disk_check = std::time::Instant::now() + std::time::Duration::from_secs(1);
+        }
+        match receiver.recv_timeout(std::time::Duration::from_millis(250)) {
+            Ok(line) => {
+                if !line.trim().is_empty() {
+                    progress(line.trim());
+                }
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => match child.try_wait() {
+                Ok(Some(_)) => break,
+                Ok(None) => std::thread::sleep(std::time::Duration::from_millis(100)),
+                Err(error) => {
+                    let _ = child.kill();
+                    resource_error = Some(error.to_string());
+                    break;
+                }
+            },
+        }
+    }
+    drop(receiver);
+    let _ = output.join();
+    let diagnostics = errors.join().unwrap_or_default();
+
+    let status = child
+        .wait()
+        .map_err(|error| format!("Chunker process error: {error}"))?;
+    if let Some(error) = resource_error {
+        return Err(error);
+    }
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "Chunker exited with code {}: {}",
+            status.code().unwrap_or(-1),
+            diagnostics.trim()
+        ))
+    }
+}

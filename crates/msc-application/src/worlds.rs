@@ -728,7 +728,9 @@ fn copy_via_fs(fs: &dyn FileSystem, from: &Path, to: &Path) -> io::Result<()> {
 /// module's own handful of call sites — the same small-duplicate call
 /// P6.11's `iso8601_now` already made for `audit_log`'s calendar math.
 fn zip_size_bytes(fs: &dyn FileSystem, path: &Path) -> Option<i64> {
-    fs.read(path).ok().map(|bytes| bytes.len() as i64)
+    fs.stat(path)
+        .ok()
+        .and_then(|meta| i64::try_from(meta.size).ok())
 }
 
 /// Packs selected before terrain generation live separately from a saved world.

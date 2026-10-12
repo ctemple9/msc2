@@ -30,6 +30,15 @@ pub struct Metadata {
 
 pub trait FileSystem: Send + Sync {
     fn read(&self, path: &Path) -> io::Result<Vec<u8>>;
+    /// Bridges injectable filesystems and disk-backed archives. Production
+    /// overrides stream these operations; the defaults support in-memory fakes.
+    fn copy_to_disk(&self, from: &Path, to: &Path) -> io::Result<()> {
+        std::fs::write(to, self.read(from)?)
+    }
+    fn copy_from_disk(&self, from: &Path, to: &Path) -> io::Result<()> {
+        self.write(to, &std::fs::read(from)?)
+    }
+
     fn write(&self, path: &Path, contents: &[u8]) -> io::Result<()>;
     /// Writes `contents` to `path` and marks the result executable —
     /// `write` alone never touches permission bits (matching
@@ -80,6 +89,13 @@ pub trait FileSystem: Send + Sync {
 pub struct StdFileSystem;
 
 impl FileSystem for StdFileSystem {
+    fn copy_to_disk(&self, from: &Path, to: &Path) -> io::Result<()> {
+        std::fs::copy(from, to).map(|_| ())
+    }
+    fn copy_from_disk(&self, from: &Path, to: &Path) -> io::Result<()> {
+        std::fs::copy(from, to).map(|_| ())
+    }
+
     fn read(&self, path: &Path) -> io::Result<Vec<u8>> {
         std::fs::read(path)
     }

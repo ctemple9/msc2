@@ -2,6 +2,28 @@
 
 Implemented steps awaiting verification were marked Done and moved to [the archive](rolling-plan-archive.md) at Cameron's direction on 2026-10-08. Planned work, pending publications and independent phase acceptance remain below.
 
+### P16.68 — Support large world conversions with resource budgets
+
+**Status:** Implemented; awaiting owner verification. Owner authorized implementation, focused testing and the next publication on October 12.
+**Files:** Infrastructure archive/filesystem/Chunker/resource budgets; application conversion and slot-size metadata; agent conversion adapter; focused conversion tests; lockfiles; this plan.
+**What:** The owner's 12.8 GB Tectonic conversion hits MSC's fixed 8 GiB extraction ceiling before Chunker. The same ceiling would reject later activation. Whole-ZIP reads also allocate source/output archives in RAM. Replace those production copies with filesystem streaming, stat archives for size, retain the 200,000-entry safety ceiling and all path/type/CRC checks, and raise the absolute size backstop to 1 TiB with free-space enforcement on extraction. Budget conversion scratch/destination space conservatively from declared input and existing live-world sizes, allowing larger output; preserve a 2 GiB reserve and recheck between stages, during archive writes and while Chunker runs. Release scratch data between stages. Bound Java heap to half currently available memory, capped at 4 GiB, refusing below 1 GiB available; bound/drain both output pipes and retain failure diagnostics. Preserve source and finish replacement ZIP before promotion. No global Java or live-server settings changed. The MSC 1 oracle directory specified in AGENTS.md is absent on this machine; no parity claim rests on reading it.
+**Verify:** `cargo test -p msc-infrastructure --lib conversion_resources::tests && cargo test -p msc-infrastructure --test world_archive && cargo test -p msc-application --test world_conversion && cargo test -p msc-application --lib resource_regressions && cargo clippy -p msc-infrastructure -p msc-application -p msc-agent --lib --bins && cargo fmt --all -- --check && git diff --check`
+**Batch:** P16.68–P16.69, explicitly authorized by owner's implement/test/publish request. Focused tests authorized for this task; no release test gates.
+**Commit:** `P16.68: support large world conversion with resource budgets`
+
+**Essential tests:** Deterministic disk-reserve/overflow and memory-budget boundary cases catch unsafe resource decisions in milliseconds without probing host state. Existing archive and conversion tests protect traversal/corruption rejection, failure preservation, packaging and activation. An explicitly ignored, owner-selected real-world acceptance test runs the production Chunker runner and complete conversion pipeline into disposable directories, checks a source larger than 8 GiB, validates Bedrock activation and confirms original archive length/mtime unchanged. It requires local Java/JAR/world inputs, may take minutes, and is never included in ordinary tests or publication. No synthetic multi-GB fixture is committed. A second deterministic test injects final rename failure and proves the original archive remains intact and temporary output is removed; expected runtime under one second.
+
+**Evidence:** 31 focused tests pass (resource budget 1, archive safety 15, conversion 14, replacement promotion 1). A broader activation check passed 12 cases and failed the fresh-world packs/seed case; an isolated worktree at published v0.1.26 reproduces exactly the same failure (`level-seed=998877` missing), establishing it predates this correction. Do not call the entire activation suite green or silently expand this fix to fresh-world seed behavior. The real Tectonic archive is 9.2 GiB compressed, 13,702,937,286 bytes unpacked, 4,938 entries. Explicit opt-in full conversion is running into disposable directories before publication; its outcome belongs in P16.69's evidence. Sampled agent-side test RSS during archive validation is approximately 9 MiB, not a measured lifetime peak. Formatting, Clippy and whitespace checks pass with the existing unused `auth::forbidden` warning. Existing dependency versions are retained; only resource-probe dependencies were added in both lockfiles. No live server, source world or release workflow modified.
+
+### P16.69 — Publish the large-world correction
+
+**Status:** Authorized; pending P16.68 checks and real conversion evidence.
+**Files:** Owned version fields/lockfiles, README, release notes and this plan.
+**What:** Inspect remote tags/main and recent build results, select the next unused patch, synchronize versions and publish via the unchanged build-only workflow using one new immutable tag. Monitor to completion; verify all nine packages, checksums and signed update metadata. Record actual local conversion evidence and its limits; do not claim the affected Mac has been verified. No further execution step follows.
+**Verify:** `gh release view v0.1.27 --json tagName,isPrerelease,assets,url`
+**Batch:** P16.68–P16.69 only.
+**Commit:** `P16.69: publish large world conversion fixes`
+
 ### P16.67 — Use managed Java and the existing data folder for Chunker
 
 **Status:** Implemented; awaiting owner verification. Owner directly requested both corrections before publication of P16.66.

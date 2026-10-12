@@ -519,33 +519,26 @@ fn non_empty_files(directory: &Path) -> Result<usize, ConversionError> {
 }
 
 fn zip_size_bytes(fs: &dyn FileSystem, path: &Path) -> Option<i64> {
-    fs.read(path).ok().map(|bytes| bytes.len() as i64)
+    fs.stat(path)
+        .ok()
+        .and_then(|meta| i64::try_from(meta.size).ok())
 }
 
-/// Copies a real-disk file (the packaged conversion output, always a
-/// real file per the module doc — archive work bypasses the injectable
-/// [`FileSystem`] the same way every other archive-touching function in
-/// this phase already does) into a slot's zip location through `fs`, so
-/// at least the destination half stays behind the same abstraction as
-/// the metadata write beside it — the same convention `worlds::
-/// copy_via_fs` established for a same-filesystem-on-both-sides copy,
-/// adapted here for a source that's always real disk.
+/// Production filesystem copies stream the archive; in-memory test filesystems
+/// keep their injected write-failure behavior through the default bridge.
 fn copy_packaged_zip_into_slot(
     fs: &dyn FileSystem,
     from_real_disk: &Path,
     to: &Path,
 ) -> io::Result<()> {
-    let bytes = fs::read(from_real_disk)?;
-    fs.write(to, &bytes)
+    fs.copy_from_disk(from_real_disk, to)
 }
 
 /// `createConvertedSlot(name:zipURL:targetServer:targetLevelName:)`
 /// (source line 226-256): a brand-new slot, `worldSeed` left unset
 /// (source never infers or carries one through for a freshly converted
-/// world). No cleanup on a mid-write failure — source has none either;
-/// unlike `worlds::create_slot_from_current_world` (P6.12), no P6.7
-/// fixture calls for one here, so this stays literal parity rather than
-/// an uncalled-for correction.
+/// world). A failed streamed archive copy removes the new slot directory so
+/// a partial multi-gigabyte ZIP cannot appear as a usable conversion.
 fn create_converted_slot(
     fs: &dyn FileSystem,
     target_server_dir: &Path,
@@ -558,7 +551,10 @@ fn create_converted_slot(
     let dir = world_store::slot_directory(target_server_dir, &id);
     fs.create_dir_all(&dir)?;
     let dest_zip = world_store::zip_path(target_server_dir, &id);
-    copy_packaged_zip_into_slot(fs, converted_zip, &dest_zip)?;
+    if let Err(error) = copy_packaged_zip_into_slot(fs, converted_zip, &dest_zip) {
+        let _ = fs.remove(&dir);
+        return Err(error.into());
+    }
 
     let slot = WorldSlot {
         id,
@@ -583,14 +579,8 @@ fn create_converted_slot(
 /// slot with no archive at all. This port instead stages the copy to a
 /// scratch file in the same slot directory first — a failure there
 /// leaves `dest_zip` (the destination's real archive) completely
-/// untouched — and only removes/replaces the real destination once that
-/// staged copy has already fully succeeded, matching the temp-file-
-/// then-atomic-replace pattern every other overwrite in this phase uses
-/// (`worlds::update_active_slot_from_current_world`, `worlds::
-/// copy_slot_into_existing`), including their same remove-before-rename
-/// shape (`fs::rename` doesn't overwrite an existing destination on
-/// Windows the way it does on POSIX, so the explicit `remove` first is
-/// still required even though the copy itself is now crash-safe).
+/// untouched. Promotion then renames over the destination in one filesystem
+/// operation, preserving the old archive if promotion fails.
 fn replace_slot_with_converted_zip(
     fs: &dyn FileSystem,
     target_server_dir: &Path,
@@ -609,8 +599,10 @@ fn replace_slot_with_converted_zip(
     }
 
     let dest_zip = world_store::zip_path(target_server_dir, &existing_slot.id);
-    let _ = fs.remove(&dest_zip);
-    fs.rename(&temp_zip, &dest_zip)?;
+    if let Err(error) = fs.rename(&temp_zip, &dest_zip) {
+        let _ = fs.remove(&temp_zip);
+        return Err(error.into());
+    }
 
     let mut updated = existing_slot.clone();
     updated.world_level_name = Some(target_level_name.to_string());
@@ -706,16 +698,34 @@ pub fn convert_world(
     let unzip_dir = temp_root.join("source");
     let chunker_output_dir = temp_root.join("chunker_output");
 
-    // Step 1: unzip the source slot. `source_zip` is read through `fs`
-    // (which may be a fake in tests); the archive engine itself always
-    // operates on real disk, the same bridge P6.11's
-    // `live_folders_proven_identical_to_archive` already uses — so the
-    // bytes are staged to a real scratch file first.
+    // Archive handling needs a real file. The filesystem bridge streams this
+    // copy in production rather than allocating the entire ZIP in memory.
     progress("Extracting source world…");
-    let source_zip_bytes = fs.read(&source_zip)?;
     fs::create_dir_all(&temp_root)?;
     let real_source_zip = temp_root.join("source.zip");
-    fs::write(&real_source_zip, &source_zip_bytes)?;
+    let source_bytes = fs.stat(&source_zip)?.size;
+    msc_infrastructure::conversion_resources::require_space(
+        &temp_root,
+        source_bytes,
+        "staging source archive",
+    )?;
+    fs.copy_to_disk(&source_zip, &real_source_zip)?;
+    let unpacked = archive::declared_uncompressed_size(&real_source_zip)?;
+    // Budget input, a possibly larger output, packaging, placement, activation,
+    // and the outgoing world's safety copy. Apply the combined budget to both
+    // volumes: conservative for separate disks, safe when they share a volume.
+    let mut outgoing = 0_u64;
+    for folder in world::live_world_folder_candidates(target_server_type, &target_level_name) {
+        outgoing = outgoing.saturating_add(msc_infrastructure::conversion_resources::tree_size(
+            &target_server_dir.join(folder),
+        )?);
+    }
+    let budget = unpacked
+        .saturating_mul(4)
+        .saturating_add(outgoing.saturating_mul(2));
+    for path in [&temp_root, target_server_dir] {
+        msc_infrastructure::conversion_resources::require_space(path, budget, "world conversion")?;
+    }
     archive::extract_zip(&real_source_zip, &unzip_dir)?;
     let _ = fs::remove_file(&real_source_zip);
 
@@ -753,6 +763,9 @@ pub fn convert_world(
     // Chunker can exit successfully while still producing an incomplete or
     // wrong-edition directory. Validate the actual world contents before any
     // target slot is created or replaced.
+    // Chunker has finished reading the source; release its scratch space before
+    // packaging. The original slot archive is never removed.
+    fs::remove_dir_all(&unzip_dir)?;
     progress("Validating converted world…");
     let validation_warnings = validate_converted_world(&chunker_output_dir, target_server_type)?;
     for warning in validation_warnings {
@@ -770,6 +783,13 @@ pub fn convert_world(
         return Err(ConversionError::BackupFailed);
     }
 
+    let output_bytes = msc_infrastructure::conversion_resources::tree_size(&chunker_output_dir)?;
+    msc_infrastructure::conversion_resources::require_space(
+        &temp_root,
+        output_bytes.saturating_add(output_bytes / 10),
+        "packaging converted world",
+    )?;
+
     // Step 4: package Chunker's output into a slot-compatible zip.
     progress("Packaging converted world…");
     let converted_zip = package_output(
@@ -778,8 +798,24 @@ pub fn convert_world(
         &target_level_name,
     )?;
 
+    // Packaging moved the output beneath _package; discard those unpacked
+    // files now that the complete ZIP exists, retaining only converted.zip.
+    for entry in fs::read_dir(converted_zip.parent().expect("package directory"))? {
+        let path = entry?.path();
+        if path.is_dir() {
+            fs::remove_dir_all(path)?;
+        }
+    }
+
     // Step 5: place the zip into the target server's slot directory.
     progress("Placing converted world into target server…");
+    msc_infrastructure::conversion_resources::require_space(
+        target_server_dir,
+        fs::metadata(&converted_zip)?
+            .len()
+            .saturating_add(output_bytes),
+        "placing and activating converted world",
+    )?;
     let new_slot = match &placement {
         ConversionPlacement::NewSlot { name } => create_converted_slot(
             fs,
@@ -797,6 +833,8 @@ pub fn convert_world(
             &target_level_name,
         )?,
     };
+
+    fs::remove_file(&converted_zip)?;
 
     // Step 6: activate the new slot. Source calls `activateSlot` with
     // `backupCurrent: false, backupWorld: { _ in true }` since step 6
@@ -830,4 +868,39 @@ pub fn convert_world(
 
     progress("Conversion complete.");
     Ok(activated)
+}
+
+#[cfg(test)]
+mod resource_regressions {
+    use super::*;
+    use msc_infrastructure::fs::FakeFileSystem;
+
+    #[test]
+    fn failed_conversion_promotion_preserves_existing_archive() {
+        let target = Path::new("/target");
+        let slot = WorldSlot {
+            id: "existing".into(),
+            name: "Existing".into(),
+            created_at: "today".into(),
+            last_played_at: None,
+            thumbnail_file_name: None,
+            world_level_name: Some("world".into()),
+            world_seed: None,
+            zip_size_bytes: None,
+        };
+        let destination = world_store::zip_path(target, &slot.id);
+        let filesystem = FakeFileSystem::new().with_failing_rename(&destination);
+        filesystem.write(&destination, b"original archive").unwrap();
+        let scratch = std::env::temp_dir().join(format!("msc2-promotion-test-{}", Uuid::new_v4()));
+        fs::write(&scratch, b"converted archive").unwrap();
+        let result = replace_slot_with_converted_zip(&filesystem, target, &slot, &scratch, "world");
+        let _ = fs::remove_file(scratch);
+        assert!(result.is_err());
+        assert_eq!(filesystem.read(&destination).unwrap(), b"original archive");
+        assert!(
+            filesystem
+                .stat(&world_store::slot_directory(target, &slot.id).join("world.convert.tmp.zip"))
+                .is_err()
+        );
+    }
 }

@@ -4748,52 +4748,14 @@ impl WorldConverter for LiveWorldConverter {
         java_path: &str,
         progress: &mut dyn FnMut(&str),
     ) -> Result<(), String> {
-        use std::io::{BufRead, BufReader};
-        use std::process::{Command, Stdio};
-
-        let jar_path = Self::chunker_jar_path();
-        let mut child = Command::new(java_path)
-            .arg("-jar")
-            .arg(&jar_path)
-            .arg("-i")
-            .arg(input_dir)
-            .arg("-f")
-            .arg(target_format)
-            .arg("-o")
-            .arg(output_dir)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|error| format!("failed to start Chunker: {error}"))?;
-
-        if let Some(stdout) = child.stdout.take() {
-            for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-                let trimmed = line.trim();
-                if !trimmed.is_empty() {
-                    progress(trimmed);
-                }
-            }
-        }
-        if let Some(stderr) = child.stderr.take() {
-            for line in BufReader::new(stderr).lines().map_while(Result::ok) {
-                let trimmed = line.trim();
-                if !trimmed.is_empty() {
-                    progress(trimmed);
-                }
-            }
-        }
-
-        let status = child
-            .wait()
-            .map_err(|error| format!("Chunker process error: {error}"))?;
-        if status.success() {
-            Ok(())
-        } else {
-            Err(format!(
-                "Chunker exited with code {}",
-                status.code().unwrap_or(-1)
-            ))
-        }
+        msc_infrastructure::chunker::run_conversion(
+            &Self::chunker_jar_path(),
+            input_dir,
+            output_dir,
+            target_format,
+            java_path,
+            progress,
+        )
     }
 
     fn supported_formats(&self, resolved_java_path: &str) -> Vec<String> {

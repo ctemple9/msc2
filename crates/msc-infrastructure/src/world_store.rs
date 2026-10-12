@@ -142,16 +142,12 @@ pub fn load_slots(fs: &dyn FileSystem, server_dir: &Path) -> Vec<WorldSlot> {
     slots
 }
 
-/// `loadSlots`'s zip-size stat (source line 314-318) reads the file
-/// through [`FileSystem::read`] rather than a true byte-count-only stat —
-/// this trait has no size-only `stat` field (see [`crate::fs::Metadata`]),
-/// and every slot archive small enough for [`crate::archive`]'s own
-/// [`crate::archive::MAX_TOTAL_UNCOMPRESSED_BYTES`] ceiling to allow is
-/// small enough that reading it once to measure its length is not the
-/// "extraction" cost this module's docs are careful to avoid — extraction
-/// decompresses; this only measures the compressed file already on disk.
+/// Metadata-only: a multi-gigabyte slot must not be read into RAM to display
+/// its compressed size.
 fn zip_size_bytes(fs: &dyn FileSystem, path: &Path) -> Option<i64> {
-    fs.read(path).ok().map(|bytes| bytes.len() as i64)
+    fs.stat(path)
+        .ok()
+        .and_then(|meta| i64::try_from(meta.size).ok())
 }
 
 /// `saveMetadata(_:serverDir:)` (source line 329-339): creates the slot

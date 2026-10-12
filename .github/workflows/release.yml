@@ -270,6 +270,9 @@ jobs:
         run: |
           set -Eeuo pipefail
           release_version="${GITHUB_REF_NAME#v}"
+          if [[ -f "docs/msc2/release/v${release_version}.md" ]]; then
+            cp "docs/msc2/release/v${release_version}.md" target/release-assets/RELEASE-NOTES.md
+          else
           cat > target/release-assets/RELEASE-NOTES.md <<EOF
           # MSC 2 ${GITHUB_REF_NAME}
 
@@ -286,6 +289,7 @@ jobs:
           signature required for native in-app installation.
           Release ID: ${release_version}
           EOF
+          fi
 
       - name: Publish signed update metadata when configured
         shell: bash

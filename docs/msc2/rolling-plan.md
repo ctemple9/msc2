@@ -4,7 +4,7 @@ Implemented steps awaiting verification were marked Done and moved to [the archi
 
 ### P16.70 — Correct macOS update recovery and cancellable host resets
 
-**Status:** Implemented; awaiting owner verification. Owner authorized both corrections on October 12; publication remains stopped at the owner's request.
+**Status:** Implemented; awaiting owner verification. Owner authorized both corrections on October 12; publication was separately reauthorized under P16.69 after implementation.
 **Files:** Desktop updater/native startup; signed release staging; application host-reset and operation cancellation; filesystem adapter; agent startup/auth/reset routes and CLI; Reset screen/onboarding recovery; API contract/generated types; this plan.
 **What:** Fix the reproduced desktop rollback, mismatched agent trust and blocked update retry together with the pending-reset startup failure. Keep crash recovery, explicit cancellation and permission failure as distinct outcomes. Do not alter the stopped live installation or publish a release.
 **Verify:** `cargo clippy -p msc-infrastructure -p msc-application -p msc-agent --lib --bins && cargo clippy --manifest-path clients/desktop-web/src-tauri/Cargo.toml --lib && npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run api:check && cargo fmt --all -- --check && git diff --check`
@@ -44,14 +44,14 @@ A random, reset-specific completion token permits reading only that reset's dura
 
 **Evidence:** 31 focused tests pass (resource budget 1, archive safety 15, conversion 14, replacement promotion 1). A broader activation check passed 12 cases and failed the fresh-world packs/seed case; an isolated worktree at published v0.1.26 reproduces exactly the same failure (`level-seed=998877` missing), establishing it predates this correction. Do not call the entire activation suite green or silently expand this fix to fresh-world seed behavior. The real Tectonic archive is 9.2 GiB compressed, 13,702,937,286 bytes unpacked, 4,938 entries. Both opt-in real conversion attempts were stopped before completion at the owner's request. Disposable scratch directories were removed; no successful full-world conversion is claimed. Its outstanding outcome belongs in P16.69's evidence. Sampled agent-side test RSS during archive validation is approximately 9 MiB, not a measured lifetime peak. Formatting, Clippy and whitespace checks pass with the existing unused `auth::forbidden` warning. Existing dependency versions are retained; only resource-probe dependencies were added in both lockfiles. No live server, source world or release workflow modified.
 
-### P16.69 — Publish the large-world correction
+### P16.69 — Publish large-world conversion and agent recovery corrections
 
-**Status:** Paused at the owner's explicit request. Version/README/release-note preparation remains uncommitted; no 0.1.27 tag, push or publication. Resume only when the owner asks.
-**Files:** Owned version fields/lockfiles, README, release notes and this plan.
-**What:** Inspect remote tags/main and recent build results, select the next unused patch, synchronize versions and publish via the unchanged build-only workflow using one new immutable tag. Monitor to completion; verify all nine packages, checksums and signed update metadata. Record actual local conversion evidence and its limits; do not claim the affected Mac has been verified. No further execution step follows.
+**Status:** Prepared; publication reauthorized by the owner on October 12 for affected-Mac testing. Release v0.1.27 includes P16.68 and P16.70. Publication results are reported with the GitHub release/workflow; owner verification remains open.
+**Files:** Owned version fields/lockfiles, README, release notes, release-note selection in the existing build-only workflow and this plan.
+**What:** Inspect remote tags/main and recent build results, select the next unused patch, synchronize versions and publish via the unchanged build-only workflow using one new immutable tag. Monitor to completion; verify all nine packages, checksums and signed update metadata. Record actual local conversion evidence and its limits; do not claim the affected Mac has been verified. Use committed version-specific release notes in the existing publish step so the manual macOS upgrade requirement is included in both the release body and downloadable notes. Preserve all nine packages, checksums/signatures and the build-only jobs; no test or CI gate added. No further implementation step follows.
 **Verify:** `gh release view v0.1.27 --json tagName,isPrerelease,assets,url`
-**Batch:** P16.68–P16.69 only.
-**Commit:** `P16.69: publish large world conversion fixes`
+**Batch:** P16.69 only on resumed execution; explicitly authorized publication includes already committed P16.68 and P16.70. No live conversion or service restart.
+**Commit:** `P16.69: publish conversion and agent recovery fixes`
 
 ### P16.67 — Use managed Java and the existing data folder for Chunker
 

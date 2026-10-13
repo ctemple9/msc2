@@ -24,37 +24,6 @@ entry in `SHA256SUMS` before installing. The Phase 16 acceptance record
 (P16.29) is still open; this prerelease has not passed the full physical
 release acceptance gate.
 
-v0.1.22 fixes headless Linux service status and routine CLI control, and
-accepts modern Java datapack metadata such as Tectonic 3.0.29 for Minecraft 26.3.
-
-v0.1.23 fixes headless updates omitting terrain helpers and
-prepares Java map dependencies automatically on the server host. The first map
-launch can recover a missing Vantage renderer and downloads verified Minecraft
-textures for the saved world's version; later launches reuse the cache. Renderer
-failures now identify the affected dependency and retain diagnostics in agent
-logs. Publication uses the existing build-only release workflow.
-
-v0.1.24 adds biome colors and legends, live map quality
-presets and sliders, and vertical depth controls in 2D, 3D and Fly. Use
-Alt/Option+arrows with Depth open to change height and keyboard step.
-
-v0.1.25 uses generic app examples and anonymizes personal
-paths, network addresses, player/world labels and machine observations. Installed
-app/service identifiers remain the same.
-
-v0.1.26 fixes ATM10 saved-world restarts rejected by MSC's datapack validation,
-explains the outcome of every file flagged during modpack inspection, and
-reports world-settings startup failures specifically. Chunker now discovers
-MSC-managed Java, reports runtime failures, and keeps its cache in the agent's
-existing data folder, migrating an old cache when needed. These fixes await
-owner verification on the affected installations.
-
-v0.1.27 supports large-world conversion beyond the former 8 GiB extraction limit,
-streams archives to avoid whole-ZIP memory allocation, checks working disk space,
-and budgets Chunker's Java heap from available memory. It also corrects macOS
-update rollback/agent registration and makes interrupted host resets recoverable
-and explicitly cancellable. A cancelled reset cannot restore files already removed.
-
 v0.1.28 keeps Intel Mac Bedrock world files owned by the installing account
 through a separate VM worker while retaining privileged network relays. It
 checks existing world ownership before conversion or active-world pack
@@ -75,11 +44,6 @@ contains the rollback bug; subsequent updates can use the corrected updater.
 |---|---|---|
 | Desktop app | macOS Intel (`x86_64`) and Apple Silicon (`aarch64`); Windows 64-bit (`x86_64`); Linux 64-bit (`x86_64`) as `.deb` and `.rpm` | Tauri desktop app |
 | Headless agent | macOS Intel (`x86_64`) and Apple Silicon (`aarch64`); Windows 64-bit (`x86_64`); Linux 64-bit (`x86_64`) | CLI in a local terminal or SSH shell on the host; remote Tauri desktop app |
-
-The published v0.1.16 bytes predate the approved browser-client retirement
-and may contain historical browser assets. v0.1.17 was tagged but never
-published. v0.1.18 is the first published browser-free release; MSC no
-longer supports browser management or promises a browser installation type.
 
 The Linux minimum is Debian 12 (Bookworm), or another distribution with
 `systemd` 250 or newer. Linux `.deb` and `.rpm` desktop packages are built for

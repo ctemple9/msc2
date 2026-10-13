@@ -2,6 +2,17 @@
 
 Implemented steps awaiting verification were marked Done and moved to [the archive](rolling-plan-archive.md) at Cameron's direction on 2026-10-08. Planned work, pending publications and independent phase acceptance remain below.
 
+### P16.79 — Keep only current release notes at the README opening
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `README.md`, this plan.
+**What:** At Cameron's request, remove the older 0.1.22–0.1.27 release summaries and historical 0.1.16–0.1.18 publication narrative from the opening release/support section. Keep the 0.1.28 feature summary, current download links, platform support and applicable upgrade instructions.
+**Verify:** `git show --format= -- README.md`
+**Batch:** P16.79 only; documentation only.
+**Commit:** `P16.79: keep only v0.1.28 notes at readme opening`
+
+**Checks:** Inspected the opening section and passed whitespace verification. No tests run.
+
 ### P16.78 — Correct the README release number to v0.1.28
 
 **Status:** Implemented; awaiting owner verification. Cameron corrected his preceding README request from 0.1.29 to 0.1.28.

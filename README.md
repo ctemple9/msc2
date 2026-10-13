@@ -55,7 +55,7 @@ and budgets Chunker's Java heap from available memory. It also corrects macOS
 update rollback/agent registration and makes interrupted host resets recoverable
 and explicitly cancellable. A cancelled reset cannot restore files already removed.
 
-The prepared v0.1.29 candidate moves Intel Mac Bedrock VM filesystem writes into an installing-user
+The revised v0.1.28 candidate moves Intel Mac Bedrock VM filesystem writes into an installing-user
 worker while keeping privileged network relays. It checks existing world
 ownership before conversion or active-world pack installation and preserves
 activation error details and the saved converted slot. Existing root-owned
@@ -63,7 +63,7 @@ data requires a one-time administrator repair; physical acceptance remains open.
 It also replaces the Bedrock map snapshot's 2 GiB ceiling with disk budgets and
 APFS clones or streamed copies, while keeping live save pauses bounded. The
 v0.1.28 publication failed before publishing; its checksum mismatch is corrected
-in this candidate. v0.1.29 publication is held for the owner's next edit.
+in this candidate. The owner requested republishing the failed, unpublished v0.1.28 tag with these corrections.
 
 **macOS 0.1.25/0.1.26:** stop the Minecraft server, quit MSC 2, manually install
 v0.1.27 from its disk image, and repair the agent once. The older updater's helper

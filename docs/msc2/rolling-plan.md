@@ -2,9 +2,20 @@
 
 Implemented steps awaiting verification were marked Done and moved to [the archive](rolling-plan-archive.md) at Cameron's direction on 2026-10-08. Planned work, pending publications and independent phase acceptance remain below.
 
+### P16.76 — Republish the failed v0.1.28 at the owner's request
+
+**Status:** Prepared; publication explicitly reauthorized October 13. Owner directed reuse of 0.1.28 rather than 0.1.29 after lifting the publication hold. Artifact and physical verification remain open.
+**Files:** Agent/desktop/frontend versions and lockfiles, bundle identity, README, revised `docs/msc2/release/v0.1.28.md`, removal of unused 0.1.29 notes, this plan.
+**What:** Restore all owned versions to 0.1.28, include P16.73's map changes and P16.74's checksum correction, and replace the failed v0.1.28 tag at the owner's explicit request. This is an owner-directed exception to the ordinary no-tag-movement rule. GitHub's release-by-tag API returned HTTP 404 and the failed workflow completed without publication. Replace only the verified old tag `517e7de636ad7998259aa01111bfa900b81845eb` using an explicit force-with-lease; preserve the failed run history. No 0.1.29 tag exists. File-structure/pack artifact cleanup remains deferred at the owner's direction. Existing build-only workflow and complete signed artifact set remain unchanged.
+**Verify:** `gh release view v0.1.28 --json tagName,isPrerelease,assets,url`
+**Batch:** P16.76 only; push the corrected tag once and report the workflow without monitoring builders, following the owner's earlier preference.
+**Commit:** `P16.76: republish corrected v0.1.28 at owner direction`
+
+**Evidence:** Both focused snapshot regressions passed under specific owner authorization. Full local desktop payload staging, including Release Swift helper and appliance checks, passed after correcting the fourth checksum declaration. Locked offline metadata and actual appliance validation pass with restored 0.1.28 versions. Rebuilding the frontend verifies the changed bundle identity. No source behavior changes follow the tested P16.73/P16.74 implementation. Physical ownership/networking and the actual large map remain unverified by the implementing agent.
+
 ### P16.75 — Prepare v0.1.29 and hold publication for the owner
 
-**Status:** Prepared; publication explicitly held before tag creation or workflow dispatch for the owner's additional edit/question.
+**Status:** Superseded by P16.76. Owner explicitly requested reusing the failed, unpublished v0.1.28; no v0.1.29 tag or workflow was created.
 **Files:** Agent/desktop/frontend versions and lockfiles, bundle identity, README, `docs/msc2/release/v0.1.29.md`, this plan.
 **What:** Prepare a fresh immutable v0.1.29 candidate containing P16.71's ownership correction, P16.73's large-map snapshots and P16.74's Intel packaging fix. Preserve nine packages, appliance checksums and signed update metadata. Do not move/retry v0.1.28, push a release tag or dispatch a workflow. No new release gates.
 **Verify:** `git show --stat --oneline HEAD && node clients/desktop-web/tools/prepare-agent-dev.mjs --validate-appliance`

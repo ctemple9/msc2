@@ -2,6 +2,19 @@
 
 Implemented steps awaiting verification were marked Done and moved to [the archive](rolling-plan-archive.md) at Cameron's direction on 2026-10-08. Planned work, pending publications and independent phase acceptance remain below.
 
+### P16.72 — Publish v0.1.28 with Bedrock ownership correction
+
+**Status:** Prepared; publication authorized October 13, owner artifact/physical verification pending.
+**Files:** Agent/desktop/frontend versions and lockfiles, bundle identity, README, `docs/msc2/release/v0.1.28.md`, this plan.
+**What:** Release P16.71's approved root-supervisor/user-VM-worker split, early detection of existing misowned world data, and recoverable conversion activation diagnostics. Push main and a new immutable v0.1.28 tag once through the existing build-only workflow. Keep all nine packages, appliance resources, checksums and signed update metadata; add no workflow gates. Existing root-owned worlds need explicit administrator repair. The physical VM test remains owner acceptance, not an implicit publication claim.
+**Verify:** `gh release view v0.1.28 --json tagName,isPrerelease,assets,url`
+**Batch:** P16.72 only. Owner previously requested no release monitoring; report the triggered run without waiting for all builders.
+**Commit:** `P16.72: prepare bedrock ownership correction release`
+
+**Preparation:** v0.1.27 is published with all nine packages and metadata, and its release workflow succeeded. v0.1.28 was unused when checked. Locked offline Cargo metadata resolves for agent and desktop. Helper Release build and Debug test compilation, appliance/source/checksum consistency, guest shell syntax, Python acceptance-script compilation, Clippy and focused Rust test-target compilation passed during P16.71. No live installation was changed. Release notes distinguish implementation/build evidence from pending physical ownership and networking acceptance, and do not claim Prizma install or Chunker speed improvements.
+
+**Release checks:** All owned versions agree on 0.1.28; locked Cargo metadata, agent/native desktop Clippy, frontend production build and bundle-identity check pass with existing unrelated warnings. Rust formatting and whitespace checks pass. The previous three publication runs succeeded. The existing workflow is unchanged: no test/lint gates added and no release reruns or moved tags. Test execution and the real VM acceptance check remain pending; the release is a beta for owner verification.
+
 ### P16.71 — Prevent root-owned Bedrock data on Intel macOS
 
 **Status:** Implemented; awaiting owner verification. Owner authorized implementation and the next release, and explicitly approved the VM-worker privilege split on October 13. No live ownership repair performed by the agent.

@@ -695,7 +695,9 @@ The operation waits for BDS `save query` to confirm the world is ready before
 copying. Its JSON result contains `worldPath`, `bytesCopied` and `holdMillis`.
 The world copy is in an owner-private directory under the host's temporary
 directory, never in Git or the normal backup list. The command refuses a
-world over 2 GiB or a copy that takes more than 30 seconds, and releases the
+world over the 1 TiB safety backstop or insufficient working disk space (2 GiB
+reserve). Live readiness and copying share a 30-second save-hold budget, and
+the snapshot uses APFS copy-on-write clones where available. It releases the
 save hold on errors while the same server run is available. Do not use a
 failed or incomplete copy for a map.
 
@@ -768,10 +770,17 @@ python3 tools/world-map-proof/measure_refresh_series.py \
 The script waits for Enter before each capture, prints each result, then reports
 minimum, median, and maximum snapshot, hold, export, and ready times. It stops
 on the first failure. Each capture copies the entire selected world, subject
-to the proof's 2 GiB and 30-second limits, even though the exporter renders
+to the disk-space budget, 1 TiB backstop and 30-second live hold budget, even though the exporter renders
 only 4×4 chunks. Confirm MSC still reports the server running and BDS accepts
 block changes after each sample. The output measures one developed tile; it is
 not a full-world streaming benchmark or an automatic refresh loop.
+
+Production stopped-world Bedrock map snapshots have a separate 30-minute copy
+deadline. If a live copy cannot finish within its save-hold budget, stop the
+server and refresh terrain; stopped copying does not hold server saves. Agent
+shutdown or starting the server cancels a stopped copy. Snapshot writes stream
+with a fixed-size buffer and periodically recheck the disk reserve. A map error
+does not require converting the world again.
 
 ### Live Bedrock player overlay (P18.3c)
 

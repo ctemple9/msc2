@@ -375,10 +375,16 @@ impl BedrockStore {
                     crate::backup_operations::snapshot_bedrock_world(
                         lifecycle.clone(),
                         server_dir,
-                        || false,
+                        || self.1.shutdown.load(Ordering::Acquire),
                     )
                 } else {
-                    crate::backup_operations::snapshot_stopped_bedrock_world(server_dir)
+                    let generation = lifecycle.bedrock_run_generation();
+                    crate::backup_operations::snapshot_stopped_bedrock_world(server_dir, || {
+                        self.1.shutdown.load(Ordering::Acquire)
+                            || lifecycle.bedrock_runtime_is_busy()
+                            || lifecycle.bedrock_run_generation() != generation
+                            || lifecycle.active_server_id().as_deref() != Some(server_id)
+                    })
                 };
                 match copied {
                     Ok(snapshot) => {

@@ -91,7 +91,12 @@ impl Staging {
             // An unlocked lease can belong to an orphaned renderer. Keep its
             // files: agent death alone does not prove the child stopped.
         }
-        let reservation = estimate.saturating_add(HEADROOM);
+        let headroom = if kind == "snapshot" {
+            msc_infrastructure::conversion_resources::DISK_RESERVE
+        } else {
+            HEADROOM
+        };
+        let reservation = estimate.saturating_add(headroom);
         ensure_space(root, reserved.saturating_add(reservation))?;
         let path = root.join(format!("{kind}-{}", Uuid::new_v4()));
         fs::create_dir(&path)?;

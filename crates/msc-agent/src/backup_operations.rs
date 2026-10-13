@@ -190,8 +190,9 @@ pub fn start_backup(
 // shared by both triggers.
 // =====================================================================
 
-const MAP_SNAPSHOT_MAX_BYTES: u64 = 2 * 1024 * 1024 * 1024;
-const MAP_SNAPSHOT_COPY_LIMIT: Duration = Duration::from_secs(30);
+const MAP_SNAPSHOT_MAX_BYTES: u64 = 1024 * 1024 * 1024 * 1024;
+const MAP_SNAPSHOT_LIVE_HOLD_LIMIT: Duration = Duration::from_secs(30);
+const MAP_SNAPSHOT_STOPPED_COPY_LIMIT: Duration = Duration::from_secs(30 * 60);
 const MAP_SNAPSHOT_MAX_DEPTH: usize = 32;
 
 pub(crate) struct WorldMapSnapshot {
@@ -238,16 +239,48 @@ fn copy_snapshot_tree(
     should_cancel: &impl Fn() -> bool,
     depth: usize,
 ) -> io::Result<()> {
+    copy_snapshot_tree_with_budget(
+        source,
+        destination,
+        bytes,
+        deadline,
+        should_cancel,
+        depth,
+        &|path| {
+            msc_infrastructure::conversion_resources::require_space(
+                path,
+                0,
+                "copying a map snapshot",
+            )
+        },
+    )
+}
+
+fn copy_snapshot_tree_with_budget(
+    source: &Path,
+    destination: &Path,
+    bytes: &mut u64,
+    deadline: Instant,
+    should_cancel: &impl Fn() -> bool,
+    depth: usize,
+    check_space: &impl Fn(&Path) -> io::Result<()>,
+) -> io::Result<()> {
     if depth > MAP_SNAPSHOT_MAX_DEPTH {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "world directory exceeds snapshot depth limit",
         ));
     }
-    if should_cancel() || Instant::now() >= deadline {
+    if should_cancel() {
+        return Err(io::Error::new(
+            io::ErrorKind::Interrupted,
+            "snapshot cancelled",
+        ));
+    }
+    if Instant::now() >= deadline {
         return Err(io::Error::new(
             io::ErrorKind::TimedOut,
-            "snapshot copy stopped",
+            "snapshot copy deadline reached",
         ));
     }
     let metadata = fs::symlink_metadata(source)?;
@@ -261,25 +294,59 @@ fn copy_snapshot_tree(
         fs::create_dir(destination)?;
         for entry in fs::read_dir(source)? {
             let entry = entry?;
-            copy_snapshot_tree(
+            copy_snapshot_tree_with_budget(
                 &entry.path(),
                 &destination.join(entry.file_name()),
                 bytes,
                 deadline,
                 should_cancel,
                 depth + 1,
+                check_space,
             )?;
         }
     } else if metadata.is_file() {
+        let total = bytes.checked_add(metadata.len()).ok_or_else(|| {
+            io::Error::new(io::ErrorKind::FileTooLarge, "snapshot byte count overflow")
+        })?;
+        if total > MAP_SNAPSHOT_MAX_BYTES {
+            return Err(io::Error::new(
+                io::ErrorKind::FileTooLarge,
+                "snapshot exceeds 1 TiB safety limit",
+            ));
+        }
+        check_space(destination.parent().unwrap())?;
+        if clone_snapshot_file(source, destination)? {
+            *bytes = total;
+            if should_cancel() {
+                return Err(io::Error::new(
+                    io::ErrorKind::Interrupted,
+                    "snapshot cancelled",
+                ));
+            }
+            if Instant::now() >= deadline {
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "snapshot copy deadline reached",
+                ));
+            }
+            return Ok(());
+        }
         let mut input = File::open(source)?;
         let mut output = File::create(destination)?;
+        let mut since_space_check = 0usize;
         // A stack buffer here is reserved by every recursive directory frame.
         let mut buffer = vec![0u8; 1024 * 1024];
         loop {
-            if should_cancel() || Instant::now() >= deadline {
+            if should_cancel() {
+                return Err(io::Error::new(
+                    io::ErrorKind::Interrupted,
+                    "snapshot cancelled",
+                ));
+            }
+            if Instant::now() >= deadline {
                 return Err(io::Error::new(
                     io::ErrorKind::TimedOut,
-                    "snapshot copy stopped",
+                    "snapshot copy deadline reached",
                 ));
             }
             let count = input.read(&mut buffer)?;
@@ -290,10 +357,15 @@ fn copy_snapshot_tree(
             if *bytes > MAP_SNAPSHOT_MAX_BYTES {
                 return Err(io::Error::new(
                     io::ErrorKind::FileTooLarge,
-                    "snapshot exceeds 2 GiB proof limit",
+                    "snapshot exceeds 1 TiB safety limit",
                 ));
             }
             output.write_all(&buffer[..count])?;
+            since_space_check += count;
+            if since_space_check >= 64 * 1024 * 1024 {
+                check_space(destination.parent().unwrap())?;
+                since_space_check = 0;
+            }
         }
     } else {
         return Err(io::Error::new(
@@ -304,7 +376,34 @@ fn copy_snapshot_tree(
     Ok(())
 }
 
-/// Captures one proof-only world copy while the same MSC-managed BDS run has
+/// APFS clones preserve a stable snapshot without copying all data while saves
+/// are held. Other filesystems use the same bounded streaming fallback.
+fn clone_snapshot_file(source: &Path, destination: &Path) -> io::Result<bool> {
+    #[cfg(target_os = "macos")]
+    {
+        use std::ffi::CString;
+        use std::os::unix::ffi::OsStrExt;
+        let source = CString::new(source.as_os_str().as_bytes())?;
+        let destination = CString::new(destination.as_os_str().as_bytes())?;
+        // sys/clonefile.h: reject symlinks and retain the creating user's owner.
+        let flags = 0x0001 | 0x0002;
+        if unsafe { libc::clonefile(source.as_ptr(), destination.as_ptr(), flags) } == 0 {
+            return Ok(true);
+        }
+        let error = io::Error::last_os_error();
+        if !matches!(
+            error.raw_os_error(),
+            Some(libc::ENOTSUP | libc::EXDEV | libc::EINVAL | libc::ENOSYS)
+        ) {
+            return Err(error);
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = (source, destination);
+    Ok(false)
+}
+
+/// Captures a disk-budgeted world copy while the same MSC-managed BDS run has
 /// confirmed that its files are ready. The normal backup path intentionally
 /// retains its MSC 1 best-effort semantics; map publication requires a
 /// stronger readiness gate and never consumes backup retention slots.
@@ -330,7 +429,7 @@ pub(crate) fn snapshot_bedrock_world(
     }
     let estimate = crate::map_staging::estimate_tree(&world).map_err(|error| error.to_string())?;
     if estimate > MAP_SNAPSHOT_MAX_BYTES {
-        return Err("snapshot exceeds 2 GiB limit".into());
+        return Err("snapshot exceeds 1 TiB safety limit".into());
     }
     let staging = crate::map_staging::Staging::create("snapshot", estimate)
         .map_err(|error| error.to_string())?;
@@ -367,8 +466,8 @@ pub(crate) fn snapshot_bedrock_world(
         &world,
         &destination.join("world"),
         &mut bytes,
-        Instant::now() + MAP_SNAPSHOT_COPY_LIMIT,
-        &should_cancel,
+        started + MAP_SNAPSHOT_LIVE_HOLD_LIMIT,
+        &|| should_cancel() || !console.lifecycle.backup_run_matches(&held.boundary),
         0,
     );
     let hold_millis = started.elapsed().as_millis();
@@ -376,7 +475,7 @@ pub(crate) fn snapshot_bedrock_world(
     drop(held);
     if let Err(error) = copied {
         return Err(format!(
-            "BDS snapshot copy failed at {}: {error}; save resume dispatched: {resume_sent}",
+            "BDS snapshot copy failed at {}: {error}; save resume dispatched: {resume_sent}. A live map snapshot has a 30-second save-pause budget. Stop the server and refresh terrain to copy a large world without holding saves.",
             destination.display()
         ));
     }
@@ -395,6 +494,7 @@ pub(crate) fn snapshot_bedrock_world(
 
 pub(crate) fn snapshot_stopped_bedrock_world(
     server_dir: &Path,
+    should_cancel: impl Fn() -> bool,
 ) -> Result<WorldMapSnapshot, String> {
     let configured =
         msc_application::worlds::read_configured_level_name(&StdFileSystem, server_dir)
@@ -413,7 +513,7 @@ pub(crate) fn snapshot_stopped_bedrock_world(
     }
     let estimate = crate::map_staging::estimate_tree(&world).map_err(|error| error.to_string())?;
     if estimate > MAP_SNAPSHOT_MAX_BYTES {
-        return Err("snapshot exceeds 2 GiB limit".into());
+        return Err("snapshot exceeds 1 TiB safety limit".into());
     }
     let staging = crate::map_staging::Staging::create("snapshot", estimate)
         .map_err(|error| error.to_string())?;
@@ -423,14 +523,17 @@ pub(crate) fn snapshot_stopped_bedrock_world(
         &world,
         &destination.join("world"),
         &mut bytes,
-        Instant::now() + MAP_SNAPSHOT_COPY_LIMIT,
-        &|| false,
+        Instant::now() + MAP_SNAPSHOT_STOPPED_COPY_LIMIT,
+        &should_cancel,
         0,
     ) {
         return Err(format!(
             "BDS stopped-world map copy failed at {}: {error}",
             destination.display()
         ));
+    }
+    if should_cancel() {
+        return Err("Stopped-world map snapshot cancelled because the agent is stopping or the server started.".into());
     }
     Ok(WorldMapSnapshot {
         staging: Some(staging),
@@ -464,7 +567,7 @@ pub(crate) fn snapshot_java_world(
     }
     let estimate = crate::map_staging::estimate_tree(&world).map_err(|error| error.to_string())?;
     if estimate > MAP_SNAPSHOT_MAX_BYTES {
-        return Err("snapshot exceeds 2 GiB limit".into());
+        return Err("snapshot exceeds 1 TiB safety limit".into());
     }
     let staging = crate::map_staging::Staging::create("snapshot", estimate)
         .map_err(|error| error.to_string())?;
@@ -504,7 +607,7 @@ pub(crate) fn snapshot_java_world(
         &world,
         &destination.join("world"),
         &mut bytes,
-        Instant::now() + MAP_SNAPSHOT_COPY_LIMIT,
+        started + MAP_SNAPSHOT_LIVE_HOLD_LIMIT,
         &should_cancel,
         0,
     );
@@ -625,6 +728,92 @@ fn wait_for_confirmation(
 mod tests {
     use super::*;
     use std::cell::Cell;
+
+    struct SnapshotFixture(PathBuf);
+    impl SnapshotFixture {
+        fn new() -> Self {
+            let root =
+                std::env::temp_dir().join(format!("msc2-snapshot-check-{}", uuid::Uuid::new_v4()));
+            fs::create_dir_all(root.join("source/db")).unwrap();
+            fs::write(root.join("source/level.dat"), b"world metadata").unwrap();
+            fs::write(root.join("source/db/CURRENT"), b"database").unwrap();
+            Self(root)
+        }
+    }
+    impl Drop for SnapshotFixture {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn map_snapshot_crosses_old_size_limit_and_is_independent() {
+        let fixture = SnapshotFixture::new();
+        // Model earlier copied files without allocating or writing 2 GiB.
+        let mut bytes = 2 * 1024 * 1024 * 1024;
+        copy_snapshot_tree_with_budget(
+            &fixture.0.join("source"),
+            &fixture.0.join("snapshot"),
+            &mut bytes,
+            Instant::now() + Duration::from_secs(60),
+            &|| false,
+            0,
+            &|_| Ok(()),
+        )
+        .unwrap();
+        assert!(bytes > 2 * 1024 * 1024 * 1024);
+        fs::write(fixture.0.join("source/db/CURRENT"), b"new data").unwrap();
+        assert_eq!(
+            fs::read(fixture.0.join("snapshot/db/CURRENT")).unwrap(),
+            b"database"
+        );
+    }
+
+    #[test]
+    fn map_snapshot_cancellation_and_expired_deadline_stop_copy() {
+        let fixture = SnapshotFixture::new();
+        let visits = Cell::new(0);
+        let cancel = || {
+            visits.set(visits.get() + 1);
+            visits.get() >= 2
+        };
+        let error = copy_snapshot_tree_with_budget(
+            &fixture.0.join("source"),
+            &fixture.0.join("cancelled"),
+            &mut 0,
+            Instant::now() + Duration::from_secs(60),
+            &cancel,
+            0,
+            &|_| Ok(()),
+        )
+        .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::Interrupted);
+        assert!(!fixture.0.join("cancelled/db/CURRENT").exists());
+        let error = copy_snapshot_tree_with_budget(
+            &fixture.0.join("source"),
+            &fixture.0.join("expired"),
+            &mut 0,
+            Instant::now() - Duration::from_secs(1),
+            &|| false,
+            0,
+            &|_| Ok(()),
+        )
+        .unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::TimedOut);
+        assert!(!fixture.0.join("expired").exists());
+        let error = copy_snapshot_tree_with_budget(
+            &fixture.0.join("source"),
+            &fixture.0.join("full"),
+            &mut 0,
+            Instant::now() + Duration::from_secs(60),
+            &|| false,
+            0,
+            &|_| Err(io::Error::other("simulated disk shortage")),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("simulated disk shortage"));
+        assert!(!fixture.0.join("full/db/CURRENT").exists());
+    }
 
     #[test]
     fn bedrock_queries_retry_before_deadline_without_shortening_java_flush() {

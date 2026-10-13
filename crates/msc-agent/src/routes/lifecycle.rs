@@ -1313,6 +1313,10 @@ impl LifecycleRoutesState {
         )
     }
 
+    pub(crate) fn bedrock_run_generation(&self) -> u64 {
+        self.inner.bedrock_run_generation.load(Ordering::Relaxed)
+    }
+
     pub(crate) fn bedrock_runtime_is_bound(&self) -> bool {
         self.inner.bedrock_runtime.is_bound()
     }

@@ -2,6 +2,19 @@
 
 Implemented steps awaiting verification were marked Done and moved to [the archive](rolling-plan-archive.md) at Cameron's direction on 2026-10-08. Planned work, pending publications and independent phase acceptance remain below.
 
+### P16.74 — Correct the Intel macOS appliance staging checksum
+
+**Status:** Implemented; awaiting owner verification. Full local payload staging passed. Owner authorized investigation and correction of the failed v0.1.28 workflow; release start is explicitly held for another owner edit/question.
+**Files:** `clients/desktop-web/tools/prepare-agent-dev.mjs`, this plan.
+**What:** Correct the missed desktop-stager checksum for P16.71's rebuilt appliance. Reuse the exact production validation function through an explicit `--validate-appliance` preparation option so resource identity can be checked without rebuilding all platforms. Preserve mandatory checksums, Xcode entitlement checks and the complete payload. No workflow jobs/gates changed, no rerun, no moved tag.
+**Verify:** `node clients/desktop-web/tools/prepare-agent-dev.mjs --validate-appliance`
+**Batch:** P16.74 only; publication is separate and remains held.
+**Commit:** `P16.74: align desktop staging with the rebuilt bedrock appliance`
+
+**Failure evidence:** Run 38347411778 completed with only `Build macos-x86_64` failing at “Stage the matching Tauri agent payload.” The agent itself compiled successfully; Linux, Windows and Apple Silicon packaging succeeded. Publication was skipped because the complete artifact set was unavailable. The actual error was the desktop staging script expecting the old initramfs SHA-256 `d8e0ce4b9a2b9f752e2a482cf52feebaccaac4d892c619f41fa4011d68ac1291`, while the rebuilt guest source produced `fbbaaefd80aa47e18343367ac171babb3cdcecf7da58acc14ac94db4f77bcce6`. Xcode, the resource README and the package-layout checker were updated in P16.71; this fourth declaration was missed. All available failed logs were inspected before preparing a replacement release.
+
+**Checks:** The new preparation option executes the same checksum function as `stageMacosSidecar` and passes against the actual tracked kernel/initramfs. Node syntax validation passes. Direct inspection verifies all four checksum declarations match the actual compressed appliance. Full local debug desktop payload staging passed, including the optimized Bedrock map exporter, Release Swift sidecar build, entitlement verification and appliance copying. It did not register or restart any installed service. v0.1.28 remains immutable and unpublished.
+
 ### P16.73 — Support large Bedrock saved-terrain map snapshots
 
 **Status:** Implemented; awaiting owner physical verification. Owner authorized implementation and the focused regression command on October 13. Publication is explicitly held before workflow start for an additional owner edit/question.
@@ -21,7 +34,7 @@ Implemented steps awaiting verification were marked Done and moved to [the archi
 
 ### P16.72 — Publish v0.1.28 with Bedrock ownership correction
 
-**Status:** Prepared; publication authorized October 13, owner artifact/physical verification pending.
+**Status:** Publication failed; superseded by the next candidate. v0.1.28 tag remains immutable. Intel macOS appliance staging failed; no GitHub release was published. See P16.74.
 **Files:** Agent/desktop/frontend versions and lockfiles, bundle identity, README, `docs/msc2/release/v0.1.28.md`, this plan.
 **What:** Release P16.71's approved root-supervisor/user-VM-worker split, early detection of existing misowned world data, and recoverable conversion activation diagnostics. Push main and a new immutable v0.1.28 tag once through the existing build-only workflow. Keep all nine packages, appliance resources, checksums and signed update metadata; add no workflow gates. Existing root-owned worlds need explicit administrator repair. The physical VM test remains owner acceptance, not an implicit publication claim.
 **Verify:** `gh release view v0.1.28 --json tagName,isPrerelease,assets,url`

@@ -8,7 +8,9 @@ const clientRoot = fileURLToPath(new URL('..', import.meta.url));
 const workspaceRoot = resolve(clientRoot, '../..');
 const agentName = process.platform === 'win32' ? 'msc.exe' : 'msc';
 const arguments_ = process.argv.slice(2);
-const unsupportedArguments = arguments_.filter((argument) => argument !== '--release');
+const unsupportedArguments = arguments_.filter(
+  (argument) => !['--release', '--validate-appliance'].includes(argument),
+);
 if (unsupportedArguments.length > 0) {
   fail(`unsupported argument(s): ${unsupportedArguments.join(', ')}`);
 }
@@ -23,8 +25,14 @@ const bedrockMapName = process.platform === 'win32' ? 'bedrock-map.exe' : 'bedro
 
 const applianceChecksums = {
   'vmlinuz-kata': '85ac495fce6bb6ee01206c8e022b65acad45ca3fcc2729ba377af33943c8b05e',
-  'appliance-initramfs.gz': 'd8e0ce4b9a2b9f752e2a482cf52feebaccaac4d892c619f41fa4011d68ac1291',
+  'appliance-initramfs.gz': 'fbbaaefd80aa47e18343367ac171babb3cdcecf7da58acc14ac94db4f77bcce6',
 };
+
+if (arguments_.includes('--validate-appliance')) {
+  verifyMacosAppliance();
+  console.log('Bedrock appliance matches the desktop staging checksums');
+  process.exit(0);
+}
 
 const version = verifyVersions();
 const build = spawnSync('cargo', ['build', '-p', 'msc-agent', ...cargoProfileArguments], {
@@ -90,7 +98,7 @@ if (process.platform === 'darwin' && process.arch === 'x64') {
   console.log(`staged ${process.arch} macOS agent without Bedrock sidecar`);
 }
 
-function stageMacosSidecar() {
+function verifyMacosAppliance() {
   // The verified Intel pair is part of the MSC 2 repository so a macOS
   // developer build does not depend on an external MSC 1 checkout. Keep the
   // environment variable as an explicit override for release or replacement
@@ -109,6 +117,11 @@ function stageMacosSidecar() {
       fail(`Bedrock appliance checksum mismatch for ${name}: expected ${checksum}, got ${actual}`);
     }
   }
+  return applianceDirectory;
+}
+
+function stageMacosSidecar() {
+  const applianceDirectory = verifyMacosAppliance();
 
   const derivedData = join(destinationRoot, 'bedrock-sidecar-build');
   rmSync(derivedData, { recursive: true, force: true });

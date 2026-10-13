@@ -17,7 +17,7 @@ everything first.
 
 ## Current release and support
 
-The latest published build is [MSC 2 v0.1.29](https://github.com/ctemple9/msc2/releases/tag/v0.1.29),
+The latest published build is [MSC 2 v0.1.28](https://github.com/ctemple9/msc2/releases/tag/v0.1.28),
 an unsigned prerelease. There is no stable release yet. Download the
 platform-specific installer or archive from that release page and verify its
 entry in `SHA256SUMS` before installing. The Phase 16 acceptance record
@@ -55,7 +55,7 @@ and budgets Chunker's Java heap from available memory. It also corrects macOS
 update rollback/agent registration and makes interrupted host resets recoverable
 and explicitly cancellable. A cancelled reset cannot restore files already removed.
 
-v0.1.29 keeps Intel Mac Bedrock world files owned by the installing account
+v0.1.28 keeps Intel Mac Bedrock world files owned by the installing account
 through a separate VM worker while retaining privileged network relays. It
 checks existing world ownership before conversion or active-world pack
 installation and preserves activation error details and the saved converted
@@ -68,7 +68,7 @@ and refresh terrain. Intel macOS packaging includes the corrected appliance
 checksum. Physical ownership, networking and large-map acceptance remain open.
 
 **macOS 0.1.25/0.1.26:** stop the Minecraft server, quit MSC 2, manually install
-v0.1.29 from its disk image, and repair the agent once. The older updater's helper
+v0.1.28 from its disk image, and repair the agent once. The older updater's helper
 contains the rollback bug; subsequent updates can use the corrected updater.
 
 | Installation | Published platform and architecture | Supported control surface |
@@ -264,26 +264,26 @@ app already includes the MSC 2 agent; you do not need to download both.
   environment. Manage it from another computer with the desktop app or CLI.
 ### macOS desktop — Intel and Apple Silicon Macs
 
-Download the matching macOS disk image from the [v0.1.29 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.29), open it, and drag MSC 2 into your Applications folder. Intel Macs include the local Bedrock runtime. Apple Silicon Macs include the app and Java runtime support, but no local Bedrock VM; Bedrock servers can still be managed on a compatible remote host.
+Download the matching macOS disk image from the [v0.1.28 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.28), open it, and drag MSC 2 into your Applications folder. Intel Macs include the local Bedrock runtime. Apple Silicon Macs include the app and Java runtime support, but no local Bedrock VM; Bedrock servers can still be managed on a compatible remote host.
 
 ### Windows desktop — 64-bit Windows
 
-Download the Windows `.msi` installer from the [v0.1.29 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.29) and follow the installation prompts.
+Download the Windows `.msi` installer from the [v0.1.28 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.28) and follow the installation prompts.
 
 ### Debian or Ubuntu desktop
 
-Download the Linux `.deb` package from the [v0.1.29 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.29), then install it with:
+Download the Linux `.deb` package from the [v0.1.28 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.28), then install it with:
 
 ~~~sh
-sudo apt install ./msc2-0.1.29-linux-x86_64.deb
+sudo apt install ./msc2-0.1.28-linux-x86_64.deb
 ~~~
 
 ### Fedora or other RPM-based Linux
 
-Download the Linux `.rpm` package from the [v0.1.29 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.29), then install it with:
+Download the Linux `.rpm` package from the [v0.1.28 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.28), then install it with:
 
 ~~~sh
-sudo dnf install ./msc2-0.1.29-linux-x86_64.rpm
+sudo dnf install ./msc2-0.1.28-linux-x86_64.rpm
 ~~~
 
 ### Headless agent — macOS, Windows, and Linux
@@ -313,7 +313,7 @@ Signed releases can be checked and staged locally from the agent binary:
 
 ~~~sh
 msc update check
-msc update install --release-id 0.1.29
+msc update install --release-id 0.1.28
 ~~~
 
 The install command asks for a second confirmation. Pass `--yes` for

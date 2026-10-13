@@ -2,6 +2,17 @@
 
 Implemented steps awaiting verification were marked Done and moved to [the archive](rolling-plan-archive.md) at Cameron's direction on 2026-10-08. Planned work, pending publications and independent phase acceptance remain below.
 
+### P16.78 — Correct the README release number to v0.1.28
+
+**Status:** Implemented; awaiting owner verification. Cameron corrected his preceding README request from 0.1.29 to 0.1.28.
+**Files:** `README.md`, this plan.
+**What:** Present v0.1.28 as released throughout current-release text, download links, package examples and the update command. Retain the feature summary from P16.77. Documentation only; no tag, manifest or workflow changes and no publication claim beyond the owner's requested wording.
+**Verify:** `git show --format= -- README.md`
+**Batch:** P16.78 only.
+**Commit:** `P16.78: correct readme release number to v0.1.28`
+
+**Checks:** Inspected README release references and passed whitespace verification. No tests run.
+
 ### P16.77 — Present v0.1.29 as released in the README
 
 **Status:** Implemented; awaiting owner verification. Owner explicitly requested README wording as if v0.1.29 were released.

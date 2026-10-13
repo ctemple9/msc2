@@ -2,6 +2,16 @@
 
 Implemented steps awaiting verification were marked Done and moved to [the archive](rolling-plan-archive.md) at Cameron's direction on 2026-10-08. Planned work, pending publications and independent phase acceptance remain below.
 
+### P16.73 — Support large Bedrock saved-terrain map snapshots
+
+**Status:** Planned; owner reproduced “snapshot exceeds 2 GiB limit” on the converted 7.2 GB Tectonic world, with the Bedrock server running and a player connected. The same world's Java map had worked. Not included in v0.1.28.
+**Files:** `crates/msc-agent/src/backup_operations.rs`, `crates/msc-agent/src/map_staging.rs`, `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`, essential snapshot coverage and map documentation as needed; this plan.
+**What:** Replace the inherited proof-sized snapshot ceiling with disk-budgeted streaming suitable for large Bedrock worlds. Keep cancellation, safe paths, bounded memory and a bounded live save-hold; do not merely remove all limits or hold a running server's saves indefinitely. Distinguish the stopped-world copy budget from the live hold budget and give an actionable failure when a consistent live copy cannot finish safely. Retain save-resume on every live exit and release temporary snapshots. Check downstream exporter assumptions before claiming support for the real world.
+**Verify:** On the Intel Mac, open the converted Tectonic Bedrock map stopped and running, verify terrain/refresh and disk cleanup, and confirm the running server resumes saving on success, cancellation and failure. A concrete focused automated command will be recorded during implementation; no test execution authorized by this plan.
+**Batch:** P16.73 only; no release/tag changes or modification of the existing ownership release.
+
+**Investigation:** `MAP_SNAPSHOT_MAX_BYTES` in `backup_operations.rs` is fixed at 2 GiB; live and stopped Bedrock snapshot paths both reject the estimated entire world before invoking the exporter. The recursive copy also enforces the same byte ceiling, and both paths currently use a 30-second copy limit. `BedrockMapRuntime::read` always obtains one of these snapshots before `catalog` export. Java's terrain runtime can use its source world directly when no explicit saved snapshot is selected, through its separate compatibility/staging path. This is an MSC pre-render snapshot limit, not evidence that Vantage or the GPU cannot render the world, and is separate from root-owned Bedrock files. No implementation or tests performed for this step.
+
 ### P16.72 — Publish v0.1.28 with Bedrock ownership correction
 
 **Status:** Prepared; publication authorized October 13, owner artifact/physical verification pending.

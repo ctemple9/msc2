@@ -2,6 +2,17 @@
 
 Implemented steps awaiting verification were marked Done and moved to [the archive](rolling-plan-archive.md) at Cameron's direction on 2026-10-08. Planned work, pending publications and independent phase acceptance remain below.
 
+### P16.75 — Prepare v0.1.29 and hold publication for the owner
+
+**Status:** Prepared; publication explicitly held before tag creation or workflow dispatch for the owner's additional edit/question.
+**Files:** Agent/desktop/frontend versions and lockfiles, bundle identity, README, `docs/msc2/release/v0.1.29.md`, this plan.
+**What:** Prepare a fresh immutable v0.1.29 candidate containing P16.71's ownership correction, P16.73's large-map snapshots and P16.74's Intel packaging fix. Preserve nine packages, appliance checksums and signed update metadata. Do not move/retry v0.1.28, push a release tag or dispatch a workflow. No new release gates.
+**Verify:** `git show --stat --oneline HEAD && node clients/desktop-web/tools/prepare-agent-dev.mjs --validate-appliance`
+**Batch:** P16.75 only. Stop after local preparation and checks, before starting publication, as explicitly requested by Cameron.
+**Commit:** `P16.75: prepare large bedrock map release without starting publication`
+
+**Evidence and limits:** v0.1.28 failed only at Intel appliance staging and did not publish; the original tag remains unchanged. All four appliance declarations now match the actual archive, and the complete local debug staging path passed (including Release Swift helper, entitlement checks and optimized map exporter). The two specifically authorized map snapshot regressions passed after the controlled disk-budget checks were added. Source/lock versions and locked offline Cargo metadata agree on 0.1.29. Agent/native desktop Clippy, frontend production build, production bundle identity, Rust formatting, Node syntax, actual appliance validation and whitespace checks pass with existing unrelated warnings. README continues to link v0.1.27 as the latest published release and identifies 0.1.29 as a held candidate. Physical ownership/networking and the actual 7.2 GB Bedrock map remain owner acceptance; Prizma installation outcome and Chunker performance are not claimed fixed. No live server/agent was modified. No v0.1.29 tag was created and no workflow was started; wait for the owner's edit/question before publication.
+
 ### P16.74 — Correct the Intel macOS appliance staging checksum
 
 **Status:** Implemented; awaiting owner verification. Full local payload staging passed. Owner authorized investigation and correction of the failed v0.1.28 workflow; release start is explicitly held for another owner edit/question.

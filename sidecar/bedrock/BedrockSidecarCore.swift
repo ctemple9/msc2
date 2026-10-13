@@ -156,7 +156,7 @@ enum SidecarRequest: Decodable, Equatable {
     }
 }
 
-enum SidecarResponse: Encodable, Equatable {
+enum SidecarResponse: Codable, Equatable {
     case provisioned(ok: Bool, reason: String?)
     case started(accepted: Bool, reason: String?)
     case ready(guestIP: String, port: UInt16, relayUp: Bool)
@@ -177,6 +177,21 @@ enum SidecarResponse: Encodable, Equatable {
         case cpuPercent = "cpu_percent", ramUsedMB = "ram_used_mb", ramMaxMB = "ram_max_mb"
         case identity, protocolVersion = "protocol", ownerUID = "owner_uid", ownerGID = "owner_gid"
         case pathOwnership = "path_ownership", lastTeardownReason = "last_teardown_reason"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        switch try c.decode(String.self, forKey: .type) {
+        case "provisioned": self = .provisioned(ok: try c.decode(Bool.self, forKey: .ok), reason: try c.decodeIfPresent(String.self, forKey: .reason))
+        case "started": self = .started(accepted: try c.decode(Bool.self, forKey: .accepted), reason: try c.decodeIfPresent(String.self, forKey: .reason))
+        case "ready": self = .ready(guestIP: try c.decode(String.self, forKey: .guestIP), port: try c.decode(UInt16.self, forKey: .port), relayUp: try c.decode(Bool.self, forKey: .relayUp))
+        case "command-result": self = .commandResult(ok: try c.decode(Bool.self, forKey: .ok), reason: try c.decodeIfPresent(String.self, forKey: .reason))
+        case "console-line": self = .consoleLine(try c.decode(String.self, forKey: .line))
+        case "metrics": self = .metrics(cpuPercent: try c.decodeIfPresent(Double.self, forKey: .cpuPercent), ramUsedMB: try c.decodeIfPresent(Double.self, forKey: .ramUsedMB), ramMaxMB: try c.decodeIfPresent(Double.self, forKey: .ramMaxMB))
+        case "diagnostics": self = .diagnostics(identity: try c.decode(String.self, forKey: .identity), protocolVersion: try c.decode(String.self, forKey: .protocolVersion), ownerUID: try c.decode(UInt32.self, forKey: .ownerUID), ownerGID: try c.decode(UInt32.self, forKey: .ownerGID), pathOwnership: try c.decode(String.self, forKey: .pathOwnership), lastTeardownReason: try c.decodeIfPresent(String.self, forKey: .lastTeardownReason))
+        case "terminated": self = .terminated(try c.decode(String.self, forKey: .reason))
+        default: throw SidecarProtocolError.unknownType("worker-response")
+        }
     }
 
     func encode(to encoder: Encoder) throws {
@@ -297,17 +312,25 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
     private var didTerminate = false
     private var shutdownCompletions: [() -> Void] = []
     private let guestFileOwner: BedrockGuestFileOwner
+    private let supervisesWorker: Bool
+    private let hostRelaysEnabled: Bool
+    private var worker: BedrockVMWorker?
+    private var pendingWorkerTeardownReason: String?
     private var diagnosedServerDirectory: URL?
     private var lastTeardownReason: String?
 
     init(
         resources: ApplianceResourceProvider = BundleApplianceResources(),
         guestFileOwner: BedrockGuestFileOwner = .currentProcess(),
+        supervisesWorker: Bool = false,
+        hostRelaysEnabled: Bool = true,
         responseHandler: @escaping (SidecarResponse) -> Void = { response in
             writeSidecarResponse(response)
         }) {
         self.resources = resources
         self.guestFileOwner = guestFileOwner
+        self.supervisesWorker = supervisesWorker
+        self.hostRelaysEnabled = hostRelaysEnabled
         self.responseHandler = responseHandler
     }
 
@@ -367,6 +390,27 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         didTerminate = false
         state = .provisioned(serverDirectory: URL(fileURLWithPath: serverDir, isDirectory: true), version: version)
         diagnosedServerDirectory = URL(fileURLWithPath: serverDir, isDirectory: true)
+        if supervisesWorker {
+            do {
+                let workerID = UUID()
+                let next = try BedrockVMWorker(id: workerID) { [weak self] response in
+                    self?.receiveWorkerResponse(response)
+                } closed: { [weak self] in
+                    guard let self, self.worker?.id == workerID else { return }
+                    self.worker = nil
+                    let reason = self.pendingWorkerTeardownReason ?? "vm-worker-disconnected"
+                    self.pendingWorkerTeardownReason = nil
+                    self.finish(reason: reason)
+                }
+                worker = next
+                try next.send(.provision(serverDir: serverDir, version: version))
+                return []
+            } catch {
+                worker = nil
+                state = .terminated
+                return [.provisioned(ok: false, reason: "vm-worker-start-failed:\(error.localizedDescription)")]
+            }
+        }
         return [.provisioned(ok: true, reason: nil), diagnosticsResponse()]
     }
 
@@ -383,6 +427,18 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         }
         guard transport == "raknet" || transport == "nethernet" else {
             return [.started(accepted: false, reason: "unsupported-transport:\(transport)")]
+        }
+        if supervisesWorker {
+            self.bedrockPort = bedrockPort
+            connectionTransport = transport
+            state = .starting
+            do {
+                try worker?.send(.start(memoryGB: memoryGB, bedrockPort: bedrockPort, transport: transport))
+                return []
+            } catch {
+                finish(reason: "vm-worker-send-failed:\(error.localizedDescription)")
+                return [.started(accepted: false, reason: error.localizedDescription)]
+            }
         }
         do {
             let configuration = try makeConfiguration(
@@ -461,6 +517,10 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
     }
 
     private func commandResult(_ command: String) -> [SidecarResponse] {
+        if supervisesWorker {
+            do { try worker?.send(.command(command)); return [] }
+            catch { return [.commandResult(ok: false, reason: error.localizedDescription)] }
+        }
         guard case .running = state, let input = guestInput else {
             return [.commandResult(ok: false, reason: "not-running")]
         }
@@ -478,6 +538,11 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
     private func stop() {
         guard stateIsStartingOrRunning else { return }
         state = .stopping
+        if supervisesWorker {
+            do { try worker?.send(.stop) }
+            catch { finish(reason: "vm-worker-send-failed:\(error.localizedDescription)") }
+            return
+        }
         if let input = guestInput {
             input.fileHandleForWriting.write(Data("stop\n".utf8))
         }
@@ -495,6 +560,11 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
     private func forceStop() {
         gracefulStopWorkItem?.cancel()
         gracefulStopWorkItem = nil
+        if supervisesWorker, let worker {
+            do { try worker.send(.forceStop) }
+            catch { finish(reason: "vm-worker-send-failed:\(error.localizedDescription)") }
+            return
+        }
         guard let machine = vm else {
             finish(reason: "clean")
             return
@@ -542,51 +612,53 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         if line.contains("[MSCSTATS]") { return }
         if guestIP == nil, line.contains("[appliance] dhcp:"), let ip = Self.parseGuestIP(line) {
             guestIP = ip
-            do {
-                if connectionTransport == "raknet" {
-                    let udpRelay = try UDPRelay(
-                        listenPort: bedrockPort,
-                        guestHost: ip,
-                        guestPort: bedrockPort)
-                    self.udpRelay = udpRelay
-                    relayStartsRemaining = 1
-                    udpRelay.start { [weak self] started in
-                        DispatchQueue.main.async {
-                            self?.relayDidStart(started, kind: "UDP RakNet")
-                        }
-                    }
-                } else {
-                    let tcpRelay = try TCPRelay(
-                        listenPort: bedrockPort,
-                        guestHost: ip,
-                        guestPort: bedrockPort,
-                        diagnostic: { [weak self] message in
+            if hostRelaysEnabled {
+                do {
+                    if connectionTransport == "raknet" {
+                        let udpRelay = try UDPRelay(
+                            listenPort: bedrockPort,
+                            guestHost: ip,
+                            guestPort: bedrockPort)
+                        self.udpRelay = udpRelay
+                        relayStartsRemaining = 1
+                        udpRelay.start { [weak self] started in
                             DispatchQueue.main.async {
-                                self?.send(.consoleLine("[TCP relay] \(message)"))
-                            }
-                        })
-                    let udpRelays = try Self.netherNetUDPPorts(serverPort: bedrockPort).map { port in
-                        try UDPRelay(listenPort: port, guestHost: ip, guestPort: port)
-                    }
-                    self.tcpRelay = tcpRelay
-                    self.udpRelays = udpRelays
-                    relayStartsRemaining = udpRelays.count + 1
-                    tcpRelay.start { [weak self] started in
-                        DispatchQueue.main.async {
-                            self?.relayDidStart(started, kind: "TCP signaling")
-                        }
-                    }
-                    for relay in udpRelays {
-                        relay.start { [weak self] started in
-                            DispatchQueue.main.async {
-                                self?.relayDidStart(started, kind: "UDP gameplay")
+                                self?.relayDidStart(started, kind: "UDP RakNet")
                             }
                         }
+                    } else {
+                        let tcpRelay = try TCPRelay(
+                            listenPort: bedrockPort,
+                            guestHost: ip,
+                            guestPort: bedrockPort,
+                            diagnostic: { [weak self] message in
+                                DispatchQueue.main.async {
+                                    self?.send(.consoleLine("[TCP relay] \(message)"))
+                                }
+                            })
+                        let udpRelays = try Self.netherNetUDPPorts(serverPort: bedrockPort).map { port in
+                            try UDPRelay(listenPort: port, guestHost: ip, guestPort: port)
+                        }
+                        self.tcpRelay = tcpRelay
+                        self.udpRelays = udpRelays
+                        relayStartsRemaining = udpRelays.count + 1
+                        tcpRelay.start { [weak self] started in
+                            DispatchQueue.main.async {
+                                self?.relayDidStart(started, kind: "TCP signaling")
+                            }
+                        }
+                        for relay in udpRelays {
+                            relay.start { [weak self] started in
+                                DispatchQueue.main.async {
+                                    self?.relayDidStart(started, kind: "UDP gameplay")
+                                }
+                            }
+                        }
                     }
+                } catch {
+                    finish(reason: "start-failed:\(error.localizedDescription)")
+                    return
                 }
-            } catch {
-                finish(reason: "start-failed:\(error.localizedDescription)")
-                return
             }
         }
         send(.consoleLine(line))
@@ -614,6 +686,10 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
     }
 
     private func emitReadyIfPossible() {
+        if !hostRelaysEnabled {
+            if bedrockReady { state = .running }
+            return
+        }
         guard relayReady, bedrockReady, let guestIP else { return }
         guard case .starting = state else { return }
         guard relayPathReady else {
@@ -648,6 +724,14 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
     }
 
     private func finish(reason: String) {
+        if let worker {
+            // EOF stops the VM; acknowledge teardown only after waitpid confirms
+            // the worker is gone, including relay-start and protocol failures.
+            pendingWorkerTeardownReason = pendingWorkerTeardownReason ?? reason
+            state = .stopping
+            worker.closeInput()
+            return
+        }
         stateLock.lock()
         guard !didTerminate else {
             stateLock.unlock()
@@ -669,6 +753,8 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         guestOutput = nil
         guestInput = nil
         vm = nil
+        worker?.closeInput()
+        worker = nil
         send(diagnosticsResponse())
         send(.terminated(reason))
         let completions = shutdownCompletions
@@ -678,6 +764,15 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
 
     private func send(_ response: SidecarResponse) {
         responseHandler(response)
+    }
+
+    private func receiveWorkerResponse(_ response: SidecarResponse) {
+        switch response {
+        case .consoleLine(let line): processGuestLine(line)
+        case .terminated(let reason): finish(reason: reason)
+        case .diagnostics, .ready: break
+        default: send(response)
+        }
     }
 
     private func diagnosticsResponse() -> SidecarResponse {
@@ -1298,8 +1393,8 @@ private func interfaceIndex(for target: in_addr) -> UInt32? {
     return nil
 }
 
-func runSidecar() {
-    let controller = BedrockSidecarController()
+func runSidecar(vmWorker: Bool = false) {
+    let controller = BedrockSidecarController(hostRelaysEnabled: !vmWorker)
     // Virtualization.framework delivers VM and serial-port callbacks on the
     // main queue. Reading stdin there would block that queue forever after a
     // start request, leaving the sidecar stuck at "process spawned" with no
@@ -1320,9 +1415,118 @@ func runSidecar() {
         // EOF is the agent's shutdown signal. A live VM must not outlive its
         // supervisor, so force the guest down before the sidecar exits.
         DispatchQueue.main.async {
-            _ = controller.handle(.forceStop)
-            CFRunLoopStop(CFRunLoopGetMain())
+            controller.shutdown {
+                CFRunLoopStop(CFRunLoopGetMain())
+            }
         }
     }
     RunLoop.main.run()
+}
+
+/// The root supervisor keeps NAT relays; only this reset-identity child opens
+/// the VM's writable share. No client can choose its executable or arguments.
+final class BedrockVMWorker: @unchecked Sendable {
+    let id: UUID
+    private var input: FileHandle?
+    private let child: pid_t
+
+    init(id: UUID, response: @escaping @Sendable (SidecarResponse) -> Void,
+         closed: @escaping @Sendable () -> Void) throws {
+        self.id = id
+        guard geteuid() == 0, getuid() != 0, getgid() != 0 else {
+            throw NSError(domain: "BedrockSidecar", code: 4,
+                          userInfo: [NSLocalizedDescriptionKey: "VM worker requires a configured non-root real identity"])
+        }
+        let incoming = Pipe()
+        let outgoing = Pipe()
+        var actions: posix_spawn_file_actions_t?
+        var attributes: posix_spawnattr_t?
+        var status = posix_spawn_file_actions_init(&actions)
+        guard status == 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(status)) }
+        defer { posix_spawn_file_actions_destroy(&actions) }
+        status = posix_spawnattr_init(&attributes)
+        guard status == 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(status)) }
+        defer { posix_spawnattr_destroy(&attributes) }
+        for (source, destination) in [
+            (incoming.fileHandleForReading.fileDescriptor, STDIN_FILENO),
+            (outgoing.fileHandleForWriting.fileDescriptor, STDOUT_FILENO),
+            (STDERR_FILENO, STDERR_FILENO),
+        ] {
+            status = posix_spawn_file_actions_adddup2(&actions, source, destination)
+            guard status == 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(status)) }
+        }
+        var defaults = sigset_t()
+        sigemptyset(&defaults)
+        sigaddset(&defaults, SIGTERM)
+        sigaddset(&defaults, SIGINT)
+        status = posix_spawnattr_setsigdefault(&attributes, &defaults)
+        guard status == 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(status)) }
+        status = posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_RESETIDS | POSIX_SPAWN_CLOEXEC_DEFAULT | POSIX_SPAWN_SETSIGDEF))
+        guard status == 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(status)) }
+        let executable = Bundle.main.executableURL!.path
+        let arguments = [executable, "--vm-worker"].map { value in value.withCString { strdup($0)! } }
+        let environment = ["PATH=/usr/bin:/bin:/usr/sbin:/sbin"].map { value in value.withCString { strdup($0)! } }
+        defer { (arguments + environment).forEach { free($0) } }
+        var argv: [UnsafeMutablePointer<CChar>?] = arguments.map { $0 } + [nil]
+        var envp: [UnsafeMutablePointer<CChar>?] = environment.map { $0 } + [nil]
+        var pid: pid_t = 0
+        status = executable.withCString { posix_spawn(&pid, $0, &actions, &attributes, &argv, &envp) }
+        guard status == 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(status)) }
+        child = pid
+        let spawnedPID = pid
+        input = incoming.fileHandleForWriting
+        incoming.fileHandleForReading.closeFile()
+        outgoing.fileHandleForWriting.closeFile()
+        DispatchQueue.global(qos: .userInitiated).async {
+            defer {
+                outgoing.fileHandleForReading.closeFile()
+                var result: Int32 = 0
+                while waitpid(spawnedPID, &result, 0) < 0 && errno == EINTR {}
+                DispatchQueue.main.async(execute: closed)
+            }
+            var pending = Data()
+            var bytes = [UInt8](repeating: 0, count: 4096)
+            while true {
+                let count = Darwin.read(outgoing.fileHandleForReading.fileDescriptor, &bytes, bytes.count)
+                if count < 0 && errno == EINTR { continue }
+                guard count > 0 else { break }
+                pending.append(bytes, count: count)
+                while let newline = pending.firstIndex(of: 0x0A) {
+                    let line = Data(pending[..<newline])
+                    pending.removeSubrange(...newline)
+                    // A single legacy readiness milestone is also logged to stdout.
+                    if line.starts(with: Data("bedrock guest: ".utf8)) { continue }
+                    guard line.count <= 65536,
+                          let decoded = try? JSONDecoder().decode(SidecarResponse.self, from: line) else {
+                        kill(spawnedPID, SIGTERM)
+                        return
+                    }
+                    DispatchQueue.main.async { response(decoded) }
+                }
+                if pending.count > 65536 { kill(spawnedPID, SIGTERM); return }
+            }
+        }
+    }
+
+    func send(_ request: SidecarRequest) throws {
+        let object: [String: Any]
+        switch request {
+        case .provision(let path, let version): object = ["type": "provision", "server_dir": path, "version": version]
+        case .start(let memory, let port, let transport): object = ["type": "start", "memory_gb": memory, "bedrock_port": port, "transport": transport]
+        case .command(let command): object = ["type": "command", "command": command]
+        case .stop: object = ["type": "stop"]
+        case .forceStop: object = ["type": "force-stop"]
+        }
+        var data = try JSONSerialization.data(withJSONObject: object)
+        data.append(0x0A)
+        guard let input else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(EPIPE)) }
+        try input.write(contentsOf: data)
+    }
+
+    func closeInput() {
+        try? input?.close()
+        input = nil
+    }
+
+    deinit { closeInput() }
 }

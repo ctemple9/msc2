@@ -212,6 +212,17 @@ and failure behavior, is frozen in
 
 **Sequencing constraint.** The shared runtime contract is proven on native Linux first, then Windows, then the sidecar — so macOS-specific assumptions cannot leak into the contract.
 
+**File-ownership amendment (approved by Cameron Temple, 2026-10-13; P16.71).**
+The root helper supervises a fixed Swift VM worker running with the installing
+user's real/effective UID/GID, while the helper retains privileged TCP/UDP
+relays. Apple's shared-directory writes use the host effective user, so guest
+UID/GID arguments alone did not preserve ownership. Both observed Bedrock
+servers generated root-owned databases; activation cleanup and deletion then
+failed. The worker uses the same installed root-owned sidecar executable and
+appliance, with inherited descriptors restricted to its protocol streams.
+Disconnect tears down and reaps the worker before acknowledging termination.
+There is no automatic recursive ownership repair or new public control API.
+
 **Revisit if:** the sidecar IPC proves more troublesome than the ObjC bridge would have been.
 
 **See also:** D-028 scopes this sidecar's Phase 10 delivery to Intel Macs only.
@@ -724,6 +735,12 @@ falls back to launching the sidecar in the known-broken user-daemon context.
 Direct child-process mode is retained only as an explicit development path.
 Full contract and threat model:
 `docs/msc2/bedrock/macos-privileged-helper.md`.
+
+**Ownership correction approved 2026-10-13 (P16.71).** The root helper retains
+network relays and supervision, but delegates VM/shared-folder ownership to a
+fixed worker running as the installing account, as amended under D-007. The
+agent remains unprivileged. Existing misowned data requires an explicit
+administrator repair; ordinary start does not recursively change ownership.
 
 ---
 

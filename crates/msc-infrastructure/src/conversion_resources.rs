@@ -6,6 +6,45 @@ use std::path::Path;
 pub const GIB: u64 = 1024 * 1024 * 1024;
 pub const DISK_RESERVE: u64 = 2 * GIB;
 
+/// Old privileged macOS Bedrock runs could create root-owned database trees.
+/// Refuse before expensive conversion, rather than discovering this at cleanup.
+pub fn require_world_cleanup_ownership(path: &Path) -> io::Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let metadata = match std::fs::symlink_metadata(path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(error),
+        };
+        if metadata.file_type().is_symlink() {
+            return Err(io::Error::other(format!(
+                "World path is a symbolic link: {}",
+                path.display()
+            )));
+        }
+        let owner = unsafe { libc::geteuid() };
+        if metadata.uid() != owner {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                format!(
+                    "World data at {} belongs to user ID {}, but MSC runs as user ID {owner}. Repair this server's ownership before modifying its world.",
+                    path.display(),
+                    metadata.uid()
+                ),
+            ));
+        }
+        if metadata.is_dir() {
+            for entry in std::fs::read_dir(path)? {
+                require_world_cleanup_ownership(&entry?.path())?;
+            }
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = path;
+    Ok(())
+}
+
 pub fn check_space(available: u64, bytes: u64, stage: &str) -> io::Result<()> {
     let required = bytes.saturating_add(DISK_RESERVE);
     if available < required {

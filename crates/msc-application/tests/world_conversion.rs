@@ -812,7 +812,12 @@ fn world_conversion_activation_failure_leaves_slot_written_but_inactive() {
 
     match result {
         Err(ConversionError::ConversionFailed(msg)) => {
-            assert_eq!(msg, "Failed to activate converted world slot.")
+            assert!(msg.contains("simulated write failure"), "{msg}");
+            let slots = world_store::load_slots(&std_fs, target.path());
+            assert_eq!(slots.len(), 1);
+            let saved = world_store::zip_path(target.path(), &slots[0].id);
+            assert!(msg.contains(saved.to_str().unwrap()), "{msg}");
+            assert!(saved.is_file(), "the completed conversion must survive");
         }
         other => panic!("expected ConversionFailed, got {other:?}"),
     }

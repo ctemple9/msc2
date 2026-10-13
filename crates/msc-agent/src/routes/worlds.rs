@@ -1689,6 +1689,18 @@ pub async fn install_bedrock_behavior_pack(
             "Stop the server before changing packs in its active world.",
         );
     }
+    if resolved_active_slot_id(server_dir).as_deref() == Some(slot.id.as_str())
+        && let Err(error) =
+            msc_infrastructure::conversion_resources::require_world_cleanup_ownership(
+                &server_dir.join("worlds"),
+            )
+    {
+        return error_response(
+            StatusCode::CONFLICT,
+            "world_ownership_mismatch",
+            &error.to_string(),
+        );
+    }
     let (archive, source_project_id, source_file_id, source_url) = if let Some(id) = body
         .get("stagedUploadId")
         .and_then(serde_json::Value::as_str)

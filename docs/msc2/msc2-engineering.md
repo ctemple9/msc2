@@ -394,7 +394,7 @@ Bedrock therefore uses two daemons with deliberately unequal privileges:
 | Process | Identity | Authority |
 |---|---|---|
 | `com.ctemple.msc2.agent` | Installing user (`UserName` is set) | Owns server state, API, operations, policy, and supervision |
-| macOS Bedrock helper | `root` (no plist `UserName`) | Owns only the Swift VZ VM session and its host TCP/UDP relays |
+| macOS Bedrock helper | Effective `root` (no plist `UserName`) | Supervises a fixed installing-user VM worker and owns host TCP/UDP relays (P16.71 owner amendment) |
 
 The agent connects to the helper over a local Unix-domain socket carrying the
 narrow Bedrock sidecar protocol. The helper authenticates the peer UID, admits

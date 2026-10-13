@@ -131,10 +131,8 @@ pub enum ConversionError {
     ValidationFailed(String),
     /// `ChunkerError.conversionFailed(_)` — a non-zero Chunker exit, a
     /// `zip`-equivalent packaging failure, or `activateSlot` returning
-    /// failure (source's `guard activated else { throw
-    /// .conversionFailed("Failed to activate converted world slot.") }`,
-    /// collapsing every one of [`worlds::ActivationError`]'s variants
-    /// into this one message, matching source exactly).
+    /// failure. Activation errors retain the cause and saved slot location,
+    /// so an operator can recover without repeating the conversion.
     ConversionFailed(String),
     Io(io::Error),
     Archive(ArchiveError),
@@ -693,6 +691,12 @@ pub fn convert_world(
         return Err(ConversionError::NoSourceZip);
     }
 
+    if target_server_type == ServerType::Bedrock {
+        msc_infrastructure::conversion_resources::require_world_cleanup_ownership(
+            &target_server_dir.join("worlds"),
+        )?;
+    }
+
     let temp_root = temp_conversion_root();
     let _cleanup = TempRootGuard(temp_root.clone());
     let unzip_dir = temp_root.join("source");
@@ -841,10 +845,8 @@ pub fn convert_world(
     // already (attempted to) back up — this port's `activate_slot`
     // folds "should I back up" into its own `backup` closure, so
     // `|| true` reproduces the same "already handled, report success"
-    // shape. Every `ActivationError` variant collapses into the same
-    // `ConversionFailed` message source itself uses, regardless of
-    // cause — the already-written slot from step 5 is left on disk,
-    // unactivated, exactly as source leaves it (see the module doc).
+    // shape. Keep the saved archive and underlying activation error visible:
+    // failure here must not send the operator through conversion again.
     progress("Activating converted world…");
     let activated = worlds::activate_slot(
         fs,
@@ -860,9 +862,10 @@ pub fn convert_world(
         if matches!(error, worlds::ActivationError::Cancelled) {
             ConversionError::Cancelled
         } else {
-            ConversionError::ConversionFailed(
-                "Failed to activate converted world slot.".to_string(),
-            )
+            ConversionError::ConversionFailed(format!(
+                "Converted world was saved to {} but activation did not finish: {error}. Repair the reported issue and recover or activate the saved slot; do not repeat conversion.",
+                world_store::zip_path(target_server_dir, &new_slot.id).display()
+            ))
         }
     })?;
 

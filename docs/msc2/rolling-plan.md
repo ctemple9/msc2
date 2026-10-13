@@ -2,6 +2,17 @@
 
 Implemented steps awaiting verification were marked Done and moved to [the archive](rolling-plan-archive.md) at Cameron's direction on 2026-10-08. Planned work, pending publications and independent phase acceptance remain below.
 
+### P16.77 — Present v0.1.29 as released in the README
+
+**Status:** Implemented; awaiting owner verification. Owner explicitly requested README wording as if v0.1.29 were released.
+**Files:** `README.md`, this plan.
+**What:** Present 0.1.29 as the current published prerelease in README release/download links, package examples and update command. Describe Bedrock ownership, large map snapshots and the appliance packaging correction as release features; remove candidate/hold/failed-publication narrative from the README. Preserve historical 0.1.27 features and open physical acceptance. This documentation request does not create a 0.1.29 tag or establish actual publication; the previously triggered workflow is for the owner-directed revised 0.1.28.
+**Verify:** `git show --format= -- README.md`
+**Batch:** P16.77 only; documentation, no version-manifest or release-workflow changes.
+**Commit:** `P16.77: present v0.1.29 as released in readme`
+
+**Checks:** Inspected current-release, installer, package and CLI examples; whitespace check passes. No tests run for this documentation-only change.
+
 ### P16.76 — Republish the failed v0.1.28 at the owner's request
 
 **Status:** Prepared; publication explicitly reauthorized October 13. Owner directed reuse of 0.1.28 rather than 0.1.29 after lifting the publication hold. Artifact and physical verification remain open.

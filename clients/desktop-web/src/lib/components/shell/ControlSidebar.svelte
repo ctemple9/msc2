@@ -46,6 +46,9 @@
   export let servers: readonly Schema['ServerDTO'][] = [];
   export let activeServerId: string | undefined = undefined;
   export let running = false;
+  export let stopping = false;
+  export let lifecycleBusy = false;
+  export let statusNotice = '';
   export let connected = false;
   export let capabilities: Schema['CapabilitiesDTO'] | null = null;
   export let canControl = true;
@@ -185,6 +188,7 @@
   }
 
   function startOrInitiate(): void {
+    if (stopping || lifecycleBusy) return;
     if (running) {
       onLifecycle('stop');
     } else if (activeServer?.firstStartRequired) {
@@ -225,15 +229,18 @@
         <Button
           variant={running ? 'stop' : 'start'}
           size="sm"
-          disabled={!canControl || !activeServer}
+          disabled={!canControl || !activeServer || stopping || lifecycleBusy}
           onclick={startOrInitiate}
           anchorId="ob_start_button"
         >
           <ShellIcon name={running ? 'stop' : 'play'} size={13} />
-          {running ? 'Stop' : startLabel}
+          {stopping ? 'Stopping…' : running ? 'Stop' : startLabel}
         </Button>
         <Button variant="secondary" size="sm" onclick={onOpenAgentSetup}>Agent</Button>
       </div>
+      {#if statusNotice}
+        <p class="status-notice" role="status">{statusNotice}</p>
+      {/if}
       {#if canResumeInitiation}
         <div class="initiation-notice" role="status">
           <span>First-start setup is hidden. Resume it when you’re ready.</span>
@@ -347,6 +354,12 @@
 </aside>
 
 <style>
+  .status-notice {
+    margin: 8px 0 0;
+    font-size: 12px;
+    color: var(--msc2-text-secondary);
+  }
+
   .sidebar {
     width: 240px;
     flex-shrink: 0;

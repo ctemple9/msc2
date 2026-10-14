@@ -1,5 +1,37 @@
 export type RunningSnapshot = { running: boolean };
 
+/** Coalesces status reads and discards responses from an invalidated context. */
+export class ServerStatusMonitor<T extends RunningSnapshot> {
+  private generation = 0;
+  private inFlight: Promise<void> | undefined;
+
+  reset(): void {
+    this.generation += 1;
+    this.inFlight = undefined;
+  }
+
+  poll(
+    read: () => Promise<T>,
+    apply: (snapshot: T) => void,
+    failed: (error: unknown) => void,
+  ): Promise<void> {
+    if (this.inFlight) return this.inFlight;
+    const generation = this.generation;
+    const request = Promise.resolve().then(async () => {
+      try {
+        const snapshot = await read();
+        if (generation === this.generation) apply(snapshot);
+      } catch (error) {
+        if (generation === this.generation) failed(error);
+      } finally {
+        if (generation === this.generation) this.inFlight = undefined;
+      }
+    });
+    this.inFlight = request;
+    return request;
+  }
+}
+
 export type RunningStatePollOptions = {
   intervalMs?: number;
   timeoutMs?: number;

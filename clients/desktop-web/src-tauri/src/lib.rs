@@ -631,9 +631,14 @@ async fn desktop_authorized_request(request: DesktopRequest) -> Result<DesktopRe
     let method = Method::from_bytes(request.method.as_bytes())
         .map_err(|_| "The requested HTTP method is not supported.".to_string())?;
     let url = relative_request_url(&record.base_url, &request.path)?;
+    let status_read = method == Method::GET && url.path() == "/v1/status";
     let mut builder = reqwest::Client::new()
         .request(method, url)
         .header(header::AUTHORIZATION, format!("Bearer {}", record.token));
+    // A stalled status read must not permanently occupy the desktop's poll slot.
+    if status_read {
+        builder = builder.timeout(std::time::Duration::from_secs(5));
+    }
     for (name, value) in request.headers {
         let lower = name.to_ascii_lowercase();
         if matches!(lower.as_str(), "authorization" | "cookie" | "host") {

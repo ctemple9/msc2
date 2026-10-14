@@ -1,6 +1,10 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
-  import { observeServerRun, forgetHostRuns } from './lib/sections/shared/server-uptime';
+  import {
+    observeServerRun,
+    forgetHostRuns,
+    serverRunKey,
+  } from './lib/sections/shared/server-uptime';
   import { bundleIdentity } from './lib/bundle-identity';
   import { ApiClient, ApiError } from './lib/api/client';
   import ApplicationShell from './lib/components/ApplicationShell.svelte';
@@ -48,7 +52,7 @@
   import ResetSheet from './lib/sections/app-settings/ResetSheet.svelte';
   import { restoreAccent } from './lib/styles/accent';
   import { bannerColorFor } from './lib/styles/bannerColor';
-  import { waitForRunningState } from './lib/lifecycle/serverLifecycle';
+  import { ServerStatusMonitor, waitForRunningState } from './lib/lifecycle/serverLifecycle';
   import { PRIMARY_TABS } from './lib/navigation/primaryTabs';
   import { selectAvailableServerId } from './lib/navigation/serverSelection';
   import {
@@ -349,6 +353,64 @@
   let shellMessage = 'Connecting to the selected host…';
   let servers: readonly Schema['ServerDTO'][] = [];
   let status: Schema['RemoteAPIStatus'] = defaultStatus;
+  const statusMonitor = new ServerStatusMonitor<Schema['RemoteAPIStatus']>();
+  let statusPollTimer: ReturnType<typeof setInterval> | undefined;
+  let statusPollError = '';
+  let lifecycleRequests: ReadonlySet<string> = new Set();
+  let pendingStops: ReadonlyMap<string, number | undefined> = new Map();
+  $: currentRunKey = serverRunKey(hostId, selectedServerId);
+  $: stopping = pendingStops.has(currentRunKey);
+  $: lifecycleBusy = lifecycleRequests.has(currentRunKey);
+
+  function recordStop(key: string, pid: number | undefined): void {
+    pendingStops = new Map(pendingStops).set(key, pid);
+  }
+
+  function clearStop(key: string): void {
+    const next = new Map(pendingStops);
+    next.delete(key);
+    pendingStops = next;
+  }
+
+  function applyServerStatus(next: Schema['RemoteAPIStatus']): void {
+    status = next;
+    const serverId = next.activeServerId ?? selectedServerId;
+    observeServerRun(hostId, serverId, next.running);
+    const key = serverRunKey(hostId, serverId);
+    const stoppedPid = pendingStops.get(key);
+    if (
+      !next.running ||
+      (stoppedPid !== undefined && next.pid !== undefined && next.pid !== stoppedPid)
+    ) {
+      clearStop(key);
+    }
+  }
+
+  async function pollServerStatus(): Promise<void> {
+    if (!clientReady || !client || lifecycleBusy) return;
+    const selectedClient = client;
+    const selectedHost = hostId;
+    const selectedServer = selectedServerId;
+    const generation = hostOrchestrator.currentGeneration;
+    const isCurrent = () =>
+      clientReady &&
+      client === selectedClient &&
+      hostId === selectedHost &&
+      selectedServerId === selectedServer &&
+      generation === hostOrchestrator.currentGeneration;
+    await statusMonitor.poll(
+      () => selectedClient.requestJson<Schema['RemoteAPIStatus']>('GET', '/v1/status'),
+      (next) => {
+        if (!isCurrent()) return;
+        statusPollError = '';
+        applyServerStatus(next);
+      },
+      (error) => {
+        if (isCurrent())
+          statusPollError = `Could not refresh server status: ${formatConnectionFailure(error)}`;
+      },
+    );
+  }
   let initiationServer: Schema['ServerDTO'] | undefined;
   let initiationVisible = false;
   let initiationComplete = false;
@@ -602,10 +664,12 @@
 
   async function waitForStartOperation(
     operationId: string,
+    actionClient: ApiClient,
   ): Promise<Schema['OperationDTO'] | undefined> {
     const deadline = Date.now() + 10_000;
     for (;;) {
-      const operation = await screenApi.get<Schema['OperationDTO']>(
+      const operation = await actionClient.requestJson<Schema['OperationDTO']>(
+        'GET',
         `/v1/operations/${encodeURIComponent(operationId)}`,
       );
       if (
@@ -671,8 +735,7 @@
       capabilities = nextCapabilities;
       permissions = me.permissions;
       servers = nextServers;
-      status = nextStatus;
-      observeServerRun(hostId, nextStatus.activeServerId ?? '', nextStatus.running);
+      applyServerStatus(nextStatus);
       selectedServerId = nextServerId;
       hostStore.setServers(selectedHostId, nextServers);
       if (nextServerId) hostStore.selectServer(selectedHostId, nextServerId);
@@ -698,6 +761,8 @@
   }
 
   async function selectServer(id: string): Promise<void> {
+    statusMonitor.reset();
+    statusPollError = '';
     try {
       await screenApi.post('/v1/active-server', { serverId: id });
       loadedSections = [];
@@ -717,15 +782,36 @@
   }
 
   async function lifecycle(action: 'start' | 'stop'): Promise<void> {
+    if (!clientReady || !client || lifecycleBusy || stopping) return;
+    const actionClient = client;
+    const actionHostId = hostId;
+    const actionServerId = selectedServerId;
+    const actionServer = activeServer;
+    const generation = hostOrchestrator.currentGeneration;
+    const key = serverRunKey(actionHostId, actionServerId);
+    if (lifecycleRequests.has(key) || pendingStops.has(key)) return;
+    const isCurrent = () =>
+      client === actionClient &&
+      hostId === actionHostId &&
+      selectedServerId === actionServerId &&
+      generation === hostOrchestrator.currentGeneration;
+    lifecycleRequests = new Set(lifecycleRequests).add(key);
+    statusMonitor.reset();
+    statusPollError = '';
+    let acceptedStop = false;
+    if (action === 'stop') recordStop(key, status.pid);
     try {
-      const accepted = await screenApi.post<Schema['SimpleResult']>(
+      const accepted = await actionClient.requestJson<Schema['SimpleResult']>(
+        'POST',
         action === 'start' ? '/v1/start' : '/v1/stop',
       );
+      acceptedStop = action === 'stop';
       if (action === 'start' && accepted.operationId) {
-        const operation = await waitForStartOperation(accepted.operationId);
+        const operation = await waitForStartOperation(accepted.operationId, actionClient);
+        if (!isCurrent()) return;
         if (operation?.state === 'failed' || operation?.state === 'cancelled') {
           startupFailure = {
-            serverName: activeServer?.name ?? 'Server',
+            serverName: actionServer?.name ?? 'Server',
             errorCode: operation.error?.code ?? 'server_start_failed',
             message: operation.error?.message ?? 'The server did not become ready.',
           };
@@ -734,21 +820,30 @@
         }
       }
       const nextStatus = await waitForRunningState(
-        () => screenApi.get<Schema['RemoteAPIStatus']>('/v1/status'),
+        () => actionClient.requestJson<Schema['RemoteAPIStatus']>('GET', '/v1/status'),
         action === 'start',
       );
-      status = nextStatus;
-      observeServerRun(hostId, nextStatus.activeServerId ?? '', nextStatus.running);
-      if (action === 'start' && nextStatus.running && activeServer?.serverType === 'java') {
+      observeServerRun(
+        actionHostId,
+        nextStatus.activeServerId ?? actionServerId,
+        nextStatus.running,
+      );
+      if (action === 'stop' && !nextStatus.running) clearStop(key);
+      if (!isCurrent()) return;
+      applyServerStatus(nextStatus);
+      if (action === 'start' && nextStatus.running && actionServer?.serverType === 'java') {
         try {
-          const diagnosis =
-            await screenApi.get<Schema['HealthProblemsResponseDTO']>('/v1/health/problems');
+          const diagnosis = await actionClient.requestJson<Schema['HealthProblemsResponseDTO']>(
+            'GET',
+            '/v1/health/problems',
+          );
+          if (!isCurrent()) return;
           const helperProblem = diagnosis.isSoftFail
             ? diagnosis.problems.find((problem) => /geyser|floodgate/i.test(problem.offenderName))
             : undefined;
           if (helperProblem) {
             startupFailure = {
-              serverName: activeServer.name,
+              serverName: actionServer.name,
               errorCode: 'geyser_plugin_failed',
               message: `${helperProblem.offenderName} did not load.`,
               problems: [helperProblem],
@@ -761,7 +856,7 @@
       }
       if (action === 'start' && !nextStatus.running) {
         startupFailure = {
-          serverName: activeServer?.name ?? 'Server',
+          serverName: actionServer?.name ?? 'Server',
           errorCode: 'server_startup_timeout',
           message: accepted.operationId
             ? 'The server did not become ready before the start check timed out.'
@@ -770,20 +865,30 @@
         shellMessage = startupFailure.message;
       }
     } catch (error) {
+      if (action === 'stop' && !acceptedStop) clearStop(key);
+      if (!isCurrent()) return;
       if (action === 'start') {
         const apiError = error instanceof ApiError ? error.error : undefined;
         startupFailure = {
-          serverName: activeServer?.name ?? 'Server',
+          serverName: actionServer?.name ?? 'Server',
           errorCode: apiError?.code ?? 'server_start_failed',
           message: apiError?.message ?? (error instanceof Error ? error.message : String(error)),
         };
         shellMessage = startupFailure.message;
       } else {
-        shellMessage = `Unable to ${action} the server: ${String(error)}`;
+        statusPollError = `Unable to stop the server: ${formatConnectionFailure(error)}`;
+        shellMessage = statusPollError;
       }
     } finally {
+      const requests = new Set(lifecycleRequests);
+      requests.delete(key);
+      lifecycleRequests = requests;
+      if (isCurrent()) {
+        statusMonitor.reset();
+        void pollServerStatus();
+      }
       // Refresh the lightweight running state after a lifecycle action.
-      statusRefreshVersion += 1;
+      if (isCurrent()) statusRefreshVersion += 1;
     }
   }
 
@@ -838,6 +943,8 @@
   ): Promise<void> {
     if (generation !== hostOrchestrator.currentGeneration) return;
     const selectedHostId = hostId;
+    statusMonitor.reset();
+    statusPollError = '';
     cancelTabPreload?.();
     cancelTabPreload = undefined;
     clientReady = false;
@@ -937,12 +1044,15 @@
   onMount(() => {
     restoreAccent();
     void initializeShell();
+    statusPollTimer = setInterval(() => void pollServerStatus(), 2000);
     const onPopState = () => void selectFromLocation();
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   });
 
   onDestroy(() => {
+    statusMonitor.reset();
+    if (statusPollTimer !== undefined) clearInterval(statusPollTimer);
     if (broadcastAuthTimer !== undefined) clearInterval(broadcastAuthTimer);
   });
 
@@ -1033,6 +1143,9 @@
   {servers}
   activeServerId={selectedServerId}
   running={status.running}
+  {stopping}
+  {lifecycleBusy}
+  statusNotice={statusPollError}
   connected={!!capabilities}
   {capabilities}
   {canControl}

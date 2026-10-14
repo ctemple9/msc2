@@ -27,6 +27,9 @@
   export let servers: readonly Schema['ServerDTO'][] = [];
   export let activeServerId: string | undefined = undefined;
   export let running = false;
+  export let stopping = false;
+  export let lifecycleBusy = false;
+  export let statusNotice = '';
   export let connected = false;
   export let capabilities: Schema['CapabilitiesDTO'] | null = null;
   export let canControl = true;
@@ -137,6 +140,9 @@
         {servers}
         {activeServerId}
         {running}
+        {stopping}
+        {lifecycleBusy}
+        {statusNotice}
         {connected}
         {capabilities}
         {canControl}

@@ -2,6 +2,17 @@
 
 Implemented steps were marked Done and moved to [the archive](rolling-plan-archive.md) at Cameron's direction on 2026-10-08 and 2026-10-13. The October 13 cleanup archived 27 implemented or completed-record steps, including P16.80–P16.82. Planned work, publication records without confirmed completion, and independent phase acceptance remain below. Outstanding verification notes are preserved with the archived steps; Done does not establish physical acceptance or close a phase gate.
 
+### P16.87 — Present v0.1.29 as released in the README
+
+**Status:** Implemented; awaiting owner verification. Owner explicitly requested README wording as if v0.1.29 were released.
+**Files:** `README.md`, this plan.
+**What:** Remove the pending-candidate notice and present v0.1.29 as the latest published prerelease throughout current-release text, download links, package examples and the update command. Replace the older opening feature summary with automatic SSH pairing, reduced diagnostic polling, continuing shutdown-status reconciliation and Intel Mac Bedrock worker exit. Include the updated-app Repair agent instruction and preserve unsigned-beta, platform support, ownership-recovery and open physical acceptance distinctions. This wording request does not establish workflow completion or change the existing release tag.
+**Verify:** `git show --format= -- README.md`
+**Batch:** P16.87 only; documentation only, no release workflow or tag changes.
+**Commit:** `P16.87: present v0.1.29 as released in readme`
+
+**Checks:** Inspected all README version references, current-release summary, download links and package/update examples; whitespace check passed. No tests run or workflow monitoring performed.
+
 ### P16.86 — Publish v0.1.29 with remote pairing and shutdown corrections
 
 **Status:** Prepared; publication explicitly authorized by Cameron on October 14. Push the new tag once and report the workflow link without monitoring builders, following the owner's existing preference. Publication and artifact acceptance remain separate.

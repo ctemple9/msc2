@@ -17,33 +17,30 @@ everything first.
 
 ## Current release and support
 
-The next prerelease, **v0.1.29**, is prepared for publication with automatic SSH
-pairing corrections, reduced background diagnostics, automatic shutdown-status
-updates and the Intel Mac Bedrock worker-exit fix. See its
-[release notes](docs/msc2/release/v0.1.29.md). Publication is pending; the
-latest confirmed published build remains below.
-
-The latest published build is [MSC 2 v0.1.28](https://github.com/ctemple9/msc2/releases/tag/v0.1.28),
+The latest published build is [MSC 2 v0.1.29](https://github.com/ctemple9/msc2/releases/tag/v0.1.29),
 an unsigned prerelease. There is no stable release yet. Download the
 platform-specific installer or archive from that release page and verify its
 entry in `SHA256SUMS` before installing. The Phase 16 acceptance record
 (P16.29) is still open; this prerelease has not passed the full physical
 release acceptance gate.
 
-v0.1.28 keeps Intel Mac Bedrock world files owned by the installing account
-through a separate VM worker while retaining privileged network relays. It
-checks existing world ownership before conversion or active-world pack
-installation and preserves activation error details and the saved converted
-slot. Existing root-owned data requires a one-time administrator repair.
+v0.1.29 fixes automatic remote SSH pairing on Macs whose SSH search path or
+pairing-storage settings differ from the desktop-installed agent. Pairing stays
+automatic without manual codes or shell-profile workarounds.
 
-Bedrock map snapshots now use disk budgets with a 2 GiB reserve and APFS clones
-or streamed copies instead of the former 2 GiB world-size ceiling. Live save
-pauses stay bounded; if a live snapshot cannot finish safely, stop the server
-and refresh terrain. Intel macOS packaging includes the corrected appliance
-checksum. Physical ownership, networking and large-map acceptance remain open.
+Overview, Performance and Components now use lightweight running status instead
+of repeatedly scanning mod JARs for hidden health cards. The desktop continues
+watching long shutdowns and returns from Stopping to Start automatically. Intel
+Mac Bedrock VM workers exit after cleanup so stopped status and first-start
+completion can advance. See the [release notes](docs/msc2/release/v0.1.29.md).
+
+On Intel macOS, install the updated app and use **Repair agent** to register its
+matching agent and Bedrock helper before the next Bedrock start. Live acceptance
+of these fixes remains open. Existing root-owned Bedrock data still requires
+the one-time ownership repair described in the release history.
 
 **macOS 0.1.25/0.1.26:** stop the Minecraft server, quit MSC 2, manually install
-v0.1.28 from its disk image, and repair the agent once. The older updater's helper
+v0.1.29 from its disk image, and repair the agent once. The older updater's helper
 contains the rollback bug; subsequent updates can use the corrected updater.
 
 | Installation | Published platform and architecture | Supported control surface |
@@ -234,26 +231,26 @@ app already includes the MSC 2 agent; you do not need to download both.
   environment. Manage it from another computer with the desktop app or CLI.
 ### macOS desktop — Intel and Apple Silicon Macs
 
-Download the matching macOS disk image from the [v0.1.28 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.28), open it, and drag MSC 2 into your Applications folder. Intel Macs include the local Bedrock runtime. Apple Silicon Macs include the app and Java runtime support, but no local Bedrock VM; Bedrock servers can still be managed on a compatible remote host.
+Download the matching macOS disk image from the [v0.1.29 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.29), open it, and drag MSC 2 into your Applications folder. Intel Macs include the local Bedrock runtime. Apple Silicon Macs include the app and Java runtime support, but no local Bedrock VM; Bedrock servers can still be managed on a compatible remote host.
 
 ### Windows desktop — 64-bit Windows
 
-Download the Windows `.msi` installer from the [v0.1.28 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.28) and follow the installation prompts.
+Download the Windows `.msi` installer from the [v0.1.29 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.29) and follow the installation prompts.
 
 ### Debian or Ubuntu desktop
 
-Download the Linux `.deb` package from the [v0.1.28 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.28), then install it with:
+Download the Linux `.deb` package from the [v0.1.29 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.29), then install it with:
 
 ~~~sh
-sudo apt install ./msc2-0.1.28-linux-x86_64.deb
+sudo apt install ./msc2-0.1.29-linux-x86_64.deb
 ~~~
 
 ### Fedora or other RPM-based Linux
 
-Download the Linux `.rpm` package from the [v0.1.28 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.28), then install it with:
+Download the Linux `.rpm` package from the [v0.1.29 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.29), then install it with:
 
 ~~~sh
-sudo dnf install ./msc2-0.1.28-linux-x86_64.rpm
+sudo dnf install ./msc2-0.1.29-linux-x86_64.rpm
 ~~~
 
 ### Headless agent — macOS, Windows, and Linux
@@ -283,7 +280,7 @@ Signed releases can be checked and staged locally from the agent binary:
 
 ~~~sh
 msc update check
-msc update install --release-id 0.1.28
+msc update install --release-id 0.1.29
 ~~~
 
 The install command asks for a second confirmation. Pass `--yes` for

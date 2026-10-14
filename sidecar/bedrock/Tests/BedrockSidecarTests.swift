@@ -8,6 +8,32 @@ private struct TestResources: ApplianceResourceProvider {
 }
 
 final class BedrockSidecarTests: XCTestCase {
+    func testSidecarExitsAfterSupervisorClosesInput() throws {
+        guard getuid() != 0 else { throw XCTSkip("VM worker requires a non-root account") }
+        let executable = Bundle(for: Self.self).bundleURL
+            .deletingLastPathComponent().appendingPathComponent("BedrockSidecar")
+        for arguments in [[], ["--vm-worker"]] as [[String]] {
+            let process = Process()
+            let input = Pipe()
+            let output = Pipe()
+            let exited = expectation(description: "sidecar exits on EOF: \(arguments)")
+            process.executableURL = executable
+            process.arguments = arguments
+            process.standardInput = input
+            process.standardOutput = output
+            process.standardError = output
+            process.terminationHandler = { _ in exited.fulfill() }
+            try process.run()
+            defer { if process.isRunning { process.terminate() } }
+            // No VM is started. EOF exercises the real cleanup-to-process-exit
+            // boundary that previously left an idle run loop alive forever.
+            try input.fileHandleForWriting.close()
+            wait(for: [exited], timeout: 5)
+            guard !process.isRunning else { return }
+            XCTAssertEqual(process.terminationStatus, 0)
+        }
+    }
+
     func testFrozenRequestsDecodeAndRejectWrongTypes() throws {
         let decoder = JSONDecoder()
         XCTAssertEqual(

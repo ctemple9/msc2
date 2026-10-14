@@ -2,6 +2,23 @@
 
 Implemented steps were marked Done and moved to [the archive](rolling-plan-archive.md) at Cameron's direction on 2026-10-08 and 2026-10-13. The October 13 cleanup archived 27 implemented or completed-record steps, including P16.80–P16.82. Planned work, publication records without confirmed completion, and independent phase acceptance remain below. Outstanding verification notes are preserved with the archived steps; Done does not establish physical acceptance or close a phase gate.
 
+### P16.85 — Let the macOS Bedrock VM worker exit after clean shutdown
+
+**Status:** Implemented; awaiting owner verification of the corrected installed helper. Owner explicitly authorized stopping the stuck local server; live recovery completed.
+**Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `sidecar/bedrock/Tests/BedrockSidecarTests.swift`, this plan.
+**What:** Replace `RunLoop.main.run()` in the standalone/VM-worker sidecar entry point with `CFRunLoopRun()`, matching the existing `CFRunLoopStop` invoked only after controller shutdown completes. Foundation's repeating run loop could re-enter after the stop, keeping a cleaned-up worker process alive. The root helper correctly waits for that worker's actual exit before acknowledging teardown, so the idle worker blocked Stopped status and first-start completion. Preserve the existing VM cleanup, non-root worker ownership and parent waitpid boundary; do not substitute the guest's console text for proof of host cleanup. No release publication or installed-binary replacement performed.
+**Verify:** `xcodebuild -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Release -derivedDataPath /tmp/msc-bedrock-shutdown-build build CODE_SIGNING_ALLOWED=NO`
+**Batch:** P16.85 only; implementation and explicitly authorized local stop. No test execution or other server actions.
+**Commit:** `P16.85: let bedrock vm workers exit after shutdown`
+
+**Live evidence and recovery:** The owner confirmed this is the local Mac and authorized direct diagnostics. BDS logged `Quit correctly` and `[appliance] BDS exited — powering off`, but user-owned VM worker PID 31953 remained under root helper PID 30346. A three-second sample showed only the idle main Foundation run loop and an idle workqueue thread, with a roughly 2.4 MiB footprint, consistent with completed VM teardown and the input reader already gone. After confirming the PID, parent and owner again, sent SIGTERM only to the stuck worker at the owner's request. The root helper reaped it and remained running. `/usr/local/bin/msc status --json` subsequently reported `running:false` and `lastTeardownReason:clean`; the worker was absent. No world files or service registration were changed. The old missing-socket log messages do not explain this hang: the socket directory and socket existed during diagnosis.
+
+**Essential regression:** `testSidecarExitsAfterSupervisorClosesInput` launches the built standalone sidecar and `--vm-worker` with an input pipe, then closes the pipe and requires successful process exit. It starts no VM, Minecraft, service or network, touches no world, and terminates a stuck child on failure. This exercises the actual executable's EOF/cleanup/run-loop-exit boundary rather than comparing source text. Existing controller-level tests did not exercise process exit. Expected runtime under one second for both successful cases; a five-second condition-based wait bounds each failure without arbitrary sleeps. Compiled, not executed.
+
+**Checks:** Xcode Release build and Debug `build-for-testing` passed with signing disabled for build-only verification. The latter compiled the XCTest target without executing it. Existing TCP relay Sendable, resource-validation build-script and AppIntents metadata warnings remain. Whitespace check passed. No Rust or frontend source changed, so their checks are not relevant to this step. The live stop used the old installed helper and establishes recovery, not acceptance of the new binary.
+
+**Owner acceptance:** Rebuild/install the corrected desktop/helper payload and use Repair agent to register the new helper before the next Bedrock run. Create/initiate a Bedrock server and require BDS shutdown, worker process exit, agent Stopped status and the first-start completion page without a refresh or manual termination. Repeat an ordinary start/stop and confirm only the persistent helper service remains. Verify the root supervisor still waits for worker teardown and the worker runs under the installing account. Do not count the manual recovery above as verification of this fix.
+
 ### P16.84 — Reconcile long Minecraft shutdowns without a manual refresh
 
 **Status:** Implemented; awaiting owner verification.

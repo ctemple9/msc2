@@ -1420,7 +1420,9 @@ func runSidecar(vmWorker: Bool = false) {
             }
         }
     }
-    RunLoop.main.run()
+    // Match CFRunLoopStop above. Foundation's run() re-enters the loop after
+    // a stop, leaving an otherwise torn-down VM worker alive indefinitely.
+    CFRunLoopRun()
 }
 
 /// The root supervisor keeps NAT relays; only this reset-identity child opens

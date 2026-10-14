@@ -65,13 +65,7 @@
   export let active = true;
 
   let snapshot: Schema['PerformanceSnapshotDTO'] = { ts: new Date().toISOString() };
-  let health: Schema['HealthResponseDTO'] = {
-    cards: [],
-    overallSeverity: 'gray',
-    serverName: '',
-    serverRunning: false,
-    serverType: '',
-  };
+  let runStatus: Schema['RemoteAPIStatus'] = { running: false };
   let servers: Schema['ServerDTO'][] = [];
 
   $: activeServer = servers.find((server) => server.id === serverId);
@@ -84,18 +78,26 @@
   $: runStartMs = $serverRuns.get(serverRunKey(hostId, serverId))?.startedAt;
   let nowMs = Date.now();
 
+  let pollInFlight = false;
+
   async function poll(): Promise<void> {
-    snapshot = await call(api, snapshot, '/v1/performance');
-    health = await call(api, health, '/v1/health');
-    if (servers.length === 0) servers = await call(api, servers, '/v1/servers');
+    if (pollInFlight) return;
+    pollInFlight = true;
+    try {
+      snapshot = await call(api, snapshot, '/v1/performance');
+      runStatus = await call(api, runStatus, '/v1/status');
+      if (servers.length === 0) servers = await call(api, servers, '/v1/servers');
 
-    const cpu = snapshot.cpuPercent?.value;
-    if (cpu !== undefined) cpuHistory = pushCapped(cpuHistory, cpu, HISTORY_CAPACITY);
-    const tps = snapshot.tps1m?.value;
-    if (tps !== undefined) tpsChartHistory = pushCapped(tpsChartHistory, tps, CHART_CAPACITY);
-    recordRamSample();
+      const cpu = snapshot.cpuPercent?.value;
+      if (cpu !== undefined) cpuHistory = pushCapped(cpuHistory, cpu, HISTORY_CAPACITY);
+      const tps = snapshot.tps1m?.value;
+      if (tps !== undefined) tpsChartHistory = pushCapped(tpsChartHistory, tps, CHART_CAPACITY);
+      recordRamSample();
 
-    if (api) observeServerRun(hostId, serverId, health.serverRunning);
+      if (api) observeServerRun(hostId, serverId, runStatus.running);
+    } finally {
+      pollInFlight = false;
+    }
   }
 
   async function pollRam(): Promise<void> {
@@ -173,8 +175,8 @@
   $: ramUsed = snapshot.ramUsedMB?.value;
   $: ramMax = snapshot.ramMaxMB?.value;
 
-  $: uptimeMs = health.serverRunning && runStartMs !== undefined ? nowMs - runStartMs : undefined;
-  $: uptimeValue = health.serverRunning
+  $: uptimeMs = runStatus.running && runStartMs !== undefined ? nowMs - runStartMs : undefined;
+  $: uptimeValue = runStatus.running
     ? runStartMs !== undefined
       ? formatUptime(uptimeMs)
       : 'Running'
@@ -322,13 +324,13 @@
       <MetricTile
         title="Uptime"
         value={uptimeValue}
-        subtitle={health.serverRunning ? 'Since start' : ''}
+        subtitle={runStatus.running ? 'Since start' : ''}
       />
       <MetricTile
         title="Status"
-        value={health.serverRunning ? 'Online' : 'Offline'}
-        tone={health.serverRunning ? 'ok' : 'error'}
-        subtitle={health.serverRunning
+        value={runStatus.running ? 'Online' : 'Offline'}
+        tone={runStatus.running ? 'ok' : 'error'}
+        subtitle={runStatus.running
           ? isBedrock
             ? 'Bedrock runtime active'
             : 'Accepting connections'

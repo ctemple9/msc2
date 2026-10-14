@@ -173,6 +173,7 @@ struct LifecycleRoutesInner {
     console_correlation: Mutex<ConsoleCorrelation>,
     time_observation: Mutex<TimeObservation>,
     time_query_lock: tokio::sync::Mutex<()>,
+    health_check_slot: Arc<tokio::sync::Semaphore>,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -807,6 +808,7 @@ impl LifecycleRoutesState {
                 console_correlation: Mutex::new(ConsoleCorrelation::default()),
                 time_observation: Mutex::new(TimeObservation::default()),
                 time_query_lock: tokio::sync::Mutex::new(()),
+                health_check_slot: Arc::new(tokio::sync::Semaphore::new(1)),
             }),
         }
     }
@@ -1103,6 +1105,10 @@ impl LifecycleRoutesState {
     /// already runs against.
     pub fn process_supervisor(&self) -> &'static (dyn ProcessSupervisor + Send + Sync) {
         self.inner.process
+    }
+
+    pub(super) fn health_check_slot(&self) -> Arc<tokio::sync::Semaphore> {
+        self.inner.health_check_slot.clone()
     }
 
     /// Connects the networking-owned Playit services after both route states

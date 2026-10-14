@@ -22,7 +22,7 @@ export const broadcastPaths = {
 } as const;
 
 export const serversPath = '/v1/servers';
-export const healthPath = '/v1/health';
+export const statusPath = '/v1/status';
 export const operationPath = (id: string): string => `/v1/operations/${id}`;
 
 /** ProjectDetailSheet's minimum input -- satisfied directly by a

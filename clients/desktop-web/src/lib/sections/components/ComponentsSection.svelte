@@ -65,7 +65,7 @@
     demoBroadcastStatus,
     demoJarStatus,
     flavorDisplayName,
-    healthPath,
+    statusPath,
     pollOperation,
     serversPath,
     supportsCrossplay,
@@ -88,13 +88,7 @@
   let packManaged = false;
   let checkAddonUpdates = false;
   let servers: Schema['ServerDTO'][] = [];
-  let health: Schema['HealthResponseDTO'] = {
-    cards: [],
-    overallSeverity: 'gray',
-    serverName: '',
-    serverRunning: false,
-    serverType: '',
-  };
+  let runStatus: Schema['RemoteAPIStatus'] = { running: false };
   let broadcastStatus: Schema['BroadcastStatusDTO'] = demoBroadcastStatus;
   let broadcastAutostart: Schema['BroadcastAutoStartDTO'] = demoBroadcastAutostart;
   let jarStatus: Schema['BroadcastJarStatusDTO'] = demoJarStatus;
@@ -108,7 +102,7 @@
   $: kind = addOnKind(activeServer?.javaFlavor);
   $: isModded = kind === 'mod';
   $: crossplayEligible = supportsCrossplay(activeServer);
-  $: serverRunning = health.serverRunning;
+  $: serverRunning = runStatus.running;
   $: primaryComponent = components.components.find(
     (component) => component.name === (isBedrock ? 'bedrock' : activeServer?.javaFlavor),
   );
@@ -217,8 +211,8 @@
   async function loadServers(): Promise<void> {
     servers = await call(api, servers, serversPath);
   }
-  async function loadHealth(): Promise<void> {
-    health = await call(api, health, healthPath);
+  async function loadStatus(): Promise<void> {
+    runStatus = await call(api, runStatus, statusPath);
   }
   async function loadBroadcast(): Promise<void> {
     // Always fetched (cheap: three small GETs) rather than gated on
@@ -236,7 +230,7 @@
     if (loadingAll) return;
     loadingAll = true;
     try {
-      await Promise.all([loadComponents(), loadServers(), loadHealth(), loadBroadcast()]);
+      await Promise.all([loadComponents(), loadServers(), loadStatus(), loadBroadcast()]);
       checkVoiceTunnelPrompt();
       coreLoaded = true;
       void loadPlayit();

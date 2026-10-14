@@ -63,6 +63,19 @@ use msc_infrastructure::archive;
 use msc_infrastructure::fs::FileSystem;
 use std::path::Path;
 
+/// Health summaries need a count, not manifest parsing for every installed JAR.
+/// Preserve the inventory's filename and regular-file rules, including disabled JARs.
+pub fn count_addon_jars(fs: &dyn FileSystem, directory: &Path) -> usize {
+    fs.list(directory)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|path| {
+            safe_file_name(path).is_some_and(|name| is_addon_jar_filename(&name))
+                && fs.stat(path).is_ok_and(|metadata| metadata.is_file)
+        })
+        .count()
+}
+
 /// `refreshDiscoveredMods` (source doc above). Scans `mods_dir` for
 /// `.jar`/`.jar.disabled` entries, reads each jar's `fabric.mod.json`
 /// then `META-INF/mods.toml` (first hit wins, matching

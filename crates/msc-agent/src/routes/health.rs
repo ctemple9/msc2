@@ -32,6 +32,7 @@
 //! persisted record fresh every call).
 
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 use axum::Json;
 use axum::extract::rejection::JsonRejection;
@@ -52,6 +53,7 @@ use msc_domain::identity::ServerType;
 use msc_domain::networking::DiagnosticResult;
 use msc_infrastructure::fs::StdFileSystem;
 use msc_infrastructure::port_diagnostics::{probe_tcp, probe_udp};
+use msc_infrastructure::process::{ProcessEvent, ProcessSpawnRequest, ProcessSupervisor};
 
 use crate::auth::AuthenticatedCredential;
 use crate::routes::lifecycle::{
@@ -205,17 +207,48 @@ fn probe_directory(dir: &Path) -> DirectoryProbe {
     }
 }
 
-/// Runs `<path> -version` and returns its combined stdout+stderr — `java
-/// -version` traditionally writes to stderr, so both streams are
-/// concatenated the way a captured terminal session would show them.
-fn run_java_version_probe(path: &str) -> Option<(i32, String)> {
-    let output = std::process::Command::new(path)
-        .arg("-version")
-        .output()
+// A timed-out or disconnected caller must not leave an unlimited pile of
+// blocking diagnostics running behind subsequent refreshes.
+const DIAGNOSTIC_TIMEOUT: Duration = Duration::from_secs(10);
+const MAX_DIAGNOSTIC_OUTPUT: usize = 64 * 1024;
+
+fn run_diagnostic_command(
+    supervisor: &dyn ProcessSupervisor,
+    path: &str,
+    args: &[&str],
+) -> Option<(i32, String)> {
+    let pid = supervisor
+        .spawn(ProcessSpawnRequest::new(path, ".").args(args.iter().copied()))
         .ok()?;
-    let mut combined = String::from_utf8_lossy(&output.stdout).into_owned();
-    combined.push_str(&String::from_utf8_lossy(&output.stderr));
-    Some((output.status.code().unwrap_or(-1), combined))
+    let deadline = Instant::now() + DIAGNOSTIC_TIMEOUT;
+    let mut output = Vec::new();
+    loop {
+        let Ok(events) = supervisor.drain_events(pid) else {
+            let _ = supervisor.force_terminate(pid);
+            return None;
+        };
+        let mut exit_code = None;
+        for event in events {
+            match event {
+                ProcessEvent::Output { bytes, .. } => {
+                    if bytes.len() > MAX_DIAGNOSTIC_OUTPUT.saturating_sub(output.len()) {
+                        let _ = supervisor.force_terminate(pid);
+                        return None;
+                    }
+                    output.extend_from_slice(&bytes);
+                }
+                ProcessEvent::Exited(status) => exit_code = Some(status.code.unwrap_or(-1)),
+            }
+        }
+        if let Some(code) = exit_code {
+            return Some((code, String::from_utf8_lossy(&output).into_owned()));
+        }
+        if Instant::now() >= deadline {
+            let _ = supervisor.force_terminate(pid);
+            return None;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
 }
 
 /// `(candidate path, whether it exists on disk, an optional (exit code,
@@ -223,7 +256,10 @@ fn run_java_version_probe(path: &str) -> Option<(i32, String)> {
 /// Java executable, feeding [`diagnostics::check_java_runtime`].
 type JavaVersionProbeRow = (String, bool, Option<(i32, String)>);
 
-fn java_health_card(configured_java_path: &str) -> HealthCardResult {
+fn java_health_card(
+    configured_java_path: &str,
+    supervisor: &dyn ProcessSupervisor,
+) -> HealthCardResult {
     let mut candidate_paths: Vec<String> = Vec::new();
     if !configured_java_path.trim().is_empty() {
         candidate_paths.push(configured_java_path.trim().to_string());
@@ -234,7 +270,7 @@ fn java_health_card(configured_java_path: &str) -> HealthCardResult {
         .into_iter()
         .map(|path| {
             let exists = path.contains('/') && Path::new(&path).is_file() || !path.contains('/');
-            let check = run_java_version_probe(&path);
+            let check = run_diagnostic_command(supervisor, &path, &["-version"]);
             (path, exists, check)
         })
         .collect();
@@ -352,7 +388,7 @@ fn port_reachability_card(
     }
 }
 
-async fn health_response_for(state: &LifecycleRoutesState) -> HealthResponseDto {
+fn health_response_for(state: &LifecycleRoutesState) -> HealthResponseDto {
     let Some(server) = state.active_config_server() else {
         return HealthResponseDto {
             server_type: String::new(),
@@ -368,30 +404,27 @@ async fn health_response_for(state: &LifecycleRoutesState) -> HealthResponseDto 
     let server_running = state.status_snapshot().running;
     let port = server_port(&server);
     let server_type = server.server_type;
-    let local_port = if server_running {
-        tokio::task::spawn_blocking(move || {
-            if server_type == ServerType::Bedrock {
-                probe_udp("127.0.0.1", port, std::time::Duration::from_secs(1))
-            } else {
-                probe_tcp("127.0.0.1", port, std::time::Duration::from_secs(1))
-            }
-        })
-        .await
-        .unwrap_or(DiagnosticResult::Unavailable)
-    } else {
+    let local_port = if !server_running {
         DiagnosticResult::NotAttempted
+    } else if server_type == ServerType::Bedrock {
+        probe_udp("127.0.0.1", port, Duration::from_secs(1))
+    } else {
+        probe_tcp("127.0.0.1", port, Duration::from_secs(1))
     };
     let directory = diagnostics::check_directory(
         &server.server_dir,
         probe_directory(Path::new(&server.server_dir)),
     );
-    let java = java_health_card(&cfg.java_path);
+    let java = java_health_card(&cfg.java_path, state.process_supervisor());
     let configured_ram_gb = if server.server_type == ServerType::Bedrock {
         server.max_ram_gb.max(2.0)
     } else {
         server.max_ram_gb
     };
-    let ram = diagnostics::check_ram_allocation(configured_ram_gb, detect_physical_ram_gb());
+    let ram = diagnostics::check_ram_allocation(
+        configured_ram_gb,
+        detect_physical_ram_gb(state.process_supervisor()),
+    );
     let last_startup_record =
         diagnostics::read_last_startup_result(&StdFileSystem, Path::new(&server.server_dir));
     let started_at = last_startup_record
@@ -403,15 +436,7 @@ async fn health_response_for(state: &LifecycleRoutesState) -> HealthResponseDto 
     let installed_count = add_on_kind
         .map(|kind| {
             let add_on_dir = Path::new(&server.server_dir).join(kind.folder_name());
-            match kind {
-                msc_domain::identity::AddOnKind::Mod => {
-                    msc_application::add_on_inventory::scan_mods(&StdFileSystem, &add_on_dir).len()
-                }
-                msc_domain::identity::AddOnKind::Plugin => {
-                    msc_application::add_on_inventory::scan_plugins(&StdFileSystem, &add_on_dir)
-                        .len()
-                }
-            }
+            msc_application::add_on_inventory::count_addon_jars(&StdFileSystem, &add_on_dir)
         })
         .unwrap_or(0);
     let problems = last_startup_record
@@ -449,14 +474,10 @@ async fn health_response_for(state: &LifecycleRoutesState) -> HealthResponseDto 
     }
 }
 
-fn detect_physical_ram_gb() -> i64 {
+fn detect_physical_ram_gb(supervisor: &dyn ProcessSupervisor) -> i64 {
     #[cfg(target_os = "macos")]
     {
-        if let Ok(output) = std::process::Command::new("sysctl")
-            .args(["-n", "hw.memsize"])
-            .output()
-            && output.status.success()
-            && let Ok(text) = String::from_utf8(output.stdout)
+        if let Some((0, text)) = run_diagnostic_command(supervisor, "sysctl", &["-n", "hw.memsize"])
             && let Ok(bytes) = text.trim().parse::<u64>()
         {
             return (bytes / 1_073_741_824) as i64;
@@ -464,6 +485,7 @@ fn detect_physical_ram_gb() -> i64 {
     }
     #[cfg(target_os = "linux")]
     {
+        let _ = supervisor;
         if let Ok(text) = std::fs::read_to_string("/proc/meminfo") {
             for line in text.lines() {
                 if let Some(rest) = line.strip_prefix("MemTotal:") {
@@ -482,12 +504,11 @@ fn detect_physical_ram_gb() -> i64 {
     }
     #[cfg(target_os = "windows")]
     {
-        if let Ok(output) = std::process::Command::new("wmic")
-            .args(["computersystem", "get", "TotalPhysicalMemory"])
-            .output()
-            && output.status.success()
-            && let Ok(text) = String::from_utf8(output.stdout)
-        {
+        if let Some((0, text)) = run_diagnostic_command(
+            supervisor,
+            "wmic",
+            &["computersystem", "get", "TotalPhysicalMemory"],
+        ) {
             for line in text.lines() {
                 if let Ok(bytes) = line.trim().parse::<u64>() {
                     return (bytes / 1_073_741_824) as i64;
@@ -499,7 +520,32 @@ fn detect_physical_ram_gb() -> i64 {
 }
 
 pub async fn health(State(state): State<LifecycleRoutesState>) -> Response {
-    let mut response = Json(health_response_for(&state).await).into_response();
+    let permit = match state.health_check_slot().try_acquire_owned() {
+        Ok(permit) => permit,
+        Err(_) => {
+            return error_response(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "health_check_busy",
+                "A health check is already running. Try again after it finishes.",
+            );
+        }
+    };
+    let result = tokio::task::spawn_blocking(move || {
+        // Keep the permit with the work, even if the HTTP caller disconnects.
+        let _permit = permit;
+        health_response_for(&state)
+    })
+    .await;
+    let mut response = match result {
+        Ok(health) => Json(health).into_response(),
+        Err(_) => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "health_check_failed",
+                "The health check could not complete.",
+            );
+        }
+    };
     // This route already runs outside the bearer-auth gate (see module doc)
     // and carries no secrets, so a permissive CORS allowance is safe here —
     // unlike every authenticated route, which stays same-origin-only. A
@@ -930,6 +976,22 @@ mod tests {
             "no-store"
         );
         assert!(response_body(response).await.contains("No active server."));
+    }
+
+    // Protect the observed duplicate-check overload without timers, real Java,
+    // a network, or a shared global permit that can interfere with other tests.
+    #[tokio::test]
+    async fn overlapping_health_checks_do_not_queue_or_block_liveness() {
+        let state = route_state();
+        let permit = state.health_check_slot().try_acquire_owned().unwrap();
+        let busy = health(State(state.clone())).await;
+        let live = healthz().await;
+        drop(permit);
+        let recovered = health(State(state)).await;
+        assert_eq!(busy.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert!(response_body(busy).await.contains("health_check_busy"));
+        assert_eq!(live.status(), StatusCode::NO_CONTENT);
+        assert_eq!(recovered.status(), StatusCode::OK);
     }
 
     #[tokio::test]

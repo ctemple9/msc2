@@ -21,18 +21,12 @@
   export let hostId = 'local-agent';
   export let serverId = 'survival';
   export let active = true;
-  export let healthRefreshVersion = 0;
+  export let statusRefreshVersion = 0;
   export let onWorlds: (() => void) | undefined = undefined;
   export let addressesVisible = false;
   export let onToggleAddresses: () => void = () => undefined;
 
-  let health: Schema['HealthResponseDTO'] = {
-    cards: [],
-    overallSeverity: 'gray',
-    serverName: '',
-    serverRunning: false,
-    serverType: '',
-  };
+  let runStatus: Schema['RemoteAPIStatus'] = { running: false };
   let connectivity: Schema['ConnectivityResponseDTO'] | undefined;
   let performance: Schema['PerformanceSnapshotDTO'] | undefined;
   let servers: Schema['ServerDTO'][] = [];
@@ -53,22 +47,30 @@
   $: settingField = (key: string): string | undefined =>
     settings?.sections.flatMap((s) => s.fields).find((f) => f.key === key)?.value;
 
-  async function loadHealth(): Promise<void> {
-    health = await call(api, health, '/v1/health');
+  async function loadStatus(): Promise<void> {
+    runStatus = await call(api, runStatus, '/v1/status');
   }
 
+  let loadingAll = false;
+
   async function loadAll(): Promise<void> {
-    await loadHealth();
-    connectivity = await call(api, connectivity, '/v1/connectivity');
-    performance = await call(api, performance, '/v1/performance');
-    servers = await call(api, servers, '/v1/servers');
-    geyser = await call(api, geyser, '/v1/config/geyser');
-    playit = await call(api, playit, '/v1/playit');
-    players = await call(api, players, '/v1/players');
-    worlds = await call(api, worlds, '/v1/worlds');
-    settings = await call(api, settings, '/v1/settings');
-    const lines = await call<Schema['ConsoleLineDTO'][]>(api, [], '/v1/console/tail?n=200');
-    chatMessages = parseChatFeed(lines);
+    if (loadingAll) return;
+    loadingAll = true;
+    try {
+      await loadStatus();
+      connectivity = await call(api, connectivity, '/v1/connectivity');
+      performance = await call(api, performance, '/v1/performance');
+      servers = await call(api, servers, '/v1/servers');
+      geyser = await call(api, geyser, '/v1/config/geyser');
+      playit = await call(api, playit, '/v1/playit');
+      players = await call(api, players, '/v1/players');
+      worlds = await call(api, worlds, '/v1/worlds');
+      settings = await call(api, settings, '/v1/settings');
+      const lines = await call<Schema['ConsoleLineDTO'][]>(api, [], '/v1/console/tail?n=200');
+      chatMessages = parseChatFeed(lines);
+    } finally {
+      loadingAll = false;
+    }
   }
 
   async function createBackup(): Promise<void> {
@@ -137,7 +139,7 @@
 
   let refreshTimer: ReturnType<typeof setInterval> | undefined;
   let mounted = false;
-  let appliedHealthRefreshVersion = 0;
+  let appliedStatusRefreshVersion = 0;
 
   function startPolling(): void {
     if (refreshTimer) return;
@@ -164,9 +166,9 @@
   $: if (mounted && active) startPolling();
   $: if (mounted && !active) stopPolling();
   $: if (mounted && active) void syncNotes();
-  $: if (mounted && active && healthRefreshVersion !== appliedHealthRefreshVersion) {
-    appliedHealthRefreshVersion = healthRefreshVersion;
-    void loadHealth();
+  $: if (mounted && active && statusRefreshVersion !== appliedStatusRefreshVersion) {
+    appliedStatusRefreshVersion = statusRefreshVersion;
+    void loadStatus();
   }
 
   $: isBedrock = activeServer?.serverType === 'bedrock';
@@ -192,7 +194,7 @@
 
   <!-- Keep this section: Server Health is intentionally hidden at the owner's request. Future edits must not remove it. -->
   <section class="zone health-grid-hidden">
-    <HealthGrid cards={health.cards} />
+    <HealthGrid cards={[]} />
   </section>
 
   <section class="zone">
@@ -217,7 +219,7 @@
           onBackup={() => void createBackup()}
         />
       </div>
-      <ChatCard messages={chatMessages} serverRunning={health.serverRunning} />
+      <ChatCard messages={chatMessages} serverRunning={runStatus.running} />
     </div>
   </section>
 

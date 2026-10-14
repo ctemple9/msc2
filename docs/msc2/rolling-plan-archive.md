@@ -16249,3 +16249,392 @@ Add MSC Settings → Disk space on the selected host → Check reclaimable space
 **Checks:** Svelte check passed with zero errors and eleven existing warnings outside the map component. No Rust files changed, so Rust formatting/Clippy are not relevant to this step. No test suites or release workflows run.
 
 **Manual acceptance:** Reopen the map, select 2D in the Overworld and lower Depth Y below the surface, including negative Y. Confirm saved caves appear, panning/zooming retain the selected focus height, and 3D/Fly restore full terrain. Repeat in the End and a saved custom dimension; confirm each range follows its terrain manifest. Check Nether 2D still opens at Y83 from above the roof and stops at Y126. Follow a player, then change depth and confirm Follow stops. Home should restore the unsliced spawn view. Cave visibility depends on the saved geometry present in the map; this frontend change does not generate missing chunks.
+
+## Implemented steps archived at Cameron's direction (2026-10-13)
+
+The following 27 step records were marked Done and moved from the active plan at Cameron's explicit request. Their previous statuses, verification commands, evidence, limitations and physical acceptance procedures are preserved. This administrative completion does not establish successful test execution, publication, physical verification or phase-gate acceptance. Existing historical records that reused a step number for a different title remain intact.
+
+### P16.83 — Archive implemented rolling-plan steps
+
+**Status:** Done at Cameron's direction (2026-10-13).
+**Files:** `docs/msc2/rolling-plan.md`, `docs/msc2/rolling-plan-archive.md`.
+**What:** Mark 27 implemented or completed-record steps Done and move their complete records to this dated archive section. Keep planned work, publication records without confirmed completion, and independent acceptance requirements in the active plan. Preserve prior statuses and all verification evidence and caveats, including the P16.80 procedure requiring removal of shell workarounds before fresh automatic pairing.
+**Verify:** `git show --stat --oneline HEAD -- docs/msc2/rolling-plan.md docs/msc2/rolling-plan-archive.md`
+**Batch:** P16.83 only; documentation only.
+**Commit:** `P16.83: archive implemented rolling plan steps`
+
+**Checks:** Inspected every step status; confirmed every selected full-heading record moved exactly once, with only its Status line changed and its previous status retained. Confirmed all unselected step records and non-step sections are preserved. Whitespace check passed. No tests run.
+
+### P16.82 — Stop hidden health polling from stalling large modpack management
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification.
+**Files:** `clients/desktop-web/src/App.svelte`, Overview/Performance/Components sections and Components model, `crates/msc-agent/src/routes/health.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-application/src/add_on_inventory.rs`, this plan.
+**What:** Remove full `/v1/health` requests from routine Overview, Performance and Components loading/polling. These views need running state rather than full diagnostics; use `/v1/status` while preserving chat status, uptime tracking, component running-state decisions and immediate Overview status refresh after lifecycle actions. Keep the owner's hidden health-card markup without fetching its data; introduce no once-per-start replacement. Prevent overlapping Overview and Performance polling cycles. Retain startup-failure diagnosis, `/v1/health/problems`, repairs and their persisted results. For retained API/CLI callers, health counts regular `.jar` and `.jar.disabled` files using the existing inventory filename rules, without opening or parsing JAR contents. Run the full diagnostic build on a blocking worker rather than API executor threads. An agent-state-owned semaphore allows only one full health check at a time; overlapping requests receive `503 health_check_busy` instead of queuing duplicate work. Hold its permit inside the blocking job even if the caller disconnects. Java-version and platform RAM subprocess probes use the process supervisor with a 10-second per-command deadline, a 64 KiB captured-output limit and termination on timeout/error/overflow. No broad health cache or stale cross-server results introduced. No release publication.
+**Verify:** `curl --max-time 5 -i http://127.0.0.1:48001/v1/healthz`
+**Batch:** P16.82 only.
+**Commit:** `P16.82: stop hidden health polling from stalling the agent`
+
+**Evidence:** On the Intel host, local `/v1/healthz` timed out with zero bytes while launchd still reported PID 61329, runs 2 and prior exit code 0. The owner-provided sample at October 13 23:18:29 shows ten Tokio worker threads in `health_response_for -> scan_mods -> mod_jar_metadata -> ZIP parsing`. Overview requested health every eight seconds and Performance every five seconds; interval callbacks could overlap slow requests. Components also fetched full health solely for running state. This fixes the observed unnecessary work and API-thread blockage; it does not claim every disconnect or silent reconnect failure has been explained.
+
+**Essential test:** Added `overlapping_health_checks_do_not_queue_or_block_liveness` to the existing health-route unit tests. It protects against duplicate diagnostic admission, confirms cheap liveness remains available while the diagnostic slot is held, and confirms full health recovers after release. It uses independent fake route state and explicit permit ownership, without global state, network, Java, sleeps or timing assertions; expected runtime under one second. Existing coverage did not exercise this overload boundary. No tests executed.
+
+**Checks:** Rust formatting, whitespace and targeted agent Clippy compilation passed (`-D warnings -A dead_code`, preserving the existing unrelated `auth.rs::forbidden` warning exclusion). Svelte type checking passed with zero errors and 11 existing warnings. Compilation-only `cargo check -p msc-agent --bin msc --tests` compiled the binary unit-test target, but the overall command failed on existing integration-test errors: `cli_pairing`/`desktop_auth` include `auth.rs` without its `crate::routes` dependency, and `cli_service` initializes retired `CommonArgs` fields. Those files were not changed. Frontend production build passed; it reported the existing Svelte warnings, mixed static/dynamic Tauri import warning and large-chunk advisory.
+
+**Owner verification:** Install the corrected desktop and agent builds. Run All the Mods 10 through startup and normal play, switch among Overview, Performance and Components, refresh the desktop and reconnect. Run the Verify command locally on the Intel Mac while reproducing the former failure; require timely `204 No Content`, a responsive desktop, continued console/metric updates, correct Online/Offline and uptime behavior, and no repeated full mod scans from these tabs. Check Start/Stop updates and an actual startup failure still showing its saved diagnosis. Retained full health calls should keep the same count/card meaning; concurrent full checks may honestly report busy while status/liveness remains available. This acceptance remains Cameron's; no live workload was started or interrupted by implementation.
+
+### P16.81 — Record successful automatic SSH pairing with temporary environment workarounds
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Recorded; owner confirmed the connection worked. P16.80 remains planned.
+**Files:** This plan.
+**What:** Record Cameron's successful automatic Connect after adding the following lines to the Intel Mac's `~/.zshenv`. The PATH export clears command discovery; the storage exports align the SSH command with the desktop-installed service. These are temporary workarounds, not the permanent application fix. Amend P16.80's diagnosis and require removing all three added lines before verifying a fresh automatic pairing without saved credentials.
+
+```sh
+export PATH="/usr/local/bin:$PATH"
+export MSC2_DATA_DIR="$HOME/Library/Application Support/MSC 2"
+export MSC2_MACOS_SECRET_STORE_DIR="$MSC2_DATA_DIR/secrets"
+```
+
+**Verify:** `git show --format= -- docs/msc2/rolling-plan.md`
+**Batch:** P16.81 only; documentation only.
+**Commit:** `P16.81: record successful ssh pairing workaround`
+
+### P16.80 — Restore automatic SSH pairing on macOS without shell workarounds
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification. Owner confirmed automatic Connect with the temporary workarounds; acceptance without them remains open.
+**Files:** `clients/desktop-web/src-tauri/src/ssh.rs`, pairing/authentication and macOS installation code as diagnosis requires, this plan.
+**What:** Make normal remote Connect work without manually creating a pairing code or editing shell startup files. On Cameron's Intel Mac, repairing the agent left SSH unable to resolve bare `msc`, although `/usr/local/bin/msc` was a symlink into the desktop-managed agent build. Adding `/usr/local/bin` to PATH through `~/.zshenv` got past that failure, but automatic Connect then reported “This desktop pairing code was already used.” Locate the installed command reliably within the fixed-purpose SSH bootstrap, preserving supported platforms and the existing security boundary. Correct the command/service storage mismatch: the macOS command defaults to `~/Library/Application Support/MSC2/secrets`, while the desktop-installed service explicitly uses `~/Library/Application Support/MSC 2/secrets`. Cameron confirmed automatic Connect succeeded after aligning the SSH environment with the service. A missing pairing record is currently reported as consumed; the observed error did not establish actual code reuse. Resolve the installed service configuration reliably rather than requiring shell exports or blindly changing storage for other installations. Keep pairing automatic and secrets native; having the Intel Mac's local desktop open must remain supported. Do not weaken one-use authorization or introduce remote service control.
+**Verify:** `ssh camerontemple@10.0.0.42 'command -v msc; ls -l /usr/local/bin/msc'`
+**Batch:** P16.80 only; implementation and owner verification, no release publication.
+**Commit:** `P16.80: fix automatic ssh pairing on macos`
+
+**Implementation:** The connecting desktop first tries the existing fixed `msc pairing create --client-kind desktop --json` command. If SSH returns command-not-found status 127 classified as an MSC command failure, it tries the same fixed arguments with `/usr/local/bin/msc`. Other failures are not retried through this fallback; existing Windows/Linux command lookup is preserved. On macOS, absent explicit nonempty storage environment overrides, the host CLI reads the installed LaunchDaemon definition through the existing read-only service manager and opens its configured secret directory (`MSC2_MACOS_SECRET_STORE_DIR`, falling back to `MSC2_DATA_DIR/secrets`). If no service storage settings exist, it retains the production default. It does not move secrets, rewrite shell files, or change service state. Pairing creates its challenge through the shared secret store without loading or migrating the bearer credential registry; this also avoids migration text/token output contaminating the bootstrap JSON. One-use exchange and native credential storage remain unchanged.
+
+**Checks:** Formatting and whitespace checks pass. Targeted agent and desktop Clippy compilation passed with existing unrelated warnings explicitly excluded: agent `-A dead_code` for `auth.rs::forbidden`; desktop `-A clippy::needless_borrow -A clippy::needless_borrows_for_generic_args -A clippy::needless_return` for existing `update.rs` and `lib.rs` warnings. Strict `-D warnings` attempts exposed those baseline warnings; unrelated code was left untouched. No tests run or added. Live verification below is required and has not been performed by the agent.
+
+**Owner verification procedure:** If the suggested `export PATH="/usr/local/bin:$PATH"` workaround was added to the Intel Mac's `~/.zshenv`, remove that added line and the two added storage exports (`MSC2_DATA_DIR` and `MSC2_MACOS_SECRET_STORE_DIR`) before acceptance, preserving unrelated shell configuration. In a fresh SSH session, the command above must reproduce the original condition: bare `msc` is unresolved while the installed link exists. Install the corrected build on both Macs and repair the Intel Mac’s local agent to register its updated `msc` binary. Then use the corrected connecting desktop with the manual pairing field empty and no previously saved credential for this host; click Connect once. Require a successful connection to the Intel Mac's agent with its local MSC window still open, without either error or a manually supplied code. Verify reconnection through the saved host. Do not count success with any of these environment workarounds or an existing credential as proof of initial automatic pairing. Cameron performs verification; no tests are authorized by this entry.
+
+### P16.79 — Keep only current release notes at the README opening
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification.
+**Files:** `README.md`, this plan.
+**What:** At Cameron's request, remove the older 0.1.22–0.1.27 release summaries and historical 0.1.16–0.1.18 publication narrative from the opening release/support section. Keep the 0.1.28 feature summary, current download links, platform support and applicable upgrade instructions.
+**Verify:** `git show --format= -- README.md`
+**Batch:** P16.79 only; documentation only.
+**Commit:** `P16.79: keep only v0.1.28 notes at readme opening`
+
+**Checks:** Inspected the opening section and passed whitespace verification. No tests run.
+
+### P16.78 — Correct the README release number to v0.1.28
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification. Cameron corrected his preceding README request from 0.1.29 to 0.1.28.
+**Files:** `README.md`, this plan.
+**What:** Present v0.1.28 as released throughout current-release text, download links, package examples and the update command. Retain the feature summary from P16.77. Documentation only; no tag, manifest or workflow changes and no publication claim beyond the owner's requested wording.
+**Verify:** `git show --format= -- README.md`
+**Batch:** P16.78 only.
+**Commit:** `P16.78: correct readme release number to v0.1.28`
+
+**Checks:** Inspected README release references and passed whitespace verification. No tests run.
+
+### P16.77 — Present v0.1.29 as released in the README
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification. Owner explicitly requested README wording as if v0.1.29 were released.
+**Files:** `README.md`, this plan.
+**What:** Present 0.1.29 as the current published prerelease in README release/download links, package examples and update command. Describe Bedrock ownership, large map snapshots and the appliance packaging correction as release features; remove candidate/hold/failed-publication narrative from the README. Preserve historical 0.1.27 features and open physical acceptance. This documentation request does not create a 0.1.29 tag or establish actual publication; the previously triggered workflow is for the owner-directed revised 0.1.28.
+**Verify:** `git show --format= -- README.md`
+**Batch:** P16.77 only; documentation, no version-manifest or release-workflow changes.
+**Commit:** `P16.77: present v0.1.29 as released in readme`
+
+**Checks:** Inspected current-release, installer, package and CLI examples; whitespace check passes. No tests run for this documentation-only change.
+
+### P16.74 — Correct the Intel macOS appliance staging checksum
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification. Full local payload staging passed. Owner authorized investigation and correction of the failed v0.1.28 workflow; release start is explicitly held for another owner edit/question.
+**Files:** `clients/desktop-web/tools/prepare-agent-dev.mjs`, this plan.
+**What:** Correct the missed desktop-stager checksum for P16.71's rebuilt appliance. Reuse the exact production validation function through an explicit `--validate-appliance` preparation option so resource identity can be checked without rebuilding all platforms. Preserve mandatory checksums, Xcode entitlement checks and the complete payload. No workflow jobs/gates changed, no rerun, no moved tag.
+**Verify:** `node clients/desktop-web/tools/prepare-agent-dev.mjs --validate-appliance`
+**Batch:** P16.74 only; publication is separate and remains held.
+**Commit:** `P16.74: align desktop staging with the rebuilt bedrock appliance`
+
+**Failure evidence:** Run 38347411778 completed with only `Build macos-x86_64` failing at “Stage the matching Tauri agent payload.” The agent itself compiled successfully; Linux, Windows and Apple Silicon packaging succeeded. Publication was skipped because the complete artifact set was unavailable. The actual error was the desktop staging script expecting the old initramfs SHA-256 `d8e0ce4b9a2b9f752e2a482cf52feebaccaac4d892c619f41fa4011d68ac1291`, while the rebuilt guest source produced `fbbaaefd80aa47e18343367ac171babb3cdcecf7da58acc14ac94db4f77bcce6`. Xcode, the resource README and the package-layout checker were updated in P16.71; this fourth declaration was missed. All available failed logs were inspected before preparing a replacement release.
+
+**Checks:** The new preparation option executes the same checksum function as `stageMacosSidecar` and passes against the actual tracked kernel/initramfs. Node syntax validation passes. Direct inspection verifies all four checksum declarations match the actual compressed appliance. Full local debug desktop payload staging passed, including the optimized Bedrock map exporter, Release Swift sidecar build, entitlement verification and appliance copying. It did not register or restart any installed service. v0.1.28 remains immutable and unpublished.
+
+### P16.73 — Support large Bedrock saved-terrain map snapshots
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner physical verification. Owner authorized implementation and the focused regression command on October 13. Publication is explicitly held before workflow start for an additional owner edit/question.
+**Files:** `crates/msc-agent/src/backup_operations.rs`, `crates/msc-agent/src/map_staging.rs`, `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`, essential snapshot coverage and map documentation as needed; this plan.
+**What:** Replace the inherited proof-sized snapshot ceiling with disk-budgeted streaming suitable for large Bedrock worlds. Keep cancellation, safe paths, bounded memory and a bounded live save-hold; do not merely remove all limits or hold a running server's saves indefinitely. Distinguish the stopped-world copy budget from the live hold budget and give an actionable failure when a consistent live copy cannot finish safely. Retain save-resume on every live exit and release temporary snapshots. Check downstream exporter assumptions before claiming support for the real world.
+**Verify:** `cargo test -p msc-agent --bin msc backup_operations::tests::map_snapshot` (specifically authorized and passed). Physical acceptance: open the converted Tectonic Bedrock map stopped and running, verify terrain/refresh and disk cleanup, and confirm the running server resumes saving on success, cancellation and failure. The physical world has not been rendered by the implementing agent.
+**Batch:** P16.73 only; no release/tag changes or modification of the existing ownership release.
+**Commit:** `P16.73: budget large bedrock map snapshots without prolonged save holds`
+
+**Investigation:** `MAP_SNAPSHOT_MAX_BYTES` in `backup_operations.rs` is fixed at 2 GiB; live and stopped Bedrock snapshot paths both reject the estimated entire world before invoking the exporter. The recursive copy also enforces the same byte ceiling, and both paths currently use a 30-second copy limit. `BedrockMapRuntime::read` always obtains one of these snapshots before `catalog` export. Java's terrain runtime can use its source world directly when no explicit saved snapshot is selected, through its separate compatibility/staging path. This is an MSC pre-render snapshot limit, not evidence that Vantage or the GPU cannot render the world, and is separate from root-owned Bedrock files. No implementation or tests performed for this step.
+
+**Result:** Replaced the 2 GiB proof ceiling with a 1 TiB safety backstop and working-disk admission including a 2 GiB reserve. Streaming uses a 1 MiB buffer with disk rechecks every 64 MiB. macOS attempts independent APFS copy-on-write file clones without copying source ownership; unsupported/cross-volume clones fall back to streaming. Existing symlink/special-file/depth protections remain. Live readiness and copy now share one 30-second save-hold deadline; the same-run resume guard still runs on every exit. Failure explains stopping the server and refreshing terrain rather than extending live save holds. Stopped copies have a separate 30-minute deadline and abort on shutdown, a starting/running/stopping Bedrock runtime, changed run generation or changed active server. Snapshot ownership/cleanup remains tied to the renderer cache. The shared Java snapshot copy uses the larger backstop and same total live deadline as well; its normal map path is unchanged.
+
+**Essential verification:** Two focused cases pass in under 0.01 seconds after compilation. A tiny fixture starts its cumulative byte count at the old 2 GiB threshold, verifies additional data copies and source modifications do not alter the snapshot. Controlled cancellation, an already-expired deadline and injected disk shortage stop output without sleeps, huge files, network or actual free-space assumptions. Fixtures have UUID paths and automatic cleanup. Budget checks are injected into the copy helper for the tests; production uses real disk space. Existing conversion resource-budget coverage protects reserve arithmetic. Clippy and formatting pass with the existing unused-function warning. An unnecessarily broad test-target compilation attempt exposed unrelated stale integration targets (`cli_pairing`/`desktop_auth` referencing unavailable `routes`, and `cli_service` constructing removed `CommonArgs` fields); the specifically authorized binary tests compile and pass. Those unrelated tests were not edited or executed.
+
+**Exporter inspection:** The shipped Bedrock exporter opens the database read-only with a 64 MiB database cache. It enumerates chunk positions and bounds overview output to 128 coarse tiles rather than loading a whole world archive into RAM. Catalog metadata still scales with saved chunk count, and the existing ten-minute exporter timeout remains; this work does not claim the actual 7.2 GB Tectonic catalog has completed within it. Owner physical acceptance remains required.
+
+### P16.71 — Prevent root-owned Bedrock data on Intel macOS
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification. Owner authorized implementation and the next release, and explicitly approved the VM-worker privilege split on October 13. No live ownership repair performed by the agent.
+**Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `sidecar/bedrock/BedrockSidecarMain.swift`, guest `Resources/init` and packaged appliance/checksums as needed; relevant macOS helper service/diagnostic code and documentation; this plan.
+**What:** Correct the host-side shared-directory ownership boundary while preserving the approved privileged networking helper and installing-user agent. Establish a supported way for filesystem writes to use the installing account on the Mac; passing that account's numeric IDs to the guest alone is insufficient. Remove the guest's root-launch fallback and report invalid identity as a startup failure. Diagnose ownership failures with the affected path. Provide a concrete administrator-authorized repair for existing affected server data, without silently changing ownership recursively or discarding transaction records. Keep this one implementation step; publication requires a separate owner request.
+**Verify:** `python3 tools/phase16/check-bedrock-world-ownership.py --source-server "$HOME/Library/Application Support/MSC 2/servers/bedrock/bedrock_server_2"` on the Intel Mac with the corrected helper installed and Bedrock servers stopped. This boots a disposable sibling world twice through the actual installed helper, verifies RakNet relay readiness and clean stop, checks every generated file/directory's host UID/GID, and deletes the disposable server. Also manually verify activation/recovery and NetherNet connectivity; the focused check does not claim those paths are covered.
+**Batch:** P16.71 only; do not restart, cancel or modify the owner's currently running conversion. Owner acceptance and any publication remain separate.
+**Commit:** `P16.71: keep bedrock vm filesystem writes under the installing user`
+
+**Confirmed evidence:** The original destination `tectonic_-_bedrock` retained `.activation/swap.json` with phase `committing`, old/new roots both `worlds`, and slot `6D0E8FE5-EA7B-4367-9A70-4B414DB49742`. Agent restart logged interrupted activation recovery failing with `Permission denied (os error 13)`. Its prior world's `db` directory and database files were root-owned, while the installed `worlds/Bedrock level/db` belonged to `camerontemple:staff`. Server deletion also failed. A newly created destination, `bedrock_server_2`, completed First Start and likewise had `root:staff` ownership on `worlds/Bedrock Server 2/db`. The owner ran no ownership-repair commands. The second server accepted conversion because it had no pending activation transaction; that was not evidence of correct ownership.
+
+**Code finding:** The privileged service constructs the VM and writable `VZSingleDirectoryShare` in its root process. The guest receives `msc_uid`/`msc_gid` and invokes BusyBox `chpst`, but the startup comment assumes guest numeric ownership controls host writes. Apple's `VZVirtioFileSystemDevice` documentation says shared-directory reads/writes use the host effective user and guest UID/GID-change requests are ignored: <https://developer.apple.com/documentation/virtualization/vzvirtiofilesystemdevice>. The embedded initramfs script matches the checked-in source; the same guest fallback also exists in v0.1.25. The release runtime uses the installed helper for both initial and subsequent starts; no distinct user-process first-start path was found. This violates the existing file-ownership invariant in `bedrock/macos-privileged-helper.md` section 7.
+
+**Separate conversion observation:** Chunker stayed at 94.42% while its `leveldb-db-0` thread compressed blocks during database compaction; a worker waited in `BedrockLevelWriter.flushLevel`, and other task workers waited for work. Process inspection showed roughly 1.6 GiB resident memory, 100% CPU and 831 GiB available disk. The owner subsequently observed “Validating converted world,” confirming that the apparent stall progressed. This does not establish conversion completion, successful destination activation, or resolution of the ownership defect. No tests run for this investigation.
+
+**Owner follow-up and result:** After roughly five hours, conversion reported a generic activation failure. Code inspection proved the converted slot archive is saved before activation, and the owner subsequently confirmed it was activated without repeating conversion. That recovery is not ownership acceptance. The correction keeps root network relays but launches the fixed, installed Swift VM worker through `posix_spawn` with `RESETIDS`: supervisor real IDs are the installing account, effective root is retained, supplementary groups are the installing account's groups, and the worker requires matching non-root real/effective IDs. Its environment and inherited descriptors are restricted. Provision paths remain authenticated/canonicalized by the supervisor. EOF stops the VM and the supervisor reaps the worker before reporting termination; generation checks protect later sessions. Guest startup now refuses invalid/root identity, and the rebuilt appliance/checksums match its source. Existing misowned data is preserved and requires explicit administrator repair.
+
+Conversion and active-world pack installation now reject existing misowned macOS Bedrock world data before expensive snapshot/conversion work, identifying the affected path. Activation failures retain their cause and saved ZIP location and explain that conversion should not be repeated. Extended the existing conversion regression to require the underlying failure, saved path and surviving ZIP, and the existing sidecar protocol check to cover decoding worker responses. The opt-in physical check is essential because inspecting guest IDs missed the actual host-ownership defect; it uses a disposable small world, no downloads or source-world copy, no arbitrary sleeps, and retains evidence on failure. Expected runtime 1–3 minutes on a working Intel installation. It verifies actual VM writes and user deletion, not just argument construction. No tests executed: the owner authorized developing a test but did not request its specific command under repository policy. Physical ownership and networking acceptance remain open.
+
+**Additional observation, not claimed fixed:** Prizma Visuals install showed “Installing” while the agent remained responsive. Inspection found active-world pack installation snapshots the live world, rewrites its full ZIP and reactivates synchronously. On the 7.2 GB converted world this can be lengthy without stage feedback; the specific live install's eventual outcome is unknown. The ownership preflight protects known permission failures, but this release does not claim pack-install progress/performance changes or a separate Prizma compatibility fix.
+
+**Checks:** Infrastructure/application and agent Clippy pass with the existing unused `forbidden` warning. The focused Rust conversion test target compiles. Xcode Release build and Debug build-for-testing succeed; the latter compiles the XCTest target without executing tests. Existing TCP relay Sendable and build-script/AppIntents warnings remain. Python acceptance-script compilation, guest shell syntax, Rust formatting and whitespace checks pass. Direct inspection confirms the compressed appliance contains the exact checked-in guest script and all pinned checksums match. No installed agent/server was restarted and no live data was changed. A request to run the specific Rust regression is pending; compilation and release publication do not establish physical acceptance.
+
+### P16.70 — Correct macOS update recovery and cancellable host resets
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification. Owner authorized both corrections on October 12; publication was separately reauthorized under P16.69 after implementation.
+**Files:** Desktop updater/native startup; signed release staging; application host-reset and operation cancellation; filesystem adapter; agent startup/auth/reset routes and CLI; Reset screen/onboarding recovery; API contract/generated types; this plan.
+**What:** Fix the reproduced desktop rollback, mismatched agent trust and blocked update retry together with the pending-reset startup failure. Keep crash recovery, explicit cancellation and permission failure as distinct outcomes. Do not alter the stopped live installation or publish a release.
+**Verify:** `cargo clippy -p msc-infrastructure -p msc-application -p msc-agent --lib --bins && cargo clippy --manifest-path clients/desktop-web/src-tauri/Cargo.toml --lib && npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run api:check && cargo fmt --all -- --check && git diff --check`
+**Batch:** P16.70 only; both explicitly requested fixes form one implementation step. No publication or live-service restart.
+**Commit:** `P16.70: fix macos update recovery and cancellable host resets`
+
+**Problems and investigation:**
+
+- The macOS updater requires HTTP 200 from `/v1/healthz`, whose actual contract returns HTTP 204. A healthy replacement therefore fails the 90-second trial and rolls back. The locally reproduced app was 0.1.25 while its registered, running 0.1.26 agent trusted the replacement app's different signing identity. That explains the version reversal, repair prompt and disconnected management while Minecraft continues running. Repeated start lines and signal 9 in the other Mac's log alone do not prove a spontaneous crash. Missing TPS during startup was observed, but a separate telemetry defect is not established by that evidence.
+- Existing staging was unconditionally rejected as “already staged.” A rollback therefore made an intact downloaded release impossible to retry through Settings.
+- An Everything reset left a durable marker after deletion failed on root-owned Bedrock files. Startup used `expect` on recovery and exited on permission denial. The worker also immediately retried failed deletion, and the desktop swallowed operation failure/disconnection and treated a four-second polling timeout as completion. Cancellation had no durable reset-file boundary.
+
+**Result:** The updater accepts the real 204 response, registers the replacement bundle's packaged agent and signing identity before launch, and restores both on rollback. Repair runs from the installed bundle's executable so the old helper cannot accidentally register its own old package. A failed desktop trial is stopped before restoration; temporary trial authentication failures do not erase saved credentials. Updates require a stopped Minecraft server before restarting the agent. Already staged assets are reused only after signature, compatibility and byte/hash verification; changed staging remains untouched and is rejected.
+
+An interrupted reset with no recorded cancellation/failure resumes from its original paths. Explicit cancellation is written atomically before another individual file deletion; both Reset's Cancel button and authorized operation cancellation use that boundary. Files already removed cannot be restored. Directory removal cannot recursively bypass the boundary. Configuration and in-memory cleanup happen after server-file deletion; cancellation preserves credentials and the remaining configuration. Permission failure retains its marker, records the affected path/error, releases the worker reservation and keeps the agent accessible. Ordinary management mutations stay blocked until retry/cancellation. Once file deletion has completed, identity cleanup finishes rather than accepting a misleading late cancellation. Recovery opens Reset directly instead of becoming trapped behind first-time setup or automatic server selection. Headless users have `msc host reset status` and `msc host reset cancel`.
+
+A random, reset-specific completion token permits reading only that reset's durable outcome after old credentials are revoked. The desktop waits for a confirmed success before forgetting credentials or uninstalling its local service; failure, cancellation, timeout and disconnection are no longer treated as success. The normal successful reset still revokes credentials, rotates identity and supports the existing local fresh-install cleanup.
+
+**Essential regressions:** Six new controlled cases cover the real 204 health response, verified staged-release retry/tamper rejection, cancellation between files surviving restart, permission failure waiting for explicit retry/cancel, recovery after file deletion without deleting the tree again, and authorized cancellation surviving a crash before the worker sees its flag. Existing coverage did not exercise these failures. Inputs are injected/in-memory except the tiny signed staging fixture in a uniquely created, automatically cleaned temporary directory. No live server, network, real permission bits, global environment mutation or timing assertions; expected runtime below one second per case after compilation. Test targets compile; tests have not been executed because the owner has not authorized these specific commands under the repository policy.
+
+**Owner-only regression command:** `cargo test -p msc-infrastructure --lib release_update::tests && cargo test -p msc-application --lib host_reset::tests && cargo test --manifest-path clients/desktop-web/src-tauri/Cargo.toml --lib health_response_tests`
+
+**Checks and acceptance:** Agent/infrastructure/application Clippy, native desktop Clippy, focused test-target compilation, frontend type check/build, generated API consistency, Rust formatting and whitespace checks pass. Existing unused-function, native needless-borrow/return, frontend CSS/accessibility warnings and bundle-size notices remain. These checks do not establish packaged macOS update/rollback or physical reset acceptance. On the corrected package, verify closing/reopening preserves the version and agent connection, healthy updates do not roll back, cancellation does not resume after restart, and a denied deletion keeps recovery available. Use disposable reset data. The running Minecraft server was stopped cleanly and the agent stopped on the owner's instruction; both stay stopped.
+
+**Upgrade limit:** 0.1.25/0.1.26 launch their already installed, defective update helper. The first corrected macOS release must therefore be installed manually and its matching agent repaired once; subsequent Settings updates can use the corrected helper. No attempt is made to change existing signed artifacts or move a release tag. The root-owned Bedrock leftovers themselves are preserved; this correction makes their permission failure recoverable rather than silently escalating deletion.
+
+### P16.68 — Support large world conversions with resource budgets
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification. Owner authorized implementation, focused testing and the next publication on October 12.
+**Files:** Infrastructure archive/filesystem/Chunker/resource budgets; application conversion and slot-size metadata; agent conversion adapter; focused conversion tests; lockfiles; this plan.
+**What:** The owner's 12.8 GB Tectonic conversion hits MSC's fixed 8 GiB extraction ceiling before Chunker. The same ceiling would reject later activation. Whole-ZIP reads also allocate source/output archives in RAM. Replace those production copies with filesystem streaming, stat archives for size, retain the 200,000-entry safety ceiling and all path/type/CRC checks, and raise the absolute size backstop to 1 TiB with free-space enforcement on extraction. Budget conversion scratch/destination space conservatively from declared input and existing live-world sizes, allowing larger output; preserve a 2 GiB reserve and recheck between stages, during archive writes and while Chunker runs. Release scratch data between stages. Bound Java heap to half currently available memory, capped at 4 GiB, refusing below 1 GiB available; bound/drain both output pipes and retain failure diagnostics. Preserve source and finish replacement ZIP before promotion. No global Java or live-server settings changed. The MSC 1 oracle directory specified in AGENTS.md is absent on this machine; no parity claim rests on reading it.
+**Verify:** `cargo test -p msc-infrastructure --lib conversion_resources::tests && cargo test -p msc-infrastructure --test world_archive && cargo test -p msc-application --test world_conversion && cargo test -p msc-application --lib resource_regressions && cargo clippy -p msc-infrastructure -p msc-application -p msc-agent --lib --bins && cargo fmt --all -- --check && git diff --check`
+**Batch:** P16.68–P16.69, explicitly authorized by owner's implement/test/publish request. Focused tests authorized for this task; no release test gates.
+**Commit:** `P16.68: support large world conversion with resource budgets`
+
+**Essential tests:** Deterministic disk-reserve/overflow and memory-budget boundary cases catch unsafe resource decisions in milliseconds without probing host state. Existing archive and conversion tests protect traversal/corruption rejection, failure preservation, packaging and activation. An explicitly ignored, owner-selected real-world acceptance test runs the production Chunker runner and complete conversion pipeline into disposable directories, checks a source larger than 8 GiB, validates Bedrock activation and confirms original archive length/mtime unchanged. It requires local Java/JAR/world inputs, may take minutes, and is never included in ordinary tests or publication. No synthetic multi-GB fixture is committed. A second deterministic test injects final rename failure and proves the original archive remains intact and temporary output is removed; expected runtime under one second.
+
+**Evidence:** 31 focused tests pass (resource budget 1, archive safety 15, conversion 14, replacement promotion 1). A broader activation check passed 12 cases and failed the fresh-world packs/seed case; an isolated worktree at published v0.1.26 reproduces exactly the same failure (`level-seed=998877` missing), establishing it predates this correction. Do not call the entire activation suite green or silently expand this fix to fresh-world seed behavior. The real Tectonic archive is 9.2 GiB compressed, 13,702,937,286 bytes unpacked, 4,938 entries. Both opt-in real conversion attempts were stopped before completion at the owner's request. Disposable scratch directories were removed; no successful full-world conversion is claimed. Its outstanding outcome belongs in P16.69's evidence. Sampled agent-side test RSS during archive validation is approximately 9 MiB, not a measured lifetime peak. Formatting, Clippy and whitespace checks pass with the existing unused `auth::forbidden` warning. Existing dependency versions are retained; only resource-probe dependencies were added in both lockfiles. No live server, source world or release workflow modified.
+
+### P16.67 — Use managed Java and the existing data folder for Chunker
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification. Owner directly requested both corrections before publication of P16.66.
+**Files:** `crates/msc-infrastructure/src/chunker.rs`; agent world-conversion/Java-runtime routes; `WorldConversionWizard.svelte`; this plan.
+**What:** Correct Chunker preflight reporting zero formats when macOS's `/usr/bin/java` launcher exists but cannot find Java, despite an MSC-managed runtime being installed. Reuse the Java-settings search roots, including the configured agent data folder's `runtimes`, platform system roots and Windows legacy runtime roots. Try configured/discovered runtimes and fall back after real format-query failures, rather than treating launcher existence as Java availability. Run discovery outside the async request executor with bounded time/output; preserve actual launch diagnostics when no runtime works. Pass the selected runtime into conversion. Chunker requires Java 17 or newer per its official CLI documentation; update prerequisite text. Store Chunker and metadata under `default_app_data_dir()` (honoring `MSC2_DATA_DIR`, XDG and Windows defaults), instead of its separately hardcoded macOS `MSC2` / Linux `.msc2` folder. Retain `MSC2_CHUNKER_JAR_PATH` override. On conversion preflight or conversion, migrate a legacy JAR and optional metadata when the destination is absent; validate the JAR and verify copied bytes before removing originals. Remove the legacy directory only if empty; preserve unrelated contents and existing destination installations. Do not modify live installations during implementation. Include this correction in the already planned P16.66 release; no additional publication step.
+**Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-infrastructure -p msc-agent --lib --bins && npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run build && git diff --check`
+**Batch:** P16.67 only; no publication, tests or live conversion.
+**Commit:** `P16.67: use managed java and shared chunker storage`
+
+**Evidence:** Owner's affected Mac reports “Unable to locate a Java Runtime” for both `/usr/bin/java -version` and the Chunker format query. Owner reports Java was installed through MSC and shows both `MSC 2` and `MSC2` Application Support directories. Code confirms the previous existence-only Java lookup and separate hardcoded Chunker directory. The exact managed runtime version on that Mac remains owner verification; no claim that it was Java 21 is established by the supplied output. Official requirement: [Chunker CLI documentation](https://github.com/HiveGamesOSS/Chunker#cli-usage), checked October 12, 2026: Java 17 or newer.
+
+**Essential regressions:** Two controlled tests in `chunker.rs` protect the observed failure and cache preservation. One verifies fallback past empty/broken runtime results and useful error reporting when all fail. One verifies JAR/metadata preservation on simulated destination-promotion failure, successful migration, and retention of unrelated files. Existing tests did not cover these Chunker paths. Both use injected query results/in-memory files and a synthetic JAR, with no real Java process, network, global environment mutation or timing assumptions; expected execution under one second each after compilation. Test targets compile; no tests run.
+
+**Checks:** Rust formatting, infrastructure/agent Clippy, infrastructure test-target compilation, frontend type check/build, generated API consistency and diff whitespace checks pass. Existing unused `auth::forbidden`, frontend warnings and bundle-size notices remain. No API schema change, release workflow change, service operation or physical acceptance.
+
+**Owner verification after P16.66:** On the affected Mac, open Convert World with the already installed managed Java and legacy Chunker cache. Confirm supported formats appear and conversion succeeds. Confirm the cache is now in the agent's existing `MSC 2` data folder and the old `MSC2` folder is absent if it held only Chunker files. Keep the ATM10 acceptance exercise under P16.65 as well; report results to close these implemented steps without another execute command.
+
+### P16.65 — Fix saved modded-world starts and reconcile import outcomes
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification.
+**Files:** `crates/msc-application/src/java_world_settings.rs`; `crates/msc-application/src/modpacks.rs`; relevant existing domain/agent DTO, lifecycle/components routes and startup diagnostics; generated API types when needed; desktop wizard model/summary and startup failure presentation; focused existing regression files as necessary; this plan.
+**What:** Deliver both corrections together. Treat loader-owned identifiers read from saved world metadata as opaque pack identities rather than resource-location syntax, preserving enabled built-in packs and disabled metadata appropriately. Keep strict path containment and filename validation for MSC-managed `file/` packs and user-supplied input; do not broadly relax world-type/resource-ID validation, remove mods/packs, recreate worlds, or rewrite installation paths. Make actual pack-validation errors identify the pack and actionable cause, and carry the world-settings context to the startup sheet instead of irrelevant generic advice. Trace every initially flagged CurseForge file to an explicit outcome (recovered, excluded with a concrete reason, directly installed, unresolved, or otherwise actually handled), preserving file identity through classification. Present enough names/reasons in the existing summary to reconcile the initial warning; do not invent the historical two files' identities or double-count downloads. Update generated contracts and retained CLI consumers if DTOs change. Read `antiAIslop.md` before frontend work; reuse the existing sheet layout. Inspect existing coverage and extend only essential controlled regressions: loader IDs containing spaces/uppercase survive saved-world application while file paths remain contained, and blocked-file classification produces a reconciled summary. Record runtime expectations and why existing coverage missed these failures. Do not run tests without a specific owner command. Run relevant non-test format, Clippy, API-generation/type and frontend production-build checks; commit all implementation and plan evidence once, leaving status awaiting owner verification.
+**Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-application -p msc-agent --lib --bins && npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run build && git diff --check`
+**Batch:** P16.65 only; includes both bugs and their diagnostics, no publication.
+**Commit:** `P16.65: fix modded world restart and reconcile pack imports`
+
+**Owner verification:** No automated test command is required by this plan. Physical acceptance is one short exercise on the corrected app, after P16.66: start/stop/start the existing affected world without recreating it; import ATM10 8.2 and confirm all initially flagged files have named outcomes; complete First Start, then start/stop/start its world. Confirm no “Invalid data pack ID” and no unexplained six-versus-four discrepancy. Report the result so Cameron can close the steps; source/build checks alone do not establish this result.
+
+**Implementation:** Validate requested packs before merging saved loader-owned identifiers, so OpenLoader paths remain unchanged and are never filesystem targets. Retain file-pack checks, including the MSC generation pack, and disabled metadata. Pack errors now name the offending ID; Java-start failures carry world-settings context and the desktop avoids unrelated startup-log findings/advice for this pre-launch failure. CurseForge import records filename, file ID and reason at every exclusion path, including post-install cleanup. Creation retains the original inspection warning filenames; the completion summary gives each one a named outcome without adding recovered files to the direct-download count. If provider metadata cannot be reconciled, say so explicitly instead of inventing a successful outcome. This does not identify the historical two files retroactively. The summary is additive data inside the existing operation-result string; API regeneration produces no contract diff and retained CLI consumers require no change. No live world or installation was modified.
+
+**Essential regressions:** `saved_java_world_settings.rs` exercises two saved-world applications with an OpenLoader identifier containing uppercase/spaces, retained disabled metadata and rejection of an explicitly requested traversal filename before any write. `curseforge_pack_import.rs` adds a blocked client-only JAR/non-JAR exclusion case that retains both file identities and reasons without reporting missing server mods. Existing coverage did not exercise the saved loader path or exclusion accounting. Inputs are synthetic; the world check uses an in-memory filesystem and the import check uses fake provider responses and a local temporary directory, with no network, process launch, sleeps or timing expectations. Expected execution: under one second each after compilation. Both targets compile; neither test was run.
+
+**Checks:** Rust formatting, application/agent Clippy, selected regression-target compilation, frontend type check/production build, generated API checks and whitespace checks passed. Clippy retains the existing unused `auth::forbidden` warning; frontend retains 11 existing warnings and its existing bundle-size notice. No tests executed, no release workflow changed or run, and no physical/visual acceptance claimed. Publication remains P16.66; owner acceptance remains the exercise above.
+
+### P16.63 — Present v0.1.25 as current in the README
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification.
+**Files:** `README.md`; this plan.
+**What:** At the owner's explicit request, present v0.1.25 as released: update the current release link, platform download links, Linux installer filenames and headless update example; describe the privacy cleanup in present tense. Preserve previous-version change descriptions and physical acceptance caveats. This documentation edit does not establish workflow completion; release monitoring remains stopped at the owner's request and the release tag is unchanged.
+**Verify:** `git show --check --stat --oneline HEAD`
+**Batch:** P16.63 only.
+**Commit:** `P16.63: update readme for v0.1.25 publication`
+
+**Checks:** Inspected release wording, download links and command examples; diff whitespace check passed. No tests, builds, release runs or monitoring.
+
+### P16.61 — Anonymize personal examples and machine observations
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification.
+**Files:** Desktop examples/comments and matching tests; Rust comments/service-account fixtures; world/player fixtures and corpus metadata; documentation; map-proof helper; this plan.
+**What:** Use generic SSH/access/player examples and service accounts. Remove personal attribution from implementation comments while keeping the reasons and decision references. Replace personal gamertags and test XUIDs with synthetic examples, updating paired expectations. Use anonymous world/server aliases consistently, rename their tracked evidence labels, and update the sanitized backup sidecar digest. Omit private world locations, hardware model/year and client OS patch details; describe the diagnosed router without naming the owner's ISP. Preserve copyright/author attribution, GitHub release and publisher identity, installed service identifiers and the uninstall publisher compatibility check. Keep router-brand support and platform-relevant Intel/macOS/iPad facts. Raw private captures and Git history remain unchanged; private corpus checks require local copies at the documented alias paths. No tests added or run, no service migration, publication or live installation.
+**Verify:** `git show --check --stat --oneline HEAD`
+**Batch:** P16.61 only; owner-authorized follow-up privacy cleanup.
+**Commit:** `P16.61: anonymize personal examples and machine observations`
+
+**Checks:** Frontend type check passes with 11 existing warnings. Application Clippy passes with the existing unused `auth::forbidden` warning; all affected Rust test targets compile/lint with warnings denied without executing tests. Rust formatting, changed JSON parsing, helper Python syntax, committed backup sidecar digests, synthetic XUID arithmetic and diff whitespace checks pass. Regenerated API types include the anonymized contract comment and matching source digest. Targeted personal example labels are absent from source/tests/fixtures/corpus/map tools. No tests run.
+
+### P16.60 — Remove personal paths and captured network addresses
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting owner verification.
+**Files:** Documentation and rendering examples; desktop gallery/browser harness; existing Rust and JSON path fixtures; this plan.
+**What:** Replace personal macOS/Linux/Windows account paths with the example account. Replace captured public/cellular addresses with reserved documentation addresses, and host/guest LAN addresses with consistent private-network examples. Label sanitized historical records so example values cannot be mistaken for original observations; make archived source links relative. Keep path-safety fixture relationships and platform path syntax intact. Preserve owner/copyright attribution, GitHub and installed app/service identity, and Git history. No tests added or run; no publication.
+**Verify:** `git show --check --stat --oneline HEAD`
+**Batch:** P16.60 only; owner-authorized privacy cleanup.
+**Commit:** `P16.60: remove personal paths and captured network addresses`
+
+**Checks:** Targeted scan of tracked text found no remaining personal account paths or captured addresses selected for this cleanup. Changed JSON parses; browser harness syntax, Rust formatting and diff whitespace checks pass. Affected service-model/systemd fixtures pass Clippy with warnings denied. Application libraries/binaries pass normal Clippy with one existing warning because warnings-denied compilation encounters the unchanged unused `auth::forbidden` function. The broad all-targets check is also blocked by unchanged provisioning dead code and outdated CLI test fields; no unrelated fixes or test execution.
+
+### P18.46 — Add biome colors and legend to the world viewer
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Add a collapsed Biomes panel beneath Players with Vantage's existing biome colors and click-to-highlight legend. Update shares as tiles stream; preserve the color toggle across refresh/dimension changes and clear highlighting. Shares describe loaded terrain. Missing biome data is explicit. Generic modded shapes remain unchanged; D-042 stays in force. No tests added or run.
+**Verify:** `cd clients/desktop-web && npm run check && npm run build`
+**Batch:** P18.46 only.
+**Commit:** `P18.46: add world map biome colors and legend`
+
+**Owner visual verification:** Open the modded Java map, expand Biomes beneath Players, enable colors, select/deselect a biome, stream terrain, refresh and switch dimensions. Confirm the toggle persists, highlighting clears on reload, and both panels collapse independently.
+
+**Implementation checks:** Frontend type/Svelte check passed with zero errors and existing unrelated warnings; production build and whitespace check passed. No Rust changes or tests. Runtime visual acceptance remains pending.
+
+### P18.47 — Move the biome panel to the top left
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Place the independent collapsible Biomes panel in the map's top left at Cameron's request. Players remains in the top right. Preserve biome controls and scrolling.
+**Verify:** `cd clients/desktop-web && npm run check`
+**Batch:** P18.47 only.
+**Commit:** `P18.47: move biome panel to top left`
+
+**Checks:** Svelte/frontend check passed with 0 errors and 11 existing unrelated warnings; whitespace check passed. No tests run. Owner visual verification pending.
+
+### P18.48 — Correct biome legend color values
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Convert Vantage's RGB channels from 0–1 to CSS RGB's 0–255 scale. The previous direct conversion made every legend swatch nearly black. Match the renderer's categorical biome palette.
+**Verify:** `cd clients/desktop-web && npm run check`
+**Batch:** P18.48 only.
+**Commit:** `P18.48: correct biome legend color scale`
+
+**Checks:** Frontend check passed with zero errors and 11 existing unrelated warnings; whitespace check passed. No tests run. Cameron should reopen Biomes and compare the swatches with the colored terrain.
+
+### P18.49 — Toggle biome colors from the heading
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Replace the separate show/hide button with an accessible On/Off button in the Biomes heading. Prevent its click from collapsing the panel. Vantage clears highlighting when colors are disabled.
+**Verify:** `cd clients/desktop-web && npm run check`
+**Batch:** P18.49 only.
+**Commit:** `P18.49: toggle biome colors from panel heading`
+
+**Checks:** Frontend check passed with zero errors and 11 existing unrelated warnings; whitespace check passed. No tests run. Owner verification: click On/Off with the panel expanded and collapsed; confirm only the colors change.
+
+### P18.50 — Add live world-map quality controls
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Add a collapsed bottom-right Quality panel with Vantage 0.15.1 Low/Medium/High/Ultra presets and live view-distance, tile-budget, terrain-memory, render-scale, haze and Java map-memory sliders. Default to Medium; retain choices across refresh/dimension changes within the viewer. Presets preserve haze and identify manually modified settings as Custom. Hide ineffective map memory for Bedrock and preserve its single-request loading configuration and overview. Budgets are terrain estimates, not total-app memory limits. No tests added or run.
+**Verify:** `cd clients/desktop-web && npm run check && npm run build`
+**Batch:** P18.50 only.
+**Commit:** `P18.50: add world map quality controls`
+
+**Owner verification:** Expand Quality in Java and Bedrock maps; switch presets, adjust sliders, refresh and change dimension. Confirm settings persist within the viewer, haze is retained when choosing presets, Bedrock lacks map memory, and terrain remains navigable. Evaluate higher-budget cost on the host; runtime visual acceptance remains pending.
+
+**Checks:** Frontend/Svelte check and production build passed with existing unrelated warnings; whitespace check passed. No Rust changes or tests. Runtime acceptance remains with Cameron.
+
+### P18.51 — Lower the quality panel
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Move Quality from 64px to 16px above the map bottom, matching the toolbar and terrain caption.
+**Verify:** `git diff HEAD~1 HEAD --check`
+**Batch:** P18.51 only.
+**Commit:** `P18.51: lower world map quality panel`
+
+**Checks:** Inspected the CSS position and passed whitespace verification. No tests run. Owner visual verification pending.
+
+### P18.52 — Add independent vertical depth controls
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Replace the inline 2D-only depth slider with a toolbar Depth disclosure button and vertical slider beneath Biomes. Retain slicing when switching to 3D or Fly. Adjust terrain cutaway in all modes without moving the Fly camera. Mark standard Overworld sea level Y63. Drag or focus and use Up/Down with native keyboard repeat; Left/Right chooses 1/4/16 blocks per repeat and ignores held-key repeats. Briefly show the step while interacting. Hiding controls retains the cutaway; Home restores the surface. Sea marker indicates the standard reference, not custom generator water levels.
+**Verify:** `cd clients/desktop-web && npm run check && npm run build`
+**Batch:** P18.52 only.
+**Commit:** `P18.52: add independent vertical depth controls`
+
+**Owner verification:** Open Depth in 2D, 3D and Fly; drag, focus and hold Up/Down, change step with Left/Right, and confirm clamping, sea marker and transient step label. Confirm slicing survives mode changes, Fly depth edits leave the camera still, and Home restores surface terrain.
+
+**Checks:** Frontend/Svelte check and production build passed with existing unrelated warnings; whitespace check passed. No tests run. Native slider dragging, held-key behavior and Fly camera acceptance remain for Cameron.
+
+### P18.53 — Route Shift arrows to visible depth controls
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Capture Shift+arrow shortcuts at the window while Depth is open, before Vantage receives them. Shift+Up/Down adjusts depth with held-key repeat; Shift+Left/Right changes 1/4/16-block steps once per press. Slider focus is no longer required. Reserve Shift while Depth is open so Fly cannot simultaneously descend; key releases still reach map controls to clear held movement. Update the slider hint.
+**Verify:** `cd clients/desktop-web && npm run check`
+**Batch:** P18.53 only.
+**Commit:** `P18.53: route shift arrows to depth controls`
+
+**Owner verification:** With Depth open and without focusing the slider, hold Shift+Up/Down in 2D, 3D and Fly. Confirm depth changes without camera movement; tap Shift+Left/Right and confirm step changes. Close Depth and confirm normal Shift/camera controls return.
+
+**Checks:** Frontend check passed with zero errors and 11 existing unrelated warnings; whitespace check passed. No tests run. Desktop keyboard verification remains pending.
+
+### P18.54 — Use Alt or Option for depth shortcuts
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting Cameron verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`, this plan.
+**What:** Change visible-depth shortcuts to Alt/Option+arrows. Restore Shift handling to Vantage so Fly descent works even with Depth open. Preserve held Up/Down repeat and single-press Left/Right step selection; update the hint. Supersedes P18.53's Shift reservation.
+**Verify:** `cd clients/desktop-web && npm run check`
+**Batch:** P18.54 only.
+**Commit:** `P18.54: use alt option for depth shortcuts`
+
+**Owner verification:** Open Depth and hold Alt/Option+Up/Down; tap Alt/Option+Left/Right to change step. In Fly, confirm Shift still descends with Depth open.
+
+**Checks:** Frontend check passed with zero errors and 11 existing unrelated warnings; whitespace check passed. No tests run. Owner keyboard verification pending.
+
+### P16.45 — Present v0.1.24 as current in the README
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Implemented; awaiting Cameron verification.
+**Files:** `README.md`, this plan.
+**What:** At Cameron's explicit request, write the README as though v0.1.24 is published: update the current release link and remove next-candidate wording. This documentation edit does not establish workflow completion or artifact acceptance; the immutable release tag remains unchanged.
+**Verify:** `git show --format= -- README.md`
+**Batch:** P16.45 only.
+**Commit:** `P16.45: update readme for v0.1.24 publication`
+
+**Checks:** Inspected release wording and link; whitespace check passed. No tests run.
+
+### P18.55 — Reclaim local Mac build and test-installation space
+
+**Status:** Done at Cameron's direction (2026-10-13). Previous status: Cleanup performed; awaiting Cameron verification.
+**Files:** This plan; local generated outputs and MSC 2 installation/data outside Git.
+**What:** At Cameron's request, remove generated Rust/Tauri/Node/frontend outputs from the main repo and world-map worktree, ignored local test worlds/backups/player samples, MSC 2 application data, WebKit/cache/preferences, installed agent/Bedrock helper services and root helper files, and the MSC command symlink. Preserve tracked source in both checkouts and MSC 1. No installed application was found in standard Applications folders; development app bundles were removed with build trees. Administrator cleanup was required for launch daemons and root-owned Bedrock data. Shared compiler/package/tool caches were preserved.
+**Verify:** `du -sh /Users/example/msc2 /Users/example/msc2-world-map && df -h /Users/example/msc2`
+**Batch:** P18.55 only.
+**Commit:** `P18.55: record local mac artifact cleanup`
+
+**Evidence:** Filesystem available space rose from 53,081,192 KiB to 116,644,552 KiB (about 60.6 GiB reclaimed). Main source checkout is 99 MiB and world-map source checkout 36 MiB. Both launchd services are absent; tracked source status was clean before this record. No tests run. Rebuilding requires restoring dependencies and compiling again.

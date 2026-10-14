@@ -2,6 +2,16 @@
 
 Implemented steps awaiting verification were marked Done and moved to [the archive](rolling-plan-archive.md) at Cameron's direction on 2026-10-08. Planned work, pending publications and independent phase acceptance remain below.
 
+### P16.80 — Restore automatic SSH pairing on macOS without shell workarounds
+
+**Status:** Planned; owner reported both failures October 13. No implementation or successful connection verified.
+**Files:** `clients/desktop-web/src-tauri/src/ssh.rs`, pairing/authentication and macOS installation code as diagnosis requires, this plan.
+**What:** Make normal remote Connect work without manually creating a pairing code or editing shell startup files. On Cameron's Intel Mac, repairing the agent left SSH unable to resolve bare `msc`, although `/usr/local/bin/msc` was a symlink into the desktop-managed agent build. Adding `/usr/local/bin` to PATH through `~/.zshenv` got past that failure, but automatic Connect then reported “This desktop pairing code was already used.” Locate the installed command reliably within the fixed-purpose SSH bootstrap, preserving supported platforms and the existing security boundary. Diagnose the second failure before choosing its fix: the agent currently reports a missing pairing record as consumed, so the message alone does not prove reuse. Inspect command/service secret-store alignment, target agent identity, and exchange/retry behavior. Keep pairing automatic and secrets native; having the Intel Mac's local desktop open must remain supported. Do not weaken one-use authorization or introduce remote service control.
+**Verify:** `ssh camerontemple@10.0.0.42 'command -v msc; ls -l /usr/local/bin/msc'`
+**Batch:** P16.80 only; implementation and owner verification, no release publication.
+
+**Owner verification procedure:** If the suggested `export PATH="/usr/local/bin:$PATH"` workaround was added to the Intel Mac's `~/.zshenv`, remove only that added line before acceptance, preserving unrelated shell configuration. In a fresh SSH session, the command above must reproduce the original condition: bare `msc` is unresolved while the installed link exists. Then use the corrected connecting desktop with the manual pairing field empty and no previously saved credential for this host; click Connect once. Require a successful connection to the Intel Mac's agent with its local MSC window still open, without either error or a manually supplied code. Verify reconnection through the saved host. Do not count success with the PATH workaround or an existing credential as proof of initial automatic pairing. Cameron performs verification; no tests are authorized by this entry.
+
 ### P16.79 — Keep only current release notes at the README opening
 
 **Status:** Implemented; awaiting owner verification.

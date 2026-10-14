@@ -2,15 +2,31 @@
 
 Implemented steps awaiting verification were marked Done and moved to [the archive](rolling-plan-archive.md) at Cameron's direction on 2026-10-08. Planned work, pending publications and independent phase acceptance remain below.
 
+### P16.81 — Record successful automatic SSH pairing with temporary environment workarounds
+
+**Status:** Recorded; owner confirmed the connection worked. P16.80 remains planned.
+**Files:** This plan.
+**What:** Record Cameron's successful automatic Connect after adding the following lines to the Intel Mac's `~/.zshenv`. The PATH export clears command discovery; the storage exports align the SSH command with the desktop-installed service. These are temporary workarounds, not the permanent application fix. Amend P16.80's diagnosis and require removing all three added lines before verifying a fresh automatic pairing without saved credentials.
+
+```sh
+export PATH="/usr/local/bin:$PATH"
+export MSC2_DATA_DIR="$HOME/Library/Application Support/MSC 2"
+export MSC2_MACOS_SECRET_STORE_DIR="$MSC2_DATA_DIR/secrets"
+```
+
+**Verify:** `git show --format= -- docs/msc2/rolling-plan.md`
+**Batch:** P16.81 only; documentation only.
+**Commit:** `P16.81: record successful ssh pairing workaround`
+
 ### P16.80 — Restore automatic SSH pairing on macOS without shell workarounds
 
-**Status:** Planned; owner reported both failures October 13. No implementation or successful connection verified.
+**Status:** Planned; owner reported both failures October 13 and subsequently confirmed automatic Connect works with the PATH and storage-directory workarounds. Permanent application fix remains unimplemented and unverified.
 **Files:** `clients/desktop-web/src-tauri/src/ssh.rs`, pairing/authentication and macOS installation code as diagnosis requires, this plan.
-**What:** Make normal remote Connect work without manually creating a pairing code or editing shell startup files. On Cameron's Intel Mac, repairing the agent left SSH unable to resolve bare `msc`, although `/usr/local/bin/msc` was a symlink into the desktop-managed agent build. Adding `/usr/local/bin` to PATH through `~/.zshenv` got past that failure, but automatic Connect then reported “This desktop pairing code was already used.” Locate the installed command reliably within the fixed-purpose SSH bootstrap, preserving supported platforms and the existing security boundary. Diagnose the second failure before choosing its fix: the agent currently reports a missing pairing record as consumed, so the message alone does not prove reuse. Inspect command/service secret-store alignment, target agent identity, and exchange/retry behavior. Keep pairing automatic and secrets native; having the Intel Mac's local desktop open must remain supported. Do not weaken one-use authorization or introduce remote service control.
+**What:** Make normal remote Connect work without manually creating a pairing code or editing shell startup files. On Cameron's Intel Mac, repairing the agent left SSH unable to resolve bare `msc`, although `/usr/local/bin/msc` was a symlink into the desktop-managed agent build. Adding `/usr/local/bin` to PATH through `~/.zshenv` got past that failure, but automatic Connect then reported “This desktop pairing code was already used.” Locate the installed command reliably within the fixed-purpose SSH bootstrap, preserving supported platforms and the existing security boundary. Correct the command/service storage mismatch: the macOS command defaults to `~/Library/Application Support/MSC2/secrets`, while the desktop-installed service explicitly uses `~/Library/Application Support/MSC 2/secrets`. Cameron confirmed automatic Connect succeeded after aligning the SSH environment with the service. A missing pairing record is currently reported as consumed; the observed error did not establish actual code reuse. Resolve the installed service configuration reliably rather than requiring shell exports or blindly changing storage for other installations. Keep pairing automatic and secrets native; having the Intel Mac's local desktop open must remain supported. Do not weaken one-use authorization or introduce remote service control.
 **Verify:** `ssh camerontemple@10.0.0.42 'command -v msc; ls -l /usr/local/bin/msc'`
 **Batch:** P16.80 only; implementation and owner verification, no release publication.
 
-**Owner verification procedure:** If the suggested `export PATH="/usr/local/bin:$PATH"` workaround was added to the Intel Mac's `~/.zshenv`, remove only that added line before acceptance, preserving unrelated shell configuration. In a fresh SSH session, the command above must reproduce the original condition: bare `msc` is unresolved while the installed link exists. Then use the corrected connecting desktop with the manual pairing field empty and no previously saved credential for this host; click Connect once. Require a successful connection to the Intel Mac's agent with its local MSC window still open, without either error or a manually supplied code. Verify reconnection through the saved host. Do not count success with the PATH workaround or an existing credential as proof of initial automatic pairing. Cameron performs verification; no tests are authorized by this entry.
+**Owner verification procedure:** If the suggested `export PATH="/usr/local/bin:$PATH"` workaround was added to the Intel Mac's `~/.zshenv`, remove that added line and the two added storage exports (`MSC2_DATA_DIR` and `MSC2_MACOS_SECRET_STORE_DIR`) before acceptance, preserving unrelated shell configuration. In a fresh SSH session, the command above must reproduce the original condition: bare `msc` is unresolved while the installed link exists. Then use the corrected connecting desktop with the manual pairing field empty and no previously saved credential for this host; click Connect once. Require a successful connection to the Intel Mac's agent with its local MSC window still open, without either error or a manually supplied code. Verify reconnection through the saved host. Do not count success with any of these environment workarounds or an existing credential as proof of initial automatic pairing. Cameron performs verification; no tests are authorized by this entry.
 
 ### P16.79 — Keep only current release notes at the README opening
 

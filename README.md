@@ -17,6 +17,12 @@ everything first.
 
 ## Current release and support
 
+The next prerelease, **v0.1.29**, is prepared for publication with automatic SSH
+pairing corrections, reduced background diagnostics, automatic shutdown-status
+updates and the Intel Mac Bedrock worker-exit fix. See its
+[release notes](docs/msc2/release/v0.1.29.md). Publication is pending; the
+latest confirmed published build remains below.
+
 The latest published build is [MSC 2 v0.1.28](https://github.com/ctemple9/msc2/releases/tag/v0.1.28),
 an unsigned prerelease. There is no stable release yet. Download the
 platform-specific installer or archive from that release page and verify its

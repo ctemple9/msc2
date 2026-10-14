@@ -2,6 +2,19 @@
 
 Implemented steps were marked Done and moved to [the archive](rolling-plan-archive.md) at Cameron's direction on 2026-10-08 and 2026-10-13. The October 13 cleanup archived 27 implemented or completed-record steps, including P16.80–P16.82. Planned work, publication records without confirmed completion, and independent phase acceptance remain below. Outstanding verification notes are preserved with the archived steps; Done does not establish physical acceptance or close a phase gate.
 
+### P16.86 — Publish v0.1.29 with remote pairing and shutdown corrections
+
+**Status:** Prepared; publication explicitly authorized by Cameron on October 14. Push the new tag once and report the workflow link without monitoring builders, following the owner's existing preference. Publication and artifact acceptance remain separate.
+**Files:** Agent/desktop/frontend manifests and lockfiles, source/static bundle identity, README candidate notice, `docs/msc2/release/v0.1.29.md`, this plan.
+**What:** Increment the latest confirmed published v0.1.28 to v0.1.29 and publish through the existing build-only workflow. Include P16.80 automatic SSH command discovery/shared pairing storage, P16.82 removal of hidden health polling and bounded diagnostics, P16.84 continuing shutdown-status reconciliation, and P16.85 reliable Bedrock VM-worker exit. Align the static bundle identity with the owned source versions (its previous static value was still 0.1.25). Keep README's latest-confirmed publication factual until the new run publishes, with a separate pending candidate notice. Preserve all nine desktop/headless artifacts, checksums and signed update metadata. Do not move an existing tag, add checks to the workflow, or execute tests. World-time investigation is deferred at the owner's request; case-alias world swapping is not claimed fixed.
+**Verify:** `gh release view v0.1.29 --json tagName,isPrerelease,assets,url`
+**Batch:** P16.86 only; prepare, commit, push main and a new immutable v0.1.29 tag once, report the triggered run without waiting for builders.
+**Commit:** `P16.86: prepare v0.1.29 connection and shutdown release`
+
+**Preparation evidence:** GitHub confirms v0.1.28 published successfully with all nine expected platform installers/archives, SHA256SUMS, release notes and both signed-update metadata files. Its successful workflow is run 38352114339; the older failed run remains historical and is not retried. The active workflow remains unchanged. Repository configuration includes the required signing-secret and public-key variable names; secret values were not read. Agent and desktop locked Cargo metadata resolve. Owned package versions and source/static identities agree at 0.1.29. Frontend production build and bundle-identity inspection passed with the existing warnings/advisories. The tracked appliance SHA-256 matches all four declarations. Inspection confirms Intel staging rebuilds the corrected Swift helper from source and the headless package copies that staged payload. The P16.85 Release and test-compilation builds already passed; no tests were executed for this release. Whitespace check passed.
+
+**Acceptance still open:** Fresh remote pairing without shell workarounds or saved credentials, sustained ATM10 management without the captured health-scan stall, long shutdown UI reconciliation, and fresh Bedrock initiation/shutdown with the corrected installed helper. The manual removal of the previously stuck worker established live recovery only. Release notes direct Intel Mac users to install the corrected app and repair the agent/helper; they preserve physical acceptance and known-limit distinctions. No live server or installed helper is changed by publication preparation.
+
 ### P16.85 — Let the macOS Bedrock VM worker exit after clean shutdown
 
 **Status:** Implemented; awaiting owner verification of the corrected installed helper. Owner explicitly authorized stopping the stuck local server; live recovery completed.

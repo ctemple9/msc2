@@ -8,8 +8,20 @@ const clientRoot = fileURLToPath(new URL('..', import.meta.url));
 const workspaceRoot = resolve(clientRoot, '../..');
 const agentName = process.platform === 'win32' ? 'msc.exe' : 'msc';
 const arguments_ = process.argv.slice(2);
+const targetArguments = arguments_.filter((argument) => argument.startsWith('--target='));
+const rustTarget = targetArguments[0]?.slice('--target='.length);
+const nativeTarget = {
+  'darwin:x64': 'x86_64-apple-darwin',
+  'darwin:arm64': 'aarch64-apple-darwin',
+  'linux:x64': 'x86_64-unknown-linux-gnu',
+  'win32:x64': 'x86_64-pc-windows-msvc',
+}[`${process.platform}:${process.arch}`];
+if (targetArguments.length > 1 || (rustTarget !== undefined && rustTarget !== nativeTarget)) {
+  fail('--target must name this machine’s native Rust target, once');
+}
 const unsupportedArguments = arguments_.filter(
-  (argument) => !['--release', '--validate-appliance'].includes(argument),
+  (argument) =>
+    !['--release', '--validate-appliance'].includes(argument) && !targetArguments.includes(argument),
 );
 if (unsupportedArguments.length > 0) {
   fail(`unsupported argument(s): ${unsupportedArguments.join(', ')}`);
@@ -17,7 +29,10 @@ if (unsupportedArguments.length > 0) {
 
 const profile = arguments_.includes('--release') ? 'release' : 'debug';
 const cargoProfileArguments = profile === 'release' ? ['--release'] : [];
-const source = join(workspaceRoot, 'target', profile, agentName);
+// Release staging and headless packaging must use the same Cargo output tree.
+const cargoTargetArguments = rustTarget ? ['--target', rustTarget] : [];
+const targetDirectory = rustTarget ? ['target', rustTarget] : ['target'];
+const source = join(workspaceRoot, ...targetDirectory, profile, agentName);
 const destinationRoot = join(clientRoot, 'src-tauri', 'target');
 const packageAgentDirectory = join(destinationRoot, 'package', 'agent');
 const vantageName = process.platform === 'win32' ? 'vantage.exe' : 'vantage';
@@ -35,10 +50,11 @@ if (arguments_.includes('--validate-appliance')) {
 }
 
 const version = verifyVersions();
-const build = spawnSync('cargo', ['build', '-p', 'msc-agent', ...cargoProfileArguments], {
-  cwd: workspaceRoot,
-  stdio: 'inherit',
-});
+const build = spawnSync(
+  'cargo',
+  ['build', '--locked', '-p', 'msc-agent', ...cargoProfileArguments, ...cargoTargetArguments],
+  { cwd: workspaceRoot, stdio: 'inherit' },
+);
 if (build.status !== 0) {
   process.exit(build.status ?? 1);
 }
@@ -204,7 +220,7 @@ function stageBedrockMap() {
     'cargo',
     // Terrain rendering is CPU intensive; ship the same optimized exporter
     // used by the browser proof even when the desktop/agent are debug builds.
-    ['build', '--locked', '--release', '--manifest-path', manifest],
+    ['build', '--locked', '--release', ...cargoTargetArguments, '--manifest-path', manifest],
     { cwd: workspaceRoot, stdio: 'inherit' },
   );
   if (built.status !== 0) fail('could not build the Bedrock terrain exporter');
@@ -212,7 +228,7 @@ function stageBedrockMap() {
     workspaceRoot,
     'tools',
     'world-map-proof',
-    'target',
+    ...targetDirectory,
     'release',
     process.platform === 'win32' ? 'msc-world-map-proof.exe' : 'msc-world-map-proof',
   );

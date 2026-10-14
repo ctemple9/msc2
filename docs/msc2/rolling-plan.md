@@ -2,6 +2,19 @@
 
 Implemented steps were marked Done and moved to [the archive](rolling-plan-archive.md) at Cameron's direction on 2026-10-08 and 2026-10-13. The October 13 cleanup archived 27 implemented or completed-record steps, including P16.80–P16.82. Planned work, publication records without confirmed completion, and independent phase acceptance remain below. Outstanding verification notes are preserved with the archived steps; Done does not establish physical acceptance or close a phase gate.
 
+### P16.88 — Reuse release compilation and cache Rust dependencies
+
+**Status:** Implemented; awaiting owner verification in a future workflow run. Cameron explicitly requested faster release builds, particularly Intel macOS.
+**Files:** `.github/workflows/release.yml`, `clients/desktop-web/tools/prepare-agent-dev.mjs`, `tools/release/build-macos-headless.sh`, this plan.
+**What:** Keep the existing four-platform build-only release workflow. Pass its native Rust target to desktop staging so the agent uses the already-built `target/<triple>/release/msc` output and the map exporter shares its output with headless packaging. Preserve ordinary development staging without a target argument and reject duplicate or nonnative targets. Keep Cargo dependency resolution locked during staging and macOS headless builds. Add a commit-pinned Rust cache covering agent, desktop shell, map exporter and Windows lifecycle-helper dependency outputs, separated by platform and automatically keyed by toolchain/dependency configuration. Preserve all nine release artifacts, checksums, signed update metadata, sidecar appliance checks and entitlement verification. No new tests, lint gates, runner purchases, release tags or workflow triggers.
+**Verify:** `git show --stat --oneline --grep='P16.88:' HEAD`
+**Batch:** P16.88 only; update workflow and build scripts, commit and push main. Do not restart the current release or dispatch a new build.
+**Commit:** `P16.88: reuse release compilation and cache rust dependencies`
+
+**Checks:** JavaScript syntax check, macOS packaging shell syntax check, YAML parsing and whitespace inspection passed. Inspected Cargo output paths against desktop staging, headless packaging and Windows staging. No Rust source changed; no tests or full release builds run. Build-time improvement remains unmeasured. The previous successful Intel run spent approximately 16 minutes building the agent and another 13 minutes staging its payload; staging includes other work, so these figures do not establish a promised saving.
+
+**Cache operation:** GitHub tag caches are isolated from later tags. An owner-directed, build-only run on the default branch seeds reusable dependencies for subsequent release tags: `gh workflow run release.yml --ref main -f publish=false`. This command builds all four platforms and is deliberately not launched here. Later tags can restore that default-branch cache while available; dependency/toolchain changes and cache eviction can require fresh compilation. No automatic main-branch builds are added. The target-directory reuse benefits the next release even with an empty cache. Existing v0.1.29 continues using its immutable workflow definition.
+
 ### P16.87 — Present v0.1.29 as released in the README
 
 **Status:** Implemented; awaiting owner verification. Owner explicitly requested README wording as if v0.1.29 were released.

@@ -70,6 +70,19 @@ jobs:
           toolchain: ${{ matrix.toolchain }}
           targets: ${{ matrix.rust-target }}
 
+      # Tag caches cannot be shared with later tags. A build-only dispatch on
+      # main seeds the default-branch cache, which subsequent releases can read.
+      - name: Restore Rust build dependencies
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          shared-key: release-${{ matrix.platform }}
+          cache-bin: false
+          workspaces: |
+            . -> target
+            clients/desktop-web/src-tauri -> target
+            tools/world-map-proof -> target
+            packaging/windows/lifecycle-helper -> target
+
       - name: Install Linux Tauri dependencies
         if: matrix.platform == 'linux-x86_64'
         run: |
@@ -124,7 +137,7 @@ jobs:
       - name: Stage the matching Tauri agent payload
         if: matrix.platform != 'windows-x86_64'
         working-directory: clients/desktop-web
-        run: npm run prepare:agent:release
+        run: npm run prepare:agent:release -- --target=${{ matrix.rust-target }}
 
       - name: Stage the matching Tauri agent payload on Windows
         if: matrix.platform == 'windows-x86_64'

@@ -32,7 +32,7 @@ VERSION="$(awk -F'"' '/^[[:space:]]*version[[:space:]]*=/ { print $2; exit }' "$
 [[ -n "$VERSION" ]] || fail "could not read the msc-agent version"
 
 cd "$WORKSPACE_ROOT"
-cargo build --release --no-default-features --target "$RUST_TARGET" -p msc-agent
+cargo build --release --locked --no-default-features --target "$RUST_TARGET" -p msc-agent
 cargo build --release --locked --target "$RUST_TARGET" \
   --manifest-path "$WORKSPACE_ROOT/tools/world-map-proof/Cargo.toml"
 

@@ -1,11 +1,12 @@
 # Native file imports and uploads — Phase 20 plan
 
-**State:** P20.1–P20.7 implementation and native candidate handoff prepared
-October 17, 2026; owner step verification, physical measurements and independent
-review remain pending. See [acceptance.md](acceptance.md) for the exact candidate
-and open observations. These changes
-are not included in the published XboxBroadcast release. Active step fields and
-execution boundaries live in [rolling-plan.md](../rolling-plan.md).
+**State:** P20.1–P20.10 accepted and marked Done by Cameron’s October 17, 2026
+archive instruction. Step records live in [the archive](../rolling-plan-archive.md#phase-20--faster-native-file-imports-and-uploads).
+[Acceptance](acceptance.md) preserves observed results and measurement gaps;
+independent gate review and recorded follow-ups remain in
+[pending acceptance](../pending-acceptance.md). These changes are not part of the
+published XboxBroadcast release. P20.9 is the latest local candidate; P20.10
+installation-status wording is in source and awaits a later build.
 
 ## Outcome
 

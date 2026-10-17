@@ -17016,3 +17016,114 @@ transfer plan remains unimplemented in [deferred work](deferred-work.md).
 **Commit:** `P16.91: prepare v0.1.30 broadcast correction release`
 
 **Preparation checks:** Confirmed v0.1.29 published with all nine expected platform artifacts plus SHA256SUMS, release notes and signed update manifest/signature; workflow 38512496877 succeeded. Signing-secret/public-key names are configured; values were not read. Locked agent/desktop metadata resolves, owned identities agree at 0.1.30, and registry lock records are unchanged. Frontend production build and bundle identity inspection passed with existing warnings. Formatting, packaging script syntax, document links and diff whitespace checks passed. P16.89's native build, focused Clippy compilation and owner-reported Intel success supply the fix evidence. No tests run, workflow gates changed, release tags moved or installed services touched. Four native builders may still take tens of minutes; P16.88's cache/reuse benefit is not yet measured. Physical acceptance of the newly published artifacts remains separate.
+
+---
+
+## Phase 20 — Faster native file imports and uploads
+
+**Disposition:** P20.1–P20.10 are Done by Cameron’s October 17 instruction:
+“after that, im okay with everything else … turn things to done, and move the
+phase to the archive.” This closes the implementation queue and records owner
+acceptance; it does not assert that every listed Verify command or physical
+case was run. Independent review of the port-plan gate remains pending.
+
+**Evidence:** Local agent repair/connection worked; the optimized candidate
+reported 115.1 MB/s partway through a 9.2 GB world transfer; Cameron subsequently
+reported getting the complete server import through to final installation and
+accepted the remaining behavior after the installation-status wording correction.
+The world attempt’s earlier source-change refusal, direct local handoff versus
+HTTP selection, missing before/after/copy/memory measurements, and unavailable
+platform/fault cases remain explicit in [acceptance](uploads/acceptance.md) and
+[pending acceptance](pending-acceptance.md). No unreported result is promoted to
+Pass. P20.10 is in source; the P20.9 candidate predates that text correction.
+No release publication or new test execution is implied.
+
+### P20.1 — Freeze the transfer contract and capture the performance baseline
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** `docs/msc2/uploads/native-transfer-plan.md`; a compact owner measurement record under `docs/msc2/uploads/`; API capability/endpoint specification in `docs/msc2/api-contract/openapi.json` and the supported-client capability record if needed; this plan.
+**What:** Inventory every world/modpack/raw-server/MSC-transfer/add-on input and export path, including CLI and current source-path imports. Specify native operation ownership, stream admission, source handles, exact byte/purpose limits, cancellation/cleanup, memory/concurrency budgets and old-agent fallback before code. Give Cameron concrete before/after measurement commands for his approximately 8 GB world, a representative modpack and server folder, separating transfer from validation/extraction/provider work. Record hardware, disk placement, network and cache state; leave unavailable measurements pending rather than inventing results. Confirm current Rust/Tauri APIs from the locked dependencies. No app implementation in this step.
+**Verify:** `git show --check --stat --oneline HEAD`
+**Batch:** P20.1 only; owner review/verification before P20.2 unless separately authorized as a batch.
+**Commit:** `P20.1: define native upload contract and baseline`
+
+### P20.2 — Receive and verify streamed uploads in the agent
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** `crates/msc-agent/src/routes/components.rs`, `worlds.rs`, `worlds/import_activation.rs`, `main.rs` and staging/recovery helpers including `routes/components/native_upload.rs` and Windows private staging ACL support; `crates/msc-api/src/dto/backups.rs`; infrastructure streaming/staging support; OpenAPI/capability data; focused existing upload tests; this plan.
+**What:** Add capability-negotiated authenticated stream ingestion with bounded buffers, retained writers and incremental SHA-256. Keep global staging locks out of network/disk I/O, enforce per-purpose exact sizes and pending-file bindings, and publish only complete verified staging. Refresh activity expiry during real work; bound concurrency/disk usage and distinguish active streams from abandoned sessions on disconnect/restart. Cancel cannot redeem a partial file, overwrite an existing world or lose the source. Retain the old chunk endpoint unchanged for compatibility. Compile only essential extended regressions; no test execution by default.
+**Verify:** `cargo clippy -p msc-agent --bin msc -- -D warnings -A dead_code`
+**Batch:** P20.2 only; depends on P20.1 verification unless included in a newly authorized batch.
+**Commit:** `P20.2: receive bounded uploads with incremental integrity checks`
+
+### P20.3 — Stream selected files from the native desktop
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Native transfer module and command registration under `clients/desktop-web/src-tauri/src/`; native auth/host transport integration; `clients/desktop-web/src/lib/auth/desktop.ts`, `platform/tauri.ts`, `platform/types.ts`, `api/client.ts`; focused transport tests; generated API types; narrow agent capability/permission integration corrections; `docs/msc2/uploads/native-transfer-plan.md`; this plan.
+**What:** Keep selected source bytes in Rust. Start a host-bound native operation using a scoped picker handle, reuse its HTTP client/connection pool, resolve credentials and service readiness once, and stream directly with backpressure and rate/byte progress events. Handle cancellation, revoked credentials, host switching, disconnect and restart without redirecting requests or exposing tokens. New agents use P20.2; older agents use native bounded chunks without JavaScript byte arrays. Reject incompatible hosts before copying. Preserve the generic request bridge for ordinary API calls; do not silently change unrelated authentication behavior.
+**Verify:** `cargo clippy --manifest-path clients/desktop-web/src-tauri/Cargo.toml --lib -- -D warnings -A clippy::needless_borrow -A clippy::needless_borrows_for_generic_args -A clippy::needless_return`
+**Batch:** P20.3 only; depends on P20.2 verification unless included in a newly authorized batch.
+**Commit:** `P20.3: stream file uploads through native desktop operations`
+
+### P20.4 — Import same-computer files without an upload round trip
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Native transfer/local-source modules; shared Unix descriptor/identity helpers; existing installing-user socket identity helpers; agent staging/source redemption and production composition; API/capability descriptions and generated types; focused source-handoff cases; `docs/msc2/uploads/native-transfer-plan.md`; this plan.
+**What:** Recognize the authenticated local agent and hand off only the selected source through a local-user-bound capability. Copy into private staging directly, optionally using a safe filesystem clone with cross-volume copy fallback; never hard-link mutable input, move/delete the source or accept arbitrary remote-readable paths. Prevent source substitution, expired/replayed handles and host confusion. Preserve exact size/purpose/integrity and importer checks, coalescing reads where possible while reporting required validation work. Compare the direct path with the native streaming fallback; no constant-time promise for 8 GB.
+**Verify:** `cargo clippy -p msc-agent --bin msc -- -D warnings -A dead_code`
+**Batch:** P20.4 only; depends on P20.3 verification unless included in a newly authorized batch.
+**Commit:** `P20.4: stage verified local file imports directly`
+
+### P20.5 — Connect server folders and archive imports to native transfer
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** `crates/msc-agent/src/routes/servers/import.rs`; existing raw/transfer import services; native file/folder transfer module; `clients/desktop-web/src/lib/sections/fleet/TransferSheet.svelte` and import wizard adapters; CLI source import/upload plumbing; import DTO/OpenAPI types as needed; shared source-tree traversal and bounded extraction; capability matrix and native-transfer implementation record; essential regression cases; this plan.
+**What:** Support the inventoried raw server ZIP/folder and MSC-transfer flows without assuming all use staged-world uploads. Local folders use bounded direct copying after existing explicit stopped-source checks. Where supported, remote selected folders generate a validated archive into the native stream without a complete intermediate source ZIP. Retain all supported server files/settings/worlds/backups and source data; reject unsupported/symlink/path-escape entries explicitly. Keep destructive replace-all review/backups and destination registration/recovery semantics. Use native streamed downloads for affected export plumbing that currently buffers whole archives. Reuse importer services; do not implement the deferred paired-agent transfer/resume feature. CLI stays host-local under D-040.
+**Verify:** `cargo build --locked -p msc-agent --bin msc`
+**Batch:** P20.5 only; depends on P20.4 verification unless included in a newly authorized batch.
+**Commit:** `P20.5: route server file imports through native transfer`
+
+### P20.6 — Give every import flow truthful progress and cancellation
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** `clients/desktop-web/src/lib/sections/components/StagedUploadSheet.svelte`, `ModpackUploadProgress.svelte`, modpack import entry points; fleet wizard `UploadStep.svelte`, `WorldStep.svelte`, `TransferSheet.svelte`; world import/replace sheets; shared API/platform state; `App.svelte` only as needed; shared source/context/cleanup adapters and bounded host notices; the shared Sheet Escape handler; native creation-context negotiation and narrow DTO/admission updates; essential regression sources; native-transfer implementation record and capability matrix; this plan.
+**What:** Apply `antiAIslop.md` within the existing sheets. Connect all inventoried entry points to the native source operation and preserve original-host state when navigating. Show preparing, transferring/local copying, verifying, inspecting and installing/importing as separate real stages. Display byte rate/progress only with a valid denominator; 100% transferred is not import success. Cancellation must await its real cleanup outcome and expose failures. Remove buffer-size tuning from the native path; retain it only for applicable legacy fallback. Surface older-agent capability limits before work and prevent late results from changing another selected host.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P20.6 only; depends on P20.5 verification unless included in a newly authorized batch.
+**Commit:** `P20.6: show native import progress across supported flows`
+
+### P20.7 — Prepare owner acceptance and record measured improvements
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Phase 20 measurement/acceptance record and installation guidance under `docs/msc2/uploads/`; this plan. Generated artifacts remain uncommitted.
+**What:** Build a matching native candidate using existing packaging and give Cameron exact artifact/install instructions. Compare the same approximately 8 GB world, representative pack and server sources against P20.1, including direct-copy/network baselines and peak memory. Record local same-volume/cross-volume and available remote/platform observations, plus cancellation, truncated/corrupt input, wrong-host rejection and old-agent fallback. Keep unavailable physical results pending; name remaining bottlenecks without claiming an unmeasured factor. Hand the feature gate to the other agent after owner verification. No automatic test suite, release publication, new CI gate or repeated full release run.
+**Verify:** `cargo build --locked -p msc-agent --bin msc`
+**Batch:** P20.7 only; depends on P20.6 verification unless included in a newly authorized batch. Physical acceptance is Cameron's separate Verify move.
+**Commit:** `P20.7: document native upload performance and acceptance`
+
+### P20.8 — Remove the system alert icon from folder confirmation
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** `clients/desktop-web/src/App.svelte`; `clients/desktop-web/src-tauri/src/native_transfer.rs`; this plan.
+**What:** Owner-requested acceptance correction: replace the native folder warning alert with the existing icon-free MSC sheet for selected and dropped server folders. Keep explicit stopped-source confirmation, release the selected handle on cancellation, and recheck the original host/server before proceeding. No tests added for this reversible presentation change; no tests executed. The existing P20.7 ZIP predates this correction and must be rebuilt to display it.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P20.8 only.
+**Commit:** `P20.8: use an icon-free server folder confirmation`
+
+### P20.9 — Admit complete server sources above the world upload ceiling
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** Native desktop source admission; agent native staging; shared source-tree TAR bound; `uploads/native-transfer-plan.md`; this plan. Generated candidate remains uncommitted.
+**What:** Owner-reported 20,066,596,805-byte complete server ZIP and large folder failed the individual-world 10 GiB ceiling. Give raw server ZIP/folder and MSC transfers a shared 1 TiB source bound matching existing archive safety, with a 2 TiB aggregate staging reservation ceiling for TAR plus extracted contents. Retain exact-byte, concurrency, disk-margin, extraction and individual-world/modpack limits. Distinguish empty, oversize and actual insufficient disk errors, including sizes. Add one essential admission regression for the reported size, disk refusal and unchanged world ceiling: injected capacity and empty staging only, no large allocation/network/sleeps, expected under one second excluding compilation. Compile regression metadata only; do not execute tests. Prepare a fresh optimized local candidate including P20.8.
+**Verify:** `cargo build --locked -p msc-agent --bin msc`
+**Batch:** P20.9 only.
+**Commit:** `P20.9: admit large server sources with disk space checks`
+
+### P20.10 — Clarify final server installation status
+
+**Status:** Done — closed by Cameron’s October 17 acceptance and archive instruction.
+**Files:** `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`; `crates/msc-agent/src/routes/lifecycle.rs`; this plan.
+**What:** Replace ambiguous “Importing server” status with “Installing server in storage: extracting or copying files” in the initial wizard status and agent operation updates. Explain the real disk work after upload without inventing measured progress. No tests added or executed for a text-only correction. The P20.9 optimized ZIP predates this change.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P20.10 only.
+**Commit:** `P20.10: clarify final server installation status`

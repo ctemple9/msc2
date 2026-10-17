@@ -1,6 +1,16 @@
 # Phase 20 native candidate and owner acceptance
 
-Prepared October 17, 2026. **Physical acceptance and independent review pending.**
+Prepared October 17, 2026. **Owner accepted implementation and closed P20.1–P20.10
+on October 17; independent gate review pending.**
+
+Cameron requested Done statuses and archiving after the installation-status text
+correction, saying he was okay with everything else. This is the current owner
+disposition; the dated build records and earlier pending checklists below remain
+an account of what was and was not individually observed. It is not evidence
+that every physical case passed or that the P20.10 text shipped in P20.9.
+Unmeasured comparisons and unresolved observations are retained in
+[pending acceptance](../pending-acceptance.md). No further physical checks are
+an active execution queue; the other agent still owns independent gate review.
 This is the P20.7 handoff, not a release or a claim of measured improvement.
 The P20.1 [baseline record](baseline.md) still contains no physical results.
 Keep its procedure and record both installed-app and candidate observations there.

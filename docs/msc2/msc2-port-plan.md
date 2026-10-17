@@ -321,8 +321,10 @@ MSC 1 must remain runnable and buildable throughout as the compatibility oracle 
 
 ## Phase 20 — Faster native file imports and uploads (owner-requested plan, October 16)
 
-**State:** Planned only. The selected next steps are P20.1–P20.7 in
-[rolling-plan.md](rolling-plan.md); the detailed contract is
+**State:** P20.1–P20.10 implemented, accepted and archived at Cameron’s
+October 17 instruction in [the archive](rolling-plan-archive.md#phase-20--faster-native-file-imports-and-uploads).
+Independent gate review and measurement limitations remain in
+[pending acceptance](pending-acceptance.md); the detailed contract is
 [Native file imports and uploads](uploads/native-transfer-plan.md). This is a
 performance correction to supported import flows, preserving behavior and
 source safety. The complete paired-agent server transfer/resume plan stays in

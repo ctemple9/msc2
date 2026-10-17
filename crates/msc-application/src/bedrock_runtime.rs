@@ -5,7 +5,7 @@
 //! metrics; those details belong to each backend adapter.
 
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, VecDeque};
 use std::fmt;
 use std::path::{Path, PathBuf};
 
@@ -661,6 +661,7 @@ pub struct SidecarRuntime<T> {
     state: BedrockRuntimeState,
     directory_mapping: Option<SidecarDirectoryMapping>,
     diagnostics: Option<BedrockRuntimeDiagnostics>,
+    pending_events: VecDeque<SidecarFrame>,
 }
 
 impl<T> SidecarRuntime<T> {
@@ -671,6 +672,7 @@ impl<T> SidecarRuntime<T> {
             state: BedrockRuntimeState::New,
             directory_mapping: None,
             diagnostics: None,
+            pending_events: VecDeque::new(),
         }
     }
 
@@ -745,6 +747,14 @@ impl<T> SidecarRuntime<T> {
                             path_ownership,
                             last_teardown_reason,
                         });
+                    }
+                    frame @ (SidecarFrame::ConsoleLine { .. }
+                    | SidecarFrame::Metrics { .. }
+                    | SidecarFrame::Ready { .. }
+                    | SidecarFrame::Terminated { .. }) => {
+                        // Console and lifecycle events share the reply socket. Keep
+                        // their order without consuming the command's acknowledgement.
+                        self.pending_events.push_back(frame);
                     }
                     frame => return Ok(frame),
                 },
@@ -857,6 +867,9 @@ impl<T: SidecarTransport> BedrockRuntime for SidecarRuntime<T> {
     }
 
     fn poll_event(&mut self) -> Result<Option<BedrockRuntimeEvent>, BedrockRuntimeError> {
+        if let Some(frame) = self.pending_events.pop_front() {
+            return self.observe_event(frame);
+        }
         let status = match self.transport.receive_status() {
             Ok(status) => status,
             Err(message) => {
@@ -879,6 +892,15 @@ impl<T: SidecarTransport> BedrockRuntime for SidecarRuntime<T> {
                 return Err(error);
             }
         };
+        self.observe_event(frame)
+    }
+}
+
+impl<T: SidecarTransport> SidecarRuntime<T> {
+    fn observe_event(
+        &mut self,
+        frame: SidecarFrame,
+    ) -> Result<Option<BedrockRuntimeEvent>, BedrockRuntimeError> {
         match frame {
             SidecarFrame::Ready {
                 guest_ip,

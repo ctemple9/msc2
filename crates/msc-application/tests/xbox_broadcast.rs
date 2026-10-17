@@ -324,3 +324,49 @@ fn _ready_fixture_is_still_the_domain_oracle() {
         "Creation of Xbox LIVE session was successful"
     ));
 }
+
+#[test]
+fn stopped_broadcast_preparation_cannot_launch_after_download() {
+    let (operations, supervisor, secrets, fs) = service_setup();
+    let mut service = XboxBroadcastService::new("bedrock-1", true, supervisor, secrets, operations);
+    let first = service.begin_start().unwrap();
+    service.stop().unwrap();
+    let second = service.begin_start().unwrap();
+    let acquired = acquisition(fs).acquire().unwrap();
+    assert!(!service.finish_start(&first, launch(), &acquired).unwrap());
+    service
+        .fail_start(&first, "old download failed".into())
+        .unwrap();
+    assert!(supervisor.spawned_requests().is_empty());
+    assert_eq!(
+        operations
+            .snapshot(&OperationId::new(first))
+            .unwrap()
+            .unwrap()
+            .state,
+        OperationState::Cancelled
+    );
+    assert!(service.finish_start(&second, launch(), &acquired).unwrap());
+    assert_eq!(supervisor.spawned_requests().len(), 1);
+}
+
+#[test]
+fn cancelled_broadcast_preparation_never_spawns() {
+    let (operations, supervisor, secrets, fs) = service_setup();
+    let mut service = XboxBroadcastService::new("bedrock-1", true, supervisor, secrets, operations);
+    let id = service.begin_start().unwrap();
+    operations
+        .request_cancel(&OperationId::new(id.clone()), "cancel preparation")
+        .unwrap();
+    let acquired = acquisition(fs).acquire().unwrap();
+    assert!(!service.finish_start(&id, launch(), &acquired).unwrap());
+    assert!(supervisor.spawned_requests().is_empty());
+    assert_eq!(
+        operations
+            .snapshot(&OperationId::new(id))
+            .unwrap()
+            .unwrap()
+            .state,
+        OperationState::Cancelled
+    );
+}

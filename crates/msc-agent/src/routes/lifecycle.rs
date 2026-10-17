@@ -2897,12 +2897,35 @@ impl LifecycleRoutesState {
     }
 
     fn drain_bedrock_events(&self) {
+        if !matches!(
+            self.inner.bedrock_runtime.state(),
+            msc_application::bedrock_runtime::BedrockRuntimeState::Starting
+                | msc_application::bedrock_runtime::BedrockRuntimeState::Running
+                | msc_application::bedrock_runtime::BedrockRuntimeState::Stopping
+        ) {
+            return;
+        }
         loop {
             let event = match self.inner.bedrock_runtime.poll_event() {
                 Ok(Some(event)) => event,
                 Ok(None) => break,
                 Err(error) => {
                     let message = error.to_string();
+                    self.append_console_line(
+                        "msc",
+                        &format!("Bedrock helper event error: {message}"),
+                    );
+                    eprintln!("Bedrock helper event error: {message}");
+                    // A rejected event does not establish server termination.
+                    // Preserve its helpers while the runtime still owns a live run.
+                    if matches!(
+                        self.inner.bedrock_runtime.state(),
+                        msc_application::bedrock_runtime::BedrockRuntimeState::Starting
+                            | msc_application::bedrock_runtime::BedrockRuntimeState::Running
+                            | msc_application::bedrock_runtime::BedrockRuntimeState::Stopping
+                    ) {
+                        break;
+                    }
                     self.clear_console_correlation();
                     self.clear_time_observation();
                     if let Some(server_id) = self.active_server_id() {

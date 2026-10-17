@@ -5,6 +5,7 @@ use msc_domain::helper::{HelperSnapshot, HelperStatus};
 use msc_domain::networking::{
     broadcast_is_ready, parse_broadcast_auth_prompt, parse_broadcast_gamertag,
 };
+use msc_infrastructure::helper_acquisition::AcquiredHelper;
 use msc_infrastructure::helper_process::{HelperKey, HelperProcessError, HelperProcessManager};
 use msc_infrastructure::process::{OutputStream, ProcessSupervisor};
 use msc_infrastructure::secret_store::SecretStore;
@@ -155,61 +156,89 @@ impl<'a> XboxBroadcastService<'a> {
         launch: XboxBroadcastLaunch,
         acquisition: &XboxBroadcastJarAcquisition<'_>,
     ) -> Result<String, XboxBroadcastError> {
-        if !self.enabled {
-            return Err(XboxBroadcastError::Disabled);
-        }
-        if matches!(self.snapshot.status, HelperStatus::Stopped)
-            && let Some(operation_id) = self.active_operation.take()
-        {
-            self.operations
-                .cancel(&operation_id, "Previous Xbox Broadcast start ended.")
-                .map_err(|error| XboxBroadcastError::Operation(error.to_string()))?;
-        }
-        let key = self.key();
-        let operation_id = self
-            .operations
-            .begin_running(
-                XBOX_BROADCAST_OPERATION_TYPE,
-                Some(key.operation_target()),
-                "Starting Xbox Broadcast.",
-            )
-            .map_err(|error| XboxBroadcastError::Operation(error.to_string()))?;
-        let acquired = match acquisition.acquire() {
-            Ok(acquired) => acquired,
-            Err(error) => {
-                let message = error.to_string();
-                let _ = self.operations.fail(
-                    &operation_id,
-                    lifecycle_error("broadcast_acquisition_failed", message.clone()),
-                );
-                return Err(XboxBroadcastError::Acquisition(message));
-            }
-        };
-        self.auth_prompt = None;
-        self.reset_stopped_helper_manager();
-        match self
-            .helpers
-            .start(key, launch.process_request(&acquired.artifact.path))
-        {
-            Ok(_) => {
-                self.snapshot = HelperSnapshot {
-                    status: HelperStatus::Starting,
-                    player_address: None,
-                };
-                self.active_operation = Some(operation_id.clone());
-                Ok(operation_id.as_str().to_string())
+        let operation_id = self.begin_start()?;
+        match acquisition.acquire() {
+            Ok(acquired) => {
+                self.finish_start(&operation_id, launch, &acquired)?;
+                Ok(operation_id)
             }
             Err(error) => {
-                let _ = self.operations.fail(
-                    &operation_id,
-                    lifecycle_error("broadcast_start_failed", error.to_string()),
-                );
-                Err(map_process_error(error))
+                self.fail_start(&operation_id, error.to_string())?;
+                Err(XboxBroadcastError::Acquisition(error.to_string()))
             }
         }
     }
 
+    /// Reserve the operation before downloading, so Stop can cancel preparation.
+    pub fn begin_start(&mut self) -> Result<String, XboxBroadcastError> {
+        if !self.enabled {
+            return Err(XboxBroadcastError::Disabled);
+        }
+        if self.active_operation.is_some() || self.helpers.is_running(&self.key()) {
+            return Err(XboxBroadcastError::AlreadyManaged);
+        }
+        let operation_id = self
+            .operations
+            .begin_running(
+                XBOX_BROADCAST_OPERATION_TYPE,
+                Some(self.key().operation_target()),
+                "Preparing Xbox Broadcast helper.",
+            )
+            .map_err(|error| XboxBroadcastError::Operation(error.to_string()))?;
+        self.auth_prompt = None;
+        self.snapshot = HelperSnapshot {
+            status: HelperStatus::Starting,
+            player_address: None,
+        };
+        self.active_operation = Some(operation_id.clone());
+        Ok(operation_id.as_str().to_owned())
+    }
+
+    pub fn finish_start(
+        &mut self,
+        operation_id: &str,
+        launch: XboxBroadcastLaunch,
+        acquired: &AcquiredHelper,
+    ) -> Result<bool, XboxBroadcastError> {
+        // A stopped or replaced preparation must never launch a late process.
+        if !self.owns_start(operation_id) || self.cancel_start_if_requested()? {
+            return Ok(false);
+        }
+        self.reset_stopped_helper_manager();
+        if let Err(error) = self
+            .helpers
+            .start(self.key(), launch.process_request(&acquired.artifact.path))
+        {
+            self.fail_active_operation("broadcast_start_failed", error.to_string())?;
+            return Err(map_process_error(error));
+        }
+        Ok(true)
+    }
+
+    pub fn fail_start(
+        &mut self,
+        operation_id: &str,
+        message: String,
+    ) -> Result<(), XboxBroadcastError> {
+        if self.owns_start(operation_id) && !self.cancel_start_if_requested()? {
+            self.fail_active_operation("broadcast_acquisition_failed", message)?;
+        }
+        Ok(())
+    }
+
+    fn owns_start(&self, operation_id: &str) -> bool {
+        self.active_operation
+            .as_ref()
+            .is_some_and(|id| id.as_str() == operation_id)
+    }
+
     pub fn observe_output(&mut self, line: &str) -> Result<(), XboxBroadcastError> {
+        if !matches!(
+            self.snapshot.status,
+            HelperStatus::Starting | HelperStatus::Running
+        ) {
+            return Ok(());
+        }
         if let Some(gamertag) = parse_broadcast_gamertag(line) {
             self.authenticated_gamertag = Some(gamertag);
         }
@@ -242,6 +271,7 @@ impl<'a> XboxBroadcastService<'a> {
     /// pump so authentication prompts and readiness do not depend on a
     /// browser request arriving at exactly the right time.
     pub fn poll(&mut self) -> Result<Vec<BroadcastOutputLine>, XboxBroadcastError> {
+        self.cancel_start_if_requested()?;
         let events = match self.helpers.poll() {
             Ok(events) => events,
             Err(error) => {
@@ -307,9 +337,11 @@ impl<'a> XboxBroadcastService<'a> {
 
     pub fn stop(&mut self) -> Result<(), XboxBroadcastError> {
         self.auth_prompt = None;
-        self.helpers
-            .force_terminate(&self.key())
-            .map_err(map_process_error)?;
+        if self.helpers.is_running(&self.key()) {
+            self.helpers
+                .force_terminate(&self.key())
+                .map_err(map_process_error)?;
+        }
         self.snapshot = HelperSnapshot::stopped();
         if let Some(operation_id) = self.active_operation.take() {
             self.operations
@@ -327,9 +359,11 @@ impl<'a> XboxBroadcastService<'a> {
             return Ok(false);
         }
         self.auth_prompt = None;
-        self.helpers
-            .request_graceful_stop(&self.key())
-            .map_err(map_process_error)?;
+        if self.helpers.is_running(&self.key()) {
+            self.helpers
+                .request_graceful_stop(&self.key())
+                .map_err(map_process_error)?;
+        }
         self.operations
             .cancel(&operation_id, "Xbox Broadcast start cancelled.")
             .map_err(|error| XboxBroadcastError::Operation(error.to_string()))?;

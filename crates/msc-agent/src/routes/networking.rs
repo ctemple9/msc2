@@ -63,6 +63,9 @@ type SharedBroadcastService = XboxBroadcastService<'static>;
 const PLAYIT_AUTOSTART_RETRY_DELAY: Duration = Duration::from_secs(2);
 const PLAYIT_AUTOSTART_MAX_RETRIES: u8 = 3;
 const PLAYIT_CONTROL_SESSION_MAX_RESTARTS: u8 = 3;
+// Cancelled preparations can overlap a replacement download. Serialize only
+// artifact promotion, without holding the live helper's state lock.
+static BROADCAST_ACQUISITION_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Debug, Clone, Copy)]
 struct PendingPlayitStart {
@@ -251,7 +254,22 @@ impl PlayitLifecycleController {
             java_path: PathBuf::from(self.lifecycle.app_config_snapshot().java_path),
             working_directory,
         };
-        let _ = service.start(launch, &acquisition);
+        match service.begin_start() {
+            Ok(operation_id) => {
+                drop(services);
+                spawn_broadcast_start_worker(
+                    Arc::clone(&self.broadcast),
+                    self.lifecycle.clone(),
+                    server.id.clone(),
+                    operation_id,
+                    launch,
+                    acquisition,
+                );
+            }
+            Err(error) => self
+                .lifecycle
+                .append_console_line("xbox-broadcast", &error.to_string()),
+        }
     }
 
     fn stop_for_server(&self, server_id: &str) {
@@ -745,6 +763,42 @@ fn append_playit_console_line(lifecycle: &LifecycleRoutesState, line: PlayitOutp
         }
     };
     lifecycle.append_console_line("playit", &text);
+}
+
+/// Provider I/O must not hold the helper lock or occupy an async worker.
+fn spawn_broadcast_start_worker(
+    services: Arc<Mutex<BTreeMap<String, SharedBroadcastService>>>,
+    lifecycle: LifecycleRoutesState,
+    server_id: String,
+    operation_id: String,
+    launch: xbox_broadcast::XboxBroadcastLaunch,
+    acquisition: xbox_broadcast::XboxBroadcastJarAcquisition<'static>,
+) {
+    tokio::task::spawn_blocking(move || {
+        let acquired = {
+            let _download = BROADCAST_ACQUISITION_LOCK
+                .lock()
+                .expect("Broadcast acquisition lock poisoned");
+            acquisition.acquire()
+        };
+        let mut services = services.lock().expect("Broadcast service lock poisoned");
+        let Some(service) = services.get_mut(&server_id) else {
+            return;
+        };
+        let result = match acquired {
+            Ok(acquired) => service
+                .finish_start(&operation_id, launch, &acquired)
+                .map(|_| ()),
+            Err(error) => {
+                let message = error.to_string();
+                lifecycle.append_console_line("xbox-broadcast", &message);
+                service.fail_start(&operation_id, message)
+            }
+        };
+        if let Err(error) = result {
+            lifecycle.append_console_line("xbox-broadcast", &error.to_string());
+        }
+    });
 }
 
 /// Keeps the managed Xbox Broadcast process moving independently of status
@@ -1858,7 +1912,24 @@ pub async fn download_broadcast_jar(
         Ok(acquisition) => acquisition,
         Err(response) => return response,
     };
-    match acquisition.acquire() {
+    let acquired = tokio::task::spawn_blocking(move || {
+        let _download = BROADCAST_ACQUISITION_LOCK
+            .lock()
+            .expect("Broadcast acquisition lock poisoned");
+        acquisition.acquire()
+    })
+    .await;
+    let acquired = match acquired {
+        Ok(result) => result,
+        Err(error) => {
+            let message = format!("Xbox Broadcast download worker failed: {error}");
+            let _ = state
+                .operations
+                .fail(&operation, "broadcast_download_failed", message.clone());
+            return helper_error_response(message, "broadcast_download_failed");
+        }
+    };
+    match acquired {
         Ok(acquired) => {
             let filename = acquired
                 .artifact
@@ -1899,6 +1970,14 @@ pub async fn start_broadcast(
     State(state): State<NetworkingState>,
     Extension(credential): Extension<AuthenticatedCredential>,
 ) -> Response {
+    request_broadcast_start(state, credential, "broadcast_start_requested")
+}
+
+fn request_broadcast_start(
+    state: NetworkingState,
+    credential: AuthenticatedCredential,
+    result: &str,
+) -> Response {
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Broadcast) {
         return response;
     }
@@ -1922,17 +2001,27 @@ pub async fn start_broadcast(
         java_path: PathBuf::from(state.lifecycle.app_config_snapshot().java_path),
         working_directory: workdir,
     };
-    match service.start(launch, &acquisition) {
-        Ok(operation_id) => (
-            StatusCode::ACCEPTED,
-            Json(BroadcastSimpleResultDto {
-                result: "broadcast_start_requested".into(),
-                operation_id: Some(operation_id),
-            }),
-        )
-            .into_response(),
-        Err(error) => helper_error_response(error.to_string(), "broadcast_start_failed"),
-    }
+    let operation_id = match service.begin_start() {
+        Ok(id) => id,
+        Err(error) => return helper_error_response(error.to_string(), "broadcast_start_failed"),
+    };
+    drop(services);
+    spawn_broadcast_start_worker(
+        Arc::clone(&state.broadcast),
+        state.lifecycle.clone(),
+        server.id,
+        operation_id.clone(),
+        launch,
+        acquisition,
+    );
+    (
+        StatusCode::ACCEPTED,
+        Json(BroadcastSimpleResultDto {
+            result: result.into(),
+            operation_id: Some(operation_id),
+        }),
+    )
+        .into_response()
 }
 
 pub async fn stop_broadcast(
@@ -1976,30 +2065,17 @@ pub async fn restart_broadcast(
         Ok(server) => server,
         Err(response) => return response,
     };
-    let acquisition = match state.broadcast_acquisition() {
-        Ok(acquisition) => acquisition,
-        Err(response) => return response,
-    };
-    let mut services = state.broadcast_service(&server);
-    let service = services.get_mut(&server.id).expect("service was inserted");
-    let _ = service.stop();
-    let workdir = PathBuf::from(&server.server_dir).join(".msc2-broadcast");
-    let _ = std::fs::create_dir_all(&workdir);
-    let launch = xbox_broadcast::XboxBroadcastLaunch {
-        java_path: PathBuf::from(state.lifecycle.app_config_snapshot().java_path),
-        working_directory: workdir,
-    };
-    match service.start(launch, &acquisition) {
-        Ok(operation_id) => (
-            StatusCode::ACCEPTED,
-            Json(BroadcastSimpleResultDto {
-                result: "broadcast_restart_requested".into(),
-                operation_id: Some(operation_id),
-            }),
-        )
-            .into_response(),
-        Err(error) => helper_error_response(error.to_string(), "broadcast_restart_failed"),
+    {
+        let mut services = state.broadcast_service(&server);
+        let service = services.get_mut(&server.id).expect("service was inserted");
+        if let Err(error) = service.stop() {
+            return helper_error_response(error.to_string(), "broadcast_restart_failed");
+        }
+        if let Err(error) = service.poll() {
+            return helper_error_response(error.to_string(), "broadcast_restart_failed");
+        }
     }
+    request_broadcast_start(state, credential, "broadcast_restart_requested")
 }
 
 pub async fn resource_packs(

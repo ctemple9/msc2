@@ -244,3 +244,58 @@ bundled agent and outer app, preserving the helper's entitlement;
 `codesign --verify --deep --strict` passed. ZIP checksum and extracted signature
 verification passed. No installation, live import or release publication ran.
 Owner large-server retest remains pending, including actual extraction space.
+
+## P20.12 — Imported Java JAR presence and version correction
+
+After owner closure, Cameron reported Components showing Paper Missing for an
+imported server whose configured `paper.jar` exists. Inspection confirmed the
+configured path matches the roughly 54 MB JAR, while `minecraft_version` and
+`server_build` were absent. The UI inferred Missing from those absent fields.
+The selected Paperclip JAR has `version.json` with Minecraft ID `26.3`; its
+launcher manifest supplies no build number. A separate prepared JAR reports
+build 147, but this correction does not infer launcher build identity from a
+potentially stale prepared file.
+
+Components now checks configured JAR presence independently of version fields.
+It reads only known small metadata entries (`version.json`, main manifest),
+never executes Java, downloads replacements or reads dependency versions as the
+Minecraft version. Metadata members are capped at 64 KiB; unknown/corrupt
+metadata is best-effort and leaves an existing file Installed/version unknown.
+Explicit server manifest build numbers and modern Paper version/build strings
+are supported where present. A deleted JAR stays Missing despite old version
+fields. A detected version differing from configured version does not borrow
+that configured version's build number. Local detection does not claim an
+online update check: the status is Installed, not Up to date.
+
+Existing imports recover metadata for display when Components loads, off the
+async API worker; existing config/data is not rewritten by inspection. Future
+raw imports save detected version/build metadata before registration. Loader
+versions remain distinct. Three essential regressions cover the reported
+Paperclip layout, manifest/oversize metadata handling and component presence
+versus unknown/stale version fields. They use tiny in-memory ZIPs or isolated
+files, no network or sleeps; expected runtime under one second each beyond
+compilation. Compilation and candidate evidence are recorded below; no tests
+are executed without a specific owner instruction.
+
+Owner verification: install the new candidate, Repair service, reopen the
+already imported server's Components tab. Paper should show 26.3 and Installed
+without another import or download. A build number remains unknown when the
+selected JAR does not establish it. Original JAR bytes remain untouched.
+
+### P20.12 candidate and checks
+
+Optimized Intel app ZIP: `target/native-upload-candidate/msc2-0.1.30-p20.12-macos-x86_64.zip` (30,963,310 bytes).
+SHA-256: `8ec41405ef3b425a74a4a89c398200e09dad0c4611a016c97843cb2316f1c5ca`. Adjacent checksums: `P20.12-SHA256SUMS`.
+Implementation source is owner-archive commit `86ab57b0` plus changes committed
+as `P20.12: detect versions of imported server jars`. Version remains 0.1.30;
+local unpublished candidate only. Includes P20.10 installation-status text.
+
+Locked agent build, root formatting and agent/desktop Clippy passed with existing
+allowances. Agent and infrastructure regression harnesses compiled as metadata;
+no tests ran. Existing Tauri packaging built the matching frontend, optimized
+agent, helpers and Intel app with the previously recorded frontend/Swift warnings.
+Ad-hoc agent/outer-app signing and deep strict signature verification passed;
+no Developer ID/notarization or release publication. ZIP checksum verification
+and extracted-app signature verification passed. Installed app, live service,
+existing configuration and source JAR were not modified. Owner verification
+on the installed candidate remains pending.

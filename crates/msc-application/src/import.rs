@@ -1359,6 +1359,14 @@ pub fn import_raw_server(
         config.java_flavor = flavor;
         config.minecraft_version = mc_version;
         config.loader_version = loader_version;
+        if !config.paper_jar_path.is_empty() {
+            let detected =
+                msc_infrastructure::java_jar_metadata::inspect(Path::new(&config.paper_jar_path));
+            if detected.minecraft_version.is_some() {
+                config.minecraft_version = detected.minecraft_version;
+            }
+            config.server_build = detected.build;
+        }
     }
 
     Ok(ImportedRawServer { config })

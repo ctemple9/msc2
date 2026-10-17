@@ -1,9 +1,9 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** Phase 20 implementation accepted and archived by Cameron
-on October 17. Phase 21 storage implementation is planned and unstarted; await
-its named execution instruction. Independent Phase 20 gate review remains in
-[pending acceptance](pending-acceptance.md).
+**Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
+awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
+Phase 21 storage implementation is planned and unstarted. Independent Phase 20
+gate review remains in [pending acceptance](pending-acceptance.md).
 
 Historical implementation and published release records were reconciled and
 moved to [the archive](rolling-plan-archive.md) at Cameron's October 16 request.
@@ -18,6 +18,20 @@ P16.89 XboxBroadcast works on the affected
 Intel Mac with RakNet retained. Publication records live in the archive and
 [release notes](release/v0.1.30.md); live publication status belongs on GitHub,
 not in this implementation queue.
+
+## Phase 20 — Imported server component follow-up
+
+P20.1–P20.10 remain archived and owner-accepted. This later reported correction
+is separate from that closure; no earlier unobserved check is promoted to Pass.
+
+### P20.12 — Detect installed imported Java server JAR versions
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `crates/msc-agent/src/routes/components.rs`; `crates/msc-application/src/import.rs`; `crates/msc-infrastructure/src/java_jar_metadata.rs` and module registration; candidate evidence under `uploads/`; this plan.
+**What:** Check configured JAR presence independently of version fields. Read small known JAR metadata entries offline, recovering the reported Paperclip Minecraft version from root `version.json`, plus explicit server-manifest version/build when available. Persist recovered metadata on future raw imports; existing imports detect it when Components loads without re-import or data mutation. Existing unreadable/unknown metadata shows installed/version unknown; an absent JAR stays missing even with stale config metadata. Do not invent an online update verdict, run Java or download/replace the JAR. Inspect off the async API worker. Add three essential regression cases covering the reported Paperclip layout, dependency-version confusion/oversize metadata, and real component presence versus stale version fields. Tiny memory ZIPs/isolated files, no timing/network dependencies, expected under one second each excluding compilation; compile only, do not run tests. Prepare a matching optimized Intel candidate.
+**Verify:** `cargo build --locked -p msc-agent --bin msc`
+**Batch:** P20.12 only.
+**Commit:** `P20.12: detect versions of imported server jars`
 
 ## Phase 21 — Storage inventory and management
 

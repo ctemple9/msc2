@@ -463,22 +463,55 @@ fn component_rows(server: &msc_domain::app_config_schema::ConfigServer) -> Vec<C
             note: None,
         });
     } else if server.server_type == ServerType::Java {
-        let installed_label = match (&server.minecraft_version, &server.server_build) {
-            (Some(version), Some(build)) => Some(format!("{version} · {build}")),
-            (Some(version), None) => Some(version.clone()),
-            (None, Some(build)) => Some(build.clone()),
-            (None, None) => None,
+        let configured = Path::new(&server.paper_jar_path);
+        let jar_path = if configured.is_absolute() {
+            configured.to_path_buf()
+        } else {
+            Path::new(&server.server_dir).join(configured)
         };
+        let installed = !server.paper_jar_path.is_empty() && jar_path.is_file();
+        let detected = if installed {
+            msc_infrastructure::java_jar_metadata::inspect(&jar_path)
+        } else {
+            Default::default()
+        };
+        let config_matches = detected
+            .minecraft_version
+            .as_ref()
+            .is_none_or(|version| server.minecraft_version.as_ref() == Some(version));
+        let version = installed
+            .then(|| {
+                detected
+                    .minecraft_version
+                    .or_else(|| server.minecraft_version.clone())
+            })
+            .flatten();
+        let build = installed
+            .then(|| {
+                detected.build.or_else(|| {
+                    config_matches
+                        .then(|| server.server_build.clone())
+                        .flatten()
+                })
+            })
+            .flatten();
+        let installed_label = installed.then(|| match (&version, &build) {
+            (Some(version), Some(build)) => format!("{version} · {build}"),
+            (Some(version), None) => version.clone(),
+            (None, Some(build)) => format!("Version unknown · {build}"),
+            (None, None) => "Installed · version unknown".into(),
+        });
         rows.push(ComponentStatusDto {
             name: server.java_flavor.raw_value().to_string(),
-            installed_build: None,
+            installed_build: build.as_deref().and_then(|build| build.parse().ok()),
             latest_build: None,
-            installed_version: server.minecraft_version.clone(),
-            latest_version: server.minecraft_version.clone(),
-            is_up_to_date: true,
+            installed_version: version,
+            latest_version: None,
+            is_up_to_date: false,
             installed_label,
             updatable: Some(true),
-            note: None,
+            // Local presence/version detection is not an online update check.
+            note: installed.then(|| "Installed".into()),
         });
         // Geyser and Floodgate are managed compatibility helpers, not
         // catalog add-ons. Keep a row even when one is absent so Components
@@ -1429,8 +1462,18 @@ pub async fn get_components(
         })
         .into_response();
     };
+    let components = match tokio::task::spawn_blocking(move || component_rows(&server)).await {
+        Ok(components) => components,
+        Err(_) => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "component_inspection_failed",
+                "Could not inspect installed server components.",
+            );
+        }
+    };
     Json(ComponentsStatusDto {
-        components: component_rows(&server),
+        components,
         restart_required_to_apply: false,
     })
     .into_response()
@@ -3479,5 +3522,55 @@ mod staged_upload_tests {
             .await
             .unwrap();
         assert_eq!(repeated.status(), StatusCode::NO_CONTENT);
+    }
+}
+
+#[cfg(test)]
+mod server_component_presence_tests {
+    use super::*;
+    use std::io::Write;
+
+    // Essential: unknown imported metadata must not imply Missing, while stale
+    // configured metadata must not hide a deleted JAR. Tiny isolated files only.
+    #[test]
+    fn imported_jar_presence_and_version_are_independent() {
+        let root = std::env::temp_dir().join(format!("msc-component-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).unwrap();
+        struct Cleanup(PathBuf);
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+        let _cleanup = Cleanup(root.clone());
+        let jar = root.join("paper.jar");
+        let mut config = msc_domain::app_config_schema::ConfigServer::new(
+            "test",
+            "Imported",
+            root.to_string_lossy(),
+            jar.to_string_lossy(),
+            2.0,
+            4.0,
+        );
+        std::fs::write(&jar, b"unknown jar metadata").unwrap();
+        let row = component_rows(&config).remove(0);
+        assert_eq!(
+            row.installed_label.as_deref(),
+            Some("Installed · version unknown")
+        );
+        assert_eq!(row.note.as_deref(), Some("Installed"));
+        let mut zip = zip::ZipWriter::new(std::fs::File::create(&jar).unwrap());
+        zip.start_file("version.json", zip::write::SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(br#"{"id":"26.3"}"#).unwrap();
+        zip.finish().unwrap();
+        let row = component_rows(&config).remove(0);
+        assert_eq!(row.installed_version.as_deref(), Some("26.3"));
+        assert!(!row.is_up_to_date);
+        config.minecraft_version = Some("old-version".into());
+        std::fs::remove_file(jar).unwrap();
+        let row = component_rows(&config).remove(0);
+        assert!(row.installed_version.is_none());
+        assert!(row.installed_label.is_none());
     }
 }

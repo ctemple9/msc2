@@ -929,9 +929,13 @@ impl LifecycleRoutesState {
         server_type: Option<ServerType>,
     ) -> Result<OperationId, msc_application::operations::LifecycleOperationError> {
         let status_line = match server_type {
-            Some(ServerType::Java) => "Importing Java server.",
-            Some(ServerType::Bedrock) => "Importing Bedrock server.",
-            None => "Importing server.",
+            Some(ServerType::Java) => {
+                "Installing Java server in storage: extracting or copying files."
+            }
+            Some(ServerType::Bedrock) => {
+                "Installing Bedrock server in storage: extracting or copying files."
+            }
+            None => "Installing server in storage: extracting or copying files.",
         };
         self.inner.operations.begin_lifecycle(
             "paper-import",

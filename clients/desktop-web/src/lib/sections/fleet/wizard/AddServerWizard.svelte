@@ -265,7 +265,9 @@
     }
     isCreating = true;
     statusMessage =
-      path === 'importExisting' && !showModpack ? 'Importing server…' : 'Creating server…';
+      path === 'importExisting' && !showModpack
+        ? 'Installing server in storage: extracting or copying files…'
+        : 'Creating server…';
     const initiatingApi = api?.snapshot?.() ?? api;
     const onProgress = (line: string) => (statusMessage = line);
     try {

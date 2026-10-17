@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** P20.9 large server admission correction implemented; awaiting
+**Current priority:** P20.10 final server installation text clarified; awaiting
 owner verification. Phase 20 physical acceptance and independent review remain open.
 
 Historical implementation and published release records were reconciled and
@@ -110,6 +110,15 @@ Complete connected-host transfer/resume remains [deferred](deferred-work.md).
 **Verify:** `cargo build --locked -p msc-agent --bin msc`
 **Batch:** P20.9 only.
 **Commit:** `P20.9: admit large server sources with disk space checks`
+
+### P20.10 — Clarify final server installation status
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`; `crates/msc-agent/src/routes/lifecycle.rs`; this plan.
+**What:** Replace ambiguous “Importing server” status with “Installing server in storage: extracting or copying files” in the initial wizard status and agent operation updates. Explain the real disk work after upload without inventing measured progress. No tests added or executed for a text-only correction. The P20.9 optimized ZIP predates this change.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P20.10 only.
+**Commit:** `P20.10: clarify final server installation status`
 
 ## Phase 21 — Storage inventory and management
 

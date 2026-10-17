@@ -142,10 +142,15 @@
     actionProblem = '';
     actionBusy = false;
   }
+  function backToSelection() {
+    reviewGeneration++;
+    review = null;
+    confirmation = '';
+    actionBusy = false;
+  }
   function back() {
     if (review) {
-      review = null;
-      confirmation = '';
+      backToSelection();
     } else if (action) {
       clearReview();
     } else if (group) {
@@ -438,6 +443,7 @@
   async function apply() {
     if (!bridge || !review || confirmation !== review.confirmation) return;
     const reviewed = review;
+    const generation = reviewGeneration;
     const target = computers.find((c) => c.agentId === reviewed.hostId);
     if (!target || target.cleanup) return;
     actionBusy = true;
@@ -456,15 +462,18 @@
         name: target.name,
         operationId: accepted.operationId,
       });
-      clearReview();
+      if (generation === reviewGeneration && selected === target.id) clearReview();
       update(target);
       void poll();
     } catch (e) {
-      review = null;
-      confirmation = '';
-      actionProblem = `${errorMessage(e)} Create a fresh review before trying again.`;
+      if (generation === reviewGeneration) {
+        review = null;
+        confirmation = '';
+        actionProblem = `${errorMessage(e)} Create a fresh review before trying again.`;
+      }
     } finally {
-      actionBusy = false;
+      if (generation === reviewGeneration || (selected === target.id && !action))
+        actionBusy = false;
     }
   }
   async function reveal(item: StorageItem) {
@@ -583,13 +592,7 @@
         /></label
       >
       <div class="actions">
-        <Button
-          size="sm"
-          onclick={() => {
-            review = null;
-            confirmation = '';
-          }}>Back to selection</Button
-        ><Button
+        <Button size="sm" onclick={backToSelection}>Back to selection</Button><Button
           variant="destructive"
           size="sm"
           disabled={actionBusy || confirmation !== review.confirmation}

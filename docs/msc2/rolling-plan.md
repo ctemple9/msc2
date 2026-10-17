@@ -2,9 +2,10 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.7 are implemented, awaiting owner verification; P21.8
-is authorized for sequential execution with verification deferred until the end.
-P21.1 visual acceptance remains pending.
+Phase 21 P21.1–P21.8 implementation/candidate preparation is recorded, awaiting
+owner verification. The matching Intel candidate and consolidated checks are in
+[Storage acceptance](storage/acceptance.md). Visual captures/acceptance and the
+independent Phase 21 gate review remain pending.
 Independent Phase 20 gate review remains in [pending acceptance](pending-acceptance.md).
 
 Historical implementation and published release records were reconciled and
@@ -38,8 +39,8 @@ is separate from that closure; no earlier unobserved check is promoted to Pass.
 ## Phase 21 — Storage inventory and management
 
 **Planning state:** Owner requested PLAN on October 16 after discussing the
-screen and cleanup behavior. P21.1–P21.7 are implemented and awaiting owner
-verification/review. Cameron explicitly authorized P21.3–P21.8 to execute in
+screen and cleanup behavior. P21.1–P21.8 implementation/candidate preparation is
+recorded and awaiting owner verification/review. Cameron explicitly authorized P21.3–P21.8 to execute in
 sequence with one commit per step and verification deferred until the end.
 This also authorizes the P21.1-based UI implementation; visual acceptance remains
 pending and is not inferred from execution authorization. No live-host
@@ -182,9 +183,11 @@ continuous deep scan or broad test matrix is implied.
 
 ### P21.8 — Prepare storage acceptance and record owner observations
 
-**Status:** Planned.
-**Files:** Storage owner acceptance/design evidence under `docs/msc2/storage/`; supported-client documentation and CLI help guidance as needed; this plan. Generated candidate artifacts/screenshots remain uncommitted.
+**Status:** Candidate prepared; awaiting owner verification and visual captures.
+**Files:** Storage owner acceptance/design evidence under `docs/msc2/storage/`; supported-client documentation and CLI help guidance as needed; `StorageView.svelte` late-completion navigation guard; `components/native_upload.rs` inspection-lease retry correction and extended six-byte regression; read-only `world_store::inspect_slots`, Storage server-data adapter and controlled identity/no-write regression; this plan. Generated candidate artifacts/screenshots remain uncommitted.
 **What:** Build a matching candidate through existing packaging and give Cameron exact install/verification instructions. Record overview/detail/review visuals; complete and partial accounting with custom roots, multiple volumes, hard links/sparse/clone limits; local agent offline, remote host offline/reconnection and older-agent behavior; large-world scan responsiveness; active upload/map/runtime protection; and same-category backups versus separate world/server deletion in disposable data. Include stale-preview/path/host changes, permission denial, cancellation and partial failure/restart outcomes. Use small controlled files for essential missing regressions, extending existing cases rather than duplicating deletion tests; document concrete risk and expected runtime, compile only unless a specific test command is authorized. Keep actual observations pending until Cameron reports them, then hand the feature gate to the other agent. No publishing, full uninstall, live valued-data deletion, new CI/release gates or automatic test execution.
 **Verify:** `cargo build --locked -p msc-agent --bin msc`
 **Batch:** P21.8 only; depends on P21.7 verification unless included in a newly authorized batch. Physical acceptance remains Cameron's separate Verify move.
 **Commit:** `P21.8: document storage management acceptance`
+
+**Implementation:** Prepared the matching optimized Intel 0.1.30 local candidate and consolidated owner checklist in `storage/acceptance.md`; capability accounting and pending-gate links now describe delivered Storage behavior. Final handoff inspection corrected late UI completions clearing newer navigation, retained transfer-owner retry after an inspection lease, and separated read-only world-slot inspection from legacy metadata migration. Slot IDs must match their directories and unreadable active markers protect removal. Extended the existing six-byte transfer regression and added one two-file in-memory no-write/identity regression; controlled inputs, no timing/network, expected under one second and 1 ms respectively. Compiled without running tests; broader agent integration targets still have the documented pre-existing import/argument failures. Locked debug/optimized agent builds, final optimized native build, required Clippy/format/type checks and packaging passed. The initial pinned renderer fetch failed under sandbox DNS restrictions; permitted retry succeeded without a release workflow. Final ad-hoc bundle and extracted archive passed deep strict signature and packaged-file checksum verification. No installed app/service, valued data, release workflow or publication was changed. Browser runtime had no available browser, so rendered captures and physical/Windows/Linux observations remain explicitly Pending Cameron. No phase gate or owner status was closed.

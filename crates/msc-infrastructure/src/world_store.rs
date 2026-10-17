@@ -101,6 +101,15 @@ pub fn set_active_slot_id(
 /// directory returns an empty list, the ordinary state for any server
 /// never yet stopped inside MSC 1/MSC 2.
 pub fn load_slots(fs: &dyn FileSystem, server_dir: &Path) -> Vec<WorldSlot> {
+    load_slots_inner(fs, server_dir, true)
+}
+
+/// Storage reviews must not trigger the normal reader's legacy profile writes.
+/// Bind decoded identity to the actual slot directory before it can name an action.
+pub fn inspect_slots(fs: &dyn FileSystem, server_dir: &Path) -> Vec<WorldSlot> {
+    load_slots_inner(fs, server_dir, false)
+}
+fn load_slots_inner(fs: &dyn FileSystem, server_dir: &Path, migrate: bool) -> Vec<WorldSlot> {
     let slots_dir = slots_directory(server_dir);
     let Ok(entries) = fs.list(&slots_dir) else {
         return Vec::new();
@@ -112,7 +121,12 @@ pub fn load_slots(fs: &dyn FileSystem, server_dir: &Path) -> Vec<WorldSlot> {
         if !meta.is_dir {
             continue;
         }
-        let Ok(bytes) = fs.read(&entry.join("slot.json")) else {
+        let metadata = if migrate {
+            fs.read(&entry.join("slot.json"))
+        } else {
+            fs.read_bounded(&entry.join("slot.json"), 256 * 1024)
+        };
+        let Ok(bytes) = metadata else {
             continue;
         };
         let Ok(value) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
@@ -121,7 +135,16 @@ pub fn load_slots(fs: &dyn FileSystem, server_dir: &Path) -> Vec<WorldSlot> {
         let Ok(mut slot) = WorldSlot::decode(&value) else {
             continue;
         };
-        if value.get("profile").is_none() {
+        if !migrate
+            && (entry.file_name() != Some(std::ffi::OsStr::new(&slot.id)) || {
+                let mut components = Path::new(&slot.id).components();
+                !matches!(components.next(), Some(std::path::Component::Normal(_)))
+                    || components.next().is_some()
+            })
+        {
+            continue;
+        }
+        if migrate && value.get("profile").is_none() {
             // Legacy MSC 1/early MSC 2 metadata has no profile. Persisting
             // the identity-only migration here means every later reader sees
             // an explicit, honest profile instead of silently inventing

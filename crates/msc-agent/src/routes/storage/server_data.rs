@@ -92,15 +92,17 @@ pub(super) fn candidates(
                 }
             }
             "remove-world" => {
-                let active = super::super::worlds::resolved_active_slot_id(&directory);
-                for slot in world_store::load_slots(&StdFileSystem, &directory)
+                let active = active_slot(&directory);
+                for slot in world_store::inspect_slots(&StdFileSystem, &directory)
                     .into_iter()
                     .take(512)
                 {
-                    let eligible = if active.as_deref() == Some(&slot.id) {
-                        Err("Active world slot is protected".into())
-                    } else {
-                        state.clone()
+                    let eligible = match &active {
+                        Err(error) => Err(error.clone()),
+                        Ok(active) if active.as_deref() == Some(&slot.id) => {
+                            Err("Active world slot is protected".into())
+                        }
+                        _ => state.clone(),
                     };
                     sources.push((
                         slot.id.clone(),
@@ -143,7 +145,7 @@ pub(super) fn candidates(
             if action == "remove-server" {
                 consequences.push(format!("Server directory: {}", directory.display()));
                 consequences.extend(
-                    world_store::load_slots(&StdFileSystem, &directory)
+                    world_store::inspect_slots(&StdFileSystem, &directory)
                         .into_iter()
                         .take(512)
                         .map(|s| format!("Saved world: {}", s.name)),
@@ -220,11 +222,9 @@ pub(super) fn remove(
             entry.zip_path.clone()
         }
         "remove-world" => {
-            let slot = super::super::worlds::find_slot(&data.server_dir, &data.domain_id)
+            let slot = find_slot(&data.server_dir, &data.domain_id)
                 .ok_or("World slot no longer exists")?;
-            if super::super::worlds::resolved_active_slot_id(&data.server_dir).as_deref()
-                == Some(&slot.id)
-            {
+            if active_slot(&data.server_dir)?.as_deref() == Some(&slot.id) {
                 return Err("Active world slot is protected".into());
             }
             world_store::slot_directory(&data.server_dir, &slot.id)
@@ -252,9 +252,9 @@ pub(super) fn remove(
             }
         }
         "remove-world" => {
-            let slot = super::super::worlds::find_slot(&data.server_dir, &data.domain_id)
-                .ok_or("World identity changed")?;
-            let active = super::super::worlds::resolved_active_slot_id(&data.server_dir);
+            let slot =
+                find_slot(&data.server_dir, &data.domain_id).ok_or("World identity changed")?;
+            let active = active_slot(&data.server_dir)?;
             worlds::delete_slot(&StdFileSystem, &data.server_dir, &slot, active.as_deref())
                 .map_err(|e| format!("Removal unconfirmed: {e}"))?;
         }
@@ -266,4 +266,31 @@ pub(super) fn remove(
         _ => unreachable!(),
     }
     Ok(measurement.0)
+}
+
+fn find_slot(dir: &Path, id: &str) -> Option<msc_domain::world::WorldSlot> {
+    world_store::inspect_slots(&StdFileSystem, dir)
+        .into_iter()
+        .find(|slot| slot.id == id)
+}
+fn active_slot(dir: &Path) -> Result<Option<String>, String> {
+    let slots = world_store::inspect_slots(&StdFileSystem, dir);
+    let marker = match storage::read_small(&world_store::active_marker_path(dir), 4096) {
+        Ok(bytes) => Some(
+            String::from_utf8(bytes)
+                .map_err(|_| "Active world marker is unreadable; world removal is protected")?
+                .trim()
+                .to_string(),
+        ),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(_) => {
+            return Err(
+                "Active world marker cannot be verified; world removal is protected".into(),
+            );
+        }
+    };
+    Ok(msc_domain::world::resolve_active_slot_id(
+        &slots,
+        marker.as_deref(),
+    ))
 }

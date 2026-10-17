@@ -140,3 +140,37 @@ fn world_store_save_thumbnail_writes_file_and_updates_metadata() {
         Some("thumbnail.jpg")
     );
 }
+
+// Essential: reviews must neither migrate legacy metadata nor adopt an absolute
+// ID from slot.json as a deletion path. Two tiny in-memory files, no clock/I/O,
+// expected <1 ms; existing migration tests deliberately exercise writing loads.
+#[test]
+fn world_store_inspection_is_read_only_and_rejects_mismatched_identity() {
+    let original = br#"{"id":"slot-a","name":"A","created_at":"2026-01-01T00:00:00Z"}"#.to_vec();
+    let fs = FakeFileSystem::new()
+        .with_file(
+            "/servers/paper/world_slots/slot-a/slot.json",
+            original.clone(),
+            false,
+        )
+        .with_file(
+            "/servers/paper/world_slots/bad/slot.json",
+            br#"{"id":"/outside/valued","name":"Bad","created_at":"2026-01-01T00:00:00Z"}"#
+                .to_vec(),
+            false,
+        );
+    let slots = msc_infrastructure::world_store::inspect_slots(&fs, Path::new("/servers/paper"));
+    assert_eq!(
+        slots
+            .iter()
+            .map(|slot| slot.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["slot-a"]
+    );
+    assert_eq!(
+        fs.read(Path::new("/servers/paper/world_slots/slot-a/slot.json"))
+            .unwrap(),
+        original
+    );
+    assert!(fs.stat(Path::new("/outside/valued")).is_err());
+}

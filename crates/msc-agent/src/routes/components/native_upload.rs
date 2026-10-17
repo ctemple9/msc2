@@ -1366,6 +1366,11 @@ async fn write_stream(session: &Session, body: Body) -> Result<String, StreamFai
 async fn cleanup(state: &ComponentsRoutesState, id: &str, session: &Session, terminal: u8) {
     let _adapter = session.adapter.lock().await;
     if session.inspections.load(Ordering::Acquire) > 0 {
+        // The transfer owner retries after the inspection lease drops. Leaving
+        // CANCELLING here would strand its reservation outside the reaper.
+        *session.cleanup_error.lock().unwrap() =
+            Some("Active inspection retained; cleanup waits for its lease".into());
+        session.phase.store(CLEANUP_FAILED, Ordering::Release);
         return;
     }
     cleanup_locked(state, id, session, terminal).await;
@@ -2102,6 +2107,15 @@ mod tests {
             .native
             .session(&id, &fixture.credential)
             .unwrap();
+        // Essential lease/retry boundary: cancellation must retain the file
+        // during inspection, then let this owner's reaper release its bytes.
+        // Extends the six-byte fixture; no clocks/network, expected <1 second.
+        session.inspections.store(1, Ordering::Release);
+        cleanup(&fixture.state, &id, &session, CANCELLED).await;
+        assert!(session.upload.path.exists());
+        assert!(session.reserved.load(Ordering::Acquire));
+        assert_eq!(session.phase.load(Ordering::Acquire), CLEANUP_FAILED);
+        session.inspections.store(0, Ordering::Release);
         reap_once(&fixture.state).await;
         assert!(!session.upload.path.exists());
         assert!(!session.reserved.load(Ordering::Acquire));

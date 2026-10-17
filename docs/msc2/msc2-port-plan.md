@@ -346,10 +346,11 @@ acceptance remain required; no test or CI/release gate is added by this plan.
 
 ## Phase 21 — Storage inventory and management
 
-**State:** P21.1–P21.4 specification, inventory, API/CLI and native composition
-implemented, awaiting owner verification. Cleanup and UI implementation remain
-in progress under the owner's sequential P21.3–P21.8 authorization; visual and
-physical acceptance remain pending. See the
+**State:** P21.1–P21.7 specification, inventory, API/CLI, reviewed cleanup and
+Settings Storage are implemented, awaiting owner verification. P21.8 prepared
+the matching local candidate and [acceptance record](storage/acceptance.md).
+Visual/physical acceptance and the other agent's gate review remain pending.
+See the
 [contract](storage/contract.md), [static sketches](storage/screens.md) and
 [step queue](rolling-plan.md#phase-21--storage-inventory-and-management).
 

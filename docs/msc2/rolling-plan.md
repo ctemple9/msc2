@@ -11,9 +11,10 @@ Outstanding physical checks and independent reviews live in
 transfers remain in [deferred work](deferred-work.md). Neither link is an active
 step queue, and no phase gate was closed by cleanup.
 
-**Published baseline:** v0.1.29. Cameron confirmed the P16.89 XboxBroadcast
-correction works on the affected Intel Mac with RakNet retained. The next
-release will include that correction; upload improvements are planning only.
+**Recent owner verification:** P16.89 XboxBroadcast works on the affected
+Intel Mac with RakNet retained. Publication records live in the archive and
+[release notes](release/v0.1.30.md); live publication status belongs on GitHub,
+not in this implementation queue.
 
 ## Phase 20 — Faster native file imports and uploads
 

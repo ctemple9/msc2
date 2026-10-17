@@ -24,6 +24,13 @@ entry in `SHA256SUMS` before installing. The Phase 16 acceptance record
 (P16.29) is still open; this prerelease has not passed the full physical
 release acceptance gate.
 
+**Next candidate: v0.1.30.** The XboxBroadcast correction is prepared for the
+build-only release workflow. It prevents broadcast cancellation during Bedrock
+status polling and keeps helper downloads outside the broadcast state lock.
+Cameron confirmed the temporary Intel build works with RakNet retained. See
+[the v0.1.30 notes](docs/msc2/release/v0.1.30.md). Download links below remain
+on the confirmed published v0.1.29 until this candidate is published.
+
 v0.1.29 fixes automatic remote SSH pairing on Macs whose SSH search path or
 pairing-storage settings differ from the desktop-installed agent. Pairing stays
 automatic without manual codes or shell-profile workarounds.

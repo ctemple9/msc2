@@ -17005,3 +17005,14 @@ transfer plan remains unimplemented in [deferred work](deferred-work.md).
 **Verify:** `git show --check --stat --oneline --grep='P20.0:' HEAD`
 **Batch:** P20.0 only (PLAN); future execution needs an owner instruction naming a step/range.
 **Commit:** `P20.0: plan faster native file imports and uploads`
+
+### P16.91 — Publish v0.1.30 with the verified XboxBroadcast correction
+
+**Status:** Prepared; publication explicitly requested by Cameron on October 16. Push main and the new immutable tag once, report the workflow link without waiting for builders per the owner's existing preference. Publication and exact-artifact acceptance remain separate.
+**Files:** Agent/desktop/frontend manifests and lockfiles, source/static bundle identity, README candidate notice, `docs/msc2/release/v0.1.30.md`, rolling plan and this archive.
+**What:** Increment the latest published/remote v0.1.29 to v0.1.30 and include P16.89's owner-confirmed Intel broadcast correction plus P16.88 build reuse/cache changes. Synchronize owned release identities without changing registry dependency versions. Publish through the unchanged four-platform build-only workflow, preserving all nine artifacts, SHA256SUMS and signed update metadata. Keep README's confirmed download baseline factual while builders run. Upload performance remains planned only in P20.1–P20.7; deferred server transfer/acceptance records stay out of the active queue. Do not move tags, add workflow gates, run tests or dispatch a separate cache-seeding build.
+**Verify:** `gh release view v0.1.30 --json tagName,isPrerelease,assets,url`
+**Batch:** P16.91 only; authorized release preparation, commit/push and one tag trigger. No builder monitoring unless Cameron requests it.
+**Commit:** `P16.91: prepare v0.1.30 broadcast correction release`
+
+**Preparation checks:** Confirmed v0.1.29 published with all nine expected platform artifacts plus SHA256SUMS, release notes and signed update manifest/signature; workflow 38512496877 succeeded. Signing-secret/public-key names are configured; values were not read. Locked agent/desktop metadata resolves, owned identities agree at 0.1.30, and registry lock records are unchanged. Frontend production build and bundle identity inspection passed with existing warnings. Formatting, packaging script syntax, document links and diff whitespace checks passed. P16.89's native build, focused Clippy compilation and owner-reported Intel success supply the fix evidence. No tests run, workflow gates changed, release tags moved or installed services touched. Four native builders may still take tens of minutes; P16.88's cache/reuse benefit is not yet measured. Physical acceptance of the newly published artifacts remains separate.

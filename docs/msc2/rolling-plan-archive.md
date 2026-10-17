@@ -16996,3 +16996,12 @@ transfer plan remains unimplemented in [deferred work](deferred-work.md).
 **Commit:** `P16.90: reconcile and clear the active rolling plan`
 
 **Checks:** Compared step subjects with git history; GitHub lists v0.1.19–v0.1.29 as published. v0.1.29 workflow 38512496877 succeeded; the prior failed v0.1.28 run remains historical. Windows MSI P16.44–P16.50 and uninstall P19.1–P19.5 implementation records already exist in the archive. No tests run.
+
+### P20.0 — Plan faster native file imports and uploads
+
+**Status:** Plan written at Cameron's October 16 request; upload implementation remains unstarted.
+**Files:** `docs/msc2/rolling-plan.md`, `uploads/native-transfer-plan.md`, `msc2-port-plan.md`, `rolling-plan-archive.md`.
+**What:** After P16.90 cleanup, define bounded native file handling, local handoff, remote streaming, incremental integrity, server-folder coverage, old-agent compatibility, truthful progress and measured acceptance as P20.1–P20.7. Keep the connected-host transfer/resume plan deferred. No upload code or test execution.
+**Verify:** `git show --check --stat --oneline --grep='P20.0:' HEAD`
+**Batch:** P20.0 only (PLAN); future execution needs an owner instruction naming a step/range.
+**Commit:** `P20.0: plan faster native file imports and uploads`

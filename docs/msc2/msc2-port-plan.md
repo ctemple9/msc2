@@ -318,3 +318,25 @@ MSC 1 must remain runnable and buildable throughout as the compatibility oracle 
 | Console history bound — lines, bytes, or time? | Phase 4, and D-021 memory bounds |
 | Self-update mechanics for app + agent + sidecar as a set | Phase 11 |
 | Is the permission category vocabulary correct across all 87 routes? | Phase 2 contract freeze |
+
+## Phase 20 — Faster native file imports and uploads (owner-requested plan, October 16)
+
+**State:** Planned only. The selected next steps are P20.1–P20.7 in
+[rolling-plan.md](rolling-plan.md); the detailed contract is
+[Native file imports and uploads](uploads/native-transfer-plan.md). This is a
+performance correction to supported import flows, preserving behavior and
+source safety. The complete paired-agent server transfer/resume plan stays in
+[deferred work](deferred-work.md).
+
+**Exit gate:** Native transfer keeps source bytes out of webview IPC, reuses
+connections, resolves credentials/service readiness once per transfer, retains
+bounded memory independent of file size, and receives/hashes remote streams
+without a compulsory final full-file hash reread. Verified local inputs avoid
+an upload round trip, with safe private staging and cross-volume fallback.
+Supported world/modpack/server inputs retain validation, data preservation,
+permission/cancellation and older-agent behavior. Progress distinguishes byte
+transfer from validation/import. Cameron records before/after stage times,
+throughput and peak memory for the approximately 8 GB world and representative
+pack/server sources; unavailable platform/network cases remain explicit. No
+instant-import or unmeasured speed claim. Independent review and owner physical
+acceptance remain required; no test or CI/release gate is added by this plan.

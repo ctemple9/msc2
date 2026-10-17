@@ -1,4 +1,6 @@
 //! Preview-bound cleanup of rebuildable, abandoned map staging on this host.
+mod inventory;
+
 use super::lifecycle::{LifecycleRoutesState, error_response, require_permission};
 use crate::auth::AuthenticatedCredential;
 use crate::map_staging::{self, CleanupEntry};
@@ -7,7 +9,7 @@ use axum::{
     extract::{Extension, State, rejection::JsonRejection},
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::post,
+    routing::{get, post},
 };
 use msc_api::dto::PermissionCategoryDto;
 use std::collections::HashMap;
@@ -17,6 +19,7 @@ use std::time::{Duration, Instant};
 #[derive(Clone)]
 struct StorageState {
     lifecycle: LifecycleRoutesState,
+    inventory: Arc<Mutex<inventory::InventoryState>>,
     previews: Arc<Mutex<HashMap<String, Preview>>>,
 }
 struct Preview {
@@ -27,10 +30,14 @@ struct Preview {
 
 pub fn router(lifecycle: LifecycleRoutesState) -> Router {
     Router::new()
+        .route("/host/storage/inventory", get(inventory::inventory))
+        .route("/host/storage/scans", post(inventory::refresh))
+        .route("/host/storage/scans/{id}", get(inventory::scan_status))
         .route("/host/storage/preview", post(preview))
         .route("/host/storage/cleanup", post(cleanup))
         .with_state(StorageState {
             lifecycle,
+            inventory: Arc::new(Mutex::new(inventory::InventoryState::new())),
             previews: Arc::new(Mutex::new(HashMap::new())),
         })
 }

@@ -268,6 +268,12 @@ pub struct RelativeTimeCapabilityDto {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CapabilitiesResponseDto {
     #[serde(
+        rename = "storageInventory",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub storage_inventory: Option<super::StorageInventoryCapabilityDto>,
+    #[serde(
         rename = "nativeTransfers",
         default,
         skip_serializing_if = "Option::is_none"

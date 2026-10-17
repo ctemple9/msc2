@@ -150,6 +150,15 @@ async fn capabilities_for_query(
     });
 
     Json(CapabilitiesResponseDto {
+        storage_inventory: credential
+            .permissions
+            .contains(&msc_api::dto::PermissionCategoryDto::Admin)
+            .then_some(msc_api::dto::StorageInventoryCapabilityDto {
+                protocol: 1,
+                scan: true,
+                cache_cleanup: false,
+                server_data_cleanup: false,
+            }),
         native_transfers: None,
         player_actions: Some(true),
         base: CapabilitiesDto {

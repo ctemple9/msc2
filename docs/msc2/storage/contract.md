@@ -301,3 +301,28 @@ a Windows binary or physical platform check. Linux target tooling is absent on
 this Mac, so Linux compilation and all physical platform accounting remain
 pending. No installed service, live server tree or saved-host inventory was
 scanned or changed. P21.1 visual acceptance and the feature gate remain open.
+
+
+## P21.3 implementation record
+
+Added protocol-1 cached inventory/paging, explicit scan admission and scan status
+under `/v1/host/storage`; existing operation cancellation and journal recovery
+apply. Full inventory requires Admin permission. Unknown/older capabilities remain
+unavailable explicitly. `msc storage inventory [--cursor ...]`, `refresh`,
+`status <operation-id>` and `cancel <operation-id>` use host-local authorization;
+JSON remains scriptable. Existing `preview`/`cleanup` map commands are unchanged.
+
+Snapshots persist under the agent data root with an 8 MiB read/write bound and
+authenticated host/schema validation. Restart loads historical metadata only;
+no scan is started by a read or timer. An interrupted journal operation is not
+resumed as a destructive action. One essential no-I/O regression protects wrong-
+host/unknown-schema cached input, expected under 1 ms. Development compilation,
+required Clippy, generated API types and Cargo test-target metadata compilation
+were used; no tests ran. Direct rustc test-mode compilation lacked existing test
+dependencies. Cargo's test-target check then compiled the actual agent binary
+harness (including this regression) without execution, but its broader integration
+targets failed on pre-existing stale `CommonArgs` fields in `cli_service` and
+missing route context in `cli_pairing`/`desktop_auth`. Those unrelated harnesses
+were not changed; the focused production check and required Clippy passed.
+Current same-version candidates negotiate protocol 1; no first published agent
+version/minimum-version claim exists yet. This step adds no release/CI gate.

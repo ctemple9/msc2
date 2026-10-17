@@ -977,6 +977,15 @@ impl LifecycleRoutesState {
         self.inner.app_config.servers_root()
     }
 
+    pub(crate) fn storage_host_id(&self) -> Result<String, String> {
+        self.inner
+            .auth_state
+            .as_ref()
+            .ok_or_else(|| "Agent identity is unavailable".to_string())?
+            .agent_host_id()
+            .map_err(|error| format!("Agent identity is unavailable: {error:?}"))
+    }
+
     pub fn app_config_path(&self) -> PathBuf {
         self.inner.app_config.path.clone()
     }

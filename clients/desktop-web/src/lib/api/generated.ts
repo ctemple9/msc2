@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: bd9fb385621262c213c79a4c0b0df2fa9fbb911c27ca52fb744a829f33bf2d95
+// Contract SHA-256: 298d34bf0ccf801a75f355f765e13524889e2d8bbde4c96b9b9f54b89f963c38
 
 export interface paths {
   '/v1/active-server': {
@@ -2858,6 +2858,107 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/host/storage/inventory': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read cached host inventory; never starts a scan */
+    get: {
+      parameters: {
+        query?: {
+          cursor?: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Read cached host inventory; never starts a scan */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['StorageInventoryDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/host/storage/preview': {
     parameters: {
       query?: never;
@@ -2872,6 +2973,211 @@ export interface paths {
      * @description Administrator-only and host-scoped, including remote hosts. Does not delete worlds, backups, components, settings or credentials. Active leases, live terrain helper references, symlinks and unrecognized directories are retained. Cleanup tokens are credential-bound, one-use and expire after five minutes; candidates are rechecked at deletion. Sizes are logical bytes, not a filesystem allocation guarantee. Scope is MSC-owned map-staging only.
      */
     post: operations['previewStorageCleanup'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/host/storage/scans': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Start a bounded explicit storage scan */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Start a bounded explicit storage scan */
+        202: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              hostId: string;
+              operationId: string;
+            } & {
+              [key: string]: unknown;
+            };
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/host/storage/scans/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read host storage scan progress */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Read host storage scan progress */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['StorageScanDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage operation refused or unavailable */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -7243,6 +7549,7 @@ export interface components {
       } & {
         [key: string]: unknown;
       };
+      storageInventory?: components['schemas']['StorageInventoryCapabilityDTO'];
       /** @description Optional active or create-time context for native world settings. Omitted when no server context was selected. */
       worldSettings?: components['schemas']['WorldSettingsCapabilitiesDTO'];
     } & {
@@ -9153,6 +9460,85 @@ export interface components {
       /** Format: int64 */
       removedBytes: number;
       retained: string[];
+    } & {
+      [key: string]: unknown;
+    };
+    StorageInventoryCapabilityDTO: {
+      cacheCleanup: boolean;
+      protocol: number;
+      scan: boolean;
+    } & {
+      [key: string]: unknown;
+    };
+    StorageInventoryDTO: {
+      historical: boolean;
+      hostId: string;
+      protocol: number;
+      snapshot: components['schemas']['StorageSnapshotDTO'];
+      totalItems: number;
+    } & {
+      [key: string]: unknown;
+    };
+    StorageIssueDTO: {
+      rootId: string | null;
+    } & {
+      [key: string]: unknown;
+    };
+    StorageItemDTO: {
+      absent: boolean;
+      allocatedBytes: number | null;
+      category: string;
+      domainId: string | null;
+      group: string;
+      id: string;
+      label: string;
+      logicalBytes: number;
+      partial: boolean;
+      rootId: string;
+      serverId: string | null;
+      sharedReferences: number;
+      volumeId: string | null;
+    } & {
+      [key: string]: unknown;
+    };
+    StorageProgressDTO: {
+      entries: number;
+      rootsCompleted: number;
+    } & {
+      [key: string]: unknown;
+    };
+    StorageScanDTO: {
+      hostId: string;
+      operationId: string;
+      progress: components['schemas']['StorageProgressDTO'];
+      snapshotId: string | null;
+      state: string;
+    } & {
+      [key: string]: unknown;
+    };
+    StorageSnapshotDTO: {
+      allocatedBytes: number | null;
+      cancelled: boolean;
+      completedAt: number;
+      generation: string;
+      hostId: string;
+      id: string;
+      issues: components['schemas']['StorageIssueDTO'][];
+      items: components['schemas']['StorageItemDTO'][];
+      logicalBytes: number;
+      partial: boolean;
+      rootIdentity: string;
+      schemaVersion: number;
+      startedAt: number;
+      volumes: components['schemas']['StorageVolumeDTO'][];
+    } & {
+      [key: string]: unknown;
+    };
+    StorageVolumeDTO: {
+      availableBytes: number | null;
+      id: string;
+      observedAt: number;
+      totalBytes: number | null;
     } & {
       [key: string]: unknown;
     };

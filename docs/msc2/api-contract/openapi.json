@@ -53,6 +53,301 @@
     }
   },
   "paths": {
+    "/v1/host/storage/scans/{id}": {
+      "get": {
+        "summary": "Read host storage scan progress",
+        "x-permission-category": "admin",
+        "responses": {
+          "200": {
+            "description": "Read host storage scan progress",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageScanDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Storage operation refused or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Storage operation refused or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Storage operation refused or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Storage operation refused or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Storage operation refused or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Storage operation refused or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage operation refused or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/host/storage/scans": {
+      "post": {
+        "summary": "Start a bounded explicit storage scan",
+        "x-permission-category": "admin",
+        "responses": {
+          "202": {
+            "description": "Start a bounded explicit storage scan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "hostId",
+                    "operationId"
+                  ],
+                  "properties": {
+                    "hostId": {
+                      "type": "string"
+                    },
+                    "operationId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Storage operation refused or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Storage operation refused or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Storage operation refused or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Storage operation refused or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Storage operation refused or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Storage operation refused or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage operation refused or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/host/storage/inventory": {
+      "get": {
+        "summary": "Read cached host inventory; never starts a scan",
+        "x-permission-category": "admin",
+        "responses": {
+          "200": {
+            "description": "Read cached host inventory; never starts a scan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageInventoryDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Storage operation refused or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Storage operation refused or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Storage operation refused or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Storage operation refused or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Storage operation refused or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Storage operation refused or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage operation refused or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/v1/host/storage/preview": {
       "post": {
         "summary": "Preview abandoned, rebuildable map staging on this host",
@@ -7841,6 +8136,285 @@
   },
   "components": {
     "schemas": {
+      "StorageInventoryCapabilityDTO": {
+        "type": "object",
+        "properties": {
+          "protocol": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "scan": {
+            "type": "boolean"
+          },
+          "cacheCleanup": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "protocol",
+          "scan",
+          "cacheCleanup"
+        ]
+      },
+      "StorageScanDTO": {
+        "type": "object",
+        "properties": {
+          "hostId": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/StorageProgressDTO"
+          },
+          "snapshotId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "hostId",
+          "operationId",
+          "state",
+          "progress",
+          "snapshotId"
+        ]
+      },
+      "StorageInventoryDTO": {
+        "type": "object",
+        "properties": {
+          "protocol": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "hostId": {
+            "type": "string"
+          },
+          "historical": {
+            "type": "boolean"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/StorageSnapshotDTO",
+            "nullable": true
+          },
+          "totalItems": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "protocol",
+          "hostId",
+          "historical",
+          "snapshot",
+          "totalItems"
+        ]
+      },
+      "StorageSnapshotDTO": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "id": {
+            "type": "string"
+          },
+          "hostId": {
+            "type": "string"
+          },
+          "generation": {
+            "type": "string"
+          },
+          "rootIdentity": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "completedAt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "cancelled": {
+            "type": "boolean"
+          },
+          "logicalBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "allocatedBytes": {
+            "type": "integer",
+            "minimum": 0,
+            "nullable": true
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StorageItemDTO"
+            }
+          },
+          "volumes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StorageVolumeDTO"
+            }
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StorageIssueDTO"
+            }
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "id",
+          "hostId",
+          "generation",
+          "rootIdentity",
+          "startedAt",
+          "completedAt",
+          "partial",
+          "cancelled",
+          "logicalBytes",
+          "allocatedBytes",
+          "items",
+          "volumes",
+          "issues"
+        ]
+      },
+      "StorageProgressDTO": {
+        "type": "object",
+        "properties": {
+          "rootsCompleted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "entries": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "rootsCompleted",
+          "entries"
+        ]
+      },
+      "StorageIssueDTO": {
+        "type": "object",
+        "properties": {
+          "rootId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "rootId"
+        ]
+      },
+      "StorageVolumeDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "totalBytes": {
+            "type": "integer",
+            "minimum": 0,
+            "nullable": true
+          },
+          "availableBytes": {
+            "type": "integer",
+            "minimum": 0,
+            "nullable": true
+          },
+          "observedAt": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "id",
+          "totalBytes",
+          "availableBytes",
+          "observedAt"
+        ]
+      },
+      "StorageItemDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "rootId": {
+            "type": "string"
+          },
+          "volumeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "category": {
+            "type": "string"
+          },
+          "group": {
+            "type": "string"
+          },
+          "domainId": {
+            "type": "string",
+            "nullable": true
+          },
+          "serverId": {
+            "type": "string",
+            "nullable": true
+          },
+          "label": {
+            "type": "string"
+          },
+          "logicalBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "allocatedBytes": {
+            "type": "integer",
+            "minimum": 0,
+            "nullable": true
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "absent": {
+            "type": "boolean"
+          },
+          "sharedReferences": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "id",
+          "rootId",
+          "volumeId",
+          "category",
+          "group",
+          "domainId",
+          "serverId",
+          "label",
+          "logicalBytes",
+          "allocatedBytes",
+          "partial",
+          "absent",
+          "sharedReferences"
+        ]
+      },
       "StorageCleanupEntryDTO": {
         "type": "object",
         "required": [
@@ -13310,7 +13884,9 @@
         "type": "object",
         "description": "P2.6 SS3 -- GET /v1/capabilities response; P12.28 adds optional version-aware worldSettings.",
         "properties": {
-          "nativeTransfers": { "$ref": "#/components/schemas/NativeTransfersDTO" },
+          "nativeTransfers": {
+            "$ref": "#/components/schemas/NativeTransfersDTO"
+          },
           "agentVersion": {
             "type": "string"
           },
@@ -13431,6 +14007,9 @@
           "playerActions": {
             "type": "boolean",
             "description": "The agent supports server-scoped player commands and Bedrock allowlist edits. Older agents omit this flag."
+          },
+          "storageInventory": {
+            "$ref": "#/components/schemas/StorageInventoryCapabilityDTO"
           }
         },
         "required": [

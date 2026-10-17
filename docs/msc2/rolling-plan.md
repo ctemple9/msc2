@@ -127,9 +127,10 @@ continuous deep scan or broad test matrix is implied.
 
 ### P21.3 — Expose host inventory and local CLI scan operations
 
-**Status:** Planned.
+**Status:** Implemented; awaiting owner verification.
 **Files:** `crates/msc-agent/src/routes/storage.rs`, operation/capability wiring and DTOs under `crates/msc-api/src/dto/`; OpenAPI and generated client types; `crates/msc-agent/src/cli/mod.rs` and transport modules as needed; supported-client capability record; focused storage route tests; this plan.
 **What:** Add authenticated cached-inventory, scan/progress and cancellation operations with stable host/item IDs, explicit coverage and timestamps. Preserve existing map-preview/cleanup endpoints and permission vocabulary; full-host inventory uses an appropriate existing authorized scope, while scoped server data cannot expose unrelated paths or secrets. Reuse operation journaling/admission and implement headless reconciliation/expiry without repeated deep scans. Add host-local CLI inventory/refresh/cancel and JSON output under D-040; do not introduce direct-remote CLI credentials. Advertise capability/minimum version and make older-agent results unavailable explicitly. Separate inventory display data from execution authority; cached results never authorize deletion by themselves.
+**Implementation:** Added Admin-only cached inventory/paging, journaled explicit scans, status/cancellation through existing operations, dated bounded snapshot persistence and local CLI inventory/refresh/status/cancel. Capability protocol 1 is additive; no first shipped version is claimed before publication. Reused read-only ownership discovery, actual service paths and existing operation admission; old map cleanup stays compatible. One essential metadata-only regression protects persisted host/schema binding (no I/O/timing, expected under 1 ms); compiled without execution. Required Clippy and generated client types passed. Owner authorized P21.3–P21.8 sequential execution with physical verification deferred until the end; this does not close step statuses or the phase gate.
 **Verify:** `cargo clippy -p msc-agent --bin msc -- -D warnings -A dead_code`
 **Batch:** P21.3 only; depends on P21.2 verification unless included in a newly authorized batch.
 **Commit:** `P21.3: expose storage inventory and scan operations`

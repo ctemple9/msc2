@@ -286,6 +286,18 @@ pub enum OperationCommand {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum StorageCommand {
+    /// Read the dated cached inventory without scanning.
+    Inventory {
+        /// Opaque cursor returned with the previous page.
+        #[arg(long)]
+        cursor: Option<String>,
+    },
+    /// Start an explicit bounded storage scan on this host.
+    Refresh,
+    /// Read scan progress by operation ID.
+    Status { operation_id: String },
+    /// Cancel a scan through its existing authorized operation.
+    Cancel { operation_id: String },
     /// List eligible folders, sizes and retained entries; does not delete files.
     Preview,
     /// Delete only folders from your unexpired preview. Pass its previewToken.
@@ -1576,12 +1588,64 @@ async fn run_operation(common: CommonArgs, command: OperationCommand) -> Result<
 
 async fn run_storage(common: CommonArgs, command: StorageCommand) -> Result<(), CliError> {
     let client = ApiClient::connect_local().await?;
+    match &command {
+        StorageCommand::Inventory { .. } | StorageCommand::Status { .. } => {
+            let path = match &command {
+                StorageCommand::Status { operation_id } => {
+                    format!("/v1/host/storage/scans/{operation_id}")
+                }
+                StorageCommand::Inventory {
+                    cursor: Some(cursor),
+                } => {
+                    if cursor.len() > 160
+                        || !cursor
+                            .chars()
+                            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | ':'))
+                    {
+                        return Err(CliError::usage("Invalid storage inventory cursor"));
+                    }
+                    format!("/v1/host/storage/inventory?cursor={cursor}")
+                }
+                _ => "/v1/host/storage/inventory".into(),
+            };
+            let value: serde_json::Value = client.get_json(&path).await?;
+            return if common.json {
+                print_json(&value)
+            } else {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&value).unwrap_or_default()
+                );
+                Ok(())
+            };
+        }
+        StorageCommand::Refresh | StorageCommand::Cancel { .. } => {
+            let path = match &command {
+                StorageCommand::Cancel { operation_id } => {
+                    format!("/v1/operations/{operation_id}/cancel")
+                }
+                _ => "/v1/host/storage/scans".into(),
+            };
+            let value: serde_json::Value = client.post_json(&path, &serde_json::json!({})).await?;
+            return if common.json {
+                print_json(&value)
+            } else {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&value).unwrap_or_default()
+                );
+                Ok(())
+            };
+        }
+        _ => {}
+    }
     let (path, body) = match command {
         StorageCommand::Preview => ("/v1/host/storage/preview", serde_json::json!({})),
         StorageCommand::Cleanup { preview_token } => (
             "/v1/host/storage/cleanup",
             serde_json::json!({ "previewToken": preview_token }),
         ),
+        _ => unreachable!("inventory commands dispatch above"),
     };
     let result: serde_json::Value = client.post_json(path, &body).await?;
     if common.json {

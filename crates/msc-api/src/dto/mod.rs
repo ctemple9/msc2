@@ -42,3 +42,6 @@ pub use settings::*;
 pub use status::*;
 pub use versions::*;
 pub use worlds::*;
+
+pub mod storage;
+pub use storage::*;

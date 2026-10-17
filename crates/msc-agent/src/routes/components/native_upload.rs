@@ -17,7 +17,9 @@ const CANCELLING: u8 = 5;
 const CANCELLED: u8 = 6;
 const FAILED: u8 = 7;
 const CLEANUP_FAILED: u8 = 8;
-const RESERVED_BYTES: u64 = 20 * 1024 * 1024 * 1024;
+// A streamed folder needs room for its TAR and extracted contents. Actual
+// reservations still require free disk space before admission.
+const RESERVED_BYTES: u64 = 2 * msc_infrastructure::source_tree::MAX_SERVER_SOURCE_BYTES;
 const DISK_MARGIN: u64 = 1024 * 1024 * 1024;
 const BLOCK_BYTES: usize = 256 * 1024;
 const MAX_FRAME_BYTES: usize = 1024 * 1024;
@@ -527,6 +529,11 @@ async fn admit_inner(
         );
     }
     let max = match body.purpose {
+        StagedUploadPurposeDto::RawServerArchive
+        | StagedUploadPurposeDto::RawServerFolder
+        | StagedUploadPurposeDto::MscTransferArchive => {
+            msc_infrastructure::source_tree::MAX_SERVER_SOURCE_BYTES
+        }
         StagedUploadPurposeDto::AddonLocalFile => MAX_LOCAL_ADDON_UPLOAD_BYTES,
         StagedUploadPurposeDto::CurseforgeManualFile
         | StagedUploadPurposeDto::ModpackUnresolvedFile => {
@@ -566,7 +573,11 @@ async fn admit_inner(
         return error_response(
             StatusCode::PAYLOAD_TOO_LARGE,
             "invalid_expected_bytes",
-            "Length is outside the purpose ceiling.",
+            &format!(
+                "Selected input is {:.2} GiB; this purpose supports at most {:.2} GiB.",
+                body.expected_bytes as f64 / 1_073_741_824.0,
+                max as f64 / 1_073_741_824.0
+            ),
         );
     }
     if body
@@ -780,15 +791,16 @@ async fn admit_inner(
                 "staging reservation limit",
             ));
         }
-        if space(&root)?
-            < outstanding
-                .saturating_add(legacy_outstanding)
-                .saturating_add(reserve)
-                .saturating_add(DISK_MARGIN)
-        {
+        let free = space(&root)?;
+        let required = outstanding
+            .saturating_add(legacy_outstanding)
+            .saturating_add(reserve)
+            .saturating_add(DISK_MARGIN);
+        if free < required {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::StorageFull,
-                "insufficient free staging space",
+                format!("Import staging needs {:.2} GiB free including reservations and safety margin; {:.2} GiB is available. Free space or choose another server storage location.",
+                    required as f64 / 1_073_741_824.0, free as f64 / 1_073_741_824.0),
             ));
         }
         private_dir(&create_dir)?;
@@ -826,11 +838,11 @@ async fn admit_inner(
                     "Admission cleanup failed; restart the agent to retry recovery.".to_string(),
                 );
             }
-            return error_response(
-                status,
-                "staging_space",
-                "Could not reserve private staging; check capacity, available space and staging recovery.",
-            );
+            let message = match &result {
+                Ok(Err(error)) if error.kind() == std::io::ErrorKind::StorageFull => error.to_string(),
+                _ => "Could not reserve private staging; check capacity, available space and staging recovery.".into(),
+            };
+            return error_response(status, "staging_space", &message);
         }
     }
     let lifecycle = state.lifecycle.clone();
@@ -1661,6 +1673,51 @@ mod tests {
         );
         headers.insert(header::CONTENT_LENGTH, length.to_string().parse().unwrap());
         headers
+    }
+
+    // Essential: a real reported 20 GB server archive must reach admission,
+    // while insufficient disk space and individual-world ceilings still refuse.
+    // Only metadata/empty staging files are created; no multi-GB input is allocated.
+    #[tokio::test]
+    async fn large_server_admission_preserves_disk_and_world_limits() {
+        let mut fixture = Fixture::new();
+        fixture.credential.permissions =
+            vec![PermissionCategoryDto::Fleet, PermissionCategoryDto::Worlds];
+        let mut body = Admission {
+            creation_context: false,
+            purpose: StagedUploadPurposeDto::RawServerArchive,
+            file_name: Some("tectonic.zip".into()),
+            expected_bytes: 20_066_596_805,
+            expected_sha256: None,
+            operation_id: None,
+            file_id: None,
+            target_server_id: None,
+        };
+        let response = admit(
+            State(fixture.state.clone()),
+            Extension(fixture.credential.clone()),
+            Ok(Json(body.clone())),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::CREATED);
+        fixture.state.staging.native.space = Arc::new(|_| Ok(DISK_MARGIN));
+        let response = admit(
+            State(fixture.state.clone()),
+            Extension(fixture.credential.clone()),
+            Ok(Json(body.clone())),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::INSUFFICIENT_STORAGE);
+        let bytes = to_bytes(response.into_body(), 16 * 1024).await.unwrap();
+        assert!(String::from_utf8_lossy(&bytes).contains("GiB free"));
+        body.purpose = StagedUploadPurposeDto::WorldImport;
+        let response = admit(
+            State(fixture.state.clone()),
+            Extension(fixture.credential.clone()),
+            Ok(Json(body)),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
     }
 
     // Essential: creation picks must work without weakening the required

@@ -48,6 +48,9 @@ pub(crate) enum Purpose {
 impl Purpose {
     fn max_source_bytes(self) -> u64 {
         match self {
+            Self::RawServerArchive | Self::RawServerFolder | Self::MscTransferArchive => {
+                msc_infrastructure::source_tree::MAX_SERVER_SOURCE_BYTES
+            }
             Self::AddonLocalFile => 512 * 1024 * 1024,
             Self::CurseforgeManualFile | Self::ModpackUnresolvedFile => MAX_SOURCE_BYTES,
             _ => 10 * 1024 * 1024 * 1024,
@@ -238,9 +241,15 @@ impl Source {
             return Err("Only a raw server import can select a folder.".into());
         }
         let identity = Identity::read(&file)?;
-        if !directory && (identity.size == 0 || identity.size > binding.purpose.max_source_bytes())
-        {
-            return Err("The selected file is empty or exceeds native staging capacity.".into());
+        if !directory && identity.size == 0 {
+            return Err("The selected file is empty.".into());
+        }
+        if !directory && identity.size > binding.purpose.max_source_bytes() {
+            return Err(format!(
+                "The selected file is {:.2} GiB; this import supports at most {:.2} GiB.",
+                identity.size as f64 / 1_073_741_824.0,
+                binding.purpose.max_source_bytes() as f64 / 1_073_741_824.0,
+            ));
         }
         let name = path
             .file_name()
@@ -1796,10 +1805,20 @@ fn prepare_folder(
     } else {
         snapshot.archive_bytes
     };
-    if snapshot.bytes == 0 || size > source.selected.binding.purpose.max_source_bytes() {
+    if snapshot.bytes == 0 {
         return Err(UploadError::new(
             "source_size",
-            "The server folder is empty or exceeds staging capacity.",
+            "The server folder is empty.",
+        ));
+    }
+    if size > source.selected.binding.purpose.max_source_bytes() {
+        return Err(UploadError::new(
+            "source_size",
+            format!(
+                "The prepared server folder is {:.2} GiB; this import supports at most {:.2} GiB.",
+                size as f64 / 1_073_741_824.0,
+                source.selected.binding.purpose.max_source_bytes() as f64 / 1_073_741_824.0
+            ),
         ));
     }
     let mut selected = source.selected.clone();

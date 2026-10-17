@@ -4,6 +4,9 @@
 #[path = "source_tree/windows.rs"]
 mod windows;
 use crate::archive::{MAX_ARCHIVE_ENTRIES, MAX_TOTAL_UNCOMPRESSED_BYTES};
+// Server sources include both live worlds and saved slots; use the archive
+// safety bound rather than the smaller individual-world upload ceiling.
+pub const MAX_SERVER_SOURCE_BYTES: u64 = MAX_TOTAL_UNCOMPRESSED_BYTES;
 use sha2::{Digest, Sha256};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -481,7 +484,7 @@ pub fn archive<W: Write>(
             if self
                 .1
                 .checked_add(bytes.len() as u64)
-                .is_none_or(|n| n > 10 * 1024 * 1024 * 1024)
+                .is_none_or(|n| n > MAX_SERVER_SOURCE_BYTES)
             {
                 return Err(invalid("prepared server archive exceeds staging capacity"));
             }

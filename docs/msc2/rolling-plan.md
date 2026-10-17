@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** P20.8 icon-free folder confirmation implemented; awaiting
+**Current priority:** P20.9 large server admission correction implemented; awaiting
 owner verification. Phase 20 physical acceptance and independent review remain open.
 
 Historical implementation and published release records were reconciled and
@@ -101,6 +101,15 @@ Complete connected-host transfer/resume remains [deferred](deferred-work.md).
 **Verify:** `npm --prefix clients/desktop-web run check`
 **Batch:** P20.8 only.
 **Commit:** `P20.8: use an icon-free server folder confirmation`
+
+### P20.9 — Admit complete server sources above the world upload ceiling
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** Native desktop source admission; agent native staging; shared source-tree TAR bound; `uploads/native-transfer-plan.md`; this plan. Generated candidate remains uncommitted.
+**What:** Owner-reported 20,066,596,805-byte complete server ZIP and large folder failed the individual-world 10 GiB ceiling. Give raw server ZIP/folder and MSC transfers a shared 1 TiB source bound matching existing archive safety, with a 2 TiB aggregate staging reservation ceiling for TAR plus extracted contents. Retain exact-byte, concurrency, disk-margin, extraction and individual-world/modpack limits. Distinguish empty, oversize and actual insufficient disk errors, including sizes. Add one essential admission regression for the reported size, disk refusal and unchanged world ceiling: injected capacity and empty staging only, no large allocation/network/sleeps, expected under one second excluding compilation. Compile regression metadata only; do not execute tests. Prepare a fresh optimized local candidate including P20.8.
+**Verify:** `cargo build --locked -p msc-agent --bin msc`
+**Batch:** P20.9 only.
+**Commit:** `P20.9: admit large server sources with disk space checks`
 
 ## Phase 21 — Storage inventory and management
 

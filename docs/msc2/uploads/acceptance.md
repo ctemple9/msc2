@@ -190,3 +190,47 @@ Post-signing packaged agent SHA-256:
 These identify the generated candidate only; rebuilding or resigning can change
 bytes. The ZIP is ignored/generated and remains uncommitted. No app launch,
 service replacement, physical transfer or performance measurement was performed.
+
+## Owner session observations — October 17
+
+Cameron confirmed Repair service and local connection worked. Development-build
+large-world transfer displayed about 7.7–9.5 MB/s. The optimized P20.7 candidate
+later displayed 115.1 MB/s at 6.6 GB of 9.2 GB (70%); this is an intermediate
+UI rate, not total elapsed import time or an old-release comparison. The world
+attempt subsequently failed with “The selected source changed.” Content versus
+metadata change has not been established; successful large-world import remains
+pending. No complete peak-memory/copy-baseline measurement was supplied.
+
+Complete-server acceptance then hit the 10 GiB source ceiling: the selected
+`tectonic.zip` was 20,066,596,805 bytes. A large live-world subfolder hit the same
+folder restriction, but that world subfolder is not a complete-server input.
+P20.9 corrects the server-source bound and staging error details. Retest using
+the complete stopped server folder or its complete ZIP. The source-change
+failure and local HTTP-versus-direct-copy selection remain separate open findings.
+
+P20.8 removes the native alert icon using an MSC confirmation sheet. Both that
+visual correction and P20.9 require the newer candidate below, not the original
+P20.7 ZIP. Neither correction closes physical acceptance or independent review.
+
+### Updated optimized Intel candidate — P20.9
+
+Contains the P20.8 icon-free folder confirmation and P20.9 large-server
+admission correction. Source is P20.8 commit `13e47d3d` plus the changes committed
+as `P20.9: admit large server sources with disk space checks`. Version remains
+0.1.30; this is an unpublished local candidate, not a new official release.
+
+ZIP: `target/native-upload-candidate/msc2-0.1.30-p20.9-macos-x86_64.zip` (30,906,297 bytes).
+SHA-256: `dfdadfbf3d100fde5f2e771053b63a04e1189cd85a730bac740c272cee9bcb0d`.
+
+Use the installation/rollback procedure above, including Repair service after
+replacing the app. The old P20.7 ZIP remains unchanged and lacks these fixes.
+Check the new ZIP from its directory with `shasum -a 256 -c P20.9-SHA256SUMS`.
+
+Locked agent build, root/desktop formatting and agent/desktop Clippy passed
+with the previously recorded allowances. The new focused admission regression
+compiled as test metadata; no tests ran. The existing Tauri app build completed
+with the existing frontend and Swift warnings. Applied ad-hoc signing to the
+bundled agent and outer app, preserving the helper's entitlement;
+`codesign --verify --deep --strict` passed. ZIP checksum and extracted signature
+verification passed. No installation, live import or release publication ran.
+Owner large-server retest remains pending, including actual extraction space.

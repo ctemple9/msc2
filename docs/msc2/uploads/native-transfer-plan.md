@@ -644,7 +644,8 @@ The shared tree walker retains directory handles, opens descendants relative to
 them on Unix and Windows, rejects links/reparse points/devices and nonportable
 names, and preserves hidden/unknown files and empty directories. Bounds are
 64 directory levels, 200,000 entries, 4,096-byte relative paths, 255-byte names
-and 1 TiB logical archive contents, with the smaller 10 GiB native source limit
+and 1 TiB logical archive contents. P20.9 replaces the former 10 GiB server-source limit
+with a shared 1 TiB server ZIP/folder/MSC-transfer source ceiling
 still applied at admission. Files are copied in bounded blocks with metadata
 fingerprints before/after; overlapping destinations are rejected. A folder
 selection explicitly asks that its source server be stopped. Recognized Java
@@ -859,3 +860,29 @@ folder totals, 100%-then-verification/import distinction, Escape/cancel during a
 nested upload, failed cleanup and returning to the original host, and host/server
 switches with a late receipt/inspection/operation response. P20.7 owns candidate
 packaging and measured throughput/memory comparisons; this step does not start it.
+
+## P20.9 — Large server admission correction
+
+Owner acceptance found a 20,066,596,805-byte complete server ZIP rejected by
+both desktop and agent 10 GiB input ceilings; a large folder hit the same bound.
+Raw server archives/folders and MSC transfers now share the infrastructure's
+1 TiB server-source ceiling, including generated TAR bytes. Individual-world,
+modpack, thumbnail and add-on ceilings are unchanged. The aggregate native
+reservation ceiling is 2 TiB, allowing a maximum-sized TAR and its extraction;
+it is a logical quota, not preallocated disk or memory. Admission still requires
+actual available space after other reservations and a 1 GiB margin. Buffers,
+stream counts, archive entry/expansion limits and source preservation stay bounded.
+
+Empty-input and size-ceiling errors are separate, with actual/allowed GiB for
+oversize inputs. Disk refusal reports required staging space and free space.
+A ZIP's staging reservation is its compressed input size; existing extraction
+and final installation need further space and may still fail. This admission
+change does not promise that a roughly 20 GB archive fits on a disk with only
+27 GiB free. No source/staging data is automatically deleted to make room.
+
+One essential controlled admission regression covers the reported ZIP size,
+insufficient disk refusal and retained 10 GiB individual-world restriction.
+It creates metadata and empty staging files, uses injected disk capacity, has
+no live network or timing assumptions, and should take under one second beyond
+compilation. It is compiled as metadata only, not run. Physical re-import and
+Phase 20 review remain pending. The earlier P20.7 ZIP predates P20.8/P20.9.

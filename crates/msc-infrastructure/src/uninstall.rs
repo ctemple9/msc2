@@ -343,7 +343,7 @@ fn add_data(
         &config,
         "Local agent configuration path",
     );
-    let bytes = match fs.read(&config) {
+    let bytes = match fs.read_bounded(&config, 8 * 1024 * 1024) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             // Windows service metadata can name a standard MSC directory that

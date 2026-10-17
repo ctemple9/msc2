@@ -15,6 +15,7 @@ use std::sync::Mutex;
 
 mod native_transfer;
 mod ssh;
+mod storage;
 mod uninstall;
 mod update;
 #[cfg(target_os = "windows")]
@@ -1829,6 +1830,13 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
+            storage::storage_active_scans,
+            storage::storage_composed,
+            storage::storage_overview,
+            storage::storage_local,
+            storage::storage_cached,
+            storage::storage_remote,
+            storage::storage_reveal,
             native_transfer::download::download_staged_file,
             native_transfer::download::cancel_native_download,
             native_transfer::pick_upload_source,

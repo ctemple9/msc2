@@ -2316,6 +2316,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "msc-application"
+version = "0.1.0"
+dependencies = [
+ "msc-domain",
+ "msc-infrastructure",
+ "serde",
+ "serde_json",
+ "uuid",
+ "zip",
+]
+
+[[package]]
 name = "msc-domain"
 version = "0.1.0"
 dependencies = [
@@ -2390,6 +2402,7 @@ dependencies = [
  "ed25519-dalek",
  "futures-util",
  "libc",
+ "msc-application",
  "msc-infrastructure",
  "msc-platform-linux",
  "msc-platform-macos",

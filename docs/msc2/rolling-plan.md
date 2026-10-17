@@ -2,8 +2,9 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1 specification and P21.2 inventory service are implemented,
-awaiting owner verification; P21.1 sketch/contract review remains pending.
+Phase 21 P21.1–P21.4 are implemented, awaiting owner verification; P21.5–P21.8
+are authorized for sequential execution with verification deferred until the end.
+P21.1 visual acceptance remains pending.
 Independent Phase 20 gate review remains in [pending acceptance](pending-acceptance.md).
 
 Historical implementation and published release records were reconciled and
@@ -37,10 +38,11 @@ is separate from that closure; no earlier unobserved check is promoted to Pass.
 ## Phase 21 — Storage inventory and management
 
 **Planning state:** Owner requested PLAN on October 16 after discussing the
-screen and cleanup behavior. P21.1 specification and P21.2 inventory service are
-implemented and awaiting owner verification/review; P21.3–P21.8 remain unstarted.
-Cameron explicitly requested P21.2 execution on October 17. P21.1 visual review
-is still pending and remains a dependency for UI implementation. No live-host
+screen and cleanup behavior. P21.1–P21.4 are implemented and awaiting owner
+verification/review. Cameron explicitly authorized P21.3–P21.8 to execute in
+sequence with one commit per step and verification deferred until the end.
+This also authorizes the P21.1-based UI implementation; visual acceptance remains
+pending and is not inferred from execution authorization. No live-host
 scanning, deletion, release or test execution was performed.
 Phase 20 implementation records are archived. Before implementing storage,
 reconcile its staging/operation ownership with the actual completed Phase 20
@@ -137,10 +139,11 @@ continuous deep scan or broad test matrix is implied.
 
 ### P21.4 — Combine saved-host inventories with the local desktop footprint
 
-**Status:** Planned.
+**Status:** Implemented; awaiting owner verification.
 **Files:** A native storage module/commands under `clients/desktop-web/src-tauri/src/`; local installation discovery; `clients/desktop-web/src/lib/platform/`, `auth/desktop.ts`, host-scoped storage state and API adapters as needed; focused host-state tests; this plan.
 **What:** Compose the saved-computer overview from cached inventories and explicitly requested remote scans, with bounded fan-out and credentials retained in Rust. Measure the installed local app and local-only client data even when the local agent is absent/offline; merge only matching local-host identities and disjoint roots. An agent may report a verified desktop installation on its host, but inaccessible or undiscoverable remote desktop files remain unknown rather than guessed or assigned the local app's size. Retain dated offline snapshots, invalidate replaced hosts/roots, and guard late responses and scan cancellation across navigation. Folder reveal works only for verified local paths; remote paths are copyable text with their host named. No remote service installation, arbitrary remote path reads or offline cleanup.
-**Verify:** `cargo clippy --manifest-path clients/desktop-web/src-tauri/Cargo.toml --lib -- -D warnings -A needless_borrow -A needless_borrows_for_generic_args -A needless_return`
+**Implementation:** Added native local-client/package measurement independent of agent availability, bounded credential-bound saved-host caches and explicit remote scans, snapshot paging, active scan tracking and local ownership-checked folder reveal. Added physical root/volume identities, labels and link metadata so native/agent composition retains one accounting graph; uncertain cross-source overlaps/shared links are excluded from the combined total with partial coverage instead of being summed. Reused read-only package/service discovery, with independent client discovery on service-inspection failure; ownership configuration reads are now bounded. Added the host-generation bridge and two essential no-I/O regressions for late/wrong-host responses and local double counting/identity mismatch (expected under 1 ms each); compile only. Updated the existing three Clippy allowance names to their current `clippy::` spellings because unqualified spellings are deprecated; no lint scope or release gate changed. Physical Windows/Linux and owner acceptance remain pending.
+**Verify:** `cargo clippy --manifest-path clients/desktop-web/src-tauri/Cargo.toml --lib -- -D warnings -A clippy::needless_borrow -A clippy::needless_borrows_for_generic_args -A clippy::needless_return`
 **Batch:** P21.4 only; depends on P21.3 verification unless included in a newly authorized batch.
 **Commit:** `P21.4: compose host storage and local desktop inventory`
 

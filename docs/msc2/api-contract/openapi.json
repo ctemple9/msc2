@@ -8327,6 +8327,12 @@
           "id": {
             "type": "string"
           },
+          "physicalId": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
           "totalBytes": {
             "type": "integer",
             "minimum": 0,
@@ -8344,6 +8350,8 @@
         },
         "required": [
           "id",
+          "physicalId",
+          "label",
           "totalBytes",
           "availableBytes",
           "observedAt"
@@ -8356,6 +8364,9 @@
             "type": "string"
           },
           "rootId": {
+            "type": "string"
+          },
+          "physicalRootId": {
             "type": "string"
           },
           "volumeId": {
@@ -8379,6 +8390,10 @@
           "label": {
             "type": "string"
           },
+          "displayPath": {
+            "type": "string",
+            "nullable": true
+          },
           "logicalBytes": {
             "type": "integer",
             "minimum": 0
@@ -8397,22 +8412,28 @@
           "sharedReferences": {
             "type": "integer",
             "minimum": 0
+          },
+          "hasHardLinks": {
+            "type": "boolean"
           }
         },
         "required": [
           "id",
           "rootId",
+          "physicalRootId",
           "volumeId",
           "category",
           "group",
           "domainId",
           "serverId",
           "label",
+          "displayPath",
           "logicalBytes",
           "allocatedBytes",
           "partial",
           "absent",
-          "sharedReferences"
+          "sharedReferences",
+          "hasHardLinks"
         ]
       },
       "StorageCleanupEntryDTO": {

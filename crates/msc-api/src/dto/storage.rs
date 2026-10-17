@@ -6,17 +6,23 @@ use serde::{Deserialize, Serialize};
 pub struct StorageItemDto {
     pub id: String,
     pub root_id: String,
+    #[serde(default)]
+    pub physical_root_id: String,
     pub volume_id: Option<String>,
     pub category: String,
     pub group: String,
     pub domain_id: Option<String>,
     pub server_id: Option<String>,
     pub label: String,
+    #[serde(default)]
+    pub display_path: Option<String>,
     pub logical_bytes: u64,
     pub allocated_bytes: Option<u64>,
     pub partial: bool,
     pub absent: bool,
     pub shared_references: u64,
+    #[serde(default)]
+    pub has_hard_links: bool,
     pub protection: String,
 }
 
@@ -24,6 +30,10 @@ pub struct StorageItemDto {
 #[serde(rename_all = "camelCase")]
 pub struct StorageVolumeDto {
     pub id: String,
+    #[serde(default)]
+    pub physical_id: String,
+    #[serde(default)]
+    pub label: String,
     pub total_bytes: Option<u64>,
     pub available_bytes: Option<u64>,
     pub observed_at: u64,

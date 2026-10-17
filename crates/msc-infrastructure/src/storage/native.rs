@@ -11,6 +11,7 @@ pub(super) struct Measurement {
     pub identity: Identity,
     pub mount: u64,
     pub logical: u64,
+    pub links: Option<u64>,
     pub allocated: Option<u64>,
 }
 
@@ -70,6 +71,7 @@ pub(super) fn measure(file: &File) -> io::Result<Measurement> {
             } else {
                 0
             },
+            links: Some(metadata.nlink()),
             allocated: metadata.blocks().checked_mul(512),
         })
     }
@@ -93,6 +95,7 @@ pub(super) fn measure(file: &File) -> io::Result<Measurement> {
             return Err(io::Error::last_os_error());
         }
         let mut standard: FILE_STANDARD_INFO = unsafe { std::mem::zeroed() };
+        let mut links = None;
         let allocated = if unsafe {
             GetFileInformationByHandleEx(
                 file.as_raw_handle().cast(),
@@ -102,6 +105,7 @@ pub(super) fn measure(file: &File) -> io::Result<Measurement> {
             )
         } != 0
         {
+            links = Some(u64::from(standard.NumberOfLinks));
             u64::try_from(standard.AllocationSize).ok()
         } else {
             None
@@ -117,6 +121,7 @@ pub(super) fn measure(file: &File) -> io::Result<Measurement> {
                 0
             },
             mount: info.VolumeSerialNumber,
+            links,
             allocated,
         })
     }
@@ -152,4 +157,45 @@ fn mount_id(file: &File, device: u64) -> io::Result<u64> {
         let _ = file;
         Ok(device)
     }
+}
+
+pub(super) fn volume_label(file: &File, path: &Path) -> String {
+    #[cfg(target_os = "macos")]
+    {
+        use std::os::fd::AsRawFd;
+        let mut stat: libc::statfs = unsafe { std::mem::zeroed() };
+        if unsafe { libc::fstatfs(file.as_raw_fd(), &mut stat) } == 0 {
+            return unsafe { std::ffi::CStr::from_ptr(stat.f_mntonname.as_ptr()) }
+                .to_string_lossy()
+                .into_owned();
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(root) = measure(file) {
+            let mut label = path.to_path_buf();
+            for parent in path.ancestors().skip(1).take(128) {
+                if open(parent)
+                    .and_then(|f| measure(&f))
+                    .is_ok_and(|m| m.mount == root.mount)
+                {
+                    label = parent.to_path_buf();
+                } else {
+                    break;
+                }
+            }
+            return label.to_string_lossy().into_owned();
+        }
+    }
+    #[cfg(windows)]
+    {
+        let _ = file;
+        let mut root = PathBuf::new();
+        for part in path.components().take(2) {
+            root.push(part.as_os_str());
+        }
+        return root.to_string_lossy().into_owned();
+    }
+    #[allow(unreachable_code)]
+    path.to_string_lossy().into_owned()
 }

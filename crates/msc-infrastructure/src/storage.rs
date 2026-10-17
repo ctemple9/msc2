@@ -72,17 +72,23 @@ pub struct Manifest {
 pub struct Item {
     pub id: String,
     pub root_id: String,
+    #[serde(default)]
+    pub physical_root_id: String,
     pub volume_id: Option<String>,
     pub category: Category,
     pub group: Group,
     pub domain_id: Option<String>,
     pub server_id: Option<String>,
     pub label: String,
+    #[serde(default)]
+    pub display_path: Option<String>,
     pub logical_bytes: u64,
     pub allocated_bytes: Option<u64>,
     pub partial: bool,
     pub absent: bool,
     pub shared_references: u64,
+    #[serde(default)]
+    pub has_hard_links: bool,
     pub protection: String,
 }
 
@@ -90,6 +96,10 @@ pub struct Item {
 #[serde(rename_all = "camelCase")]
 pub struct Volume {
     pub id: String,
+    #[serde(default)]
+    pub physical_id: String,
+    #[serde(default)]
+    pub label: String,
     pub total_bytes: Option<u64>,
     pub available_bytes: Option<u64>,
     pub observed_at: u64,
@@ -203,6 +213,7 @@ struct Walker<'a> {
     buckets: BTreeMap<(String, String), usize>,
     item_bytes: usize,
     root_ids: Vec<String>,
+    physical_roots: BTreeMap<String, String>,
     stopped: bool,
 }
 
@@ -300,6 +311,7 @@ fn scan_with(
         buckets: BTreeMap::new(),
         item_bytes: 0,
         root_ids: vec![],
+        physical_roots: BTreeMap::new(),
         stopped: false,
     };
     for reason in manifest.issues.iter().take(256) {
@@ -480,7 +492,11 @@ impl Walker<'_> {
         if let Some(index) = self.buckets.get(&lookup) {
             return Ok(*index);
         }
-        let bytes = label.len() + key.len() + 512;
+        let display_path = root.path.join(relative).to_string_lossy().into_owned();
+        let bytes = serde_json::to_string(&[&label, &key, &display_path])
+            .map_err(io::Error::other)?
+            .len()
+            + 768;
         if self.result.items.len() >= self.limits.items
             || self.item_bytes + bytes > self.limits.item_bytes
         {
@@ -489,9 +505,10 @@ impl Walker<'_> {
         }
         self.item_bytes += bytes;
         let index = self.result.items.len();
-        self.result.items.push(Item { id: identity(&[&self.manifest.host_id, root_id, &key]), root_id: root_id.into(),
+        self.result.items.push(Item { id: identity(&[&self.manifest.host_id, root_id, &key]), root_id: root_id.into(), physical_root_id: self.physical_roots.get(root_id).cloned().unwrap_or_default(),
             volume_id: volume.map(str::to_owned), category, group, domain_id, server_id: server, label,
-            logical_bytes: 0, allocated_bytes: Some(0), partial: false, absent: false, shared_references: 0,
+            display_path: Some(display_path),
+            logical_bytes: 0, allocated_bytes: Some(0), partial: false, absent: false, shared_references: 0, has_hard_links: false,
             protection: "Inventory only; ownership and live references must be checked by the action's owner".into() });
         self.buckets.insert(lookup, index);
         Ok(index)
@@ -526,6 +543,10 @@ impl Walker<'_> {
             &meta.identity.1.to_string(),
             &meta.mount.to_string(),
         ]);
+        self.physical_roots.insert(
+            root_id.clone(),
+            identity(&[&meta.identity.0.to_string(), &meta.identity.1.to_string()]),
+        );
         self.root_ids.push(root_id.clone());
         let volume = identity(&[&self.manifest.host_id, &meta.identity.0.to_string()]);
         if !self.result.volumes.iter().any(|v| v.id == volume) {
@@ -548,6 +569,8 @@ impl Walker<'_> {
             };
             self.result.volumes.push(Volume {
                 id: volume.clone(),
+                physical_id: identity(&[&meta.identity.0.to_string()]),
+                label: native::volume_label(&file, &root.path),
                 total_bytes: total,
                 available_bytes: available,
                 observed_at: now(),
@@ -637,6 +660,7 @@ impl Walker<'_> {
         Ok(())
     }
     fn charge(&mut self, bucket: usize, meta: Measurement) -> io::Result<()> {
+        self.result.items[bucket].has_hard_links |= meta.links != Some(1);
         self.result.progress.logical_bytes_visited = self
             .result
             .progress
@@ -872,4 +896,18 @@ mod tests {
         assert_eq!(snapshot.logical_bytes, 0);
         assert!(read_small(&fixture.0.join("owned/link/nested/private"), 1024).is_err());
     }
+}
+
+/// Re-resolve a known discovered root before native reveal/review. Callers
+/// accept an inventory ID, never an arbitrary path from an external request.
+pub fn verified_root_id(host: &str, path: &Path) -> io::Result<String> {
+    let file = native::open(path)?;
+    let meta = native::measure(&file)?;
+    Ok(identity(&[
+        host,
+        &path.to_string_lossy(),
+        &meta.identity.0.to_string(),
+        &meta.identity.1.to_string(),
+        &meta.mount.to_string(),
+    ]))
 }

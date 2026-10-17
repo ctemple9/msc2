@@ -76,7 +76,17 @@ pub fn discover(input: &Discovery<'_>) -> Manifest {
         let category = match entry.kind {
             EntryKind::DataTree | EntryKind::Configuration => Category::Agent,
             EntryKind::ServerTree => Category::Servers,
-            EntryKind::ClientState => Category::DesktopApp,
+            EntryKind::ClientState => {
+                if path.components().any(|part| {
+                    part.as_os_str()
+                        .to_string_lossy()
+                        .starts_with("com.ctemple.msc2")
+                }) {
+                    Category::DesktopApp
+                } else {
+                    Category::Agent
+                }
+            }
             EntryKind::Installer => Category::Cache,
             EntryKind::Installation => {
                 if input.desktop_installations.contains(path) {

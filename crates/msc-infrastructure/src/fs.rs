@@ -30,6 +30,17 @@ pub struct Metadata {
 
 pub trait FileSystem: Send + Sync {
     fn read(&self, path: &Path) -> io::Result<Vec<u8>>;
+    /// Ownership discovery must not allocate a corrupt configuration's file size.
+    fn read_bounded(&self, path: &Path, limit: u64) -> io::Result<Vec<u8>> {
+        if self.stat(path)?.size > limit {
+            return Err(io::Error::other("metadata exceeds the read budget"));
+        }
+        let bytes = self.read(path)?;
+        if bytes.len() as u64 > limit {
+            return Err(io::Error::other("metadata grew beyond the read budget"));
+        }
+        Ok(bytes)
+    }
     /// Bridges injectable filesystems and disk-backed archives. Production
     /// overrides stream these operations; the defaults support in-memory fakes.
     fn copy_to_disk(&self, from: &Path, to: &Path) -> io::Result<()> {
@@ -94,6 +105,9 @@ pub trait FileSystem: Send + Sync {
 pub struct StdFileSystem;
 
 impl FileSystem for StdFileSystem {
+    fn read_bounded(&self, path: &Path, limit: u64) -> io::Result<Vec<u8>> {
+        crate::storage::read_small(path, limit)
+    }
     fn copy_to_disk(&self, from: &Path, to: &Path) -> io::Result<()> {
         std::fs::copy(from, to).map(|_| ())
     }

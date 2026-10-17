@@ -326,3 +326,40 @@ missing route context in `cli_pairing`/`desktop_auth`. Those unrelated harnesses
 were not changed; the focused production check and required Clippy passed.
 Current same-version candidates negotiate protocol 1; no first published agent
 version/minimum-version claim exists yet. This step adds no release/CI gate.
+
+
+## P21.4 implementation record
+
+Native commands now provide local cached/refresh/status/cancel, saved-host cached
+summary/detail, explicit authenticated remote requests, active scan handles,
+local-only composition and identity-checked folder reveal. Opening the overview
+reads local metadata only; remote requests are bounded to two at once and at most
+two tracked host scans. Credentials remain in Rust. Cache envelopes include a
+credential fingerprint, so replacement/re-pairing does not reuse an earlier
+credential's snapshot. UI request generations reject late or wrong-host replies.
+
+The local desktop scan uses verified package/bundle ownership and Tauri-resolved
+client data, even when service discovery fails or the agent is absent/offline.
+Linux package-owned file lists and Windows verified MSI installation locations
+are read once per explicit discovery; no Win32_Product query or installer is run.
+Unknown package coverage stays partial. Read-only ownership config reads are
+bounded to 8 MiB through retained no-follow handles. This is independent of the
+uninstall executor and introduces no arbitrary remote/native path-reading API.
+
+Physical object identities permit native/agent root and volume deduplication only
+after the stored local-agent identity matches. The agent's already-deduplicated
+graph wins for shared roots. Native-only roots that overlap agent path boundaries
+or contain hard links/unknown link counts are excluded from the combined total
+and explained as partial coverage; their separate desktop measurement remains
+available. Clones/shared blocks retain the earlier allocation caveat. Local
+folder reveal re-discovers ownership and rechecks the root identity; remote paths
+are display/copy text only. No cached snapshot grants cleanup authority.
+
+Two essential no-I/O cases protect root/capacity duplication and wrong locality,
+and late/wrong-host bridge replies; expected below 1 ms each. Rust test-target
+metadata and frontend type checking compile them without running tests. The
+native Clippy command retains its three existing allowances using current
+`clippy::` names. Generated OpenAPI types include additive physical identities,
+volume labels, display paths and hard-link disclosure. Existing source-tree
+walkers retain archive portability checks. Physical platform and owner checks
+remain pending; no live host scan, service mutation, deletion or publication.

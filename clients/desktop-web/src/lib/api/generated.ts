@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 298d34bf0ccf801a75f355f765e13524889e2d8bbde4c96b9b9f54b89f963c38
+// Contract SHA-256: f954eb6c468254dee38a2f3aa3f28a0d26fc47b68787f59d949388364b08421b
 
 export interface paths {
   '/v1/active-server': {
@@ -9488,12 +9488,15 @@ export interface components {
       absent: boolean;
       allocatedBytes: number | null;
       category: string;
+      displayPath: string | null;
       domainId: string | null;
       group: string;
+      hasHardLinks: boolean;
       id: string;
       label: string;
       logicalBytes: number;
       partial: boolean;
+      physicalRootId: string;
       rootId: string;
       serverId: string | null;
       sharedReferences: number;
@@ -9537,7 +9540,9 @@ export interface components {
     StorageVolumeDTO: {
       availableBytes: number | null;
       id: string;
+      label: string;
       observedAt: number;
+      physicalId: string;
       totalBytes: number | null;
     } & {
       [key: string]: unknown;

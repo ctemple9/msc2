@@ -1,7 +1,14 @@
 import type { components } from './generated';
 import type { TransportCredentialAdapter } from './auth';
 import { desktopCredentialAdapter } from './auth';
-import type { FileChunkSource, FileUploadProgress } from '../platform/types';
+import type {
+  NativeFileSource,
+  NativeFileUploader,
+  NativeUploadOptions,
+  NativeUploadResult,
+  FileChunkSource,
+  FileUploadProgress,
+} from '../platform/types';
 
 export type HttpMethod = 'DELETE' | 'GET' | 'POST' | 'PUT';
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -13,6 +20,7 @@ export interface ApiClientOptions {
   credentialAdapter?: TransportCredentialAdapter;
   clientApiVersion?: string;
   maxDownloadBytes?: number;
+  nativeFileUploader?: NativeFileUploader;
   onCapabilities?: (capabilities: components['schemas']['CapabilitiesDTO']) => void;
 }
 
@@ -60,6 +68,7 @@ export class ApiClient {
   private readonly clientApiVersion: string;
   private readonly maxDownloadBytes: number;
   private readonly onCapabilities?: ApiClientOptions['onCapabilities'];
+  private readonly nativeFileUploader?: NativeFileUploader;
   private refreshingCapabilities = false;
   private capabilitiesValue: components['schemas']['CapabilitiesDTO'] | null = null;
   private apiVersionValue: string | null = null;
@@ -74,6 +83,7 @@ export class ApiClient {
     this.clientApiVersion = options.clientApiVersion ?? '1.0';
     this.maxDownloadBytes = options.maxDownloadBytes ?? 512 * 1024 * 1024;
     this.onCapabilities = options.onCapabilities;
+    this.nativeFileUploader = options.nativeFileUploader;
   }
 
   get host(): string {
@@ -163,6 +173,23 @@ export class ApiClient {
   ): Promise<components['schemas']['StagedUploadCompleteResultDTO']> {
     const slot = await this.beginUpload(request);
     return this.uploadBytes(slot.uploadPath, bytes, slot.maxBytes);
+  }
+
+  /** Native-owned selection and transport: this method never reads source bytes. */
+  async stagedUploadNative(
+    source: NativeFileSource,
+    options: NativeUploadOptions = {},
+  ): Promise<NativeUploadResult> {
+    if (source.kind !== 'native' || !source.sourceId)
+      throw new Error('Select this file with the native picker first.');
+    if (source.binding.agentHostId !== this.hostId) {
+      throw new Error('The selected file belongs to another host.');
+    }
+    if (!this.nativeFileUploader)
+      throw new Error('Native file uploads are unavailable in this desktop build.');
+    if (!Number.isSafeInteger(source.size) || source.size <= 0)
+      throw new Error('The selected file has an invalid size.');
+    return this.nativeFileUploader.upload(source, options);
   }
 
   async stagedUploadFromFile(

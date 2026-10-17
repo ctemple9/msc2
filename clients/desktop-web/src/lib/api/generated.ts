@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: fb2b4bec15df75f84841826f3a8c6da1bcfddb826dc62f8a47b61d3a543ed2c7
+// Contract SHA-256: fbea4b0a5c3436f37433cc1c983efd7aa4f99a0ad41bfaaba3cdf2ae55b37b34
 
 export interface paths {
   '/v1/active-server': {
@@ -5528,6 +5528,57 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/staged-uploads/{id}/status': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Inspect the initiating owner’s native upload and cleanup outcome */
+    get: operations['nativeUploadStatus'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/staged-uploads/{id}/stream': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Receive a bounded native stream and incrementally verify SHA-256 */
+    put: operations['receiveNativeUpload'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/staged-uploads/stream': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Admit an authenticated exact-length native upload */
+    post: operations['beginNativeUpload'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/start': {
     parameters: {
       query?: never;
@@ -7157,6 +7208,7 @@ export interface components {
       };
       /** @enum {string} */
       hostOs: 'macos' | 'linux' | 'windows';
+      nativeTransfers?: components['schemas']['NativeTransfersDTO'];
       /** @description The calling token's granted categories, per D-019's nine-bucket vocabulary (Proposed). */
       permissions: (
         | 'serverControl'
@@ -7932,6 +7984,69 @@ export interface components {
       operationId: string;
       remainingManualFiles: components['schemas']['ModpackManualFileEntryDTO'][];
       success: boolean;
+    } & {
+      [key: string]: unknown;
+    };
+    /** @description P20.2 advertises streamUpload only; localHandoff and serverArchive remain false. Omission means no negotiated native transport. Permission and staging recovery dependent. */
+    NativeTransfersDTO: {
+      localHandoff: boolean;
+      /** @enum {integer} */
+      protocol: 1;
+      serverArchive: boolean;
+      streamUpload: boolean;
+    } & {
+      [key: string]: unknown;
+    };
+    NativeUploadBeginRequestDTO: {
+      /** @description Exact length, within purpose ceiling; for pending files must equal the provider size. */
+      expectedBytes: number;
+      expectedSha256?: string | null;
+      fileId?: string | null;
+      /** @description Original basename, at most 255 UTF-8 bytes; no path/control syntax, trailing dot/space, Windows device basename or reserved Windows filename character. Required for add-ons and pending manual files. */
+      fileName?: string | null;
+      operationId?: string | null;
+      /** @enum {string} */
+      purpose:
+        | 'world-import'
+        | 'active-world-replace'
+        | 'world-thumbnail'
+        | 'modpack-archive'
+        | 'addon-local-file'
+        | 'curseforge-manual-file'
+        | 'modpack-unresolved-file';
+      /** @description Required for world-import, active-world-replace, world-thumbnail and addon-local-file. Required at redemption for importing a modpack into an existing server; omitted for new-server modpack creation. */
+      targetServerId?: string | null;
+    } & {
+      [key: string]: unknown;
+    };
+    NativeUploadBeginResultDTO: {
+      expiresAt: string;
+      maxBytes: number;
+      /** @enum {integer} */
+      protocol: 1;
+      stagedUploadId: string;
+      streamPath: string;
+      uploadPath: string;
+    } & {
+      [key: string]: unknown;
+    };
+    NativeUploadStatusDTO: {
+      cleanupError?: string;
+      expectedBytes: number;
+      expiresAt: string;
+      receivedBytes: number;
+      stagedUploadId: string;
+      /** @enum {string} */
+      state:
+        | 'admitted'
+        | 'receiving'
+        | 'verifying'
+        | 'ready'
+        | 'redeemed'
+        | 'cancelling'
+        | 'cancelled'
+        | 'failed'
+        | 'cleanup-failed';
     } & {
       [key: string]: unknown;
     };
@@ -10819,6 +10934,288 @@ export interface operations {
       };
       /** @description Expired, incomplete, wrong-purpose, or invalid offset upload */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
+  nativeUploadStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Owner-only state without filesystem paths or credentials */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['NativeUploadStatusDTO'];
+        };
+      };
+      /** @description Unauthenticated */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Unknown upload or different owner */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
+  receiveNativeUpload: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Exactly the admitted expectedBytes; no Transfer-Encoding or compressed body. */
+        'Content-Length': number;
+      };
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/octet-stream': string;
+      };
+    };
+    responses: {
+      /** @description Exact size/digest checked and file synced; ready for a separate importer */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['StagedUploadCompleteResultDTO'];
+        };
+      };
+      /** @description Invalid metadata or stream headers */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Unauthenticated */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Permission denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Unknown upload or different owner */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description 120 seconds without byte progress or flush completion */
+      408: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description State, target, pending-file, length or digest mismatch */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Purpose or stream byte ceiling exceeded */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Admission or active-writer capacity reached */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Write, sync or cleanup failure */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Native staging recovery unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Insufficient staging space */
+      507: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
+  beginNativeUpload: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['NativeUploadBeginRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Private native slot admitted */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['NativeUploadBeginResultDTO'];
+        };
+      };
+      /** @description Invalid metadata or stream headers */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Unauthenticated */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Permission denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Unknown upload or different owner */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description State, target, pending-file, length or digest mismatch */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Purpose or stream byte ceiling exceeded */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Admission or active-writer capacity reached */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Write, sync or cleanup failure */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Native staging recovery unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description Insufficient staging space */
+      507: {
         headers: {
           [name: string]: unknown;
         };

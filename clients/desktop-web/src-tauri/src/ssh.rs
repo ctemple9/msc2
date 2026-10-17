@@ -261,6 +261,7 @@ pub fn ssh_tunnel_start(
     manager: tauri::State<'_, SshTunnelManager>,
     request: SshTunnelRequest,
 ) -> Result<SshTunnelStatus, String> {
+    let _authorization_change = crate::native_transfer::changing_authorization(&request.host_id);
     manager.start(request)
 }
 
@@ -277,6 +278,7 @@ pub fn ssh_tunnel_retry(
     manager: tauri::State<'_, SshTunnelManager>,
     host_id: String,
 ) -> Result<SshTunnelStatus, String> {
+    let _authorization_change = crate::native_transfer::changing_authorization(host_id.trim());
     manager.retry(host_id.trim())
 }
 
@@ -285,6 +287,7 @@ pub fn ssh_tunnel_stop(
     manager: tauri::State<'_, SshTunnelManager>,
     host_id: String,
 ) -> Result<SshTunnelStatus, String> {
+    let _authorization_change = crate::native_transfer::changing_authorization(host_id.trim());
     manager.stop(host_id.trim())
 }
 

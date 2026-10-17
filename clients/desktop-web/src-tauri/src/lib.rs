@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 #[cfg(any(not(target_os = "linux"), debug_assertions, test))]
 use std::sync::Mutex;
 
+mod native_transfer;
 mod ssh;
 mod uninstall;
 mod update;
@@ -237,12 +238,14 @@ async fn desktop_exchange_pairing(
         base_url,
         token: result.token,
     };
+    let _authorization_change = native_transfer::changing_authorization(&result.agent_host_id);
     desktop_secret_store()?
         .set(
             &credential_key(&result.agent_host_id),
             &serde_json::to_string(&record).expect("desktop credential serializes"),
         )
         .map_err(|error| error.to_string())?;
+
     let _ = result.expires_at;
     Ok(DesktopPairingResult {
         agent_host_id: result.agent_host_id,
@@ -296,12 +299,14 @@ async fn desktop_automate_remote_pairing(
         base_url,
         token: credential.token,
     };
+    let _authorization_change = native_transfer::changing_authorization(&credential.agent_host_id);
     desktop_secret_store()?
         .set(
             &credential_key(&credential.agent_host_id),
             &serde_json::to_string(&record).expect("desktop credential serializes"),
         )
         .map_err(|error| error.to_string())?;
+
     Ok(DesktopRemotePairingResult {
         state: "paired",
         agent_host_id: Some(credential.agent_host_id),
@@ -425,6 +430,7 @@ fn desktop_forget_credentials(request: ForgetDesktopCredentialsRequest) -> Resul
     for host_id in request.host_ids {
         let host_id = host_id.trim();
         if !host_id.is_empty() {
+            let _authorization_change = native_transfer::changing_authorization(host_id);
             store
                 .delete(&credential_key(host_id))
                 .map_err(|error| error.to_string())?;
@@ -435,6 +441,7 @@ fn desktop_forget_credentials(request: ForgetDesktopCredentialsRequest) -> Resul
             .get(LOCAL_HOST_ID_KEY)
             .map_err(|error| error.to_string())?
         {
+            let _authorization_change = native_transfer::changing_authorization(&local_host_id);
             store
                 .delete(&credential_key(&local_host_id))
                 .map_err(|error| error.to_string())?;
@@ -539,12 +546,14 @@ fn bootstrap_local_macos() -> Result<DesktopPairingResult, String> {
         base_url: "http://127.0.0.1:48001".to_string(),
         token,
     };
+    let _authorization_change = native_transfer::changing_authorization(&host_id);
     store
         .set(
             &credential_key(&host_id),
             &serde_json::to_string(&record).expect("desktop credential serializes"),
         )
         .map_err(|error| error.to_string())?;
+
     store
         .set(LOCAL_HOST_ID_KEY, &host_id)
         .map_err(|error| error.to_string())?;
@@ -672,6 +681,7 @@ async fn desktop_authorized_request(request: DesktopRequest) -> Result<DesktopRe
     if status == reqwest::StatusCode::UNAUTHORIZED && !update::health_trial() {
         // A revoked or expired credential must not linger locally after the
         // agent has authoritatively rejected it.
+        let _authorization_change = native_transfer::changing_authorization(&request.agent_host_id);
         store.delete(&key).map_err(|error| error.to_string())?;
     }
     Ok(DesktopResponse {
@@ -776,12 +786,14 @@ async fn desktop_probe_host_route(
         base_url,
         token: record.token,
     };
+    let _authorization_change = native_transfer::changing_authorization(&request.agent_host_id);
     store
         .set(
             &key,
             &serde_json::to_string(&updated).expect("desktop credential serializes"),
         )
         .map_err(|error| error.to_string())?;
+
     Ok(DesktopRouteProbeResult {
         reachable: true,
         status: Some(status.as_u16()),
@@ -1785,7 +1797,12 @@ pub fn run() {
     update::report_desktop_update_ready(false);
 
     tauri::Builder::default()
-        .on_page_load(|_webview, payload| {
+        .on_page_load(|webview, payload| {
+            if webview.label() == "main"
+                && payload.event() == tauri::webview::PageLoadEvent::Started
+            {
+                native_transfer::invalidate_all();
+            }
             // Windows waits for the mounted client shell, not HTML loading.
             #[cfg(not(target_os = "windows"))]
             update::report_desktop_update_ready(
@@ -1794,11 +1811,21 @@ pub fn run() {
             #[cfg(target_os = "windows")]
             let _ = payload;
         })
+        .on_window_event(|window, event| {
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
+                native_transfer::invalidate_all();
+            }
+        })
         .manage(ssh::SshTunnelManager::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
+            native_transfer::pick_upload_source,
+            native_transfer::release_upload_source,
+            native_transfer::start_native_upload,
+            native_transfer::wait_native_upload,
+            native_transfer::cancel_native_upload,
             desktop_report_update_ready,
             desktop_exchange_pairing,
             desktop_automate_remote_pairing,

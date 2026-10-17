@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** P20.2 agent streamed-upload receipt implemented; awaiting
-owner verification before P20.3. Native desktop sending remains planned.
+**Current priority:** P20.3 native desktop sending implemented; awaiting owner
+verification before P20.4. Screen integration remains planned for P20.6.
 
 Historical implementation and published release records were reconciled and
 moved to [the archive](rolling-plan-archive.md) at Cameron's October 16 request.
@@ -17,8 +17,8 @@ not in this implementation queue.
 
 ## Phase 20 — Faster native file imports and uploads
 
-**Execution state:** Owner authorized P20.1 and P20.2 on October 16. Agent stream
-receipt and contract recorded; owner verification pending. Later steps remain planned.
+**Execution state:** Owner authorized P20.1–P20.3 on October 16. Contract, agent
+receipt and native desktop sender implemented; owner verification pending. Later steps remain planned.
 No upload code is included in the XboxBroadcast release.
 **Contract and gate:** [Native transfer plan](uploads/native-transfer-plan.md).
 Preserve archive/integrity checks and source data; measure speed rather than
@@ -46,10 +46,10 @@ Complete connected-host transfer/resume remains [deferred](deferred-work.md).
 
 ### P20.3 — Stream selected files from the native desktop
 
-**Status:** Planned.
-**Files:** Native transfer module and command registration under `clients/desktop-web/src-tauri/src/`; native auth/host transport integration; `clients/desktop-web/src/lib/auth/desktop.ts`, `platform/tauri.ts`, `platform/types.ts`, `api/client.ts`; focused transport tests; this plan.
+**Status:** Implemented; awaiting owner verification.
+**Files:** Native transfer module and command registration under `clients/desktop-web/src-tauri/src/`; native auth/host transport integration; `clients/desktop-web/src/lib/auth/desktop.ts`, `platform/tauri.ts`, `platform/types.ts`, `api/client.ts`; focused transport tests; generated API types; narrow agent capability/permission integration corrections; `docs/msc2/uploads/native-transfer-plan.md`; this plan.
 **What:** Keep selected source bytes in Rust. Start a host-bound native operation using a scoped picker handle, reuse its HTTP client/connection pool, resolve credentials and service readiness once, and stream directly with backpressure and rate/byte progress events. Handle cancellation, revoked credentials, host switching, disconnect and restart without redirecting requests or exposing tokens. New agents use P20.2; older agents use native bounded chunks without JavaScript byte arrays. Reject incompatible hosts before copying. Preserve the generic request bridge for ordinary API calls; do not silently change unrelated authentication behavior.
-**Verify:** `cargo clippy --manifest-path clients/desktop-web/src-tauri/Cargo.toml --lib -- -D warnings -A needless_borrow -A needless_borrows_for_generic_args -A needless_return`
+**Verify:** `cargo clippy --manifest-path clients/desktop-web/src-tauri/Cargo.toml --lib -- -D warnings -A clippy::needless_borrow -A clippy::needless_borrows_for_generic_args -A clippy::needless_return`
 **Batch:** P20.3 only; depends on P20.2 verification unless included in a newly authorized batch.
 **Commit:** `P20.3: stream file uploads through native desktop operations`
 

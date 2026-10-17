@@ -50,10 +50,12 @@ pub async fn capabilities(
             .ensure_root(networking.lifecycle.servers_root())
             .await;
     let mut result = capabilities_for_query(credential, networking, Query(query)).await;
-    if available {
+    if permitted {
         result.0.native_transfers = Some(msc_api::dto::NativeTransfersDto {
             protocol: 1,
-            stream_upload: true,
+            // Omission means an older agent. Explicit false prevents a newer
+            // client from bypassing unavailable native staging via fallback.
+            stream_upload: available,
             local_handoff: false,
             server_archive: false,
         });

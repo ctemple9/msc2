@@ -230,3 +230,6 @@ async function bodyBytes(body: BodyInit | null | undefined): Promise<Uint8Array 
   if (body instanceof Uint8Array) return body;
   return new Uint8Array(await new Response(body).arrayBuffer());
 }
+
+// File transport has its own native operation boundary; ordinary requests keep their existing bridge.
+export { loadTauriNativeFileUploader } from './native-transfer';

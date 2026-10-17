@@ -1,3 +1,5 @@
+import type { components } from '../api/generated';
+
 export type PlatformKind = 'tauri';
 
 export interface PickedFile {
@@ -11,6 +13,63 @@ export interface FileChunkSource {
   readonly size: number;
   readChunk(offset: number, maxBytes: number): Promise<Uint8Array>;
   close(): Promise<void>;
+}
+
+/** A picker capability, never a local path or a JavaScript byte reader. */
+export interface NativeUploadBinding {
+  readonly agentHostId: string;
+  readonly purpose: components['schemas']['StagedUploadBeginRequestDTO']['purpose'];
+  readonly targetServerId?: string | null;
+  readonly operationId?: string | null;
+  readonly fileId?: string | null;
+}
+export interface NativeFilePickerRequest extends FilePickerRequest {
+  readonly binding: NativeUploadBinding;
+}
+export interface NativeFileDescriptor {
+  readonly sourceId: string;
+  readonly binding: NativeUploadBinding;
+  readonly name: string;
+  readonly size: number;
+  readonly expiresInSeconds: number;
+}
+export interface NativeFileSource extends NativeFileDescriptor {
+  readonly kind: 'native';
+  close(): Promise<void>;
+}
+export type NativeUploadTransportKind = 'stream' | 'legacy-chunks' | 'legacy-buffered-agent';
+export interface NativeUploadProgress {
+  readonly operationId: string;
+  readonly agentHostId: string;
+  readonly phase:
+    'preparing' | 'transferring' | 'verifying' | 'cancelling' | 'complete' | 'cancelled' | 'failed';
+  readonly bytesTransferred: number;
+  readonly totalBytes: number;
+  readonly bytesPerSecond: number;
+  readonly transport: NativeUploadTransportKind | null;
+}
+export interface NativeUploadResult {
+  readonly operationId: string;
+  readonly agentHostId: string;
+  readonly stagedUploadId: string;
+  readonly receivedBytes: number;
+  readonly sha256: string;
+  readonly transport: NativeUploadTransportKind;
+}
+export interface NativeUploadFailure {
+  readonly code: string;
+  readonly message: string;
+  readonly cleanup: 'not-admitted' | 'confirmed' | 'unconfirmed';
+  readonly agentHostId?: string;
+  readonly operationId?: string;
+  readonly stagedUploadId?: string;
+}
+export interface NativeUploadOptions {
+  readonly signal?: AbortSignal;
+  readonly onProgress?: (progress: NativeUploadProgress) => void;
+}
+export interface NativeFileUploader {
+  upload(source: NativeFileSource, options?: NativeUploadOptions): Promise<NativeUploadResult>;
 }
 
 export interface FileUploadProgress {
@@ -118,6 +177,7 @@ export interface PlatformAdapter {
   readFileStream?(path: string): Promise<FileChunkSource>;
   pickFile(request: FilePickerRequest): Promise<PickedFile | null>;
   pickFileStream(request: FilePickerRequest): Promise<FileChunkSource | null>;
+  pickNativeFile?(request: NativeFilePickerRequest): Promise<NativeFileSource | null>;
   notify(notification: DesktopNotification): Promise<void>;
   showMenu(entries: readonly MenuEntry[]): Promise<void>;
   closeWindow(): Promise<void>;
@@ -149,6 +209,7 @@ export interface TauriPlatformDependencies {
   readFile?(path: string): Promise<Uint8Array>;
   pickFile(request: FilePickerRequest): Promise<PickedFile | null>;
   pickFileStream?(request: FilePickerRequest): Promise<FileChunkSource | null>;
+  pickNativeFile?(request: NativeFilePickerRequest): Promise<NativeFileSource | null>;
   readFileStream?(path: string): Promise<FileChunkSource>;
   notify(notification: DesktopNotification): Promise<void>;
   showMenu(entries: readonly MenuEntry[]): Promise<void>;

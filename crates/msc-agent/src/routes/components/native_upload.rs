@@ -384,13 +384,24 @@ fn file_size(path: &Path) -> std::io::Result<u64> {
     }
 }
 
-fn purpose_permission(purpose: StagedUploadPurposeDto) -> PermissionCategoryDto {
-    match purpose {
+fn purpose_allowed(purpose: StagedUploadPurposeDto, credential: &AuthenticatedCredential) -> bool {
+    let allowed: &[PermissionCategoryDto] = match purpose {
         StagedUploadPurposeDto::WorldImport
         | StagedUploadPurposeDto::ActiveWorldReplace
-        | StagedUploadPurposeDto::WorldThumbnail => PermissionCategoryDto::Worlds,
-        _ => PermissionCategoryDto::Addons,
-    }
+        | StagedUploadPurposeDto::WorldThumbnail => &[PermissionCategoryDto::Worlds],
+        // This staging purpose serves both add-ons and world packs. The consumer
+        // still enforces its own permission before installing anything.
+        StagedUploadPurposeDto::AddonLocalFile => {
+            &[PermissionCategoryDto::Addons, PermissionCategoryDto::Worlds]
+        }
+        _ => &[PermissionCategoryDto::Addons],
+    };
+    credential
+        .permissions
+        .contains(&PermissionCategoryDto::Admin)
+        || allowed
+            .iter()
+            .any(|permission| credential.permissions.contains(permission))
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -462,9 +473,13 @@ async fn admit_inner(
     credential: AuthenticatedCredential,
     body: Admission,
 ) -> Response {
-    let permission = purpose_permission(body.purpose);
-    if let Some(response) = require_permission(&credential, permission) {
-        return response;
+    let purpose = body.purpose;
+    if !purpose_allowed(purpose, &credential) {
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "forbidden",
+            "This token is not allowed to perform that action.",
+        );
     }
     let servers_root = state.lifecycle.servers_root();
     if !state.staging.native.ensure_root(servers_root.clone()).await {
@@ -752,7 +767,7 @@ async fn admit_inner(
         done,
         cleanup_error: Mutex::new(None),
         binding_valid: Box::new(move |credential| {
-            credential.permissions.contains(&permission)
+            purpose_allowed(purpose, credential)
                 && lifecycle.servers_root() == servers_root
                 && target.as_ref().is_none_or(|id| {
                     lifecycle.app_config_snapshot().active_server_id.as_ref() == Some(id)

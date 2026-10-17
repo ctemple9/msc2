@@ -1,7 +1,7 @@
 # Native file imports and uploads — Phase 20 plan
 
-**State:** P20.2 agent stream receipt implemented October 16, 2026; owner verification
-pending. Native desktop sending and local handoff remain planned. These changes
+**State:** P20.3 native desktop sender implemented October 16, 2026; owner verification
+pending. Local handoff and screen integration remain planned. These changes
 are not included in the published XboxBroadcast release. Active step fields and
 execution boundaries live in [rolling-plan.md](../rolling-plan.md).
 
@@ -236,8 +236,10 @@ error response; status and cleanup outcome remain inspectable after reconnect.
 expectedBytes, expiry and cleanup error, never a path or credential.
 
 Native fallback uses sequential existing chunks only for world-import,
-active-world-replace and modpack-archive. Honor returned maxChunkBytes; missing
-field means 2 MiB, never guess 8 MiB. Other purposes use the existing whole-body
+active-world-replace and modpack-archive. Honor returned maxChunkBytes; a missing
+field means 2 MiB only for legacy modpacks. Reject legacy world admission without
+that field before reading bytes, preserving the existing world-support check.
+The native sender caps its own chunk at 1 MiB, never guessing 8 MiB. Other purposes use the existing whole-body
 PUT via a bounded native request stream within the advertised ceiling, explicitly
 reporting that the older agent buffers receipt. Do not pretend old-server memory
 is bounded. Remote folders/server archives require serverArchive capability;
@@ -429,3 +431,101 @@ compilation. No test was executed.
 Owner physical checks, focused test execution if requested, throughput/RSS and
 end-to-end desktop acceptance remain pending. No CI/release workflow was changed,
 no release was run, and no phase gate or step verification was closed here.
+
+## P20.3 implementation record
+
+The desktop exposes a separate native picker and upload operation. Existing
+screens keep their uploader until P20.6; same-computer sources still use HTTP
+until P20.4. No paths, file bytes, bearer tokens or arbitrary destination URLs
+cross the new JavaScript API. The caller supplies host, purpose and optional
+target/pending-file identities:
+
+```ts
+const source = await platform.pickNativeFile?.({
+  label: 'Choose world ZIP',
+  extensions: ['zip'],
+  binding: { agentHostId: client.host, purpose: 'world-import', targetServerId: server.id },
+});
+if (source) await client.stagedUploadNative(source, { signal, onProgress });
+```
+
+Rust retains a read-only file descriptor behind a single-use opaque handle.
+The descriptor and selected path must still identify the original regular file,
+length and modification time before and after sending. Final symlinks, Windows
+reparse points and devices are rejected. The source is never moved, deleted,
+rewritten or given different permissions. At most sixteen unused handles expire
+after five minutes, with a thirty-second native reaper. Identity checks detect
+replacement and ordinary edits; they are not an atomic filesystem snapshot
+against deliberate timestamp restoration. The sender hashes the actual bytes
+and compares the agent's exact length and SHA-256 before returning a staging ID.
+
+Each operation resolves its credential and local service readiness once, then
+retains that origin/token and a process-wide pooled HTTP client with redirects
+disabled. Capabilities and admission precede source reads. Protocol 1 sends one
+exact-length HTTP body using 256 KiB reads and HTTP backpressure. Older agents
+use sequential native chunks for world/modpack archives, capped at 1 MiB and
+the advertised limit. Other existing purposes use a bounded native request stream
+but report `legacy-buffered-agent`: those agents still buffer receipt. Unsupported
+native protocols and explicit `streamUpload: false` reject without fallback.
+Missing world chunk support also rejects before reading. Ordinary API calls
+retain their generic request bridge.
+
+There are at most two active operations globally and one per initiating host.
+Metadata responses are capped at 256 KiB. Upload duration has no overall request
+timeout; connection, control requests, source reads and cleanup have separate
+bounds. Long active uploads are not limited by a short control timeout.
+Progress carries identity, phase, counts, average rate and transport mode.
+Ordinary events are limited to four per second; phase/terminal events are
+immediate. Stream counts mean bytes supplied to HTTP, not remote durable
+acknowledgements. Legacy chunk counts follow acknowledgements. Completion means
+verified staging, not finished archive validation/extraction or installation.
+The webview filters progress using both initiating host and operation identity.
+Changing the visible host cannot redirect an operation; screen callers retain
+an AbortSignal to cancel their own work when closing.
+
+The source handle also names the operation, allowing cancellation before a start
+reply arrives or recovery when that reply is lost. Cancellation atomically
+retires an unused selection or signals its worker and waits for cleanup. A
+verified completed result wins late cancellation. Credential replacement or
+forgetting, authoritative 401 responses, SSH route start/retry/stop and main-window
+reload invalidate affected work. Cleanup uses the original origin/token, never
+the newly selected host. Failures distinguish no admission, confirmed cleanup
+and unconfirmed cleanup, carrying original host/operation/staging IDs when known.
+Interrupted admission with a lost slot ID cannot claim cleanup confirmation.
+Process restart does not resume operations; agent staging recovery handles
+abandoned receipts.
+
+Two integration corrections preserve existing behavior. A new agent with
+unavailable staging now advertises explicit `streamUpload: false`, preventing
+accidental old-agent fallback. Shared `addon-local-file` admission accepts Addons
+or Worlds permission because it also serves world packs; existing consumer routes
+still require the respective installation permission. Admin continues to satisfy
+admission and subsequent binding checks. Generated TypeScript API types now
+reflect the P20.2 OpenAPI additions.
+
+### Essential checks and remaining acceptance
+
+Three Rust cases protect single-use/host/concurrency boundaries, source
+substitution/edits and cancellation before startup/host invalidation. Three
+transport cases protect metadata-only multi-gigabyte selection, foreign progress
+and delayed cleanup, and lost-start-reply recovery with late completion. Existing
+upload coverage did not protect this new native IPC lifecycle. Inputs are tiny
+owned temporary files or controlled promises, without live servers, sleeps or
+large allocations. Expected runtime is below one second per case excluding
+compilation; this is an estimate. No tests were executed.
+
+Implementation checks passed: desktop and agent Clippy, Rust formatting,
+Svelte/TypeScript checking (zero errors; eleven existing warnings in untouched
+screens), and desktop Rust test-harness compilation with `cargo rustc --lib
+--profile test -- --emit=metadata`. Windows source-opening/identity helpers were
+separately compiled with Clippy against locked windows-sys metadata for
+`x86_64-pc-windows-msvc`. This is not a complete Windows app build or OS-dialog
+runtime check. Full Windows linking remains subject to the unavailable MSVC C
+headers recorded in P20.2. Physical cancellation, service restart, throughput
+and memory measurements remain owner acceptance work; compilation does not
+establish a speed improvement or close the phase gate.
+
+The P20.3 Verify command now qualifies its existing three lint allowances with
+`clippy::`; unqualified names are deprecated and fail under `-D warnings`.
+Allowances and scope are otherwise unchanged. No release workflow changed and
+no beta was published.

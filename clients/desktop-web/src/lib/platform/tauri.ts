@@ -5,6 +5,9 @@ import type {
   FilePickerRequest,
   FileChunkSource,
   MenuEntry,
+  NativeFilePickerRequest,
+  NativeFileDescriptor,
+  NativeFileSource,
   PickedFile,
   PlatformAdapter,
   TauriPlatformDependencies,
@@ -36,6 +39,11 @@ export function createTauriPlatform(dependencies: TauriPlatformDependencies): Pl
       return dependencies.readFileStream(path);
     },
     pickFile: (request) => dependencies.pickFile(request),
+    pickNativeFile: (request) => {
+      if (!dependencies.pickNativeFile)
+        throw new Error('Native file selection is unavailable in this desktop build.');
+      return dependencies.pickNativeFile(request);
+    },
     pickFileStream: (request) => {
       if (!dependencies.pickFileStream)
         throw new Error('Streaming file reads are unavailable in this desktop build.');
@@ -98,6 +106,18 @@ export async function loadTauriPlatform(): Promise<PlatformAdapter> {
   ]);
 
   return createTauriPlatform({
+    async pickNativeFile(request: NativeFilePickerRequest): Promise<NativeFileSource | null> {
+      const source = await invoke<NativeFileDescriptor | null>('pick_upload_source', { request });
+      if (!source) return null;
+      const agentHostId = source.binding.agentHostId;
+      const sourceId = source.sourceId;
+      return Object.freeze({
+        ...source,
+        binding: Object.freeze({ ...source.binding }),
+        kind: 'native' as const,
+        close: () => invoke<void>('release_upload_source', { agentHostId, sourceId }),
+      });
+    },
     async pickFolder(label: string): Promise<string | null> {
       const picked = await open({
         title: label,

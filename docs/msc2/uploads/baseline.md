@@ -4,6 +4,9 @@ Recorded October 16, 2026. **All physical measurements pending.** P20.1 inspecte
 source and locked APIs only; no test, benchmark, build or import was run. No
 speedup is claimed. Run this record against the current installed app first,
 then repeat with the matching P20.7 native candidate. Keep source files unchanged.
+The October 17 [candidate and acceptance handoff](acceptance.md) records artifact
+identity, installation/rollback and outstanding safety/platform observations;
+no physical baseline or candidate measurement has been supplied yet.
 
 ## Identify the run
 
@@ -96,9 +99,9 @@ separately. Keep all output artifacts outside the repository.
    three observed runs and report each, not only the fastest. Do not repeat a
    release workflow to obtain a benchmark build.
 
-P20.7 native progress must expose transfer/copy bytes and elapsed time separately
-from verifying, inspection, extraction and provider installation. Before that
-instrumentation exists, unavailable stage measurements remain pending. No
+The native candidate exposes transfer/copy progress separately from verifying,
+inspection and installation. Record elapsed stage times externally where the UI
+does not expose them; unavailable boundaries remain combined/unknown. No
 current CLI command exposes all these stage timings; a fabricated benchmark
 command would hide that limitation. The UI procedure above measures actual
 current behavior. Copy commands establish an independent throughput reference.
@@ -115,7 +118,7 @@ parallel activities as elapsed time.
 | Current representative pack | pending | pending | pending | pending | pending | pending | pending | pending |
 | Current raw folder/ZIP | pending | pending | pending | pending | pending | pending | pending | pending |
 | Current MSC transfer/export | pending | pending | pending | pending | pending | pending | pending | pending |
-| Native candidate, same inputs | pending P20.7 | pending | pending | pending | pending | pending | pending | pending |
+| Native candidate, same inputs | candidate prepared; measurements pending | pending | pending | pending | pending | pending | pending | pending |
 
 Record observed source preservation, correct destination host, cancellation and
 partial cleanup separately in P20.7 acceptance. Do not deliberately corrupt or

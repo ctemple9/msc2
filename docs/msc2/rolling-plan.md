@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** P20.6 native import-screen progress and cancellation implemented;
-awaiting owner verification. P20.7 measurement and physical acceptance remain planned.
+**Current priority:** P20.7 native candidate and acceptance handoff prepared;
+awaiting owner verification, physical measurements and independent Phase 20 review.
 
 Historical implementation and published release records were reconciled and
 moved to [the archive](rolling-plan-archive.md) at Cameron's October 16 request.
@@ -17,9 +17,11 @@ not in this implementation queue.
 
 ## Phase 20 — Faster native file imports and uploads
 
-**Execution state:** Owner authorized P20.1–P20.3 on October 16 and P20.4–P20.6 on October 17.
+**Execution state:** Owner authorized P20.1–P20.3 on October 16 and P20.4–P20.7 on October 17.
 Contract, receipt, native desktop sender, local handoff and server import/export
-adapters and import-screen wiring implemented; owner verification pending. P20.7 remains planned.
+adapters and import-screen wiring implemented; native candidate and
+[acceptance handoff](uploads/acceptance.md) prepared. Owner step verification,
+physical measurements and independent Phase 20 review remain pending.
 No upload code is included in the XboxBroadcast release.
 **Contract and gate:** [Native transfer plan](uploads/native-transfer-plan.md).
 Preserve archive/integrity checks and source data; measure speed rather than
@@ -83,7 +85,7 @@ Complete connected-host transfer/resume remains [deferred](deferred-work.md).
 
 ### P20.7 — Prepare owner acceptance and record measured improvements
 
-**Status:** Planned.
+**Status:** Implemented; awaiting owner verification and physical acceptance.
 **Files:** Phase 20 measurement/acceptance record and installation guidance under `docs/msc2/uploads/`; this plan. Generated artifacts remain uncommitted.
 **What:** Build a matching native candidate using existing packaging and give Cameron exact artifact/install instructions. Compare the same approximately 8 GB world, representative pack and server sources against P20.1, including direct-copy/network baselines and peak memory. Record local same-volume/cross-volume and available remote/platform observations, plus cancellation, truncated/corrupt input, wrong-host rejection and old-agent fallback. Keep unavailable physical results pending; name remaining bottlenecks without claiming an unmeasured factor. Hand the feature gate to the other agent after owner verification. No automatic test suite, release publication, new CI gate or repeated full release run.
 **Verify:** `cargo build --locked -p msc-agent --bin msc`

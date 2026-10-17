@@ -1,7 +1,9 @@
 # Native file imports and uploads — Phase 20 plan
 
-**State:** P20.6 native import-screen wiring/progress implemented October 17, 2026;
-owner verification pending. P20.7 measurement and physical acceptance remain planned. These changes
+**State:** P20.1–P20.7 implementation and native candidate handoff prepared
+October 17, 2026; owner step verification, physical measurements and independent
+review remain pending. See [acceptance.md](acceptance.md) for the exact candidate
+and open observations. These changes
 are not included in the published XboxBroadcast release. Active step fields and
 execution boundaries live in [rolling-plan.md](../rolling-plan.md).
 

@@ -47,6 +47,6 @@ pub mod storage;
 pub use storage::*;
 
 pub use storage::{
-    StorageCandidateDto, StorageCandidatesDto, StorageCleanupRequestDto, StorageOutcomeDto,
-    StorageReviewDto, StorageReviewRequestDto, StorageReviewedResultDto,
+    StorageCandidateDto, StorageCandidatesDto, StorageOutcomeDto, StorageReviewDto,
+    StorageReviewRequestDto, StorageReviewedCleanupRequestDto, StorageReviewedResultDto,
 };

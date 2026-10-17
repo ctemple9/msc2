@@ -2297,6 +2297,7 @@ pub(crate) async fn storage_candidates(
         };
         let eligible = storage_eligible(&session);
         let path = session.upload.path.parent().unwrap().to_path_buf();
+        let volume_path = path.parent().unwrap_or(&path).to_path_buf();
         let measured = if eligible {
             tokio::task::spawn_blocking(move || {
                 msc_infrastructure::storage::observe_tree(&path, &|| false)
@@ -2308,6 +2309,7 @@ pub(crate) async fn storage_candidates(
             None
         };
         result.push(super::storage_cleanup::Entry {
+            volume_path,
             id: format!("upload:{id}"),
             label: "Private upload staging".into(),
             bytes: measured.as_ref().map(|m| m.0),

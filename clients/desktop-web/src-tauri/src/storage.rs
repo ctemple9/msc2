@@ -51,7 +51,7 @@ pub struct RemoteRequest {
     pub action: String,
     pub operation_id: Option<String>,
     pub selection: Option<msc_api::dto::StorageReviewRequestDto>,
-    pub cleanup: Option<msc_api::dto::StorageCleanupRequestDto>,
+    pub cleanup: Option<msc_api::dto::StorageReviewedCleanupRequestDto>,
 }
 
 fn root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -438,9 +438,7 @@ pub async fn storage_cached(
 }
 
 async fn bounded(mut response: reqwest::Response) -> Result<serde_json::Value, String> {
-    if !response.status().is_success() {
-        return Err(format!("Storage request refused ({})", response.status()));
-    }
+    let status = response.status();
     if response.content_length().is_some_and(|n| n > CACHE_LIMIT) {
         return Err("Storage response too large".into());
     }
@@ -450,6 +448,16 @@ async fn bounded(mut response: reqwest::Response) -> Result<serde_json::Value, S
             return Err("Storage response exceeds metadata budget".into());
         }
         bytes.extend_from_slice(&chunk);
+    }
+    if !status.is_success() {
+        let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or_default();
+        let message = value["message"]
+            .as_str()
+            .unwrap_or("Computer unavailable or this agent does not support the storage request");
+        return Err(format!(
+            "Storage request refused ({status}): {}",
+            message.chars().take(2000).collect::<String>()
+        ));
     }
     serde_json::from_slice(&bytes).map_err(|e| e.to_string())
 }

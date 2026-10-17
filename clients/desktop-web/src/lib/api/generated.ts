@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 164890c4a1666040823dce853e2c12e7d5cc3ec480b6c04dccc035075edb72b5
+// Contract SHA-256: 9a348eccd3e7e82d77d5c4646feb186ebee57fe22a40397ac61ab90b13cfeb37
 
 export interface paths {
   '/v1/active-server': {
@@ -2988,7 +2988,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          'application/json': components['schemas']['StorageCleanupRequestDTO'];
+          'application/json': components['schemas']['StorageReviewedCleanupRequestDTO'];
         };
       };
       responses: {
@@ -9886,7 +9886,9 @@ export interface components {
       id: string;
       label: string;
       logicalBytes: number | null;
+      reason: string;
       removable: boolean;
+      serverId: string | null;
     } & {
       [key: string]: unknown;
     };
@@ -9894,6 +9896,7 @@ export interface components {
       action: string;
       category: string;
       hostId: string;
+      items: components['schemas']['StorageCandidateDTO'][];
     } & {
       [key: string]: unknown;
     };
@@ -9918,7 +9921,6 @@ export interface components {
       [key: string]: unknown;
     };
     StorageCleanupRequestDTO: {
-      hostId: string;
       previewToken: string;
     } & {
       [key: string]: unknown;
@@ -9935,12 +9937,14 @@ export interface components {
       cacheCleanup: boolean;
       protocol: number;
       scan: boolean;
+      serverDataCleanup: boolean;
     } & {
       [key: string]: unknown;
     };
     StorageInventoryDTO: {
       historical: boolean;
       hostId: string;
+      nextCursor: string | null;
       protocol: number;
       snapshot: components['schemas']['StorageSnapshotDTO'];
       totalItems: number;
@@ -9948,6 +9952,7 @@ export interface components {
       [key: string]: unknown;
     };
     StorageIssueDTO: {
+      reason: string;
       rootId: string | null;
     } & {
       [key: string]: unknown;
@@ -9965,6 +9970,7 @@ export interface components {
       logicalBytes: number;
       partial: boolean;
       physicalRootId: string;
+      protection: string;
       rootId: string;
       serverId: string | null;
       sharedReferences: number;
@@ -9975,6 +9981,7 @@ export interface components {
     StorageOutcomeDTO: {
       id: string;
       label: string;
+      message: string;
       removedLogicalBytes: number | null;
       state: string;
     } & {
@@ -9982,6 +9989,7 @@ export interface components {
     };
     StorageProgressDTO: {
       entries: number;
+      logicalBytesVisited: number;
       rootsCompleted: number;
     } & {
       [key: string]: unknown;
@@ -9992,6 +10000,14 @@ export interface components {
       confirmation: string;
       expiresInSeconds: number;
       hostId: string;
+      items: components['schemas']['StorageCandidateDTO'][];
+      previewToken: string;
+    } & {
+      [key: string]: unknown;
+    };
+    StorageReviewedCleanupRequestDTO: {
+      confirmation: string;
+      hostId: string;
       previewToken: string;
     } & {
       [key: string]: unknown;
@@ -10000,8 +10016,10 @@ export interface components {
       availableBytes: number | null;
       hostId: string;
       items: components['schemas']['StorageOutcomeDTO'][];
+      observedAt: number;
       operationId: string;
       state: string;
+      volumes: components['schemas']['StorageVolumeDTO'][];
     } & {
       [key: string]: unknown;
     };
@@ -10009,11 +10027,13 @@ export interface components {
       action: string;
       category: string;
       hostId: string;
+      itemIds: string[];
     } & {
       [key: string]: unknown;
     };
     StorageScanDTO: {
       hostId: string;
+      message: string | null;
       operationId: string;
       progress: components['schemas']['StorageProgressDTO'];
       snapshotId: string | null;
@@ -10032,6 +10052,7 @@ export interface components {
       items: components['schemas']['StorageItemDTO'][];
       logicalBytes: number;
       partial: boolean;
+      progress: components['schemas']['StorageProgressDTO'];
       rootIdentity: string;
       schemaVersion: number;
       startedAt: number;
@@ -10045,6 +10066,7 @@ export interface components {
       label: string;
       observedAt: number;
       physicalId: string;
+      problem: string | null;
       totalBytes: number | null;
     } & {
       [key: string]: unknown;

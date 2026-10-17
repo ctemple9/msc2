@@ -158,6 +158,7 @@ pub(super) fn candidates(
             }
             result.push(Candidate {
                 item: msc_api::dto::StorageCandidateDto {
+                    server_id: Some(server.id.clone()),
                     id,
                     label: format!("{} · {label}", server.display_name),
                     display_path: Some(path.display().to_string()),

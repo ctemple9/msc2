@@ -110,6 +110,7 @@ pub struct StorageInventoryCapabilityDto {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StorageCandidateDto {
+    pub server_id: Option<String>,
     pub consequences: Vec<String>,
     pub id: String,
     pub label: String,
@@ -151,7 +152,7 @@ pub struct StorageReviewDto {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct StorageCleanupRequestDto {
+pub struct StorageReviewedCleanupRequestDto {
     pub host_id: String,
     pub preview_token: String,
     pub confirmation: String,
@@ -170,6 +171,8 @@ pub struct StorageOutcomeDto {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StorageReviewedResultDto {
+    #[serde(default)]
+    pub volumes: Vec<StorageVolumeDto>,
     pub host_id: String,
     pub operation_id: String,
     pub state: String,

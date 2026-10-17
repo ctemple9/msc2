@@ -2,8 +2,8 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.6 are implemented, awaiting owner verification; P21.7–P21.8
-are authorized for sequential execution with verification deferred until the end.
+Phase 21 P21.1–P21.7 are implemented, awaiting owner verification; P21.8
+is authorized for sequential execution with verification deferred until the end.
 P21.1 visual acceptance remains pending.
 Independent Phase 20 gate review remains in [pending acceptance](pending-acceptance.md).
 
@@ -38,7 +38,7 @@ is separate from that closure; no earlier unobserved check is promoted to Pass.
 ## Phase 21 — Storage inventory and management
 
 **Planning state:** Owner requested PLAN on October 16 after discussing the
-screen and cleanup behavior. P21.1–P21.6 are implemented and awaiting owner
+screen and cleanup behavior. P21.1–P21.7 are implemented and awaiting owner
 verification/review. Cameron explicitly authorized P21.3–P21.8 to execute in
 sequence with one commit per step and verification deferred until the end.
 This also authorizes the P21.1-based UI implementation; visual acceptance remains
@@ -171,12 +171,14 @@ continuous deep scan or broad test matrix is implied.
 
 ### P21.7 — Build the Settings Storage overview and management screens
 
-**Status:** Planned.
+**Status:** Implemented; awaiting owner verification.
 **Files:** `clients/desktop-web/src/lib/sections/app-settings/AppSettingsSheet.svelte`, `StorageCleanup.svelte` or its replacement Storage view; host/category/server detail and removal review components under that section; shared host/storage state and existing backup/world/server confirmation components; focused UI behavior cases; this plan.
 **What:** Implement the P21.1 reviewed screens using existing design tokens and `antiAIslop.md`: saved-computer overview, host totals/category rows, largest-first servers and their detail, specific category actions, and separate consequential removal reviews. Keep computer identity visible throughout reviews, neutral flat rows with right-aligned sizes and one restrained proportional bar. Show partial/unknown allocation, multi-volume capacity, dated offline data, scan progress/cancel/refresh and truthful cleanup results. Retain navigation state while host-bound operations run; a closed sheet or changed selected server must not redirect actions/results. Require explicit scans before stale offline items become actionable. Display current app/agent/in-use tools as protected inventory with appropriate existing management links, not deletion buttons. Keep safe map cleanup reachable during migration and provide a clear unsupported-agent state. No decorative status dots, gradients or nested cards.
 **Verify:** `npm --prefix clients/desktop-web run check`
 **Batch:** P21.7 only; depends on P21.6 and Cameron's P21.1 visual review unless included in a newly authorized batch.
 **Commit:** `P21.7: add settings storage inventory and management`
+
+**Implementation:** Settings now opens a cached-computer Storage overview, per-computer categories/volumes, largest-first servers, grouped server detail, exact selections and typed removal reviews. Refresh is explicit per computer; desktop measurement remains independent of agent availability. Host-bound pending operations survive closing the sheet, do not redirect when another computer is selected, pause status polling on disconnect and offer explicit status/cancel. Removal disables further action until refresh. Remote paths have no local reveal control; protected app/agent/tools show existing management locations. Earlier map cleanup stays available in a separately labelled disclosure. Added server IDs to candidate display metadata to scope server-detail selections. Fixed the schema generator's omitted last DTO field and kept legacy map request/result schemas distinct from reviewed cleanup. Final cleanup inspection also refuses nested mount/volume boundaries and unresolvable relative helper references; outcomes sample each affected volume separately (removed/unavailable sources retain unknown capacity). Required Svelte check passed with only ten pre-existing unused-style warnings; agent/native Clippy passed. No test suites ran. Browser skill connection returned no available browser; actual rendered screenshots and visual acceptance remain pending, not asserted from source inspection.
 
 ### P21.8 — Prepare storage acceptance and record owner observations
 

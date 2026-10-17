@@ -274,7 +274,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/StorageCleanupRequestDTO"
+                "$ref": "#/components/schemas/StorageReviewedCleanupRequestDTO"
               }
             }
           }
@@ -8588,9 +8588,34 @@
   },
   "components": {
     "schemas": {
+      "StorageReviewedCleanupRequestDTO": {
+        "type": "object",
+        "properties": {
+          "hostId": {
+            "type": "string"
+          },
+          "previewToken": {
+            "type": "string"
+          },
+          "confirmation": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "hostId",
+          "previewToken",
+          "confirmation"
+        ]
+      },
       "StorageReviewedResultDTO": {
         "type": "object",
         "properties": {
+          "volumes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StorageVolumeDTO"
+            }
+          },
           "hostId": {
             "type": "string"
           },
@@ -8610,14 +8635,20 @@
             "type": "integer",
             "minimum": 0,
             "nullable": true
+          },
+          "observedAt": {
+            "type": "integer",
+            "minimum": 0
           }
         },
         "required": [
+          "volumes",
           "hostId",
           "operationId",
           "state",
           "items",
-          "availableBytes"
+          "availableBytes",
+          "observedAt"
         ]
       },
       "StorageOutcomeDTO": {
@@ -8636,13 +8667,17 @@
             "type": "integer",
             "minimum": 0,
             "nullable": true
+          },
+          "message": {
+            "type": "string"
           }
         },
         "required": [
           "id",
           "label",
           "state",
-          "removedLogicalBytes"
+          "removedLogicalBytes",
+          "message"
         ]
       },
       "StorageReviewDTO": {
@@ -8666,6 +8701,12 @@
           },
           "confirmation": {
             "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StorageCandidateDTO"
+            }
           }
         },
         "required": [
@@ -8674,7 +8715,8 @@
           "action",
           "previewToken",
           "expiresInSeconds",
-          "confirmation"
+          "confirmation",
+          "items"
         ]
       },
       "StorageReviewRequestDTO": {
@@ -8688,12 +8730,19 @@
           },
           "action": {
             "type": "string"
+          },
+          "itemIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
           "hostId",
           "category",
-          "action"
+          "action",
+          "itemIds"
         ]
       },
       "StorageCandidatesDTO": {
@@ -8707,17 +8756,28 @@
           },
           "action": {
             "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StorageCandidateDTO"
+            }
           }
         },
         "required": [
           "hostId",
           "category",
-          "action"
+          "action",
+          "items"
         ]
       },
       "StorageCandidateDTO": {
         "type": "object",
         "properties": {
+          "serverId": {
+            "type": "string",
+            "nullable": true
+          },
           "consequences": {
             "type": "array",
             "items": {
@@ -8741,15 +8801,20 @@
           },
           "removable": {
             "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
           }
         },
         "required": [
+          "serverId",
           "consequences",
           "id",
           "label",
           "displayPath",
           "logicalBytes",
-          "removable"
+          "removable",
+          "reason"
         ]
       },
       "StorageInventoryCapabilityDTO": {
@@ -8764,12 +8829,16 @@
           },
           "cacheCleanup": {
             "type": "boolean"
+          },
+          "serverDataCleanup": {
+            "type": "boolean"
           }
         },
         "required": [
           "protocol",
           "scan",
-          "cacheCleanup"
+          "cacheCleanup",
+          "serverDataCleanup"
         ]
       },
       "StorageScanDTO": {
@@ -8790,6 +8859,10 @@
           "snapshotId": {
             "type": "string",
             "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
           }
         },
         "required": [
@@ -8797,7 +8870,8 @@
           "operationId",
           "state",
           "progress",
-          "snapshotId"
+          "snapshotId",
+          "message"
         ]
       },
       "StorageInventoryDTO": {
@@ -8820,6 +8894,10 @@
           "totalItems": {
             "type": "integer",
             "minimum": 0
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
           }
         },
         "required": [
@@ -8827,7 +8905,8 @@
           "hostId",
           "historical",
           "snapshot",
-          "totalItems"
+          "totalItems",
+          "nextCursor"
         ]
       },
       "StorageSnapshotDTO": {
@@ -8889,6 +8968,9 @@
             "items": {
               "$ref": "#/components/schemas/StorageIssueDTO"
             }
+          },
+          "progress": {
+            "$ref": "#/components/schemas/StorageProgressDTO"
           }
         },
         "required": [
@@ -8905,7 +8987,8 @@
           "allocatedBytes",
           "items",
           "volumes",
-          "issues"
+          "issues",
+          "progress"
         ]
       },
       "StorageProgressDTO": {
@@ -8918,11 +9001,16 @@
           "entries": {
             "type": "integer",
             "minimum": 0
+          },
+          "logicalBytesVisited": {
+            "type": "integer",
+            "minimum": 0
           }
         },
         "required": [
           "rootsCompleted",
-          "entries"
+          "entries",
+          "logicalBytesVisited"
         ]
       },
       "StorageIssueDTO": {
@@ -8931,10 +9019,14 @@
           "rootId": {
             "type": "string",
             "nullable": true
+          },
+          "reason": {
+            "type": "string"
           }
         },
         "required": [
-          "rootId"
+          "rootId",
+          "reason"
         ]
       },
       "StorageVolumeDTO": {
@@ -8962,6 +9054,10 @@
           "observedAt": {
             "type": "integer",
             "minimum": 0
+          },
+          "problem": {
+            "type": "string",
+            "nullable": true
           }
         },
         "required": [
@@ -8970,7 +9066,8 @@
           "label",
           "totalBytes",
           "availableBytes",
-          "observedAt"
+          "observedAt",
+          "problem"
         ]
       },
       "StorageItemDTO": {
@@ -9031,6 +9128,9 @@
           },
           "hasHardLinks": {
             "type": "boolean"
+          },
+          "protection": {
+            "type": "string"
           }
         },
         "required": [
@@ -9049,7 +9149,8 @@
           "partial",
           "absent",
           "sharedReferences",
-          "hasHardLinks"
+          "hasHardLinks",
+          "protection"
         ]
       },
       "StorageCleanupEntryDTO": {
@@ -9115,18 +9216,15 @@
       },
       "StorageCleanupRequestDTO": {
         "type": "object",
+        "required": [
+          "previewToken"
+        ],
         "properties": {
-          "hostId": {
-            "type": "string"
-          },
           "previewToken": {
             "type": "string"
           }
         },
-        "required": [
-          "hostId",
-          "previewToken"
-        ]
+        "additionalProperties": false
       },
       "StorageCleanupResultDTO": {
         "type": "object",

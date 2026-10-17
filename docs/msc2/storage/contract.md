@@ -404,3 +404,29 @@ slot remain protected; a running server must be stopped explicitly beforehand.
 Overlapping registered server directories cannot be removed here. Admin remains
 the existing full-access permission; Worlds/Fleet checks use the same helper as
 the established routes. No full uninstall action is reachable from this protocol.
+
+### P21.7 desktop integration
+
+MSC Settings → Manage Storage opens the saved-computer overview. Entry reads
+bounded cached summaries only; a chosen computer reads its full dated cache.
+Refresh starts explicit work only for that computer. A verified local agent is
+combined with the desktop footprint; remote sizes and volumes stay on their
+original computer. No remote path opens in the desktop file manager.
+
+Server detail scopes candidate display by the existing `serverId`. Reviews keep
+their own computer identity and exact selected IDs through submission. Pending
+cleanup IDs survive sheet closure/restart as non-secret client metadata; results
+remain owned by the agent journal. Status polling pauses after a disconnected
+request and needs an explicit status check. Closing a sheet never resubmits a
+removal. A completed/partial cleanup invalidates actionable inventory until the
+owner explicitly refreshes that computer.
+
+Reviewed results add `volumes`: each affected volume is sampled separately after
+an item boundary. Unknown/removed source identity returns unknown capacity,
+never zero. The older single `availableBytes` field explicitly describes only
+the agent data volume. Neither observation is attributed to MSC as space freed.
+
+The additive schema generator now includes the final field of every Rust DTO.
+Earlier map cleanup keeps `StorageCleanupRequestDTO`/`StorageCleanupResultDTO`;
+the reviewed protocol uses `StorageReviewedCleanupRequestDTO` and
+`StorageReviewedResultDTO` to preserve that compatibility.

@@ -29,7 +29,7 @@ def shape(kind):
     return {"$ref": "#/components/schemas/" + kind.removesuffix("Dto") + "DTO"}
 
 for name, body in re.findall(r"pub struct (Storage\w+Dto) \{(.*?)\n\}", source, re.S):
-    fields = re.findall(r"pub (\w+): (.*?),\n", body)
+    fields = re.findall(r"pub (\w+): ([^\n]+),", body)
     schemas[name.removesuffix("Dto") + "DTO"] = {
         "type": "object", "properties": {camel(n): shape(t) for n, t in fields},
         "required": [camel(n) for n, _ in fields],
@@ -60,7 +60,7 @@ for suffix, method, name, result in [
 for suffix, method, result, body in [
     ("candidates","get","StorageCandidatesDTO",None),
     ("reviews","post","StorageReviewDTO","StorageReviewRequestDTO"),
-    ("cleanups","post",None,"StorageCleanupRequestDTO"),
+    ("cleanups","post",None,"StorageReviewedCleanupRequestDTO"),
     ("cleanups/{id}","get","StorageReviewedResultDTO",None),
 ]:
     operation={"summary":"Reviewed host storage " + suffix,"x-permission-category":"admin","responses":{}}

@@ -2,8 +2,8 @@
 use super::*;
 use axum::extract::{Path, Query};
 use msc_api::dto::{
-    StorageCandidateDto as Item, StorageCandidatesDto, StorageCleanupRequestDto, StorageOutcomeDto,
-    StorageReviewDto, StorageReviewRequestDto, StorageReviewedResultDto,
+    StorageCandidateDto as Item, StorageCandidatesDto, StorageOutcomeDto, StorageReviewDto,
+    StorageReviewRequestDto, StorageReviewedCleanupRequestDto, StorageReviewedResultDto,
 };
 use msc_infrastructure::storage;
 use std::collections::{BTreeMap, HashSet};
@@ -54,6 +54,7 @@ fn candidate(
 ) -> Candidate {
     Candidate {
         item: Item {
+            server_id: None,
             consequences: vec![],
             id: storage::identity(&[host, kind, id]),
             label,
@@ -310,7 +311,7 @@ fn persist(result: &StorageReviewedResultDto) -> Result<(), String> {
 pub(super) async fn apply(
     State(state): State<StorageState>,
     Extension(credential): Extension<AuthenticatedCredential>,
-    Json(body): Json<StorageCleanupRequestDto>,
+    Json(body): Json<StorageReviewedCleanupRequestDto>,
 ) -> Response {
     let host = match host(&state, &credential) {
         Ok(h) => h,
@@ -361,6 +362,7 @@ pub(super) async fn apply(
     };
     let id = operation.as_str().to_string();
     let mut result = StorageReviewedResultDto {
+        volumes: vec![],
         host_id: host.clone(),
         operation_id: id.clone(),
         state: "running".into(),
@@ -409,6 +411,13 @@ pub(super) async fn apply(
                 result.state = "interrupted".into();
                 break;
             }
+            let volume_path = match &candidate.owner {
+                Owner::Map(_) => map_staging::cleanup_root(),
+                Owner::Transfer(e) => e.volume_path.clone(),
+                Owner::Build(b) => b.root.clone(),
+                Owner::Data(d) => d.server_dir.clone(),
+            };
+            let before_volume = storage::inspect_volume(&host, &volume_path).ok();
             let outcome = match candidate.owner {
                 Owner::Data(data) => {
                     let host = host.clone();
@@ -443,6 +452,26 @@ pub(super) async fn apply(
                         .unwrap_or_else(|e| Err(e.to_string()))
                 }
             };
+            if let Some(mut volume) = before_volume {
+                match storage::inspect_volume(&host, &volume_path) {
+                    Ok(after) if after.physical_id == volume.physical_id => volume = after,
+                    _ => {
+                        volume.available_bytes = None;
+                        volume.total_bytes = None;
+                        volume.observed_at = storage::now();
+                        volume.problem = Some(
+                            "Affected source was removed or changed; fresh capacity is unknown"
+                                .into(),
+                        );
+                    }
+                }
+                if let Ok(dto) = serde_json::from_value::<msc_api::dto::StorageVolumeDto>(
+                    serde_json::to_value(volume).unwrap_or_default(),
+                ) {
+                    result.volumes.retain(|v| v.physical_id != dto.physical_id);
+                    result.volumes.push(dto);
+                }
+            }
             let item = &mut result.items[index];
             match outcome {
                 Ok(bytes) => {

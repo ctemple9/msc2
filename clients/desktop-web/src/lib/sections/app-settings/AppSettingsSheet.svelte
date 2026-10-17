@@ -20,7 +20,8 @@
   // the app-level settings are intentionally small and concrete.
   import { onDestroy, onMount } from 'svelte';
   import Sheet from '../../components/base/Sheet.svelte';
-  import StorageCleanup from './StorageCleanup.svelte';
+  import StorageView from './StorageView.svelte';
+  let showStorage = false;
   import Card from '../../components/base/Card.svelte';
   import Button from '../../components/base/Button.svelte';
   import Toggle from '../../components/base/Toggle.svelte';
@@ -396,386 +397,418 @@
 
 <Sheet title="MSC Settings" size="md" {onClose}>
   <div class="settings">
-    <section class="zone">
-      <p class="msc2-type-overline">Updates</p>
-      <Card padding="0">
-        <div class="update-block">
-          <div class="row update-summary">
-            <div class="row-text">
-              <span class="name">MSC 2</span>
-              <span class="hint">Installed bundle v{bundleIdentity.version}</span>
-            </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={updateState === 'checking' || updateState === 'installing'}
-              onclick={() => void checkForUpdates()}
-              >{updateState === 'checking'
-                ? 'Checking…'
-                : updateState === 'installing'
-                  ? 'Installing…'
-                  : 'Check for updates'}</Button
-            >
-          </div>
-
-          {#if hostId !== 'local-agent'}
-            <p class="update-boundary">
-              The selected host is remote. This checks or installs MSC on this desktop only; it does
-              not update the remote host's service.
-            </p>
-          {/if}
-
-          {#if updateState === 'current'}
-            <p class="update-status" role="status">
-              You are up to date{updateResult?.releaseId ? ` · ${updateResult.releaseId}` : ''}.
-            </p>
-          {:else if updateState === 'unavailable'}
-            <p class="update-status" role="status">
-              {updateResult?.detail ||
-                'Native installation is local to the desktop or headless host.'}
-            </p>
-          {:else if updateState === 'available' && updateResult}
-            <div class="update-details" aria-live="polite">
-              <div class="update-detail-row">
-                <span class="name">Available release</span>
-                <span class="release-id mono">{updateResult.releaseId}</span>
+    {#if showStorage}
+      <StorageView
+        {api}
+        {hostName}
+        onBack={() => {
+          showStorage = false;
+        }}
+      />
+    {:else}
+      <section class="zone">
+        <p class="msc2-type-overline">Updates</p>
+        <Card padding="0">
+          <div class="update-block">
+            <div class="row update-summary">
+              <div class="row-text">
+                <span class="name">MSC 2</span>
+                <span class="hint">Installed bundle v{bundleIdentity.version}</span>
               </div>
-              {#if updateResult.installMode}
-                <p class="hint">Installation: {updateResult.installMode}</p>
-              {/if}
-              <p class="hint">{updateResult.detail}</p>
-              {#if updateResult.releaseNotes}
-                <div class="release-notes">
-                  <span class="notes-label">Release notes</span>
-                  <pre>{updateResult.releaseNotes}</pre>
-                </div>
-              {/if}
-              {#if !confirmUpdateInstall}
-                <div class="update-actions">
-                  <Button variant="primary" size="sm" onclick={() => (confirmUpdateInstall = true)}
-                    >Install {updateResult.releaseId}…</Button
-                  >
-                </div>
-              {:else}
-                <div class="update-confirmation" role="alert">
-                  <div class="row-text">
-                    <span class="name">Install this release?</span>
-                    <span class="hint"
-                      >MSC will close, install the already verified release, and relaunch. A failed
-                      replacement can be rolled back.</span
-                    >
-                  </div>
-                  <div class="update-actions">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onclick={() => (confirmUpdateInstall = false)}>Cancel</Button
-                    >
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onclick={() => void installAvailableUpdate()}
-                      >Install {updateResult.releaseId}</Button
-                    >
-                  </div>
-                </div>
-              {/if}
-            </div>
-          {:else if updateState === 'installed'}
-            <p class="update-status" role="status">{updateNotice}</p>
-          {:else if updateState === 'installing'}
-            <p class="update-status" role="status">
-              Installing the verified release locally… MSC 2 will relaunch when the installer
-              finishes.
-            </p>
-          {:else if updateState === 'error'}
-            <p class="update-status error" role="alert">{updateNotice}</p>
-          {:else if updateState === 'idle'}
-            <p class="update-status">
-              Check for a signed release when you are ready. Nothing installs automatically.
-            </p>
-          {/if}
-        </div>
-      </Card>
-    </section>
-
-    <section class="zone">
-      <p class="msc2-type-overline">Performance</p>
-      <Card padding="0">
-        <div class="row">
-          <div class="row-text">
-            <span class="name">Preload tabs</span>
-            <span class="hint">Load available tab code in the background after MSC opens.</span>
-          </div>
-          <Toggle checked={preloadTabs} label="Preload tabs" onchange={updatePreloadTabs} />
-        </div>
-      </Card>
-    </section>
-
-    <section class="zone">
-      <p class="msc2-type-overline">Services</p>
-      <p class="hint">
-        These Xbox Broadcast settings belong to this agent and are shared by every server.
-      </p>
-      <Card padding="0">
-        <div class="service-form">
-          <div class="form-row">
-            <span class="name">Microsoft account email</span>
-            <Field
-              bind:value={broadcastEmail}
-              type="email"
-              width="220px"
-              onblur={() => void saveBroadcastCredentials()}
-              onkeydown={(event) => event.key === 'Enter' && void saveBroadcastCredentials()}
-            />
-          </div>
-          <div class="form-row">
-            <span class="name">Xbox gamertag</span>
-            <Field
-              bind:value={broadcastGamertag}
-              width="220px"
-              onblur={() => void saveBroadcastCredentials()}
-              onkeydown={(event) => event.key === 'Enter' && void saveBroadcastCredentials()}
-            />
-          </div>
-          <div class="form-row">
-            <span class="name">Password</span>
-            <div class="password-control">
-              <Field
-                bind:value={broadcastPassword}
-                type={broadcastPasswordVisible ? 'text' : 'password'}
-                placeholder={broadcastCredentials?.hasPassword ? 'Saved — enter to replace' : ''}
-                width="100%"
-                onblur={() => void saveBroadcastCredentials()}
-                onkeydown={(event) => event.key === 'Enter' && void saveBroadcastCredentials()}
-              />
-              <button
-                type="button"
-                class="visibility-toggle"
-                aria-label={broadcastPasswordVisible ? 'Hide password' : 'Show password'}
-                aria-pressed={broadcastPasswordVisible}
-                title={broadcastPasswordVisible ? 'Hide password' : 'Show password'}
-                onclick={() => (broadcastPasswordVisible = !broadcastPasswordVisible)}
-              >
-                <VisibilityIcon visible={broadcastPasswordVisible} />
-              </button>
-            </div>
-          </div>
-        </div>
-        <div class="row bordered">
-          <div class="row-text">
-            <span class="name">Start Xbox Broadcast automatically</span>
-            <span class="hint">Applies when an eligible server starts.</span>
-          </div>
-          <Toggle
-            checked={broadcastAutostart?.enabled ?? false}
-            label="Start Xbox Broadcast automatically"
-            onchange={updateBroadcastAutostart}
-          />
-        </div>
-        <div class="row bordered">
-          <div class="row-text">
-            <span class="name">Helper JAR</span>
-            <span class="hint"
-              >{broadcastJar?.installed
-                ? (broadcastJar.filename ?? 'Installed')
-                : 'Not installed'}</span
-            >
-          </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={broadcastJarBusy}
-            onclick={downloadBroadcastJar}
-          >
-            {broadcastJarBusy ? 'Downloading…' : broadcastJar?.installed ? 'Update…' : 'Download…'}
-          </Button>
-        </div>
-        <div class="row bordered">
-          <div class="row-text">
-            <span class="name">Xbox account sign-in</span>
-            <span class="hint">{broadcastAccountLabel}</span>
-          </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={broadcastSetupBusy || !activeServerXboxBroadcastEnabled}
-            onclick={() => void startBroadcastSignIn()}
-          >
-            {broadcastSetupBusy
-              ? 'Starting…'
-              : broadcastStatus.authenticated
-                ? 'Check sign-in'
-                : 'Set up…'}
-          </Button>
-        </div>
-      </Card>
-      {#if !activeServerXboxBroadcastEnabled}
-        <p class="hint">Select a server with Xbox Broadcast enabled to set up its account.</p>
-      {/if}
-      {#if broadcastNotice}<p class="hint" role="status">{broadcastNotice}</p>{/if}
-    </section>
-
-    <section class="zone">
-      <p class="msc2-type-overline">Modpack Imports</p>
-      <p class="hint">
-        CurseForge modpacks need an API key to resolve their files. You can create one in the
-        <a href="https://console.curseforge.com/" target="_blank" rel="noreferrer"
-          >CurseForge API Console</a
-        >, or enter it when an import asks for it. The key is stored securely on this agent and is
-        never shown again.
-      </p>
-      <Card padding="0">
-        <div class="row">
-          <div class="row-text">
-            <span class="name">CurseForge API key</span>
-            <span class="hint">{curseforge.configured ? 'Configured' : 'Not configured'}</span>
-          </div>
-          <div class="control">
-            <div class="password-control">
-              <Field
-                bind:value={curseforgeApiKey}
-                type={curseforgeApiKeyVisible ? 'text' : 'password'}
-                placeholder={curseforge.configured ? 'Saved — enter to replace' : 'Paste API key'}
-                width="220px"
-              />
-              <button
-                type="button"
-                class="visibility-toggle"
-                aria-label={curseforgeApiKeyVisible ? 'Hide API key' : 'Show API key'}
-                aria-pressed={curseforgeApiKeyVisible}
-                title={curseforgeApiKeyVisible ? 'Hide API key' : 'Show API key'}
-                onclick={() => (curseforgeApiKeyVisible = !curseforgeApiKeyVisible)}
-              >
-                <VisibilityIcon visible={curseforgeApiKeyVisible} />
-              </button>
-            </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={curseforgeSaving || !curseforgeApiKey.trim()}
-              onclick={() => void saveCurseForgeApiKey()}
-              >{curseforgeSaving ? 'Saving…' : 'Save key'}</Button
-            >
-            {#if curseforge.configured}
               <Button
                 variant="secondary"
                 size="sm"
-                disabled={curseforgeSaving}
-                onclick={() => void saveCurseForgeApiKey('')}>Clear key</Button
-              >
-            {/if}
-          </div>
-        </div>
-      </Card>
-      {#if curseforgeNotice}<p class="hint" role="status">{curseforgeNotice}</p>{/if}
-    </section>
-
-    <section class="zone">
-      <p class="msc2-type-overline">Playit</p>
-      <p class="hint">
-        The Playit account and shared tunnels belong to this agent. Per-server tunnel participation
-        stays under Manage → Services.
-      </p>
-      <Card padding="0">
-        <div class="row">
-          <div class="row-text">
-            <span class="name">Playit account</span>
-            <span class="hint">{playit.hasSecretKey ? 'Configured' : 'Setup required'}</span>
-          </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={!playit.playitEnabled}
-            onclick={() => (showPlayitSetup = true)}
-            >{playit.hasSecretKey ? 'Manage setup…' : 'Set up…'}</Button
-          >
-        </div>
-        {#if playit.javaAddress || playit.bedrockAddress || playit.voiceAddress}
-          <div class="row bordered">
-            <div class="row-text">
-              <span class="name">Shared tunnel addresses</span>
-              <span class="hint mono"
-                >{playit.javaAddress ?? playit.bedrockAddress ?? playit.voiceAddress}</span
+                disabled={updateState === 'checking' || updateState === 'installing'}
+                onclick={() => void checkForUpdates()}
+                >{updateState === 'checking'
+                  ? 'Checking…'
+                  : updateState === 'installing'
+                    ? 'Installing…'
+                    : 'Check for updates'}</Button
               >
             </div>
-          </div>
-        {/if}
-      </Card>
-    </section>
 
-    {#if showDuckDns}
+            {#if hostId !== 'local-agent'}
+              <p class="update-boundary">
+                The selected host is remote. This checks or installs MSC on this desktop only; it
+                does not update the remote host's service.
+              </p>
+            {/if}
+
+            {#if updateState === 'current'}
+              <p class="update-status" role="status">
+                You are up to date{updateResult?.releaseId ? ` · ${updateResult.releaseId}` : ''}.
+              </p>
+            {:else if updateState === 'unavailable'}
+              <p class="update-status" role="status">
+                {updateResult?.detail ||
+                  'Native installation is local to the desktop or headless host.'}
+              </p>
+            {:else if updateState === 'available' && updateResult}
+              <div class="update-details" aria-live="polite">
+                <div class="update-detail-row">
+                  <span class="name">Available release</span>
+                  <span class="release-id mono">{updateResult.releaseId}</span>
+                </div>
+                {#if updateResult.installMode}
+                  <p class="hint">Installation: {updateResult.installMode}</p>
+                {/if}
+                <p class="hint">{updateResult.detail}</p>
+                {#if updateResult.releaseNotes}
+                  <div class="release-notes">
+                    <span class="notes-label">Release notes</span>
+                    <pre>{updateResult.releaseNotes}</pre>
+                  </div>
+                {/if}
+                {#if !confirmUpdateInstall}
+                  <div class="update-actions">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onclick={() => (confirmUpdateInstall = true)}
+                      >Install {updateResult.releaseId}…</Button
+                    >
+                  </div>
+                {:else}
+                  <div class="update-confirmation" role="alert">
+                    <div class="row-text">
+                      <span class="name">Install this release?</span>
+                      <span class="hint"
+                        >MSC will close, install the already verified release, and relaunch. A
+                        failed replacement can be rolled back.</span
+                      >
+                    </div>
+                    <div class="update-actions">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onclick={() => (confirmUpdateInstall = false)}>Cancel</Button
+                      >
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onclick={() => void installAvailableUpdate()}
+                        >Install {updateResult.releaseId}</Button
+                      >
+                    </div>
+                  </div>
+                {/if}
+              </div>
+            {:else if updateState === 'installed'}
+              <p class="update-status" role="status">{updateNotice}</p>
+            {:else if updateState === 'installing'}
+              <p class="update-status" role="status">
+                Installing the verified release locally… MSC 2 will relaunch when the installer
+                finishes.
+              </p>
+            {:else if updateState === 'error'}
+              <p class="update-status error" role="alert">{updateNotice}</p>
+            {:else if updateState === 'idle'}
+              <p class="update-status">
+                Check for a signed release when you are ready. Nothing installs automatically.
+              </p>
+            {/if}
+          </div>
+        </Card>
+      </section>
+
       <section class="zone">
-        <p class="msc2-type-overline">DuckDNS</p>
+        <p class="msc2-type-overline">Performance</p>
+        <Card padding="0">
+          <div class="row">
+            <div class="row-text">
+              <span class="name">Preload tabs</span>
+              <span class="hint">Load available tab code in the background after MSC opens.</span>
+            </div>
+            <Toggle checked={preloadTabs} label="Preload tabs" onchange={updatePreloadTabs} />
+          </div>
+        </Card>
+      </section>
+
+      <section class="zone">
+        <p class="msc2-type-overline">Services</p>
         <p class="hint">
-          This hostname is used for port-forwarded servers that are not using Playit.
+          These Xbox Broadcast settings belong to this agent and are shared by every server.
+        </p>
+        <Card padding="0">
+          <div class="service-form">
+            <div class="form-row">
+              <span class="name">Microsoft account email</span>
+              <Field
+                bind:value={broadcastEmail}
+                type="email"
+                width="220px"
+                onblur={() => void saveBroadcastCredentials()}
+                onkeydown={(event) => event.key === 'Enter' && void saveBroadcastCredentials()}
+              />
+            </div>
+            <div class="form-row">
+              <span class="name">Xbox gamertag</span>
+              <Field
+                bind:value={broadcastGamertag}
+                width="220px"
+                onblur={() => void saveBroadcastCredentials()}
+                onkeydown={(event) => event.key === 'Enter' && void saveBroadcastCredentials()}
+              />
+            </div>
+            <div class="form-row">
+              <span class="name">Password</span>
+              <div class="password-control">
+                <Field
+                  bind:value={broadcastPassword}
+                  type={broadcastPasswordVisible ? 'text' : 'password'}
+                  placeholder={broadcastCredentials?.hasPassword ? 'Saved — enter to replace' : ''}
+                  width="100%"
+                  onblur={() => void saveBroadcastCredentials()}
+                  onkeydown={(event) => event.key === 'Enter' && void saveBroadcastCredentials()}
+                />
+                <button
+                  type="button"
+                  class="visibility-toggle"
+                  aria-label={broadcastPasswordVisible ? 'Hide password' : 'Show password'}
+                  aria-pressed={broadcastPasswordVisible}
+                  title={broadcastPasswordVisible ? 'Hide password' : 'Show password'}
+                  onclick={() => (broadcastPasswordVisible = !broadcastPasswordVisible)}
+                >
+                  <VisibilityIcon visible={broadcastPasswordVisible} />
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="row bordered">
+            <div class="row-text">
+              <span class="name">Start Xbox Broadcast automatically</span>
+              <span class="hint">Applies when an eligible server starts.</span>
+            </div>
+            <Toggle
+              checked={broadcastAutostart?.enabled ?? false}
+              label="Start Xbox Broadcast automatically"
+              onchange={updateBroadcastAutostart}
+            />
+          </div>
+          <div class="row bordered">
+            <div class="row-text">
+              <span class="name">Helper JAR</span>
+              <span class="hint"
+                >{broadcastJar?.installed
+                  ? (broadcastJar.filename ?? 'Installed')
+                  : 'Not installed'}</span
+              >
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={broadcastJarBusy}
+              onclick={downloadBroadcastJar}
+            >
+              {broadcastJarBusy
+                ? 'Downloading…'
+                : broadcastJar?.installed
+                  ? 'Update…'
+                  : 'Download…'}
+            </Button>
+          </div>
+          <div class="row bordered">
+            <div class="row-text">
+              <span class="name">Xbox account sign-in</span>
+              <span class="hint">{broadcastAccountLabel}</span>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={broadcastSetupBusy || !activeServerXboxBroadcastEnabled}
+              onclick={() => void startBroadcastSignIn()}
+            >
+              {broadcastSetupBusy
+                ? 'Starting…'
+                : broadcastStatus.authenticated
+                  ? 'Check sign-in'
+                  : 'Set up…'}
+            </Button>
+          </div>
+        </Card>
+        {#if !activeServerXboxBroadcastEnabled}
+          <p class="hint">Select a server with Xbox Broadcast enabled to set up its account.</p>
+        {/if}
+        {#if broadcastNotice}<p class="hint" role="status">{broadcastNotice}</p>{/if}
+      </section>
+
+      <section class="zone">
+        <p class="msc2-type-overline">Modpack Imports</p>
+        <p class="hint">
+          CurseForge modpacks need an API key to resolve their files. You can create one in the
+          <a href="https://console.curseforge.com/" target="_blank" rel="noreferrer"
+            >CurseForge API Console</a
+          >, or enter it when an import asks for it. The key is stored securely on this agent and is
+          never shown again.
         </p>
         <Card padding="0">
           <div class="row">
-            <span class="name">Hostname</span>
+            <div class="row-text">
+              <span class="name">CurseForge API key</span>
+              <span class="hint">{curseforge.configured ? 'Configured' : 'Not configured'}</span>
+            </div>
             <div class="control">
-              <Field bind:value={duckHost} placeholder="example.duckdns.org" width="220px" />
-              <Button variant="secondary" size="sm" disabled={duckBusy} onclick={saveDuckDns}>
-                {duckBusy ? 'Saving…' : 'Save'}
-              </Button>
-              {#if duckdns.isConfigured}
-                <Button variant="secondary" size="sm" disabled={duckBusy} onclick={removeDuckDns}>
-                  Remove
-                </Button>
+              <div class="password-control">
+                <Field
+                  bind:value={curseforgeApiKey}
+                  type={curseforgeApiKeyVisible ? 'text' : 'password'}
+                  placeholder={curseforge.configured ? 'Saved — enter to replace' : 'Paste API key'}
+                  width="220px"
+                />
+                <button
+                  type="button"
+                  class="visibility-toggle"
+                  aria-label={curseforgeApiKeyVisible ? 'Hide API key' : 'Show API key'}
+                  aria-pressed={curseforgeApiKeyVisible}
+                  title={curseforgeApiKeyVisible ? 'Hide API key' : 'Show API key'}
+                  onclick={() => (curseforgeApiKeyVisible = !curseforgeApiKeyVisible)}
+                >
+                  <VisibilityIcon visible={curseforgeApiKeyVisible} />
+                </button>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={curseforgeSaving || !curseforgeApiKey.trim()}
+                onclick={() => void saveCurseForgeApiKey()}
+                >{curseforgeSaving ? 'Saving…' : 'Save key'}</Button
+              >
+              {#if curseforge.configured}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={curseforgeSaving}
+                  onclick={() => void saveCurseForgeApiKey('')}>Clear key</Button
+                >
               {/if}
             </div>
           </div>
         </Card>
-        {#if duckdnsNotice}<p class="hint" role="status">{duckdnsNotice}</p>{/if}
+        {#if curseforgeNotice}<p class="hint" role="status">{curseforgeNotice}</p>{/if}
+      </section>
+
+      <section class="zone">
+        <p class="msc2-type-overline">Playit</p>
+        <p class="hint">
+          The Playit account and shared tunnels belong to this agent. Per-server tunnel
+          participation stays under Manage → Services.
+        </p>
+        <Card padding="0">
+          <div class="row">
+            <div class="row-text">
+              <span class="name">Playit account</span>
+              <span class="hint">{playit.hasSecretKey ? 'Configured' : 'Setup required'}</span>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={!playit.playitEnabled}
+              onclick={() => (showPlayitSetup = true)}
+              >{playit.hasSecretKey ? 'Manage setup…' : 'Set up…'}</Button
+            >
+          </div>
+          {#if playit.javaAddress || playit.bedrockAddress || playit.voiceAddress}
+            <div class="row bordered">
+              <div class="row-text">
+                <span class="name">Shared tunnel addresses</span>
+                <span class="hint mono"
+                  >{playit.javaAddress ?? playit.bedrockAddress ?? playit.voiceAddress}</span
+                >
+              </div>
+            </div>
+          {/if}
+        </Card>
+      </section>
+
+      {#if showDuckDns}
+        <section class="zone">
+          <p class="msc2-type-overline">DuckDNS</p>
+          <p class="hint">
+            This hostname is used for port-forwarded servers that are not using Playit.
+          </p>
+          <Card padding="0">
+            <div class="row">
+              <span class="name">Hostname</span>
+              <div class="control">
+                <Field bind:value={duckHost} placeholder="example.duckdns.org" width="220px" />
+                <Button variant="secondary" size="sm" disabled={duckBusy} onclick={saveDuckDns}>
+                  {duckBusy ? 'Saving…' : 'Save'}
+                </Button>
+                {#if duckdns.isConfigured}
+                  <Button variant="secondary" size="sm" disabled={duckBusy} onclick={removeDuckDns}>
+                    Remove
+                  </Button>
+                {/if}
+              </div>
+            </div>
+          </Card>
+          {#if duckdnsNotice}<p class="hint" role="status">{duckdnsNotice}</p>{/if}
+        </section>
+      {/if}
+
+      <section class="zone">
+        <p class="msc2-type-overline">Data &amp; Folders</p>
+        <Card padding="0">
+          <div class="row">
+            <div class="row-text">
+              <span class="name">Servers Folder</span>
+              <span class="hint dir">{serversRootPath || 'Loading…'}</span>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={revealBusy || !serversRootPath}
+              onclick={openServersFolder}>Open Server Folder…</Button
+            >
+          </div>
+        </Card>
+        {#if revealNotice}<p class="hint">{revealNotice}</p>{/if}
+      </section>
+
+      <section class="zone">
+        <p class="msc2-type-overline">Storage</p>
+        <Card padding="0"
+          ><div class="row">
+            <div class="row-text">
+              <span class="name">MSC files on your computers</span><span class="hint"
+                >Review dated inventories, measure usage and manage owned files.</span
+              >
+            </div>
+            <Button
+              size="sm"
+              onclick={() => {
+                showStorage = true;
+              }}>Manage Storage…</Button
+            >
+          </div></Card
+        >
+      </section>
+
+      <section class="zone">
+        <p class="msc2-type-overline">Reset and uninstall</p>
+        <Card padding="0">
+          <div class="row">
+            <div class="row-text">
+              <span class="name">Reset MSC</span>
+              <span class="hint"
+                >Choose whether to reset this device or the selected host, then confirm.</span
+              >
+            </div>
+            <Button variant="destructive" size="sm" onclick={onOpenReset}>Reset…</Button>
+          </div>
+          <div class="row">
+            <div class="row-text">
+              <span class="name">Uninstall MSC 2</span>
+              <span class="hint"
+                >Permanently remove this computer's MSC installation, servers, worlds, and backups.</span
+              >
+            </div>
+            <Button variant="destructive" size="sm" onclick={onOpenUninstall}>Uninstall…</Button>
+          </div>
+        </Card>
       </section>
     {/if}
-
-    <section class="zone">
-      <p class="msc2-type-overline">Data &amp; Folders</p>
-      <Card padding="0">
-        <div class="row">
-          <div class="row-text">
-            <span class="name">Servers Folder</span>
-            <span class="hint dir">{serversRootPath || 'Loading…'}</span>
-          </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={revealBusy || !serversRootPath}
-            onclick={openServersFolder}>Open Server Folder…</Button
-          >
-        </div>
-      </Card>
-      {#if revealNotice}<p class="hint">{revealNotice}</p>{/if}
-    </section>
-
-    {#key hostId}
-      <StorageCleanup {api} {hostName} />
-    {/key}
-
-    <section class="zone">
-      <p class="msc2-type-overline">Reset and uninstall</p>
-      <Card padding="0">
-        <div class="row">
-          <div class="row-text">
-            <span class="name">Reset MSC</span>
-            <span class="hint"
-              >Choose whether to reset this device or the selected host, then confirm.</span
-            >
-          </div>
-          <Button variant="destructive" size="sm" onclick={onOpenReset}>Reset…</Button>
-        </div>
-        <div class="row">
-          <div class="row-text">
-            <span class="name">Uninstall MSC 2</span>
-            <span class="hint"
-              >Permanently remove this computer's MSC installation, servers, worlds, and backups.</span
-            >
-          </div>
-          <Button variant="destructive" size="sm" onclick={onOpenUninstall}>Uninstall…</Button>
-        </div>
-      </Card>
-    </section>
   </div>
 </Sheet>
 

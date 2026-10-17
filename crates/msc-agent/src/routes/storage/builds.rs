@@ -30,6 +30,17 @@ fn references(root: &std::path::Path) -> Result<String, String> {
     {
         return Err("Multiple desktop processes may hold older repair sources".into());
     }
+    if processes.lines().any(|line| {
+        let command = line.split_whitespace().next().unwrap_or("");
+        let basename = std::path::Path::new(command)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("");
+        matches!(basename, "msc" | "vantage" | "bedrock-map")
+            && !std::path::Path::new(command).is_absolute()
+    }) {
+        return Err("A relative agent/helper command cannot be bound to an installed build".into());
+    }
     // Installer helpers may hold a fallback path outside the current definition.
     if processes.lines().any(|p| {
         p.contains("msc")

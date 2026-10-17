@@ -919,6 +919,8 @@ pub fn observe_tree(path: &Path, cancelled: &dyn Fn() -> bool) -> io::Result<(u6
         cancelled: &'a dyn Fn() -> bool,
         start: Instant,
         entries: u64,
+        device: u64,
+        mount: u64,
         bytes: u64,
         seen: BTreeSet<Identity>,
         digest: [u8; 32],
@@ -947,6 +949,11 @@ pub fn observe_tree(path: &Path, cancelled: &dyn Fn() -> bool) -> io::Result<(u6
             *slot ^= byte;
         }
         let meta = native::measure(file)?;
+        if meta.identity.0 != observation.device || meta.mount != observation.mount {
+            return Err(io::Error::other(
+                "Cleanup source crosses a volume or mount boundary",
+            ));
+        }
         if !file.metadata()?.is_dir() {
             if !observation.seen.contains(&meta.identity) {
                 if observation.seen.len() >= 100_000 {
@@ -969,10 +976,13 @@ pub fn observe_tree(path: &Path, cancelled: &dyn Fn() -> bool) -> io::Result<(u6
         Ok(())
     }
     let root = native::open(path)?;
+    let root_metadata = native::measure(&root)?;
     let mut observation = Observation {
         cancelled,
         start: Instant::now(),
         entries: 0,
+        device: root_metadata.identity.0,
+        mount: root_metadata.mount,
         bytes: 0,
         seen: BTreeSet::new(),
         digest: [0; 32],
@@ -986,4 +996,32 @@ pub fn observe_tree(path: &Path, cancelled: &dyn Fn() -> bool) -> io::Result<(u6
 
 pub fn open_owned_file(path: &Path) -> io::Result<File> {
     native::open_read(path)
+}
+
+/// A bounded capacity observation, with no traversal and no removal authority.
+pub fn inspect_volume(host: &str, path: &Path) -> io::Result<Volume> {
+    let file = native::open(path)?;
+    let before = native::measure(&file)?;
+    let capacity = fs2::total_space(path)
+        .and_then(|total| fs2::available_space(path).map(|available| (total, available)));
+    let unchanged = native::open(path)
+        .and_then(|f| native::measure(&f))
+        .is_ok_and(|m| m.identity == before.identity && m.mount == before.mount);
+    let (total_bytes, available_bytes, problem) = match capacity {
+        Ok((t, a)) if unchanged => (Some(t), Some(a), None),
+        _ => (
+            None,
+            None,
+            Some("Capacity unavailable or source identity changed".into()),
+        ),
+    };
+    Ok(Volume {
+        id: identity(&[host, &before.identity.0.to_string()]),
+        physical_id: identity(&[&before.identity.0.to_string()]),
+        label: native::volume_label(&file, path),
+        total_bytes,
+        available_bytes,
+        observed_at: now(),
+        problem,
+    })
 }

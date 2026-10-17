@@ -4,6 +4,7 @@ use msc_infrastructure::storage;
 
 #[derive(Clone)]
 pub(crate) struct Entry {
+    pub volume_path: std::path::PathBuf,
     pub id: String,
     pub label: String,
     pub bytes: Option<u64>,
@@ -29,6 +30,7 @@ impl ComponentsRoutesState {
                 .collect::<Vec<_>>()
         };
         for (id, path, inactive) in sources {
+            let volume_path = path.parent().unwrap_or(&path).to_path_buf();
             let measured = if inactive {
                 tokio::task::spawn_blocking(move || storage::observe_tree(&path, &|| false))
                     .await
@@ -38,6 +40,7 @@ impl ComponentsRoutesState {
                 None
             };
             items.push(Entry {
+                volume_path,
                 id: format!("download:{id}"),
                 label: "Prepared download".into(),
                 bytes: measured.as_ref().map(|m| m.0),

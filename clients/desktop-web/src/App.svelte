@@ -317,6 +317,20 @@
     return client;
   }
 
+  let stoppedFolderPrompt: { name: string; resolve: (confirmed: boolean) => void } | undefined;
+
+  function finishStoppedFolderPrompt(confirmed: boolean): void {
+    const prompt = stoppedFolderPrompt;
+    stoppedFolderPrompt = undefined;
+    prompt?.resolve(confirmed);
+  }
+
+  function confirmStoppedFolder(name: string): Promise<boolean> {
+    // A second picker must not strand the first selected source behind a new prompt.
+    finishStoppedFolderPrompt(false);
+    return new Promise((resolve) => (stoppedFolderPrompt = { name, resolve }));
+  }
+
   function createScreenApi(boundClient?: ApiClient): ScreenApi {
     const currentClient = () => boundClient ?? requireClient();
     return {
@@ -364,6 +378,10 @@
           },
         });
         if (!source) return null;
+        if (source.directory && !(await confirmStoppedFolder(source.name))) {
+          await source.close();
+          return null;
+        }
         if (!current()) {
           await source.close();
           throw new Error('The selected host or server changed. Choose the file again.');
@@ -395,6 +413,14 @@
           binding: { agentHostId: initiatingClient.host, purpose },
         });
         if (!source) return null;
+        if (source.directory && !(await confirmStoppedFolder(source.name))) {
+          await source.close();
+          return null;
+        }
+        if (client?.host !== initiatingClient.host) {
+          await source.close();
+          throw new Error('The selected host changed. Choose the folder again.');
+        }
         const result = await initiatingClient.stagedUploadNative(source, options);
         return { ...result, fileName: source.name };
       },
@@ -1134,6 +1160,7 @@
   });
 
   onDestroy(() => {
+    finishStoppedFolderPrompt(false);
     statusMonitor.reset();
     if (statusPollTimer !== undefined) clearInterval(statusPollTimer);
     if (broadcastAuthTimer !== undefined) clearInterval(broadcastAuthTimer);
@@ -1481,6 +1508,25 @@
       resetOpen = true;
     }}
   />
+{/if}
+
+{#if stoppedFolderPrompt}
+  <Sheet
+    title="Import stopped server folder"
+    size="sm"
+    onClose={() => finishStoppedFolderPrompt(false)}
+  >
+    <p>
+      Stop the Minecraft server that owns “{stoppedFolderPrompt.name}” before continuing. MSC will
+      copy the folder and preserve the original.
+    </p>
+    <div class="ssh-password-actions">
+      <Button variant="secondary" onclick={() => finishStoppedFolderPrompt(false)}>Cancel</Button>
+      <Button variant="primary" onclick={() => finishStoppedFolderPrompt(true)}
+        >Source server is stopped</Button
+      >
+    </div>
+  </Sheet>
 {/if}
 
 <style>

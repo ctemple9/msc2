@@ -740,22 +740,31 @@ pub(crate) async fn pick_upload_source(
         }
         if let Some((path, file, identity)) = dropped {
             if request.binding.purpose == Purpose::RawServerArchive
-                && file.metadata().map_err(|_| "Dropped source is unavailable.")?.is_file()
-                && !path.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("zip"))
+                && file
+                    .metadata()
+                    .map_err(|_| "Dropped source is unavailable.")?
+                    .is_file()
+                && !path
+                    .extension()
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("zip"))
             {
-                return Err("Choose a server ZIP, or use Server Transfer for an MSC transfer file.".into());
+                return Err(
+                    "Choose a server ZIP, or use Server Transfer for an MSC transfer file.".into(),
+                );
             }
-            if file.metadata().map_err(|_| "Dropped source is unavailable.")?.is_dir() && !app.dialog().message("Stop the source Minecraft server before importing this folder. Has it stopped?").buttons(tauri_plugin_dialog::MessageDialogButtons::OkCancel).blocking_show() { return Ok(None); }
             let source = Source::open(path, request.binding)?;
-            if source.identity != identity { return Err("The dropped source changed. Drop it again.".into()); }
+            if source.identity != identity {
+                return Err("The dropped source changed. Drop it again.".into());
+            }
             return Ok(Some(source));
         }
         let picked = if request.directory {
-            let result = picker.blocking_pick_folder();
-            if result.is_some() && !app.dialog().message("Stop the Minecraft server that owns this folder before continuing. MSC will copy the folder and preserve the original. Has the source server stopped?").title("Import stopped server folder").buttons(tauri_plugin_dialog::MessageDialogButtons::OkCancel).blocking_show() { return Ok(None); }
-            result
-        } else { picker.blocking_pick_file() };
-        picked.map(|file| {
+            picker.blocking_pick_folder()
+        } else {
+            picker.blocking_pick_file()
+        };
+        picked
+            .map(|file| {
                 let path = file
                     .into_path()
                     .map_err(|_| "The selected source is not a filesystem file.".to_string())?;

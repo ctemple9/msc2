@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** P20.7 native candidate and acceptance handoff prepared;
-awaiting owner verification, physical measurements and independent Phase 20 review.
+**Current priority:** P20.8 icon-free folder confirmation implemented; awaiting
+owner verification. Phase 20 physical acceptance and independent review remain open.
 
 Historical implementation and published release records were reconciled and
 moved to [the archive](rolling-plan-archive.md) at Cameron's October 16 request.
@@ -22,6 +22,7 @@ Contract, receipt, native desktop sender, local handoff and server import/export
 adapters and import-screen wiring implemented; native candidate and
 [acceptance handoff](uploads/acceptance.md) prepared. Owner step verification,
 physical measurements and independent Phase 20 review remain pending.
+P20.8 is an owner-requested acceptance correction; the P20.7 candidate predates it.
 No upload code is included in the XboxBroadcast release.
 **Contract and gate:** [Native transfer plan](uploads/native-transfer-plan.md).
 Preserve archive/integrity checks and source data; measure speed rather than
@@ -91,6 +92,15 @@ Complete connected-host transfer/resume remains [deferred](deferred-work.md).
 **Verify:** `cargo build --locked -p msc-agent --bin msc`
 **Batch:** P20.7 only; depends on P20.6 verification unless included in a newly authorized batch. Physical acceptance is Cameron's separate Verify move.
 **Commit:** `P20.7: document native upload performance and acceptance`
+
+### P20.8 — Remove the system alert icon from folder confirmation
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `clients/desktop-web/src/App.svelte`; `clients/desktop-web/src-tauri/src/native_transfer.rs`; this plan.
+**What:** Owner-requested acceptance correction: replace the native folder warning alert with the existing icon-free MSC sheet for selected and dropped server folders. Keep explicit stopped-source confirmation, release the selected handle on cancellation, and recheck the original host/server before proceeding. No tests added for this reversible presentation change; no tests executed. The existing P20.7 ZIP predates this correction and must be rebuilt to display it.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** P20.8 only.
+**Commit:** `P20.8: use an icon-free server folder confirmation`
 
 ## Phase 21 — Storage inventory and management
 

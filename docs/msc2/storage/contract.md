@@ -229,3 +229,75 @@ No application code, tests or runtime checks are part of P21.1. Documentation
 verification is `git show --check --stat --oneline HEAD`. Physical accounting,
 platform behavior and destructive acceptance remain pending P21.8; a static
 sketch does not verify them. No CI/release gate is added.
+
+
+## P21.2 implementation record — October 17, 2026
+
+The application service now consumes existing read-only uninstall ownership,
+actual decoded configuration, the effective runtime servers root (including
+service overrides), and verified desktop installation paths. Platform package/
+service discovery stays with existing native adapters; no per-file process or
+network work is introduced. Custom registered server roots, configured world
+names, stored slots, backups/companion metadata, server components and residual
+files are partitioned; managed runtimes/helpers/map dependencies, separate agent
+builds and map/upload staging stay host-scoped. Package identities lacking file
+paths produce an explicit coverage issue, not an invented installation size.
+Native composition/package detail remains P21.4. No uninstall executor is used.
+
+The infrastructure walker retains directory handles for child opens and rejects
+links/reparse points and unconfigured volume crossings. Inventory enumeration
+accepts platform-valid names without loosening archive-import name restrictions.
+Unix uses device/inode identities and block allocation; Windows uses volume
+serial/128-bit file identities and handle-reported allocation. Linux mount IDs
+also prevent crossing same-device bind mounts; an unavailable mount identity
+produces partial coverage. Capacity is a dated per-volume sample, not a quota
+guarantee. Totals cover regular-file lengths/allocation; directory metadata,
+link metadata, extended attributes and filesystem-wide overhead are excluded.
+Shared clones/compression/snapshots still prevent an exact reclaimable-space
+promise. Unknown data is visible and every item is protected inventory; this
+step does not decide which staging entries or installations are disposable.
+
+Implemented bounds tighten the specification's upper limits: depth 30 keeps
+retained directory/enumeration handles within 64; 100,000 combined file/directory
+identities bound deduplication memory before the million-entry traversal ceiling.
+Five-minute scans, 512 roots, 1 MiB source metadata, 10,000 aggregate items and an
+8 MiB item-data budget keep growth independent of filesystem size. These are
+structural allocation budgets, not a measured process-RSS guarantee. Limit hits,
+file changes, unreadable entries and unsupported names/identities are partial,
+never complete zero. A native enumeration error can end that directory's listing;
+other configured roots are still visited. Cancellation is checked per entry and
+progress is throttled to twice per second, plus the final observation. No deep
+scan runs on cache reads or a stale-data timer.
+
+Process-wide admission permits one scan per authenticated host identity and two
+hosts in total, even with separate service instances. The service keeps bounded
+latest/last-complete snapshots in memory under host/configuration generation and
+observed root/volume identities. Invalidation/removal cancels old work and rejects
+late cache publication. Results remain explicitly dated; stale means older than
+15 minutes. Durable snapshots, operation journal recovery, HTTP/CLI paging and
+headless expiry are P21.3 responsibilities; no persistence or endpoint is claimed
+here. Creating a generation does not scan file bodies or put secrets into it.
+Discovery performs bounded small properties-file reads and must be invoked by
+future adapters off their UI/async request workers, alongside ownership discovery.
+
+Four essential regression cases use tiny isolated files: disjoint parent/child
+roots with hard links and budget/cancellation boundaries; injected access denial
+with blocked ownership; symlinked roots/ancestors; and end-to-end custom-server
+world/backup attribution excluding external Java. Existing uninstall and source-
+copy cases did not cover these host-accounting failures. Backup companions share
+the archive's inventory ID. Inputs have no live network, sleeping/timing assertions
+or dependence on chmod/root privilege; each is expected below one second beyond
+compilation. The symlink case is Unix-only because Windows link creation can
+require local OS privileges. No tests were run.
+
+Checks: `cargo fmt --all`, the step's required library Clippy command, and
+`cargo rustc --profile check -p msc-infrastructure --lib -- --test --emit=metadata`
+plus the equivalent `msc-application` command. The first metadata attempt used
+the build profile and failed due to missing linkable dependency outputs; the
+check-profile commands compile harness metadata without linking/running tests.
+An isolated temporary crate type-checked the actual shared walker/storage sources
+against installed `x86_64-pc-windows-msvc` Rust and windows-sys 0.61.2; it is not
+a Windows binary or physical platform check. Linux target tooling is absent on
+this Mac, so Linux compilation and all physical platform accounting remain
+pending. No installed service, live server tree or saved-host inventory was
+scanned or changed. P21.1 visual acceptance and the feature gate remain open.

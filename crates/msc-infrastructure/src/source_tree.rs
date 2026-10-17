@@ -141,8 +141,14 @@ pub fn fingerprint(file: &File) -> io::Result<Vec<u8>> {
 }
 
 #[cfg(unix)]
-fn children(
+fn children(root: &File, visit: impl FnMut(&str, File, bool) -> io::Result<()>) -> io::Result<()> {
+    children_with_names(root, true, visit)
+}
+
+#[cfg(unix)]
+fn children_with_names(
     root: &File,
+    portable: bool,
     mut visit: impl FnMut(&str, File, bool) -> io::Result<()>,
 ) -> io::Result<()> {
     use std::{
@@ -201,7 +207,9 @@ fn children(
         let text = name
             .to_str()
             .map_err(|_| invalid("source names must be valid text"))?;
-        portable_name(text)?;
+        if portable {
+            portable_name(text)?;
+        }
         let fd = unsafe {
             libc::openat(
                 root.as_raw_fd(),
@@ -639,4 +647,50 @@ pub fn extract_tar(
         return Err(invalid("dangling extended archive name"));
     }
     Ok(())
+}
+
+// Storage observes metadata through the same retained-handle boundary as imports.
+// It does not apply the archive walk's byte ceilings or produce an archive.
+pub(crate) fn storage_children(
+    directory: &File,
+    visit: impl FnMut(&str, File, bool) -> io::Result<()>,
+) -> io::Result<()> {
+    #[cfg(unix)]
+    {
+        children_with_names(directory, false, visit)
+    }
+    #[cfg(windows)]
+    {
+        windows::storage_children(directory, visit)
+    }
+}
+
+pub(crate) fn storage_child(root: &File, name: &str, directory: bool) -> io::Result<File> {
+    #[cfg(windows)]
+    {
+        windows::child(root, name, directory)
+    }
+    #[cfg(unix)]
+    {
+        use std::os::fd::{AsRawFd, FromRawFd};
+        let name = std::ffi::CString::new(name).map_err(|_| invalid("invalid path component"))?;
+        // SAFETY: root is retained; the single name cannot contain a separator.
+        let fd = unsafe {
+            libc::openat(
+                root.as_raw_fd(),
+                name.as_ptr(),
+                libc::O_RDONLY
+                    | libc::O_NOFOLLOW
+                    | libc::O_NONBLOCK
+                    | libc::O_CLOEXEC
+                    | if directory { libc::O_DIRECTORY } else { 0 },
+            )
+        };
+        if fd < 0 {
+            return Err(io::Error::last_os_error());
+        }
+        let file = unsafe { File::from_raw_fd(fd) };
+        check_kind(&file, directory)?;
+        Ok(file)
+    }
 }

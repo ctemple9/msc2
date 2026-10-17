@@ -346,8 +346,9 @@ acceptance remain required; no test or CI/release gate is added by this plan.
 
 ## Phase 21 — Storage inventory and management
 
-**State:** P21.1 specification implemented, awaiting owner verification and
-sketch/contract review; application implementation unstarted. See the
+**State:** P21.1 specification and P21.2 read-only inventory service implemented,
+awaiting owner verification; P21.1 sketch/contract review remains pending.
+API/CLI and UI implementation are unstarted. See the
 [contract](storage/contract.md), [static sketches](storage/screens.md) and
 [step queue](rolling-plan.md#phase-21--storage-inventory-and-management).
 

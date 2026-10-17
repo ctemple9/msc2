@@ -26,7 +26,7 @@ use windows_sys::{
     },
 };
 
-fn child(root: &File, name: &str, directory: bool) -> io::Result<File> {
+pub(crate) fn child(root: &File, name: &str, directory: bool) -> io::Result<File> {
     let mut wide: Vec<u16> = name.encode_utf16().collect();
     let bytes =
         u16::try_from(wide.len() * 2).map_err(|_| io::Error::other("source name is too long"))?;
@@ -81,6 +81,21 @@ fn child(root: &File, name: &str, directory: bool) -> io::Result<File> {
 
 pub(super) fn children(
     root: &File,
+    visit: impl FnMut(&str, File, bool) -> io::Result<()>,
+) -> io::Result<()> {
+    children_with_names(root, true, visit)
+}
+
+pub(super) fn storage_children(
+    root: &File,
+    visit: impl FnMut(&str, File, bool) -> io::Result<()>,
+) -> io::Result<()> {
+    children_with_names(root, false, visit)
+}
+
+fn children_with_names(
+    root: &File,
+    portable: bool,
     mut visit: impl FnMut(&str, File, bool) -> io::Result<()>,
 ) -> io::Result<()> {
     // Eight-byte alignment covers FILE_ID_BOTH_DIR_INFO. Enumeration retains
@@ -139,7 +154,12 @@ pub(super) fn children(
             let name = String::from_utf16(units)
                 .map_err(|_| io::Error::other("source names must be valid text"))?;
             if name != "." && name != ".." {
-                portable_name(&name)?;
+                if portable {
+                    portable_name(&name)?;
+                }
+                if name.contains(['/', '\\']) {
+                    return Err(io::Error::other("invalid directory child name"));
+                }
                 let directory = entry.FileAttributes & FILE_ATTRIBUTE_DIRECTORY != 0;
                 let file = child(root, &name, directory)?;
                 visit(&name, file, directory)?;

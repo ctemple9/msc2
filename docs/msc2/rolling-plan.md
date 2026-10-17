@@ -2,8 +2,9 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1 specification is implemented, awaiting owner review; storage
-application implementation is unstarted. Independent Phase 20 gate review remains in [pending acceptance](pending-acceptance.md).
+Phase 21 P21.1 specification and P21.2 inventory service are implemented,
+awaiting owner verification; P21.1 sketch/contract review remains pending.
+Independent Phase 20 gate review remains in [pending acceptance](pending-acceptance.md).
 
 Historical implementation and published release records were reconciled and
 moved to [the archive](rolling-plan-archive.md) at Cameron's October 16 request.
@@ -36,9 +37,11 @@ is separate from that closure; no earlier unobserved check is promoted to Pass.
 ## Phase 21 — Storage inventory and management
 
 **Planning state:** Owner requested PLAN on October 16 after discussing the
-screen and cleanup behavior. P21.1 specification is implemented and awaiting
-owner review; P21.2–P21.8 remain unstarted. P21.1 execution authorized documentation only, with no live-host
-scanning, deletion, release or test execution.
+screen and cleanup behavior. P21.1 specification and P21.2 inventory service are
+implemented and awaiting owner verification/review; P21.3–P21.8 remain unstarted.
+Cameron explicitly requested P21.2 execution on October 17. P21.1 visual review
+is still pending and remains a dependency for UI implementation. No live-host
+scanning, deletion, release or test execution was performed.
 Phase 20 implementation records are archived. Before implementing storage,
 reconcile its staging/operation ownership with the actual completed Phase 20
 code; do not build a competing upload/staging registry.
@@ -114,9 +117,10 @@ continuous deep scan or broad test matrix is implied.
 
 ### P21.2 — Measure owned storage with bounded host scans
 
-**Status:** Planned.
-**Files:** A storage inventory service/adapters under `crates/msc-application/src/` and `crates/msc-infrastructure/src/`; platform disk-allocation/capacity adapters as needed in `crates/msc-platform-{macos,windows,linux}/`; existing ownership/root discovery and focused inventory tests; this plan.
+**Status:** Implemented; awaiting owner verification.
+**Files:** `crates/msc-application/src/storage.rs`; `crates/msc-infrastructure/src/storage.rs`, `storage/native.rs`, `source_tree.rs` and `source_tree/windows.rs`; module registration; `docs/msc2/storage/contract.md`; `docs/msc2/msc2-port-plan.md`; this plan.
 **What:** Discover only verified MSC roots/installations and measure them without overlapping parent/child categories, symlink escape, arbitrary external runtime inclusion or duplicate hard-link accounting. Resolve actual agent configuration/custom server roots and separately staged/bundled assets. Attribute per-server worlds/backups/components/logs while keeping shared tools host-scoped. Return logical/allocated accounting basis, per-volume capacity, scan time/progress and partial errors; retain unknown data as visible, protected inventory. Use bounded cancellable background traversal with limited concurrency and no heavy process/network calls per file. Cache completed/partial results under host/root identity and avoid filesystem-sized memory. Extend only essential controlled-input coverage for overlapping roots, inaccessible data and link boundaries; document runtime, compile without running tests.
+**Implementation:** Added discovery from read-only uninstall ownership plus actual decoded configuration/effective server root; disjoint root/category measurement; regular-file logical/allocation totals; native volume/file identities and capacity samples; conservative partial coverage; bounded background scan admission, cancellation/progress and generation-scoped in-memory cache. Shared retained-handle enumeration preserves importer name restrictions while inventory accepts platform-valid names. All inventory remains protected; API/CLI, durable snapshots and cleanup integration belong to later steps. Four essential tiny-file regression cases protect overlap/hard-link accounting, denied/blocked roots, symlink escape and custom-root/world/backup attribution with external Java excluded; under one second each expected, controlled inputs and injected denial, no network/sleeps. Compiled regression harnesses as metadata only. Formatting and required Clippy passed; isolated shared-source Windows adapter type-check passed. No tests/live scans; Linux build and physical platform/accounting acceptance remain pending. See contract implementation notes for bounds and accounting limits.
 **Verify:** `cargo clippy -p msc-application -p msc-infrastructure --lib -- -D warnings`
 **Batch:** P21.2 only; depends on P21.1 review/verification unless a later explicit batch includes both.
 **Commit:** `P21.2: inventory owned storage with bounded scans`

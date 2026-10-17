@@ -14063,5 +14063,38 @@
         ]
       }
     }
+  },
+  "x-native-transfer-contract": {
+    "status": "specified-not-implemented",
+    "contract": "../uploads/native-transfer-plan.md#p201-implementation-contract",
+    "capability": {
+      "field": "nativeTransfers",
+      "protocol": 1,
+      "flags": [
+        "streamUpload",
+        "localHandoff",
+        "serverArchive"
+      ],
+      "absentMeans": "legacy fallback; no support assumed",
+      "minimumAgent": "first implementation advertising protocol 1; shipped version pending P20.7"
+    },
+    "endpoints": [
+      {
+        "method": "POST",
+        "path": "/v1/staged-uploads/stream",
+        "purpose": "admit exact-length authenticated owner-bound stream; 201 slot plus streamPath"
+      },
+      {
+        "method": "PUT",
+        "path": "/v1/staged-uploads/{id}/stream",
+        "purpose": "receive identity-encoded octet stream; exact Content-Length and incremental SHA-256; existing completion DTO"
+      },
+      {
+        "method": "GET",
+        "path": "/v1/staged-uploads/{id}/status",
+        "purpose": "owner-only state, byte counts, expiry and cleanup outcome"
+      }
+    ],
+    "compatibility": "Existing staging/chunk endpoints unchanged. This extension is planning metadata, not a supported paths entry."
   }
 }

@@ -1,8 +1,7 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** Plan faster native file imports/uploads, then execute one
-owner-selected step per conversation. No upload implementation is authorized
-by the October 16 PLAN request.
+**Current priority:** P20.1 contract and baseline instructions recorded; awaiting
+owner verification before P20.2. No upload implementation has been added.
 
 Historical implementation and published release records were reconciled and
 moved to [the archive](rolling-plan-archive.md) at Cameron's October 16 request.
@@ -18,8 +17,9 @@ not in this implementation queue.
 
 ## Phase 20 — Faster native file imports and uploads
 
-**Planning state:** Owner requested PLAN on October 16. Review the steps before
-EXECUTE. No upload code is included in the XboxBroadcast release.
+**Execution state:** Owner authorized P20.1 on October 16. Contract and baseline
+instructions recorded; owner verification pending. Later steps remain planned.
+No upload code is included in the XboxBroadcast release.
 **Contract and gate:** [Native transfer plan](uploads/native-transfer-plan.md).
 Preserve archive/integrity checks and source data; measure speed rather than
 promise instant 8 GB imports. UI receives progress, not file bytes. Local
@@ -28,7 +28,7 @@ Complete connected-host transfer/resume remains [deferred](deferred-work.md).
 
 ### P20.1 — Freeze the transfer contract and capture the performance baseline
 
-**Status:** Planned.
+**Status:** Implemented; awaiting owner verification.
 **Files:** `docs/msc2/uploads/native-transfer-plan.md`; a compact owner measurement record under `docs/msc2/uploads/`; API capability/endpoint specification in `docs/msc2/api-contract/openapi.json` and the supported-client capability record if needed; this plan.
 **What:** Inventory every world/modpack/raw-server/MSC-transfer/add-on input and export path, including CLI and current source-path imports. Specify native operation ownership, stream admission, source handles, exact byte/purpose limits, cancellation/cleanup, memory/concurrency budgets and old-agent fallback before code. Give Cameron concrete before/after measurement commands for his approximately 8 GB world, a representative modpack and server folder, separating transfer from validation/extraction/provider work. Record hardware, disk placement, network and cache state; leave unavailable measurements pending rather than inventing results. Confirm current Rust/Tauri APIs from the locked dependencies. No app implementation in this step.
 **Verify:** `git show --check --stat --oneline HEAD`

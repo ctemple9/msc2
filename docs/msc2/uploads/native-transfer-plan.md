@@ -1,6 +1,6 @@
 # Native file imports and uploads — Phase 20 plan
 
-**State:** Planned only, owner requested October 16, 2026. No upload code is
+**State:** P20.1 contract recorded October 16, 2026; owner verification pending. No upload code is
 implemented or included in the XboxBroadcast release. Active step fields and
 execution boundaries live in [rolling-plan.md](../rolling-plan.md).
 
@@ -157,3 +157,174 @@ paired agents, including source locking, persisted resume and registration.
 That feature stays deferred. Phase 20 covers user-selected local input sent to
 one destination, plus supported file import/export plumbing; it may provide a
 reusable native stream but does not claim the complete host-to-host feature.
+
+## P20.1 implementation contract
+
+This section freezes the implementation target, not a claim of shipped support.
+Existing endpoints and approved decisions retain their meaning. P20.2–P20.6
+implement this contract; changes to these bounds must be recorded explicitly.
+Performance observations live in [baseline.md](baseline.md).
+
+### Input/output inventory
+
+Paths below are relative to `clients/desktop-web/src` or the agent route tree.
+The shared `App.svelte` upload adapter reaches `api/client.ts`; changing only
+one sheet would leave other entry points on the expensive path.
+
+| Input/output | Current route and consumer | Phase 20 destination |
+|---|---|---|
+| World ZIP, new-server wizard and Worlds import | staged `world-import`, `/worlds/import`; wizard UploadStep/WorldStep and world sheets | native selection, local copy or remote stream, same importer |
+| Active-world ZIP replacement | staged `active-world-replace`, `/worlds/replace-active` | same transport; retain stopped-target checks and safety backup |
+| World thumbnail | staged `world-thumbnail`, `/worlds/{slot_id}/thumbnail` | native file stream; retain image decoding/resize validation |
+| Modpack ZIP/mrpack, wizard and Add-ons import/replace | staged `modpack-archive`, `/modpacks/inspect`, `/modpacks/import` | inspection and subsequent redemption share verified staging; provider work separate |
+| Author-blocked CurseForge file and unresolved modpack file | staged `curseforge-manual-file` / `modpack-unresolved-file`, pending-file completion routes | native file stream bound to pending operation/file and provider identity |
+| Local mod/plugin, Java datapack, Bedrock pack/add-on | staged `addon-local-file`, component install and world datapack/Bedrock-pack routes | same purpose bound to actual consumer; retain edition/archive checks |
+| Catalog modpack/add-on/datapack/provider downloads | provider URLs fetched by agent | retain agent download; no picker upload or proxy through desktop |
+| Raw server folder/ZIP | `/servers/import` scan/importExisting with agent-local sourcePath; fleet wizard | preserve existing path API; new desktop-selected source uses verified local handoff or staged remote archive |
+| MSC transfer, including MSC 1 export | `/servers/import` importTransfer, `.msctransfer`; TransferSheet | dedicated staged source adapter, preserve merge/replaceAll review and registration |
+| Recovery rescan | `/servers/import` rescan | unchanged; no desktop source upload |
+| World export | `/worlds/export` then `/staged-downloads/{id}` | native download to a selected destination; private partial then rename |
+| Server/MSC-transfer export | `/servers/export` then staged download; TransferSheet currently buffers response | native streamed download; preserve complete server/settings/world/backup set |
+| Client add-on export | `/components/client-export`, staged ZIP or metadata result | stream ZIP when returned; metadata stays ordinary JSON |
+| CLI file/folder import and export | `cli/mod.rs`: stage_file_upload, world archive builder, raw sourcePath imports, get_raw_bytes exports | bounded native reads/writes; preserve D-040 host-local connection and existing commands |
+
+CLI currently buffers several files/exports and builds world folder archives;
+its native implementation is not already a bounded stream. Folder generation
+must enumerate hidden supported files and fail explicitly on unsupported types.
+Existing agent-local sourcePath imports remain authenticated administrative
+operations; the new handoff must not expand that remote path-reading surface.
+
+### Admission, wire shape and compatibility
+
+`GET /v1/capabilities` gains optional `nativeTransfers` only when implemented:
+`{protocol: 1, streamUpload: true, localHandoff: false, serverArchive: false}`.
+The last two become true only when their full paths exist. Omission means old
+agent; false means unavailable. Capability is filtered for the calling token
+and supported client minor. Minimum support is protocol 1 with advertised
+streamUpload, not an invented future release number; record the first shipped
+agent version in P20.7. Never infer support merely from a version string.
+
+Add `POST /v1/staged-uploads/stream` for admission. JSON fields are `purpose`,
+`fileName`, `expectedBytes` (required positive integer), optional
+`expectedSha256` (64 hexadecimal characters), `operationId`, `fileId`, and
+`targetServerId` where the consumer acts on an existing server. Return 201 with
+existing slot identity/expiry/ceiling fields plus `streamPath` and protocol 1.
+Then `PUT /v1/staged-uploads/{id}/stream`, application/octet-stream,
+Content-Length exactly expectedBytes, identity encoding only. Reject body
+before reading if auth, length, purpose, owner, target, expiry or capacity fails.
+Return the existing completion shape only after exact receipt, incremental
+SHA-256, optional digest match and successful file sync. Counting received
+bytes remains mandatory even with Content-Length. No compression, multipart,
+caller-selected filesystem path, URL or redirect is accepted.
+
+Admission binds credential identity, destination host instance, purpose, target
+and pending file identity. World purposes require Worlds; add-on/modpack purposes
+require Addons; server archive purposes require Fleet. Recheck authorization and
+bindings at redemption, including revoked credentials and changed pending files.
+One active writer and one redemption per slot; simultaneous PUT/redeem returns
+409. Existing POST/PUT/chunks behavior remains unchanged for old clients.
+
+Use the existing error envelope: 400 invalid length/digest metadata; 401/403
+auth/permission; 404 unknown slot; 409 wrong binding/state, short input or digest
+mismatch; 413 ceiling/overlong body; 429 capacity; 507 insufficient staging space;
+500 write/sync/cleanup failure. Network disconnect may prevent delivery of an
+error response; status and cleanup outcome remain inspectable after reconnect.
+`GET /v1/staged-uploads/{id}/status` returns owner-only state, receivedBytes,
+expectedBytes, expiry and cleanup error, never a path or credential.
+
+Native fallback uses sequential existing chunks only for world-import,
+active-world-replace and modpack-archive. Honor returned maxChunkBytes; missing
+field means 2 MiB, never guess 8 MiB. Other purposes use the existing whole-body
+PUT via a bounded native request stream within the advertised ceiling, explicitly
+reporting that the older agent buffers receipt. Do not pretend old-server memory
+is bounded. Remote folders/server archives require serverArchive capability;
+otherwise offer the existing agent-local path workflow before reading/copying.
+
+### Exact limits and resource ownership
+
+| Purpose | Input ceiling in bytes | Required identity |
+|---|---:|---|
+| world-import, active-world-replace, modpack-archive | 10,737,418,240 each | exact selected file length |
+| world-thumbnail | 10,737,418,240 (existing ceiling retained) | exact file length; image checks still required |
+| addon-local-file | 536,870,912 | exact file length; consumer validation |
+| curseforge-manual-file, modpack-unresolved-file | pending expected_byte_size | expectedBytes must equal pending size; provider hash when available |
+| raw-server-archive, msc-transfer-archive (P20.5 additive purposes) | 10,737,418,240 | exact file length; Fleet permission |
+
+Keep existing archive defenses: default 200,000 entries and 1,099,511,627,776
+uncompressed bytes in infrastructure/archive.rs; stricter importer rules win.
+These are format limits, not disk reservations. Folder manifests have the same
+entry/total ceilings and stream enumeration; no all-entry list in memory.
+A generated remote ZIP has no known compressed length in advance: prepare it
+in private native staging to obtain exact length in the initial implementation.
+Direct ZIP generation into the network is allowed only after a separately
+specified bounded unknown-length admission protocol; do not fake Content-Length.
+This resolves the plan's “where supported” condition without weakening admission.
+
+Agent: at most two active receivers/copies, one per credential, eight admitted
+unredeemed slots, and 21,474,836,480 bytes of aggregate reserved staged input per
+host. Reserve expectedBytes at admission; release only after cleanup/redemption.
+Reject when available disk cannot cover reservation plus a 1 GiB free-space
+margin. Extraction/copy estimates must be checked separately before mutation;
+input reservation does not promise room for expanded content. Existing downloads
+and legacy slots count toward actual occupied staging space. No unbounded queue.
+
+Use 256 KiB read/write blocks with at most four queued blocks per transfer;
+application transfer buffers at most 2 MiB per endpoint per active transfer,
+excluding bounded HTTP/TLS overhead and existing importer memory. Desktop runs
+one bulk operation per host and at most two globally. Coalesce progress to at
+most four events/second, always send terminal state. These budgets are targets
+for measurement, not an assertion about present RSS.
+
+State: admitted → receiving/copying → verifying → ready → redeemed; failures
+enter cancelling/cleanup-failed/cancelled or failed. Active I/O refreshes a
+30-minute activity lease; abort after 120 seconds without byte progress.
+Ready slots expire after 30 minutes without consumer activity. Inspection keeps
+a leased slot alive; failed inspection cannot mark it redeemable. Never hold
+the shared map lock during disk/network I/O. Incremental hashing avoids a final
+mandatory hash reread; format checks may legitimately reread a ready file.
+
+DELETE cancels its owned slot idempotently, interrupts writer, awaits writer
+close and removal, and reports success only after cleanup. Expose cleanup
+failure and retain its reservation for recovery. Import cancellation uses the
+existing operation cancellation boundaries and safety backup; once committed,
+report completion rather than claiming rollback. On disconnect, fail the stream
+and clean the partial; no offset resume. On restart, no partial is redeemable;
+reconcile private staging before advertising capacity. Persist a bounded cleanup
+ledger for failed removals and owner-visible terminal status; never adopt an
+unrecognized staging file as complete. New retry means new slot and source token.
+
+### Native source and local handoff
+
+Rust owns source selection/opening, credential snapshot, pooled client, active
+operation and cancellation. Webview messages carry opaque source/operation IDs,
+metadata and progress only. A picker token is random, single-use, expires after
+five minutes, and binds local user, host instance, purpose and source identity.
+Reject symlinks/reparse-point substitutions and nonregular input. Hold the open
+file through transfer; check identity/size/modification before and after reading,
+failing on observed change. Folder traversal uses controlled handles and rejects
+links, devices, path escapes and running sources. Do not read MSC 1 state beyond
+the explicitly selected source or modify its source tree.
+
+Locality requires the existing OS-local bootstrap boundary, peer-user check and
+agent instance identity, never only localhost/DNS. Redeem handoff on that local
+boundary, not public HTTP. Bind and verify source handles before copying. When
+safe descriptor/handle transfer is unavailable, fall back to native loopback
+streaming; never trust a bare path from the webview. Destination independently
+opens its private staging file. Same-volume safe clone is optional, ordinary
+bounded copy mandatory; no hard links or source mutation. Validate the snapshot
+before ready. Downloads write a private sibling partial and atomically commit
+only after size/digest validation; cancellation preserves an existing destination.
+
+### Locked API feasibility (inspected locally, October 16)
+
+Root lock: axum 0.7.9, tokio 1.53.1. Desktop lock: tauri 2.11.5,
+tauri-plugin-dialog 2.7.2, reqwest 0.12.28 (direct dependency), tokio 1.53.1,
+tokio-util 0.7.19. A separate transitive reqwest 0.13.4 is not the shell API.
+Registry source confirms axum Body::into_data_stream, reqwest Body::wrap_stream
+and Response::bytes_stream, dialog blocking_pick_file and Tauri Emitter::emit.
+Reqwest streaming is feature-gated: the current desktop manifest enables only
+json/rustls-tls and must explicitly enable stream. Tokio-util ReaderStream also
+requires its io feature and a direct dependency; do not rely on transitive
+features. Blocking picker/copy work belongs off the event loop. P20.3 must check
+Send/lifetime constraints through its authorized compiler check. No dependency
+or implementation change is made in P20.1.

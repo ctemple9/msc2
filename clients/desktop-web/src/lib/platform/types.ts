@@ -37,12 +37,20 @@ export interface NativeFileSource extends NativeFileDescriptor {
   readonly kind: 'native';
   close(): Promise<void>;
 }
-export type NativeUploadTransportKind = 'stream' | 'legacy-chunks' | 'legacy-buffered-agent';
+export type NativeUploadTransportKind =
+  'stream' | 'local-copy' | 'legacy-chunks' | 'legacy-buffered-agent';
 export interface NativeUploadProgress {
   readonly operationId: string;
   readonly agentHostId: string;
   readonly phase:
-    'preparing' | 'transferring' | 'verifying' | 'cancelling' | 'complete' | 'cancelled' | 'failed';
+    | 'preparing'
+    | 'local-copying'
+    | 'transferring'
+    | 'verifying'
+    | 'cancelling'
+    | 'complete'
+    | 'cancelled'
+    | 'failed';
   readonly bytesTransferred: number;
   readonly totalBytes: number;
   readonly bytesPerSecond: number;

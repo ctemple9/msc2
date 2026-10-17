@@ -1,7 +1,8 @@
 # Native file imports and uploads — Phase 20 plan
 
-**State:** P20.3 native desktop sender implemented October 16, 2026; owner verification
-pending. Local handoff and screen integration remain planned. These changes
+**State:** P20.4 Unix local descriptor handoff implemented October 17, 2026; owner
+verification pending. Windows uses native streaming; screen integration remains
+planned. These changes
 are not included in the published XboxBroadcast release. Active step fields and
 execution boundaries live in [rolling-plan.md](../rolling-plan.md).
 
@@ -219,8 +220,9 @@ bytes remains mandatory even with Content-Length. No compression, multipart,
 caller-selected filesystem path, URL or redirect is accepted.
 
 Admission binds credential identity, destination host instance, purpose, target
-and pending file identity. World purposes require Worlds; add-on/modpack purposes
-require Addons; server archive purposes require Fleet. Recheck authorization and
+and pending file identity. World purposes require Worlds; modpack/add-on purposes require Addons, except
+shared addon-local-file staging also serves Worlds-authorized world-pack consumers.
+The final consumer still requires its own permission; server archive purposes require Fleet. Recheck authorization and
 bindings at redemption, including revoked credentials and changed pending files.
 One active writer and one redemption per slot; a conflicting stream PUT returns
 409. Existing importers keep their 404 response for unavailable input, including
@@ -529,3 +531,84 @@ The P20.3 Verify command now qualifies its existing three lint allowances with
 `clippy::`; unqualified names are deprecated and fail under `-D warnings`.
 Allowances and scope are otherwise unchanged. No release workflow changed and
 no beta was published.
+
+## P20.4 implementation record
+
+macOS and Linux can now copy a selected regular file into agent-owned private
+staging without sending the file bytes over loopback HTTP. Admission and cleanup
+remain small authenticated HTTP requests. The source travels as an OS file
+descriptor over `local-source-v1.sock` in the existing private service-user data
+directory. No path is sent to the agent, no HTTP path-reading route was added,
+and the webview still sees only its single-use selection and progress.
+
+The desktop attempts this only for its saved bootstrap-local host using the
+canonical local origin, protocol 1 and advertised localHandoff. The socket and
+its containing directory must be owned by the installing user with private
+permissions; both ends check kernel-provided peer UID using the existing local
+CLI identity helpers. The agent independently checks the saved host ID and
+current scoped credential. Before accepting a descriptor it must hold the exact
+random admission ID in this process, owned by that credential, with matching
+length, unexpired lease, current target/pending-file bindings and unstarted state.
+This ties handoff to the admitted agent instance rather than a localhost label.
+Another process, a remote forward or a restarted agent cannot redeem an old
+in-memory slot. Passing a descriptor twice cannot start a second writer.
+
+The descriptor must be read-only and identify the selected regular file by
+volume/device, inode, exact size, modification time and change time. The sender
+retains its original handle and rechecks its selected path before/after copying;
+the receiver checks the descriptor before reading and before end-of-input.
+Unix picker identities now also retain change time, catching ordinary edits even
+when modification time is restored. Unsupported or malformed ancillary messages,
+extra descriptors and writable/device handles fail closed; owned received handles
+are closed on error. Descriptors are marked close-on-exec. No capability accepts
+a source pathname, follows a substituted pathname, or changes source contents,
+ownership or permissions.
+
+The agent reads bounded 256 KiB blocks directly from that descriptor and feeds
+its existing native staging writer. The writer counts exact bytes, incrementally
+hashes the same copied blocks, syncs private staging, and publishes only after
+final source/binding/authorization checks. It retains P20.2 concurrency/disk
+reservations, cancellation, revocation, cleanup and restart recovery. The trusted
+local agent produces the digest in this one copy pass; the desktop validates the
+receipt identity, length and digest format without rereading the source to hash
+it again. Remote streaming keeps its independent sender/receiver digest check.
+
+`local-copy` transport and `local-copying` progress report actual agent staging
+bytes, at most four times per second, followed by verifying/complete. Socket
+messages are bounded to 16 KiB, with ten-second handshake/write bounds. At most
+sixteen socket exchanges can be active; the existing smaller staging/transfer
+budgets still govern writers. Disconnect drops the receiver request guard and
+signals its detached cleanup worker; desktop cancellation also waits for the
+existing original-host DELETE result. A failure never triggers a second copy
+after a descriptor has been passed. A missing or unsafe local socket falls back
+to the existing native stream before any descriptor/source bytes are sent.
+
+**Decided for you:** use ordinary bounded copying on every source/staging volume,
+without a clone optimization. This works across volumes without hard links,
+extra source copies or filesystem-specific clone assumptions. Clone support is
+optional in the contract. Windows advertises localHandoff false and retains
+P20.3 native loopback streaming: no safe Windows handle-transfer path is claimed
+by this Unix implementation. The contract explicitly permits that fallback.
+Existing world/modpack consumers receive the same verified staging IDs through
+the P20.3 API; screen integration remains P20.6. Folder/server-archive selection
+is P20.5 and was not added here.
+
+Two essential cases extend the existing native-upload fixture: a real socket-pair
+handoff verifies source/digest/staged bytes and refuses wrong-host/replayed
+admission; a descriptor case proves pathname replacement cannot redirect an open
+source, detects edits, and rejects writable handles. Existing receiver cases
+already cover exact-length failure, cancellation/revocation and abandoned staging;
+those were not duplicated. Files are six bytes or smaller in the fixture's owned
+temporary directory, socket peers are local, and no live agent, arbitrary sleeps,
+external files or large allocation is needed. Expected runtime is below one
+second per case excluding compilation (unmeasured). Tests were compiled, not run.
+
+Agent and desktop Clippy, Rust formatting, generated API types and TypeScript
+checking passed on the development Mac. TypeScript retains eleven existing
+warnings in untouched screens. Agent and desktop test harnesses were compiled
+with `cargo rustc ... --profile test -- --emit=metadata`; the agent harness reports
+one existing unused-item warning. No test executable was launched. Linux runtime,
+Windows fallback, OS-dialog behavior, cancellation under physical disk load,
+cross-volume copying, throughput and peak memory remain owner acceptance work.
+No clone/speedup measurement, release publication, CI gate or phase completion is
+claimed.

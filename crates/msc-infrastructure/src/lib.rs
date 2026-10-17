@@ -44,3 +44,6 @@ pub mod xbox_broadcast;
 pub mod gamerule_catalog;
 
 pub mod conversion_resources;
+
+#[cfg(unix)]
+pub mod local_source;

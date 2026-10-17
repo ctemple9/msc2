@@ -33,7 +33,7 @@ struct Ledger {
     expires_at: u64,
 }
 
-struct Session {
+pub(crate) struct Session {
     owner: String,
     target: Option<String>,
     upload: StagedUpload,
@@ -53,7 +53,24 @@ struct Session {
 }
 
 impl Session {
-    fn authorized(&self, credential: &AuthenticatedCredential) -> bool {
+    pub(crate) fn can_handoff(
+        &self,
+        credential: &AuthenticatedCredential,
+        state: &ComponentsRoutesState,
+    ) -> bool {
+        self.phase.load(Ordering::Acquire) == ADMITTED
+            && now_unix() <= self.expiry.load(Ordering::Acquire)
+            && self.authorized(credential)
+            && self.pending_valid(state)
+    }
+    pub(crate) fn local_progress(&self) -> (u64, u64) {
+        (
+            self.received.load(Ordering::Acquire),
+            self.upload.expected_bytes.unwrap_or(0),
+        )
+    }
+
+    pub(crate) fn authorized(&self, credential: &AuthenticatedCredential) -> bool {
         self.owner == credential.credential_id && (self.binding_valid)(credential)
     }
     fn visible(&self) -> bool {
@@ -150,6 +167,7 @@ type AvailableSpace = dyn Fn(&Path) -> std::io::Result<u64> + Send + Sync;
 
 #[derive(Clone)]
 pub(crate) struct NativeStore {
+    pub(crate) local_handoff: Arc<AtomicBool>,
     sessions: Arc<Mutex<HashMap<String, Arc<Session>>>>,
     admission: Arc<tokio::sync::Mutex<()>>,
     initialized: Arc<AtomicBool>,
@@ -160,6 +178,7 @@ pub(crate) struct NativeStore {
 impl Default for NativeStore {
     fn default() -> Self {
         Self {
+            local_handoff: Default::default(),
             sessions: Default::default(),
             admission: Default::default(),
             initialized: Default::default(),
@@ -234,7 +253,11 @@ impl NativeStore {
     pub(crate) fn available(&self) -> bool {
         self.initialized.load(Ordering::Acquire) && self.recovery_error.lock().unwrap().is_none()
     }
-    fn session(&self, id: &str, credential: &AuthenticatedCredential) -> Option<Arc<Session>> {
+    pub(crate) fn session(
+        &self,
+        id: &str,
+        credential: &AuthenticatedCredential,
+    ) -> Option<Arc<Session>> {
         self.sessions
             .lock()
             .unwrap()
@@ -1322,6 +1345,8 @@ mod tests {
         state: ComponentsRoutesState,
         auth: AuthState,
         credential: AuthenticatedCredential,
+        #[cfg(unix)]
+        token: String,
     }
     impl Fixture {
         fn new() -> Self {
@@ -1362,6 +1387,8 @@ mod tests {
                 state,
                 auth,
                 credential,
+                #[cfg(unix)]
+                token: issued.token,
             }
         }
         async fn admit(&self, expected: u64, digest: Option<String>) -> String {
@@ -1410,6 +1437,130 @@ mod tests {
         );
         headers.insert(header::CONTENT_LENGTH, length.to_string().parse().unwrap());
         headers
+    }
+
+    // Essential: the local descriptor path must produce the same verified slot,
+    // while wrong-host and replay attempts must never start another copy.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn local_handoff_verifies_its_host_and_publishes_the_selected_file_once() {
+        use msc_infrastructure::local_source::{Identity, send_file};
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt, Interest},
+            net::UnixStream,
+        };
+        let fixture = Fixture::new();
+        let path = fixture.state.lifecycle.servers_root().join("selected.zip");
+        std::fs::write(&path, b"abcdef").unwrap();
+        let file = std::fs::File::open(&path).unwrap();
+        let identity = Identity::read(&file).unwrap();
+        let host = fixture.auth.agent_host_id().unwrap();
+        let id = fixture.admit(6, None).await;
+        for (claimed_host, expected_ready) in [
+            ("another-host".to_string(), false),
+            (host.clone(), true),
+            (host.clone(), false),
+        ] {
+            let (mut client, server) = UnixStream::pair().unwrap();
+            let auth = fixture.auth.clone();
+            let state = fixture.state.clone();
+            let worker = tokio::spawn(super::super::local_source::exchange(auth, state, server));
+            let mut request = serde_json::to_vec(&serde_json::json!({
+                "protocol": 1, "agentHostId": claimed_host, "token": fixture.token,
+                "stagedUploadId": id, "identity": identity,
+            }))
+            .unwrap();
+            request.push(b'\n');
+            client.write_all(&request).await.unwrap();
+            if !expected_ready {
+                assert!(worker.await.unwrap().is_err());
+                assert_eq!(
+                    fixture
+                        .state
+                        .staging
+                        .native
+                        .session(&id, &fixture.credential)
+                        .unwrap()
+                        .local_progress()
+                        .0,
+                    if claimed_host == host { 6 } else { 0 }
+                );
+                continue;
+            }
+            async fn read_event(client: &mut UnixStream) -> serde_json::Value {
+                let mut bytes = Vec::new();
+                loop {
+                    let byte = client.read_u8().await.unwrap();
+                    if byte == b'\n' {
+                        return serde_json::from_slice(&bytes).unwrap();
+                    }
+                    assert!(bytes.len() < 16 * 1024);
+                    bytes.push(byte);
+                }
+            }
+            assert_eq!(read_event(&mut client).await["ready"], true);
+            loop {
+                client.writable().await.unwrap();
+                match client.try_io(Interest::WRITABLE, || send_file(&client, &file)) {
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => continue,
+                    result => {
+                        result.unwrap();
+                        break;
+                    }
+                }
+            }
+            loop {
+                let event = read_event(&mut client).await;
+                if event.get("status").is_some() {
+                    assert_eq!(event["status"], 200);
+                    assert_eq!(event["body"]["receivedBytes"], 6);
+                    assert_eq!(
+                        event["body"]["sha256"],
+                        format!("{:x}", Sha256::digest(b"abcdef"))
+                    );
+                    break;
+                }
+            }
+            worker.await.unwrap().unwrap();
+            assert_eq!(std::fs::read(&path).unwrap(), b"abcdef");
+            let session = fixture
+                .state
+                .staging
+                .native
+                .session(&id, &fixture.credential)
+                .unwrap();
+            assert_eq!(std::fs::read(&session.upload.path).unwrap(), b"abcdef");
+            assert_eq!(session.phase.load(Ordering::Acquire), READY);
+        }
+    }
+
+    // Essential: descriptor transfer cannot grant write access or be redirected
+    // by replacing a pathname; observed source edits must invalidate the copy.
+    #[cfg(unix)]
+    #[test]
+    fn local_descriptor_preserves_identity_and_rejects_writable_sources() {
+        use msc_infrastructure::local_source::{Identity, receive_file, send_file};
+        let fixture = Fixture::new();
+        let path = fixture.state.lifecycle.servers_root().join("source.zip");
+        std::fs::write(&path, b"abc").unwrap();
+        let original = std::fs::File::open(&path).unwrap();
+        let moved = path.with_extension("retained");
+        std::fs::rename(&path, &moved).unwrap();
+        std::fs::write(&path, b"new").unwrap();
+        let identity = Identity::read(&original).unwrap();
+        let (sender, receiver) = std::os::unix::net::UnixStream::pair().unwrap();
+        send_file(&sender, &original).unwrap();
+        let mut received = receive_file(&receiver).unwrap();
+        identity.validate(&received).unwrap();
+        let mut bytes = Vec::new();
+        std::io::Read::read_to_end(&mut received, &mut bytes).unwrap();
+        assert_eq!(bytes, b"abc");
+        std::fs::write(&moved, b"changed").unwrap();
+        assert!(identity.validate(&received).is_err());
+        let writable = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+        send_file(&sender, &writable).unwrap();
+        assert!(receive_file(&receiver).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), b"new");
     }
 
     // Protects the cross-credential redemption boundary and legacy overwrite path.

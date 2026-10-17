@@ -56,7 +56,11 @@ pub async fn capabilities(
             // Omission means an older agent. Explicit false prevents a newer
             // client from bypassing unavailable native staging via fallback.
             stream_upload: available,
-            local_handoff: false,
+            local_handoff: available
+                && staging
+                    .native
+                    .local_handoff
+                    .load(std::sync::atomic::Ordering::Acquire),
             server_archive: false,
         });
     }

@@ -14109,7 +14109,7 @@
           "localHandoff",
           "serverArchive"
         ],
-        "description": "P20.2 advertises streamUpload only; localHandoff and serverArchive remain false. Omission means no negotiated native transport. Permission and staging recovery dependent."
+        "description": "Protocol 1 supports bounded streamUpload. P20.4 advertises localHandoff only while its private installing-user Unix descriptor endpoint is available; Windows falls back to native streaming. serverArchive remains false. Omission means an older agent; explicit false means unavailable. Permission and staging recovery dependent."
       },
       "NativeUploadBeginRequestDTO": {
         "type": "object",

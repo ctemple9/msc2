@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** P20.3 native desktop sending implemented; awaiting owner
-verification before P20.4. Screen integration remains planned for P20.6.
+**Current priority:** P20.4 local descriptor handoff implemented; awaiting owner
+verification before P20.5. Windows retains native streaming; screens remain P20.6.
 
 Historical implementation and published release records were reconciled and
 moved to [the archive](rolling-plan-archive.md) at Cameron's October 16 request.
@@ -17,8 +17,9 @@ not in this implementation queue.
 
 ## Phase 20 — Faster native file imports and uploads
 
-**Execution state:** Owner authorized P20.1–P20.3 on October 16. Contract, agent
-receipt and native desktop sender implemented; owner verification pending. Later steps remain planned.
+**Execution state:** Owner authorized P20.1–P20.3 on October 16 and P20.4 on October 17.
+Contract, agent receipt, native desktop sender and Unix local handoff implemented;
+owner verification pending. Later steps remain planned.
 No upload code is included in the XboxBroadcast release.
 **Contract and gate:** [Native transfer plan](uploads/native-transfer-plan.md).
 Preserve archive/integrity checks and source data; measure speed rather than
@@ -55,8 +56,8 @@ Complete connected-host transfer/resume remains [deferred](deferred-work.md).
 
 ### P20.4 — Import same-computer files without an upload round trip
 
-**Status:** Planned.
-**Files:** Native file-selection/transfer module; existing local bootstrap/OS-local authorization boundary; agent staging/source redemption; world/modpack import adapters; API/capability data as needed; focused source-handoff tests; this plan.
+**Status:** Implemented; awaiting owner verification.
+**Files:** Native transfer/local-source modules; shared Unix descriptor/identity helpers; existing installing-user socket identity helpers; agent staging/source redemption and production composition; API/capability descriptions and generated types; focused source-handoff cases; `docs/msc2/uploads/native-transfer-plan.md`; this plan.
 **What:** Recognize the authenticated local agent and hand off only the selected source through a local-user-bound capability. Copy into private staging directly, optionally using a safe filesystem clone with cross-volume copy fallback; never hard-link mutable input, move/delete the source or accept arbitrary remote-readable paths. Prevent source substitution, expired/replayed handles and host confusion. Preserve exact size/purpose/integrity and importer checks, coalescing reads where possible while reporting required validation work. Compare the direct path with the native streaming fallback; no constant-time promise for 8 GB.
 **Verify:** `cargo clippy -p msc-agent --bin msc -- -D warnings -A dead_code`
 **Batch:** P20.4 only; depends on P20.3 verification unless included in a newly authorized batch.

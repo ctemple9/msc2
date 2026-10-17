@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: fbea4b0a5c3436f37433cc1c983efd7aa4f99a0ad41bfaaba3cdf2ae55b37b34
+// Contract SHA-256: 0957c71229619524d54a65d5f2fd7436ac441252c4bc6710ed5ba10f642cc913
 
 export interface paths {
   '/v1/active-server': {
@@ -7987,7 +7987,7 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
-    /** @description P20.2 advertises streamUpload only; localHandoff and serverArchive remain false. Omission means no negotiated native transport. Permission and staging recovery dependent. */
+    /** @description Protocol 1 supports bounded streamUpload. P20.4 advertises localHandoff only while its private installing-user Unix descriptor endpoint is available; Windows falls back to native streaming. serverArchive remains false. Omission means an older agent; explicit false means unavailable. Permission and staging recovery dependent. */
     NativeTransfersDTO: {
       localHandoff: boolean;
       /** @enum {integer} */

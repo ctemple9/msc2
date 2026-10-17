@@ -196,7 +196,13 @@ async fn run_service_with_shutdown(
         .await
         .map_err(cli::CliError::internal)?;
 
-    let (app, worlds) = build_app_with_auth_and_worlds(auth_state);
+    let (app, worlds, components) = build_app_with_auth_and_worlds(auth_state.clone());
+    #[cfg(unix)]
+    if let Err(error) = routes::components::local_source::start(auth_state, components).await {
+        eprintln!("msc: local source handoff unavailable: {error}");
+    }
+    #[cfg(not(unix))]
+    let _ = components;
     #[cfg(target_os = "windows")]
     windows_service::register_lifecycle(worlds.clone());
     ready()?;
@@ -252,7 +258,11 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
 
 fn build_app_with_auth_and_worlds(
     auth_state: auth::AuthState,
-) -> (Router, routes::worlds::WorldsRoutesState) {
+) -> (
+    Router,
+    routes::worlds::WorldsRoutesState,
+    routes::components::ComponentsRoutesState,
+) {
     let secret_store = auth::production_secret_store()
         .unwrap_or_else(|error| panic!("failed to initialize production secret store: {error}"));
 
@@ -387,7 +397,7 @@ fn build_app_with_auth_and_worlds(
         pending_modpack_imports.clone(),
     );
     routes::components::native_upload::spawn_reaper(components_state.clone());
-    let components = routes::components::router(components_state);
+    let components = routes::components::router(components_state.clone());
     let backups = routes::backups::router(routes::backups::BackupsRoutesState {
         lifecycle: lifecycle_state.clone(),
         scheduler: backup_scheduler,
@@ -560,6 +570,7 @@ fn build_app_with_auth_and_worlds(
             .nest("/v1", public.merge(protected))
             .layer(axum::middleware::from_fn(security_headers)),
         worlds_state,
+        components_state,
     )
 }
 

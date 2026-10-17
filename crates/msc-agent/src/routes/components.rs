@@ -53,6 +53,8 @@ use crate::routes::worlds::{
     StagedDownload, StagedUpload, StagingStore, now_unix, staging_root, unix_to_iso8601,
 };
 
+#[cfg(unix)]
+pub(crate) mod local_source;
 #[path = "components/native_upload.rs"]
 pub(crate) mod native_upload;
 

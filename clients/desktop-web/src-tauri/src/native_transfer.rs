@@ -25,6 +25,9 @@ const LEGACY_CHUNK: usize = 1024 * 1024;
 const METADATA_LIMIT: usize = 256 * 1024;
 const SOURCE_TTL: Duration = Duration::from_secs(5 * 60);
 const MAX_SOURCE_BYTES: u64 = 20 * 1024 * 1024 * 1024;
+#[cfg(unix)]
+mod local_source;
+
 static MANAGER: OnceLock<Manager> = OnceLock::new();
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -106,6 +109,10 @@ struct Identity {
     device: u64,
     #[cfg(unix)]
     inode: u64,
+    #[cfg(unix)]
+    changed_seconds: i64,
+    #[cfg(unix)]
+    changed_nanoseconds: i64,
     #[cfg(windows)]
     volume: u32,
     #[cfg(windows)]
@@ -143,6 +150,10 @@ impl Identity {
             device: metadata.dev(),
             #[cfg(unix)]
             inode: metadata.ino(),
+            #[cfg(unix)]
+            changed_seconds: metadata.ctime(),
+            #[cfg(unix)]
+            changed_nanoseconds: metadata.ctime_nsec(),
             #[cfg(windows)]
             volume: info.dwVolumeSerialNumber,
             #[cfg(windows)]
@@ -236,6 +247,8 @@ impl Source {
 #[serde(rename_all = "kebab-case")]
 pub(crate) enum Transport {
     Stream,
+    #[cfg(unix)]
+    LocalCopy,
     LegacyChunks,
     LegacyBufferedAgent,
 }
@@ -699,6 +712,8 @@ pub(crate) async fn cancel_native_upload(
 }
 
 struct Context {
+    #[cfg(unix)]
+    local_candidate: bool,
     client: Client,
     record: StoredDesktopCredential,
     generation: u64,
@@ -746,6 +761,14 @@ impl Context {
             return Err(cancelled());
         }
         Ok(Self {
+            #[cfg(unix)]
+            local_candidate: record.base_url == LOCAL_AGENT_ORIGIN
+                && store
+                    .get(crate::LOCAL_HOST_ID_KEY)
+                    .ok()
+                    .flatten()
+                    .as_deref()
+                    == Some(host.as_str()),
             client: manager()
                 .client()
                 .map_err(|e| UploadError::new("network", e))?,
@@ -883,6 +906,9 @@ struct Capabilities {
 struct NativeProtocol {
     protocol: u32,
     stream_upload: bool,
+    #[cfg(unix)]
+    #[serde(default)]
+    local_handoff: bool,
 }
 #[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -946,6 +972,11 @@ async fn perform(
             "This host credential cannot upload files for that purpose.",
         ));
     }
+    #[cfg(unix)]
+    let local_handoff = caps
+        .native_transfers
+        .as_ref()
+        .is_some_and(|p| p.protocol == 1 && p.stream_upload && p.local_handoff);
     let transport = match caps.native_transfers {
         Some(protocol) if protocol.protocol == 1 && protocol.stream_upload => Transport::Stream,
         Some(_) => {
@@ -1029,6 +1060,32 @@ async fn perform(
         && slot.max_chunk_bytes.is_none()
     {
         return Err(UploadError::new("incompatible_agent", "This older agent cannot confirm chunked world support. Update the agent before importing this file."));
+    }
+    #[cfg(unix)]
+    if matches!(transport, Transport::Stream) && local_handoff && context.local_candidate {
+        if let Some(completion) =
+            local_source::copy(context, source.clone(), operation.clone(), &slot, attempt).await?
+        {
+            validate_source(source.clone()).await?;
+            if completion.staged_upload_id != slot.staged_upload_id
+                || completion.received_bytes != source.selected.size
+                || completion.sha256.len() != 64
+                || !completion.sha256.bytes().all(|b| b.is_ascii_hexdigit())
+            {
+                return Err(UploadError::new(
+                    "integrity_mismatch",
+                    "The local agent returned an invalid verified receipt.",
+                ));
+            }
+            return Ok(UploadResult {
+                operation_id: operation.id.clone(),
+                agent_host_id: operation.host.clone(),
+                staged_upload_id: completion.staged_upload_id,
+                received_bytes: completion.received_bytes,
+                sha256: completion.sha256,
+                transport: Transport::LocalCopy,
+            });
+        }
     }
     let hash = Arc::new(Mutex::new(Sha256::new()));
     let mut file = tokio::fs::File::from_std(source.file.try_clone().map_err(|_| {

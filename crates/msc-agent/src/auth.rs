@@ -929,6 +929,23 @@ impl AuthState {
         }
     }
 
+    #[cfg(unix)]
+    pub(crate) fn authenticate_local_source(
+        &self,
+        host: &str,
+        token: &str,
+    ) -> Option<AuthenticatedCredential> {
+        if self.agent_host_id().ok().as_deref() != Some(host) {
+            return None;
+        }
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            axum::http::header::AUTHORIZATION,
+            format!("Bearer {token}").parse().ok()?,
+        );
+        self.try_authenticate(&headers).ok()
+    }
+
     #[allow(dead_code)]
     pub(crate) fn bearer_is_authenticated(&self, headers: &HeaderMap, client_key: &str) -> bool {
         self.authenticate_headers(headers, client_key).is_ok()

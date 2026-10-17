@@ -372,17 +372,22 @@ fn build_app_with_auth_and_worlds(
     // `BackupsRoutesState` (adds the `&'static BackupScheduler` handle
     // `POST /v1/backups/config` reconfigures on a settings change).
     let shared_staging = routes::worlds::StagingStore::default();
+    shared_staging
+        .native
+        .initialize(&lifecycle_state.servers_root());
     let pending_modpack_imports = routes::components::PendingModpackImports::default();
     let worlds_state = routes::worlds::WorldsRoutesState::with_staging(
         lifecycle_state.clone(),
         shared_staging.clone(),
     );
     let worlds = routes::worlds::router(worlds_state.clone());
-    let components = routes::components::router(routes::components::ComponentsRoutesState::new(
+    let components_state = routes::components::ComponentsRoutesState::new(
         lifecycle_state.clone(),
         shared_staging.clone(),
         pending_modpack_imports.clone(),
-    ));
+    );
+    routes::components::native_upload::spawn_reaper(components_state.clone());
+    let components = routes::components::router(components_state);
     let backups = routes::backups::router(routes::backups::BackupsRoutesState {
         lifecycle: lifecycle_state.clone(),
         scheduler: backup_scheduler,
@@ -479,7 +484,7 @@ fn build_app_with_auth_and_worlds(
         // A staged modpack is created by the shared upload route but
         // redeemed by server creation, so both route groups need this one
         // in-memory, purpose-tagged store.
-        .layer(Extension(shared_staging))
+        .layer(Extension(shared_staging.clone()))
         .layer(Extension(pending_modpack_imports));
 
     let host_reset = Router::new()
@@ -542,6 +547,7 @@ fn build_app_with_auth_and_worlds(
         .merge(backups)
         .merge(users)
         .merge(routes::help::router(help_content))
+        .layer(Extension(shared_staging))
         .layer(Extension(networking_state))
         .layer(Extension(auth_state.clone()))
         .route_layer(axum::middleware::from_fn_with_state(

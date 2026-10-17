@@ -12,6 +12,8 @@ pub mod process;
 #[cfg(target_os = "windows")]
 pub mod secret_store;
 pub mod service;
+#[cfg(target_os = "windows")]
+pub mod staging;
 
 #[cfg(target_os = "windows")]
 pub mod uninstall;

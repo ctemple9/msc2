@@ -53,6 +53,9 @@ use crate::routes::worlds::{
     StagedDownload, StagedUpload, StagingStore, now_unix, staging_root, unix_to_iso8601,
 };
 
+#[path = "components/native_upload.rs"]
+pub(crate) mod native_upload;
+
 const MAX_STAGED_UPLOAD_BYTES: u64 = 10 * 1024 * 1024 * 1024;
 const MAX_LOCAL_ADDON_UPLOAD_BYTES: u64 = 512 * 1024 * 1024;
 const STAGING_TTL_SECONDS: u64 = 30 * 60;
@@ -241,6 +244,9 @@ struct ModrinthCatalogFile {
 pub fn router(state: ComponentsRoutesState) -> Router {
     Router::new()
         .route("/staged-uploads", post(begin_staged_upload))
+        .route("/staged-uploads/stream", post(native_upload::admit))
+        .route("/staged-uploads/:id/stream", put(native_upload::receive))
+        .route("/staged-uploads/:id/status", get(native_upload::status))
         .route(
             "/staged-uploads/:id",
             put(upload_staged_bytes)
@@ -723,6 +729,7 @@ pub async fn begin_staged_upload(
     state.staging.uploads.lock().unwrap().insert(
         id.clone(),
         StagedUpload {
+            native_guard: None,
             purpose: body.purpose,
             file_name: body.file_name.clone(),
             operation_id: body.operation_id.clone(),
@@ -759,6 +766,13 @@ pub async fn upload_staged_bytes(
     AxumPath(id): AxumPath<String>,
     body: Bytes,
 ) -> Response {
+    if state.staging.native.contains(&id) {
+        return error_response(
+            StatusCode::CONFLICT,
+            "native_upload",
+            "Use the native stream endpoint.",
+        );
+    }
     let entry = { state.staging.uploads.lock().unwrap().get(&id).cloned() };
     let Some(entry) = entry else {
         return error_response(
@@ -1002,6 +1016,9 @@ pub async fn cancel_staged_upload(
     Extension(credential): Extension<AuthenticatedCredential>,
     AxumPath(id): AxumPath<String>,
 ) -> Response {
+    if state.staging.native.contains(&id) {
+        return native_upload::cancel(&state, &credential, &id).await;
+    }
     let mut uploads = state.staging.uploads.lock().unwrap();
     if let Some(entry) = uploads.get(&id) {
         match std::fs::remove_file(&entry.path) {
@@ -1555,6 +1572,17 @@ pub async fn install_component(
     };
 
     let result = if let Some(staged_upload_id) = body.staged_upload_id.as_deref() {
+        if !state
+            .staging
+            .native
+            .target_matches(staged_upload_id, &server.id)
+        {
+            return error_response(
+                StatusCode::CONFLICT,
+                "target_mismatch",
+                "Upload belongs to a different server.",
+            );
+        }
         let entry = state
             .staging
             .uploads
@@ -1578,12 +1606,26 @@ pub async fn install_component(
                 "Unknown or already-redeemed staged upload.",
             );
         }
-        let filename = entry
-            .path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("uploaded.jar")
-            .to_string();
+        let filename = if entry.native_guard.is_some() {
+            let Some(name) = entry
+                .file_name
+                .as_deref()
+                .filter(|name| name.to_ascii_lowercase().ends_with(".jar"))
+            else {
+                return invalid_body(
+                    "invalid_file_name",
+                    "Choose a JAR file for this add-on install.",
+                );
+            };
+            name.to_string()
+        } else {
+            entry
+                .path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("uploaded.jar")
+                .to_string()
+        };
         let installed = addons::install_from_staged_local_jar(
             &StdFileSystem,
             Path::new(&server.server_dir),
@@ -2280,6 +2322,10 @@ pub async fn inspect_modpack(
         }
     };
     let operation_id = format!("inspect-{}", Uuid::new_v4());
+    let lease = state
+        .staging
+        .native
+        .inspection_lease(&body.staged_upload_id, &credential);
     let inspection = match modpacks::inspect_staged_archive(
         &StdFileSystem,
         &transport,
@@ -2289,8 +2335,15 @@ pub async fn inspect_modpack(
         &operation_id,
     ) {
         Ok(inspection) => inspection,
-        Err(error) => return invalid_body("invalid_body", &error.to_string()),
+        Err(error) => {
+            drop(lease);
+            if state.staging.native.contains(&body.staged_upload_id) {
+                let _ = native_upload::cancel(&state, &credential, &body.staged_upload_id).await;
+            }
+            return invalid_body("invalid_body", &error.to_string());
+        }
     };
+    drop(lease);
     let response = modpack_inspection_response(&inspection);
     let _ = std::fs::remove_dir_all(&inspection.staged_dir);
     audit(
@@ -2417,6 +2470,17 @@ pub async fn import_modpack(
         "replace" => true,
         _ => return invalid_body("invalid_action", "action must be import or replace."),
     };
+    if !state
+        .staging
+        .native
+        .target_matches(&body.staged_upload_id, &server.id)
+    {
+        return error_response(
+            StatusCode::CONFLICT,
+            "target_mismatch",
+            "This upload was not selected for the active server.",
+        );
+    }
     let entry = state
         .staging
         .uploads
@@ -2453,6 +2517,10 @@ pub async fn import_modpack(
         }
     };
     let inspection_id = format!("inspect-{}", Uuid::new_v4());
+    let lease = state
+        .staging
+        .native
+        .inspection_lease(&body.staged_upload_id, &credential);
     let inspection = match modpacks::inspect_staged_archive(
         &StdFileSystem,
         &transport,
@@ -2462,8 +2530,15 @@ pub async fn import_modpack(
         &inspection_id,
     ) {
         Ok(inspection) => inspection,
-        Err(error) => return invalid_body("invalid_body", &error.to_string()),
+        Err(error) => {
+            drop(lease);
+            if state.staging.native.contains(&body.staged_upload_id) {
+                let _ = native_upload::cancel(&state, &credential, &body.staged_upload_id).await;
+            }
+            return invalid_body("invalid_body", &error.to_string());
+        }
     };
+    drop(lease);
 
     if matches!(inspection.format, modpacks::InspectedFormat::CurseForge(_)) {
         let configured = match secrets.get(provider::CURSEFORGE_API_KEY_SECRET) {
@@ -2487,14 +2562,13 @@ pub async fn import_modpack(
         }
     }
 
-    if state
+    let consumed = state
         .staging
         .uploads
         .lock()
         .unwrap()
-        .remove(&body.staged_upload_id)
-        .is_none()
-    {
+        .remove(&body.staged_upload_id);
+    if consumed.is_none() {
         let _ = std::fs::remove_dir_all(&inspection.staged_dir);
         return error_response(
             StatusCode::NOT_FOUND,
@@ -2502,6 +2576,7 @@ pub async fn import_modpack(
             "Unknown or already-redeemed staged upload.",
         );
     }
+    let _native_guard = consumed.and_then(|upload| upload.native_guard);
     let operation_id = match state.lifecycle.operations().begin_lifecycle(
         "modpack-import",
         Some(server.id.clone()),
@@ -2705,6 +2780,17 @@ pub async fn complete_modpack_manual_file(
         let Some(staged_upload_id) = body.staged_upload_id.as_deref() else {
             return invalid_body("missing_staged_upload_id", "stagedUploadId is required.");
         };
+        if !state
+            .staging
+            .native
+            .pending_matches(staged_upload_id, &unresolved)
+        {
+            return error_response(
+                StatusCode::CONFLICT,
+                "pending_file_changed",
+                "The pending file identity changed after admission.",
+            );
+        }
         let entry = state
             .staging
             .uploads
@@ -2735,12 +2821,20 @@ pub async fn complete_modpack_manual_file(
                 "Unknown or already-redeemed staged upload.",
             );
         }
-        state
+        let _consumed = state
             .staging
             .uploads
             .lock()
             .unwrap()
             .remove(staged_upload_id);
+        if _consumed.is_none() {
+            return error_response(
+                StatusCode::CONFLICT,
+                "upload_unavailable",
+                "Upload was consumed or cancelled before file completion.",
+            );
+        }
+
         let staged_filename = entry
             .file_name
             .or_else(|| {

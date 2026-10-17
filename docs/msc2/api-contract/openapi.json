@@ -7290,6 +7290,347 @@
         }
       }
     },
+    "/v1/staged-uploads/stream": {
+      "post": {
+        "summary": "Admit an authenticated exact-length native upload",
+        "operationId": "beginNativeUpload",
+        "x-permission-category": "purpose-dependent",
+        "x-notes": "P20.2. Worlds for world purposes; Addons for other current purposes. Protocol 1 capability required. Owner/target/pending file bound before reading any bytes. Admission reserves private staging; it does not import or activate data.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NativeUploadBeginRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Private native slot admitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NativeUploadBeginResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid metadata or stream headers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown upload or different owner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "State, target, pending-file, length or digest mismatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Purpose or stream byte ceiling exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Admission or active-writer capacity reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Write, sync or cleanup failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Native staging recovery unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "507": {
+            "description": "Insufficient staging space",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/staged-uploads/{id}/stream": {
+      "put": {
+        "summary": "Receive a bounded native stream and incrementally verify SHA-256",
+        "operationId": "receiveNativeUpload",
+        "x-permission-category": "purpose-dependent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Content-Length",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Exactly the admitted expectedBytes; no Transfer-Encoding or compressed body."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Exact size/digest checked and file synced; ready for a separate importer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StagedUploadCompleteResultDTO"
+                }
+              }
+            }
+          },
+          "408": {
+            "description": "120 seconds without byte progress or flush completion",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid metadata or stream headers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown upload or different owner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "State, target, pending-file, length or digest mismatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Purpose or stream byte ceiling exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Admission or active-writer capacity reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Write, sync or cleanup failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Native staging recovery unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "507": {
+            "description": "Insufficient staging space",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          }
+        },
+        "x-notes": "One writer per slot, two host-wide, one per credential. No network/disk I/O under the shared upload map lock. Body counted incrementally, 256 KiB writes, maximum 1 MiB transport frame. Publication waits for final sync; disconnect/cancel cannot publish partial data. Existing chunk/whole-body endpoints cannot write native slots."
+      }
+    },
+    "/v1/staged-uploads/{id}/status": {
+      "get": {
+        "summary": "Inspect the initiating owner’s native upload and cleanup outcome",
+        "operationId": "nativeUploadStatus",
+        "x-permission-category": "none",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Owner-only state without filesystem paths or credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NativeUploadStatusDTO"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown upload or different owner",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          }
+        },
+        "x-notes": "Status history is bounded; restart discards abandoned bytes rather than resuming. DELETE /v1/staged-uploads/{id} cancels an unredeemed native slot, awaits writer exit and cleanup, and reports failures instead of false success. Redeemed input belongs to its importer and cannot be cancelled through staging."
+      }
+    },
     "/v1/staged-uploads": {
       "post": {
         "summary": "Begin a bounded staged upload",
@@ -12932,6 +13273,7 @@
         "type": "object",
         "description": "P2.6 SS3 -- GET /v1/capabilities response; P12.28 adds optional version-aware worldSettings.",
         "properties": {
+          "nativeTransfers": { "$ref": "#/components/schemas/NativeTransfersDTO" },
           "agentVersion": {
             "type": "string"
           },
@@ -13742,6 +14084,163 @@
         ],
         "description": "Always operation-backed (type: world-conversion, operation-model.md SS2) -- Chunker's process lifetime makes this the one Phase 6 world mutation with no synchronous variant."
       },
+      "NativeTransfersDTO": {
+        "type": "object",
+        "properties": {
+          "protocol": {
+            "type": "integer",
+            "enum": [
+              1
+            ]
+          },
+          "streamUpload": {
+            "type": "boolean"
+          },
+          "localHandoff": {
+            "type": "boolean"
+          },
+          "serverArchive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "protocol",
+          "streamUpload",
+          "localHandoff",
+          "serverArchive"
+        ],
+        "description": "P20.2 advertises streamUpload only; localHandoff and serverArchive remain false. Omission means no negotiated native transport. Permission and staging recovery dependent."
+      },
+      "NativeUploadBeginRequestDTO": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "world-import",
+              "active-world-replace",
+              "world-thumbnail",
+              "modpack-archive",
+              "addon-local-file",
+              "curseforge-manual-file",
+              "modpack-unresolved-file"
+            ]
+          },
+          "fileName": {
+            "type": "string",
+            "nullable": true,
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Original basename, at most 255 UTF-8 bytes; no path/control syntax, trailing dot/space, Windows device basename or reserved Windows filename character. Required for add-ons and pending manual files."
+          },
+          "expectedBytes": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Exact length, within purpose ceiling; for pending files must equal the provider size."
+          },
+          "expectedSha256": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^[0-9A-Fa-f]{64}$"
+          },
+          "operationId": {
+            "type": "string",
+            "nullable": true
+          },
+          "fileId": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetServerId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Required for world-import, active-world-replace, world-thumbnail and addon-local-file. Required at redemption for importing a modpack into an existing server; omitted for new-server modpack creation."
+          }
+        },
+        "required": [
+          "purpose",
+          "expectedBytes"
+        ]
+      },
+      "NativeUploadBeginResultDTO": {
+        "type": "object",
+        "properties": {
+          "stagedUploadId": {
+            "type": "string"
+          },
+          "uploadPath": {
+            "type": "string"
+          },
+          "streamPath": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string"
+          },
+          "maxBytes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "protocol": {
+            "type": "integer",
+            "enum": [
+              1
+            ]
+          }
+        },
+        "required": [
+          "stagedUploadId",
+          "uploadPath",
+          "streamPath",
+          "expiresAt",
+          "maxBytes",
+          "protocol"
+        ]
+      },
+      "NativeUploadStatusDTO": {
+        "type": "object",
+        "properties": {
+          "stagedUploadId": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "admitted",
+              "receiving",
+              "verifying",
+              "ready",
+              "redeemed",
+              "cancelling",
+              "cancelled",
+              "failed",
+              "cleanup-failed"
+            ]
+          },
+          "receivedBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "expectedBytes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "expiresAt": {
+            "type": "string"
+          },
+          "cleanupError": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "stagedUploadId",
+          "state",
+          "receivedBytes",
+          "expectedBytes",
+          "expiresAt"
+        ]
+      },
       "StagedUploadBeginRequestDTO": {
         "type": "object",
         "properties": {
@@ -14065,7 +14564,7 @@
     }
   },
   "x-native-transfer-contract": {
-    "status": "specified-not-implemented",
+    "status": "implemented-agent-ingestion; desktop/local-handoff/server-archive pending",
     "contract": "../uploads/native-transfer-plan.md#p201-implementation-contract",
     "capability": {
       "field": "nativeTransfers",
@@ -14095,6 +14594,6 @@
         "purpose": "owner-only state, byte counts, expiry and cleanup outcome"
       }
     ],
-    "compatibility": "Existing staging/chunk endpoints unchanged. This extension is planning metadata, not a supported paths entry."
+    "compatibility": "Legacy endpoint formats preserved; native slots reject legacy writers. Protocol 1 advertises streamed receipt only."
   }
 }

@@ -1,7 +1,8 @@
 # Native file imports and uploads — Phase 20 plan
 
-**State:** P20.1 contract recorded October 16, 2026; owner verification pending. No upload code is
-implemented or included in the XboxBroadcast release. Active step fields and
+**State:** P20.2 agent stream receipt implemented October 16, 2026; owner verification
+pending. Native desktop sending and local handoff remain planned. These changes
+are not included in the published XboxBroadcast release. Active step fields and
 execution boundaries live in [rolling-plan.md](../rolling-plan.md).
 
 ## Outcome
@@ -221,8 +222,10 @@ Admission binds credential identity, destination host instance, purpose, target
 and pending file identity. World purposes require Worlds; add-on/modpack purposes
 require Addons; server archive purposes require Fleet. Recheck authorization and
 bindings at redemption, including revoked credentials and changed pending files.
-One active writer and one redemption per slot; simultaneous PUT/redeem returns
-409. Existing POST/PUT/chunks behavior remains unchanged for old clients.
+One active writer and one redemption per slot; a conflicting stream PUT returns
+409. Existing importers keep their 404 response for unavailable input, including
+an incomplete native slot that has never been published. Existing legacy slot
+POST/PUT/chunks wire behavior remains unchanged for old clients.
 
 Use the existing error envelope: 400 invalid length/digest metadata; 401/403
 auth/permission; 404 unknown slot; 409 wrong binding/state, short input or digest
@@ -328,3 +331,101 @@ requires its io feature and a direct dependency; do not rely on transitive
 features. Blocking picker/copy work belongs off the event loop. P20.3 must check
 Send/lifetime constraints through its authorized compiler check. No dependency
 or implementation change is made in P20.1.
+
+## P20.2 implementation record
+
+The agent now implements protocol 1 admission, stream receipt and owner-only
+status, plus native dispatch through the existing cancellation route. Capability
+advertisement is optional and permission-dependent; localHandoff/serverArchive
+remain false. No desktop, CLI, local-source handoff or server-archive sending is
+implemented in this step. No performance or physical acceptance result is claimed.
+
+Native files live in a separate UUID directory under `.msc2-staging/native`.
+Admission writes a small owner/size cleanup ledger and creates the payload before
+returning a token. Startup removes abandoned native files rather than treating
+an interrupted stream as ready. Failed deletion retains its reservation and
+owner-visible cleanup status; the janitor retries. Unrecognized recovery entries
+block native admission. An interrupted admission without a complete ledger can
+be discarded inside this isolated directory; it never identifies a source file.
+
+The stream uses one open Tokio file, 256 KiB writes, a bounded 1 MiB transport
+frame and incremental SHA-256. Tokio's file buffer is explicitly limited to
+256 KiB, keeping application buffers below the 2 MiB contract. Empty frames do
+not reset the 120-second no-byte-progress deadline. File sync precedes publication.
+No new receiver network/disk work holds the shared staging map. Legacy chunk
+implementation/wire behavior remains intact, including its existing hash reread.
+Disk admission includes native reservations and existing legacy/download storage;
+free-space checks reserve outstanding unwritten bytes plus the 1 GiB margin,
+rather than subtracting already allocated data a second time. Legacy routes do
+not gain a new protocol or release gate from this work.
+
+The shared upload access boundary checks the authenticated request's credential,
+purpose permission, original target and original servers-root binding for native
+files. A native slot cannot be overwritten by legacy PUT/chunks. Consumption
+atomically claims a ready native file once. A consumer guard follows the source
+through background server/world work; when that work ends, including an early
+return or panic, it signals the janitor to remove leftover staging and release
+its reservation. This prevents failed importer admission from leaking native
+capacity forever. Guards perform no disk work while map locks may be held.
+
+Active receipt watches credential revocation and permission reduction. Manual
+files are checked against their exact pending size at admission and against the
+original provider file identity/hash/destination again at receipt and redemption.
+The redemption check uses the already locked pending-file record, avoiding a
+second lock on that record. Modpack inspection keeps an input lease alive during
+real work; failed inspection cancels native staging. Existing importer format,
+archive, safety-backup and activation checks still run after verified receipt.
+
+Required target details for the next desktop step: world-import, replacement,
+thumbnail and local add-on admission require targetServerId. Existing-server
+modpack import also requires a matching target at redemption; new-server modpack
+creation accepts only an upload without an existing target. A wizard must create
+its destination before staging a world, or wait to start that source operation
+until the new server ID exists. This avoids silently rebinding an already selected
+existing server. The original basename is bounded and rejects path/control syntax and Windows
+device names; native local JAR installation preserves that safe name. Legacy naming
+behavior is unchanged. A changed servers root can initialize a new private staging
+root only after existing native reservations have been cleared.
+
+Unix directories/files use 0700/0600. Windows creates directories with a protected
+ACL (the Windows list of allowed accounts) granting inheritable access only to the
+service account, rather than inheriting a broad custom volume's permissions.
+The same installing-user service identity remains in force; no elevation is added.
+
+### Essential regression justification
+
+Four focused cases extend the agent upload coverage. Existing chunk tests do not
+exercise streamed body failure, native ownership, cancellation or restart ledgers.
+
+| Case | User-visible risk protected | Controlled inputs / expected runtime |
+|---|---|---|
+| native_stream_publishes_exact_bytes_only_to_its_owner_once | Another token redeems/cancels input, or legacy PUT replaces a verified upload | Six bytes in two frames, fake credentials, isolated directory; under one second |
+| native_stream_rejects_short_overlong_and_corrupt_bodies_without_publication | Partial/corrupted bytes become importer-visible or a selected filename escapes the destination | Three tiny deterministic bodies, a wrong digest, and rejected path/device basenames; under one second |
+| native_stream_cancellation_and_revocation_close_and_remove_partial_staging | Cancel/revocation leaves a redeemable or orphaned active upload | A deliberately pending body and watch notifications, no sleeps/socket; under one second |
+| native_stream_restart_discards_abandoned_slots_without_redeeming_them | Restart adopts an incomplete prior file as valid | Two-byte abandoned file and new store; under one second |
+
+Disk-space measurement is injected in these fixtures, so production's 1 GiB
+margin does not make tests depend on the test machine's available capacity.
+Temporary directories are isolated and cleaned. Runtime estimates exclude Rust
+compilation. No test was executed.
+
+### Checks and remaining owner verification
+
+- `cargo fmt --all` and the P20.2 agent Clippy check passed during implementation;
+  final checks are recorded with the step handoff.
+- Unit-test harness compilation uses
+  `cargo rustc -p msc-agent --bin msc --profile test -- --emit=metadata`;
+  it compiles these cases without executing them.
+- Broad `cargo check -p msc-agent --bin msc --tests` encountered pre-existing
+  integration harness errors: desktop_auth/cli_pairing include auth.rs without
+  its existing crate::routes dependency; cli_service initializes removed
+  CommonArgs fields (base_url/host/port/token). Those files were not changed.
+- Full Windows package checking from this Mac stops in ring's C build because
+  the Windows C headers/toolchain are unavailable (`assert.h` missing). The new
+  Windows ACL module passed isolated Windows-target Rust metadata compilation
+  against the locked windows-sys API. Full Windows build/runtime permission
+  acceptance remains Cameron's check; no platform result is invented.
+
+Owner physical checks, focused test execution if requested, throughput/RSS and
+end-to-end desktop acceptance remain pending. No CI/release workflow was changed,
+no release was run, and no phase gate or step verification was closed here.

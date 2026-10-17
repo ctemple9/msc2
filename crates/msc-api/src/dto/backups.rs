@@ -155,3 +155,39 @@ pub struct StagedUploadCompleteResultDto {
     pub received_bytes: i64,
     pub sha256: String,
 }
+
+/// Native admission never accepts a client filesystem path or destination URL.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct NativeUploadBeginRequestDto {
+    pub purpose: StagedUploadPurposeDto,
+    pub file_name: Option<String>,
+    pub expected_bytes: u64,
+    pub expected_sha256: Option<String>,
+    pub operation_id: Option<String>,
+    pub file_id: Option<String>,
+    pub target_server_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeUploadBeginResultDto {
+    pub staged_upload_id: String,
+    pub upload_path: String,
+    pub stream_path: String,
+    pub expires_at: String,
+    pub max_bytes: u64,
+    pub protocol: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeUploadStatusDto {
+    pub staged_upload_id: String,
+    pub state: String,
+    pub received_bytes: u64,
+    pub expected_bytes: u64,
+    pub expires_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cleanup_error: Option<String>,
+}

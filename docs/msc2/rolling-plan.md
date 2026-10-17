@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** P20.1 contract and baseline instructions recorded; awaiting
-owner verification before P20.2. No upload implementation has been added.
+**Current priority:** P20.2 agent streamed-upload receipt implemented; awaiting
+owner verification before P20.3. Native desktop sending remains planned.
 
 Historical implementation and published release records were reconciled and
 moved to [the archive](rolling-plan-archive.md) at Cameron's October 16 request.
@@ -17,8 +17,8 @@ not in this implementation queue.
 
 ## Phase 20 — Faster native file imports and uploads
 
-**Execution state:** Owner authorized P20.1 on October 16. Contract and baseline
-instructions recorded; owner verification pending. Later steps remain planned.
+**Execution state:** Owner authorized P20.1 and P20.2 on October 16. Agent stream
+receipt and contract recorded; owner verification pending. Later steps remain planned.
 No upload code is included in the XboxBroadcast release.
 **Contract and gate:** [Native transfer plan](uploads/native-transfer-plan.md).
 Preserve archive/integrity checks and source data; measure speed rather than
@@ -37,8 +37,8 @@ Complete connected-host transfer/resume remains [deferred](deferred-work.md).
 
 ### P20.2 — Receive and verify streamed uploads in the agent
 
-**Status:** Planned.
-**Files:** `crates/msc-agent/src/routes/components.rs`, `worlds.rs`, `worlds/import_activation.rs`, `main.rs` and staging/recovery helpers as needed; `crates/msc-api/src/dto/backups.rs`; infrastructure streaming/staging support; OpenAPI/capability data; focused existing upload tests; this plan.
+**Status:** Implemented; awaiting owner verification.
+**Files:** `crates/msc-agent/src/routes/components.rs`, `worlds.rs`, `worlds/import_activation.rs`, `main.rs` and staging/recovery helpers including `routes/components/native_upload.rs` and Windows private staging ACL support; `crates/msc-api/src/dto/backups.rs`; infrastructure streaming/staging support; OpenAPI/capability data; focused existing upload tests; this plan.
 **What:** Add capability-negotiated authenticated stream ingestion with bounded buffers, retained writers and incremental SHA-256. Keep global staging locks out of network/disk I/O, enforce per-purpose exact sizes and pending-file bindings, and publish only complete verified staging. Refresh activity expiry during real work; bound concurrency/disk usage and distinguish active streams from abandoned sessions on disconnect/restart. Cancel cannot redeem a partial file, overwrite an existing world or lose the source. Retain the old chunk endpoint unchanged for compatibility. Compile only essential extended regressions; no test execution by default.
 **Verify:** `cargo clippy -p msc-agent --bin msc -- -D warnings -A dead_code`
 **Batch:** P20.2 only; depends on P20.1 verification unless included in a newly authorized batch.

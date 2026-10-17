@@ -430,6 +430,8 @@ impl WorldsRoutesState {
 
 #[derive(Debug, Clone)]
 pub(crate) struct StagedUpload {
+    pub(crate) native_guard:
+        Option<std::sync::Arc<super::components::native_upload::ConsumedInput>>,
     pub(crate) purpose: StagedUploadPurposeDto,
     pub(crate) file_name: Option<String>,
     pub(crate) operation_id: Option<String>,
@@ -457,7 +459,8 @@ pub(crate) struct StagedDownload {
 /// step's own scope note leaves to a later phase).
 #[derive(Clone, Default)]
 pub(crate) struct StagingStore {
-    pub(crate) uploads: std::sync::Arc<Mutex<HashMap<String, StagedUpload>>>,
+    pub(crate) uploads: std::sync::Arc<Mutex<super::components::native_upload::UploadStore>>,
+    pub(crate) native: super::components::native_upload::NativeStore,
     pub(crate) downloads: std::sync::Arc<Mutex<HashMap<String, StagedDownload>>>,
 }
 
@@ -1138,6 +1141,13 @@ pub async fn install_java_datapack(
                 "Choose a catalog release or an uploaded file, not both.",
             );
         }
+        if !state.staging.native.target_matches(id, &server.id) {
+            return error_response(
+                StatusCode::CONFLICT,
+                "target_mismatch",
+                "Upload belongs to a different server.",
+            );
+        }
         let entry = state.staging.uploads.lock().unwrap().remove(id);
         let Some(entry) = entry else {
             return invalid_body("invalid_upload", "The uploaded datapack is unavailable.");
@@ -1709,6 +1719,13 @@ pub async fn install_bedrock_behavior_pack(
             return invalid_body(
                 "invalid_pack_source",
                 "Choose a catalog file or an uploaded file, not both.",
+            );
+        }
+        if !state.staging.native.target_matches(id, &server.id) {
+            return error_response(
+                StatusCode::CONFLICT,
+                "target_mismatch",
+                "Upload belongs to a different server.",
             );
         }
         let entry = state.staging.uploads.lock().unwrap().remove(id);
@@ -4018,6 +4035,17 @@ pub async fn set_thumbnail(
     let Some(slot) = find_slot(server_dir, &slot_id) else {
         return slot_not_found(&slot_id);
     };
+    if !state
+        .staging
+        .native
+        .target_matches(&body.staged_upload_id, &server.id)
+    {
+        return error_response(
+            StatusCode::CONFLICT,
+            "target_mismatch",
+            "Upload belongs to a different server.",
+        );
+    }
     let entry = {
         state
             .staging
@@ -4163,6 +4191,7 @@ pub async fn begin_staged_upload(
     state.staging.uploads.lock().unwrap().insert(
         id.clone(),
         StagedUpload {
+            native_guard: None,
             purpose: body.purpose,
             file_name: body.file_name.clone(),
             operation_id: body.operation_id.clone(),
@@ -4206,6 +4235,13 @@ pub async fn upload_staged_bytes(
 ) -> Response {
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
         return response;
+    }
+    if state.staging.native.contains(&id) {
+        return error_response(
+            StatusCode::CONFLICT,
+            "native_upload",
+            "Use the native stream endpoint.",
+        );
     }
     let entry = { state.staging.uploads.lock().unwrap().get(&id).cloned() };
     let Some(entry) = entry else {

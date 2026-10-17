@@ -593,6 +593,28 @@ impl AuthState {
             })
     }
 
+    pub(crate) fn stream_retains_permissions(&self, identity: &StreamAuthentication) -> bool {
+        let registry = self.inner.registry.lock().unwrap();
+        if let Some(record) = registry.get(&identity.credential.credential_id) {
+            return !record.revoked
+                && record
+                    .expires_at
+                    .is_none_or(|expiry| SystemTime::now() < expiry)
+                && identity
+                    .credential
+                    .permissions
+                    .iter()
+                    .all(|permission| record.permissions.contains(permission));
+        }
+        drop(registry);
+        self.inner
+            .local_cli_credentials
+            .lock()
+            .unwrap()
+            .get(&identity.credential.credential_id)
+            .is_some_and(|record| Instant::now() < record.expires_at)
+    }
+
     /// Migrates a P5.8 legacy owner token into the Phase 4 credential
     /// model: `None` if `LEGACY_OWNER_TOKEN_SECRET_KEY` is absent or blank
     /// (nothing to migrate — including the common case where an earlier

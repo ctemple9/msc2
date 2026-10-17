@@ -1089,6 +1089,13 @@ fn redeem_modpack_upload(
     let Some(staged_upload_id) = staged_upload_id.filter(|id| !id.trim().is_empty()) else {
         return Ok(None);
     };
+    if !staging.native.creation_matches(staged_upload_id) {
+        return Err(Box::new(error_response(
+            StatusCode::CONFLICT,
+            "target_mismatch",
+            "This upload was selected for an existing server.",
+        )));
+    }
     let entry = staging.uploads.lock().unwrap().remove(staged_upload_id);
     let Some(entry) = entry else {
         return Err(Box::new(error_response(
@@ -2724,6 +2731,7 @@ mod tests {
         staging.uploads.lock().unwrap().insert(
             "pack-upload".to_string(),
             StagedUpload {
+                native_guard: None,
                 purpose: msc_api::dto::StagedUploadPurposeDto::ModpackArchive,
                 file_name: None,
                 operation_id: None,

@@ -267,6 +267,12 @@ pub struct RelativeTimeCapabilityDto {
 /// wire response gains version-aware world settings.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CapabilitiesResponseDto {
+    #[serde(
+        rename = "nativeTransfers",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub native_transfers: Option<NativeTransfersDto>,
     #[serde(flatten)]
     pub base: CapabilitiesDto,
     #[serde(
@@ -281,4 +287,14 @@ pub struct CapabilitiesResponseDto {
         skip_serializing_if = "Option::is_none"
     )]
     pub world_settings: Option<WorldSettingsCapabilitiesDto>,
+}
+
+/// Protocol support is independent of the app release version.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeTransfersDto {
+    pub protocol: u32,
+    pub stream_upload: bool,
+    pub local_handoff: bool,
+    pub server_archive: bool,
 }

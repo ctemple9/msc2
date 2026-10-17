@@ -110,6 +110,7 @@ pub struct StorageInventoryCapabilityDto {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct StorageCandidateDto {
+    pub consequences: Vec<String>,
     pub id: String,
     pub label: String,
     pub display_path: Option<String>,

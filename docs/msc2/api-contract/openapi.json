@@ -8718,6 +8718,12 @@
       "StorageCandidateDTO": {
         "type": "object",
         "properties": {
+          "consequences": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "id": {
             "type": "string"
           },
@@ -8738,6 +8744,7 @@
           }
         },
         "required": [
+          "consequences",
           "id",
           "label",
           "displayPath",

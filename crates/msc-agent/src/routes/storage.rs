@@ -2,6 +2,7 @@
 mod builds;
 mod inventory;
 mod review;
+mod server_data;
 
 use super::lifecycle::{LifecycleRoutesState, error_response, require_permission};
 use crate::auth::AuthenticatedCredential;

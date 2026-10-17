@@ -2,7 +2,7 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.5 are implemented, awaiting owner verification; P21.6–P21.8
+Phase 21 P21.1–P21.6 are implemented, awaiting owner verification; P21.7–P21.8
 are authorized for sequential execution with verification deferred until the end.
 P21.1 visual acceptance remains pending.
 Independent Phase 20 gate review remains in [pending acceptance](pending-acceptance.md).
@@ -38,7 +38,7 @@ is separate from that closure; no earlier unobserved check is promoted to Pass.
 ## Phase 21 — Storage inventory and management
 
 **Planning state:** Owner requested PLAN on October 16 after discussing the
-screen and cleanup behavior. P21.1–P21.5 are implemented and awaiting owner
+screen and cleanup behavior. P21.1–P21.6 are implemented and awaiting owner
 verification/review. Cameron explicitly authorized P21.3–P21.8 to execute in
 sequence with one commit per step and verification deferred until the end.
 This also authorizes the P21.1-based UI implementation; visual acceptance remains
@@ -160,12 +160,14 @@ continuous deep scan or broad test matrix is implied.
 
 ### P21.6 — Reuse server-data deletion through storage selections
 
-**Status:** Planned.
+**Status:** Implemented; awaiting owner verification.
 **Files:** Storage action coordination; existing `crates/msc-agent/src/routes/backups.rs`, world and server deletion routes/services only where needed; relevant DTO/CLI adapters; desktop confirmation/action state; focused action-permission regressions; this plan.
 **What:** Map inventory selections to existing backup/world/server IDs and established deletion services, permissions, backups, stopped-state requirements and confirmations. Allow multiple selected backups within one computer/category, with previews and per-item results; keep world removal and whole-server removal in separate reviews. Show a server removal's actual contained worlds/backups and relevant consequences; block active world/server deletion unless the existing supported lifecycle/action permits it. Preview never stops a server, changes selection or deletes data; any required graceful stop is explicit. Revalidate IDs, owner host, current state and preview before every action. Cancellation stops later items but does not pretend earlier deletions were undone; partial failures remain visible. Refuse a stale host/item or changed source rather than falling back to a raw path. Do not relax deletion rules or trigger complete uninstall.
 **Verify:** `cargo clippy -p msc-agent --bin msc -- -D warnings -A dead_code`
 **Batch:** P21.6 only; depends on P21.5 verification unless included in a newly authorized batch.
 **Commit:** `P21.6: manage server data through scoped storage reviews`
+
+**Implementation:** Added host-bound backup/world/server candidates and exact reviews through existing deletion services. Backup batches recheck the last-verified-backup floor before every removal; active slots, unready reconciliation, running servers and overlapping registered roots are retained. World/server reviews each accept one item and have distinct typed confirmations. Whole-server reviews enumerate saved worlds/backups and directory consequences. Preview does not stop or select a server. Existing backup/server deletion routes now share operation admission so they cannot race a Storage cleanup. Per-item cancellation and changed-source results use P21.5 persistence. Existing permission semantics (including Admin's established category override) remain intact. One essential pure permission regression protects Worlds/Fleet distinctions, with controlled credentials, no I/O/timing and expected runtime under 1 ms; compile only. Required agent/native Clippy passed. The binary unit-test target compiled without execution; the broader check still encounters the pre-existing `cli_pairing`/`desktop_auth` route imports and `cli_service` argument mismatches. The documented MSC 1 checkout is unavailable at its stated path; parity was checked against the existing ported deletion services and their source references, not a new direct Swift audit.
 
 ### P21.7 — Build the Settings Storage overview and management screens
 

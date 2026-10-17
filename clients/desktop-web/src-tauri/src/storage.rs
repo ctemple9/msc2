@@ -484,7 +484,12 @@ pub async fn storage_remote(
             }
             let allowed = matches!(
                 (selection.category.as_str(), selection.action.as_str()),
-                ("cache", "map-cache" | "old-downloads") | ("agent", "obsolete-builds")
+                ("cache", "map-cache" | "old-downloads")
+                    | ("agent", "obsolete-builds")
+                    | (
+                        "servers",
+                        "delete-backups" | "remove-world" | "remove-server"
+                    )
             );
             if !allowed {
                 return Err("Unsupported storage selection".into());

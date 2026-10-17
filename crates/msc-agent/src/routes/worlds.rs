@@ -590,13 +590,13 @@ fn active_server_or_response(state: &LifecycleRoutesState) -> Result<ConfigServe
     Ok(server)
 }
 
-fn find_slot(server_dir: &Path, slot_id: &str) -> Option<WorldSlot> {
+pub(crate) fn find_slot(server_dir: &Path, slot_id: &str) -> Option<WorldSlot> {
     world_store::load_slots(&StdFileSystem, server_dir)
         .into_iter()
         .find(|slot| slot.id == slot_id)
 }
 
-fn resolved_active_slot_id(server_dir: &Path) -> Option<String> {
+pub(crate) fn resolved_active_slot_id(server_dir: &Path) -> Option<String> {
     let slots = world_store::load_slots(&StdFileSystem, server_dir);
     let marker = world_store::load_explicit_active_slot_id(&StdFileSystem, server_dir);
     msc_domain::world::resolve_active_slot_id(&slots, marker.as_deref())

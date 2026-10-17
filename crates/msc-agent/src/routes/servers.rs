@@ -1381,7 +1381,15 @@ pub async fn delete(
         return invalid_body("missing_server_id", "serverId is required.");
     }
 
-    match state.delete_fleet_server(&server_id) {
+    let operation = match state.operations().begin_lifecycle(
+        "server-delete",
+        Some(server_id.clone()),
+        "Deleting server.",
+    ) {
+        Ok(o) => o,
+        Err(e) => return super::operations::operation_error_response(e),
+    };
+    let response = match state.delete_fleet_server(&server_id) {
         Ok(deleted) => Json(ServerDeleteResultDto {
             success: true,
             message: format!("Deleted server \"{}\".", deleted.removed_display_name),
@@ -1394,7 +1402,19 @@ pub async fn delete(
             "delete_failed",
             &error.to_string(),
         ),
+    };
+    if response.status().is_success() {
+        let _ = state
+            .operations()
+            .succeed(&operation, "Server deleted.", Default::default());
+    } else {
+        let _ = state.operations().fail(
+            &operation,
+            "server_delete_failed",
+            format!("HTTP {}", response.status()),
+        );
     }
+    response
 }
 
 fn delete_server_error_response(error: DeleteServerError) -> Response {

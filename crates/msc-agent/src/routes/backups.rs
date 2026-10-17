@@ -530,45 +530,66 @@ pub async fn delete(
         Ok(server) => server,
         Err(response) => return response,
     };
-    let server_dir = Path::new(&server.server_dir);
-    let entries = backups::list_backups(&StdFileSystem, server_dir);
-    let Some(entry) = entries
-        .iter()
-        .find(|entry| entry.filename == body.backup_id)
-    else {
-        return error_response(StatusCode::NOT_FOUND, "backup_not_found", "No such backup.");
+    let operation = match lifecycle.operations().begin_lifecycle(
+        "backup-delete",
+        Some(server.id.clone()),
+        "Deleting backup.",
+    ) {
+        Ok(o) => o,
+        Err(e) => return super::operations::operation_error_response(e),
     };
+    let response = (|| {
+        let server_dir = Path::new(&server.server_dir);
+        let entries = backups::list_backups(&StdFileSystem, server_dir);
+        let Some(entry) = entries
+            .iter()
+            .find(|entry| entry.filename == body.backup_id)
+        else {
+            return error_response(StatusCode::NOT_FOUND, "backup_not_found", "No such backup.");
+        };
 
-    // Phase 6's own retention-floor correction (`phase6-api.md`'s
-    // `deleteBackup` note): refuse to drop the sole remaining verified
-    // backup, mirroring `backup_store::prune_managed_backups`'s own
-    // floor for automatic pruning but applied here to a manual,
-    // single-backup delete too.
-    if entry.verified {
-        let verified_count = entries.iter().filter(|e| e.verified).count();
-        if verified_count <= 1 {
-            return error_response(
-                StatusCode::CONFLICT,
-                "sole_verified_backup",
-                "Cannot delete the last remaining verified backup.",
-            );
+        // Phase 6's own retention-floor correction (`phase6-api.md`'s
+        // `deleteBackup` note): refuse to drop the sole remaining verified
+        // backup, mirroring `backup_store::prune_managed_backups`'s own
+        // floor for automatic pruning but applied here to a manual,
+        // single-backup delete too.
+        if entry.verified {
+            let verified_count = entries.iter().filter(|e| e.verified).count();
+            if verified_count <= 1 {
+                return error_response(
+                    StatusCode::CONFLICT,
+                    "sole_verified_backup",
+                    "Cannot delete the last remaining verified backup.",
+                );
+            }
         }
-    }
 
-    let response = match backups::delete_backup(&StdFileSystem, &entry.zip_path) {
-        Ok(()) => Json(SimpleResultDto {
-            result: "deleted".to_string(),
-            active_server_id: None,
-            operation_id: None,
-            runtime: runtime_for(&lifecycle),
-        })
-        .into_response(),
-        Err(error) => error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "internal_error",
-            &error.to_string(),
-        ),
-    };
+        match backups::delete_backup(&StdFileSystem, &entry.zip_path) {
+            Ok(()) => Json(SimpleResultDto {
+                result: "deleted".to_string(),
+                active_server_id: None,
+                operation_id: None,
+                runtime: runtime_for(&lifecycle),
+            })
+            .into_response(),
+            Err(error) => error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_error",
+                &error.to_string(),
+            ),
+        }
+    })();
+    if response.status().is_success() {
+        let _ = lifecycle
+            .operations()
+            .succeed(&operation, "Backup deleted.", Default::default());
+    } else {
+        let _ = lifecycle.operations().fail(
+            &operation,
+            "backup_delete_failed",
+            format!("HTTP {}", response.status()),
+        );
+    }
     audit(
         &lifecycle,
         &credential,

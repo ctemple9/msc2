@@ -157,7 +157,7 @@ async fn capabilities_for_query(
                 protocol: 1,
                 scan: true,
                 cache_cleanup: true,
-                server_data_cleanup: false,
+                server_data_cleanup: true,
             }),
         native_transfers: None,
         player_actions: Some(true),

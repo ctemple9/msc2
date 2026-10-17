@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 0fbb966a8007b6f5e8deb97a45e45e4f2d17338af2fff3ed1ac4773c239ed672
+// Contract SHA-256: 164890c4a1666040823dce853e2c12e7d5cc3ec480b6c04dccc035075edb72b5
 
 export interface paths {
   '/v1/active-server': {
@@ -9881,6 +9881,7 @@ export interface components {
       [key: string]: unknown;
     };
     StorageCandidateDTO: {
+      consequences: string[];
       displayPath: string | null;
       id: string;
       label: string;

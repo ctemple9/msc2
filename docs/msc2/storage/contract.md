@@ -387,3 +387,20 @@ CLI: `msc storage candidates --category cache --action map-cache`, then
 confirm with `msc storage apply --host <hostId> --preview-token <token> --confirm
 "REMOVE SELECTED FILES"`. Read `msc storage result <operationId>` or cancel through
 `msc storage cancel <operationId>`. Legacy map preview/cleanup remains compatible.
+
+### P21.6 server data reviews
+
+Category `servers` adds `delete-backups`, `remove-world` and `remove-server`.
+Backups may be selected together; world/server removal each requires a separate
+single-item review. The review supplies the exact typed confirmation (including
+world/server identity), consequences and selected paths for display. Paths are
+never accepted as removal authority. Root identity, registered server ID, domain
+ID, source fingerprint, reconciliation and existing protection rules are checked
+again before removal. A changed source requires another review.
+
+Deletion delegates to `backups::delete_backup`, `worlds::delete_slot` or
+`LifecycleRoutesState::delete_fleet_server`. The last verified backup and active
+slot remain protected; a running server must be stopped explicitly beforehand.
+Overlapping registered server directories cannot be removed here. Admin remains
+the existing full-access permission; Worlds/Fleet checks use the same helper as
+the established routes. No full uninstall action is reachable from this protocol.

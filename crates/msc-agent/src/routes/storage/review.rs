@@ -10,6 +10,7 @@ use std::collections::{BTreeMap, HashSet};
 
 #[derive(Clone)]
 pub(super) enum Owner {
+    Data(super::server_data::Data),
     Map(CleanupEntry),
     Transfer(super::super::components::storage_cleanup::Entry),
     Build(super::builds::Build),
@@ -53,6 +54,7 @@ fn candidate(
 ) -> Candidate {
     Candidate {
         item: Item {
+            consequences: vec![],
             id: storage::identity(&[host, kind, id]),
             label,
             display_path: path,
@@ -70,6 +72,16 @@ pub(super) async fn discover(
     action: &str,
 ) -> Result<Vec<Candidate>, String> {
     match (category, action) {
+        ("servers", "delete-backups" | "remove-world" | "remove-server") => {
+            let lifecycle = state.lifecycle.clone();
+            let host = host.to_string();
+            let action = action.to_string();
+            tokio::task::spawn_blocking(move || {
+                super::server_data::candidates(&lifecycle, &host, &action)
+            })
+            .await
+            .map_err(|e| e.to_string())?
+        }
         ("cache", "map-cache") => {
             let entries = tokio::task::spawn_blocking(map_staging::preview_cleanup)
                 .await
@@ -158,6 +170,9 @@ pub(super) async fn candidates(
         Ok(h) => h,
         Err(r) => return r,
     };
+    if let Some(r) = action_permission(&credential, &selection.action) {
+        return r;
+    }
     match discover(&state, &host, &selection.category, &selection.action).await {
         Ok(items) => Json(StorageCandidatesDto {
             host_id: host,
@@ -191,6 +206,16 @@ pub(super) async fn review(
             "Select up to 64 distinct items on this computer.",
         );
     }
+    if let Some(r) = action_permission(&credential, &body.action) {
+        return r;
+    }
+    if matches!(body.action.as_str(), "remove-world" | "remove-server") && ids.len() != 1 {
+        return error_response(
+            StatusCode::BAD_REQUEST,
+            "storage_separate_review",
+            "World and server removal each require a separate single-item review.",
+        );
+    }
     let fresh = match discover(&state, &host, &body.category, &body.action).await {
         Ok(f) => f,
         Err(e) => return error_response(StatusCode::CONFLICT, "storage_review", &e),
@@ -207,7 +232,12 @@ pub(super) async fn review(
         );
     }
     let token = uuid::Uuid::new_v4().to_string();
-    let confirmation = "REMOVE SELECTED FILES".to_string();
+    let confirmation = match body.action.as_str() {
+        "remove-server" => format!("DELETE SERVER {}", selected[0].item.label),
+        "remove-world" => format!("DELETE WORLD {}", selected[0].item.label),
+        "delete-backups" => "DELETE SELECTED BACKUPS".into(),
+        _ => "REMOVE SELECTED FILES".into(),
+    };
     let response = StorageReviewDto {
         host_id: host.clone(),
         category: body.category.clone(),
@@ -313,6 +343,9 @@ pub(super) async fn apply(
                 "Review expired, credential changed or confirmation did not match.",
             );
         }
+        if let Some(r) = action_permission(&credential, &review.action) {
+            return r;
+        }
         let operation = match state.lifecycle.operations().begin_lifecycle(
             "host-storage-cleanup",
             None,
@@ -362,7 +395,10 @@ pub(super) async fn apply(
         let host = worker_host;
         let cancel = state.lifecycle.operations().cancellation_check(&operation);
         for (index, candidate) in review.items.into_iter().enumerate() {
-            if cancel() || !state.lifecycle.storage_credential_valid(&credential) {
+            if cancel()
+                || !state.lifecycle.storage_credential_valid(&credential)
+                || action_permission(&credential, &review.action).is_some()
+            {
                 result.state = "cancelled".into();
                 break;
             }
@@ -374,6 +410,15 @@ pub(super) async fn apply(
                 break;
             }
             let outcome = match candidate.owner {
+                Owner::Data(data) => {
+                    let host = host.clone();
+                    let lifecycle = state.lifecycle.clone();
+                    tokio::task::spawn_blocking(move || {
+                        super::server_data::remove(&lifecycle, &host, &data)
+                    })
+                    .await
+                    .unwrap_or_else(|e| Err(e.to_string()))
+                }
                 Owner::Map(entry) => {
                     let check = cancel.clone();
                     tokio::task::spawn_blocking(move || {
@@ -518,4 +563,36 @@ pub(super) async fn result(
         }
     }
     Json(result).into_response()
+}
+
+fn action_permission(credential: &AuthenticatedCredential, action: &str) -> Option<Response> {
+    match action {
+        "remove-server" => require_permission(credential, PermissionCategoryDto::Fleet),
+        "remove-world" | "delete-backups" => {
+            require_permission(credential, PermissionCategoryDto::Worlds)
+        }
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn server_data_actions_keep_existing_permission_rules() {
+        let mut credential = AuthenticatedCredential {
+            credential_id: "controlled".into(),
+            label: "Controlled".into(),
+            role: crate::auth::CredentialRole::Named,
+            permissions: vec![],
+        };
+        assert!(action_permission(&credential, "delete-backups").is_some());
+        assert!(action_permission(&credential, "remove-world").is_some());
+        credential.permissions = vec![PermissionCategoryDto::Worlds];
+        assert!(action_permission(&credential, "delete-backups").is_none());
+        assert!(action_permission(&credential, "remove-world").is_none());
+        assert!(action_permission(&credential, "remove-server").is_some());
+        credential.permissions = vec![PermissionCategoryDto::Admin];
+        assert!(action_permission(&credential, "remove-server").is_none());
+    }
 }

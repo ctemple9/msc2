@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** P20.5 server folder/archive and transfer adapters implemented;
-awaiting owner verification. Remaining import-screen progress work is P20.6.
+**Current priority:** P20.6 native import-screen progress and cancellation implemented;
+awaiting owner verification. P20.7 measurement and physical acceptance remain planned.
 
 Historical implementation and published release records were reconciled and
 moved to [the archive](rolling-plan-archive.md) at Cameron's October 16 request.
@@ -17,9 +17,9 @@ not in this implementation queue.
 
 ## Phase 20 — Faster native file imports and uploads
 
-**Execution state:** Owner authorized P20.1–P20.3 on October 16 and P20.4–P20.5 on October 17.
+**Execution state:** Owner authorized P20.1–P20.3 on October 16 and P20.4–P20.6 on October 17.
 Contract, receipt, native desktop sender, local handoff and server import/export
-adapters implemented; owner verification pending. P20.6–P20.7 remain planned.
+adapters and import-screen wiring implemented; owner verification pending. P20.7 remains planned.
 No upload code is included in the XboxBroadcast release.
 **Contract and gate:** [Native transfer plan](uploads/native-transfer-plan.md).
 Preserve archive/integrity checks and source data; measure speed rather than
@@ -74,8 +74,8 @@ Complete connected-host transfer/resume remains [deferred](deferred-work.md).
 
 ### P20.6 — Give every import flow truthful progress and cancellation
 
-**Status:** Planned.
-**Files:** `clients/desktop-web/src/lib/sections/components/StagedUploadSheet.svelte`, `ModpackUploadProgress.svelte`, modpack import entry points; fleet wizard `UploadStep.svelte`, `WorldStep.svelte`, `TransferSheet.svelte`; world import/replace sheets; shared API/platform state; `App.svelte` only as needed; this plan.
+**Status:** Implemented; awaiting owner verification.
+**Files:** `clients/desktop-web/src/lib/sections/components/StagedUploadSheet.svelte`, `ModpackUploadProgress.svelte`, modpack import entry points; fleet wizard `UploadStep.svelte`, `WorldStep.svelte`, `TransferSheet.svelte`; world import/replace sheets; shared API/platform state; `App.svelte` only as needed; shared source/context/cleanup adapters and bounded host notices; the shared Sheet Escape handler; native creation-context negotiation and narrow DTO/admission updates; essential regression sources; native-transfer implementation record and capability matrix; this plan.
 **What:** Apply `antiAIslop.md` within the existing sheets. Connect all inventoried entry points to the native source operation and preserve original-host state when navigating. Show preparing, transferring/local copying, verifying, inspecting and installing/importing as separate real stages. Display byte rate/progress only with a valid denominator; 100% transferred is not import success. Cancellation must await its real cleanup outcome and expose failures. Remove buffer-size tuning from the native path; retain it only for applicable legacy fallback. Surface older-agent capability limits before work and prevent late results from changing another selected host.
 **Verify:** `npm --prefix clients/desktop-web run check`
 **Batch:** P20.6 only; depends on P20.5 verification unless included in a newly authorized batch.

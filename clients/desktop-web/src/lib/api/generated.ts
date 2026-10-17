@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 8edc08d489a7155e12255585f5f6d11c33d26f05405217fe7cbc7467a793a573
+// Contract SHA-256: bd9fb385621262c213c79a4c0b0df2fa9fbb911c27ca52fb744a829f33bf2d95
 
 export interface paths {
   '/v1/active-server': {
@@ -7990,6 +7990,11 @@ export interface components {
     };
     /** @description Protocol 1 supports bounded streamUpload. localHandoff is true only while the private installing-user Unix descriptor endpoint is available. P20.5 serverArchive enables raw ZIP, generated server-folder TAR, local folder descriptor and MSC-transfer staging/import plus SHA-256 verified streamed downloads. Remote and Windows folders generate an exact-length uncompressed TAR directly into the bounded native stream; no complete source archive is written on the desktop. Omission means an older agent; explicit false means unavailable. Permission and staging recovery dependent. */
     NativeTransfersDTO: {
+      /**
+       * @description P20.6: supports explicit creation-time world/add-on/modpack inputs without an existing server. Missing/false requires an agent update for these native inputs.
+       * @default false
+       */
+      creationContext: boolean;
       localHandoff: boolean;
       /** @enum {integer} */
       protocol: 1;
@@ -7999,6 +8004,11 @@ export interface components {
       [key: string]: unknown;
     };
     NativeUploadBeginRequestDTO: {
+      /**
+       * @description P20.6: explicit creation-time source context. Request may omit targetServerId only for world-import, addon-local-file or modpack-archive; cannot combine with an existing target or pending-file binding.
+       * @default false
+       */
+      creationContext: boolean;
       /** @description Exact length, within purpose ceiling; for pending files must equal the provider size. Raw server folders use exact total regular-file bytes and require the private local descriptor endpoint; archives use exact archive length. */
       expectedBytes: number;
       expectedSha256?: string | null;
@@ -8018,7 +8028,7 @@ export interface components {
         | 'raw-server-archive'
         | 'raw-server-folder'
         | 'msc-transfer-archive';
-      /** @description Required for world-import, active-world-replace, world-thumbnail and addon-local-file. Required at redemption for importing a modpack into an existing server; omitted for new-server modpack creation. */
+      /** @description Required for existing-server world import, active-world replacement, thumbnail and local add-on inputs. Optional for modpacks and pending operation files; forbidden for server archive/folder/MSC-transfer sources. World-import/addon-local-file/modpack-archive may instead set creationContext=true before server creation, with no target or pending-file binding. Existing targets must match the selected server at admission and redemption. */
       targetServerId?: string | null;
     } & {
       [key: string]: unknown;

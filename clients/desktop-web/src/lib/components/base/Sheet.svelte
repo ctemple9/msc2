@@ -1,8 +1,13 @@
+<script context="module" lang="ts">
+  const visibleSheets: symbol[] = [];
+</script>
+
 <script lang="ts">
   // The sheet frame. Three fixed widths only — 480 / 640 / 820. Not locked in
   // a rendering specimen; built to the same law as the rest of S0 (flat tier
   // surfaces, no glass, shadow only because this genuinely floats above the
   // shell — the one place a blur scrim is sanctioned, docs/msc2/antiAIslop.md #4).
+  import { onDestroy } from 'svelte';
   import { onboardingAnchor } from '../../help/tourAnchors';
 
   export let title: string;
@@ -16,6 +21,17 @@
    *  set. Additive -- most sheets leave it unset. See tourAnchors.ts. */
   export let closeAnchorId: string | undefined = undefined;
 
+  const sheetIdentity = Symbol();
+  $: {
+    const index = visibleSheets.indexOf(sheetIdentity);
+    if (visible && index < 0) visibleSheets.push(sheetIdentity);
+    else if (!visible && index >= 0) visibleSheets.splice(index, 1);
+  }
+  onDestroy(() => {
+    const index = visibleSheets.indexOf(sheetIdentity);
+    if (index >= 0) visibleSheets.splice(index, 1);
+  });
+
   const widths = { sm: '480px', md: '640px', lg: '820px' } as const;
 
   function handleBackdropClick(event: MouseEvent) {
@@ -23,7 +39,11 @@
   }
 
   function dismissOnEscape(event: KeyboardEvent) {
-    if (event.key === 'Escape') onClose?.();
+    if (visible && event.key === 'Escape' && visibleSheets.at(-1) === sheetIdentity) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      onClose?.();
+    }
   }
 </script>
 

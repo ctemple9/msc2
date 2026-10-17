@@ -1,9 +1,8 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { ApiError } from '../../api/client';
   import { openExternal } from '../../platform';
-  import { getPlatform } from '../../platform';
-  import type { FileChunkSource } from '../../platform/types';
+  import { pickUploadSource, sourceApi, type UploadSource } from '../shared/upload-source';
   import StagedUploadSheet from '../components/StagedUploadSheet.svelte';
   import Sheet from '../../components/base/Sheet.svelte';
   import Button from '../../components/base/Button.svelte';
@@ -19,11 +18,16 @@
   import type { ProjectDetailItem } from '../components/model';
   import { pollOperation, worldPaths, type WorldSlotWithProfile } from './model';
 
+  let disposed = false;
+  onDestroy(() => {
+    disposed = true;
+  });
   export let api: ScreenApi | undefined;
   export let bedrock = false;
   export let slotId = '';
   export let onStage:
-    ((pack: import('../fleet/wizard/model').PendingWorldPack) => void) | undefined = undefined;
+    | ((pack: import('../fleet/wizard/model').PendingWorldPack, scoped?: ScreenApi) => void)
+    | undefined = undefined;
   export let stagedPacks: import('../fleet/wizard/model').PendingWorldPack[] = [];
   export let minecraftVersion = '';
   export let initialProject: ProjectDetailItem | undefined = undefined;
@@ -35,7 +39,7 @@
   let query = '';
   let packKind: 'all' | 'resource' | 'behavior' = 'all';
   let searchRequestId = 0;
-  let pendingPack: FileChunkSource | undefined;
+  let pendingPack: UploadSource | undefined;
   let picking = false;
   let results: Schema['CatalogItemDTO'][] = [];
   let bedrockResults: Schema['BedrockBehaviorPackCatalogItemDTO'][] = [];
@@ -396,16 +400,20 @@
   }
 
   async function choosePack(): Promise<void> {
-    if (!api?.uploadFile || picking) return;
+    if (!api || (!api.selectUploadSource && !api.uploadFile) || picking) return;
     picking = true;
     try {
       pendingPack =
-        (await (
-          await getPlatform()
-        ).pickFileStream({
-          label: 'Choose a Bedrock pack',
-          extensions: ['mcpack', 'mcaddon', 'zip'],
-        })) ?? undefined;
+        (await pickUploadSource(
+          api,
+          'addon-local-file',
+          {
+            label: 'Choose a Bedrock pack',
+            extensions: ['mcpack', 'mcaddon', 'zip'],
+          },
+          { targetServerId: onStage ? null : undefined },
+          () => !disposed,
+        )) ?? undefined;
     } catch (error) {
       notice = errorMessage(error);
     } finally {
@@ -415,24 +423,31 @@
 
   async function installUploadedPack(
     upload: Schema['StagedUploadCompleteResultDTO'],
+    scoped: ScreenApi,
+    report: (line: string) => void,
   ): Promise<void> {
     if (onStage) {
-      onStage({
-        id: crypto.randomUUID(),
-        kind: 'localFile',
-        edition: 'bedrock',
-        title: pendingPack?.name ?? 'Imported pack',
-        stagedUploadId: upload.stagedUploadId,
-      });
+      onStage(
+        {
+          id: crypto.randomUUID(),
+          kind: 'localFile',
+          edition: 'bedrock',
+          title: pendingPack?.name ?? 'Imported pack',
+          stagedUploadId: upload.stagedUploadId,
+        },
+        sourceApi(pendingPack, api),
+      );
       notice = 'Pack added.';
       return;
     }
     const result = await mutate<Schema['BedrockBehaviorPackInstallResultDTO']>(
-      api,
+      scoped,
       `/v1/worlds/${encodeURIComponent(slotId)}/behaviorpacks/install`,
       { stagedUploadId: upload.stagedUploadId },
     );
-    const operation = await pollOperation(api, result.operationId);
+    const operation = await pollOperation(scoped, result.operationId, (tick) =>
+      report(tick.statusLine ?? 'Installing pack…'),
+    );
     if (operation?.state !== 'succeeded')
       throw new Error(operation?.error?.message ?? 'Pack installation failed.');
     notice = `${result.packs.map((pack) => pack.name).join(', ')} installed.`;
@@ -473,7 +488,7 @@
       <Button
         size="sm"
         variant="secondary"
-        disabled={picking || !!installing || !api?.uploadFile}
+        disabled={picking || !!installing || !api || (!api.selectUploadSource && !api.uploadFile)}
         onclick={() => void choosePack()}>Import Pack…</Button
       >
     </div>
@@ -762,6 +777,7 @@
     {api}
     purpose="addon-local-file"
     source={pendingPack}
+    completionStage={onStage ? 'complete' : 'installing'}
     onComplete={installUploadedPack}
     onClose={() => (pendingPack = undefined)}
   />

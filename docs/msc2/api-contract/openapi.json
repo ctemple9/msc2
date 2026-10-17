@@ -14138,6 +14138,11 @@
           },
           "serverArchive": {
             "type": "boolean"
+          },
+          "creationContext": {
+            "type": "boolean",
+            "default": false,
+            "description": "P20.6: supports explicit creation-time world/add-on/modpack inputs without an existing server. Missing/false requires an agent update for these native inputs."
           }
         },
         "required": [
@@ -14195,7 +14200,12 @@
           "targetServerId": {
             "type": "string",
             "nullable": true,
-            "description": "Required for world-import, active-world-replace, world-thumbnail and addon-local-file. Required at redemption for importing a modpack into an existing server; omitted for new-server modpack creation."
+            "description": "Required for existing-server world import, active-world replacement, thumbnail and local add-on inputs. Optional for modpacks and pending operation files; forbidden for server archive/folder/MSC-transfer sources. World-import/addon-local-file/modpack-archive may instead set creationContext=true before server creation, with no target or pending-file binding. Existing targets must match the selected server at admission and redemption."
+          },
+          "creationContext": {
+            "type": "boolean",
+            "default": false,
+            "description": "P20.6: explicit creation-time source context. Request may omit targetServerId only for world-import, addon-local-file or modpack-archive; cannot combine with an existing target or pending-file binding."
           }
         },
         "required": [

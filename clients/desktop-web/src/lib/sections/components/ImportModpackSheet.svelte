@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
+  import { reportTransferFailure } from '../shared/transfer-notices';
   // Ports DetailsComponentsTabView.swift's isShowingModpackImporter flow
   // (stage the archive, sniff mrpack vs CurseForge zip, import) as its own
   // step sequence: stage -> inspect -> review -> importing -> done/failed.
@@ -11,10 +13,15 @@
   import Select from '../../components/base/Select.svelte';
   import VisibilityIcon from '../../components/base/VisibilityIcon.svelte';
   import { ApiError } from '../../api/client';
-  import { getPlatform } from '../../platform';
-  import type { FileChunkSource } from '../../platform/types';
+  import {
+    discardUpload,
+    pickUploadSource,
+    sourceApi,
+    type UploadSource,
+  } from '../shared/upload-source';
   import type { Schema, ScreenApi } from '../shared/types';
   import { errorMessage, mutate } from '../shared/types';
+  import { pollOperation } from '../worlds/model';
   import { addonPaths } from './model';
   import StagedUploadSheet from './StagedUploadSheet.svelte';
 
@@ -46,24 +53,55 @@
     stagedUploadId: string;
   };
 
+  let stagedInput: string | undefined;
+  let consumed = false;
+  let disposed = false;
+  async function closeSelection(): Promise<void> {
+    if (stagedInput && !consumed) {
+      try {
+        await discardUpload(transferApi, stagedInput);
+        stagedInput = undefined;
+      } catch (error) {
+        reportTransferFailure(transferApi, error);
+        return;
+      }
+    }
+    onClose();
+  }
+  onDestroy(() => {
+    disposed = true;
+    if (stagedInput && !consumed)
+      void discardUpload(transferApi, stagedInput).catch((error) =>
+        reportTransferFailure(transferApi, error),
+      );
+  });
+  let transferApi: ScreenApi | undefined;
   let step: Step = { kind: 'stage' };
+  let importStatus = 'Importing modpack and resolving provider files…';
   let action: 'import' | 'replace' = 'import';
   let curseforgeApiKey = '';
   let curseforgeApiKeyVisible = false;
   let curseforgeKeySaving = false;
   let curseforgeKeyNotice = '';
-  let pendingModpackSource: FileChunkSource | undefined;
+  let pendingModpackSource: UploadSource | undefined;
 
   async function chooseAndStage(): Promise<void> {
-    if (!api?.uploadFile) return;
+    if (!api || (!api.selectUploadSource && !api.uploadFile)) return;
     try {
-      const picked = await (
-        await getPlatform()
-      ).pickFileStream({
-        label: 'Choose a modpack archive',
-        extensions: ['mrpack', 'zip'],
-      });
-      if (picked) pendingModpackSource = picked;
+      const picked = await pickUploadSource(
+        api,
+        'modpack-archive',
+        {
+          label: 'Choose a modpack archive',
+          extensions: ['mrpack', 'zip'],
+        },
+        {},
+        () => !disposed,
+      );
+      if (picked) {
+        pendingModpackSource = picked;
+        transferApi = sourceApi(picked, api);
+      }
     } catch (error) {
       step = {
         kind: 'failed',
@@ -72,12 +110,17 @@
     }
   }
 
-  async function inspectUploadedModpack(stagedUploadId: string): Promise<void> {
+  async function inspectUploadedModpack(
+    stagedUploadId: string,
+    callbackApi?: ScreenApi,
+  ): Promise<void> {
     if (!api || !pendingModpackSource)
       throw new Error('The selected modpack is no longer available.');
+    stagedInput = stagedUploadId;
+    consumed = false;
     step = { kind: 'inspecting' };
     const inspection = await mutate<Schema['ModpackInspectionResultDTO']>(
-      api,
+      callbackApi ?? transferApi ?? api,
       addonPaths.inspectPack,
       { stagedUploadId },
     );
@@ -88,8 +131,9 @@
     };
     if (inspection.format === 'curseforge') {
       try {
-        const keyStatus =
-          await api.get<Schema['CurseForgeApiKeyStatusDTO']>('/v1/config/curseforge');
+        const keyStatus = await (callbackApi ?? transferApi ?? api)!.get<
+          Schema['CurseForgeApiKeyStatusDTO']
+        >('/v1/config/curseforge');
         if (!keyStatus.configured) {
           step = {
             kind: 'curseforge-key',
@@ -108,7 +152,10 @@
 
   function closePendingModpack(): void {
     pendingModpackSource = undefined;
-    if (step.kind === 'inspecting') step = { kind: 'stage' };
+    if (step.kind === 'inspecting') {
+      stagedInput = undefined;
+      step = { kind: 'stage' };
+    }
   }
 
   async function startImport(): Promise<void> {
@@ -117,17 +164,30 @@
     const { stagedUploadId } = review;
     step = { kind: 'importing' };
     try {
-      const result = await mutate<Schema['ModpackImportResultDTO']>(api, addonPaths.importPack, {
-        action,
-        stagedUploadId,
-      });
+      const result = await mutate<Schema['ModpackImportResultDTO']>(
+        transferApi ?? api,
+        addonPaths.importPack,
+        {
+          action,
+          stagedUploadId,
+        },
+      );
+      consumed = true;
+      stagedInput = undefined;
+      if (disposed) return;
       const pendingManualFiles = result.pendingManualFiles ?? [];
       if (pendingManualFiles.length > 0) {
         onManualFilesPending(result.operationId, pendingManualFiles);
         onClose();
         return;
       }
-      step = { kind: 'done', message: result.message };
+      const operation = await pollOperation(transferApi ?? api, result.operationId, (tick) => {
+        importStatus = tick.statusLine ?? 'Importing modpack…';
+      });
+      if (operation?.state !== 'succeeded')
+        throw new Error(operation?.error?.message ?? 'Modpack import did not complete.');
+      if (disposed) return;
+      step = { kind: 'done', message: operation.statusLine ?? 'Modpack imported.' };
       onImported();
     } catch (error) {
       if (error instanceof ApiError && error.error.code === 'missing_curseforge_api_key') {
@@ -163,7 +223,7 @@
     curseforgeKeyNotice = '';
     try {
       const status = await mutate<Schema['CurseForgeApiKeyStatusDTO']>(
-        api,
+        transferApi ?? api,
         '/v1/config/curseforge',
         { apiKey: curseforgeApiKey.trim() },
       );
@@ -190,7 +250,7 @@
   title="Import Modpack"
   size="md"
   visible={!pendingModpackSource}
-  onClose={step.kind === 'inspecting' || step.kind === 'importing' ? undefined : onClose}
+  onClose={step.kind === 'inspecting' || step.kind === 'importing' ? undefined : closeSelection}
 >
   {#if step.kind === 'stage'}
     <div class="body">
@@ -199,7 +259,7 @@
         anything changes on the server.
       </p>
       <div class="footer">
-        <Button variant="secondary" onclick={onClose}>Cancel</Button>
+        <Button variant="secondary" onclick={closeSelection}>Cancel</Button>
         <Button variant="primary" onclick={() => void chooseAndStage()}>Choose Archive…</Button>
       </div>
     </div>
@@ -299,18 +359,18 @@
         />
       </div>
       <div class="footer">
-        <Button variant="secondary" onclick={onClose}>Cancel</Button>
+        <Button variant="secondary" onclick={closeSelection}>Cancel</Button>
         <Button variant="primary" onclick={() => void startImport()}>Import</Button>
       </div>
     </div>
   {:else if step.kind === 'importing'}
-    <p class="explain">Starting import…</p>
+    <p class="explain">{importStatus}</p>
   {:else if step.kind === 'done'}
     <div class="body">
-      <p class="lede">Import Started</p>
+      <p class="lede">Import Complete</p>
       <p class="explain">{step.message}</p>
       <div class="footer">
-        <Button variant="primary" onclick={onClose}>Done</Button>
+        <Button variant="primary" onclick={closeSelection}>Done</Button>
       </div>
     </div>
   {:else}
@@ -318,7 +378,7 @@
       <p class="lede error-text">Import Failed</p>
       <p class="explain">{step.message}</p>
       <div class="footer">
-        <Button variant="secondary" onclick={onClose}>Close</Button>
+        <Button variant="secondary" onclick={closeSelection}>Close</Button>
       </div>
     </div>
   {/if}
@@ -328,8 +388,9 @@
   <StagedUploadSheet
     {api}
     purpose="modpack-archive"
+    completionStage="inspecting"
     source={pendingModpackSource}
-    onComplete={(upload) => inspectUploadedModpack(upload.stagedUploadId)}
+    onComplete={(upload, scoped) => inspectUploadedModpack(upload.stagedUploadId, scoped)}
     onClose={closePendingModpack}
   />
 {/if}

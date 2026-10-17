@@ -77,6 +77,8 @@ impl Purpose {
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct Binding {
+    #[serde(default)]
+    creation_context: bool,
     agent_host_id: String,
     purpose: Purpose,
     target_server_id: Option<String>,
@@ -1044,6 +1046,8 @@ struct Capabilities {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct NativeProtocol {
+    #[serde(default)]
+    creation_context: bool,
     protocol: u32,
     stream_upload: bool,
     #[serde(default)]
@@ -1157,6 +1161,17 @@ async fn perform(
         .native_transfers
         .as_ref()
         .is_some_and(|p| p.protocol == 1 && p.stream_upload && p.local_handoff);
+    if source.selected.binding.creation_context
+        && caps
+            .native_transfers
+            .as_ref()
+            .is_some_and(|p| !p.creation_context)
+    {
+        return Err(UploadError::new(
+            "incompatible_agent",
+            "Update the agent to select source files before server creation.",
+        ));
+    }
     let transport = match caps.native_transfers {
         Some(protocol) if protocol.protocol == 1 && protocol.stream_upload => Transport::Stream,
         Some(_) => {
@@ -1175,6 +1190,9 @@ async fn perform(
         "expectedBytes": source.selected.size, "operationId": binding.operation_id, "fileId": binding.file_id});
     let mut metadata = metadata;
     if matches!(transport, Transport::Stream) {
+        if binding.creation_context {
+            metadata["creationContext"] = serde_json::Value::Bool(true);
+        }
         metadata["targetServerId"] =
             serde_json::to_value(&binding.target_server_id).expect("optional string serializes");
     }
@@ -1618,6 +1636,7 @@ mod tests {
             Source::open(
                 path,
                 Binding {
+                    creation_context: false,
                     agent_host_id: host.into(),
                     purpose: Purpose::ModpackArchive,
                     target_server_id: None,

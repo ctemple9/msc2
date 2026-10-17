@@ -149,3 +149,115 @@ it('recovers a lost start reply by cancelling the known source identity and pres
   await expect(uploader.upload(source())).resolves.toMatchObject({ stagedUploadId: 'stage-1' });
   expect(cancelled).toBe('selection-1');
 });
+
+// Essential: a completed upload must not make a later import or late response
+// act on the newly selected host/server. Existing bridge tests stop at receipt.
+it('keeps consumer requests on their captured context and rejects late results', async () => {
+  const { guardUploadApi } = await import('../../src/lib/sections/shared/upload-source');
+  const initial = 'alpha/server-a';
+  let current = initial;
+  const response = deferred<{ operationId: string }>();
+  const started = deferred<void>();
+  const requests: string[] = [];
+  const scoped = guardUploadApi(
+    {
+      hostId: () => 'alpha',
+      get: async <T>() => ({}) as T,
+      post: async <T>(path: string) => {
+        requests.push(path);
+        started.resolve();
+        return (await response.promise) as T;
+      },
+      delete: async (path: string) => {
+        requests.push(path);
+      },
+    },
+    () => current === initial,
+  );
+  let applied = false;
+  const pending = scoped.post('/v1/servers/import').then(() => {
+    applied = true;
+  });
+  const rejected = expect(pending).rejects.toThrow();
+  await started.promise;
+  current = 'beta/server-b';
+  response.resolve({ operationId: 'operation-alpha' });
+  await rejected;
+  expect(applied).toBe(false);
+  await expect(scoped.post('/v1/worlds/replace-active')).rejects.toThrow();
+  await scoped.delete!('/v1/staged-uploads/input-alpha');
+  expect(requests).toEqual(['/v1/servers/import', '/v1/staged-uploads/input-alpha']);
+});
+
+// Essential: cleanup failure must remain a failure, while an accepted importer
+// keeps ownership. Controlled promises avoid sleeps and live agents.
+it('awaits actual staging cleanup and distinguishes importer ownership from failure', async () => {
+  const { discardUpload } = await import('../../src/lib/sections/shared/upload-source');
+  const deletion = deferred<void>();
+  const started = deferred<void>();
+  let settled = false;
+  const api = {
+    get: async <T>() => {
+      throw new Error('Unknown input');
+    },
+    post: async <T>() => ({}) as T,
+    delete: () => {
+      started.resolve();
+      return deletion.promise;
+    },
+  };
+  const pending = discardUpload(api, 'input-alpha').finally(() => {
+    settled = true;
+  });
+  const failed = expect(pending).rejects.toThrow('disk cleanup failed');
+  await started.promise;
+  expect(settled).toBe(false);
+  deletion.reject(new Error('disk cleanup failed'));
+  await failed;
+  await expect(
+    discardUpload(
+      {
+        ...api,
+        delete: async () => {
+          throw new Error('Import owns the file');
+        },
+        cleanupStatus: async <T>() => ({ state: 'redeemed' }) as T,
+      },
+      'accepted-input',
+    ),
+  ).resolves.toBeUndefined();
+});
+
+// Essential: closing a wizard while the OS picker is open must release its
+// eventual selection instead of retaining an unused native handle until expiry.
+it('releases a late picker selection after its owning screen closes', async () => {
+  const { pickUploadSource } = await import('../../src/lib/sections/shared/upload-source');
+  const selection = deferred<NativeFileSource>();
+  const opened = deferred<void>();
+  let active = true;
+  let closed = 0;
+  const pending = pickUploadSource(
+    {
+      get: async <T>() => ({}) as T,
+      post: async <T>() => ({}) as T,
+      selectUploadSource: () => {
+        opened.resolve();
+        return selection.promise;
+      },
+    },
+    'world-import',
+    { label: 'World archive' },
+    {},
+    () => active,
+  );
+  await opened.promise;
+  active = false;
+  selection.resolve({
+    ...source(),
+    close: async () => {
+      closed++;
+    },
+  });
+  await expect(pending).resolves.toBeNull();
+  expect(closed).toBe(1);
+});

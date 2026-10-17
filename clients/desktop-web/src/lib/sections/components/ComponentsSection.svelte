@@ -46,8 +46,10 @@
   import PluginBrowserSheet from './PluginBrowserSheet.svelte';
   import PlayitSetupSheet from '../server-editor/PlayitSetupSheet.svelte';
   import ProjectDetailSheet from './ProjectDetailSheet.svelte';
+  import { pickUploadSource, type UploadSource } from '../shared/upload-source';
+  import StagedUploadSheet from './StagedUploadSheet.svelte';
   import { getPlatform } from '../../platform';
-  import type { ComponentState, Schema, ScreenProps } from '../shared/types';
+  import type { ComponentState, Schema, ScreenApi, ScreenProps } from '../shared/types';
   import { call, mutate } from '../shared/types';
   import {
     addOnKind,
@@ -408,26 +410,38 @@
     };
   }
 
+  let pendingAddonSource: UploadSource | undefined;
   async function addLocalAddon(): Promise<void> {
-    if (!api?.upload) return;
-    const picked = await (
-      await getPlatform()
-    ).pickFile({
-      label: `Choose a ${isModded ? 'mod' : 'plugin'} JAR`,
-      extensions: ['jar'],
-    });
-    if (!picked) return;
     try {
-      const staged = await api.upload('addon-local-file', picked.bytes);
-      const result = await mutate<Schema['CatalogInstallResultDTO']>(api, addonPaths.install, {
-        stagedUploadId: staged.stagedUploadId,
-      });
-      if (result.operationId) await pollOperation(api, result.operationId);
-      flash(result.message);
-      await loadAddons();
+      pendingAddonSource =
+        (await pickUploadSource(
+          api,
+          'addon-local-file',
+          { label: `Choose a ${isModded ? 'mod' : 'plugin'} JAR`, extensions: ['jar'] },
+          {},
+          () => mounted,
+        )) ?? undefined;
     } catch (error) {
-      flash(error instanceof Error ? error.message : 'Failed to add that file.');
+      flash(error instanceof Error ? error.message : 'Could not select the file.');
     }
+  }
+  async function installLocalAddon(
+    upload: Schema['StagedUploadCompleteResultDTO'],
+    scoped: ScreenApi,
+    report: (line: string) => void,
+  ): Promise<void> {
+    const result = await mutate<Schema['CatalogInstallResultDTO']>(scoped, addonPaths.install, {
+      stagedUploadId: upload.stagedUploadId,
+    });
+    if (result.operationId) {
+      const operation = await pollOperation(scoped, result.operationId, (tick) =>
+        report(tick.statusLine ?? 'Installing add-on…'),
+      );
+      if (operation?.state !== 'succeeded')
+        throw new Error(operation?.error?.message ?? 'Add-on installation did not complete.');
+    }
+    flash(result.message);
+    await loadAddons();
   }
 
   function onVersionChanged(): void {
@@ -943,6 +957,17 @@
     onClose={() => (showPlayitSetup = false)}
     onComplete={() => void refreshPlayit()}
     onReset={() => void refreshPlayit()}
+  />
+{/if}
+
+{#if pendingAddonSource}
+  <StagedUploadSheet
+    {api}
+    purpose="addon-local-file"
+    source={pendingAddonSource}
+    completionStage="installing"
+    onComplete={installLocalAddon}
+    onClose={() => (pendingAddonSource = undefined)}
   />
 {/if}
 

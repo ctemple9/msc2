@@ -30,9 +30,14 @@
   import Button from '../../components/base/Button.svelte';
   import type { Schema, ScreenApi } from '../shared/types';
   import { bytesLabel, dateLabel, imageObjectUrl, mutate } from '../shared/types';
-  import { getPlatform } from '../../platform';
+  import { pickUploadSource, type UploadSource } from '../shared/upload-source';
+  import StagedUploadSheet from '../components/StagedUploadSheet.svelte';
   import { placeholderHue, slotThumbnailUrl, worldPaths, type WorldProfile } from './model';
 
+  let disposed = false;
+  onDestroy(() => {
+    disposed = true;
+  });
   export let api: ScreenApi | undefined = undefined;
   export let slot: Schema['WorldSlotDTO'];
   export let profile: WorldProfile | undefined = undefined;
@@ -104,24 +109,33 @@
 
   onDestroy(clearThumbnail);
 
+  let pendingThumbnail: UploadSource | undefined;
   async function setThumbnail(): Promise<void> {
-    if (!api?.upload) return;
-    const picked = await (
-      await getPlatform()
-    ).pickFile({
-      label: 'Choose an image',
-      extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'],
-    });
-    if (!picked) return;
-    thumbnailBusy = true;
     thumbnailError = undefined;
     try {
-      const staged = await api.upload('world-thumbnail', picked.bytes);
-      await mutate(api, worldPaths.thumbnail(slot.id), { stagedUploadId: staged.stagedUploadId });
+      pendingThumbnail =
+        (await pickUploadSource(
+          api,
+          'world-thumbnail',
+          { label: 'Choose an image', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] },
+          {},
+          () => !disposed,
+        )) ?? undefined;
+    } catch (error) {
+      thumbnailError = error instanceof Error ? error.message : 'Could not choose the image.';
+    }
+  }
+  async function installThumbnail(
+    upload: Schema['StagedUploadCompleteResultDTO'],
+    scoped: ScreenApi,
+  ): Promise<void> {
+    thumbnailBusy = true;
+    try {
+      await mutate(scoped, worldPaths.thumbnail(slot.id), {
+        stagedUploadId: upload.stagedUploadId,
+      });
       thumbnailRevision += 1;
       onThumbnailUpdated();
-    } catch (error) {
-      thumbnailError = error instanceof Error ? error.message : 'Failed to set thumbnail.';
     } finally {
       thumbnailBusy = false;
     }
@@ -215,6 +229,17 @@
     {/if}
   </div>
 </Card>
+
+{#if pendingThumbnail}
+  <StagedUploadSheet
+    {api}
+    purpose="world-thumbnail"
+    source={pendingThumbnail}
+    completionStage="installing"
+    onComplete={installThumbnail}
+    onClose={() => (pendingThumbnail = undefined)}
+  />
+{/if}
 
 <style>
   .slot {

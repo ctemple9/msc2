@@ -1,7 +1,7 @@
 # Native file imports and uploads — Phase 20 plan
 
-**State:** P20.5 server source adapters and streamed exports implemented October 17,
-2026; owner verification pending. Remaining import-screen wiring/progress is P20.6. These changes
+**State:** P20.6 native import-screen wiring/progress implemented October 17, 2026;
+owner verification pending. P20.7 measurement and physical acceptance remain planned. These changes
 are not included in the published XboxBroadcast release. Active step fields and
 execution boundaries live in [rolling-plan.md](../rolling-plan.md).
 
@@ -732,3 +732,128 @@ Windows tooling remains unavailable on this Mac. The configured MSC 1 source
 checkout is absent here; this step preserves existing ported importer services
 and does not claim an independent source cross-check. No performance measurements,
 release run, physical acceptance or Phase 20 gate closure is claimed.
+
+
+## P20.6 implementation record — October 17, 2026
+
+### Entry points and real stages
+
+The supported desktop adapter now selects native capabilities for world ZIPs,
+active-world replacement, creation-time world backups, modpacks in both wizard
+entry points and the existing-server importer, local mod/plugin JARs, local Java
+and Bedrock world packs, world thumbnails and pending provider files. The older
+Add-ons TransferPanel also uses the shared source sheet; its hard-coded 20/100
+progress and whole-file picker were removed. Provider downloads remain on the
+agent. MRPACK and pending-provider drops redeem opaque native drop identities;
+they no longer read dropped files through JavaScript. The existing administrative
+agent-path server import remains available. Raw server/folder and MSC-transfer
+imports retain P20.5's native source adapters and now show native progress;
+Server Transfer export saving shows native download progress as well.
+
+Native selections start through the existing transfer sheet, without a chunk
+slider. Actual native events identify preparing, local copying, transferring and
+verifying. Byte counts, percentages and bytes/second appear only for an active
+byte-transfer stage with finite counts and a valid positive denominator. Unknown
+folder totals, preparation, verification, inspection and installing/importing use
+an indeterminate indicator with an honest stage label. A transferred 100% is
+explicitly separate from verification and import. Inspection and installation
+callbacks do not inherit a fake completed byte bar; operation status lines are
+used where the existing API provides them. Modpack and local-add-on completion
+checks the terminal operation result rather than treating an accepted response
+as success. Existing synchronous importer/provider work remains indeterminate
+while its real request is outstanding; no fabricated extraction/provider rate.
+
+An omitted native capability gets the existing bounded native legacy fallback,
+with an older-agent explanation before starting. Explicitly unavailable native
+staging refuses before source data is read. Existing server archive inputs still
+require serverArchive. Native transfers use their fixed bounded transport buffers;
+chunk-size tuning remains only in the retained older FileChunkSource adapter.
+The supported Tauri adapter always chooses the native path, even with an older
+agent, so the adapter fallback is not a silent downgrade after a native failure.
+
+### Source ownership, navigation and cancellation
+
+Selections retain their original API/host and, for existing-server inputs, the
+selected server. Requests check that context before dispatch and before applying
+responses; cleanup continues to address the original host after navigation.
+Creation drafts retain their staged IDs and host/API across steps, refusing to
+mix hosts. Closing a review/wizard cleans unused inputs; explicit local JAR/pack
+removal also releases its reservation. Accepted operations retain ownership and
+cleanup of their inputs. Cleanup recognizes an owned `redeemed` status after a
+lost reply rather than attempting to reclaim importer-owned data. A failed DELETE
+or unknown status is not claimed as successful deletion.
+
+Cancelling a transfer keeps the sheet present until native cleanup actually
+settles. Native cleanup failures remain visible, with a retry when a staging ID
+is known; originals remain preserved. Inspection cancellation waits for the real
+inspection request and unused-input cleanup. After an installation/import request
+has been handed off, the transfer sheet disables transfer cancellation rather
+than pretending it can roll back the agent's accepted operation. Existing import
+operation ownership/cancellation remains with the agent. Destroyed screens abort
+active native work; a late OS-picker response releases its unused handle. Cleanup
+failures after navigation go into a bounded (16-host) notice store and are displayed
+on the original host when selected, rather than updating a different host's UI.
+Server Transfer close now awaits its complete selection/export task, including
+cleanup after a failed native save.
+
+The shared Sheet primitive previously registered Escape dismissal for every
+mounted sheet, including invisible parents. Pressing Escape during a child upload
+could close its parent before cleanup. Only the top visible sheet handles Escape
+now, and a non-dismissible top sheet continues to block parent dismissal. This
+small shared fix is necessary for the nested upload sheets, not a screen redesign.
+Raw-server source transfers also disable the wizard's Back/Close while working and
+provide their own cleanup-aware Cancel action. Visual changes use the existing
+flat sheets, neutral text, native progress element and restrained type; no new
+cards, decorative icons, gradients, status dots or accent rails.
+
+### Explicit creation context
+
+Wiring the native creation picks exposed a contract gap: P20.2 required an
+existing targetServerId for every world/add-on upload, even before the wizard
+creates its destination server. `creationContext: true` is now an explicit,
+additive admission/binding flag, supported by an optional capability of the same
+name. It admits only world-import, addon-local-file and modpack-archive without
+an existing target; it rejects combinations with targetServerId or pending-file
+bindings. Active-world replacement and thumbnails still require their existing
+server. Permissions, exact byte limits, source handles, integrity, one-time
+redemption and the existing create/import services remain in force. No implicit
+missing-target exception or arbitrary path-reading route was added.
+
+New clients refuse creation-time native inputs on older native agents that do
+not advertise this flag, before choosing/copying bytes. Agents with no native
+capability retain the documented legacy negotiation. Rust defaults the additive
+field to false and omits false requests on the wire, including unchanged CLI
+uploads, preserving older-agent parsing. No product decision or supported-version
+floor was changed.
+
+### Essential regression rationale and checks
+
+Three cases extend existing native-transfer tests: a consumer response arriving
+after a host/server switch must not mutate the new context; pending deletion must
+stay pending and cleanup failure must remain a failure while an accepted importer
+retains ownership; closing a screen during the OS picker must release the late
+native handle. Existing bridge tests ended at upload receipt and did not protect
+these downstream UI lifetimes. Inputs are metadata-only native selections and
+explicitly resolved promises, with no sleeps, live agents or large byte arrays.
+A narrow agent admission case protects explicit creation allowance and rejection
+of absent/existing/pending target combinations. It uses tiny isolated admission
+requests and the existing injected-space fixture, with no source stream. Expected
+runtime is below one second per case excluding compilation. No tests executed.
+
+Verification uses the P20.6 Svelte/TypeScript command (including regression source
+type checking), formatting, agent/desktop Clippy with the existing lint allowances,
+and Rust test-harness metadata compilation only. The frontend retains ten existing
+unused-CSS warnings (the old TransferPanel label warning was removed with its
+obsolete picker). Harness compilation retains the existing unused auth::forbidden
+warning. No release workflow or CI gate changed. No binary publication, physical
+acceptance, performance factor or Phase 20 gate closure is claimed. The configured
+MSC 1 checkout is absent here; existing ported importer services remain the oracle
+boundary and no independent Swift source cross-check is claimed.
+
+Owner physical checks remain pending: local/remote world and modpack picks,
+creation-time world/JAR/pack picks, thumbnail and manual-file selection/drop,
+replace-world safety backup and transfer replaceAll review, byte rate and unknown
+folder totals, 100%-then-verification/import distinction, Escape/cancel during a
+nested upload, failed cleanup and returning to the original host, and host/server
+switches with a late receipt/inspection/operation response. P20.7 owns candidate
+packaging and measured throughput/memory comparisons; this step does not start it.

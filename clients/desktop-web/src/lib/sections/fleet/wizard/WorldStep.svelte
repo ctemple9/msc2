@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   // Real port of AddServerWizardView.swift's step4FreshWorld -- the source
   // picker stays here, while world-local settings use the same form as the
   // Worlds tab. The complete profile is carried into the create request so
@@ -27,10 +28,10 @@
   import Button from '../../../components/base/Button.svelte';
   import SegmentedControl from '../../../components/base/SegmentedControl.svelte';
   import { onboardingAnchor } from '../../../help/tourAnchors';
-  import { getPlatform } from '../../../platform';
-  import type { FileChunkSource } from '../../../platform/types';
+  import { pickUploadSource, type UploadSource } from '../../shared/upload-source';
   import type { Schema, ScreenApi } from '../../shared/types';
   import { errorMessage } from '../../shared/types';
+  import { discardWizardInput, retainWizardUpload, retainWizardUploadApi } from './model';
   import StagedUploadSheet from '../../components/StagedUploadSheet.svelte';
   import WorldPackBrowserSheet from '../../worlds/WorldPackBrowserSheet.svelte';
   import type { PendingWorldPack } from './model';
@@ -42,17 +43,23 @@
   } from '../../worlds/model';
   import { type WizardDraft, type WorldSourceMode, versionsForCreatePath } from './model';
 
+  let disposed = false;
+  onDestroy(() => {
+    disposed = true;
+  });
   export let api: ScreenApi | undefined = undefined;
   export let draft: WizardDraft;
   export let resolvingVersion = false;
 
   let showPackBrowser = false;
-  let pendingPackSource: FileChunkSource | undefined;
+  let pendingPackSource: UploadSource | undefined;
   let packError = '';
   let resolvedMinecraftVersion = '';
   $: packs = (draft.pendingWorldPacks ?? []).filter((pack) => pack.edition === draft.serverType);
 
-  function stagePack(pack: PendingWorldPack): void {
+  function stagePack(pack: PendingWorldPack, scoped?: ScreenApi): void {
+    if (pack.kind === 'localFile' && scoped)
+      retainWizardUploadApi(draft, scoped, pack.stagedUploadId);
     const current = draft.pendingWorldPacks ?? [];
     const duplicate = current.some((entry) =>
       entry.kind === 'javaCatalog' && pack.kind === 'javaCatalog'
@@ -64,16 +71,31 @@
     if (!duplicate) draft.pendingWorldPacks = [...current, pack];
   }
 
+  async function removePack(pack: PendingWorldPack): Promise<void> {
+    try {
+      if (pack.kind === 'localFile') await discardWizardInput(draft, pack.stagedUploadId);
+      draft.pendingWorldPacks = (draft.pendingWorldPacks ?? []).filter(
+        (entry) => entry.id !== pack.id,
+      );
+    } catch (error) {
+      packError = `Agent cleanup could not be confirmed: ${errorMessage(error)}`;
+    }
+  }
+
   async function choosePack(): Promise<void> {
     packError = '';
     try {
       pendingPackSource =
-        (await (
-          await getPlatform()
-        ).pickFileStream({
-          label: draft.serverType === 'java' ? 'Choose a datapack ZIP' : 'Choose a Bedrock pack',
-          extensions: draft.serverType === 'java' ? ['zip'] : ['mcpack', 'mcaddon', 'zip'],
-        })) ?? undefined;
+        (await pickUploadSource(
+          api,
+          'addon-local-file',
+          {
+            label: draft.serverType === 'java' ? 'Choose a datapack ZIP' : 'Choose a Bedrock pack',
+            extensions: draft.serverType === 'java' ? ['zip'] : ['mcpack', 'mcaddon', 'zip'],
+          },
+          { targetServerId: null },
+          () => !disposed,
+        )) ?? undefined;
     } catch (error) {
       packError = errorMessage(error);
     }
@@ -81,6 +103,7 @@
 
   function finishPackUpload(upload: Schema['StagedUploadCompleteResultDTO']): void {
     if (!pendingPackSource) throw new Error('The selected pack is no longer available.');
+    retainWizardUpload(draft, pendingPackSource, upload.stagedUploadId);
     stagePack({
       id: crypto.randomUUID(),
       kind: 'localFile',
@@ -91,7 +114,7 @@
   }
 
   let staging = false;
-  let pendingWorldSource: FileChunkSource | undefined;
+  let pendingWorldSource: UploadSource | undefined;
   let stageError: string | undefined;
   let capabilities: WorldSettingsCapabilities | undefined;
   let capabilitiesError: string | undefined;
@@ -177,16 +200,20 @@
   }
 
   async function chooseBackup(): Promise<void> {
-    if (!api?.uploadFile || staging) return;
+    if (!api || (!api.selectUploadSource && !api.uploadFile) || staging) return;
     staging = true;
     stageError = undefined;
     try {
-      const picked = await (
-        await getPlatform()
-      ).pickFileStream({
-        label: 'Choose a world backup ZIP',
-        extensions: ['zip'],
-      });
+      const picked = await pickUploadSource(
+        api,
+        'world-import',
+        {
+          label: 'Choose a world backup ZIP',
+          extensions: ['zip'],
+        },
+        { targetServerId: null },
+        () => !disposed,
+      );
       if (!picked) {
         staging = false;
         return;
@@ -200,6 +227,7 @@
 
   function finishWorldUpload(upload: Schema['StagedUploadCompleteResultDTO']): void {
     if (!pendingWorldSource) throw new Error('The selected world archive is no longer available.');
+    retainWizardUpload(draft, pendingWorldSource, upload.stagedUploadId);
     draft.stagedWorldBackup = {
       fileName: pendingWorldSource.name,
       stagedUploadId: upload.stagedUploadId,
@@ -299,7 +327,7 @@
         <button
           type="button"
           class="pack-choice"
-          disabled={!api?.uploadFile}
+          disabled={!api || (!api.selectUploadSource && !api.uploadFile)}
           onclick={() => void choosePack()}
         >
           <span>{draft.serverType === 'java' ? 'Import Datapacks' : 'Import Packs'}</span>
@@ -317,7 +345,7 @@
           <Button
             size="sm"
             variant="secondary"
-            disabled={!api?.uploadFile}
+            disabled={!api || (!api.selectUploadSource && !api.uploadFile)}
             onclick={() => void choosePack()}>Import…</Button
           >
           <Button
@@ -335,14 +363,7 @@
           <div class="pack-info">
             <span>{pack.title}</span>{#if pack.description}<small>{pack.description}</small>{/if}
           </div>
-          <Button
-            size="sm"
-            variant="secondary"
-            onclick={() =>
-              (draft.pendingWorldPacks = (draft.pendingWorldPacks ?? []).filter(
-                (entry) => entry.id !== pack.id,
-              ))}>Remove</Button
-          >
+          <Button size="sm" variant="secondary" onclick={() => removePack(pack)}>Remove</Button>
         </div>
       {/each}
     {/if}

@@ -62,6 +62,8 @@
   } from './lib/navigation/tabPreloading';
   import type { Capabilities, NavigationContext, SectionDescriptor } from './lib/navigation/types';
   import type { Schema, ScreenApi } from './lib/sections/shared/types';
+  import { transferNotices, dismissTransferFailure } from './lib/sections/shared/transfer-notices';
+  import { guardUploadApi } from './lib/sections/shared/upload-source';
   import './lib/sections/shared/screen.css';
 
   const sections: SectionDescriptor[] = [
@@ -319,7 +321,59 @@
     const currentClient = () => boundClient ?? requireClient();
     return {
       hostId: () => currentClient().host,
-      snapshot: () => createScreenApi(currentClient()),
+      isCurrent: () => currentClient().host === client?.host,
+      cleanupStatus: <T,>(path: string) => currentClient().requestJson<T>('GET', path),
+      uploadNative: (source, options) => currentClient().stagedUploadNative(source, options),
+      selectUploadSource: async (purpose, request, bindings = {}) => {
+        const initiatingClient = currentClient();
+        const host = initiatingClient.host;
+        const targetServerId =
+          bindings.targetServerId === null
+            ? undefined
+            : (bindings.targetServerId ?? (selectedServerId || undefined));
+        const current = () =>
+          client?.host === host && (!targetServerId || selectedServerId === targetServerId);
+        const scoped = guardUploadApi(createScreenApi(initiatingClient), current);
+        const caps = await scoped.get<Schema['CapabilitiesDTO']>('/v1/capabilities');
+        if (
+          caps.nativeTransfers &&
+          (caps.nativeTransfers.protocol !== 1 || !caps.nativeTransfers.streamUpload)
+        )
+          throw new Error(
+            'Native transfers are unavailable on this host. Update the agent or resolve its staging error before choosing a file.',
+          );
+        if (
+          bindings.targetServerId === null &&
+          caps.nativeTransfers &&
+          !caps.nativeTransfers.creationContext
+        )
+          throw new Error('Update this agent to select files before creating a server.');
+        const platform = await getPlatform();
+        if (!platform.pickNativeFile)
+          throw new Error('Native file selection is unavailable in this desktop build.');
+        const source = await platform.pickNativeFile({
+          ...request,
+          droppedSourceId: bindings.droppedSourceId,
+          binding: {
+            agentHostId: host,
+            purpose,
+            targetServerId,
+            creationContext: bindings.targetServerId === null,
+            operationId: bindings.operationId,
+            fileId: bindings.fileId,
+          },
+        });
+        if (!source) return null;
+        if (!current()) {
+          await source.close();
+          throw new Error('The selected host or server changed. Choose the file again.');
+        }
+        return Object.freeze({ ...source, uploadApi: scoped, olderAgent: !caps.nativeTransfers });
+      },
+      snapshot: () => {
+        const initiating = currentClient();
+        return guardUploadApi(createScreenApi(initiating), () => client?.host === initiating.host);
+      },
       delete: (path) => currentClient().requestJson<void>('DELETE', path),
       pickNativeUpload: async (purpose, directory = false, options = {}, droppedSourceId) => {
         const initiatingClient = currentClient();
@@ -1200,6 +1254,14 @@
   onRefresh={() => void initializeClient()}
   onEditServer={activeServer ? () => (headerEditingServer = activeServer) : undefined}
 >
+  {#each $transferNotices.filter((notice) => notice.hostId === hostId) as notice}
+    <div class="intro-copy" role="alert">
+      <p>{notice.message}</p>
+      <Button variant="secondary" onclick={() => dismissTransferFailure(notice.hostId)}
+        >Dismiss</Button
+      >
+    </div>
+  {/each}
   {#if loadedSections.length}
     {#each loadedSections as loaded (loaded.id)}
       <div

@@ -5,6 +5,8 @@ import type {
   NativeUploadResult,
   NativeDownloadResult,
   FileChunkSource,
+  FilePickerRequest,
+  NativeFileSource,
 } from '../../platform/types';
 
 export type Schema = components['schemas'];
@@ -15,6 +17,17 @@ export type ComponentState = 'installed' | 'missing' | 'unresolved' | 'disabled'
 /** The screen layer uses this adapter to keep workflows independent of Tauri APIs. */
 export interface ScreenApi {
   hostId?(): string;
+  isCurrent?(): boolean;
+  cleanupStatus?<T>(path: string): Promise<T>;
+  selectUploadSource?(
+    purpose: Schema['NativeUploadBeginRequestDTO']['purpose'],
+    request: FilePickerRequest,
+    bindings?: import('./upload-source').UploadBindings,
+  ): Promise<import('./upload-source').UploadSource | null>;
+  uploadNative?(
+    source: NativeFileSource,
+    options?: NativeUploadOptions,
+  ): Promise<NativeUploadResult>;
   snapshot?(): ScreenApi;
   delete?(path: string): Promise<void>;
   pickNativeUpload?(

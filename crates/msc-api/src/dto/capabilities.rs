@@ -293,6 +293,8 @@ pub struct CapabilitiesResponseDto {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NativeTransfersDto {
+    #[serde(default)]
+    pub creation_context: bool,
     pub protocol: u32,
     pub stream_upload: bool,
     pub local_handoff: bool,

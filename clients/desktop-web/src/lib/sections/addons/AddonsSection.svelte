@@ -1,11 +1,14 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import ActionButton from '../../components/ActionButton.svelte';
+  import { discardUpload } from '../shared/upload-source';
+  import { reportTransferFailure } from '../shared/transfer-notices';
   import TransferPanel from '../transfers/TransferPanel.svelte';
   import ScreenHeader from '../shared/ScreenHeader.svelte';
   import CapabilityNotice from '../shared/CapabilityNotice.svelte';
   import type { Schema, ScreenProps } from '../shared/types';
   import { call, errorMessage, mutate } from '../shared/types';
+  import { pollOperation } from '../worlds/model';
   import { addonPaths, demoAddons } from './model';
 
   export let api: ScreenProps['api'] = undefined;
@@ -13,10 +16,23 @@
   let catalog: Schema['CatalogItemDTO'][] = [];
   let query = '';
   let pack: Schema['ModpackInspectionResultDTO'] | null = null;
+  let transferApi: ScreenProps['api'];
   let stagedPack = '';
   let packAction: 'import' | 'replace' = 'import';
   let notice = '';
 
+  onDestroy(() => {
+    if (stagedPack)
+      void discardUpload(transferApi, stagedPack).catch((error) =>
+        reportTransferFailure(transferApi, error),
+      );
+  });
+  async function keepPack(id: string, scoped?: ScreenProps['api']): Promise<void> {
+    if (stagedPack) await discardUpload(transferApi, stagedPack);
+    stagedPack = id;
+    transferApi = scoped;
+    pack = null;
+  }
   onMount(async () => {
     const result = await call<Schema['AddonsResponseDTO']>(
       api,
@@ -73,9 +89,13 @@
   async function inspectPack(): Promise<void> {
     if (!stagedPack) return;
     try {
-      pack = await mutate<Schema['ModpackInspectionResultDTO']>(api, '/v1/modpacks/inspect', {
-        stagedUploadId: stagedPack,
-      });
+      pack = await mutate<Schema['ModpackInspectionResultDTO']>(
+        transferApi ?? api,
+        '/v1/modpacks/inspect',
+        {
+          stagedUploadId: stagedPack,
+        },
+      );
       notice = 'Modpack inspected. Review its provenance before importing.';
     } catch (error) {
       notice = errorMessage(error);
@@ -84,11 +104,23 @@
   async function importPack(): Promise<void> {
     if (!stagedPack) return;
     try {
-      const result = await mutate<Schema['ModpackImportResultDTO']>(api, addonPaths.importPack, {
-        action: packAction,
-        stagedUploadId: stagedPack,
-      });
-      notice = result.message;
+      const result = await mutate<Schema['ModpackImportResultDTO']>(
+        transferApi ?? api,
+        addonPaths.importPack,
+        {
+          action: packAction,
+          stagedUploadId: stagedPack,
+        },
+      );
+      stagedPack = '';
+      if (!result.pendingManualFiles?.length) {
+        const operation = await pollOperation(transferApi ?? api, result.operationId, (tick) => {
+          notice = tick.statusLine ?? 'Importing modpack…';
+        });
+        if (operation?.state !== 'succeeded')
+          throw new Error(operation?.error?.message ?? 'Modpack import did not complete.');
+        notice = 'Modpack imported.';
+      } else notice = result.message;
     } catch (error) {
       notice = errorMessage(error);
     }
@@ -172,7 +204,7 @@
       {api}
       purpose="modpack-archive"
       label="Modpack archive"
-      onComplete={(id) => (stagedPack = id)}
+      onComplete={keepPack}
     />{#if stagedPack}<div class="screen-actions" style="margin-top: .7rem">
         <ActionButton kind="quiet" label="Inspect modpack" onclick={inspectPack}
           >Inspect</ActionButton

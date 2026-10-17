@@ -46,15 +46,15 @@
   // a batch folder/zip-of-loose-jars import, since MSC 2's contract has no
   // route to unpack an arbitrary zip of jars server-side (only a structured
   // mrpack/CurseForge manifest, via the modpack path below).
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { onboardingAnchor } from '../../../help/tourAnchors';
   import Button from '../../../components/base/Button.svelte';
-  import { getPlatform } from '../../../platform';
-  import type { FileChunkSource } from '../../../platform/types';
+  import { pickUploadSource, sourceApi, type UploadSource } from '../../shared/upload-source';
   import type { Schema, ScreenApi } from '../../shared/types';
   import { errorMessage, mutate } from '../../shared/types';
   import { addonPaths } from '../../addons/model';
   import PluginBrowserSheet from '../../components/PluginBrowserSheet.svelte';
+  import { discardWizardInput, retainWizardUpload } from './model';
   import StagedUploadSheet from '../../components/StagedUploadSheet.svelte';
   import {
     hasStagedSimpleVoiceChat,
@@ -63,14 +63,19 @@
     type WizardDraft,
   } from './model';
 
+  let disposed = false;
+  onDestroy(() => {
+    disposed = true;
+  });
   export let api: ScreenApi | undefined = undefined;
   export let draft: WizardDraft;
 
   let modpackFileInput: HTMLInputElement;
   let jarFileInput: HTMLInputElement;
   let stagingModpack = false;
-  let pendingModpackSource: FileChunkSource | undefined;
+  let pendingModpackSource: UploadSource | undefined;
   let stagingJar = false;
+  let pendingJarSource: UploadSource | undefined;
   let stageError: string | undefined;
   let showBrowser = false;
   /**
@@ -112,17 +117,21 @@
   $: hasStagedVoiceChat = hasStagedSimpleVoiceChat(draft);
 
   async function chooseModpack(): Promise<void> {
-    if (!api?.uploadFile || stagingModpack) return;
+    if (!api || (!api.selectUploadSource && !api.uploadFile) || stagingModpack) return;
     stagingModpack = true;
     stageError = undefined;
-    let picked: FileChunkSource | null = null;
+    let picked: UploadSource | null = null;
     try {
-      picked = await (
-        await getPlatform()
-      ).pickFileStream({
-        label: 'Choose a modpack archive',
-        extensions: ['mrpack', 'zip'],
-      });
+      picked = await pickUploadSource(
+        api,
+        'modpack-archive',
+        {
+          label: 'Choose a modpack archive',
+          extensions: ['mrpack', 'zip'],
+        },
+        { targetServerId: null },
+        () => !disposed,
+      );
       if (!picked) {
         stagingModpack = false;
         return;
@@ -134,14 +143,15 @@
     }
   }
 
-  async function finishModpackUpload(stagedUploadId: string): Promise<void> {
+  async function finishModpackUpload(stagedUploadId: string, scoped?: ScreenApi): Promise<void> {
     if (!api || !pendingModpackSource)
       throw new Error('The selected modpack is no longer available.');
     const inspection = await mutate<Schema['ModpackInspectionResultDTO']>(
-      api,
+      scoped ?? sourceApi(pendingModpackSource, api),
       addonPaths.inspectPack,
       { stagedUploadId },
     );
+    retainWizardUpload(draft, pendingModpackSource, stagedUploadId);
     draft.stagedModpack = {
       fileName: pendingModpackSource.name,
       stagedUploadId,
@@ -154,42 +164,57 @@
     stagingModpack = false;
   }
 
-  function removeStagedModpack(): void {
-    draft.stagedModpack = undefined;
-    stageError = undefined;
+  async function removeStagedModpack(): Promise<void> {
+    try {
+      if (draft.stagedModpack) await discardWizardInput(draft, draft.stagedModpack.stagedUploadId);
+      draft.stagedModpack = undefined;
+      stageError = undefined;
+    } catch (error) {
+      stageError = `Agent cleanup could not be confirmed: ${errorMessage(error)}`;
+    }
   }
 
   async function chooseOwnJar(): Promise<void> {
-    if (!api?.upload || stagingJar) return;
+    if (stagingJar) return;
     stagingJar = true;
     stageError = undefined;
     try {
-      const picked = await (
-        await getPlatform()
-      ).pickFile({
-        label: `Choose a ${itemNoun} .jar`,
-        extensions: ['jar'],
-      });
-      if (!picked) return;
-      const staged = await api.upload('addon-local-file', picked.bytes);
-      draft.pendingAddOns = [
-        ...draft.pendingAddOns,
-        {
-          id: crypto.randomUUID(),
-          kind: 'localFile',
-          fileName: picked.name,
-          stagedUploadId: staged.stagedUploadId,
-        },
-      ];
+      pendingJarSource =
+        (await pickUploadSource(
+          api,
+          'addon-local-file',
+          { label: `Choose a ${itemNoun} .jar`, extensions: ['jar'] },
+          { targetServerId: null },
+          () => !disposed,
+        )) ?? undefined;
     } catch (error) {
       stageError = errorMessage(error);
     } finally {
       stagingJar = false;
     }
   }
+  function finishJarUpload(upload: Schema['StagedUploadCompleteResultDTO']): void {
+    if (!pendingJarSource) throw new Error('The selected add-on is no longer available.');
+    retainWizardUpload(draft, pendingJarSource, upload.stagedUploadId);
+    draft.pendingAddOns = [
+      ...draft.pendingAddOns,
+      {
+        id: crypto.randomUUID(),
+        kind: 'localFile',
+        fileName: pendingJarSource.name,
+        stagedUploadId: upload.stagedUploadId,
+      },
+    ];
+  }
 
-  function removePendingAddOn(id: string): void {
-    draft.pendingAddOns = draft.pendingAddOns.filter((entry) => entry.id !== id);
+  async function removePendingAddOn(id: string): Promise<void> {
+    try {
+      const entry = draft.pendingAddOns.find((entry) => entry.id === id);
+      if (entry?.kind === 'localFile') await discardWizardInput(draft, entry.stagedUploadId);
+      draft.pendingAddOns = draft.pendingAddOns.filter((entry) => entry.id !== id);
+    } catch (error) {
+      stageError = `Agent cleanup could not be confirmed: ${errorMessage(error)}`;
+    }
   }
 
   function handleStage(item: Schema['CatalogItemDTO'], versionId: string | undefined): void {
@@ -369,8 +394,9 @@
   <StagedUploadSheet
     {api}
     purpose="modpack-archive"
+    completionStage="inspecting"
     source={pendingModpackSource}
-    onComplete={(upload) => finishModpackUpload(upload.stagedUploadId)}
+    onComplete={(upload, scoped) => finishModpackUpload(upload.stagedUploadId, scoped)}
     onClose={closePendingModpack}
   />
 {/if}
@@ -385,6 +411,16 @@
     onStage={handleStage}
     onClose={() => (showBrowser = false)}
     onInstalled={() => {}}
+  />
+{/if}
+
+{#if pendingJarSource}
+  <StagedUploadSheet
+    {api}
+    purpose="addon-local-file"
+    source={pendingJarSource}
+    onComplete={finishJarUpload}
+    onClose={() => (pendingJarSource = undefined)}
   />
 {/if}
 

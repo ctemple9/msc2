@@ -53,6 +53,8 @@
   import { ApiError } from '../../../api/client';
   import { dispatchOnboardingAnchorAction, onboardingAnchor } from '../../../help/tourAnchors';
   import type { Schema, ScreenApi } from '../../shared/types';
+  import { discardUpload } from '../../shared/upload-source';
+  import { reportTransferFailure } from '../../shared/transfer-notices';
   import { errorMessage } from '../../shared/types';
   import { serverEditorPaths } from '../../server-editor/model';
   import {
@@ -88,10 +90,12 @@
 
   let displayName = '';
   let isCreating = false;
+  let transferBusy = false;
   let statusMessage = '';
   let cleanupError = '';
   let createSucceeded = false;
   let createWarnings: string[] = [];
+  let completedApi: ScreenApi | undefined;
   let modpackSummary: ModpackCreationSummary | undefined;
   let showModpackSummary = false;
   let showJavaRecovery = false;
@@ -121,7 +125,14 @@
   onDestroy(() => {
     const staged = draft.stagedServerSource;
     if (staged && !isCreating && !createSucceeded)
-      void staged.api?.delete?.(`/v1/staged-uploads/${staged.stagedUploadId}`).catch(() => {});
+      void discardUpload(staged.api, staged.stagedUploadId).catch((error) =>
+        reportTransferFailure(staged.api, error),
+      );
+    if (!isCreating)
+      for (const input of draft.stagedInputs ?? [])
+        void discardUpload(input.api, input.id).catch((error) =>
+          reportTransferFailure(input.api, error),
+        );
     tourServerContext.set(null);
     tourServerCreated.set(false);
     tourJavaSelectionPending.set(false);
@@ -230,6 +241,15 @@
         return;
       }
     }
+    for (const input of draft.stagedInputs ?? []) {
+      try {
+        await discardUpload(input.api, input.id);
+      } catch (error) {
+        cleanupError = `Agent cleanup could not be confirmed: ${errorMessage(error)}`;
+        return;
+      }
+    }
+    draft.stagedInputs = [];
     onClose();
   }
 
@@ -246,17 +266,20 @@
     isCreating = true;
     statusMessage =
       path === 'importExisting' && !showModpack ? 'Importing server…' : 'Creating server…';
+    const initiatingApi = api?.snapshot?.() ?? api;
     const onProgress = (line: string) => (statusMessage = line);
     try {
       let createdPackSummary: ModpackCreationSummary | undefined;
       if (path === 'importExisting' && !showModpack) {
-        const result = await importServerFromDraft(api, draft, displayName, onProgress);
+        const result = await importServerFromDraft(initiatingApi, draft, displayName, onProgress);
         createWarnings = result.warnings;
       } else {
-        const result = await createServerFromDraft(api, draft, displayName, onProgress);
+        const result = await createServerFromDraft(initiatingApi, draft, displayName, onProgress);
         createWarnings = result.warnings;
         createdPackSummary = result.modpackSummary;
       }
+      if (initiatingApi?.isCurrent?.() === false) return;
+      completedApi = draft.uploadApi ?? initiatingApi;
       modpackSummary = createdPackSummary;
       createSucceeded = true;
       tourServerCreated.set(true);
@@ -433,7 +456,7 @@
 <Sheet
   title="Add Server"
   size="lg"
-  onClose={isCreating || showJavaRecovery || showJavaSelection || showJavaInstall
+  onClose={isCreating || transferBusy || showJavaRecovery || showJavaSelection || showJavaInstall
     ? undefined
     : closeWizard}
 >
@@ -493,7 +516,12 @@
       {:else if currentStep === 2 && path === 'fresh'}
         <ConfigureStep {api} bind:draft />
       {:else if currentStep === 2 && (path === 'importExisting' || path === 'modpack')}
-        <UploadStep {api} bind:draft onScanned={handleImportScanned} />
+        <UploadStep
+          {api}
+          bind:draft
+          onTransferBusy={(busy) => (transferBusy = busy)}
+          onScanned={handleImportScanned}
+        />
       {:else if currentStep === 3 && path === 'fresh'}
         <NetworkStep bind:draft />
       {:else if currentStep === 3 && showModpack}
@@ -527,7 +555,9 @@
     {#if cleanupError}<p class="selection-explain warn" role="alert">{cleanupError}</p>{/if}
     <div class="footer">
       {#if !createSucceeded && currentStep > 1}
-        <Button variant="secondary" onclick={backStep} disabled={isCreating}>Back</Button>
+        <Button variant="secondary" onclick={backStep} disabled={isCreating || transferBusy}
+          >Back</Button
+        >
       {/if}
       <div class="spacer"></div>
       {#if createSucceeded}
@@ -558,7 +588,7 @@
 
 {#if showModpackSummary && modpackSummary}
   <ModpackCreationSummarySheet
-    {api}
+    api={completedApi ?? api}
     bind:summary={modpackSummary}
     onClose={() => (showModpackSummary = false)}
   />

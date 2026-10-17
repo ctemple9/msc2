@@ -163,6 +163,8 @@ pub struct StagedUploadCompleteResultDto {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct NativeUploadBeginRequestDto {
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub creation_context: bool,
     pub purpose: StagedUploadPurposeDto,
     pub file_name: Option<String>,
     pub expected_bytes: u64,

@@ -59,6 +59,7 @@ pub async fn capabilities(
     if permitted {
         result.0.native_transfers = Some(msc_api::dto::NativeTransfersDto {
             protocol: 1,
+            creation_context: available,
             // Omission means an older agent. Explicit false prevents a newer
             // client from bypassing unavailable native staging via fallback.
             stream_upload: available,

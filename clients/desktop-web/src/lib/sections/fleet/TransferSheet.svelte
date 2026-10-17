@@ -3,6 +3,10 @@
   import Card from '../../components/base/Card.svelte';
   import Field from '../../components/base/Field.svelte';
   import Sheet from '../../components/base/Sheet.svelte';
+  import ModpackUploadProgress from '../components/ModpackUploadProgress.svelte';
+  import { nativeProgress, discardUpload } from '../shared/upload-source';
+  import { reportTransferFailure } from '../shared/transfer-notices';
+  import type { FileUploadProgress } from '../../platform/types';
   import { onDestroy } from 'svelte';
   import type { Schema, ScreenApi } from '../shared/types';
   import { bytesLabel, errorMessage, mutate } from '../shared/types';
@@ -29,21 +33,29 @@
   let controller: AbortController | undefined;
   let nativeTask: Promise<unknown> | undefined;
   let redeemed = false;
+  let disposed = false;
+  let cleanupBlocked = false;
+  let transferProgress: FileUploadProgress | undefined;
+  let transferName = 'Server transfer';
   async function releaseSelection(): Promise<void> {
-    if (selected && !redeemed)
-      await selectedApi?.delete?.(`/v1/staged-uploads/${selected.stagedUploadId}`);
+    if (selected && !redeemed) await discardUpload(selectedApi, selected.stagedUploadId);
     selected = undefined;
     selectedApi = undefined;
   }
   onDestroy(() => {
+    disposed = true;
     controller?.abort();
-    if (!isWorking) void releaseSelection().catch(() => undefined);
+    if (!isWorking)
+      void releaseSelection().catch((error) => reportTransferFailure(selectedApi, error));
   });
   async function closeSheet(): Promise<void> {
     if (isWorking && !controller) return;
+    const wasWorking = isWorking;
     controller?.abort();
+    if (transferProgress) transferProgress = { ...transferProgress, phase: 'cancelling' };
     try {
       await nativeTask;
+      if (wasWorking && cleanupBlocked) return;
     } catch (error) {
       if (
         typeof error === 'object' &&
@@ -65,6 +77,10 @@
     }
   }
   async function exportServers(): Promise<void> {
+    nativeTask = runExport();
+    await nativeTask;
+  }
+  async function runExport(): Promise<void> {
     const scoped = api?.snapshot?.() ?? api;
     if (!scoped?.saveNativeDownload) {
       notice = 'Native transfer saving needs a connected desktop.';
@@ -74,6 +90,8 @@
     isWorking = true;
     notice = '';
     controller = new AbortController();
+    cleanupBlocked = false;
+    transferProgress = { phase: 'preparing', bytesUploaded: 0, totalBytes: 0 };
     let exportId: string | undefined;
     try {
       const caps = await scoped.get<Schema['CapabilitiesDTO']>('/v1/capabilities');
@@ -84,6 +102,7 @@
         const result =
           await scoped.post<Schema['ServerTransferExportResultDTO']>('/v1/servers/export');
         exportId = result.stagedDownloadId;
+        transferName = result.fileName;
         if (controller?.signal.aborted) {
           await scoped.delete?.(`/v1/staged-downloads/${result.stagedDownloadId}`);
           exportId = undefined;
@@ -93,12 +112,16 @@
           result.stagedDownloadId,
           result.fileName,
           result.sizeBytes,
-          { signal: controller?.signal },
+          {
+            signal: controller?.signal,
+            onProgress: (next) => {
+              if (!disposed) transferProgress = nativeProgress(next);
+            },
+          },
         );
         exportId = undefined;
         return result;
       })();
-      nativeTask = task;
       const result = await task;
       if (api?.hostId?.() !== scoped.hostId?.()) return;
       notice = `Exported ${result.serverCount} server${result.serverCount === 1 ? '' : 's'} (${bytesLabel(result.sizeBytes)}).`;
@@ -116,7 +139,9 @@
           if (!scoped.delete) throw new Error('Cleanup is unavailable.');
           await scoped.delete(`/v1/staged-downloads/${exportId}`);
         } catch {
+          cleanupBlocked = true;
           notice += ' Agent export cleanup could not be confirmed.';
+          reportTransferFailure(scoped, notice);
         }
       }
     } finally {
@@ -126,6 +151,10 @@
     }
   }
   async function chooseTransferFile(): Promise<void> {
+    nativeTask = runChooseTransferFile();
+    await nativeTask;
+  }
+  async function runChooseTransferFile(): Promise<void> {
     const scoped = api?.snapshot?.() ?? api;
     if (!scoped?.pickNativeUpload) {
       notice = 'Native selection needs a connected desktop.';
@@ -135,16 +164,20 @@
     isWorking = true;
     notice = '';
     controller = new AbortController();
+    cleanupBlocked = false;
+    transferProgress = { phase: 'preparing', bytesUploaded: 0, totalBytes: 0 };
     try {
       await releaseSelection();
       redeemed = false;
       const task = scoped.pickNativeUpload('msc-transfer-archive', false, {
         signal: controller.signal,
+        onProgress: (next) => {
+          if (!disposed) transferProgress = nativeProgress(next);
+        },
       });
-      nativeTask = task;
       const result = await task;
       if (result) {
-        if (api?.hostId?.() !== result.agentHostId) {
+        if (disposed || controller.signal.aborted || api?.hostId?.() !== result.agentHostId) {
           await scoped.delete?.(`/v1/staged-uploads/${result.stagedUploadId}`);
           throw new Error('The selected host changed. Choose the transfer file again.');
         }
@@ -155,6 +188,12 @@
     } catch (error) {
       notice = errorMessage(error);
       noticeIsError = true;
+      cleanupBlocked =
+        typeof error === 'object' &&
+        error !== null &&
+        'cleanup' in error &&
+        error.cleanup === 'unconfirmed';
+      if (disposed && cleanupBlocked) reportTransferFailure(scoped, notice);
     } finally {
       isWorking = false;
       nativeTask = undefined;
@@ -178,6 +217,7 @@
     }
     isWorking = true;
     notice = '';
+    transferProgress = { phase: 'importing', bytesUploaded: 0, totalBytes: 0 };
     try {
       const result = await mutate<Schema['ServerImportResultDTO']>(scoped, '/v1/servers/import', {
         action: 'importTransfer',
@@ -188,10 +228,18 @@
       });
       if (native) redeemed = true;
       const operation = result.operationId
-        ? await pollOperation(scoped, result.operationId)
+        ? await pollOperation(scoped, result.operationId, (tick) => {
+            if (!disposed)
+              transferProgress = {
+                phase: 'importing',
+                bytesUploaded: 0,
+                totalBytes: 0,
+                statusLine: tick.statusLine ?? undefined,
+              };
+          })
         : undefined;
-      if (operation?.state === 'failed' || operation?.state === 'cancelled')
-        throw new Error(operation.error?.message ?? 'Transfer import did not complete.');
+      if (result.operationId && operation?.state !== 'succeeded')
+        throw new Error(operation?.error?.message ?? 'Transfer import did not complete.');
       if (api?.hostId?.() !== scoped?.hostId?.()) return;
       notice = result.message;
       noticeIsError = false;
@@ -310,6 +358,18 @@
         </Button>
       </div>
     </div>
+  {/if}
+  {#if isWorking && transferProgress}
+    <ModpackUploadProgress
+      fileName={transferName}
+      progress={transferProgress}
+      onCancel={controller && transferProgress.phase !== 'cancelling'
+        ? () => {
+            transferProgress = { ...transferProgress!, phase: 'cancelling' };
+            controller?.abort();
+          }
+        : undefined}
+    />
   {/if}
 </Sheet>
 

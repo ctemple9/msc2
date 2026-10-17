@@ -1,3 +1,4 @@
+import { discardUpload, sourceApi, type UploadSource } from '../../shared/upload-source';
 import type { Schema, ScreenApi } from '../../shared/types';
 import { errorMessage, mutate } from '../../shared/types';
 import { fleetMutationPaths } from '../model';
@@ -206,6 +207,9 @@ export const WORLD_GAMEMODE_OPTIONS: readonly { value: WorldGamemode; label: str
 ];
 
 export interface WizardDraft {
+  uploadHostId?: string;
+  uploadApi?: ScreenApi;
+  stagedInputs?: { id: string; api: ScreenApi }[];
   serverName: string;
   serverType: WizardServerType;
   javaCategory: JavaCategory;
@@ -727,7 +731,11 @@ export async function redeemPendingAddOn(
         }
       : { stagedUploadId: addOn.stagedUploadId };
   const result = await mutate<Schema['CatalogInstallResultDTO']>(api, addonPaths.install, body);
-  if (result.operationId) await pollOperation(api, result.operationId);
+  if (result.operationId) {
+    const operation = await pollOperation(api, result.operationId);
+    if (operation?.state !== 'succeeded')
+      throw new Error(operation?.error?.message ?? 'Add-on installation did not complete.');
+  }
 }
 
 /** A pending add-on's display name, for a warning line if its redemption fails. */
@@ -744,17 +752,56 @@ export function pendingAddOnLabel(addOn: PendingAddOn): string {
  * its single in-process call, since this port's staged items redeem over
  * HTTP instead.
  */
+export function retainWizardUpload(draft: WizardDraft, source: UploadSource, id: string): void {
+  retainWizardUploadApi(draft, sourceApi(source, undefined), id);
+}
+export function retainWizardUploadApi(
+  draft: WizardDraft,
+  scoped: ScreenApi | undefined,
+  id: string,
+): void {
+  const host = scoped?.hostId?.();
+  if (draft.uploadHostId && host && draft.uploadHostId !== host)
+    throw new Error(
+      'These files belong to another host. Return to that host or start a new wizard.',
+    );
+  if (scoped?.isCurrent?.() === false)
+    throw new Error('The selected host changed. Choose the file again.');
+  if (host) draft.uploadHostId = host;
+  if (scoped) {
+    draft.uploadApi = scoped;
+    draft.stagedInputs = [
+      ...(draft.stagedInputs ?? []).filter((input) => input.id !== id),
+      { id, api: scoped },
+    ];
+  }
+}
+export async function discardWizardInput(draft: WizardDraft, id: string): Promise<void> {
+  const input = draft.stagedInputs?.find((input) => input.id === id);
+  if (input) await discardUpload(input.api, id);
+  releaseWizardOwnership(draft, id);
+}
+function releaseWizardOwnership(draft: WizardDraft, id: string): void {
+  draft.stagedInputs = draft.stagedInputs?.filter((input) => input.id !== id);
+}
+
 export async function createServerFromDraft(
   api: ScreenApi | undefined,
   draft: WizardDraft,
   displayName: string,
   onProgress?: (statusLine: string) => void,
 ): Promise<{ warnings: string[]; modpackSummary?: ModpackCreationSummary }> {
+  if (draft.uploadHostId && api?.hostId?.() !== draft.uploadHostId)
+    throw new Error(
+      'The selected source files belong to another host. Return to that host before creating this server.',
+    );
+  api = draft.uploadApi ?? api?.snapshot?.() ?? api;
   const result = await mutate<Schema['ServerCreateResultDTO']>(
     api,
     fleetMutationPaths.create,
     buildServerCreateRequest(draft, displayName),
   );
+  if (draft.stagedModpack) releaseWizardOwnership(draft, draft.stagedModpack.stagedUploadId);
   if (!result.operationId) {
     if (!result.success) throw new Error(result.message);
     return { warnings: [] };
@@ -774,7 +821,9 @@ export async function createServerFromDraft(
   let worldReady = true;
   if (draft.worldSourceMode === 'backupZip' && draft.stagedWorldBackup) {
     try {
+      onProgress?.('Importing world backup…');
       await redeemStagedWorldBackup(api, draft.stagedWorldBackup);
+      releaseWizardOwnership(draft, draft.stagedWorldBackup.stagedUploadId);
     } catch (error) {
       worldReady = false;
       warnings.push(`World backup: ${errorMessage(error)}`);
@@ -797,6 +846,7 @@ export async function createServerFromDraft(
           const path = `/v1/worlds/${encodeURIComponent(worlds.activeSlotId)}/${pack.edition === 'java' ? 'datapacks' : 'behaviorpacks'}/install`;
           const result = await mutate<{ operationId?: string }>(api, path, body);
           if (result.operationId) {
+            if (pack.kind === 'localFile') releaseWizardOwnership(draft, pack.stagedUploadId);
             const installed = await pollOperation(api, result.operationId);
             if (installed?.state !== 'succeeded')
               throw new Error(installed?.error?.message ?? 'Pack installation failed.');
@@ -815,11 +865,17 @@ export async function createServerFromDraft(
   }
   for (const addOn of draft.pendingAddOns) {
     try {
+      onProgress?.(`Installing ${pendingAddOnLabel(addOn)}…`);
       await redeemPendingAddOn(api, addOn);
+      if (addOn.kind === 'localFile') releaseWizardOwnership(draft, addOn.stagedUploadId);
     } catch (error) {
       warnings.push(`${pendingAddOnLabel(addOn)}: ${errorMessage(error)}`);
     }
   }
+  if (api?.isCurrent?.() === false)
+    throw new Error(
+      'The selected host changed. The server operation remains on its original host.',
+    );
   return { warnings, modpackSummary };
 }
 

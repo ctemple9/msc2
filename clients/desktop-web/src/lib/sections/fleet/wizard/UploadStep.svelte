@@ -10,15 +10,29 @@
   import VisibilityIcon from '../../../components/base/VisibilityIcon.svelte';
   import { onboardingAnchor } from '../../../help/tourAnchors';
   import { getPlatform, openExternal } from '../../../platform';
-  import type { FileChunkSource } from '../../../platform/types';
+  import {
+    discardUpload,
+    nativeProgress,
+    pickUploadSource,
+    sourceApi,
+    type UploadSource,
+  } from '../../shared/upload-source';
   import type { Schema, ScreenApi } from '../../shared/types';
   import { errorMessage, mutate } from '../../shared/types';
   import { addonPaths } from '../../addons/model';
+  import { retainWizardUpload } from './model';
+  import ModpackUploadProgress from '../../components/ModpackUploadProgress.svelte';
+  import type { FileUploadProgress } from '../../../platform/types';
+  import { reportTransferFailure } from '../../shared/transfer-notices';
   import StagedUploadSheet from '../../components/StagedUploadSheet.svelte';
   import { scanImportSource, type JavaCategory, type JavaFlavor, type WizardDraft } from './model';
 
   export let api: ScreenApi | undefined = undefined;
   export let draft: WizardDraft;
+  export let onTransferBusy: (busy: boolean) => void = () => {};
+  $: onTransferBusy(isScanning || !!pendingModpackSource);
+  let serverProgress: FileUploadProgress | undefined;
+  let serverSourceName = 'Server source';
   /** Called after an existing server folder/archive has been scanned. */
   export let onScanned: () => void = () => {};
 
@@ -26,7 +40,7 @@
   let disposed = false;
   let nativeAbort: AbortController | undefined;
   let nativeStage = 'Preparing server source…';
-  let pendingModpackSource: FileChunkSource | undefined;
+  let pendingModpackSource: UploadSource | undefined;
   let scanError: string | undefined;
   let dropTargeted = false;
   let supportsDrop = false;
@@ -50,7 +64,10 @@
         scanError = source.error;
         return;
       }
-      if (!source.directory && source.name.toLowerCase().endsWith('.mrpack')) return;
+      if (!source.directory && source.name.toLowerCase().endsWith('.mrpack')) {
+        if (source.sourceId) void browseModpack(source.sourceId);
+        return;
+      }
       if (source.sourceId) void scanNativeServer(source.directory, source.sourceId);
     });
     unsubscribeDrop = await platform.onFileDrop((paths) => {
@@ -62,6 +79,7 @@
 
   onDestroy(() => {
     disposed = true;
+    onTransferBusy(false);
     nativeAbort?.abort();
     unsubscribeDrop?.();
     unsubscribeNativeDrop?.();
@@ -131,30 +149,39 @@
     }
   }
 
-  function queueModpackUpload(source: FileChunkSource): void {
+  function queueModpackUpload(source: UploadSource): void {
     scanError = undefined;
     pendingModpackSource = source;
   }
 
-  async function inspectModpack(fileName: string, stagedUploadId: string): Promise<void> {
+  async function inspectModpack(
+    fileName: string,
+    stagedUploadId: string,
+    scoped?: ScreenApi,
+  ): Promise<void> {
     isScanning = true;
     scanError = undefined;
     curseforgeKeyNotice = '';
     try {
       await tick();
-      await inspectStagedModpack(fileName, stagedUploadId);
+      await inspectStagedModpack(fileName, stagedUploadId, scoped);
     } finally {
       isScanning = false;
     }
   }
 
-  async function inspectStagedModpack(fileName: string, stagedUploadId: string): Promise<void> {
+  async function inspectStagedModpack(
+    fileName: string,
+    stagedUploadId: string,
+    scoped?: ScreenApi,
+  ): Promise<void> {
     if (!api) throw new Error('Modpack inspection needs a connected agent.');
     const inspection = await mutate<Schema['ModpackInspectionResultDTO']>(
-      api,
+      scoped ?? draft.uploadApi ?? sourceApi(pendingModpackSource, api),
       addonPaths.inspectPack,
       { stagedUploadId },
     );
+    if (pendingModpackSource) retainWizardUpload(draft, pendingModpackSource, stagedUploadId);
     const detected = flavorForLoader(inspection.loaderName);
     draft = {
       ...draft,
@@ -199,7 +226,7 @@
 
   async function handlePath(path: string): Promise<void> {
     const lower = path.toLowerCase();
-    if (api?.pickNativeUpload && !lower.endsWith('.mrpack')) {
+    if (api?.selectUploadSource || (api?.pickNativeUpload && !lower.endsWith('.mrpack'))) {
       return;
     }
     if (lower.endsWith('.zip')) {
@@ -232,6 +259,8 @@
     scanError = undefined;
     const abort = new AbortController();
     nativeAbort = abort;
+    serverSourceName = directory ? 'Selected server folder' : 'Selected server ZIP';
+    serverProgress = { phase: 'preparing', bytesUploaded: 0, totalBytes: 0 };
     let pending: string | undefined;
     try {
       const previous = draft.stagedServerSource;
@@ -249,8 +278,8 @@
         directory,
         {
           signal: abort.signal,
-          onProgress: () => {
-            nativeStage = 'Transferring server source…';
+          onProgress: (next) => {
+            if (!disposed) serverProgress = nativeProgress(next);
           },
         },
         droppedSourceId,
@@ -258,15 +287,29 @@
       if (!source) return;
       pending = source.stagedUploadId;
       if (disposed || abort.signal.aborted || api?.hostId?.() !== source.agentHostId) {
-        throw new Error('The selected host changed. Choose the server source again.');
+        throw new Error(
+          abort.signal.aborted
+            ? 'Server source transfer cancelled.'
+            : 'The selected host changed. Choose the server source again.',
+        );
       }
+      serverSourceName = source.fileName;
+      serverProgress = {
+        phase: 'inspecting',
+        bytesUploaded: source.receivedBytes,
+        totalBytes: source.receivedBytes,
+      };
       nativeStage = 'Inspecting server source…';
       const scan = await scoped.post<Schema['ServerImportScanResponseDTO']>('/v1/servers/import', {
         action: 'scan',
         stagedUploadId: source.stagedUploadId,
       });
       if (disposed || abort.signal.aborted || api?.hostId?.() !== source.agentHostId) {
-        throw new Error('The selected host changed. Choose the server source again.');
+        throw new Error(
+          abort.signal.aborted
+            ? 'Server source transfer cancelled.'
+            : 'The selected host changed. Choose the server source again.',
+        );
       }
       draft = {
         ...draft,
@@ -290,11 +333,20 @@
       onScanned();
     } catch (error) {
       scanError = errorMessage(error);
+      if (
+        disposed &&
+        typeof error === 'object' &&
+        error !== null &&
+        'cleanup' in error &&
+        error.cleanup === 'unconfirmed'
+      )
+        reportTransferFailure(scoped, error);
       if (pending) {
         try {
-          await scoped.delete?.(`/v1/staged-uploads/${pending}`);
+          await discardUpload(scoped, pending);
         } catch {
           scanError += ' Agent cleanup could not be confirmed.';
+          reportTransferFailure(scoped, scanError);
         }
       }
     } finally {
@@ -323,16 +375,20 @@
     if (path) await scanServerPath(path, true);
   }
 
-  async function browseModpack(): Promise<void> {
+  async function browseModpack(droppedSourceId?: string): Promise<void> {
     scanError = undefined;
-    let picked: FileChunkSource | null = null;
+    let picked: UploadSource | null = null;
     try {
-      picked = await (
-        await getPlatform()
-      ).pickFileStream({
-        label: 'Choose a modpack archive',
-        extensions: ['mrpack', 'zip'],
-      });
+      picked = await pickUploadSource(
+        api,
+        'modpack-archive',
+        {
+          label: 'Choose a modpack archive',
+          extensions: ['mrpack', 'zip'],
+        },
+        { targetServerId: null, droppedSourceId },
+        () => !disposed,
+      );
       if (picked) queueModpackUpload(picked);
     } catch (error) {
       scanError = errorMessage(error);
@@ -506,12 +562,18 @@
       onclick={chooseDifferentFile}>Choose a different file</Button
     >
   {:else if isScanning}
-    <div class="status">
-      <span class="spinner" aria-hidden="true"></span>
-      <span class="hint"
-        >{nativeAbort ? nativeStage : 'Inspecting archive or scanning server folder…'}</span
-      >
-    </div>
+    {#if nativeAbort && serverProgress}
+      <ModpackUploadProgress
+        fileName={serverSourceName}
+        progress={serverProgress}
+        onCancel={serverProgress.phase === 'cancelling'
+          ? undefined
+          : () => {
+              serverProgress = { ...serverProgress!, phase: 'cancelling' };
+              nativeAbort?.abort();
+            }}
+      />
+    {:else}<p class="hint">Inspecting archive or scanning server folder…</p>{/if}
   {:else if scanError}
     <div class="status column">
       <p class="hint warn">{scanError}</p>
@@ -562,8 +624,10 @@
   <StagedUploadSheet
     {api}
     purpose="modpack-archive"
+    completionStage="inspecting"
     source={pendingModpackSource}
-    onComplete={(upload) => inspectModpack(pendingModpackSource?.name ?? '', upload.stagedUploadId)}
+    onComplete={(upload, scoped) =>
+      inspectModpack(pendingModpackSource?.name ?? '', upload.stagedUploadId, scoped)}
     onClose={closePendingModpack}
   />
 {/if}
@@ -766,20 +830,6 @@
   .status.column {
     flex-direction: column;
     gap: 10px;
-  }
-  .spinner {
-    width: 13px;
-    height: 13px;
-    flex-shrink: 0;
-    border: 2px solid var(--msc2-hairline-subtle);
-    border-top-color: var(--msc2-text-secondary);
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-  }
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
   }
   .hint {
     margin: 0;

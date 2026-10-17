@@ -3115,6 +3115,7 @@ async fn stage_file_upload(
             .post_json(
                 "/v1/staged-uploads/stream",
                 &msc_api::dto::NativeUploadBeginRequestDto {
+                    creation_context: false,
                     purpose,
                     file_name: Some(file_name),
                     expected_bytes: expected,

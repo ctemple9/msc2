@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
+  import { reportTransferFailure } from '../shared/transfer-notices';
   // Ports ServerEditorWorldTab.swift's importZIPSheetView -- pick an
   // external world archive (not one the agent already knows about, unlike
   // BackupsPanel's "import this backup as a slot"), stage it, name the new
@@ -7,8 +9,12 @@
   import Sheet from '../../components/base/Sheet.svelte';
   import Field from '../../components/base/Field.svelte';
   import Button from '../../components/base/Button.svelte';
-  import { getPlatform } from '../../platform';
-  import type { FileChunkSource } from '../../platform/types';
+  import {
+    discardUpload,
+    pickUploadSource,
+    sourceApi,
+    type UploadSource,
+  } from '../shared/upload-source';
   import type { Schema, ScreenApi } from '../shared/types';
   import { mutate } from '../shared/types';
   import StagedUploadSheet from '../components/StagedUploadSheet.svelte';
@@ -24,24 +30,54 @@
     | { kind: 'importing' }
     | { kind: 'failed'; message: string };
 
+  let stagedInput: string | undefined;
+  let consumed = false;
+  let disposed = false;
+  async function closeSelection(): Promise<void> {
+    if (stagedInput && !consumed) {
+      try {
+        await discardUpload(transferApi, stagedInput);
+        stagedInput = undefined;
+      } catch (error) {
+        reportTransferFailure(transferApi, error);
+        return;
+      }
+    }
+    onClose();
+  }
+  onDestroy(() => {
+    disposed = true;
+    if (stagedInput && !consumed)
+      void discardUpload(transferApi, stagedInput).catch((error) =>
+        reportTransferFailure(transferApi, error),
+      );
+  });
+  let transferApi: ScreenApi | undefined;
   let step: Step = { kind: 'pick' };
   let name = '';
-  let pendingWorldSource: FileChunkSource | undefined;
+  let pendingWorldSource: UploadSource | undefined;
   let picking = false;
 
   $: trimmedName = name.trim();
 
   async function chooseAndStage(): Promise<void> {
-    if (!api?.uploadFile || picking) return;
+    if (!api || (!api.selectUploadSource && !api.uploadFile) || picking) return;
     picking = true;
     try {
-      const picked = await (
-        await getPlatform()
-      ).pickFileStream({
-        label: 'Choose a world archive',
-        extensions: ['zip', 'mcworld'],
-      });
-      if (picked) pendingWorldSource = picked;
+      const picked = await pickUploadSource(
+        api,
+        'world-import',
+        {
+          label: 'Choose a world archive',
+          extensions: ['zip', 'mcworld'],
+        },
+        {},
+        () => !disposed,
+      );
+      if (picked) {
+        pendingWorldSource = picked;
+        transferApi = sourceApi(picked, api);
+      }
     } catch (error) {
       step = {
         kind: 'failed',
@@ -55,6 +91,8 @@
   function finishWorldUpload(upload: Schema['StagedUploadCompleteResultDTO']): void {
     if (!pendingWorldSource) throw new Error('The selected world archive is no longer available.');
     name = pendingWorldSource.name.replace(/\.(zip|mcworld)$/i, '');
+    stagedInput = upload.stagedUploadId;
+    consumed = false;
     step = {
       kind: 'staged',
       fileName: pendingWorldSource.name,
@@ -72,10 +110,17 @@
     const { stagedUploadId } = step;
     step = { kind: 'importing' };
     try {
-      const result = await mutate<Schema['WorldMutationResultDTO']>(api, worldPaths.import, {
-        name: trimmedName,
-        stagedUploadId,
-      });
+      const result = await mutate<Schema['WorldMutationResultDTO']>(
+        transferApi ?? api,
+        worldPaths.import,
+        {
+          name: trimmedName,
+          stagedUploadId,
+        },
+      );
+      consumed = true;
+      stagedInput = undefined;
+      if (disposed) return;
       if (result.updated) onImported(result.updated);
       onClose();
     } catch (error) {
@@ -91,13 +136,15 @@
   title="Import Archive as New World"
   size="sm"
   visible={!pendingWorldSource}
-  onClose={step.kind === 'importing' ? undefined : onClose}
+  onClose={step.kind === 'importing' ? undefined : closeSelection}
 >
   <div class="body">
     {#if step.kind === 'pick'}
-      <p class="explain">Choose a ZIP or .mcworld archive. Enclosing folders are handled automatically.</p>
+      <p class="explain">
+        Choose a ZIP or .mcworld archive. Enclosing folders are handled automatically.
+      </p>
       <div class="footer">
-        <Button variant="secondary" onclick={onClose}>Cancel</Button>
+        <Button variant="secondary" onclick={closeSelection}>Cancel</Button>
         <Button variant="primary" disabled={picking} onclick={() => void chooseAndStage()}>
           {picking ? 'Opening…' : 'Choose Archive…'}
         </Button>
@@ -109,7 +156,7 @@
         <Field bind:value={name} placeholder="Slot name" />
       </div>
       <div class="footer">
-        <Button variant="secondary" onclick={onClose}>Cancel</Button>
+        <Button variant="secondary" onclick={closeSelection}>Cancel</Button>
         <Button variant="primary" disabled={!trimmedName} onclick={() => void submit()}>
           Import
         </Button>
@@ -120,7 +167,7 @@
       <p class="lede error-text">Import Failed</p>
       <p class="explain">{step.message}</p>
       <div class="footer">
-        <Button variant="secondary" onclick={onClose}>Close</Button>
+        <Button variant="secondary" onclick={closeSelection}>Close</Button>
       </div>
     {/if}
   </div>

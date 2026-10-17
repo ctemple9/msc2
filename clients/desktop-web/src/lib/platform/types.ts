@@ -17,6 +17,7 @@ export interface FileChunkSource {
 
 /** A picker capability, never a local path or a JavaScript byte reader. */
 export interface NativeUploadBinding {
+  readonly creationContext?: boolean;
   readonly agentHostId: string;
   readonly purpose: components['schemas']['NativeUploadBeginRequestDTO']['purpose'];
   readonly targetServerId?: string | null;
@@ -90,8 +91,19 @@ export interface NativeFileUploader {
 }
 
 export interface FileUploadProgress {
-  readonly phase: 'selecting' | 'preparing' | 'reading' | 'uploading' | 'cancelling' | 'complete';
+  readonly phase:
+    | 'selecting'
+    | 'preparing'
+    | 'reading'
+    | 'uploading'
+    | NativeUploadProgress['phase']
+    | 'inspecting'
+    | 'importing'
+    | 'installing';
   readonly bytesUploaded: number;
+  readonly bytesPerSecond?: number;
+  readonly transport?: NativeUploadTransportKind | null;
+  readonly statusLine?: string;
   readonly totalBytes: number;
   readonly chunkSizeBytes?: number;
 }

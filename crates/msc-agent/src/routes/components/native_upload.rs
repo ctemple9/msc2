@@ -593,6 +593,22 @@ async fn admit_inner(
             "Server sources cannot target an existing-server or pending-file slot.",
         );
     }
+    if body.creation_context
+        && (body.target_server_id.is_some()
+            || body.operation_id.is_some()
+            || body.file_id.is_some()
+            || !matches!(
+                body.purpose,
+                StagedUploadPurposeDto::WorldImport
+                    | StagedUploadPurposeDto::AddonLocalFile
+                    | StagedUploadPurposeDto::ModpackArchive
+            ))
+    {
+        return invalid_body(
+            "invalid_creation_context",
+            "Creation inputs cannot target an existing server or pending file.",
+        );
+    }
     let target = body.target_server_id.clone();
     if let Some(target) = &target
         && state
@@ -615,6 +631,7 @@ async fn admit_inner(
             | StagedUploadPurposeDto::WorldThumbnail
             | StagedUploadPurposeDto::AddonLocalFile
     ) && target.is_none()
+        && !body.creation_context
     {
         return invalid_body(
             "missing_target",
@@ -1602,6 +1619,7 @@ mod tests {
                 State(self.state.clone()),
                 Extension(self.credential.clone()),
                 Ok(Json(Admission {
+                    creation_context: false,
                     purpose: StagedUploadPurposeDto::ModpackArchive,
                     file_name: Some("pack.zip".into()),
                     expected_bytes: expected,
@@ -1645,6 +1663,68 @@ mod tests {
         headers
     }
 
+    // Essential: creation picks must work without weakening the required
+    // existing-server binding. Tiny isolated admission requests, no I/O stream.
+    #[tokio::test]
+    async fn native_creation_context_is_explicit_and_excludes_existing_targets() {
+        let fixture = Fixture::new();
+        let mut body = Admission {
+            creation_context: false,
+            purpose: StagedUploadPurposeDto::AddonLocalFile,
+            file_name: Some("addon.jar".into()),
+            expected_bytes: 6,
+            expected_sha256: None,
+            operation_id: None,
+            file_id: None,
+            target_server_id: None,
+        };
+        assert_eq!(
+            admit(
+                State(fixture.state.clone()),
+                Extension(fixture.credential.clone()),
+                Ok(Json(body.clone()))
+            )
+            .await
+            .status(),
+            StatusCode::BAD_REQUEST
+        );
+        body.creation_context = true;
+        body.target_server_id = Some("existing-server".into());
+        assert_eq!(
+            admit(
+                State(fixture.state.clone()),
+                Extension(fixture.credential.clone()),
+                Ok(Json(body.clone()))
+            )
+            .await
+            .status(),
+            StatusCode::BAD_REQUEST
+        );
+        body.target_server_id = None;
+        body.file_id = Some("pending-file".into());
+        assert_eq!(
+            admit(
+                State(fixture.state.clone()),
+                Extension(fixture.credential.clone()),
+                Ok(Json(body.clone()))
+            )
+            .await
+            .status(),
+            StatusCode::BAD_REQUEST
+        );
+        body.file_id = None;
+        assert_eq!(
+            admit(
+                State(fixture.state.clone()),
+                Extension(fixture.credential.clone()),
+                Ok(Json(body))
+            )
+            .await
+            .status(),
+            StatusCode::CREATED
+        );
+    }
+
     // Essential: a folder is a descriptor-only source, not an HTTP file body.
     // Its verified files must be usable by the existing raw-server scanner.
     #[cfg(unix)]
@@ -1652,6 +1732,7 @@ mod tests {
     async fn native_server_folder_requires_fleet_and_publishes_a_verified_tree() {
         let mut fixture = Fixture::new();
         let admission = Admission {
+            creation_context: false,
             purpose: StagedUploadPurposeDto::RawServerFolder,
             file_name: Some("server".into()),
             expected_bytes: 6,
@@ -1976,6 +2057,7 @@ mod tests {
                 State(fixture.state.clone()),
                 Extension(fixture.credential.clone()),
                 Ok(Json(Admission {
+                    creation_context: false,
                     purpose: StagedUploadPurposeDto::ModpackArchive,
                     file_name: Some(name.into()),
                     expected_bytes: 3,

@@ -232,4 +232,4 @@ async function bodyBytes(body: BodyInit | null | undefined): Promise<Uint8Array 
 }
 
 // File transport has its own native operation boundary; ordinary requests keep their existing bridge.
-export { loadTauriNativeFileUploader } from './native-transfer';
+export { loadTauriNativeFileUploader, loadTauriNativeFileDownloader } from './native-transfer';

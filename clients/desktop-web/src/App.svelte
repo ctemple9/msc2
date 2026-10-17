@@ -315,24 +315,53 @@
     return client;
   }
 
-  function createScreenApi(): ScreenApi {
+  function createScreenApi(boundClient?: ApiClient): ScreenApi {
+    const currentClient = () => boundClient ?? requireClient();
     return {
-      get: <T,>(path: string) => requireClient().requestJson<T>('GET', path),
+      hostId: () => currentClient().host,
+      snapshot: () => createScreenApi(currentClient()),
+      delete: (path) => currentClient().requestJson<void>('DELETE', path),
+      pickNativeUpload: async (purpose, directory = false, options = {}, droppedSourceId) => {
+        const initiatingClient = currentClient();
+        const platform = await getPlatform();
+        if (!platform.pickNativeFile) throw new Error('Native source selection is unavailable.');
+        const source = await platform.pickNativeFile({
+          label: directory
+            ? 'Choose stopped server folder'
+            : purpose === 'msc-transfer-archive'
+              ? 'Choose MSC transfer file'
+              : 'Choose server ZIP',
+          extensions: directory
+            ? []
+            : purpose === 'msc-transfer-archive'
+              ? ['msctransfer']
+              : ['zip'],
+          directory,
+          droppedSourceId,
+          binding: { agentHostId: initiatingClient.host, purpose },
+        });
+        if (!source) return null;
+        const result = await initiatingClient.stagedUploadNative(source, options);
+        return { ...result, fileName: source.name };
+      },
+      saveNativeDownload: (id, fileName, size, options) =>
+        currentClient().downloadNative(id, fileName, size, options),
+      get: <T,>(path: string) => currentClient().requestJson<T>('GET', path),
       post: <T,>(path: string, body?: unknown) =>
-        requireClient().requestJson<T>('POST', path, { body }),
-      getBytes: (path: string) => requireClient().requestBytes('GET', path),
-      resourceUrl: (path: string) => requireClient().resourceUrl(path),
+        currentClient().requestJson<T>('POST', path, { body }),
+      getBytes: (path: string) => currentClient().requestBytes('GET', path),
+      resourceUrl: (path: string) => currentClient().resourceUrl(path),
       upload: (purpose, bytes, options) =>
-        requireClient().stagedUpload({ purpose, ...options }, bytes),
+        currentClient().stagedUpload({ purpose, ...options }, bytes),
       uploadFile: (purpose, source, options) => {
         const { onProgress, chunkSizeBytes, signal, ...uploadOptions } = options ?? {};
-        return requireClient().stagedUploadFromFile({ purpose, ...uploadOptions }, source, {
+        return currentClient().stagedUploadFromFile({ purpose, ...uploadOptions }, source, {
           onProgress,
           chunkSizeBytes,
           signal,
         });
       },
-      download: (id, maxBytes) => requireClient().downloadBytes(id, maxBytes),
+      download: (id, maxBytes) => currentClient().downloadBytes(id, maxBytes),
     };
   }
 

@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 0957c71229619524d54a65d5f2fd7436ac441252c4bc6710ed5ba10f642cc913
+// Contract SHA-256: 8edc08d489a7155e12255585f5f6d11c33d26f05405217fe7cbc7467a793a573
 
 export interface paths {
   '/v1/active-server': {
@@ -5470,7 +5470,8 @@ export interface paths {
     get: operations['downloadStagedBytes'];
     put?: never;
     post?: never;
-    delete?: never;
+    /** Cancel an owned staged export and confirm deletion */
+    delete: operations['cancelStagedDownload'];
     options?: never;
     head?: never;
     patch?: never;
@@ -7987,7 +7988,7 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
-    /** @description Protocol 1 supports bounded streamUpload. P20.4 advertises localHandoff only while its private installing-user Unix descriptor endpoint is available; Windows falls back to native streaming. serverArchive remains false. Omission means an older agent; explicit false means unavailable. Permission and staging recovery dependent. */
+    /** @description Protocol 1 supports bounded streamUpload. localHandoff is true only while the private installing-user Unix descriptor endpoint is available. P20.5 serverArchive enables raw ZIP, generated server-folder TAR, local folder descriptor and MSC-transfer staging/import plus SHA-256 verified streamed downloads. Remote and Windows folders generate an exact-length uncompressed TAR directly into the bounded native stream; no complete source archive is written on the desktop. Omission means an older agent; explicit false means unavailable. Permission and staging recovery dependent. */
     NativeTransfersDTO: {
       localHandoff: boolean;
       /** @enum {integer} */
@@ -7998,7 +7999,7 @@ export interface components {
       [key: string]: unknown;
     };
     NativeUploadBeginRequestDTO: {
-      /** @description Exact length, within purpose ceiling; for pending files must equal the provider size. */
+      /** @description Exact length, within purpose ceiling; for pending files must equal the provider size. Raw server folders use exact total regular-file bytes and require the private local descriptor endpoint; archives use exact archive length. */
       expectedBytes: number;
       expectedSha256?: string | null;
       fileId?: string | null;
@@ -8013,7 +8014,10 @@ export interface components {
         | 'modpack-archive'
         | 'addon-local-file'
         | 'curseforge-manual-file'
-        | 'modpack-unresolved-file';
+        | 'modpack-unresolved-file'
+        | 'raw-server-archive'
+        | 'raw-server-folder'
+        | 'msc-transfer-archive';
       /** @description Required for world-import, active-world-replace, world-thumbnail and addon-local-file. Required at redemption for importing a modpack into an existing server; omitted for new-server modpack creation. */
       targetServerId?: string | null;
     } & {
@@ -8836,8 +8840,10 @@ export interface components {
       maxPlayers?: number;
       port?: number;
       serverType?: string;
-      /** @description Required for scan/importExisting/importTransfer; omitted for rescan, which scans the configured servers root. */
+      /** @description Agent-local source for scan/importExisting/importTransfer, mutually exclusive with stagedUploadId; omitted for rescan. */
       sourcePath?: string;
+      /** @description P20.5: verified native raw-server-archive/raw-server-folder or msc-transfer-archive. Mutually exclusive with sourcePath. scan leases the input; import redeems it once. Existing agent-local sourcePath remains supported. */
+      stagedUploadId?: string;
       transferMode?: string;
     } & {
       [key: string]: unknown;
@@ -10768,6 +10774,10 @@ export interface operations {
       /** @description Staged file bytes */
       200: {
         headers: {
+          /** @description Exact archive byte count. */
+          'Content-Length'?: number;
+          /** @description SHA-256 of the prepared archive; native receivers verify before replacing their destination. */
+          'X-MSC-SHA256'?: string;
           [name: string]: unknown;
         };
         content: {
@@ -10782,6 +10792,38 @@ export interface operations {
         content: {
           'application/json': components['schemas']['ErrorDTO'];
         };
+      };
+    };
+  };
+  cancelStagedDownload: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Deletion confirmed, including a bounded recent completion record. */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Unknown ownership or cleanup cannot be confirmed, including after restart. */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Deletion failed; private path remains accounted for and cleanup can be retried. */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
     };
   };

@@ -47,3 +47,5 @@ pub mod conversion_resources;
 
 #[cfg(unix)]
 pub mod local_source;
+
+pub mod source_tree;

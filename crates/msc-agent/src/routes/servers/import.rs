@@ -5,13 +5,19 @@ use super::*;
 pub async fn import(
     State(state): State<LifecycleRoutesState>,
     Extension(credential): Extension<AuthenticatedCredential>,
+    Extension(staging): Extension<StagingStore>,
+    auth: Option<Extension<crate::auth::AuthState>>,
     body: Result<Json<ServerImportRequestDto>, JsonRejection>,
 ) -> Response {
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Fleet) {
         return response;
     }
 
-    let Json(body) = match body {
+    let auth = auth.map(|Extension(auth)| auth);
+    let identity = crate::auth::StreamAuthentication {
+        credential: credential.clone(),
+    };
+    let Json(mut body) = match body {
         Ok(body) => body,
         Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
     };
@@ -23,6 +29,104 @@ pub async fn import(
         return rescan_import(&state);
     }
 
+    if body.staged_upload_id.is_some() && body.source_path.is_some() {
+        return invalid_body(
+            "ambiguous_source",
+            "Choose stagedUploadId or sourcePath, not both.",
+        );
+    }
+    let mut staged_input = None;
+    let mut inspection = None;
+    if let Some(id) = body.staged_upload_id.as_deref() {
+        inspection = staging.native.inspection_lease(id, &credential);
+        let entry = staging.uploads.lock().unwrap().get(id).cloned();
+        let Some(entry) =
+            entry.filter(|entry| entry.complete && now_unix() <= entry.expires_at_unix)
+        else {
+            return error_response(
+                StatusCode::NOT_FOUND,
+                "not_found",
+                "Unknown or incomplete staged server input.",
+            );
+        };
+        use msc_api::dto::StagedUploadPurposeDto as Purpose;
+        let transfer =
+            action == "importTransfer" || body.import_kind.as_deref() == Some("transfer");
+        if (transfer && entry.purpose != Purpose::MscTransferArchive)
+            || (!transfer
+                && !matches!(
+                    entry.purpose,
+                    Purpose::RawServerArchive | Purpose::RawServerFolder
+                ))
+            || !matches!(
+                action.as_str(),
+                "scan" | "importExisting" | "importTransfer"
+            )
+        {
+            return invalid_body(
+                "wrong_purpose",
+                "This staged input belongs to another import flow.",
+            );
+        }
+        let path = if entry.purpose == Purpose::RawServerArchive
+            && entry
+                .file_name
+                .as_deref()
+                .is_some_and(|n| n.ends_with(".tar"))
+        {
+            let destination = match crate::routes::components::native_upload::server_folder(
+                &staging,
+                &credential,
+                id,
+                auth.clone(),
+            )
+            .await
+            {
+                Ok(path) => path,
+                Err(_) => {
+                    return invalid_body(
+                        "invalid_archive",
+                        "The server folder archive could not be validated.",
+                    );
+                }
+            };
+            body.import_kind = Some("folder".into());
+            destination
+        } else {
+            body.import_kind = Some(
+                if transfer {
+                    "transfer"
+                } else if entry.purpose == Purpose::RawServerFolder {
+                    "folder"
+                } else {
+                    "zip"
+                }
+                .into(),
+            );
+            entry.path.clone()
+        };
+        body.source_path = Some(path.to_string_lossy().into_owned());
+        if auth
+            .as_ref()
+            .is_some_and(|auth| !auth.stream_retains_permissions(&identity))
+        {
+            return error_response(
+                StatusCode::FORBIDDEN,
+                "authorization_changed",
+                "Authorization changed while preparing the server source.",
+            );
+        }
+        if action != "scan" {
+            staged_input = staging.uploads.lock().unwrap().remove(id);
+            if staged_input.is_none() {
+                return error_response(
+                    StatusCode::CONFLICT,
+                    "already_redeemed",
+                    "The staged source was already redeemed.",
+                );
+            }
+        }
+    }
     let Some(source_path) = body
         .source_path
         .clone()
@@ -32,7 +136,14 @@ pub async fn import(
     };
 
     if action == "scan" {
-        return perform_raw_scan(&source_path, body.import_kind.as_deref()).await;
+        let response = perform_raw_scan(
+            &source_path,
+            body.import_kind.as_deref(),
+            body.staged_upload_id.is_some(),
+        )
+        .await;
+        drop(inspection);
+        return response;
     }
 
     // Transfer matching is evaluated only for non-scan requests (the scan
@@ -44,7 +155,11 @@ pub async fn import(
         || source_path.to_ascii_lowercase().ends_with(".msctransfer");
 
     if is_transfer_request {
-        return import_transfer(&state, &source_path, &body);
+        return if staged_input.is_some() {
+            import_transfer_input(&state, &source_path, &body, staged_input)
+        } else {
+            import_transfer(&state, &source_path, &body)
+        };
     }
 
     if action != "importExisting" {
@@ -54,7 +169,11 @@ pub async fn import(
         );
     }
 
-    import_raw(&state, &source_path, &body)
+    if staged_input.is_some() {
+        import_raw_input(&state, &source_path, &body, staged_input)
+    } else {
+        import_raw(&state, &source_path, &body)
+    }
 }
 
 pub(super) fn rescan_import(state: &LifecycleRoutesState) -> Response {
@@ -187,7 +306,11 @@ pub(super) fn resolve_is_zip(import_kind: Option<&str>, source_path: &str) -> bo
 /// rather than silently returning a defaulted, low-information scan
 /// result for a typo'd path. Reuses this endpoint's own documented 404
 /// `source_not_found` code (`openapi.json`), previously unwired for scan.
-async fn perform_raw_scan(source_path: &str, import_kind: Option<&str>) -> Response {
+async fn perform_raw_scan(
+    source_path: &str,
+    import_kind: Option<&str>,
+    conceal_path: bool,
+) -> Response {
     let is_zip = resolve_is_zip(import_kind, source_path);
     let path = Path::new(source_path);
 
@@ -207,7 +330,13 @@ async fn perform_raw_scan(source_path: &str, import_kind: Option<&str>) -> Respo
     .await;
 
     match result {
-        Ok(Ok(info)) => Json(scan_response_dto(&source_path, is_zip, &info)).into_response(),
+        Ok(Ok(info)) => {
+            let mut result = scan_response_dto(&source_path, is_zip, &info);
+            if conceal_path {
+                result.source_path = None;
+            }
+            Json(result).into_response()
+        }
         Ok(Err(error)) => raw_import_error_response(error),
         Err(error) => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -280,6 +409,14 @@ pub(super) fn import_raw(
     source_path: &str,
     body: &ServerImportRequestDto,
 ) -> Response {
+    import_raw_input(state, source_path, body, None)
+}
+fn import_raw_input(
+    state: &LifecycleRoutesState,
+    source_path: &str,
+    body: &ServerImportRequestDto,
+    input: Option<StagedUpload>,
+) -> Response {
     let display_name = body
         .display_name
         .clone()
@@ -328,6 +465,7 @@ pub(super) fn import_raw(
         let failure_state = worker_state.clone();
         let failure_operation_id = worker_operation_id.clone();
         if let Err(error) = tokio::task::spawn_blocking(move || {
+            let _input_lease = input;
             run_raw_import(
                 worker_state,
                 worker_operation_id,
@@ -880,6 +1018,14 @@ pub(super) fn import_transfer(
     source_path: &str,
     body: &ServerImportRequestDto,
 ) -> Response {
+    import_transfer_input(state, source_path, body, None)
+}
+fn import_transfer_input(
+    state: &LifecycleRoutesState,
+    source_path: &str,
+    body: &ServerImportRequestDto,
+    input: Option<StagedUpload>,
+) -> Response {
     let plan = TransferImportPlan {
         package_path: PathBuf::from(source_path),
         mode: TransferMode::from_dto(body.transfer_mode.as_deref()),
@@ -915,6 +1061,7 @@ pub(super) fn import_transfer(
         let failure_state = worker_state.clone();
         let failure_operation_id = worker_operation_id.clone();
         if let Err(error) = tokio::task::spawn_blocking(move || {
+            let _input_lease = input;
             run_transfer_import(worker_state, worker_operation_id, plan, replace_all)
         })
         .await

@@ -40,7 +40,13 @@ pub async fn capabilities(
 ) -> Json<CapabilitiesResponseDto> {
     let permitted = credential
         .permissions
-        .contains(&msc_api::dto::PermissionCategoryDto::Worlds)
+        .contains(&msc_api::dto::PermissionCategoryDto::Fleet)
+        || credential
+            .permissions
+            .contains(&msc_api::dto::PermissionCategoryDto::Admin)
+        || credential
+            .permissions
+            .contains(&msc_api::dto::PermissionCategoryDto::Worlds)
         || credential
             .permissions
             .contains(&msc_api::dto::PermissionCategoryDto::Addons);
@@ -61,7 +67,7 @@ pub async fn capabilities(
                     .native
                     .local_handoff
                     .load(std::sync::atomic::Ordering::Acquire),
-            server_archive: false,
+            server_archive: available,
         });
     }
     result

@@ -259,7 +259,10 @@ pub fn router(state: ComponentsRoutesState) -> Router {
             "/staged-uploads/:id/chunks",
             put(upload_staged_chunk).route_layer(DefaultBodyLimit::max(STAGED_UPLOAD_CHUNK_BYTES)),
         )
-        .route("/staged-downloads/:id", get(download_staged_bytes))
+        .route(
+            "/staged-downloads/:id",
+            get(download_staged_bytes).delete(cancel_staged_download),
+        )
         .route("/addons", get(get_addons))
         .route("/catalog/search", get(search_catalog))
         .route("/catalog/datapacks", get(search_datapacks))
@@ -669,11 +672,25 @@ pub async fn begin_staged_upload(
         Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
     };
 
+    if matches!(
+        body.purpose,
+        StagedUploadPurposeDto::RawServerArchive
+            | StagedUploadPurposeDto::RawServerFolder
+            | StagedUploadPurposeDto::MscTransferArchive
+    ) {
+        return invalid_body(
+            "native_transport_required",
+            "Server sources require negotiated native staging.",
+        );
+    }
     let max_bytes = match body.purpose {
         StagedUploadPurposeDto::WorldImport
         | StagedUploadPurposeDto::ActiveWorldReplace
         | StagedUploadPurposeDto::WorldThumbnail => MAX_STAGED_UPLOAD_BYTES,
-        StagedUploadPurposeDto::ModpackArchive => MAX_STAGED_UPLOAD_BYTES,
+        StagedUploadPurposeDto::ModpackArchive
+        | StagedUploadPurposeDto::RawServerArchive
+        | StagedUploadPurposeDto::RawServerFolder
+        | StagedUploadPurposeDto::MscTransferArchive => MAX_STAGED_UPLOAD_BYTES,
         StagedUploadPurposeDto::AddonLocalFile => MAX_LOCAL_ADDON_UPLOAD_BYTES,
         StagedUploadPurposeDto::CurseforgeManualFile
         | StagedUploadPurposeDto::ModpackUnresolvedFile => {
@@ -1048,42 +1065,357 @@ pub async fn cancel_staged_upload(
     response
 }
 
+async fn reap_downloads(state: &ComponentsRoutesState) {
+    let expired = {
+        let downloads = state.staging.downloads.lock().unwrap();
+        downloads
+            .iter()
+            .filter(|(_, entry)| now_unix() > entry.expires_at_unix)
+            .map(|(id, _)| id.clone())
+            .collect::<Vec<_>>()
+    };
+    let mut candidates = Vec::new();
+    for id in expired {
+        if let Some(entry) = state.staging.downloads.lock().unwrap().remove(&id) {
+            candidates.push((id, entry.owner, entry.path));
+        }
+    }
+    candidates.extend(
+        state
+            .staging
+            .active_downloads
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(_, entry)| *entry.done.borrow())
+            .map(|(id, entry)| (id.clone(), entry.owner.clone(), entry.path.clone())),
+    );
+    for (id, owner, path) in candidates {
+        match tokio::fs::remove_file(&path).await {
+            Ok(()) => {
+                state.staging.active_downloads.lock().unwrap().remove(&id);
+                record_download_cleanup(&state.staging, &id, &owner);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                state.staging.active_downloads.lock().unwrap().remove(&id);
+                record_download_cleanup(&state.staging, &id, &owner);
+            }
+            Err(_) => {
+                let (done, _) = tokio::sync::watch::channel(true);
+                state.staging.active_downloads.lock().unwrap().insert(
+                    id,
+                    super::worlds::ActiveDownload {
+                        owner,
+                        path,
+                        cancel: Default::default(),
+                        done,
+                    },
+                );
+            }
+        }
+    }
+}
+fn record_download_cleanup(staging: &StagingStore, id: &str, owner: &str) {
+    let mut terminal = staging.completed_downloads.lock().unwrap();
+    if terminal.len() >= 64
+        && let Some(oldest) = terminal
+            .iter()
+            .min_by_key(|(_, (_, time))| *time)
+            .map(|(id, _)| id.clone())
+    {
+        terminal.remove(&oldest);
+    }
+    terminal.insert(
+        id.to_string(),
+        (owner.to_string(), std::time::Instant::now()),
+    );
+}
+pub async fn cancel_staged_download(
+    State(state): State<ComponentsRoutesState>,
+    AxumPath(id): AxumPath<String>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+) -> Response {
+    let (entry, active) = {
+        let mut downloads = state.staging.downloads.lock().unwrap();
+        let active = state.staging.active_downloads.lock().unwrap();
+        if downloads
+            .get(&id)
+            .is_some_and(|entry| entry.owner != credential.credential_id)
+            || active
+                .get(&id)
+                .is_some_and(|entry| entry.owner != credential.credential_id)
+        {
+            return error_response(
+                StatusCode::NOT_FOUND,
+                "not_found",
+                "Unknown staged download.",
+            );
+        }
+        (downloads.remove(&id), active.get(&id).cloned())
+    };
+    let path = if let Some(entry) = entry {
+        entry.path
+    } else if let Some(active) = active {
+        active
+            .cancel
+            .store(true, std::sync::atomic::Ordering::Release);
+        let mut done = active.done.subscribe();
+        while !*done.borrow_and_update() {
+            if done.changed().await.is_err() {
+                break;
+            }
+        }
+        active.path
+    } else {
+        return if state
+            .staging
+            .completed_downloads
+            .lock()
+            .unwrap()
+            .get(&id)
+            .is_some_and(|(owner, _)| owner == &credential.credential_id)
+        {
+            StatusCode::NO_CONTENT.into_response()
+        } else {
+            error_response(
+                StatusCode::NOT_FOUND,
+                "download_unavailable",
+                "No record can confirm cleanup of this download.",
+            )
+        };
+    };
+    match tokio::fs::remove_file(path).await {
+        Ok(()) => {
+            state.staging.active_downloads.lock().unwrap().remove(&id);
+            record_download_cleanup(&state.staging, &id, &credential.credential_id);
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            state.staging.active_downloads.lock().unwrap().remove(&id);
+            record_download_cleanup(&state.staging, &id, &credential.credential_id);
+            StatusCode::NO_CONTENT.into_response()
+        }
+        Err(_) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "download_cleanup",
+            "Staged download cleanup could not be confirmed.",
+        ),
+    }
+}
+
 pub async fn download_staged_bytes(
     State(state): State<ComponentsRoutesState>,
     AxumPath(id): AxumPath<String>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    auth: Option<Extension<crate::auth::AuthState>>,
 ) -> Response {
-    let entry = { state.staging.downloads.lock().unwrap().remove(&id) };
-    let Some(entry) = entry else {
+    use super::worlds::ActiveDownload;
+    use tokio::io::{AsyncReadExt, AsyncSeekExt};
+    let Ok(permit) = state.staging.transfer_slots.clone().try_acquire_owned() else {
         return error_response(
-            StatusCode::NOT_FOUND,
-            "not_found",
-            "Unknown staged download.",
+            StatusCode::TOO_MANY_REQUESTS,
+            "stream_capacity",
+            "Both native transfer slots are active.",
         );
     };
+    let (entry, active) = {
+        let mut downloads = state.staging.downloads.lock().unwrap();
+        if downloads
+            .get(&id)
+            .is_some_and(|entry| entry.owner != credential.credential_id)
+        {
+            return error_response(
+                StatusCode::NOT_FOUND,
+                "not_found",
+                "Unknown staged download.",
+            );
+        }
+        if !downloads.contains_key(&id) {
+            return error_response(
+                StatusCode::NOT_FOUND,
+                "not_found",
+                "Unknown staged download.",
+            );
+        }
+        if state
+            .staging
+            .active_downloads
+            .lock()
+            .unwrap()
+            .values()
+            .any(|entry| entry.owner == credential.credential_id && !*entry.done.borrow())
+        {
+            return error_response(
+                StatusCode::TOO_MANY_REQUESTS,
+                "stream_capacity",
+                "A download is already active for this credential.",
+            );
+        }
+        let Some(entry) = downloads.remove(&id) else {
+            return error_response(
+                StatusCode::NOT_FOUND,
+                "not_found",
+                "Unknown staged download.",
+            );
+        };
+        let (done, _) = tokio::sync::watch::channel(false);
+        let active = ActiveDownload {
+            path: entry.path.clone(),
+            owner: entry.owner.clone(),
+            cancel: Default::default(),
+            done,
+        };
+        state
+            .staging
+            .active_downloads
+            .lock()
+            .unwrap()
+            .insert(id.clone(), active.clone());
+        (entry, active)
+    };
+    struct DownloadGuard {
+        id: String,
+        active: ActiveDownload,
+        staging: StagingStore,
+        _permit: tokio::sync::OwnedSemaphorePermit,
+    }
+    impl Drop for DownloadGuard {
+        fn drop(&mut self) {
+            match std::fs::remove_file(&self.active.path) {
+                Ok(()) => {
+                    self.staging
+                        .active_downloads
+                        .lock()
+                        .unwrap()
+                        .remove(&self.id);
+                    record_download_cleanup(&self.staging, &self.id, &self.active.owner);
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    self.staging
+                        .active_downloads
+                        .lock()
+                        .unwrap()
+                        .remove(&self.id);
+                    record_download_cleanup(&self.staging, &self.id, &self.active.owner);
+                }
+                Err(_) => {} // Keep the failed path accounted for and retryable by DELETE.
+            }
+            self.active.done.send_replace(true);
+        }
+    }
+    let guard = DownloadGuard {
+        id,
+        active,
+        staging: state.staging,
+        _permit: permit,
+    };
     if now_unix() > entry.expires_at_unix {
-        let _ = std::fs::remove_file(&entry.path);
         return error_response(
             StatusCode::CONFLICT,
             "staged_download_expired",
             "This staged download has expired.",
         );
     }
-    match std::fs::read(&entry.path) {
-        Ok(bytes) => {
-            let _ = std::fs::remove_file(&entry.path);
-            (
-                StatusCode::OK,
-                [(axum::http::header::CONTENT_TYPE, "application/octet-stream")],
-                bytes,
-            )
-                .into_response()
+    let file = match tokio::fs::File::open(&entry.path).await {
+        Ok(file) => file,
+        Err(_) => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "download_read",
+                "Could not open staged download.",
+            );
         }
-        Err(_) => error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "internal_error",
-            "Could not read staged download.",
-        ),
+    };
+    struct DownloadFile {
+        file: tokio::fs::File,
+        guard: DownloadGuard,
     }
+    let mut source = DownloadFile { file, guard };
+    let size = match source.file.metadata().await {
+        Ok(meta) => meta.len(),
+        Err(_) => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "download_read",
+                "Could not inspect staged download.",
+            );
+        }
+    };
+    source.file.set_max_buf_size(256 * 1024);
+    let identity = crate::auth::StreamAuthentication { credential };
+    let permitted = |source: &DownloadFile| {
+        !source
+            .guard
+            .active
+            .cancel
+            .load(std::sync::atomic::Ordering::Acquire)
+            && auth
+                .as_ref()
+                .is_none_or(|Extension(auth)| auth.stream_retains_permissions(&identity))
+    };
+    let mut hash = Sha256::new();
+    let mut buffer = vec![0; 256 * 1024];
+    loop {
+        if !permitted(&source) {
+            return error_response(
+                StatusCode::CONFLICT,
+                "download_cancelled",
+                "Download cancelled or authorization changed.",
+            );
+        }
+        let count = match source.file.read(&mut buffer).await {
+            Ok(n) => n,
+            Err(_) => {
+                return error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "download_read",
+                    "Could not verify staged download.",
+                );
+            }
+        };
+        if count == 0 {
+            break;
+        }
+        hash.update(&buffer[..count]);
+    }
+    let digest = format!("{:x}", hash.finalize());
+    if source.file.seek(std::io::SeekFrom::Start(0)).await.is_err() {
+        return error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "download_read",
+            "Could not reopen staged download.",
+        );
+    }
+    let stream = futures_util::stream::try_unfold(
+        (source, 0u64, auth, identity),
+        move |(mut source, offset, auth, identity)| async move {
+            if source
+                .guard
+                .active
+                .cancel
+                .load(std::sync::atomic::Ordering::Acquire)
+                || auth
+                    .as_ref()
+                    .is_some_and(|Extension(auth)| !auth.stream_retains_permissions(&identity))
+            {
+                return Err(std::io::Error::other("download cancelled"));
+            }
+            if offset == size {
+                return Ok::<_, std::io::Error>(None);
+            }
+            let mut block = vec![0; (size - offset).min(256 * 1024) as usize];
+            source.file.read_exact(&mut block).await?;
+            let next = offset + block.len() as u64;
+            Ok(Some((block, (source, next, auth, identity))))
+        },
+    );
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(axum::http::header::CONTENT_TYPE, "application/octet-stream")
+        .header(axum::http::header::CONTENT_LENGTH, size)
+        .header("X-MSC-SHA256", digest)
+        .body(axum::body::Body::from_stream(stream))
+        .expect("valid download headers")
 }
 
 pub async fn get_components(
@@ -1405,7 +1737,7 @@ pub async fn get_catalog_project_versions(
 
 pub async fn get_client_export(
     State(state): State<ComponentsRoutesState>,
-    Extension(_credential): Extension<AuthenticatedCredential>,
+    Extension(credential): Extension<AuthenticatedCredential>,
     Query(query): Query<ClientExportQuery>,
 ) -> Response {
     let Some(server) = state.lifecycle.active_config_server() else {
@@ -1513,6 +1845,7 @@ pub async fn get_client_export(
             state.staging.downloads.lock().unwrap().insert(
                 id.clone(),
                 StagedDownload {
+                    owner: credential.credential_id.clone(),
                     expires_at_unix: now_unix() + STAGING_TTL_SECONDS,
                     path,
                 },

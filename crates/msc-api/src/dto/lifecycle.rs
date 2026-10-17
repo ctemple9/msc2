@@ -27,6 +27,8 @@ pub struct ServerImportRequestDto {
     pub action: Option<String>,
     pub source_path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub staged_upload_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub import_kind: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display_name: Option<String>,

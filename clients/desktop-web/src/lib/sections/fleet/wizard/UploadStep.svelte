@@ -23,10 +23,14 @@
   export let onScanned: () => void = () => {};
 
   let isScanning = false;
+  let disposed = false;
+  let nativeAbort: AbortController | undefined;
+  let nativeStage = 'Preparing server source…';
   let pendingModpackSource: FileChunkSource | undefined;
   let scanError: string | undefined;
   let dropTargeted = false;
   let supportsDrop = false;
+  let unsubscribeNativeDrop: (() => void) | undefined;
   let unsubscribeDrop: (() => void) | undefined;
   let fileFilter = '';
   let curseforgeApiKey = '';
@@ -39,6 +43,16 @@
   onMount(async () => {
     const platform = await getPlatform();
     supportsDrop = platform.kind === 'tauri';
+    unsubscribeNativeDrop = await platform.onNativeSourceDrop?.((sources) => {
+      const source = sources[0];
+      if (!source) return;
+      if (source.error) {
+        scanError = source.error;
+        return;
+      }
+      if (!source.directory && source.name.toLowerCase().endsWith('.mrpack')) return;
+      if (source.sourceId) void scanNativeServer(source.directory, source.sourceId);
+    });
     unsubscribeDrop = await platform.onFileDrop((paths) => {
       dropTargeted = false;
       const first = paths[0];
@@ -46,7 +60,12 @@
     });
   });
 
-  onDestroy(() => unsubscribeDrop?.());
+  onDestroy(() => {
+    disposed = true;
+    nativeAbort?.abort();
+    unsubscribeDrop?.();
+    unsubscribeNativeDrop?.();
+  });
 
   function baseName(path: string): string {
     return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
@@ -180,6 +199,9 @@
 
   async function handlePath(path: string): Promise<void> {
     const lower = path.toLowerCase();
+    if (api?.pickNativeUpload && !lower.endsWith('.mrpack')) {
+      return;
+    }
     if (lower.endsWith('.zip')) {
       // Server archives can contain hundreds of megabytes of mods and
       // libraries. Inspect them through the agent's path-based scan instead
@@ -202,12 +224,99 @@
     }
   }
 
+  async function scanNativeServer(directory: boolean, droppedSourceId?: string): Promise<void> {
+    const scoped = api?.snapshot?.() ?? api;
+    if (!scoped?.pickNativeUpload) throw new Error('Native source selection is unavailable.');
+    if (isScanning || disposed) return;
+    isScanning = true;
+    scanError = undefined;
+    const abort = new AbortController();
+    nativeAbort = abort;
+    let pending: string | undefined;
+    try {
+      const previous = draft.stagedServerSource;
+      if (previous)
+        await (previous.api ?? scoped).delete?.(`/v1/staged-uploads/${previous.stagedUploadId}`);
+      draft = {
+        ...draft,
+        stagedServerSource: undefined,
+        importScan: undefined,
+        importSourcePath: undefined,
+        stagedModpack: undefined,
+      };
+      const source = await scoped.pickNativeUpload(
+        'raw-server-archive',
+        directory,
+        {
+          signal: abort.signal,
+          onProgress: () => {
+            nativeStage = 'Transferring server source…';
+          },
+        },
+        droppedSourceId,
+      );
+      if (!source) return;
+      pending = source.stagedUploadId;
+      if (disposed || abort.signal.aborted || api?.hostId?.() !== source.agentHostId) {
+        throw new Error('The selected host changed. Choose the server source again.');
+      }
+      nativeStage = 'Inspecting server source…';
+      const scan = await scoped.post<Schema['ServerImportScanResponseDTO']>('/v1/servers/import', {
+        action: 'scan',
+        stagedUploadId: source.stagedUploadId,
+      });
+      if (disposed || abort.signal.aborted || api?.hostId?.() !== source.agentHostId) {
+        throw new Error('The selected host changed. Choose the server source again.');
+      }
+      draft = {
+        ...draft,
+        stagedServerSource: { ...source, api: scoped },
+        importSourcePath: source.fileName,
+        importIsZip: scan.isZip ?? false,
+        importScan: scan,
+        serverType: scan.serverType === 'bedrock' ? 'bedrock' : 'java',
+        ...(scan.serverType === 'bedrock'
+          ? scan.port === undefined
+            ? {}
+            : { bedrockPort: scan.port }
+          : scan.port === undefined
+            ? {}
+            : { javaPort: scan.port }),
+        importMaxPlayers: scan.maxPlayers ?? draft.importMaxPlayers,
+        importEulaAccepted: scan.eulaAccepted ?? false,
+        importActiveWorldName: scan.defaultWorldName,
+      };
+      pending = undefined;
+      onScanned();
+    } catch (error) {
+      scanError = errorMessage(error);
+      if (pending) {
+        try {
+          await scoped.delete?.(`/v1/staged-uploads/${pending}`);
+        } catch {
+          scanError += ' Agent cleanup could not be confirmed.';
+        }
+      }
+    } finally {
+      nativeAbort = undefined;
+      isScanning = false;
+    }
+  }
+
   async function browseFolder(): Promise<void> {
+    if (api?.pickNativeUpload) {
+      await scanNativeServer(true);
+      return;
+    }
     const path = await (await getPlatform()).pickFolder('Choose Server Folder');
     if (path) await scanServerPath(path, false);
   }
 
   async function browseServerArchive(): Promise<void> {
+    if (api?.pickNativeUpload) {
+      await scanNativeServer(false);
+      return;
+    }
     const path = await (
       await getPlatform()
     ).pickFilePath({ label: 'Choose Server .zip', extensions: ['zip'] });
@@ -399,7 +508,9 @@
   {:else if isScanning}
     <div class="status">
       <span class="spinner" aria-hidden="true"></span>
-      <span class="hint">Inspecting archive or scanning server folder…</span>
+      <span class="hint"
+        >{nativeAbort ? nativeStage : 'Inspecting archive or scanning server folder…'}</span
+      >
     </div>
   {:else if scanError}
     <div class="status column">

@@ -8,6 +8,7 @@ import type {
   NativeFilePickerRequest,
   NativeFileDescriptor,
   NativeFileSource,
+  NativeDroppedSource,
   PickedFile,
   PlatformAdapter,
   TauriPlatformDependencies,
@@ -55,6 +56,7 @@ export function createTauriPlatform(dependencies: TauriPlatformDependencies): Pl
     quitApplication: dependencies.quitApplication,
     openExternal: (url: string) => dependencies.openExternal(url),
     revealInFileManager: dependencies.revealInFileManager,
+    onNativeSourceDrop: dependencies.onNativeSourceDrop,
     onFileDrop: (handler) => dependencies.onFileDrop(handler),
     onCloseRequested: dependencies.onCloseRequested,
     // P11.23 supplies per-host pairing and secret-store behavior. This seam
@@ -224,6 +226,10 @@ export async function loadTauriPlatform(): Promise<PlatformAdapter> {
     // DOM (dragDropEnabled defaults true, tauri.conf.json), so this is the
     // only source of a *real* dropped path -- an HTML5 `ondrop` handler in
     // the component only ever sees an empty `dataTransfer` here.
+    onNativeSourceDrop: async (handler: (sources: readonly NativeDroppedSource[]) => void) => {
+      const { listen } = await import('@tauri-apps/api/event');
+      return listen<NativeDroppedSource[]>('native-source-drop', (event) => handler(event.payload));
+    },
     onFileDrop: async (handler: (paths: readonly string[]) => void) =>
       getCurrentWebview().onDragDropEvent((event) => {
         if (event.payload.type === 'drop') handler(event.payload.paths);

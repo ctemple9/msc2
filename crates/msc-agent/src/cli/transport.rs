@@ -64,25 +64,6 @@ impl SharedClient {
         decode_json(&response.body)
     }
 
-    /// Uploads raw bytes rather than a JSON body.
-    pub(crate) async fn put_bytes<Resp: DeserializeOwned>(
-        &self,
-        path: &str,
-        content_type: &str,
-        body: Vec<u8>,
-    ) -> Result<Resp, CliError> {
-        let response = self
-            .request_raw(Method::PUT, path, Some(content_type), Some(body))
-            .await?;
-        decode_json(&response.body)
-    }
-
-    /// Downloads a raw response body rather than decoding it as JSON.
-    pub(crate) async fn get_raw_bytes(&self, path: &str) -> Result<Vec<u8>, CliError> {
-        let response = self.request_raw(Method::GET, path, None, None).await?;
-        Ok(response.body)
-    }
-
     pub(crate) async fn connect_console_stream(
         &self,
     ) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, CliError> {
@@ -468,4 +449,270 @@ fn parse_content_length(headers: &str) -> Result<Option<usize>, String> {
         .parse::<usize>()
         .map(Some)
         .map_err(|err| format!("content-length header was malformed: {err}"))
+}
+
+impl SharedClient {
+    pub(crate) async fn cancel_staged(&self, id: &str) -> Result<(), CliError> {
+        self.request_raw(
+            Method::DELETE,
+            &format!("/v1/staged-uploads/{id}"),
+            None,
+            None,
+        )
+        .await
+        .map(|_| ())
+    }
+    /// Large bodies stay in native readers/writers; the CLI remains fixed to
+    /// the OS-authorized local agent and never accepts a supplied URL/token.
+    pub(crate) async fn put_file(
+        &self,
+        path: &str,
+        source: &std::path::Path,
+    ) -> Result<msc_api::dto::StagedUploadCompleteResultDto, CliError> {
+        let client = self.clone();
+        let path = path.to_string();
+        let source = source.to_path_buf();
+        tokio::task::spawn_blocking(move || {
+            use sha2::{Digest, Sha256};
+            use std::io::Read;
+            let mut file = msc_infrastructure::source_tree::open(&source, false)
+                .map_err(|e| CliError::usage(e.to_string()))?;
+            let before = file
+                .metadata()
+                .map_err(|e| CliError::usage(e.to_string()))?;
+            struct Hasher<'a> {
+                file: &'a mut std::fs::File,
+                hash: Sha256,
+                count: u64,
+            }
+            impl Read for Hasher<'_> {
+                fn read(&mut self, b: &mut [u8]) -> io::Result<usize> {
+                    let n = self.file.read(b)?;
+                    self.hash.update(&b[..n]);
+                    self.count += n as u64;
+                    Ok(n)
+                }
+            }
+            let mut reader = Hasher {
+                file: &mut file,
+                hash: Sha256::new(),
+                count: 0,
+            };
+            let agent = large_body_agent();
+            let mut response = agent
+                .put(format!("{}{}", client.base_url, path))
+                .header("Authorization", format!("Bearer {}", client.token))
+                .header("X-MSC-Api-Version", "1.0")
+                .header("Content-Type", "application/octet-stream")
+                .header("Content-Length", before.len().to_string())
+                .send(ureq::SendBody::from_reader(&mut reader))
+                .map_err(|_| CliError::internal("native file upload failed"))?;
+            let digest = format!("{:x}", reader.hash.clone().finalize());
+            let count = reader.count;
+            let mut bytes = Vec::new();
+            response
+                .body_mut()
+                .as_reader()
+                .take(256 * 1024 + 1)
+                .read_to_end(&mut bytes)
+                .map_err(|_| CliError::internal("upload receipt was interrupted"))?;
+            if bytes.len() > 256 * 1024 {
+                return Err(CliError::internal("upload receipt exceeds metadata limit"));
+            }
+            let result: msc_api::dto::StagedUploadCompleteResultDto =
+                serde_json::from_slice(&bytes)
+                    .map_err(|_| CliError::internal("invalid upload receipt"))?;
+            let after = file
+                .metadata()
+                .map_err(|_| CliError::internal("source file changed"))?;
+            if before.len() != after.len()
+                || before.modified().ok() != after.modified().ok()
+                || count != before.len()
+                || result.received_bytes as u64 != count
+                || result.sha256 != digest
+            {
+                return Err(CliError::internal("source or upload integrity changed"));
+            }
+            Ok(result)
+        })
+        .await
+        .map_err(|_| CliError::internal("native file upload worker failed"))?
+    }
+    pub(crate) async fn download_file(
+        &self,
+        id: &str,
+        destination: &std::path::Path,
+        expected: Option<u64>,
+    ) -> Result<u64, CliError> {
+        let client = self.clone();
+        let id = id.to_string();
+        let destination = destination.to_path_buf();
+        tokio::task::spawn_blocking(move || {
+            use sha2::{Digest, Sha256};
+            use std::io::{Read, Write};
+            let partial =
+                destination.with_file_name(format!(".msc-transfer-{}.part", uuid::Uuid::new_v4()));
+            struct Partial(std::path::PathBuf);
+            impl Drop for Partial {
+                fn drop(&mut self) {
+                    let _ = std::fs::remove_file(&self.0);
+                }
+            }
+            let guard = Partial(partial.clone());
+            let mut options = std::fs::OpenOptions::new();
+            options.write(true).create_new(true);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                options.mode(0o600);
+            }
+            let mut output = options
+                .open(&partial)
+                .map_err(|_| CliError::internal("could not create partial download"))?;
+            let agent = large_body_agent();
+            let mut response = agent
+                .get(format!("{}/v1/staged-downloads/{}", client.base_url, id))
+                .header("Authorization", format!("Bearer {}", client.token))
+                .header("X-MSC-Api-Version", "1.0")
+                .call()
+                .map_err(|_| CliError::internal("native download failed"))?;
+            let digest = response
+                .headers()
+                .get("X-MSC-SHA256")
+                .and_then(|h| h.to_str().ok())
+                .filter(|s| s.len() == 64 && s.bytes().all(|b| b.is_ascii_hexdigit()))
+                .ok_or_else(|| {
+                    CliError::internal(
+                        "agent does not provide verified downloads; update the agent",
+                    )
+                })?
+                .to_ascii_lowercase();
+            let length = response
+                .headers()
+                .get("Content-Length")
+                .and_then(|h| h.to_str().ok())
+                .and_then(|s| s.parse::<u64>().ok());
+            if length.is_none() || expected.is_some_and(|expected| length != Some(expected)) {
+                return Err(CliError::internal("download length does not match export"));
+            }
+            let expected = length.expect("length checked");
+            let mut input = response.body_mut().as_reader();
+            let mut buffer = vec![0; 256 * 1024];
+            let mut count = 0u64;
+            let mut hash = Sha256::new();
+            loop {
+                let n = input
+                    .read(&mut buffer)
+                    .map_err(|_| CliError::internal("download interrupted"))?;
+                if n == 0 {
+                    break;
+                }
+                count = count
+                    .checked_add(n as u64)
+                    .filter(|n| *n <= expected)
+                    .ok_or_else(|| CliError::internal("download exceeds expected length"))?;
+                output
+                    .write_all(&buffer[..n])
+                    .map_err(|_| CliError::internal("could not write partial download"))?;
+                hash.update(&buffer[..n]);
+            }
+            if count != expected || format!("{:x}", hash.finalize()) != digest {
+                return Err(CliError::internal("download integrity check failed"));
+            }
+            output
+                .sync_all()
+                .map_err(|_| CliError::internal("could not sync downloaded archive"))?;
+            drop(output);
+            std::fs::rename(&partial, &destination)
+                .map_err(|_| CliError::internal("could not commit downloaded archive"))?;
+            drop(guard);
+            Ok(count)
+        })
+        .await
+        .map_err(|_| CliError::internal("native download worker failed"))?
+    }
+}
+
+fn large_body_agent() -> &'static ureq::Agent {
+    static AGENT: std::sync::OnceLock<ureq::Agent> = std::sync::OnceLock::new();
+    AGENT.get_or_init(|| {
+        ureq::Agent::config_builder()
+            .max_redirects(0)
+            .timeout_global(None)
+            .timeout_connect(Some(Duration::from_secs(10)))
+            .build()
+            .into()
+    })
+}
+impl SharedClient {
+    pub(crate) async fn put_file_chunks(
+        &self,
+        path: &str,
+        source: &std::path::Path,
+        limit: usize,
+    ) -> Result<msc_api::dto::StagedUploadCompleteResultDto, CliError> {
+        let client = self.clone();
+        let path = path.to_string();
+        let source = source.to_path_buf();
+        tokio::task::spawn_blocking(move || {
+            use sha2::{Digest, Sha256};
+            use std::io::Read;
+            let mut file = msc_infrastructure::source_tree::open(&source, false)
+                .map_err(|e| CliError::usage(e.to_string()))?;
+            let identity = msc_infrastructure::source_tree::fingerprint(&file)
+                .map_err(|_| CliError::internal("could not inspect selected source"))?;
+            let total = file
+                .metadata()
+                .map_err(|_| CliError::internal("source unavailable"))?
+                .len();
+            let mut offset = 0u64;
+            let mut hash = Sha256::new();
+            loop {
+                let mut block = vec![0; (total - offset).min(limit as u64) as usize];
+                file.read_exact(&mut block)
+                    .map_err(|_| CliError::internal("source changed"))?;
+                hash.update(&block);
+                let next = offset + block.len() as u64;
+                let mut response = large_body_agent()
+                    .put(format!(
+                        "{}{}/chunks?offset={offset}&complete={}",
+                        client.base_url,
+                        path,
+                        next == total
+                    ))
+                    .header("Authorization", format!("Bearer {}", client.token))
+                    .header("X-MSC-Api-Version", "1.0")
+                    .header("Content-Type", "application/octet-stream")
+                    .send(&block[..])
+                    .map_err(|_| CliError::internal("legacy native chunk failed"))?;
+                let mut bytes = Vec::new();
+                response
+                    .body_mut()
+                    .as_reader()
+                    .take(256 * 1024 + 1)
+                    .read_to_end(&mut bytes)
+                    .map_err(|_| CliError::internal("chunk receipt interrupted"))?;
+                if bytes.len() > 256 * 1024 {
+                    return Err(CliError::internal("chunk receipt exceeds metadata limit"));
+                }
+                if next == total {
+                    let result: msc_api::dto::StagedUploadCompleteResultDto =
+                        serde_json::from_slice(&bytes)
+                            .map_err(|_| CliError::internal("invalid final chunk receipt"))?;
+                    if result.received_bytes as u64 != total
+                        || result.sha256 != format!("{:x}", hash.finalize())
+                        || msc_infrastructure::source_tree::fingerprint(&file)
+                            .map_err(|_| CliError::internal("source changed"))?
+                            != identity
+                    {
+                        return Err(CliError::internal("legacy upload integrity check failed"));
+                    }
+                    return Ok(result);
+                }
+                offset = next;
+            }
+        })
+        .await
+        .map_err(|_| CliError::internal("legacy upload worker failed"))?
+    }
 }

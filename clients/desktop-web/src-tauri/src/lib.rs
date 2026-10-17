@@ -1812,6 +1812,14 @@ pub fn run() {
             let _ = payload;
         })
         .on_window_event(|window, event| {
+            if window.label() == "main" {
+                if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) =
+                    event
+                {
+                    let sources = native_transfer::remember_dropped_sources(paths);
+                    let _ = tauri::Emitter::emit(window, "native-source-drop", sources);
+                }
+            }
             if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
                 native_transfer::invalidate_all();
             }
@@ -1821,6 +1829,8 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
+            native_transfer::download::download_staged_file,
+            native_transfer::download::cancel_native_download,
             native_transfer::pick_upload_source,
             native_transfer::release_upload_source,
             native_transfer::start_native_upload,

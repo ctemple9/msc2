@@ -446,10 +446,18 @@ pub(crate) struct StagedUpload {
 
 #[derive(Debug, Clone)]
 pub(crate) struct StagedDownload {
+    pub(crate) owner: String,
     pub(crate) expires_at_unix: u64,
     pub(crate) path: PathBuf,
 }
 
+#[derive(Clone)]
+pub(crate) struct ActiveDownload {
+    pub(crate) path: PathBuf,
+    pub(crate) owner: String,
+    pub(crate) cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    pub(crate) done: tokio::sync::watch::Sender<bool>,
+}
 /// Bytes live on disk under `<servers_root>/.msc2-staging/{uploads,
 /// downloads}/{id}.{bin,zip}` — `servers_root()` is already an
 /// agent-controlled directory, so nothing user-supplied ever names a
@@ -457,11 +465,28 @@ pub(crate) struct StagedDownload {
 /// does. Metadata lives in memory only (an agent restart loses in-flight
 /// staged transfers, the same "best-effort, not durable" shape this
 /// step's own scope note leaves to a later phase).
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub(crate) struct StagingStore {
     pub(crate) uploads: std::sync::Arc<Mutex<super::components::native_upload::UploadStore>>,
     pub(crate) native: super::components::native_upload::NativeStore,
     pub(crate) downloads: std::sync::Arc<Mutex<HashMap<String, StagedDownload>>>,
+    pub(crate) active_downloads: std::sync::Arc<Mutex<HashMap<String, ActiveDownload>>>,
+    pub(crate) completed_downloads:
+        std::sync::Arc<Mutex<HashMap<String, (String, std::time::Instant)>>>,
+    pub(crate) transfer_slots: std::sync::Arc<tokio::sync::Semaphore>,
+}
+
+impl Default for StagingStore {
+    fn default() -> Self {
+        Self {
+            uploads: Default::default(),
+            native: Default::default(),
+            downloads: Default::default(),
+            active_downloads: Default::default(),
+            completed_downloads: Default::default(),
+            transfer_slots: std::sync::Arc::new(tokio::sync::Semaphore::new(2)),
+        }
+    }
 }
 
 pub(crate) fn now_unix() -> u64 {
@@ -4168,7 +4193,10 @@ pub async fn begin_staged_upload(
         StagedUploadPurposeDto::ModpackArchive
         | StagedUploadPurposeDto::AddonLocalFile
         | StagedUploadPurposeDto::CurseforgeManualFile
-        | StagedUploadPurposeDto::ModpackUnresolvedFile => {
+        | StagedUploadPurposeDto::ModpackUnresolvedFile
+        | StagedUploadPurposeDto::RawServerArchive
+        | StagedUploadPurposeDto::RawServerFolder
+        | StagedUploadPurposeDto::MscTransferArchive => {
             return invalid_body(
                 "invalid_purpose",
                 "This staged upload route only accepts world import purposes.",
@@ -5679,16 +5707,28 @@ mod tests {
         let exported: WorldExportResultDto = json_body(exported).await;
         assert!(exported.size_bytes > 0);
 
-        let first = download_staged_bytes(
-            State(state.clone()),
+        let first = crate::routes::components::download_staged_bytes(
+            State(crate::routes::components::ComponentsRoutesState::new(
+                state.lifecycle.clone(),
+                state.staging.clone(),
+                crate::routes::components::PendingModpackImports::default(),
+            )),
             AxumPath(exported.staged_download_id.clone()),
+            Extension(credential.clone()),
+            None,
         )
         .await;
         assert_eq!(first.status(), StatusCode::OK);
 
-        let second = download_staged_bytes(
-            State(state.clone()),
+        let second = crate::routes::components::download_staged_bytes(
+            State(crate::routes::components::ComponentsRoutesState::new(
+                state.lifecycle.clone(),
+                state.staging.clone(),
+                crate::routes::components::PendingModpackImports::default(),
+            )),
             AxumPath(exported.staged_download_id.clone()),
+            Extension(credential.clone()),
+            None,
         )
         .await;
         assert_eq!(second.status(), StatusCode::NOT_FOUND);

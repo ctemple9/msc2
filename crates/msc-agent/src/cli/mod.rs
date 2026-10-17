@@ -42,12 +42,12 @@ use msc_api::dto::{
     ServerImportScanResponseDto, ServerNotesRequestDto, ServerNotesResultDto,
     ServerRenameRequestDto, ServerRenameResultDto, ServerTransferExportResultDto,
     SettingsResponseDto, SettingsUpdateResultDto, SimpleResultDto, StagedUploadBeginRequestDto,
-    StagedUploadBeginResultDto, StagedUploadCompleteResultDto, StagedUploadPurposeDto,
-    VersionChangeRequestDto, VersionChangeResultDto, VersionsResponseDto, WorldActivateResultDto,
-    WorldConvertRequestDto, WorldConvertResultDto, WorldCreateRequestDto, WorldDeleteRequestDto,
-    WorldDuplicateRequestDto, WorldExportRequestDto, WorldExportResultDto, WorldImportRequestDto,
-    WorldMutationResultDto, WorldRenameRequestDto, WorldReplaceActiveRequestDto,
-    WorldReplaceActiveResultDto, WorldReplaceRequestDto, WorldSlotDto, WorldSlotsResponseDto,
+    StagedUploadBeginResultDto, StagedUploadPurposeDto, VersionChangeRequestDto,
+    VersionChangeResultDto, VersionsResponseDto, WorldActivateResultDto, WorldConvertRequestDto,
+    WorldConvertResultDto, WorldCreateRequestDto, WorldDeleteRequestDto, WorldDuplicateRequestDto,
+    WorldExportRequestDto, WorldExportResultDto, WorldImportRequestDto, WorldMutationResultDto,
+    WorldRenameRequestDto, WorldReplaceActiveRequestDto, WorldReplaceActiveResultDto,
+    WorldReplaceRequestDto, WorldSlotDto, WorldSlotsResponseDto,
 };
 use msc_infrastructure::archive::create_zip_from_folders;
 use msc_infrastructure::console_buffer::ConsoleLine;
@@ -2673,24 +2673,22 @@ async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), Cl
             let result: ServerTransferExportResultDto = client
                 .post_json("/v1/servers/export", &serde_json::json!({}))
                 .await?;
-            let bytes = client
-                .get_raw_bytes(&format!(
-                    "/v1/staged-downloads/{}",
-                    result.staged_download_id
-                ))
+            let written = client
+                .download_file(
+                    &result.staged_download_id,
+                    &output,
+                    Some(result.size_bytes as u64),
+                )
                 .await?;
-            std::fs::write(&output, &bytes).map_err(|error| {
-                CliError::internal(format!("could not write {}: {error}", output.display()))
-            })?;
             if common.json {
                 print_json(
-                    &serde_json::json!({"path": output, "fileName": result.file_name, "serverCount": result.server_count, "sizeBytes": bytes.len(), "expiresAt": result.expires_at}),
+                    &serde_json::json!({"path": output, "fileName": result.file_name, "serverCount": result.server_count, "sizeBytes": written, "expiresAt": result.expires_at}),
                 )?;
             } else {
                 println!(
                     "exported {} servers ({} bytes) to {}",
                     result.server_count,
-                    bytes.len(),
+                    written,
                     output.display()
                 );
             }
@@ -2730,9 +2728,10 @@ async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), Cl
                 "importExisting"
             };
             let body = ServerImportRequestDto {
+                staged_upload_id: None,
                 action: Some(action.to_string()),
                 source_path: Some(path.clone()),
-                import_kind: Some(resolved_kind),
+                import_kind: Some(resolved_kind.clone()),
                 display_name: name.clone(),
                 server_type: server_type.clone(),
                 active_world_name: world_name.clone(),
@@ -2808,6 +2807,7 @@ async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), Cl
         }
         ServerCommand::Rescan => {
             let body = ServerImportRequestDto {
+                staged_upload_id: None,
                 action: Some("rescan".to_string()),
                 source_path: None,
                 import_kind: None,
@@ -2899,6 +2899,7 @@ async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), Cl
                         &client,
                         path,
                         StagedUploadPurposeDto::ModpackArchive,
+                        None,
                         None,
                         None,
                     )
@@ -3017,7 +3018,7 @@ async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), Cl
 /// for in-process callers, reproduced here as a real ZIP because this
 /// route only ever accepts a bounded staged upload, never a server-local
 /// path (`routes/worlds.rs::replace_active`'s own doc note).
-fn zip_folder_to_bytes(path: &Path) -> Result<Vec<u8>, CliError> {
+fn zip_folder_to_file(path: &Path) -> Result<TemporaryWorldZip, CliError> {
     let folder_name = path
         .file_name()
         .and_then(|name| name.to_str())
@@ -3031,10 +3032,13 @@ fn zip_folder_to_bytes(path: &Path) -> Result<Vec<u8>, CliError> {
     ));
     create_zip_from_folders(&temp_zip, parent, &[folder_name])
         .map_err(|err| CliError::usage(format!("failed to zip {}: {err}", path.display())))?;
-    let bytes = std::fs::read(&temp_zip)
-        .map_err(|err| CliError::internal(format!("failed to read temporary zip: {err}")))?;
-    let _ = std::fs::remove_file(&temp_zip);
-    Ok(bytes)
+    Ok(TemporaryWorldZip(temp_zip))
+}
+struct TemporaryWorldZip(PathBuf);
+impl Drop for TemporaryWorldZip {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
 }
 
 fn encode_uri_component(value: &str) -> String {
@@ -3055,32 +3059,145 @@ async fn stage_file_upload(
     purpose: StagedUploadPurposeDto,
     operation_id: Option<String>,
     file_id: Option<String>,
+    mut target_server_id: Option<String>,
 ) -> Result<String, CliError> {
-    let bytes = tokio::fs::read(path)
+    let expected = tokio::fs::metadata(path)
         .await
-        .map_err(|err| CliError::usage(format!("failed to read {}: {err}", path.display())))?;
-    let begin: StagedUploadBeginResultDto = client
-        .post_json(
-            "/v1/staged-uploads",
-            &StagedUploadBeginRequestDto {
-                purpose,
-                content_type: None,
-                file_name: Some(
-                    path.file_name()
-                        .unwrap_or_default()
-                        .to_string_lossy()
-                        .into_owned(),
-                ),
-                operation_id,
-                file_id,
-                expected_bytes: None,
-            },
+        .map_err(|e| CliError::usage(e.to_string()))?
+        .len();
+    let file_name = path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| CliError::usage("source has no usable filename"))?
+        .to_string();
+    let caps: msc_api::dto::CapabilitiesResponseDto = client.get_json("/v1/capabilities").await?;
+    let server_source = matches!(
+        purpose,
+        StagedUploadPurposeDto::RawServerArchive | StagedUploadPurposeDto::MscTransferArchive
+    );
+    let native = match caps.native_transfers {
+        Some(protocol)
+            if protocol.protocol == 1
+                && protocol.stream_upload
+                && (!server_source || protocol.server_archive) =>
+        {
+            true
+        }
+        Some(_) => {
+            return Err(CliError::usage(
+                "native uploads are unavailable or incompatible on this agent",
+            ));
+        }
+        None if server_source => {
+            return Err(CliError::usage(
+                "update the agent to upload server archives, or use its host-local folder import",
+            ));
+        }
+        None => false,
+    };
+    if native
+        && target_server_id.is_none()
+        && matches!(
+            purpose,
+            StagedUploadPurposeDto::WorldImport
+                | StagedUploadPurposeDto::ActiveWorldReplace
+                | StagedUploadPurposeDto::WorldThumbnail
+                | StagedUploadPurposeDto::AddonLocalFile
         )
-        .await?;
-    let _uploaded: StagedUploadCompleteResultDto = client
-        .put_bytes(&begin.upload_path, "application/octet-stream", bytes)
-        .await?;
-    Ok(begin.staged_upload_id)
+    {
+        let status: RemoteApiStatus = client.get_json("/v1/status").await?;
+        target_server_id = Some(status.active_server_id.ok_or_else(|| {
+            CliError::usage("select an active server before uploading this input")
+        })?);
+    }
+    let (id, upload_path, chunks) = if native {
+        let slot: msc_api::dto::NativeUploadBeginResultDto = client
+            .post_json(
+                "/v1/staged-uploads/stream",
+                &msc_api::dto::NativeUploadBeginRequestDto {
+                    purpose,
+                    file_name: Some(file_name),
+                    expected_bytes: expected,
+                    expected_sha256: None,
+                    operation_id,
+                    file_id,
+                    target_server_id,
+                },
+            )
+            .await?;
+        (slot.staged_upload_id, slot.stream_path, None)
+    } else {
+        let slot: StagedUploadBeginResultDto = client
+            .post_json(
+                "/v1/staged-uploads",
+                &StagedUploadBeginRequestDto {
+                    purpose,
+                    content_type: None,
+                    file_name: Some(file_name),
+                    operation_id,
+                    file_id,
+                    expected_bytes: Some(
+                        i64::try_from(expected)
+                            .map_err(|_| CliError::usage("source exceeds supported byte counts"))?,
+                    ),
+                },
+            )
+            .await?;
+        let chunks = if matches!(
+            purpose,
+            StagedUploadPurposeDto::WorldImport
+                | StagedUploadPurposeDto::ActiveWorldReplace
+                | StagedUploadPurposeDto::ModpackArchive
+        ) {
+            if purpose != StagedUploadPurposeDto::ModpackArchive && slot.max_chunk_bytes.is_none() {
+                let _ = client.cancel_staged(&slot.staged_upload_id).await;
+                return Err(CliError::usage(
+                    "old agent cannot confirm chunked world support; update it",
+                ));
+            }
+            let limit = slot.max_chunk_bytes.unwrap_or(2 * 1024 * 1024);
+            if limit == 0 {
+                let _ = client.cancel_staged(&slot.staged_upload_id).await;
+                return Err(CliError::usage("agent returned an invalid chunk ceiling"));
+            }
+            Some(limit.min(1024 * 1024) as usize)
+        } else {
+            None
+        };
+        (slot.staged_upload_id, slot.upload_path, chunks)
+    };
+    if uuid::Uuid::parse_str(&id).is_err()
+        || upload_path
+            != format!(
+                "/v1/staged-uploads/{id}{}",
+                if native { "/stream" } else { "" }
+            )
+    {
+        return Err(CliError::internal(
+            "agent returned an unrelated staging route",
+        ));
+    }
+    let uploaded = match if let Some(limit) = chunks {
+        client.put_file_chunks(&upload_path, path, limit).await
+    } else {
+        client.put_file(&upload_path, path).await
+    } {
+        Ok(result) => result,
+        Err(mut error) => {
+            if client.cancel_staged(&id).await.is_err() {
+                error
+                    .message
+                    .push_str(" Staging cleanup could not be confirmed.");
+            }
+            return Err(error);
+        }
+    };
+    if uploaded.staged_upload_id != id {
+        return Err(CliError::internal(
+            "upload returned an unrelated staging identity",
+        ));
+    }
+    Ok(id)
 }
 
 /// Parses `<source-server-id>=<port>` pairs, matching `settings set`'s
@@ -4055,28 +4172,18 @@ async fn run_world(common: CommonArgs, command: WorldCommand) -> Result<(), CliE
             print_world_mutation_result(common.json, &result)
         }
         WorldCommand::Import { path, name } => {
-            let bytes = tokio::fs::read(&path).await.map_err(|err| {
-                CliError::usage(format!("failed to read {}: {err}", path.display()))
-            })?;
-            let begin: StagedUploadBeginResultDto = client
-                .post_json(
-                    "/v1/staged-uploads",
-                    &StagedUploadBeginRequestDto {
-                        purpose: StagedUploadPurposeDto::WorldImport,
-                        content_type: None,
-                        file_name: None,
-                        operation_id: None,
-                        file_id: None,
-                        expected_bytes: None,
-                    },
-                )
-                .await?;
-            let _uploaded: StagedUploadCompleteResultDto = client
-                .put_bytes(&begin.upload_path, "application/octet-stream", bytes)
-                .await?;
+            let staged_upload_id = stage_file_upload(
+                &client,
+                &path,
+                StagedUploadPurposeDto::WorldImport,
+                None,
+                None,
+                None,
+            )
+            .await?;
             let body = WorldImportRequestDto {
                 name,
-                staged_upload_id: begin.staged_upload_id,
+                staged_upload_id,
                 backup_id: None,
             };
             let result: WorldMutationResultDto =
@@ -4090,30 +4197,25 @@ async fn run_world(common: CommonArgs, command: WorldCommand) -> Result<(), CliE
         } => {
             let staged_upload_id = match source {
                 Some(path) => {
-                    let bytes = if path.is_dir() {
-                        zip_folder_to_bytes(&path)?
+                    let prepared = if path.is_dir() {
+                        Some(zip_folder_to_file(&path)?)
                     } else {
-                        tokio::fs::read(&path).await.map_err(|err| {
-                            CliError::usage(format!("failed to read {}: {err}", path.display()))
-                        })?
+                        None
                     };
-                    let begin: StagedUploadBeginResultDto = client
-                        .post_json(
-                            "/v1/staged-uploads",
-                            &StagedUploadBeginRequestDto {
-                                purpose: StagedUploadPurposeDto::ActiveWorldReplace,
-                                content_type: None,
-                                file_name: None,
-                                operation_id: None,
-                                file_id: None,
-                                expected_bytes: None,
-                            },
+                    let source = prepared
+                        .as_ref()
+                        .map_or(path.as_path(), |zip| zip.0.as_path());
+                    Some(
+                        stage_file_upload(
+                            &client,
+                            source,
+                            StagedUploadPurposeDto::ActiveWorldReplace,
+                            None,
+                            None,
+                            None,
                         )
-                        .await?;
-                    let _uploaded: StagedUploadCompleteResultDto = client
-                        .put_bytes(&begin.upload_path, "application/octet-stream", bytes)
-                        .await?;
-                    Some(begin.staged_upload_id)
+                        .await?,
+                    )
                 }
                 None => None,
             };
@@ -4136,19 +4238,17 @@ async fn run_world(common: CommonArgs, command: WorldCommand) -> Result<(), CliE
         WorldCommand::Export { slot_id, output } => {
             let body = WorldExportRequestDto { slot_id };
             let result: WorldExportResultDto = client.post_json("/v1/worlds/export", &body).await?;
-            let bytes = client
-                .get_raw_bytes(&format!(
-                    "/v1/staged-downloads/{}",
-                    result.staged_download_id
-                ))
+            let written = client
+                .download_file(
+                    &result.staged_download_id,
+                    &output,
+                    Some(result.size_bytes as u64),
+                )
                 .await?;
-            tokio::fs::write(&output, &bytes).await.map_err(|err| {
-                CliError::internal(format!("failed to write {}: {err}", output.display()))
-            })?;
             if common.json {
                 print_json(&result)?;
             } else {
-                println!("exported {} bytes to {}", bytes.len(), output.display());
+                println!("exported {} bytes to {}", written, output.display());
             }
             Ok(())
         }
@@ -4893,6 +4993,7 @@ async fn run_addon(common: CommonArgs, command: AddonCommand) -> Result<(), CliE
                 StagedUploadPurposeDto::AddonLocalFile,
                 None,
                 None,
+                None,
             )
             .await?;
             let result: CatalogInstallResultDto = client
@@ -5143,13 +5244,10 @@ async fn run_addon(common: CommonArgs, command: AddonCommand) -> Result<(), CliE
                 let output = output.ok_or_else(|| {
                     CliError::usage("client export returned a zip; pass --output <path> to save it")
                 })?;
-                let bytes = client
-                    .get_raw_bytes(&format!("/v1/staged-downloads/{staged_download_id}"))
+                let written = client
+                    .download_file(staged_download_id, &output, None)
                     .await?;
-                tokio::fs::write(&output, &bytes).await.map_err(|err| {
-                    CliError::internal(format!("failed to write {}: {err}", output.display()))
-                })?;
-                println!("exported {} bytes to {}", bytes.len(), output.display());
+                println!("exported {} bytes to {}", written, output.display());
                 return Ok(());
             }
             if let Some(note) = &result.note {
@@ -5168,6 +5266,7 @@ async fn run_modpack(common: CommonArgs, command: ModpackCommand) -> Result<(), 
                 &client,
                 &path,
                 StagedUploadPurposeDto::ModpackArchive,
+                None,
                 None,
                 None,
             )
@@ -5256,6 +5355,7 @@ async fn run_modpack(common: CommonArgs, command: ModpackCommand) -> Result<(), 
                 StagedUploadPurposeDto::CurseforgeManualFile,
                 Some(operation_id.clone()),
                 Some(file_id.clone()),
+                None,
             )
             .await?;
             let result: ModpackManualFileResultDto = client
@@ -5297,12 +5397,17 @@ async fn import_modpack_command(
     path: &Path,
     action: &str,
 ) -> Result<ModpackImportResultDto, CliError> {
+    let status: RemoteApiStatus = client.get_json("/v1/status").await?;
+    let target = status
+        .active_server_id
+        .ok_or_else(|| CliError::usage("select a target server before importing the modpack"))?;
     let staged_upload_id = stage_file_upload(
         client,
         path,
         StagedUploadPurposeDto::ModpackArchive,
         None,
         None,
+        Some(target),
     )
     .await?;
     client

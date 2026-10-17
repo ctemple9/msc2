@@ -11,6 +11,8 @@ pub const SOCKET_NAME: &str = "local-source-v1.sock";
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Identity {
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub directory: bool,
     device: u64,
     inode: u64,
     pub size: u64,
@@ -26,12 +28,13 @@ impl Identity {
         if flags < 0 {
             return Err(io::Error::last_os_error());
         }
-        if !meta.is_file() || flags & libc::O_ACCMODE != libc::O_RDONLY {
+        if !(meta.is_file() || meta.is_dir()) || flags & libc::O_ACCMODE != libc::O_RDONLY {
             return Err(io::Error::other(
                 "handoff requires a read-only regular file",
             ));
         }
         Ok(Self {
+            directory: meta.is_dir(),
             device: meta.dev(),
             inode: meta.ino(),
             size: meta.len(),

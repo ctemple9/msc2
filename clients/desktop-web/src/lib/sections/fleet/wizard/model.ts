@@ -312,6 +312,12 @@ export interface WizardDraft {
    * (`action: 'scan'` then `action: 'importExisting'`). `undefined` until
    * Upload picks or drops one.
    */
+  stagedServerSource?: {
+    stagedUploadId: string;
+    agentHostId: string;
+    fileName: string;
+    api?: ScreenApi;
+  };
   importSourcePath: string | undefined;
   importIsZip: boolean;
   /** `AddServerWizardView.swift`'s `scannedInfo` -- the real scan result,
@@ -901,7 +907,9 @@ export function buildImportRequest(
   }
   const body: Record<string, unknown> = {
     action: 'importExisting',
-    sourcePath: draft.importSourcePath,
+    ...(draft.stagedServerSource
+      ? { stagedUploadId: draft.stagedServerSource.stagedUploadId }
+      : { sourcePath: draft.importSourcePath }),
     importKind: draft.importIsZip ? 'zip' : 'folder',
     displayName: displayName.trim(),
     serverType: draft.serverType,
@@ -929,11 +937,16 @@ export async function importServerFromDraft(
   displayName: string,
   onProgress?: (statusLine: string) => void,
 ): Promise<{ warnings: string[] }> {
+  if (draft.stagedServerSource && api?.hostId?.() !== draft.stagedServerSource.agentHostId)
+    throw new Error('This server source belongs to another host. Select it again.');
+  api = api?.snapshot?.() ?? api;
   const result = await mutate<Schema['ServerImportResultDTO']>(
     api,
     fleetMutationPaths.import,
     buildImportRequest(draft, displayName),
   );
+  // The accepted operation owns staging now, including cleanup on failure.
+  draft.stagedServerSource = undefined;
   const operation = await pollOperation(api, result.operationId, (tick) => {
     if (tick.statusLine) onProgress?.(tick.statusLine);
   });

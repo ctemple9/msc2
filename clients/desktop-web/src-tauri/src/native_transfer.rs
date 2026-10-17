@@ -25,6 +25,7 @@ const LEGACY_CHUNK: usize = 1024 * 1024;
 const METADATA_LIMIT: usize = 256 * 1024;
 const SOURCE_TTL: Duration = Duration::from_secs(5 * 60);
 const MAX_SOURCE_BYTES: u64 = 20 * 1024 * 1024 * 1024;
+pub(crate) mod download;
 #[cfg(unix)]
 mod local_source;
 
@@ -40,6 +41,9 @@ pub(crate) enum Purpose {
     AddonLocalFile,
     CurseforgeManualFile,
     ModpackUnresolvedFile,
+    RawServerArchive,
+    RawServerFolder,
+    MscTransferArchive,
 }
 impl Purpose {
     fn max_source_bytes(self) -> u64 {
@@ -62,6 +66,9 @@ impl Purpose {
                     permission == "worlds"
                 }
                 Self::AddonLocalFile => matches!(permission, "worlds" | "addons"),
+                Self::RawServerArchive | Self::RawServerFolder | Self::MscTransferArchive => {
+                    permission == "fleet"
+                }
                 _ => permission == "addons",
             }
     }
@@ -83,6 +90,10 @@ pub(crate) struct PickerRequest {
     label: String,
     #[serde(default)]
     extensions: Vec<String>,
+    #[serde(default)]
+    directory: bool,
+    #[serde(default)]
+    dropped_source_id: Option<String>,
 }
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -92,6 +103,7 @@ pub(crate) struct SelectedSource {
     name: String,
     size: u64,
     expires_in_seconds: u64,
+    directory: bool,
 }
 struct Source {
     selected: SelectedSource,
@@ -99,9 +111,12 @@ struct Source {
     file: File,
     identity: Identity,
     expires: Instant,
+    folder_snapshot: Option<msc_infrastructure::source_tree::Snapshot>,
+    original: Option<Arc<Source>>,
+    generated_archive: bool,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 struct Identity {
     size: u64,
     modified: SystemTime,
@@ -123,7 +138,7 @@ impl Identity {
         let metadata = file
             .metadata()
             .map_err(|_| "Could not inspect the selected file.")?;
-        if !metadata.is_file() {
+        if !metadata.is_file() && !metadata.is_dir() {
             return Err("Choose a regular file, not a folder or device.".into());
         }
         #[cfg(unix)]
@@ -170,7 +185,7 @@ fn regular_metadata(metadata: &Metadata) -> bool {
             return false;
         }
     }
-    metadata.is_file() && !metadata.file_type().is_symlink()
+    (metadata.is_file() || metadata.is_dir()) && !metadata.file_type().is_symlink()
 }
 fn open_source(path: &Path) -> Result<File, String> {
     if !regular_metadata(
@@ -189,7 +204,10 @@ fn open_source(path: &Path) -> Result<File, String> {
     {
         use std::os::windows::fs::OpenOptionsExt;
         use windows_sys::Win32::Storage::FileSystem::FILE_FLAG_OPEN_REPARSE_POINT;
-        options.custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
+        options.custom_flags(
+            FILE_FLAG_OPEN_REPARSE_POINT
+                | windows_sys::Win32::Storage::FileSystem::FILE_FLAG_BACKUP_SEMANTICS,
+        );
     }
     let file = options
         .open(path)
@@ -205,9 +223,21 @@ fn open_source(path: &Path) -> Result<File, String> {
 }
 impl Source {
     fn open(path: PathBuf, binding: Binding) -> Result<Self, String> {
-        let file = open_source(&path)?;
+        let directory = std::fs::symlink_metadata(&path)
+            .map_err(|_| "The selected source is unavailable.")?
+            .is_dir();
+        let file = if directory {
+            msc_infrastructure::source_tree::open(&path, true)
+                .map_err(|_| "Could not safely open the selected folder.")?
+        } else {
+            open_source(&path)?
+        };
+        if directory && binding.purpose != Purpose::RawServerArchive {
+            return Err("Only a raw server import can select a folder.".into());
+        }
         let identity = Identity::read(&file)?;
-        if identity.size == 0 || identity.size > binding.purpose.max_source_bytes() {
+        if !directory && (identity.size == 0 || identity.size > binding.purpose.max_source_bytes())
+        {
             return Err("The selected file is empty or exceeds native staging capacity.".into());
         }
         let name = path
@@ -220,18 +250,25 @@ impl Source {
                 source_id: Uuid::new_v4().to_string(),
                 binding,
                 name,
-                size: identity.size,
+                size: if directory { 0 } else { identity.size },
                 expires_in_seconds: SOURCE_TTL.as_secs(),
+                directory,
             },
             path,
             file,
             identity,
             expires: Instant::now() + SOURCE_TTL,
+            folder_snapshot: None,
+            original: None,
+            generated_archive: false,
         };
         source.validate()?;
         Ok(source)
     }
     fn validate(&self) -> Result<(), String> {
+        if let Some(original) = &self.original {
+            original.validate()?;
+        }
         // The retained handle fixes what is read; reopening only checks whether
         // the original selection was substituted or edited, never supplies bytes.
         if Identity::read(&self.file)? != self.identity
@@ -310,8 +347,36 @@ struct Operation {
     finish: Mutex<()>,
     started: Instant,
     last_emit: Mutex<Instant>,
+    preparing_source: AtomicBool,
+    producer: Mutex<Option<tauri::async_runtime::JoinHandle<std::io::Result<()>>>>,
 }
 impl Operation {
+    fn new(host: &str, id: &str, total: u64, sink: Arc<ProgressSink>) -> Arc<Self> {
+        let id = id.to_string();
+        let (cancel, _) = watch::channel(false);
+        let (done, _) = watch::channel(None);
+        Arc::new(Operation {
+            id: id.clone(),
+            host: host.into(),
+            cancel,
+            done,
+            sink,
+            finish: Mutex::new(()),
+            progress: Mutex::new(Progress {
+                operation_id: id.clone(),
+                agent_host_id: host.into(),
+                phase: "preparing",
+                bytes_transferred: 0,
+                total_bytes: total,
+                bytes_per_second: 0.0,
+                transport: None,
+            }),
+            started: Instant::now(),
+            last_emit: Mutex::new(Instant::now()),
+            preparing_source: AtomicBool::new(false),
+            producer: Mutex::new(None),
+        })
+    }
     fn signal_cancel(&self) {
         let _finish = self.finish.lock().unwrap();
         if self.done.borrow().is_none() {
@@ -355,6 +420,8 @@ struct Registry {
     sources: HashMap<String, Source>,
     operations: HashMap<String, Arc<Operation>>,
     generations: HashMap<String, u64>,
+    dropped: HashMap<String, (PathBuf, File, Identity, Instant)>,
+    cancelled_downloads: HashMap<(String, String), Instant>,
 }
 #[derive(Default)]
 struct Manager {
@@ -394,7 +461,7 @@ impl Manager {
         {
             return Err("The selected host authorization changed while choosing the file.".into());
         }
-        if registry.sources.len() >= 16 {
+        if registry.sources.len() + registry.dropped.len() >= 16 {
             return Err("Close an unused file selection before choosing another.".into());
         }
         let selected = source.selected.clone();
@@ -432,27 +499,7 @@ impl Manager {
             .remove(source_id)
             .expect("selection checked under this lock");
         let id = source_id.to_string();
-        let (cancel, _) = watch::channel(false);
-        let (done, _) = watch::channel(None);
-        let operation = Arc::new(Operation {
-            id: id.clone(),
-            host: host.into(),
-            cancel,
-            done,
-            sink,
-            finish: Mutex::new(()),
-            progress: Mutex::new(Progress {
-                operation_id: id.clone(),
-                agent_host_id: host.into(),
-                phase: "preparing",
-                bytes_transferred: 0,
-                total_bytes: source.selected.size,
-                bytes_per_second: 0.0,
-                transport: None,
-            }),
-            started: Instant::now(),
-            last_emit: Mutex::new(Instant::now()),
-        });
+        let operation = Operation::new(host, &id, source.selected.size, sink);
         let mut finished = registry
             .operations
             .iter()
@@ -520,12 +567,16 @@ fn manager() -> &'static Manager {
             loop {
                 interval.tick().await;
                 if let Some(manager) = MANAGER.get() {
-                    manager
-                        .registry
-                        .lock()
-                        .unwrap()
+                    let mut registry = manager.registry.lock().unwrap();
+                    registry
                         .sources
                         .retain(|_, source| Instant::now() < source.expires);
+                    registry
+                        .dropped
+                        .retain(|_, (_, _, _, time)| time.elapsed() < SOURCE_TTL);
+                    registry
+                        .cancelled_downloads
+                        .retain(|_, time| time.elapsed() < SOURCE_TTL);
                 }
             }
         });
@@ -552,7 +603,8 @@ pub(crate) fn invalidate_host(host: &str) {
 pub(crate) fn invalidate_all() {
     if let Some(manager) = MANAGER.get() {
         let hosts = {
-            let registry = manager.registry.lock().unwrap();
+            let mut registry = manager.registry.lock().unwrap();
+            registry.dropped.clear();
             registry
                 .sources
                 .values()
@@ -570,6 +622,63 @@ fn main_window(window: &tauri::WebviewWindow) -> Result<(), String> {
         Ok(())
     } else {
         Err("Native file operations are restricted to the main desktop window.".into())
+    }
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct DroppedSource {
+    source_id: Option<String>,
+    name: String,
+    directory: bool,
+    error: Option<String>,
+}
+pub(crate) fn remember_dropped_sources(paths: &[PathBuf]) -> Vec<DroppedSource> {
+    let mut registry = manager().registry.lock().unwrap();
+    registry
+        .dropped
+        .retain(|_, (_, _, _, time)| time.elapsed() < SOURCE_TTL);
+    let mut selected = Vec::new();
+    for path in paths.iter().take(16) {
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let record = if registry.sources.len() + registry.dropped.len() < 16 {
+            open_source(path)
+                .ok()
+                .and_then(|file| Identity::read(&file).ok().map(|identity| (file, identity)))
+        } else {
+            None
+        };
+        if let Some((file, identity)) = record {
+            let directory = file.metadata().is_ok_and(|m| m.is_dir());
+            let source_id = Uuid::new_v4().to_string();
+            registry.dropped.insert(
+                source_id.clone(),
+                (path.clone(), file, identity, Instant::now()),
+            );
+            selected.push(DroppedSource {
+                source_id: Some(source_id),
+                name,
+                directory,
+                error: None,
+            });
+        } else {
+            selected.push(DroppedSource{source_id:None,name,directory:false,error:Some("The dropped source is unavailable, unsupported, or the selection slots are full.".into())});
+        }
+    }
+    selected
+}
+impl Manager {
+    fn claim_drop(&self, id: &str) -> Result<(PathBuf, File, Identity), String> {
+        let (path, file, identity, time) = self.registry.lock().unwrap().dropped.remove(id).ok_or(
+            "Drop the source into this window again; its native selection is unavailable.",
+        )?;
+        if time.elapsed() >= SOURCE_TTL || Identity::read(&file)? != identity {
+            return Err("The dropped source expired or changed.".into());
+        }
+        Ok((path, file, identity))
     }
 }
 
@@ -605,7 +714,18 @@ pub(crate) async fn pick_upload_source(
     {
         return Err("Invalid native file selection request.".into());
     }
+    if request.binding.purpose == Purpose::RawServerFolder {
+        return Err("Select a server folder using the server import action.".into());
+    }
     let generation = manager().generation(&request.binding.agent_host_id);
+    if request.directory && request.binding.purpose != Purpose::RawServerArchive {
+        return Err("Folder selection is only supported for raw server imports.".into());
+    }
+    let dropped = if let Some(id) = request.dropped_source_id.as_ref() {
+        Some(manager().claim_drop(id)?)
+    } else {
+        None
+    };
     let selected = tauri::async_runtime::spawn_blocking(move || {
         let mut picker = app.dialog().file().set_title(request.label);
         let extensions = request
@@ -616,9 +736,24 @@ pub(crate) async fn pick_upload_source(
         if !extensions.is_empty() {
             picker = picker.add_filter("Supported files", &extensions);
         }
-        picker
-            .blocking_pick_file()
-            .map(|file| {
+        if let Some((path, file, identity)) = dropped {
+            if request.binding.purpose == Purpose::RawServerArchive
+                && file.metadata().map_err(|_| "Dropped source is unavailable.")?.is_file()
+                && !path.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("zip"))
+            {
+                return Err("Choose a server ZIP, or use Server Transfer for an MSC transfer file.".into());
+            }
+            if file.metadata().map_err(|_| "Dropped source is unavailable.")?.is_dir() && !app.dialog().message("Stop the source Minecraft server before importing this folder. Has it stopped?").buttons(tauri_plugin_dialog::MessageDialogButtons::OkCancel).blocking_show() { return Ok(None); }
+            let source = Source::open(path, request.binding)?;
+            if source.identity != identity { return Err("The dropped source changed. Drop it again.".into()); }
+            return Ok(Some(source));
+        }
+        let picked = if request.directory {
+            let result = picker.blocking_pick_folder();
+            if result.is_some() && !app.dialog().message("Stop the Minecraft server that owns this folder before continuing. MSC will copy the folder and preserve the original. Has the source server stopped?").title("Import stopped server folder").buttons(tauri_plugin_dialog::MessageDialogButtons::OkCancel).blocking_show() { return Ok(None); }
+            result
+        } else { picker.blocking_pick_file() };
+        picked.map(|file| {
                 let path = file
                     .into_path()
                     .map_err(|_| "The selected source is not a filesystem file.".to_string())?;
@@ -790,7 +925,8 @@ impl Context {
     ) -> Result<reqwest::RequestBuilder, UploadError> {
         let url = relative_request_url(&self.record.base_url, path)
             .map_err(|e| UploadError::new("invalid_route", e))?;
-        let metadata = method == Method::GET || method == Method::POST;
+        let metadata = (method == Method::GET || method == Method::POST)
+            && !path.starts_with("/v1/staged-downloads/");
         let request = self
             .client
             .request(method, url)
@@ -888,10 +1024,14 @@ async fn cancellable<T>(
     if *cancel.borrow() {
         return Err(cancelled());
     }
+    tokio::pin!(future);
     tokio::select! {
         biased;
-        _ = cancel.changed() => Err(cancelled()),
-        result = future => if result.is_ok() && *cancel.borrow() { Err(cancelled()) } else { result },
+        _ = cancel.changed() => {
+            if operation.preparing_source.load(Ordering::Acquire) { let _ = future.as_mut().await; }
+            Err(cancelled())
+        },
+        result = future.as_mut() => if result.is_ok() && *cancel.borrow() { Err(cancelled()) } else { result },
     }
 }
 #[derive(Deserialize)]
@@ -906,6 +1046,8 @@ struct Capabilities {
 struct NativeProtocol {
     protocol: u32,
     stream_upload: bool,
+    #[serde(default)]
+    server_archive: bool,
     #[cfg(unix)]
     #[serde(default)]
     local_handoff: bool,
@@ -972,6 +1114,44 @@ async fn perform(
             "This host credential cannot upload files for that purpose.",
         ));
     }
+    let server_source = matches!(
+        source.selected.binding.purpose,
+        Purpose::RawServerArchive | Purpose::RawServerFolder | Purpose::MscTransferArchive
+    );
+    if server_source
+        && !caps
+            .native_transfers
+            .as_ref()
+            .is_some_and(|p| p.protocol == 1 && p.stream_upload && p.server_archive)
+    {
+        return Err(UploadError::new("incompatible_agent", "This host cannot receive selected server sources. Update the agent or use its existing agent-local path workflow."));
+    }
+    let source = if source.selected.directory {
+        #[cfg(unix)]
+        let direct = context.local_candidate
+            && caps
+                .native_transfers
+                .as_ref()
+                .is_some_and(|p| p.local_handoff);
+        #[cfg(not(unix))]
+        let direct = false;
+        operation.preparing_source.store(true, Ordering::Release);
+        let input = source.clone();
+        let op = operation.clone();
+        let prepared =
+            tauri::async_runtime::spawn_blocking(move || prepare_folder(input, direct, &op)).await;
+        operation.preparing_source.store(false, Ordering::Release);
+        if *operation.cancel.borrow() {
+            return Err(cancelled());
+        }
+        let prepared = prepared.map_err(|_| {
+            UploadError::new("prepare_failed", "Server folder preparation failed.")
+        })??;
+        operation.progress.lock().unwrap().total_bytes = prepared.selected.size;
+        Arc::new(prepared)
+    } else {
+        source
+    };
     #[cfg(unix)]
     let local_handoff = caps
         .native_transfers
@@ -1062,7 +1242,11 @@ async fn perform(
         return Err(UploadError::new("incompatible_agent", "This older agent cannot confirm chunked world support. Update the agent before importing this file."));
     }
     #[cfg(unix)]
-    if matches!(transport, Transport::Stream) && local_handoff && context.local_candidate {
+    if matches!(transport, Transport::Stream)
+        && local_handoff
+        && context.local_candidate
+        && !source.generated_archive
+    {
         if let Some(completion) =
             local_source::copy(context, source.clone(), operation.clone(), &slot, attempt).await?
         {
@@ -1086,6 +1270,9 @@ async fn perform(
                 transport: Transport::LocalCopy,
             });
         }
+    }
+    if source.folder_snapshot.is_some() && !source.generated_archive {
+        return Err(UploadError::new("local_handoff", "The selected local folder could not be handed to its original agent. No archive or upload fallback was started."));
     }
     let hash = Arc::new(Mutex::new(Sha256::new()));
     let mut file = tokio::fs::File::from_std(source.file.try_clone().map_err(|_| {
@@ -1152,6 +1339,64 @@ async fn perform(
             offset = next;
             operation.progress("transferring", offset, Some(transport), false);
         }
+    } else if source.generated_archive {
+        let (sender, receiver) = tokio::sync::mpsc::channel(2);
+        let writer = ArchiveWriter {
+            sender,
+            buffer: Vec::with_capacity(BLOCK),
+            runtime: tokio::runtime::Handle::current(),
+            cancel: operation.cancel.subscribe(),
+        };
+        let input = source.clone();
+        let producer_operation = operation.clone();
+        let producer = tauri::async_runtime::spawn_blocking(move || {
+            use std::io::Write;
+            let mut writer = msc_infrastructure::source_tree::archive(
+                &input.file,
+                &input.path,
+                writer,
+                input
+                    .folder_snapshot
+                    .as_ref()
+                    .expect("prepared folder snapshot"),
+                &|| *producer_operation.cancel.borrow(),
+            )?;
+            writer.flush()
+        });
+        *operation.producer.lock().unwrap() = Some(producer);
+        let stream_hash = hash.clone();
+        let stream_operation = operation.clone();
+        let total = source.selected.size;
+        let body = stream::try_unfold((receiver, 0u64), move |(mut receiver, offset)| {
+            let hash = stream_hash.clone();
+            let operation = stream_operation.clone();
+            async move {
+                match receiver.recv().await {
+                    Some(bytes) => {
+                        let next = offset + bytes.len() as u64;
+                        if next > total || *operation.cancel.borrow() {
+                            return Err(std::io::Error::other(
+                                "archive stream changed or cancelled",
+                            ));
+                        }
+                        hash.lock().unwrap().update(&bytes);
+                        operation.progress("transferring", next, Some(transport), false);
+                        Ok(Some((bytes, (receiver, next))))
+                    }
+                    None if offset == total => Ok(None),
+                    None => Err(std::io::Error::other("archive stream ended early")),
+                }
+            }
+        });
+        let response = context
+            .request(Method::PUT, &expected_path)?
+            .header(header::CONTENT_TYPE, "application/octet-stream")
+            .header(header::CONTENT_LENGTH, total)
+            .body(reqwest::Body::wrap_stream(body))
+            .send()
+            .await
+            .map_err(|_| network_error())?;
+        context.json::<Completion>(response).await?
     } else {
         let stream_operation = operation.clone();
         let stream_hash = hash.clone();
@@ -1278,6 +1523,21 @@ async fn run_operation(source: Source, operation: Arc<Operation>) {
         }
         Err(error) => (Err(error), None),
     };
+    if outcome.is_err() {
+        operation.signal_cancel();
+    }
+    let producer = operation.producer.lock().unwrap().take();
+    let producer_result = match producer {
+        Some(producer) => producer
+            .await
+            .map_err(|_| std::io::Error::other("archive producer failed"))
+            .and_then(|r| r),
+        None => Ok(()),
+    };
+    let outcome = match (outcome, producer_result) {
+        (Ok(_), Err(error)) => Err(UploadError::new("source_changed", error.to_string())),
+        (outcome, _) => outcome,
+    };
     let mut error = match outcome {
         Ok(result) => {
             let finish = operation.finish.lock().unwrap();
@@ -1377,6 +1637,30 @@ mod tests {
         Arc::new(|_| {})
     }
 
+    // Essential: a webview string cannot nominate a file outside the native
+    // OS drop, and a consumed drop capability cannot be replayed.
+    #[test]
+    fn native_drop_capabilities_are_single_use_and_reject_path_strings() {
+        let directory = Directory::new();
+        let source = directory.source("dropped.zip", "alpha");
+        let id = Uuid::new_v4().to_string();
+        let manager = Manager::default();
+        manager.registry.lock().unwrap().dropped.insert(
+            id.clone(),
+            (
+                source.path.clone(),
+                source.file.try_clone().unwrap(),
+                source.identity.clone(),
+                Instant::now(),
+            ),
+        );
+        assert!(manager.claim_drop(source.path.to_str().unwrap()).is_err());
+        let (path, file, identity) = manager.claim_drop(&id).unwrap();
+        assert_eq!(path, source.path);
+        assert!(Identity::read(&file).unwrap() == identity);
+        assert!(manager.claim_drop(&id).is_err());
+    }
+
     // Existing webview-chunk tests never exercise native picker capabilities.
     #[test]
     fn native_selection_is_single_use_host_bound_and_concurrency_bounded() {
@@ -1464,5 +1748,84 @@ mod tests {
             .insert(directory.source("late.zip", "beta"), 0)
             .is_err());
         assert_eq!(std::fs::read(directory.0.join("pack.zip")).unwrap(), b"abc");
+    }
+}
+
+fn prepare_folder(
+    source: Arc<Source>,
+    direct: bool,
+    operation: &Operation,
+) -> Result<Source, UploadError> {
+    use msc_infrastructure::source_tree;
+    let cancelled = || *operation.cancel.borrow();
+    source
+        .validate()
+        .map_err(|e| UploadError::new("source_changed", e))?;
+    let snapshot = source_tree::snapshot(&source.file, &source.path, &cancelled)
+        .map_err(|e| UploadError::new("source_changed", e.to_string()))?;
+    let size = if direct {
+        snapshot.bytes
+    } else {
+        snapshot.archive_bytes
+    };
+    if snapshot.bytes == 0 || size > source.selected.binding.purpose.max_source_bytes() {
+        return Err(UploadError::new(
+            "source_size",
+            "The server folder is empty or exceeds staging capacity.",
+        ));
+    }
+    let mut selected = source.selected.clone();
+    selected.size = size;
+    if direct {
+        selected.binding.purpose = Purpose::RawServerFolder;
+    } else {
+        selected.name = "server.tar".into();
+    }
+    Ok(Source {
+        selected,
+        file: source.file.try_clone().map_err(|_| network_error())?,
+        identity: source.identity.clone(),
+        path: source.path.clone(),
+        expires: source.expires,
+        folder_snapshot: Some(snapshot),
+        original: Some(source),
+        generated_archive: !direct,
+    })
+}
+
+/// Coalesce TAR headers and small reads into bounded network frames. Blocking
+/// producers wait on both backpressure and cancellation, so a full queue cannot
+/// keep a cancelled source alive.
+struct ArchiveWriter {
+    sender: tokio::sync::mpsc::Sender<Vec<u8>>,
+    buffer: Vec<u8>,
+    runtime: tokio::runtime::Handle,
+    cancel: watch::Receiver<bool>,
+}
+impl std::io::Write for ArchiveWriter {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        if *self.cancel.borrow() {
+            return Err(std::io::Error::other("archive streaming cancelled"));
+        }
+        let count = bytes.len().min(BLOCK - self.buffer.len());
+        self.buffer.extend_from_slice(&bytes[..count]);
+        if self.buffer.len() == BLOCK {
+            self.flush()?;
+        }
+        Ok(count)
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        if self.buffer.is_empty() {
+            return Ok(());
+        }
+        let bytes = std::mem::replace(&mut self.buffer, Vec::with_capacity(BLOCK));
+        self.runtime.block_on(async {
+            if *self.cancel.borrow() { return Err(std::io::Error::other("archive streaming cancelled")); }
+            tokio::select! {
+                biased;
+                _ = self.cancel.changed() => Err(std::io::Error::other("archive streaming cancelled")),
+                result = self.sender.send(bytes) => result.map_err(|_| std::io::Error::other("archive receiver closed")),
+            }
+        })
     }
 }

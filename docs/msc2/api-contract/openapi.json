@@ -7777,7 +7777,7 @@
       "get": {
         "summary": "Download bytes from a previously prepared staged export",
         "operationId": "downloadStagedBytes",
-        "x-permission-category": "worlds",
+        "x-permission-category": "none",
         "responses": {
           "200": {
             "description": "Staged file bytes",
@@ -7786,6 +7786,22 @@
                 "schema": {
                   "type": "string",
                   "format": "binary"
+                }
+              }
+            },
+            "headers": {
+              "Content-Length": {
+                "description": "Exact archive byte count.",
+                "schema": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              },
+              "X-MSC-SHA256": {
+                "description": "SHA-256 of the prepared archive; native receivers verify before replacing their destination.",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
                 }
               }
             }
@@ -7802,7 +7818,24 @@
             "x-error-code": "not_found"
           }
         },
-        "x-notes": "staged_download_expired also surfaces as 404 (not 409): once expired, the id is indistinguishable from one that never existed -- there is nothing left to conflict with."
+        "x-notes": "Single-use, original credential only. Streams bounded file blocks and removes the export on completion/disconnect. Length and SHA-256 are computed before response headers. Unknown, expired or differently owned identifiers return 404."
+      },
+      "delete": {
+        "summary": "Cancel an owned staged export and confirm deletion",
+        "operationId": "cancelStagedDownload",
+        "x-permission-category": "none",
+        "responses": {
+          "204": {
+            "description": "Deletion confirmed, including a bounded recent completion record."
+          },
+          "404": {
+            "description": "Unknown ownership or cleanup cannot be confirmed, including after restart."
+          },
+          "500": {
+            "description": "Deletion failed; private path remains accounted for and cleanup can be retried."
+          }
+        },
+        "x-notes": "Waits for an active reader to stop and release its handle before deletion. Uses the original export credential; no filesystem path is accepted."
       }
     }
   },
@@ -8170,7 +8203,7 @@
           },
           "sourcePath": {
             "type": "string",
-            "description": "Required for scan/importExisting/importTransfer; omitted for rescan, which scans the configured servers root."
+            "description": "Agent-local source for scan/importExisting/importTransfer, mutually exclusive with stagedUploadId; omitted for rescan."
           },
           "importKind": {
             "type": "string"
@@ -8217,6 +8250,10 @@
             "additionalProperties": {
               "type": "integer"
             }
+          },
+          "stagedUploadId": {
+            "type": "string",
+            "description": "P20.5: verified native raw-server-archive/raw-server-folder or msc-transfer-archive. Mutually exclusive with sourcePath. scan leases the input; import redeems it once. Existing agent-local sourcePath remains supported."
           }
         },
         "required": [
@@ -14109,7 +14146,7 @@
           "localHandoff",
           "serverArchive"
         ],
-        "description": "Protocol 1 supports bounded streamUpload. P20.4 advertises localHandoff only while its private installing-user Unix descriptor endpoint is available; Windows falls back to native streaming. serverArchive remains false. Omission means an older agent; explicit false means unavailable. Permission and staging recovery dependent."
+        "description": "Protocol 1 supports bounded streamUpload. localHandoff is true only while the private installing-user Unix descriptor endpoint is available. P20.5 serverArchive enables raw ZIP, generated server-folder TAR, local folder descriptor and MSC-transfer staging/import plus SHA-256 verified streamed downloads. Remote and Windows folders generate an exact-length uncompressed TAR directly into the bounded native stream; no complete source archive is written on the desktop. Omission means an older agent; explicit false means unavailable. Permission and staging recovery dependent."
       },
       "NativeUploadBeginRequestDTO": {
         "type": "object",
@@ -14124,7 +14161,10 @@
               "modpack-archive",
               "addon-local-file",
               "curseforge-manual-file",
-              "modpack-unresolved-file"
+              "modpack-unresolved-file",
+              "raw-server-archive",
+              "raw-server-folder",
+              "msc-transfer-archive"
             ]
           },
           "fileName": {
@@ -14137,7 +14177,7 @@
           "expectedBytes": {
             "type": "integer",
             "minimum": 1,
-            "description": "Exact length, within purpose ceiling; for pending files must equal the provider size."
+            "description": "Exact length, within purpose ceiling; for pending files must equal the provider size. Raw server folders use exact total regular-file bytes and require the private local descriptor endpoint; archives use exact archive length."
           },
           "expectedSha256": {
             "type": "string",

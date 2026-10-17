@@ -1,8 +1,7 @@
 # Native file imports and uploads — Phase 20 plan
 
-**State:** P20.4 Unix local descriptor handoff implemented October 17, 2026; owner
-verification pending. Windows uses native streaming; screen integration remains
-planned. These changes
+**State:** P20.5 server source adapters and streamed exports implemented October 17,
+2026; owner verification pending. Remaining import-screen wiring/progress is P20.6. These changes
 are not included in the published XboxBroadcast release. Active step fields and
 execution boundaries live in [rolling-plan.md](../rolling-plan.md).
 
@@ -612,3 +611,124 @@ Windows fallback, OS-dialog behavior, cancellation under physical disk load,
 cross-volume copying, throughput and peak memory remain owner acceptance work.
 No clone/speedup measurement, release publication, CI gate or phase completion is
 claimed.
+
+
+## P20.5 implementation record — October 17, 2026
+
+### Source transport and importer boundary
+
+The server wizard selects raw ZIPs or stopped folders through native selection.
+Server Transfer selects MSC transfer files and saves exports through native Rust.
+New `raw-server-archive`, `raw-server-folder` and `msc-transfer-archive` purposes
+require Fleet (or Admin) permission and cannot enter the legacy buffered upload
+route. Capability absence/false is handled before source data is read; these
+server inputs require the new capability rather than an unsafe older-agent
+fallback. The existing explicit agent-local sourcePath workflow remains.
+
+On local Unix hosts the existing peer-checked descriptor endpoint copies a
+folder directly into private agent staging. Remote and Windows folders use a
+metadata walk to calculate the exact uncompressed GNU TAR length, including
+long-name records and padding. Rust generates that TAR directly into the upload
+body: 256 KiB frames, a two-frame channel and cancellation-aware backpressure;
+no complete source ZIP/TAR is created on the desktop. File contents are read
+once for generation; metadata walks before/after detect observed edits. The
+agent stages the received TAR, validates/extracts it into a private folder, then
+calls the existing raw-folder service. TAR payload plus extracted-folder space
+is reserved. Local folder receipt avoids this archive/extraction pass, but the
+existing importer still copies the private snapshot into its final destination.
+These are real disk passes, not an instant import or a claimed speed factor.
+
+The shared tree walker retains directory handles, opens descendants relative to
+them on Unix and Windows, rejects links/reparse points/devices and nonportable
+names, and preserves hidden/unknown files and empty directories. Bounds are
+64 directory levels, 200,000 entries, 4,096-byte relative paths, 255-byte names
+and 1 TiB logical archive contents, with the smaller 10 GiB native source limit
+still applied at admission. Files are copied in bounded blocks with metadata
+fingerprints before/after; overlapping destinations are rejected. A folder
+selection explicitly asks that its source server be stopped. Recognized Java
+session.lock/LevelDB LOCK files are probed for writers where OS locking permits;
+this neither stops a server nor guarantees an atomic filesystem snapshot if a
+server is restarted or edits evade metadata observation. Sources are never
+modified. Windows traversal uses retained RootDirectory handles with NtCreateFile,
+read-only sharing and reparse checks; it does not reopen descendants through an
+untrusted ancestor pathname.
+
+Generated TAR extraction reads raw entries, admits only ordinary files/directories
+plus one bounded GNU long-name record, and rejects traversal, duplicates, links,
+PAX/special records and excessive contents without unbounded extension allocation.
+Raw ZIP and MSC-transfer inspection retain shared archive safety/CRC checks;
+extraction and transfer export now copy entry contents instead of collecting an
+entire file in memory. CRC validation plus extraction remains a real extra pass.
+Transfer manifest and replacement semantics, backup destination review, operation
+registration and recovery stay with the existing services.
+
+`ServerImportRequestDTO.stagedUploadId` is mutually exclusive with sourcePath.
+A scan holds an owned inspection lease and conceals private paths; importing
+redeems once and retains the staged-input guard through the existing background
+worker. TAR adaptation shares a lock with cleanup, so a disconnected scan cannot
+write into deleted staging. Live authorization is checked during receipt and
+adaptation. Folder cancellation waits for the blocking copy/generator before
+returning cleanup. Wizard selections and TransferSheet retain their original
+client/host for staged scans, import polling and cleanup; unused staged inputs
+are deleted on replacement/close. General screen progress/rate wiring remains
+P20.6; this step only wires the affected server flows.
+
+The CLI remains host-local under D-040: raw folder/ZIP/MSC-transfer commands keep
+sourcePath and use the bounded import services directly, with no loopback upload
+of a source the agent already can read. Existing CLI upload-based flows use a
+pooled bounded Rust sender, verified receipts and bounded older-agent chunks;
+world replacements no longer collect a full archive as a byte vector. Existing
+CLI server/world/client exports stream to sibling partial files and rename only
+after length/digest verification.
+
+### Downloads and bounded work
+
+Prepared exports carry their initiating credential. GET staged-download streams
+bounded blocks with Content-Length and X-MSC-SHA256; it computes the digest in a
+bounded pre-read before headers, then seeks back to stream. This is an explicit
+extra read of the prepared export. Native saving writes a sibling partial,
+uses 0600 permissions on Unix (Windows inherits the chosen destination ACL),
+checks byte count/SHA-256, syncs, checks cancellation/destination identity and
+renames only on success. Existing destinations survive failed verification.
+Only metadata/progress/results cross the new desktop IPC boundary.
+
+DELETE staged-download waits for the active reader to release its handle and
+confirms removal on the original host/credential. Failed deletions remain
+accounted for and are retried by the reaper. Bounded recent completion records
+allow confirmation after a successful stream; an unknown ID after restart is
+unconfirmed, not proof of cleanup. Native downloads share the desktop's two
+operation slots/one per host. Agent receipts/downloads/server export generation
+share two I/O slots; one active download per credential is admitted. Active
+download streams remain visible to staging space accounting. Existing export generation
+is awaited; this step does not invent resumable or instantly cancellable export
+production. A producer retains cleanup if its HTTP handler disconnects, so its
+unpublished archive is removed when the writer finishes. This step does not
+implement paired-agent transfer/resume.
+
+### Essential regression cases and verification limits
+
+New source-tree fixtures protect hidden/unknown/empty-entry preservation,
+long-name exact TAR length, changed/cancelled/overlapping source rejection,
+symlink/device refusal and archive round trips. Existing upload fixtures did
+not exercise directory sources. One new agent fixture protects Fleet-only
+folder admission, HTTP-folder refusal, verified receipt and real server scan
+without private path disclosure. Native drop coverage protects single-use opaque
+source identities against replay/path-string substitution; native download
+coverage protects an existing destination against short/corrupt/cancelled output.
+The existing world export fixture now calls the production streamed handler;
+the duplicate buffered test handler was removed. Inputs are tiny isolated files,
+controlled credentials and watch notifications, with no sleeps/live networks.
+Each case is expected below one second excluding compilation. No tests executed.
+
+Checks: repository/desktop formatting, agent and desktop Clippy (desktop retains
+its three previously documented unrelated lint allowances), frontend type check,
+agent/desktop test-harness metadata compilation, source-tree fixture metadata
+compilation, and the step's locked agent build. Frontend diagnostics retain 11
+existing warnings; the ordinary agent build/harness retains the existing unused
+`auth::forbidden` warning. Isolated Windows-target Clippy compiled the actual shared
+source-tree/Windows walker against windows-sys 0.61.2; this is a Rust binding
+check, not a linked Windows application or physical Windows acceptance. Full
+Windows tooling remains unavailable on this Mac. The configured MSC 1 source
+checkout is absent here; this step preserves existing ported importer services
+and does not claim an independent source cross-check. No performance measurements,
+release run, physical acceptance or Phase 20 gate closure is claimed.

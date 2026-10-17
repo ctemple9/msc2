@@ -18,20 +18,29 @@ export interface FileChunkSource {
 /** A picker capability, never a local path or a JavaScript byte reader. */
 export interface NativeUploadBinding {
   readonly agentHostId: string;
-  readonly purpose: components['schemas']['StagedUploadBeginRequestDTO']['purpose'];
+  readonly purpose: components['schemas']['NativeUploadBeginRequestDTO']['purpose'];
   readonly targetServerId?: string | null;
   readonly operationId?: string | null;
   readonly fileId?: string | null;
 }
 export interface NativeFilePickerRequest extends FilePickerRequest {
+  readonly directory?: boolean;
+  readonly droppedSourceId?: string;
   readonly binding: NativeUploadBinding;
 }
 export interface NativeFileDescriptor {
+  readonly directory?: boolean;
   readonly sourceId: string;
   readonly binding: NativeUploadBinding;
   readonly name: string;
   readonly size: number;
   readonly expiresInSeconds: number;
+}
+export interface NativeDroppedSource {
+  readonly sourceId: string | null;
+  readonly name: string;
+  readonly directory: boolean;
+  readonly error: string | null;
 }
 export interface NativeFileSource extends NativeFileDescriptor {
   readonly kind: 'native';
@@ -199,6 +208,9 @@ export interface PlatformAdapter {
   /** Fires with the real local filesystem path(s) whenever the user drops
    *  something onto the window. Returns an unsubscribe function, mirroring
    *  `onCloseRequested`. */
+  onNativeSourceDrop?(
+    handler: (sources: readonly NativeDroppedSource[]) => void,
+  ): Promise<() => void>;
   onFileDrop(handler: (paths: readonly string[]) => void): Promise<() => void>;
   onCloseRequested(handler: () => void): Promise<() => void>;
   credentialFor(hostId: string): Promise<string | null>;
@@ -225,6 +237,9 @@ export interface TauriPlatformDependencies {
   quitApplication(): Promise<void>;
   openExternal(url: string): Promise<void>;
   revealInFileManager(path: string): Promise<void>;
+  onNativeSourceDrop?(
+    handler: (sources: readonly NativeDroppedSource[]) => void,
+  ): Promise<() => void>;
   onFileDrop(handler: (paths: readonly string[]) => void): Promise<() => void>;
   onCloseRequested(handler: () => void): Promise<() => void>;
   agentHealthCheck(): Promise<boolean>;
@@ -234,4 +249,23 @@ export interface TauriPlatformDependencies {
   uninstallLocal?(request: LocalUninstallRequest): Promise<UninstallScheduled>;
   checkForUpdates?(): Promise<UpdateCheckResult>;
   installUpdate?(releaseId: string): Promise<UpdateInstallResult>;
+}
+
+export interface NativeDownloadRequest {
+  readonly agentHostId: string;
+  readonly stagedDownloadId: string;
+  readonly fileName: string;
+  readonly expectedBytes: number;
+}
+export interface NativeDownloadResult {
+  readonly agentHostId: string;
+  readonly operationId: string;
+  readonly bytesWritten: number;
+  readonly sha256: string;
+}
+export interface NativeFileDownloader {
+  download(
+    request: NativeDownloadRequest,
+    options?: NativeUploadOptions,
+  ): Promise<NativeDownloadResult>;
 }

@@ -382,12 +382,24 @@ impl ZipRawImportFileSystem {
         let file = fs::File::open(archive_path).map_err(|e| RawImportError::Io(e.to_string()))?;
         let mut archive =
             ZipArchive::new(file).map_err(|e| RawImportError::OpenZip(e.to_string()))?;
+        if archive.len() as u64 > msc_infrastructure::archive::MAX_ARCHIVE_ENTRIES {
+            return Err(RawImportError::OpenZip(
+                "Archive entry limit exceeded.".into(),
+            ));
+        }
+        let mut declared = 0u64;
         let mut entries = BTreeMap::new();
 
         for index in 0..archive.len() {
             let entry = archive
                 .by_index(index)
                 .map_err(|e| RawImportError::OpenZip(e.to_string()))?;
+            declared = declared
+                .checked_add(entry.size())
+                .filter(|n| *n <= msc_infrastructure::archive::MAX_TOTAL_UNCOMPRESSED_BYTES)
+                .ok_or_else(|| {
+                    RawImportError::OpenZip("Archive expansion limit exceeded.".into())
+                })?;
             let raw_name = entry.name().to_string();
             if is_unsafe_zip_entry_name(&raw_name) || is_symlink_zip_mode(entry.unix_mode()) {
                 return Err(RawImportError::UnsafeZipEntry { name: raw_name });
@@ -429,6 +441,9 @@ impl ZipRawImportFileSystem {
     fn read_entry_to_string(&self, entry: &ZipRawImportEntry) -> Option<String> {
         let file = fs::File::open(&self.archive_path).ok()?;
         let mut archive = ZipArchive::new(file).ok()?;
+        if entry.size > 1024 * 1024 {
+            return None;
+        }
         let mut zip_entry = archive.by_index(entry.index).ok()?;
         let mut contents = String::new();
         zip_entry.read_to_string(&mut contents).ok()?;
@@ -1057,6 +1072,14 @@ impl std::error::Error for RawImportError {}
 /// (`/etc/passwd` -> `etc/passwd`) instead of refusing it, so
 /// [`is_unsafe_zip_entry_name`] checks the raw name first.
 fn extract_zip_traversal_safe(zip_path: &Path, dest_root: &Path) -> Result<(), RawImportError> {
+    msc_infrastructure::archive::validate_archive_safety(zip_path).map_err(
+        |error| match error {
+            msc_infrastructure::archive::ArchiveError::UnsafeEntry(name) => {
+                RawImportError::UnsafeZipEntry { name }
+            }
+            error => RawImportError::OpenZip(error.to_string()),
+        },
+    )?;
     let file = fs::File::open(zip_path).map_err(|e| RawImportError::Io(e.to_string()))?;
     let mut archive = ZipArchive::new(file).map_err(|e| RawImportError::OpenZip(e.to_string()))?;
     for i in 0..archive.len() {
@@ -1078,11 +1101,22 @@ fn extract_zip_traversal_safe(zip_path: &Path, dest_root: &Path) -> Result<(), R
         if let Some(parent) = dest.parent() {
             fs::create_dir_all(parent).map_err(|e| RawImportError::Io(e.to_string()))?;
         }
-        let mut bytes = Vec::new();
-        entry
-            .read_to_end(&mut bytes)
+        let mut output = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&dest)
             .map_err(|e| RawImportError::Io(e.to_string()))?;
-        fs::write(&dest, &bytes).map_err(|e| RawImportError::Io(e.to_string()))?;
+        std::io::copy(&mut entry, &mut output).map_err(|e| RawImportError::Io(e.to_string()))?;
+        output
+            .sync_all()
+            .map_err(|e| RawImportError::Io(e.to_string()))?;
+        #[cfg(unix)]
+        if let Some(mode) = entry.unix_mode() {
+            use std::os::unix::fs::PermissionsExt;
+            output
+                .set_permissions(fs::Permissions::from_mode(mode & 0o777))
+                .map_err(|e| RawImportError::Io(e.to_string()))?;
+        }
     }
     Ok(())
 }
@@ -1346,22 +1380,24 @@ fn sanitize_destination_name(display_name: &str) -> String {
 /// such check, but this step's own plan text calls for symlink-escape
 /// rejection on the folder-copy path too, not just the zip path.
 fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), RawImportError> {
-    fs::create_dir_all(dst).map_err(|e| RawImportError::Io(e.to_string()))?;
-    for entry in fs::read_dir(src).map_err(|e| RawImportError::Io(e.to_string()))? {
-        let entry = entry.map_err(|e| RawImportError::Io(e.to_string()))?;
-        let file_type = entry
-            .file_type()
-            .map_err(|e| RawImportError::Io(e.to_string()))?;
-        let target = dst.join(entry.file_name());
-        if file_type.is_symlink() {
-            return Err(RawImportError::UnsafeSymlink { path: entry.path() });
-        } else if file_type.is_dir() {
-            copy_dir_recursive(&entry.path(), &target)?;
-        } else if file_type.is_file() {
-            fs::copy(entry.path(), &target).map_err(|e| RawImportError::Io(e.to_string()))?;
+    let source_error = |error: std::io::Error| {
+        if error
+            .get_ref()
+            .is_some_and(|e| e.is::<msc_infrastructure::source_tree::UnsafeLink>())
+        {
+            RawImportError::UnsafeSymlink {
+                path: src.to_path_buf(),
+            }
+        } else {
+            RawImportError::Io(error.to_string())
         }
-    }
-    Ok(())
+    };
+    let source = msc_infrastructure::source_tree::open(src, true).map_err(source_error)?;
+    let snapshot =
+        msc_infrastructure::source_tree::snapshot(&source, src, &|| false).map_err(source_error)?;
+    fs::create_dir_all(dst).map_err(source_error)?;
+    msc_infrastructure::source_tree::copy(&source, src, dst, &snapshot, &|| false, &mut |_| Ok(()))
+        .map_err(source_error)
 }
 
 /// Port of `ServerPropertiesManager.writeProperties`/

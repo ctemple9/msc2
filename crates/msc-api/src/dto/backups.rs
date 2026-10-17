@@ -115,6 +115,9 @@ pub enum StagedUploadPurposeDto {
     AddonLocalFile,
     CurseforgeManualFile,
     ModpackUnresolvedFile,
+    RawServerArchive,
+    RawServerFolder,
+    MscTransferArchive,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

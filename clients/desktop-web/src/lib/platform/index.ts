@@ -5,6 +5,7 @@ import {
   DesktopSessionAuth,
   loadTauriDesktopCredentialBridge,
   loadTauriNativeFileUploader,
+  loadTauriNativeFileDownloader,
 } from '../auth/desktop';
 import { loadTauriPlatform } from './tauri';
 import type {
@@ -13,6 +14,7 @@ import type {
   AgentServiceStatus,
   PlatformAdapter,
   NativeFileUploader,
+  NativeFileDownloader,
 } from './types';
 
 export const LOCAL_AGENT_ORIGIN = 'http://127.0.0.1:48001';
@@ -22,6 +24,7 @@ export interface AgentTransport {
   readonly hostId: string;
   readonly fetchImpl?: FetchLike;
   readonly nativeFileUploader?: NativeFileUploader;
+  readonly nativeFileDownloader?: NativeFileDownloader;
   readonly credentialAdapter: TransportCredentialAdapter;
 }
 
@@ -94,6 +97,7 @@ export async function createAgentTransport(hostId: string): Promise<AgentTranspo
     hostId: authenticatedHostId,
     fetchImpl: auth.fetchForHost(authenticatedHostId),
     nativeFileUploader: await loadTauriNativeFileUploader(),
+    nativeFileDownloader: await loadTauriNativeFileDownloader(),
     credentialAdapter: desktopCredentialAdapter(),
   };
 }

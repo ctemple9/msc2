@@ -66,11 +66,14 @@ pub(super) async fn copy(
             .await
             .map_err(|_| failed())?
             .map_err(|_| failed())?;
-    let mut request = serde_json::to_vec(&serde_json::json!({
+    let mut metadata = serde_json::json!({
         "protocol": 1, "agentHostId": context.host, "token": context.record.token,
         "stagedUploadId": slot.staged_upload_id, "identity": identity,
-    }))
-    .map_err(|_| failed())?;
+    });
+    if let Some(snapshot) = &source.folder_snapshot {
+        metadata["folder"] = serde_json::to_value(snapshot).map_err(|_| failed())?;
+    }
+    let mut request = serde_json::to_vec(&metadata).map_err(|_| failed())?;
     request.push(b'\n');
     tokio::time::timeout(Duration::from_secs(10), socket.write_all(&request))
         .await

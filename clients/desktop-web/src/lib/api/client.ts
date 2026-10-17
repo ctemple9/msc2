@@ -4,6 +4,8 @@ import { desktopCredentialAdapter } from './auth';
 import type {
   NativeFileSource,
   NativeFileUploader,
+  NativeFileDownloader,
+  NativeDownloadResult,
   NativeUploadOptions,
   NativeUploadResult,
   FileChunkSource,
@@ -21,6 +23,7 @@ export interface ApiClientOptions {
   clientApiVersion?: string;
   maxDownloadBytes?: number;
   nativeFileUploader?: NativeFileUploader;
+  nativeFileDownloader?: NativeFileDownloader;
   onCapabilities?: (capabilities: components['schemas']['CapabilitiesDTO']) => void;
 }
 
@@ -69,6 +72,7 @@ export class ApiClient {
   private readonly maxDownloadBytes: number;
   private readonly onCapabilities?: ApiClientOptions['onCapabilities'];
   private readonly nativeFileUploader?: NativeFileUploader;
+  private readonly nativeFileDownloader?: NativeFileDownloader;
   private refreshingCapabilities = false;
   private capabilitiesValue: components['schemas']['CapabilitiesDTO'] | null = null;
   private apiVersionValue: string | null = null;
@@ -84,6 +88,7 @@ export class ApiClient {
     this.maxDownloadBytes = options.maxDownloadBytes ?? 512 * 1024 * 1024;
     this.onCapabilities = options.onCapabilities;
     this.nativeFileUploader = options.nativeFileUploader;
+    this.nativeFileDownloader = options.nativeFileDownloader;
   }
 
   get host(): string {
@@ -187,9 +192,27 @@ export class ApiClient {
     }
     if (!this.nativeFileUploader)
       throw new Error('Native file uploads are unavailable in this desktop build.');
-    if (!Number.isSafeInteger(source.size) || source.size <= 0)
+    if (
+      !Number.isSafeInteger(source.size) ||
+      source.size < 0 ||
+      (!source.directory && source.size === 0)
+    )
       throw new Error('The selected file has an invalid size.');
     return this.nativeFileUploader.upload(source, options);
+  }
+
+  async downloadNative(
+    id: string,
+    fileName: string,
+    expectedBytes: number,
+    options: NativeUploadOptions = {},
+  ): Promise<NativeDownloadResult> {
+    if (!this.nativeFileDownloader)
+      throw new Error('Native saving is unavailable in this desktop build.');
+    return this.nativeFileDownloader.download(
+      { agentHostId: this.hostId, stagedDownloadId: id, fileName, expectedBytes },
+      options,
+    );
   }
 
   async stagedUploadFromFile(

@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** P20.4 local descriptor handoff implemented; awaiting owner
-verification before P20.5. Windows retains native streaming; screens remain P20.6.
+**Current priority:** P20.5 server folder/archive and transfer adapters implemented;
+awaiting owner verification. Remaining import-screen progress work is P20.6.
 
 Historical implementation and published release records were reconciled and
 moved to [the archive](rolling-plan-archive.md) at Cameron's October 16 request.
@@ -17,9 +17,9 @@ not in this implementation queue.
 
 ## Phase 20 — Faster native file imports and uploads
 
-**Execution state:** Owner authorized P20.1–P20.3 on October 16 and P20.4 on October 17.
-Contract, agent receipt, native desktop sender and Unix local handoff implemented;
-owner verification pending. Later steps remain planned.
+**Execution state:** Owner authorized P20.1–P20.3 on October 16 and P20.4–P20.5 on October 17.
+Contract, receipt, native desktop sender, local handoff and server import/export
+adapters implemented; owner verification pending. P20.6–P20.7 remain planned.
 No upload code is included in the XboxBroadcast release.
 **Contract and gate:** [Native transfer plan](uploads/native-transfer-plan.md).
 Preserve archive/integrity checks and source data; measure speed rather than
@@ -65,8 +65,8 @@ Complete connected-host transfer/resume remains [deferred](deferred-work.md).
 
 ### P20.5 — Connect server folders and archive imports to native transfer
 
-**Status:** Planned.
-**Files:** `crates/msc-agent/src/routes/servers/import.rs`; existing raw/transfer import services; native file/folder transfer module; `clients/desktop-web/src/lib/sections/fleet/TransferSheet.svelte` and import wizard adapters; CLI source import/upload plumbing; import DTO/OpenAPI types as needed; this plan.
+**Status:** Implemented; awaiting owner verification.
+**Files:** `crates/msc-agent/src/routes/servers/import.rs`; existing raw/transfer import services; native file/folder transfer module; `clients/desktop-web/src/lib/sections/fleet/TransferSheet.svelte` and import wizard adapters; CLI source import/upload plumbing; import DTO/OpenAPI types as needed; shared source-tree traversal and bounded extraction; capability matrix and native-transfer implementation record; essential regression cases; this plan.
 **What:** Support the inventoried raw server ZIP/folder and MSC-transfer flows without assuming all use staged-world uploads. Local folders use bounded direct copying after existing explicit stopped-source checks. Where supported, remote selected folders generate a validated archive into the native stream without a complete intermediate source ZIP. Retain all supported server files/settings/worlds/backups and source data; reject unsupported/symlink/path-escape entries explicitly. Keep destructive replace-all review/backups and destination registration/recovery semantics. Use native streamed downloads for affected export plumbing that currently buffers whole archives. Reuse importer services; do not implement the deferred paired-agent transfer/resume feature. CLI stays host-local under D-040.
 **Verify:** `cargo build --locked -p msc-agent --bin msc`
 **Batch:** P20.5 only; depends on P20.4 verification unless included in a newly authorized batch.

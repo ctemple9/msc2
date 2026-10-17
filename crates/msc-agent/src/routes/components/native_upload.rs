@@ -30,11 +30,15 @@ use msc_api::dto::{
 struct Ledger {
     owner: String,
     expected_bytes: u64,
+    #[serde(default)]
+    reserved_bytes: Option<u64>,
     expires_at: u64,
 }
 
 pub(crate) struct Session {
     owner: String,
+    reservation: u64,
+    adapter: Arc<tokio::sync::Mutex<()>>,
     target: Option<String>,
     upload: StagedUpload,
     expected_sha256: Option<String>,
@@ -335,7 +339,12 @@ fn recover(root: &Path, sessions: &Mutex<HashMap<String, Arc<Session>>>) -> std:
                 continue;
             }
         };
-        if ledger.expected_bytes == 0 || ledger.expected_bytes > RESERVED_BYTES {
+        if ledger.expected_bytes == 0
+            || ledger.expected_bytes > RESERVED_BYTES
+            || ledger
+                .reserved_bytes
+                .is_some_and(|n| n < ledger.expected_bytes || n > RESERVED_BYTES)
+        {
             return Err(std::io::Error::other("invalid cleanup reservation"));
         }
         let cleanup = std::fs::remove_dir_all(item.path());
@@ -344,6 +353,8 @@ fn recover(root: &Path, sessions: &Mutex<HashMap<String, Arc<Session>>>) -> std:
             let (done, _) = watch::channel(true);
             let session = Arc::new(Session {
                 owner: ledger.owner,
+                reservation: ledger.reserved_bytes.unwrap_or(ledger.expected_bytes),
+                adapter: Default::default(),
                 target: None,
                 upload: StagedUpload {
                     native_guard: None,
@@ -417,6 +428,9 @@ fn purpose_allowed(purpose: StagedUploadPurposeDto, credential: &AuthenticatedCr
         StagedUploadPurposeDto::AddonLocalFile => {
             &[PermissionCategoryDto::Addons, PermissionCategoryDto::Worlds]
         }
+        StagedUploadPurposeDto::RawServerArchive
+        | StagedUploadPurposeDto::RawServerFolder
+        | StagedUploadPurposeDto::MscTransferArchive => &[PermissionCategoryDto::Fleet],
         _ => &[PermissionCategoryDto::Addons],
     };
     credential
@@ -539,6 +553,12 @@ async fn admit_inner(
         }
         _ => MAX_STAGED_UPLOAD_BYTES,
     };
+    if body.purpose == StagedUploadPurposeDto::RawServerFolder && body.expected_sha256.is_some() {
+        return invalid_body(
+            "invalid_digest",
+            "Folder handoff verifies its snapshot and produces a copy digest; expectedSha256 is only supported for file archives.",
+        );
+    }
     if body.expected_bytes == 0 {
         return invalid_body("invalid_expected_bytes", "expectedBytes must be positive.");
     }
@@ -557,6 +577,20 @@ async fn admit_inner(
         return invalid_body(
             "invalid_digest",
             "expectedSha256 must contain 64 hexadecimal characters.",
+        );
+    }
+    if matches!(
+        body.purpose,
+        StagedUploadPurposeDto::RawServerArchive
+            | StagedUploadPurposeDto::RawServerFolder
+            | StagedUploadPurposeDto::MscTransferArchive
+    ) && (body.target_server_id.is_some()
+        || body.operation_id.is_some()
+        || body.file_id.is_some())
+    {
+        return invalid_body(
+            "invalid_binding",
+            "Server sources cannot target an existing-server or pending-file slot.",
         );
     }
     let target = body.target_server_id.clone();
@@ -619,6 +653,16 @@ async fn admit_inner(
         );
     }
 
+    let reserve = if body.purpose == StagedUploadPurposeDto::RawServerArchive
+        && body
+            .file_name
+            .as_deref()
+            .is_some_and(|n| n.ends_with(".tar"))
+    {
+        body.expected_bytes.saturating_mul(2)
+    } else {
+        body.expected_bytes
+    };
     let (count, reserved, outstanding) = {
         let sessions = state.staging.native.sessions.lock().unwrap();
         (
@@ -629,15 +673,13 @@ async fn admit_inner(
             sessions
                 .values()
                 .filter(|s| s.reserved.load(Ordering::Acquire))
-                .map(|s| s.upload.expected_bytes.unwrap_or(0))
+                .map(|s| s.reservation)
                 .sum::<u64>(),
             sessions
                 .values()
                 .filter(|s| s.reserved.load(Ordering::Acquire))
                 .map(|s| {
-                    s.upload
-                        .expected_bytes
-                        .unwrap_or(0)
+                    s.reservation
                         .saturating_sub(s.received.load(Ordering::Acquire))
                 })
                 .sum::<u64>(),
@@ -661,7 +703,7 @@ async fn admit_inner(
     };
     if count + legacy_count >= 8
         || reserved
-            .checked_add(body.expected_bytes)
+            .checked_add(reserve)
             .is_none_or(|n| n > RESERVED_BYTES)
     {
         return error_response(
@@ -670,7 +712,7 @@ async fn admit_inner(
             "Native staging capacity is full.",
         );
     }
-    let downloads = state
+    let mut downloads = state
         .staging
         .downloads
         .lock()
@@ -682,15 +724,25 @@ async fn admit_inner(
     let root = staging_root(&servers_root).join("native");
     let dir = root.join(&id);
     let path = dir.join("payload.bin");
+    downloads.extend(
+        state
+            .staging
+            .active_downloads
+            .lock()
+            .unwrap()
+            .values()
+            .map(|entry| entry.path.clone()),
+    );
     let ledger = Ledger {
         owner: credential.credential_id.clone(),
         expected_bytes: body.expected_bytes,
+        reserved_bytes: Some(reserve),
         expires_at: now_unix() + STAGING_TTL_SECONDS,
     };
-    let reserve = body.expected_bytes;
     let create_dir = dir.clone();
     let space = state.staging.native.space.clone();
-    let create = tokio::task::spawn_blocking(move || -> std::io::Result<std::fs::File> {
+    let folder = body.purpose == StagedUploadPurposeDto::RawServerFolder;
+    let create = tokio::task::spawn_blocking(move || -> std::io::Result<Option<std::fs::File>> {
         let legacy_reserved = legacy_paths.iter().map(|(_, size)| size).sum::<u64>();
         let downloads_bytes = downloads
             .iter()
@@ -733,7 +785,12 @@ async fn admit_inner(
         let mut journal = options.open(create_dir.join("owner.json"))?;
         std::io::Write::write_all(&mut journal, &serde_json::to_vec(&ledger)?)?;
         journal.sync_all()?;
-        options.open(create_dir.join("payload.bin"))
+        if folder {
+            private_dir(&create_dir.join("payload.bin"))?;
+            Ok(None)
+        } else {
+            options.open(create_dir.join("payload.bin")).map(Some)
+        }
     })
     .await;
     match create {
@@ -764,6 +821,8 @@ async fn admit_inner(
     let (done, _) = watch::channel(true);
     let session = Arc::new(Session {
         owner: credential.credential_id.clone(),
+        reservation: reserve,
+        adapter: Default::default(),
         target: target.clone(),
         upload: StagedUpload {
             native_guard: None,
@@ -846,9 +905,28 @@ pub(crate) async fn receive(
     headers: HeaderMap,
     body: Body,
 ) -> Response {
+    receive_source(state, credential, auth, id, headers, body, None).await
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn receive_source(
+    state: ComponentsRoutesState,
+    credential: AuthenticatedCredential,
+    auth: crate::auth::AuthState,
+    id: String,
+    headers: HeaderMap,
+    body: Body,
+    folder: Option<(std::fs::File, msc_infrastructure::source_tree::Snapshot)>,
+) -> Response {
     let Some(session) = state.staging.native.session(&id, &credential) else {
         return error_response(StatusCode::NOT_FOUND, "not_found", "Unknown native upload.");
     };
+    if (session.upload.purpose == StagedUploadPurposeDto::RawServerFolder) != folder.is_some() {
+        return invalid_body(
+            "invalid_transport",
+            "Folders require the private descriptor endpoint.",
+        );
+    }
     if !session.authorized(&credential)
         || !session.pending_valid(&state)
         || now_unix() > session.expiry.load(Ordering::Acquire)
@@ -878,6 +956,13 @@ pub(crate) async fn receive(
             "Use an exact Content-Length, octet-stream and identity encoding.",
         );
     }
+    let Ok(permit) = state.staging.transfer_slots.clone().try_acquire_owned() else {
+        return error_response(
+            StatusCode::TOO_MANY_REQUESTS,
+            "stream_capacity",
+            "Both native transfer slots are active.",
+        );
+    };
     {
         let sessions = state.staging.native.sessions.lock().unwrap();
         let active = sessions
@@ -914,6 +999,7 @@ pub(crate) async fn receive(
     let worker_credential = credential.clone();
     let worker_id = id.clone();
     let result = tokio::spawn(async move {
+        let _permit = permit;
         let session = worker_session;
         let mut guard = WorkerGuard {
             state: worker_state.clone(),
@@ -927,13 +1013,25 @@ pub(crate) async fn receive(
             credential: worker_credential.clone(),
         };
         let outcome = {
-            let drive = write_stream(&session, body);
+            let is_folder = folder.is_some();
+            let drive = async {
+                match folder {
+                    Some((source, snapshot)) => {
+                        write_folder(session.clone(), source, snapshot).await
+                    }
+                    None => write_stream(&session, body).await,
+                }
+            };
             tokio::pin!(drive);
             loop {
                 if *cancelled.borrow()
                     || !auth.stream_retains_permissions(&identity)
                     || !session.authorized(&worker_credential)
                 {
+                    session.cancel.send_replace(true);
+                    if is_folder {
+                        let _ = drive.as_mut().await;
+                    }
                     break Err((
                         StatusCode::CONFLICT,
                         "upload_cancelled",
@@ -1040,6 +1138,70 @@ impl Drop for WorkerGuard {
             });
         }
     }
+}
+
+async fn write_folder(
+    session: Arc<Session>,
+    source: std::fs::File,
+    snapshot: msc_infrastructure::source_tree::Snapshot,
+) -> Result<String, StreamFailure> {
+    tokio::task::spawn_blocking(move || {
+        let mut hash = Sha256::new();
+        if snapshot.bytes != session.upload.expected_bytes.unwrap_or(0) {
+            return Err((
+                StatusCode::CONFLICT,
+                "source_changed",
+                "Folder size changed.",
+            ));
+        }
+        msc_infrastructure::source_tree::copy(
+            &source,
+            Path::new(""),
+            &session.upload.path,
+            &snapshot,
+            &|| *session.cancel.borrow(),
+            &mut |bytes| {
+                let next = session
+                    .received
+                    .fetch_add(bytes.len() as u64, Ordering::AcqRel)
+                    + bytes.len() as u64;
+                if next > snapshot.bytes {
+                    return Err(std::io::Error::other("folder grew"));
+                }
+                hash.update(bytes);
+                session.touch();
+                Ok(())
+            },
+        )
+        .map_err(|_| {
+            (
+                StatusCode::CONFLICT,
+                "source_changed",
+                "Folder copy failed, changed, or was cancelled.",
+            )
+        })?;
+        if session.received.load(Ordering::Acquire) != snapshot.bytes
+            || session
+                .phase
+                .compare_exchange(RECEIVING, VERIFYING, Ordering::AcqRel, Ordering::Acquire)
+                .is_err()
+        {
+            return Err((
+                StatusCode::CONFLICT,
+                "source_changed",
+                "Folder copy did not complete.",
+            ));
+        }
+        Ok(format!("{:x}", hash.finalize()))
+    })
+    .await
+    .map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "copy_worker_failed",
+            "Folder copy worker failed.",
+        )
+    })?
 }
 
 type StreamFailure = (StatusCode, &'static str, &'static str);
@@ -1176,6 +1338,7 @@ async fn cleanup(state: &ComponentsRoutesState, id: &str, session: &Session, ter
         uploads.entries.remove(id);
         uploads.native.remove(id);
     }
+    let _adapter = session.adapter.lock().await;
     let dir = session
         .upload
         .path
@@ -1197,6 +1360,48 @@ async fn cleanup(state: &ComponentsRoutesState, id: &str, session: &Session, ter
             session.phase.store(CLEANUP_FAILED, Ordering::Release);
         }
     }
+}
+
+pub(crate) async fn server_folder(
+    staging: &StagingStore,
+    credential: &AuthenticatedCredential,
+    id: &str,
+    auth: Option<crate::auth::AuthState>,
+) -> Result<PathBuf, ()> {
+    let session = staging.native.session(id, credential).ok_or(())?;
+    let identity = crate::auth::StreamAuthentication {
+        credential: credential.clone(),
+    };
+    let guard = session.adapter.clone().lock_owned().await;
+    if !session.authorized(credential) || session.phase.load(Ordering::Acquire) != READY {
+        return Err(());
+    }
+    tokio::task::spawn_blocking(move || {
+        let _guard = guard;
+        let destination = session.upload.path.parent().ok_or(())?.join("folder");
+        if !destination.exists() {
+            let partial = destination.with_file_name(format!("folder-{}", Uuid::new_v4()));
+            std::fs::create_dir(&partial).map_err(|_| ())?;
+            let result = msc_infrastructure::source_tree::extract_tar(
+                &session.upload.path,
+                &partial,
+                &|| {
+                    *session.cancel.borrow()
+                        || auth
+                            .as_ref()
+                            .is_some_and(|auth| !auth.stream_retains_permissions(&identity))
+                },
+            );
+            if result.is_err() || *session.cancel.borrow() {
+                let _ = std::fs::remove_dir_all(&partial);
+                return Err(());
+            }
+            std::fs::rename(&partial, &destination).map_err(|_| ())?;
+        }
+        Ok(destination)
+    })
+    .await
+    .map_err(|_| ())?
 }
 
 pub(crate) async fn cancel(
@@ -1290,6 +1495,7 @@ pub(crate) async fn status(
 }
 
 async fn reap_once(state: &ComponentsRoutesState) {
+    super::reap_downloads(state).await;
     let sessions = state
         .staging
         .native
@@ -1437,6 +1643,120 @@ mod tests {
         );
         headers.insert(header::CONTENT_LENGTH, length.to_string().parse().unwrap());
         headers
+    }
+
+    // Essential: a folder is a descriptor-only source, not an HTTP file body.
+    // Its verified files must be usable by the existing raw-server scanner.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn native_server_folder_requires_fleet_and_publishes_a_verified_tree() {
+        let mut fixture = Fixture::new();
+        let admission = Admission {
+            purpose: StagedUploadPurposeDto::RawServerFolder,
+            file_name: Some("server".into()),
+            expected_bytes: 6,
+            expected_sha256: None,
+            operation_id: None,
+            file_id: None,
+            target_server_id: None,
+        };
+        assert_eq!(
+            admit(
+                State(fixture.state.clone()),
+                Extension(fixture.credential.clone()),
+                Ok(Json(admission.clone()))
+            )
+            .await
+            .status(),
+            StatusCode::FORBIDDEN
+        );
+        let issued = fixture
+            .auth
+            .issue_credential(
+                "fleet",
+                CredentialRole::Named,
+                vec![PermissionCategoryDto::Fleet],
+                None,
+            )
+            .unwrap();
+        fixture.credential = AuthenticatedCredential {
+            credential_id: issued.credential_id,
+            label: "fleet".into(),
+            role: CredentialRole::Named,
+            permissions: vec![PermissionCategoryDto::Fleet],
+        };
+        fixture.token = issued.token;
+        let response = admit(
+            State(fixture.state.clone()),
+            Extension(fixture.credential.clone()),
+            Ok(Json(admission)),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let slot: NativeUploadBeginResultDto =
+            serde_json::from_slice(&to_bytes(response.into_body(), 4096).await.unwrap()).unwrap();
+        assert_eq!(
+            fixture
+                .send(&slot.staged_upload_id, 6, Body::from("abcdef"))
+                .await
+                .status(),
+            StatusCode::BAD_REQUEST
+        );
+        let source = fixture
+            .state
+            .lifecycle
+            .servers_root()
+            .join("selected-server");
+        std::fs::create_dir(&source).unwrap();
+        std::fs::write(source.join(".hidden"), b"abcdef").unwrap();
+        std::fs::create_dir(source.join("empty")).unwrap();
+        let file = msc_infrastructure::source_tree::open(&source, true).unwrap();
+        let snapshot =
+            msc_infrastructure::source_tree::snapshot(&file, &source, &|| false).unwrap();
+        let response = receive_source(
+            fixture.state.clone(),
+            fixture.credential.clone(),
+            fixture.auth.clone(),
+            slot.staged_upload_id.clone(),
+            headers(6),
+            Body::empty(),
+            Some((file, snapshot)),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let session = fixture
+            .state
+            .staging
+            .native
+            .session(&slot.staged_upload_id, &fixture.credential)
+            .unwrap();
+        assert_eq!(
+            std::fs::read(session.upload.path.join(".hidden")).unwrap(),
+            b"abcdef"
+        );
+        assert!(session.upload.path.join("empty").is_dir());
+        assert_eq!(std::fs::read(source.join(".hidden")).unwrap(), b"abcdef");
+        let body: msc_api::dto::ServerImportRequestDto = serde_json::from_value(
+            serde_json::json!({"action":"scan","stagedUploadId":slot.staged_upload_id}),
+        )
+        .unwrap();
+        let response = crate::auth::INITIATING_CREDENTIAL
+            .scope(
+                fixture.credential.clone(),
+                crate::routes::servers::import(
+                    State(fixture.state.lifecycle.clone()),
+                    Extension(fixture.credential.clone()),
+                    Extension(fixture.state.staging.clone()),
+                    None,
+                    Ok(Json(body)),
+                ),
+            )
+            .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let scan: msc_api::dto::ServerImportScanResponseDto =
+            serde_json::from_slice(&to_bytes(response.into_body(), 4096).await.unwrap()).unwrap();
+        assert!(scan.source_path.is_none());
+        assert_eq!(session.phase.load(Ordering::Acquire), READY);
     }
 
     // Essential: the local descriptor path must produce the same verified slot,

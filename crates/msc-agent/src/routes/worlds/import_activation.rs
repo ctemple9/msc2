@@ -181,6 +181,7 @@ pub async fn export(
             state.staging.downloads.lock().unwrap().insert(
                 id.clone(),
                 StagedDownload {
+                    owner: credential.credential_id.clone(),
                     expires_at_unix,
                     path: destination,
                 },
@@ -202,42 +203,6 @@ pub async fn export(
         response.status(),
     );
     response
-}
-
-#[cfg(test)]
-pub async fn download_staged_bytes(
-    State(state): State<WorldsRoutesState>,
-    AxumPath(id): AxumPath<String>,
-) -> Response {
-    let entry = { state.staging.downloads.lock().unwrap().remove(&id) };
-    let Some(entry) = entry else {
-        return error_response(
-            StatusCode::NOT_FOUND,
-            "not_found",
-            "Unknown or already-redeemed staged download.",
-        );
-    };
-    if now_unix() > entry.expires_at_unix {
-        let _ = std::fs::remove_file(&entry.path);
-        return error_response(
-            StatusCode::NOT_FOUND,
-            "not_found",
-            "Unknown or already-redeemed staged download.",
-        );
-    }
-    match std::fs::read(&entry.path) {
-        Ok(bytes) => {
-            let _ = std::fs::remove_file(&entry.path);
-            let mut headers = HeaderMap::new();
-            headers.insert(header::CONTENT_TYPE, "application/zip".parse().unwrap());
-            (StatusCode::OK, headers, bytes).into_response()
-        }
-        Err(_) => error_response(
-            StatusCode::NOT_FOUND,
-            "not_found",
-            "Unknown or already-redeemed staged download.",
-        ),
-    }
 }
 
 // =====================================================================

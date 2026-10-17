@@ -89,6 +89,7 @@
   let displayName = '';
   let isCreating = false;
   let statusMessage = '';
+  let cleanupError = '';
   let createSucceeded = false;
   let createWarnings: string[] = [];
   let modpackSummary: ModpackCreationSummary | undefined;
@@ -118,6 +119,9 @@
   });
 
   onDestroy(() => {
+    const staged = draft.stagedServerSource;
+    if (staged && !isCreating && !createSucceeded)
+      void staged.api?.delete?.(`/v1/staged-uploads/${staged.stagedUploadId}`).catch(() => {});
     tourServerContext.set(null);
     tourServerCreated.set(false);
     tourJavaSelectionPending.set(false);
@@ -212,6 +216,21 @@
       javaPath: undefined,
       javaSelectionKey: undefined,
     };
+  }
+
+  async function closeWizard(): Promise<void> {
+    cleanupError = '';
+    const staged = draft.stagedServerSource;
+    if (staged && !createSucceeded) {
+      try {
+        await staged.api?.delete?.(`/v1/staged-uploads/${staged.stagedUploadId}`);
+        draft = { ...draft, stagedServerSource: undefined };
+      } catch (error) {
+        cleanupError = `Agent cleanup could not be confirmed: ${errorMessage(error)}`;
+        return;
+      }
+    }
+    onClose();
   }
 
   function backStep(): void {
@@ -416,7 +435,7 @@
   size="lg"
   onClose={isCreating || showJavaRecovery || showJavaSelection || showJavaInstall
     ? undefined
-    : onClose}
+    : closeWizard}
 >
   <div class="wizard" use:onboardingAnchor={'ob_wizard_sheet'}>
     <div class="steps" role="list" aria-label="Add Server progress">
@@ -505,13 +524,14 @@
       {/if}
     </div>
 
+    {#if cleanupError}<p class="selection-explain warn" role="alert">{cleanupError}</p>{/if}
     <div class="footer">
       {#if !createSucceeded && currentStep > 1}
         <Button variant="secondary" onclick={backStep} disabled={isCreating}>Back</Button>
       {/if}
       <div class="spacer"></div>
       {#if createSucceeded}
-        <Button variant="primary" onclick={onClose}>Done</Button>
+        <Button variant="primary" onclick={closeWizard}>Done</Button>
       {:else if isConfirmStep}
         <Button
           variant="primary"

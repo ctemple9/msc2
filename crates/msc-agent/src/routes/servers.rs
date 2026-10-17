@@ -250,6 +250,13 @@ pub async fn export_transfer(
         return response;
     }
 
+    let Ok(permit) = staging.transfer_slots.clone().try_acquire_owned() else {
+        return error_response(
+            StatusCode::TOO_MANY_REQUESTS,
+            "stream_capacity",
+            "Both native transfer slots are active.",
+        );
+    };
     let servers = state.export_inputs();
     if servers.is_empty() {
         return error_response(
@@ -277,8 +284,28 @@ pub async fn export_transfer(
         source_machine_name: agent_host_name(),
         app_config_version: AppConfig::LATEST_CONFIG_VERSION,
     };
+    struct PendingExport {
+        path: PathBuf,
+        published: std::sync::atomic::AtomicBool,
+    }
+    impl Drop for PendingExport {
+        fn drop(&mut self) {
+            if !self.published.load(std::sync::atomic::Ordering::Acquire) {
+                let _ = std::fs::remove_file(&self.path);
+            }
+        }
+    }
+    // Retain cleanup in the producer too: disconnecting this handler must not
+    // leave an unregistered archive after its blocking writer finishes.
+    let pending = std::sync::Arc::new(PendingExport {
+        path: destination.clone(),
+        published: Default::default(),
+    });
+    let producer_pending = pending.clone();
     let export_path = destination.clone();
     let result = tokio::task::spawn_blocking(move || {
+        let _pending = producer_pending;
+        let _permit = permit;
         let file = std::fs::File::create(&export_path).map_err(|error| error.to_string())?;
         export_server_transfer(&request, file).map_err(|error| error.to_string())?;
         std::fs::metadata(&export_path)
@@ -311,10 +338,14 @@ pub async fn export_transfer(
     staging.downloads.lock().unwrap().insert(
         id.clone(),
         crate::routes::worlds::StagedDownload {
+            owner: credential.credential_id.clone(),
             expires_at_unix,
             path: destination,
         },
     );
+    pending
+        .published
+        .store(true, std::sync::atomic::Ordering::Release);
     Json(ServerTransferExportResultDto {
         staged_download_id: id,
         expires_at: crate::routes::worlds::unix_to_iso8601(expires_at_unix),
@@ -2018,6 +2049,7 @@ mod tests {
         backup_path: Option<&str>,
     ) -> ServerImportRequestDto {
         ServerImportRequestDto {
+            staged_upload_id: None,
             action: Some("importTransfer".to_string()),
             source_path: Some(source_path.to_string_lossy().into_owned()),
             import_kind: Some("transfer".to_string()),
@@ -2040,6 +2072,8 @@ mod tests {
         import(
             State(state.clone()),
             Extension(transfer_credential()),
+            Extension(StagingStore::default()),
+            None,
             Ok(Json(body)),
         )
         .await
@@ -2266,6 +2300,7 @@ mod tests {
         server_type: Option<&str>,
     ) -> ServerImportRequestDto {
         ServerImportRequestDto {
+            staged_upload_id: None,
             action: Some(action.to_string()),
             source_path: Some(source_path.to_string_lossy().into_owned()),
             import_kind: import_kind.map(str::to_string),
@@ -2286,6 +2321,7 @@ mod tests {
 
     fn rescan_request() -> ServerImportRequestDto {
         ServerImportRequestDto {
+            staged_upload_id: None,
             action: Some("rescan".to_string()),
             source_path: None,
             import_kind: None,
@@ -2562,6 +2598,8 @@ mod tests {
         let response = import(
             State(state),
             Extension(credential),
+            Extension(StagingStore::default()),
+            None,
             Ok(Json(rescan_request())),
         )
         .await;

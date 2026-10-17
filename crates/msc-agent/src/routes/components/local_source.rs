@@ -4,11 +4,7 @@ use crate::{
     auth::AuthState,
     routes::components::{ComponentsRoutesState, native_upload},
 };
-use axum::{
-    Extension,
-    body::Body,
-    extract::{Path, State},
-};
+use axum::body::Body;
 use msc_infrastructure::{
     config_repository::default_app_data_dir,
     local_source::{Identity, SOCKET_NAME, receive_file},
@@ -35,6 +31,8 @@ struct Request {
     token: String,
     staged_upload_id: String,
     identity: Identity,
+    #[serde(default)]
+    folder: Option<msc_infrastructure::source_tree::Snapshot>,
 }
 
 pub(crate) async fn start(auth: AuthState, state: ComponentsRoutesState) -> Result<(), String> {
@@ -140,7 +138,12 @@ pub(super) async fn exchange(
         .session(&request.staged_upload_id, &credential)
         .ok_or(())?;
     if !session.can_handoff(&credential, &state)
-        || session.local_progress().1 != request.identity.size
+        || session.local_progress().1
+            != request
+                .folder
+                .as_ref()
+                .map_or(request.identity.size, |s| s.bytes)
+        || request.identity.directory != request.folder.is_some()
     {
         return Err(());
     }
@@ -160,15 +163,24 @@ pub(super) async fn exchange(
     .map_err(|_| ())?
     .map_err(|_| ())?;
     request.identity.validate(&file).map_err(|_| ())?;
+    let folder_source = if let Some(snapshot) = request.folder {
+        Some((file.try_clone().map_err(|_| ())?, snapshot))
+    } else {
+        None
+    };
     let retained = Arc::new(file);
     let mut input = tokio::fs::File::from_std(retained.try_clone().map_err(|_| ())?);
     input.set_max_buf_size(256 * 1024);
-    input
-        .seek(std::io::SeekFrom::Start(0))
-        .await
-        .map_err(|_| ())?;
+    if folder_source.is_none() {
+        input
+            .seek(std::io::SeekFrom::Start(0))
+            .await
+            .map_err(|_| ())?;
+    }
     let identity = request.identity;
-    let total = identity.size;
+    let total = folder_source
+        .as_ref()
+        .map_or(identity.size, |(_, s)| s.bytes);
     let source = futures_util::stream::try_unfold((input, 0u64), move |(mut input, offset)| {
         let retained = retained.clone();
         let identity = identity.clone();
@@ -194,13 +206,14 @@ pub(super) async fn exchange(
         axum::http::header::CONTENT_LENGTH,
         total.to_string().parse().map_err(|_| ())?,
     );
-    let receive = native_upload::receive(
-        State(state),
-        Extension(credential),
-        Extension(auth),
-        Path(request.staged_upload_id),
+    let receive = native_upload::receive_source(
+        state,
+        credential,
+        auth,
+        request.staged_upload_id,
         headers,
         Body::from_stream(source),
+        folder_source,
     );
     tokio::pin!(receive);
     let mut interval = tokio::time::interval(Duration::from_millis(250));

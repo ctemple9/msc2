@@ -81,7 +81,9 @@ export function createNativeFileUploader(bridge: NativeTransferBridge): NativeFi
         if (
           result.agentHostId !== agentHostId ||
           result.operationId !== operationId ||
-          result.receivedBytes !== size
+          (!source.directory && result.receivedBytes !== size) ||
+          !Number.isSafeInteger(result.receivedBytes) ||
+          result.receivedBytes <= 0
         ) {
           throw new Error('The native upload returned an unrelated or incomplete result.');
         }
@@ -90,7 +92,7 @@ export function createNativeFileUploader(bridge: NativeTransferBridge): NativeFi
           agentHostId,
           phase: 'complete',
           bytesTransferred: result.receivedBytes,
-          totalBytes: size,
+          totalBytes: result.receivedBytes,
           bytesPerSecond: 0,
           transport: result.transport,
         });
@@ -146,4 +148,61 @@ export async function loadTauriNativeFileUploader(): Promise<NativeFileUploader>
     cancel: (agentHostId, operationId) =>
       invoke('cancel_native_upload', { agentHostId, operationId }),
   });
+}
+
+export async function loadTauriNativeFileDownloader(): Promise<
+  import('../platform/types').NativeFileDownloader
+> {
+  const { invoke, Channel } = await import('@tauri-apps/api/core');
+  return {
+    async download(request, options = {}) {
+      const operationId = crypto.randomUUID();
+      const progress = new Channel<NativeUploadProgress>();
+      progress.onmessage = (event) => {
+        if (event.agentHostId === request.agentHostId && event.operationId === operationId)
+          options.onProgress?.(event);
+      };
+      let cancellation: Promise<unknown> | undefined;
+      const abort = () => {
+        cancellation ??= invoke('cancel_native_download', {
+          agentHostId: request.agentHostId,
+          operationId,
+        }).catch((error) => error);
+      };
+      options.signal?.addEventListener('abort', abort, { once: true });
+      if (options.signal?.aborted) abort();
+      const finish = (result: import('../platform/types').NativeDownloadResult) => {
+        if (
+          result.agentHostId !== request.agentHostId ||
+          result.operationId !== operationId ||
+          result.bytesWritten !== request.expectedBytes ||
+          !/^[a-f0-9]{64}$/i.test(result.sha256)
+        )
+          throw new Error('The native download returned an unrelated or incomplete receipt.');
+        return result;
+      };
+      try {
+        const result = await invoke<import('../platform/types').NativeDownloadResult>(
+          'download_staged_file',
+          { request: { ...request, operationId }, progress },
+        );
+        return finish(result);
+      } catch (error) {
+        if (nativeFailure(error)) throw new NativeUploadError(error);
+        abort();
+        const recovery = await cancellation;
+        if (typeof recovery === 'object' && recovery !== null && 'bytesWritten' in recovery)
+          return finish(recovery as import('../platform/types').NativeDownloadResult);
+        if (nativeFailure(recovery)) throw new NativeUploadError(recovery);
+        throw new NativeUploadError({
+          code: 'download_unconfirmed',
+          message: 'The desktop could not confirm download completion or cleanup.',
+          cleanup: 'unconfirmed',
+        });
+      } finally {
+        options.signal?.removeEventListener('abort', abort);
+        await cancellation;
+      }
+    },
+  };
 }

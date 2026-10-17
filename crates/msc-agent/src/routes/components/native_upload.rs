@@ -227,11 +227,13 @@ impl NativeStore {
         credential: &AuthenticatedCredential,
     ) -> Option<InspectionLease> {
         let session = self.session(id, credential)?;
+        let adapter = session.adapter.try_lock().ok()?;
         if !session.authorized(credential) || session.phase.load(Ordering::Acquire) != READY {
             return None;
         }
         session.inspections.fetch_add(1, Ordering::AcqRel);
         session.touch();
+        drop(adapter);
         Some(InspectionLease(session))
     }
     pub(crate) fn creation_matches(&self, id: &str) -> bool {
@@ -1362,12 +1364,18 @@ async fn write_stream(session: &Session, body: Body) -> Result<String, StreamFai
 }
 
 async fn cleanup(state: &ComponentsRoutesState, id: &str, session: &Session, terminal: u8) {
+    let _adapter = session.adapter.lock().await;
+    if session.inspections.load(Ordering::Acquire) > 0 {
+        return;
+    }
+    cleanup_locked(state, id, session, terminal).await;
+}
+async fn cleanup_locked(state: &ComponentsRoutesState, id: &str, session: &Session, terminal: u8) {
     {
         let mut uploads = state.staging.uploads.lock().unwrap();
         uploads.entries.remove(id);
         uploads.native.remove(id);
     }
-    let _adapter = session.adapter.lock().await;
     let dir = session
         .upload
         .path
@@ -2253,5 +2261,109 @@ mod tests {
         assert!(!path.exists());
         assert!(!restarted.native.contains(&id));
         assert!(restarted.uploads.lock().unwrap().get(&id).is_none());
+    }
+}
+
+fn storage_eligible(session: &Session) -> bool {
+    session.reserved.load(Ordering::Acquire)
+        && session.inspections.load(Ordering::Acquire) == 0
+        && match session.phase.load(Ordering::Acquire) {
+            ADMITTED | READY => now_unix() > session.expiry.load(Ordering::Acquire),
+            CLEANUP_FAILED => *session.done.borrow(),
+            REDEEMED => session.consumer_done.load(Ordering::Acquire),
+            _ => false,
+        }
+}
+pub(crate) async fn storage_candidates(
+    state: &ComponentsRoutesState,
+) -> Vec<super::storage_cleanup::Entry> {
+    let sessions = state
+        .staging
+        .native
+        .sessions
+        .lock()
+        .unwrap()
+        .iter()
+        .take(256)
+        .map(|(id, s)| (id.clone(), s.clone()))
+        .collect::<Vec<_>>();
+    let mut result = vec![];
+    for (id, session) in sessions {
+        if !session.reserved.load(Ordering::Acquire) {
+            continue;
+        }
+        let Ok(_adapter) = session.adapter.try_lock() else {
+            continue;
+        };
+        let eligible = storage_eligible(&session);
+        let path = session.upload.path.parent().unwrap().to_path_buf();
+        let measured = if eligible {
+            tokio::task::spawn_blocking(move || {
+                msc_infrastructure::storage::observe_tree(&path, &|| false)
+            })
+            .await
+            .ok()
+            .and_then(Result::ok)
+        } else {
+            None
+        };
+        result.push(super::storage_cleanup::Entry {
+            id: format!("upload:{id}"),
+            label: "Private upload staging".into(),
+            bytes: measured.as_ref().map(|m| m.0),
+            removable: eligible && measured.is_some(),
+            reason: if eligible {
+                "Expired transfer owned by the upload service"
+            } else {
+                "Active upload, inspection or consumer is protected"
+            }
+            .into(),
+            fingerprint: measured.map(|m| m.1).unwrap_or_default(),
+        });
+    }
+    result
+}
+pub(crate) async fn storage_remove(
+    state: &ComponentsRoutesState,
+    entry: &super::storage_cleanup::Entry,
+) -> Result<u64, String> {
+    let id = entry
+        .id
+        .strip_prefix("upload:")
+        .ok_or("Unknown transfer kind")?;
+    let _admission = state.staging.native.admission.lock().await;
+    let session = state
+        .staging
+        .native
+        .sessions
+        .lock()
+        .unwrap()
+        .get(id)
+        .cloned()
+        .ok_or("Upload ownership no longer exists")?;
+    let _adapter = session.adapter.try_lock().map_err(|_| "Upload is busy")?;
+    if !storage_eligible(&session) {
+        return Err("Upload is active or no longer expired".into());
+    }
+    let path = session.upload.path.parent().unwrap().to_path_buf();
+    let observed = tokio::task::spawn_blocking(move || {
+        msc_infrastructure::storage::observe_tree(&path, &|| false)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())?;
+    if Some(observed.0) != entry.bytes || observed.1 != entry.fingerprint {
+        return Err("Upload changed since review".into());
+    }
+    let phase = session.phase.load(Ordering::Acquire);
+    session
+        .phase
+        .compare_exchange(phase, CANCELLING, Ordering::AcqRel, Ordering::Acquire)
+        .map_err(|_| "Upload became active")?;
+    cleanup_locked(state, id, &session, CANCELLED).await;
+    if session.reserved.load(Ordering::Acquire) {
+        Err("Removal unconfirmed; upload service retains its cleanup reservation".into())
+    } else {
+        Ok(observed.0)
     }
 }

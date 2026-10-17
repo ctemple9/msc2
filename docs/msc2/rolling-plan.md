@@ -2,7 +2,7 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.4 are implemented, awaiting owner verification; P21.5–P21.8
+Phase 21 P21.1–P21.5 are implemented, awaiting owner verification; P21.6–P21.8
 are authorized for sequential execution with verification deferred until the end.
 P21.1 visual acceptance remains pending.
 Independent Phase 20 gate review remains in [pending acceptance](pending-acceptance.md).
@@ -38,7 +38,7 @@ is separate from that closure; no earlier unobserved check is promoted to Pass.
 ## Phase 21 — Storage inventory and management
 
 **Planning state:** Owner requested PLAN on October 16 after discussing the
-screen and cleanup behavior. P21.1–P21.4 are implemented and awaiting owner
+screen and cleanup behavior. P21.1–P21.5 are implemented and awaiting owner
 verification/review. Cameron explicitly authorized P21.3–P21.8 to execute in
 sequence with one commit per step and verification deferred until the end.
 This also authorizes the P21.1-based UI implementation; visual acceptance remains
@@ -149,12 +149,14 @@ continuous deep scan or broad test matrix is implied.
 
 ### P21.5 — Add reviewed cleanup for disposable and obsolete owned files
 
-**Status:** Planned.
+**Status:** Implemented; awaiting owner verification.
 **Files:** `crates/msc-agent/src/routes/storage.rs`, `map_staging.rs`; storage cleanup/application adapters; Phase 20 staging/operation ownership integration; tool/agent version reference discovery; API/CLI cleanup requests; essential existing cleanup tests; this plan.
 **What:** Extend the current preview-bound map cleanup to selected same-category cache/download/obsolete-version entries. Bind an expiring preview to the authenticated host, credential, selected item identities and allowed action; recheck ownership, path identity, changed files, current/rollback versions and live leases immediately before deletion. Active uploads, conversions, maps and shared runtime dependencies remain protected. Resolve interruption/restart and cleanup cancellation at safe boundaries; return removed, retained, failed and remaining items with measured results. Treat reclaimable bytes as an estimate where filesystem sharing prevents exact attribution; refresh affected volume availability without claiming unrelated free-space changes as MSC savings. Reuse existing permission/admission/cancellation mechanisms and prevent cleanup racing with new work. CLI retains local preview and explicit selection/confirmation. Do not repurpose uninstall inventory or general path deletion as authority.
 **Verify:** `cargo clippy -p msc-agent --bin msc -- -D warnings -A dead_code`
 **Batch:** P21.5 only; depends on P21.4 verification unless included in a newly authorized batch.
 **Commit:** `P21.5: clean reviewed inactive storage safely`
+
+**Implementation:** Added exact-selection, five-minute host/credential-bound reviews for map cache, transfer-owner staging and verified obsolete desktop-staged builds. Existing upload/download ownership, admission and inspection/consumer leases remain authoritative; unknown, current and rollback builds remain protected. Build staging/repair shares cross-process exclusion with removal. Per-item results are persisted before/after removal; interruption never resumes deletion and unconfirmed outcomes stay explicit. Native/CLI adapters accept typed selections, never arbitrary paths. Corrected the inventory scan runtime route to Axum 0.7 `:id` syntax (OpenAPI retains `{id}`). Windows inventory now opens metadata handles independently from copy handles, avoiding conflicts with active file sharing. No tests or live cleanup executed. Required agent/native Clippy and isolated Windows shared-source compilation passed; physical behavior remains pending.
 
 ### P21.6 — Reuse server-data deletion through storage selections
 

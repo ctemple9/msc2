@@ -1,5 +1,7 @@
 //! Preview-bound cleanup of rebuildable, abandoned map staging on this host.
+mod builds;
 mod inventory;
+mod review;
 
 use super::lifecycle::{LifecycleRoutesState, error_response, require_permission};
 use crate::auth::AuthenticatedCredential;
@@ -19,6 +21,8 @@ use std::time::{Duration, Instant};
 #[derive(Clone)]
 struct StorageState {
     lifecycle: LifecycleRoutesState,
+    components: super::components::ComponentsRoutesState,
+    reviews: Arc<Mutex<review::Reviews>>,
     inventory: Arc<Mutex<inventory::InventoryState>>,
     previews: Arc<Mutex<HashMap<String, Preview>>>,
 }
@@ -28,15 +32,24 @@ struct Preview {
     entries: Vec<CleanupEntry>,
 }
 
-pub fn router(lifecycle: LifecycleRoutesState) -> Router {
+pub fn router(
+    lifecycle: LifecycleRoutesState,
+    components: super::components::ComponentsRoutesState,
+) -> Router {
     Router::new()
+        .route("/host/storage/candidates", get(review::candidates))
+        .route("/host/storage/reviews", post(review::review))
+        .route("/host/storage/cleanups", post(review::apply))
+        .route("/host/storage/cleanups/:id", get(review::result))
         .route("/host/storage/inventory", get(inventory::inventory))
         .route("/host/storage/scans", post(inventory::refresh))
-        .route("/host/storage/scans/{id}", get(inventory::scan_status))
+        .route("/host/storage/scans/:id", get(inventory::scan_status))
         .route("/host/storage/preview", post(preview))
         .route("/host/storage/cleanup", post(cleanup))
         .with_state(StorageState {
             lifecycle,
+            components,
+            reviews: Default::default(),
             inventory: Arc::new(Mutex::new(inventory::InventoryState::new())),
             previews: Arc::new(Mutex::new(HashMap::new())),
         })

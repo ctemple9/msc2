@@ -27,7 +27,7 @@ impl InventoryState {
     }
 }
 
-fn backend() -> Box<dyn native::LocalServices> {
+pub(super) fn backend() -> Box<dyn native::LocalServices> {
     #[cfg(target_os = "macos")]
     {
         Box::new(msc_platform_macos::uninstall::MacUninstall)

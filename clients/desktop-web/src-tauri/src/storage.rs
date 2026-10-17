@@ -50,6 +50,8 @@ pub struct RemoteRequest {
     pub agent_host_id: String,
     pub action: String,
     pub operation_id: Option<String>,
+    pub selection: Option<msc_api::dto::StorageReviewRequestDto>,
+    pub cleanup: Option<msc_api::dto::StorageCleanupRequestDto>,
 }
 
 fn root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -470,7 +472,51 @@ pub async fn storage_remote(
     {
         return Err("Invalid storage operation identity".into());
     }
+    let mut payload = serde_json::json!({});
     let (method, path) = match request.action.as_str() {
+        "candidates" | "review" => {
+            let selection = request
+                .selection
+                .as_ref()
+                .ok_or("Storage selection is required")?;
+            if selection.host_id != request.agent_host_id || selection.item_ids.len() > 64 {
+                return Err("Storage selection belongs to another computer or is too large".into());
+            }
+            let allowed = matches!(
+                (selection.category.as_str(), selection.action.as_str()),
+                ("cache", "map-cache" | "old-downloads") | ("agent", "obsolete-builds")
+            );
+            if !allowed {
+                return Err("Unsupported storage selection".into());
+            }
+            if request.action == "candidates" {
+                (
+                    reqwest::Method::GET,
+                    format!(
+                        "/v1/host/storage/candidates?category={}&action={}",
+                        selection.category, selection.action
+                    ),
+                )
+            } else {
+                payload = serde_json::to_value(selection).map_err(|e| e.to_string())?;
+                (reqwest::Method::POST, "/v1/host/storage/reviews".into())
+            }
+        }
+        "cleanup" => {
+            let cleanup = request
+                .cleanup
+                .as_ref()
+                .ok_or("Reviewed confirmation is required")?;
+            if cleanup.host_id != request.agent_host_id {
+                return Err("Review belongs to another computer".into());
+            }
+            payload = serde_json::to_value(cleanup).map_err(|e| e.to_string())?;
+            (reqwest::Method::POST, "/v1/host/storage/cleanups".into())
+        }
+        "result" if !id.is_empty() => (
+            reqwest::Method::GET,
+            format!("/v1/host/storage/cleanups/{id}"),
+        ),
         "inventory" => (
             reqwest::Method::GET,
             "/v1/host/storage/inventory".to_string(),
@@ -492,10 +538,11 @@ pub async fn storage_remote(
         let url = relative_request_url(&record.base_url, &path);
         let client = client.clone();
         let token = record.token.clone();
+        let payload = payload.clone();
         async move {
             let mut request = client.request(method.clone(), url?).bearer_auth(token);
             if method == reqwest::Method::POST {
-                request = request.json(&serde_json::json!({}));
+                request = request.json(&payload);
             }
             bounded(
                 request

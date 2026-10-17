@@ -53,6 +53,458 @@
     }
   },
   "paths": {
+    "/v1/host/storage/cleanups/{id}": {
+      "get": {
+        "summary": "Reviewed host storage cleanups/{id}",
+        "x-permission-category": "admin",
+        "responses": {
+          "200": {
+            "description": "Storage review or result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageReviewedResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/host/storage/cleanups": {
+      "post": {
+        "summary": "Reviewed host storage cleanups",
+        "x-permission-category": "admin",
+        "responses": {
+          "202": {
+            "description": "Storage review or result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "hostId": {
+                      "type": "string"
+                    },
+                    "operationId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "hostId",
+                    "operationId"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StorageCleanupRequestDTO"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/host/storage/reviews": {
+      "post": {
+        "summary": "Reviewed host storage reviews",
+        "x-permission-category": "admin",
+        "responses": {
+          "200": {
+            "description": "Storage review or result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageReviewDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StorageReviewRequestDTO"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/host/storage/candidates": {
+      "get": {
+        "summary": "Reviewed host storage candidates",
+        "x-permission-category": "admin",
+        "responses": {
+          "200": {
+            "description": "Storage review or result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageCandidatesDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage action refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/v1/host/storage/scans/{id}": {
       "get": {
         "summary": "Read host storage scan progress",
@@ -8136,6 +8588,163 @@
   },
   "components": {
     "schemas": {
+      "StorageReviewedResultDTO": {
+        "type": "object",
+        "properties": {
+          "hostId": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StorageOutcomeDTO"
+            }
+          },
+          "availableBytes": {
+            "type": "integer",
+            "minimum": 0,
+            "nullable": true
+          }
+        },
+        "required": [
+          "hostId",
+          "operationId",
+          "state",
+          "items",
+          "availableBytes"
+        ]
+      },
+      "StorageOutcomeDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "removedLogicalBytes": {
+            "type": "integer",
+            "minimum": 0,
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "state",
+          "removedLogicalBytes"
+        ]
+      },
+      "StorageReviewDTO": {
+        "type": "object",
+        "properties": {
+          "hostId": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "previewToken": {
+            "type": "string"
+          },
+          "expiresInSeconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "confirmation": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "hostId",
+          "category",
+          "action",
+          "previewToken",
+          "expiresInSeconds",
+          "confirmation"
+        ]
+      },
+      "StorageReviewRequestDTO": {
+        "type": "object",
+        "properties": {
+          "hostId": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "hostId",
+          "category",
+          "action"
+        ]
+      },
+      "StorageCandidatesDTO": {
+        "type": "object",
+        "properties": {
+          "hostId": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "hostId",
+          "category",
+          "action"
+        ]
+      },
+      "StorageCandidateDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "displayPath": {
+            "type": "string",
+            "nullable": true
+          },
+          "logicalBytes": {
+            "type": "integer",
+            "minimum": 0,
+            "nullable": true
+          },
+          "removable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "displayPath",
+          "logicalBytes",
+          "removable"
+        ]
+      },
       "StorageInventoryCapabilityDTO": {
         "type": "object",
         "properties": {
@@ -8499,15 +9108,18 @@
       },
       "StorageCleanupRequestDTO": {
         "type": "object",
-        "required": [
-          "previewToken"
-        ],
         "properties": {
+          "hostId": {
+            "type": "string"
+          },
           "previewToken": {
             "type": "string"
           }
         },
-        "additionalProperties": false
+        "required": [
+          "hostId",
+          "previewToken"
+        ]
       },
       "StorageCleanupResultDTO": {
         "type": "object",

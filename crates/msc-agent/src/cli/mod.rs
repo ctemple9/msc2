@@ -286,6 +286,35 @@ pub enum OperationCommand {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum StorageCommand {
+    /// Inspect action candidates on this computer without deleting anything.
+    Candidates {
+        #[arg(long)]
+        category: String,
+        #[arg(long)]
+        action: String,
+    },
+    /// Review exact opaque item IDs; returns a five-minute confirmation token.
+    Review {
+        #[arg(long)]
+        host: String,
+        #[arg(long)]
+        category: String,
+        #[arg(long)]
+        action: String,
+        #[arg(long, required = true)]
+        item: Vec<String>,
+    },
+    /// Confirm an exact review; removal runs as a cancellable operation.
+    Apply {
+        #[arg(long)]
+        host: String,
+        #[arg(long)]
+        preview_token: String,
+        #[arg(long)]
+        confirm: String,
+    },
+    /// Read per-item outcomes; interrupted removals never restart automatically.
+    Result { operation_id: String },
     /// Read the dated cached inventory without scanning.
     Inventory {
         /// Opaque cursor returned with the previous page.
@@ -1589,6 +1618,30 @@ async fn run_operation(common: CommonArgs, command: OperationCommand) -> Result<
 async fn run_storage(common: CommonArgs, command: StorageCommand) -> Result<(), CliError> {
     let client = ApiClient::connect_local().await?;
     match &command {
+        StorageCommand::Candidates { category, action } => {
+            if !category
+                .bytes()
+                .chain(action.bytes())
+                .all(|b| b.is_ascii_lowercase() || b == b'-')
+            {
+                return Err(CliError::usage("Invalid category or action"));
+            }
+            let result: serde_json::Value = client
+                .get_json(&format!(
+                    "/v1/host/storage/candidates?category={category}&action={action}"
+                ))
+                .await?;
+            return print_json(&result);
+        }
+        StorageCommand::Result { operation_id } => {
+            if uuid::Uuid::parse_str(operation_id).is_err() {
+                return Err(CliError::usage("Invalid operation ID"));
+            }
+            let result: serde_json::Value = client
+                .get_json(&format!("/v1/host/storage/cleanups/{operation_id}"))
+                .await?;
+            return print_json(&result);
+        }
         StorageCommand::Inventory { .. } | StorageCommand::Status { .. } => {
             let path = match &command {
                 StorageCommand::Status { operation_id } => {
@@ -1640,6 +1693,23 @@ async fn run_storage(common: CommonArgs, command: StorageCommand) -> Result<(), 
         _ => {}
     }
     let (path, body) = match command {
+        StorageCommand::Review {
+            host,
+            category,
+            action,
+            item,
+        } => (
+            "/v1/host/storage/reviews",
+            serde_json::json!({"hostId":host,"category":category,"action":action,"itemIds":item}),
+        ),
+        StorageCommand::Apply {
+            host,
+            preview_token,
+            confirm,
+        } => (
+            "/v1/host/storage/cleanups",
+            serde_json::json!({"hostId":host,"previewToken":preview_token,"confirmation":confirm}),
+        ),
         StorageCommand::Preview => ("/v1/host/storage/preview", serde_json::json!({})),
         StorageCommand::Cleanup { preview_token } => (
             "/v1/host/storage/cleanup",
@@ -1648,7 +1718,7 @@ async fn run_storage(common: CommonArgs, command: StorageCommand) -> Result<(), 
         _ => unreachable!("inventory commands dispatch above"),
     };
     let result: serde_json::Value = client.post_json(path, &body).await?;
-    if common.json {
+    if common.json || result.get("hostId").is_some() {
         return print_json(&result);
     }
     if let Some(entries) = result["entries"].as_array() {

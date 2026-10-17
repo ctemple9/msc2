@@ -52,3 +52,5 @@ pub mod local_source;
 pub mod source_tree;
 
 pub mod storage;
+
+pub mod managed_builds;

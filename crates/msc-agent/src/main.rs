@@ -552,7 +552,10 @@ fn build_app_with_auth_and_worlds(
                 .with_state(notification_state),
         )
         .merge(worlds)
-        .merge(routes::storage::router(lifecycle_state.clone()))
+        .merge(routes::storage::router(
+            lifecycle_state.clone(),
+            components_state.clone(),
+        ))
         .merge(components)
         .merge(backups)
         .merge(users)

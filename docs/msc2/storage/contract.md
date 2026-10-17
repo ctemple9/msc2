@@ -363,3 +363,27 @@ native Clippy command retains its three existing allowances using current
 volume labels, display paths and hard-link disclosure. Existing source-tree
 walkers retain archive portability checks. Physical platform and owner checks
 remain pending; no live host scan, service mutation, deletion or publication.
+
+### P21.5 reviewed disposable cleanup
+
+`GET /host/storage/candidates?category=cache&action=map-cache` lists bounded
+map candidates; `old-downloads` uses Phase 20 upload/download owners. Category
+`agent`, action `obsolete-builds`, offers only content-addressed three-file
+desktop builds with a known current reference, complete service/process proof
+and a retained prior fallback. Unknown older layouts and shared dependencies
+remain protected. No generic path deletion is exposed.
+
+`POST /host/storage/reviews` takes `hostId`, category, action and exact opaque
+`itemIds`. `POST /host/storage/cleanups` takes that host, `previewToken` and the
+review's exact confirmation. Reviews expire in 300 seconds and are consumed once
+a journal operation is admitted. `GET /host/storage/cleanups/{id}` reports each
+item; operation cancellation stops later items. Completed removals remain real.
+A persisted in-progress item becomes unconfirmed after restart, never an
+automatically retried deletion. Logical bytes removed are distinct from fresh
+volume availability and are not a promise of disk space released.
+
+CLI: `msc storage candidates --category cache --action map-cache`, then
+`msc storage review --host <hostId> --category cache --action map-cache --item <id>`;
+confirm with `msc storage apply --host <hostId> --preview-token <token> --confirm
+"REMOVE SELECTED FILES"`. Read `msc storage result <operationId>` or cancel through
+`msc storage cancel <operationId>`. Legacy map preview/cleanup remains compatible.

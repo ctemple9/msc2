@@ -196,7 +196,7 @@ pub(crate) fn cleanup_root() -> PathBuf {
 
 // Old agents did not give renderer children a lease. An unlocked parent lease
 // is therefore insufficient: inspect live process arguments before offering it.
-fn process_arguments() -> io::Result<String> {
+pub(crate) fn process_arguments() -> io::Result<String> {
     #[cfg(unix)]
     let output = std::process::Command::new("ps")
         .args(["-axww", "-o", "args="])
@@ -233,6 +233,7 @@ fn admission(root: &Path) -> io::Result<File> {
     if !metadata.is_dir() || metadata.file_type().is_symlink() {
         return Err(io::Error::other("Cleanup root is not a regular directory"));
     }
+    msc_infrastructure::storage::verified_root_id("map-cleanup", root)?;
     let path = root.join("admission.lock");
     if fs::symlink_metadata(&path).is_ok_and(|metadata| !metadata.file_type().is_file()) {
         return Err(io::Error::other("Invalid staging admission lock"));
@@ -245,48 +246,6 @@ fn admission(root: &Path) -> io::Result<File> {
         .open(path)?;
     file.lock_exclusive()?;
     Ok(file)
-}
-
-fn cleanup_fingerprint(path: &Path) -> io::Result<String> {
-    use sha2::{Digest, Sha256};
-    fn walk(path: &Path, hash: &mut Sha256, depth: usize, count: &mut usize) -> io::Result<()> {
-        *count += 1;
-        if depth > 32 || *count > 1_000_000 {
-            return Err(io::Error::other("Staging tree exceeds inspection limits"));
-        }
-        let meta = fs::symlink_metadata(path)?;
-        if !meta.is_dir() && !meta.is_file() {
-            return Err(io::Error::other(
-                "Staging contains a symlink or special file",
-            ));
-        }
-        hash.update(path.as_os_str().as_encoded_bytes());
-        hash.update(meta.len().to_le_bytes());
-        let modified = meta
-            .modified()?
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(io::Error::other)?;
-        hash.update(modified.as_nanos().to_le_bytes());
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::MetadataExt;
-            hash.update(meta.dev().to_le_bytes());
-            hash.update(meta.ino().to_le_bytes());
-        }
-        if meta.is_dir() {
-            let mut children = fs::read_dir(path)?
-                .map(|entry| entry.map(|entry| entry.path()))
-                .collect::<io::Result<Vec<_>>>()?;
-            children.sort();
-            for child in children {
-                walk(&child, hash, depth + 1, count)?;
-            }
-        }
-        Ok(())
-    }
-    let mut hash = Sha256::new();
-    walk(path, &mut hash, 0, &mut 0)?;
-    Ok(format!("{:x}", hash.finalize()))
 }
 
 fn inspect_entry(
@@ -319,8 +278,7 @@ fn inspect_entry(
         .to_str()
         .ok_or_else(|| io::Error::other("Unsupported staging path"))?;
     let in_use = locked || processes.contains(path_text);
-    let size_bytes = estimate_tree(&path)?;
-    let fingerprint = cleanup_fingerprint(&path)?;
+    let (size_bytes, fingerprint) = msc_infrastructure::storage::observe_tree(&path, &|| false)?;
     let entry = CleanupEntry {
         id: id.to_string(),
         path: path_text.to_string(),
@@ -345,7 +303,10 @@ pub(crate) fn preview_cleanup() -> io::Result<Vec<CleanupEntry>> {
     let _admission = admission(&root)?;
     let processes = process_arguments()?;
     let mut entries = Vec::new();
-    for entry in fs::read_dir(&root)? {
+    for (count, entry) in fs::read_dir(&root)?.enumerate() {
+        if count >= 256 {
+            break;
+        }
         let entry = entry?;
         let id = entry.file_name().to_string_lossy().to_string();
         if !owned_name(&id) {

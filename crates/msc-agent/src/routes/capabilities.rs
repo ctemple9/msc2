@@ -156,7 +156,7 @@ async fn capabilities_for_query(
             .then_some(msc_api::dto::StorageInventoryCapabilityDto {
                 protocol: 1,
                 scan: true,
-                cache_cleanup: false,
+                cache_cleanup: true,
                 server_data_cleanup: false,
             }),
         native_transfers: None,

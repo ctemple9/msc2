@@ -986,6 +986,14 @@ impl LifecycleRoutesState {
             .map_err(|error| format!("Agent identity is unavailable: {error:?}"))
     }
 
+    pub(crate) fn storage_credential_valid(&self, credential: &AuthenticatedCredential) -> bool {
+        self.inner.auth_state.as_ref().is_some_and(|auth| {
+            auth.stream_retains_permissions(&crate::auth::StreamAuthentication {
+                credential: credential.clone(),
+            })
+        })
+    }
+
     pub fn app_config_path(&self) -> PathBuf {
         self.inner.app_config.path.clone()
     }

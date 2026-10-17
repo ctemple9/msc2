@@ -707,7 +707,7 @@ impl Walker<'_> {
 /// Read only a small known metadata file through the no-follow boundary.
 pub fn read_small(path: &Path, limit: u64) -> io::Result<Vec<u8>> {
     use std::io::Read;
-    let file = native::open(path)?;
+    let file = native::open_read(path)?;
     if !file.metadata()?.is_file() || file.metadata()?.len() > limit {
         return Err(io::Error::other("metadata exceeds the inspection budget"));
     }
@@ -910,4 +910,80 @@ pub fn verified_root_id(host: &str, path: &Path) -> io::Result<String> {
         &meta.identity.1.to_string(),
         &meta.mount.to_string(),
     ]))
+}
+
+/// Bounded metadata observation for an owned cleanup target. File contents are
+/// never buffered; root identity and all child metadata participate in the proof.
+pub fn observe_tree(path: &Path, cancelled: &dyn Fn() -> bool) -> io::Result<(u64, String)> {
+    struct Observation<'a> {
+        cancelled: &'a dyn Fn() -> bool,
+        start: Instant,
+        entries: u64,
+        bytes: u64,
+        seen: BTreeSet<Identity>,
+        digest: [u8; 32],
+    }
+    fn visit(
+        file: &File,
+        relative: &Path,
+        depth: usize,
+        observation: &mut Observation<'_>,
+    ) -> io::Result<()> {
+        if (observation.cancelled)()
+            || observation.start.elapsed() > Duration::from_secs(300)
+            || depth > 30
+            || observation.entries >= 1_000_000
+        {
+            return Err(io::Error::other(
+                "Cleanup inspection cancelled or budget reached",
+            ));
+        }
+        observation.entries += 1;
+        let before = crate::source_tree::fingerprint(file)?;
+        let mut hash = Sha256::new();
+        hash.update(relative.as_os_str().as_encoded_bytes());
+        hash.update(&before);
+        for (slot, byte) in observation.digest.iter_mut().zip(hash.finalize()) {
+            *slot ^= byte;
+        }
+        let meta = native::measure(file)?;
+        if !file.metadata()?.is_dir() {
+            if !observation.seen.contains(&meta.identity) {
+                if observation.seen.len() >= 100_000 {
+                    return Err(io::Error::other("Cleanup identity budget reached"));
+                }
+                observation.bytes = observation
+                    .bytes
+                    .checked_add(meta.logical)
+                    .ok_or_else(|| io::Error::other("Cleanup size overflow"))?;
+                observation.seen.insert(meta.identity);
+            }
+        } else {
+            crate::source_tree::storage_children(file, |name, child, _| {
+                visit(&child, &relative.join(name), depth + 1, observation)
+            })?;
+        }
+        if crate::source_tree::fingerprint(file)? != before {
+            return Err(io::Error::other("Cleanup source changed during inspection"));
+        }
+        Ok(())
+    }
+    let root = native::open(path)?;
+    let mut observation = Observation {
+        cancelled,
+        start: Instant::now(),
+        entries: 0,
+        bytes: 0,
+        seen: BTreeSet::new(),
+        digest: [0; 32],
+    };
+    visit(&root, Path::new(""), 0, &mut observation)?;
+    Ok((
+        observation.bytes,
+        format!("{:x}", Sha256::digest(observation.digest)),
+    ))
+}
+
+pub fn open_owned_file(path: &Path) -> io::Result<File> {
+    native::open_read(path)
 }

@@ -106,3 +106,73 @@ pub struct StorageInventoryCapabilityDto {
     pub cache_cleanup: bool,
     pub server_data_cleanup: bool,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct StorageCandidateDto {
+    pub id: String,
+    pub label: String,
+    pub display_path: Option<String>,
+    pub logical_bytes: Option<u64>,
+    pub removable: bool,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct StorageCandidatesDto {
+    pub host_id: String,
+    pub category: String,
+    pub action: String,
+    pub items: Vec<StorageCandidateDto>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct StorageReviewRequestDto {
+    pub host_id: String,
+    pub category: String,
+    pub action: String,
+    pub item_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct StorageReviewDto {
+    pub host_id: String,
+    pub category: String,
+    pub action: String,
+    pub preview_token: String,
+    pub expires_in_seconds: u64,
+    pub confirmation: String,
+    pub items: Vec<StorageCandidateDto>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct StorageCleanupRequestDto {
+    pub host_id: String,
+    pub preview_token: String,
+    pub confirmation: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct StorageOutcomeDto {
+    pub id: String,
+    pub label: String,
+    pub state: String,
+    pub removed_logical_bytes: Option<u64>,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct StorageReviewedResultDto {
+    pub host_id: String,
+    pub operation_id: String,
+    pub state: String,
+    pub items: Vec<StorageOutcomeDto>,
+    pub available_bytes: Option<u64>,
+    pub observed_at: u64,
+}

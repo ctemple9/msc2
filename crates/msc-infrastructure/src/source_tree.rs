@@ -668,7 +668,7 @@ pub(crate) fn storage_children(
 pub(crate) fn storage_child(root: &File, name: &str, directory: bool) -> io::Result<File> {
     #[cfg(windows)]
     {
-        windows::child(root, name, directory)
+        windows::metadata_child(root, name, directory)
     }
     #[cfg(unix)]
     {
@@ -692,5 +692,39 @@ pub(crate) fn storage_child(root: &File, name: &str, directory: bool) -> io::Res
         let file = unsafe { File::from_raw_fd(fd) };
         check_kind(&file, directory)?;
         Ok(file)
+    }
+}
+
+pub(crate) fn storage_read_child(root: &File, name: &str, directory: bool) -> io::Result<File> {
+    #[cfg(windows)]
+    {
+        windows::child(root, name, directory)
+    }
+    #[cfg(unix)]
+    {
+        storage_child(root, name, directory)
+    }
+}
+pub(crate) fn storage_root(path: &Path) -> io::Result<File> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        use windows_sys::Win32::Storage::FileSystem::{
+            FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT, FILE_LIST_DIRECTORY,
+            FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE,
+            SYNCHRONIZE,
+        };
+        let file = OpenOptions::new()
+            .read(true)
+            .access_mode(FILE_READ_ATTRIBUTES | FILE_LIST_DIRECTORY | SYNCHRONIZE)
+            .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
+            .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
+            .open(path)?;
+        check_kind(&file, true)?;
+        Ok(file)
+    }
+    #[cfg(unix)]
+    {
+        open(path, true)
     }
 }

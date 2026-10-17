@@ -27,6 +27,20 @@ use windows_sys::{
 };
 
 pub(crate) fn child(root: &File, name: &str, directory: bool) -> io::Result<File> {
+    child_with_access(root, name, directory, false)
+}
+pub(super) fn metadata_child(root: &File, name: &str, directory: bool) -> io::Result<File> {
+    child_with_access(root, name, directory, true)
+}
+fn child_with_access(
+    root: &File,
+    name: &str,
+    directory: bool,
+    metadata_only: bool,
+) -> io::Result<File> {
+    use windows_sys::Win32::Storage::FileSystem::{
+        FILE_LIST_DIRECTORY, FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_WRITE, SYNCHRONIZE,
+    };
     let mut wide: Vec<u16> = name.encode_utf16().collect();
     let bytes =
         u16::try_from(wide.len() * 2).map_err(|_| io::Error::other("source name is too long"))?;
@@ -50,12 +64,21 @@ pub(crate) fn child(root: &File, name: &str, directory: bool) -> io::Result<File
     let result = unsafe {
         NtCreateFile(
             &mut handle,
-            FILE_GENERIC_READ,
+            if metadata_only {
+                FILE_READ_ATTRIBUTES | SYNCHRONIZE | if directory { FILE_LIST_DIRECTORY } else { 0 }
+            } else {
+                FILE_GENERIC_READ
+            },
             &attributes,
             &mut status,
             ptr::null(),
             0,
-            FILE_SHARE_READ,
+            FILE_SHARE_READ
+                | if metadata_only {
+                    FILE_SHARE_WRITE | FILE_SHARE_DELETE
+                } else {
+                    0
+                },
             FILE_OPEN,
             FILE_OPEN_REPARSE_POINT
                 | FILE_SYNCHRONOUS_IO_NONALERT
@@ -161,7 +184,7 @@ fn children_with_names(
                     return Err(io::Error::other("invalid directory child name"));
                 }
                 let directory = entry.FileAttributes & FILE_ATTRIBUTE_DIRECTORY != 0;
-                let file = child(root, &name, directory)?;
+                let file = child_with_access(root, &name, directory, !portable)?;
                 visit(&name, file, directory)?;
             }
             if entry.NextEntryOffset == 0 {

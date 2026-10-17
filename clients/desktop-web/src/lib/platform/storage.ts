@@ -28,7 +28,16 @@ export interface InventoryReply {
   snapshot: StorageSnapshot | null;
 }
 export interface ScanAccepted { hostId: string; operationId: string }
+export type StorageCandidates = components['schemas']['StorageCandidatesDTO'];
+export type StorageReview = components['schemas']['StorageReviewDTO'];
+export type StorageResult = components['schemas']['StorageReviewedResultDTO'];
+export type StorageSelection = components['schemas']['StorageReviewRequestDTO'];
+export type StorageConfirmation = components['schemas']['StorageCleanupRequestDTO'];
 export interface StorageBridge {
+  candidates(selection: StorageSelection): Promise<StorageCandidates>;
+  review(selection: StorageSelection): Promise<StorageReview>;
+  apply(confirmation: StorageConfirmation): Promise<ScanAccepted>;
+  result(agentHostId: string, operationId: string): Promise<StorageResult>;
   running(): Promise<Record<string, string>>;
   local(action: 'cached' | 'refresh' | 'status' | 'cancel'): Promise<LocalFootprint>;
   cached(agentHostId: string): Promise<StorageSnapshot | null>;
@@ -40,7 +49,12 @@ export interface StorageBridge {
 
 export async function loadStorageBridge(): Promise<StorageBridge> {
   const { invoke } = await import('@tauri-apps/api/core');
+  const selected = <T>(action: string, selection: StorageSelection) => invoke<T>('storage_remote', { request: {agentHostId: selection.hostId, action, selection} });
   return {
+    candidates: selection => selected<StorageCandidates>('candidates',selection),
+    review: selection => selected<StorageReview>('review',selection),
+    apply: cleanup => invoke<ScanAccepted>('storage_remote',{request:{agentHostId:cleanup.hostId,action:'cleanup',cleanup}}),
+    result: (agentHostId,operationId) => invoke<StorageResult>('storage_remote',{request:{agentHostId,action:'result',operationId}}),
     running: () => invoke<Record<string,string>>('storage_active_scans'),
     local: (action) => invoke<LocalFootprint>('storage_local', { action }),
     cached: (agentHostId) => invoke<StorageSnapshot | null>('storage_cached', { agentHostId }),

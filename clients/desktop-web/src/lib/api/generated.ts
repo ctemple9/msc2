@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: f954eb6c468254dee38a2f3aa3f28a0d26fc47b68787f59d949388364b08421b
+// Contract SHA-256: 0fbb966a8007b6f5e8deb97a45e45e4f2d17338af2fff3ed1ac4773c239ed672
 
 export interface paths {
   '/v1/active-server': {
@@ -2838,6 +2838,117 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/host/storage/candidates': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Reviewed host storage candidates */
+    get: {
+      parameters: {
+        query: {
+          action: string;
+          category: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Storage review or result */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['StorageCandidatesDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/host/storage/cleanup': {
     parameters: {
       query?: never;
@@ -2852,6 +2963,233 @@ export interface paths {
      * @description Administrator-only and host-scoped, including remote hosts. Does not delete worlds, backups, components, settings or credentials. Active leases, live terrain helper references, symlinks and unrecognized directories are retained. Cleanup tokens are credential-bound, one-use and expire after five minutes; candidates are rechecked at deletion. Sizes are logical bytes, not a filesystem allocation guarantee. Scope is MSC-owned map-staging only.
      */
     post: operations['cleanStorage'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/host/storage/cleanups': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Reviewed host storage cleanups */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['StorageCleanupRequestDTO'];
+        };
+      };
+      responses: {
+        /** @description Storage review or result */
+        202: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              hostId: string;
+              operationId: string;
+            } & {
+              [key: string]: unknown;
+            };
+          };
+        };
+        /** @description Storage action refused */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/host/storage/cleanups/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Reviewed host storage cleanups/{id} */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Storage review or result */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['StorageReviewedResultDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -2973,6 +3311,118 @@ export interface paths {
      * @description Administrator-only and host-scoped, including remote hosts. Does not delete worlds, backups, components, settings or credentials. Active leases, live terrain helper references, symlinks and unrecognized directories are retained. Cleanup tokens are credential-bound, one-use and expire after five minutes; candidates are rechecked at deletion. Sizes are logical bytes, not a filesystem allocation guarantee. Scope is MSC-owned map-staging only.
      */
     post: operations['previewStorageCleanup'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/host/storage/reviews': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Reviewed host storage reviews */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['StorageReviewRequestDTO'];
+        };
+      };
+      responses: {
+        /** @description Storage review or result */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['StorageReviewDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description Storage action refused */
+        503: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
     delete?: never;
     options?: never;
     head?: never;
@@ -9430,6 +9880,22 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    StorageCandidateDTO: {
+      displayPath: string | null;
+      id: string;
+      label: string;
+      logicalBytes: number | null;
+      removable: boolean;
+    } & {
+      [key: string]: unknown;
+    };
+    StorageCandidatesDTO: {
+      action: string;
+      category: string;
+      hostId: string;
+    } & {
+      [key: string]: unknown;
+    };
     StorageCleanupEntryDTO: {
       id: string;
       path: string;
@@ -9451,6 +9917,7 @@ export interface components {
       [key: string]: unknown;
     };
     StorageCleanupRequestDTO: {
+      hostId: string;
       previewToken: string;
     } & {
       [key: string]: unknown;
@@ -9504,9 +9971,43 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    StorageOutcomeDTO: {
+      id: string;
+      label: string;
+      removedLogicalBytes: number | null;
+      state: string;
+    } & {
+      [key: string]: unknown;
+    };
     StorageProgressDTO: {
       entries: number;
       rootsCompleted: number;
+    } & {
+      [key: string]: unknown;
+    };
+    StorageReviewDTO: {
+      action: string;
+      category: string;
+      confirmation: string;
+      expiresInSeconds: number;
+      hostId: string;
+      previewToken: string;
+    } & {
+      [key: string]: unknown;
+    };
+    StorageReviewedResultDTO: {
+      availableBytes: number | null;
+      hostId: string;
+      items: components['schemas']['StorageOutcomeDTO'][];
+      operationId: string;
+      state: string;
+    } & {
+      [key: string]: unknown;
+    };
+    StorageReviewRequestDTO: {
+      action: string;
+      category: string;
+      hostId: string;
     } & {
       [key: string]: unknown;
     };

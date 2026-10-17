@@ -18,6 +18,12 @@ pub(super) struct Measurement {
 // Resolve each component relative to its retained parent, never a canonicalize-
 // then-open pair. A substituted ancestor or final link cannot escape the root.
 pub(super) fn open(path: &Path) -> io::Result<File> {
+    open_mode(path, false)
+}
+pub(super) fn open_read(path: &Path) -> io::Result<File> {
+    open_mode(path, true)
+}
+fn open_mode(path: &Path, read: bool) -> io::Result<File> {
     if !path.is_absolute() || path.as_os_str().len() > 4096 {
         return Err(io::Error::other(
             "storage root must be a bounded absolute path",
@@ -31,7 +37,7 @@ pub(super) fn open(path: &Path) -> io::Result<File> {
             Component::Prefix(_) => prefix.push(component.as_os_str()),
             Component::RootDir => {
                 prefix.push(component.as_os_str());
-                handle = Some(crate::source_tree::open(&prefix, true)?);
+                handle = Some(crate::source_tree::storage_root(&prefix)?);
             }
             Component::Normal(name) => {
                 let text = name
@@ -40,13 +46,14 @@ pub(super) fn open(path: &Path) -> io::Result<File> {
                 prefix.push(name);
                 let directory =
                     components.peek().is_some() || std::fs::symlink_metadata(&prefix)?.is_dir();
-                handle = Some(crate::source_tree::storage_child(
-                    handle
-                        .as_ref()
-                        .ok_or_else(|| io::Error::other("missing volume root"))?,
-                    text,
-                    directory,
-                )?);
+                let parent = handle
+                    .as_ref()
+                    .ok_or_else(|| io::Error::other("missing volume root"))?;
+                handle = Some(if read && components.peek().is_none() {
+                    crate::source_tree::storage_read_child(parent, text, directory)?
+                } else {
+                    crate::source_tree::storage_child(parent, text, directory)?
+                });
             }
             _ => {
                 return Err(io::Error::other(

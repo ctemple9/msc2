@@ -882,6 +882,12 @@ fn manage_agent_service_blocking(
             let request = agent_install_request()?;
             let expected_binary = request.binary_path.clone();
             let helper = bedrock_helper_install_request()?;
+            let _build_guard = msc_infrastructure::managed_builds::guard(
+                &agent_data_directory()?.join("agent/builds"),
+                true,
+                true,
+            )
+            .map_err(|e| e.to_string())?;
             let report = msc_platform_macos::service::install_and_start_elevated(request, helper)
                 .map_err(|error| error.to_string())?;
             let report = ensure_service_report_uses_binary(report, &expected_binary)?;
@@ -920,6 +926,12 @@ fn manage_agent_service_blocking(
             let request = agent_install_request()?;
             let expected_binary = expected_local_agent_binary()?;
             let helper = linux_system_agent_path()?;
+            let _build_guard = msc_infrastructure::managed_builds::guard(
+                &agent_data_directory()?.join("agent/builds"),
+                true,
+                true,
+            )
+            .map_err(|e| e.to_string())?;
             let report =
                 msc_platform_linux::service::install_desktop_service_elevated(request, &helper)
                     .map_err(|error| error.to_string())?;
@@ -944,6 +956,12 @@ fn manage_agent_service_blocking(
             AgentServiceAction::Install | AgentServiceAction::Repair => {
                 let request = agent_install_request()?;
                 let expected_binary = request.binary_path.clone();
+                let _build_guard = msc_infrastructure::managed_builds::guard(
+                    &agent_data_directory()?.join("agent/builds"),
+                    true,
+                    true,
+                )
+                .map_err(|e| e.to_string())?;
                 windows_service::install(&request, _owner_window)?;
                 let report = manager
                     .execute(ServiceManagerCommand::Status { service_name })
@@ -1405,7 +1423,10 @@ fn stage_packaged_agent(
     let file_name = source
         .file_name()
         .ok_or_else(|| "The packaged agent path has no file name.".to_string())?;
-    let build_directory = data_directory.join("agent/builds").join(digest);
+    let build_root = data_directory.join("agent/builds");
+    let _build_guard = msc_infrastructure::managed_builds::guard(&build_root, true, true)
+        .map_err(|e| e.to_string())?;
+    let build_directory = build_root.join(&digest);
     let destination = build_directory.join(file_name);
     let renderer_destination = build_directory.join(
         renderer
@@ -1422,6 +1443,8 @@ fn stage_packaged_agent(
     stage_packaged_executable(source, &destination, &source_bytes)?;
     stage_packaged_executable(renderer, &renderer_destination, &renderer_bytes)?;
     stage_packaged_executable(bedrock_map, &bedrock_map_destination, &bedrock_map_bytes)?;
+    msc_infrastructure::managed_builds::record_current(&build_root, &digest)
+        .map_err(|e| e.to_string())?;
     Ok(destination)
 }
 

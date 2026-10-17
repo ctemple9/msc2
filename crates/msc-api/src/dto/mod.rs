@@ -45,3 +45,8 @@ pub use worlds::*;
 
 pub mod storage;
 pub use storage::*;
+
+pub use storage::{
+    StorageCandidateDto, StorageCandidatesDto, StorageCleanupRequestDto, StorageOutcomeDto,
+    StorageReviewDto, StorageReviewRequestDto, StorageReviewedResultDto,
+};

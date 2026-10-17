@@ -1,6 +1,8 @@
 //! P8.24: add-on, catalog, client-export, modpack, and shared staging
 //! routes wired to the real Phase 8 application services.
 
+pub(crate) mod storage_cleanup;
+
 use std::collections::{BTreeMap, HashMap};
 use std::fs::OpenOptions;
 use std::io::Read;

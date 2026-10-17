@@ -2,8 +2,8 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 storage implementation is planned and unstarted. Independent Phase 20
-gate review remains in [pending acceptance](pending-acceptance.md).
+Phase 21 P21.1 specification is implemented, awaiting owner review; storage
+application implementation is unstarted. Independent Phase 20 gate review remains in [pending acceptance](pending-acceptance.md).
 
 Historical implementation and published release records were reconciled and
 moved to [the archive](rolling-plan-archive.md) at Cameron's October 16 request.
@@ -36,8 +36,9 @@ is separate from that closure; no earlier unobserved check is promoted to Pass.
 ## Phase 21 — Storage inventory and management
 
 **Planning state:** Owner requested PLAN on October 16 after discussing the
-screen and cleanup behavior. P21.1–P21.8 are unstarted; this plan authorizes no
-implementation, scanning of live hosts, deletion, release or test execution.
+screen and cleanup behavior. P21.1 specification is implemented and awaiting
+owner review; P21.2–P21.8 remain unstarted. P21.1 execution authorized documentation only, with no live-host
+scanning, deletion, release or test execution.
 Phase 20 implementation records are archived. Before implementing storage,
 reconcile its staging/operation ownership with the actual completed Phase 20
 code; do not build a competing upload/staging registry.
@@ -103,9 +104,10 @@ continuous deep scan or broad test matrix is implied.
 
 ### P21.1 — Specify the Storage screens and inventory contract
 
-**Status:** Planned.
-**Files:** A concise design/accounting document and static screen sketches under `docs/msc2/storage/`; `docs/msc2/msc2-port-plan.md` for the feature gate; this plan.
+**Status:** Implemented; awaiting owner verification and sketch/contract review.
+**Files:** `docs/msc2/storage/contract.md` and `docs/msc2/storage/screens.md`; `docs/msc2/msc2-port-plan.md` for the feature gate; this plan.
 **What:** Turn the owner-agreed flow above into concrete overview, host breakdown, server detail, category selection and separate cache/backup/world/server removal reviews. Apply `antiAIslop.md`; show loading, partial, offline, permission-denied, empty, changed-since-scan and cleanup-result states. Inventory actual installed bundles, staged agent builds, tools/runtimes, custom server roots, world slots, backups, logs, map output and Phase 20 staging. Specify disjoint categories, volume-aware capacity, logical versus allocated size, hard-link/clone limits, scan budgets, cache lifetime and stable host/item IDs. Reuse read-only ownership discovery from uninstall where appropriate without coupling inventory to its destructive executor. Freeze API/native responsibilities and backward compatibility. Cameron reviews the sketches/contract before UI implementation; no application code in this step.
+**Implementation:** Added the concrete screen wireframes, source-backed Phase 20 staging reconciliation, disjoint accounting/identity rules, bounded scan/cache policy and additive API/native contract. Documentation only; no application code or tests. Owner review remains pending before subsequent dependent implementation.
 **Verify:** `git show --check --stat --oneline HEAD`
 **Batch:** P21.1 only; follows owner selection of Phase 21, after reconciling Phase 20's actual delivered contract. Later steps need separate execution authorization.
 **Commit:** `P21.1: specify storage inventory screens and accounting`

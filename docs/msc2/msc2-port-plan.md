@@ -342,3 +342,34 @@ throughput and peak memory for the approximately 8 GB world and representative
 pack/server sources; unavailable platform/network cases remain explicit. No
 instant-import or unmeasured speed claim. Independent review and owner physical
 acceptance remain required; no test or CI/release gate is added by this plan.
+
+
+## Phase 21 — Storage inventory and management
+
+**State:** P21.1 specification implemented, awaiting owner verification and
+sketch/contract review; application implementation unstarted. See the
+[contract](storage/contract.md), [static sketches](storage/screens.md) and
+[step queue](rolling-plan.md#phase-21--storage-inventory-and-management).
+
+**Exit gate:** Settings → Storage supports saved-computer overview → computer →
+category/server → separate removal review on supported desktop platforms and
+paired agents. Known owned roots have disjoint, explained accounting; unreadable
+or unverified coverage is partial/unknown. Capacity is per volume, logical and
+allocated sizes stay distinct, and hard-link/clone limits never become a promise
+of freed space. Headless agents report their own footprint; local desktop
+measurement remains available with its agent offline. Dated offline results are
+viewable, and bounded cancellable scans do not block server management or
+automatically contact all hosts. Stable host/root/item identities prevent stale
+results or actions from reaching a different computer.
+
+Cleanup revalidates exact selections, permissions, ownership, changed sources and
+live references at execution. It protects active staging/maps/tools, credentials,
+current/rollback installations and unrecognized data; it reuses Phase 20 owners
+and existing backup/world/server deletion rules and confirmations. Reviews stay
+within one computer/category, with separate world/server consequences. Failed,
+interrupted or cancelled work reports per-item partial outcomes truthfully.
+Cameron records representative local/remote/offline, multi-volume, large-server,
+active-operation and destructive acceptance using disposable data before the
+other agent reviews this gate. Static specification or step statuses do not
+close it. No automatic deletion, continuous deep scan, new CI/release gate or
+automatically authorized tests.

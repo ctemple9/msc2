@@ -576,12 +576,16 @@
         >{/if}
     </div>{/if}
   <div class="heading">
-    <h2>{title}</h2>
-    <p class="quiet">
-      {computer
-        ? `${computer.name} · ${snapshot ? 'Logical size · ' + dated(snapshot.completedAt) : 'No inventory yet'}`
-        : 'MSC files on your saved computers'}
-    </p>
+    {#if computer}
+      <h2>{title}</h2>
+      <p class="quiet">
+        {computer.name} · {snapshot
+          ? 'Logical size · ' + dated(snapshot.completedAt)
+          : 'No inventory yet'}
+      </p>
+    {:else}
+      <h2 class="overview-heading">Computers</h2>
+    {/if}
   </div>
   {#if loading}<p class="quiet">Reading dated inventories…</p>{:else if loadProblem}<p role="alert">
       {loadProblem}
@@ -977,6 +981,13 @@
     font-size: 20px;
     font-weight: 600;
     margin: 0 0 7px;
+  }
+  h2.overview-heading {
+    font-size: 10px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--msc2-text-tertiary);
+    margin: 0;
   }
   p {
     margin: 0;

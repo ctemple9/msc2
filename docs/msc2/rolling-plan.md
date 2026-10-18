@@ -2,7 +2,7 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.32 implementation/candidate preparation is recorded, awaiting
+Phase 21 P21.1–P21.33 implementation/candidate preparation is recorded, awaiting
 owner verification. The matching Intel candidate and consolidated checks are in
 [Storage acceptance](storage/acceptance.md). Visual captures/acceptance and the
 independent Phase 21 gate review remain pending.
@@ -410,3 +410,12 @@ continuous deep scan or broad test matrix is implied.
 **Verify:** `npx tauri dev` — open MSC Settings → Services and confirm Xbox Broadcast appears directly below the tabs without the “On Local agent” label.
 **Batch:** solo.
 **Commit:** `P21.32: clarify xbox broadcast heading`
+
+### P21.33 — Match Storage overview headings
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Remove the redundant computer-list subtitle and style its Computers heading to match the Server folder overline. Keep the larger heading and inventory details on computer drilldowns.
+**Verify:** `npx tauri dev` — open MSC Settings → Storage and confirm Server folder and Computers use the same heading size and the computer-list subtitle is absent.
+**Batch:** solo.
+**Commit:** `P21.33: align storage overview headings`

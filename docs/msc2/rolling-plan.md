@@ -2,7 +2,7 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.22 implementation/candidate preparation is recorded, awaiting
+Phase 21 P21.1–P21.23 implementation/candidate preparation is recorded, awaiting
 owner verification. The matching Intel candidate and consolidated checks are in
 [Storage acceptance](storage/acceptance.md). Visual captures/acceptance and the
 independent Phase 21 gate review remain pending.
@@ -320,3 +320,12 @@ continuous deep scan or broad test matrix is implied.
 **Verify:** `npm --prefix clients/desktop-web run check`
 **Batch:** solo.
 **Commit:** `P21.22: organize server worlds and backups`
+
+### P21.23 — Exclude saved-world containers from active-world rows
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Identify the active world by its explicit inventory label instead of treating every Worlds item without a child ID as active. Keep the `world_slots` parent bucket out of the active-world section, and show a safe fallback label for saved slots from older agents that still expose UUIDs. The parent bucket has no measurable files, so its zero-byte partial result appeared as Unknown. Checked formatting and Svelte types; no tests or builds run. Frontend reload only.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.23: hide saved-world containers from active world`

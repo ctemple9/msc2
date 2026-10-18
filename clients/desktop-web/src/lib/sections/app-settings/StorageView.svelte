@@ -87,7 +87,7 @@
         i.domainId !== null && !['active_slot_id.txt', '.p6_reconciled'].includes(i.domainId ?? ''),
     ),
   );
-  $: activeWorldItems = bySize(worldItems.filter((i) => i.domainId === null));
+  $: activeWorldItems = bySize(worldItems.filter(isActiveWorld));
   $: backupItems = bySize(serverItems.filter((i) => i.group === 'backups'));
   $: serverGroups = snapshot ? serverGroupEntries(snapshot, serverItems) : [];
   $: visibleItems = bySize(
@@ -136,6 +136,16 @@
   function sectionName(item: StorageItem, prefix: string): string {
     const separator = `${prefix} / `;
     return item.label.startsWith(separator) ? item.label.slice(separator.length) : item.label;
+  }
+  function isActiveWorld(item: StorageItem): boolean {
+    return ['Active world', 'Active Bedrock world', 'Worlds / Active data'].includes(item.label);
+  }
+  function savedWorldName(item: StorageItem): string {
+    for (const prefix of ['Saved world / ', 'Saved world collection / ']) {
+      if (item.label.startsWith(prefix)) return item.label.slice(prefix.length);
+    }
+    if (item.label.startsWith('Worlds / Stored slots / ')) return 'Saved world (name unavailable)';
+    return 'Saved world (name unavailable)';
   }
   function dated(time: number) {
     return time ? new Date(time * 1000).toLocaleString() : 'Not scanned';
@@ -761,18 +771,13 @@
         {#if activeWorldItems.length}
           {#each activeWorldItems as item (item.id)}<div class="file-row world-row">
               <span
-                >{sectionName(
-                  item,
-                  item.label.startsWith('Active Bedrock world')
-                    ? 'Active Bedrock world'
-                    : 'Active world',
-                )}
+                >Live world
                 <small>{item.partial ? 'Partial inventory' : 'Live server data'}</small></span
               >
               <span class="number">{itemSize(item)}</span>
             </div>{/each}
         {:else}<p class="quiet">No active world folder was identified.</p>{/if}
-        {#if activeWorldItems.some((item) => item.label.includes('Bedrock'))}
+        {#if activeWorldItems.some((item) => item.label === 'Active Bedrock world')}
           <p class="footnote">
             Bedrock stores its live world inside the worlds folder. Saved worlds and backups contain
             the full worlds collection.
@@ -796,7 +801,7 @@
         {#if savedWorldItems.length}
           {#each savedWorldItems as item (item.id)}<div class="file-row world-row">
               <span
-                >{sectionName(item, item.label.split(' / ')[0])}
+                >{savedWorldName(item)}
                 <small>{item.partial ? 'Partial inventory' : 'Saved world'}</small></span
               >
               <span class="number">{itemSize(item)}</span>

@@ -2,7 +2,7 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.31 implementation/candidate preparation is recorded, awaiting
+Phase 21 P21.1–P21.32 implementation/candidate preparation is recorded, awaiting
 owner verification. The matching Intel candidate and consolidated checks are in
 [Storage acceptance](storage/acceptance.md). Visual captures/acceptance and the
 independent Phase 21 gate review remain pending.
@@ -401,3 +401,12 @@ continuous deep scan or broad test matrix is implied.
 **Verify:** `npx tauri dev` — open MSC Settings, switch through all three tabs, then drill into Storage and back to Computers.
 **Batch:** solo.
 **Commit:** `P21.31: organize msc settings into tabs`
+
+### P21.32 — Clarify the Xbox Broadcast section heading
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** Desktop `AppSettingsSheet.svelte`; this plan.
+**What:** Remove the redundant host label at the top of Services and name its first section Xbox Broadcast. Remove the unused label style.
+**Verify:** `npx tauri dev` — open MSC Settings → Services and confirm Xbox Broadcast appears directly below the tabs without the “On Local agent” label.
+**Batch:** solo.
+**Commit:** `P21.32: clarify xbox broadcast heading`

@@ -561,10 +561,8 @@
     {/if}
 
     {#if activeTab === 'services'}
-      <p class="tab-context">On {hostName}</p>
-
       <section class="zone">
-        <p class="msc2-type-overline">Services</p>
+        <p class="msc2-type-overline">Xbox Broadcast</p>
         <p class="hint">
           These Xbox Broadcast settings belong to this agent and are shared by every server.
         </p>
@@ -840,11 +838,6 @@
     display: flex;
     flex-direction: column;
     gap: 18px;
-  }
-  .tab-context {
-    margin: 0;
-    color: var(--msc2-text-tertiary);
-    font-size: 12px;
   }
   .storage-tab {
     display: flex;

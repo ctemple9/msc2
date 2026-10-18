@@ -2,7 +2,7 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.24 implementation/candidate preparation is recorded, awaiting
+Phase 21 P21.1–P21.25 implementation/candidate preparation is recorded, awaiting
 owner verification. The matching Intel candidate and consolidated checks are in
 [Storage acceptance](storage/acceptance.md). Visual captures/acceptance and the
 independent Phase 21 gate review remain pending.
@@ -338,3 +338,12 @@ continuous deep scan or broad test matrix is implied.
 **Verify:** `npm --prefix clients/desktop-web run check`
 **Batch:** solo.
 **Commit:** `P21.24: show active world folder name`
+
+### P21.25 — Simplify world section dividers and action label
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Remove the bottom border from the last row in each Worlds section so the next section's top border is the single divider. Keep borders between rows within each section. Shorten the saved-world action to “Remove World…”. Add a native hover hint to disabled review actions when a refresh is needed: “Click Refresh to select.” Checked formatting and Svelte types; no tests or builds run. Frontend reload only.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.25: simplify world section dividers`

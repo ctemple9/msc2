@@ -674,6 +674,7 @@
           size="sm"
           variant="primary"
           disabled={!selection.length || actionBusy || !reviewAllowed}
+          title={!reviewAllowed ? 'Click Refresh to select' : undefined}
           onclick={() => void makeReview()}>Review removal…</Button
         >
       </div>
@@ -739,6 +740,7 @@
         <Button
           size="sm"
           disabled={!reviewAllowed}
+          title={!reviewAllowed ? 'Click Refresh to select' : undefined}
           onclick={() => void inspectAction('remove-server')}>Remove a server…</Button
         >
       </div>
@@ -805,7 +807,8 @@
           <Button
             size="sm"
             disabled={!reviewAllowed}
-            onclick={() => void inspectAction('remove-world')}>Remove a saved world…</Button
+            title={!reviewAllowed ? 'Click Refresh to select' : undefined}
+            onclick={() => void inspectAction('remove-world')}>Remove World…</Button
           >
         </div>
         {#if savedWorldItems.length}
@@ -829,6 +832,7 @@
           <Button
             size="sm"
             disabled={!reviewAllowed}
+            title={!reviewAllowed ? 'Click Refresh to select' : undefined}
             onclick={() => void inspectAction('delete-backups')}>Manage backups…</Button
           >
         </div>
@@ -869,10 +873,12 @@
           <Button
             size="sm"
             disabled={!reviewAllowed}
+            title={!reviewAllowed ? 'Click Refresh to select' : undefined}
             onclick={() => void inspectAction('map-cache')}>Review map cache…</Button
           ><Button
             size="sm"
             disabled={!reviewAllowed}
+            title={!reviewAllowed ? 'Click Refresh to select' : undefined}
             onclick={() => void inspectAction('old-downloads')}>Review old transfers…</Button
           >
         </div>
@@ -883,6 +889,7 @@
         <Button
           size="sm"
           disabled={!reviewAllowed}
+          title={!reviewAllowed ? 'Click Refresh to select' : undefined}
           onclick={() => void inspectAction('obsolete-builds')}>Review obsolete builds…</Button
         >
       {:else if category === 'desktopApp'}<p class="quiet">
@@ -1040,6 +1047,9 @@
   }
   .world-row {
     padding: 10px 0;
+  }
+  .world-section > .world-row:last-of-type {
+    border-bottom: 0;
   }
   .file-row,
   .volume {

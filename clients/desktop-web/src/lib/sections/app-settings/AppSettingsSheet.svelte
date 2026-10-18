@@ -16,12 +16,11 @@
   //
   // What's left and real: Open Server Folder (GET /v1/config/servers-root +
   // the revealInFileManager seam P12.9 built for the Files tab), plus
-  // host-wide service configuration below. This remains one flat sheet because
-  // the app-level settings are intentionally small and concrete.
+  // host-wide service configuration below.
   import { onDestroy, onMount } from 'svelte';
   import Sheet from '../../components/base/Sheet.svelte';
+  import SegmentedControl from '../../components/base/SegmentedControl.svelte';
   import StorageView from './StorageView.svelte';
-  let showStorage = false;
   import Card from '../../components/base/Card.svelte';
   import Button from '../../components/base/Button.svelte';
   import Toggle from '../../components/base/Toggle.svelte';
@@ -36,6 +35,16 @@
   import type { Schema, ScreenApi } from '../shared/types';
   import { call, errorMessage, mutate } from '../shared/types';
   import { pollOperation } from '../server-editor/model';
+
+  type SettingsTab = 'general' | 'services' | 'storage';
+  const settingsTabs = [
+    { value: 'general', label: 'General' },
+    { value: 'services', label: 'Services' },
+    { value: 'storage', label: 'Storage' },
+  ] as const;
+  let activeTab: SettingsTab = 'general';
+  let storageOpened = false;
+  let storageAtOverview = true;
 
   export let api: ScreenApi | undefined = undefined;
   export let hostId: string;
@@ -196,6 +205,11 @@
   function updatePreloadTabs(enabled: boolean): void {
     preloadTabs = enabled;
     onPreloadTabsChanged(enabled);
+  }
+
+  function selectTab(value: string): void {
+    activeTab = value as SettingsTab;
+    if (activeTab === 'storage') storageOpened = true;
   }
 
   async function openServersFolder(): Promise<void> {
@@ -397,15 +411,11 @@
 
 <Sheet title="MSC Settings" size="md" {onClose}>
   <div class="settings">
-    {#if showStorage}
-      <StorageView
-        {api}
-        {hostName}
-        onBack={() => {
-          showStorage = false;
-        }}
-      />
-    {:else}
+    <nav aria-label="MSC Settings sections">
+      <SegmentedControl options={settingsTabs} value={activeTab} onchange={selectTab} />
+    </nav>
+
+    {#if activeTab === 'general'}
       <section class="zone">
         <p class="msc2-type-overline">Updates</p>
         <Card padding="0">
@@ -524,6 +534,34 @@
           </div>
         </Card>
       </section>
+
+      <section class="zone">
+        <p class="msc2-type-overline">Reset and uninstall</p>
+        <Card padding="0">
+          <div class="row">
+            <div class="row-text">
+              <span class="name">Reset MSC</span>
+              <span class="hint"
+                >Choose whether to reset this device or the selected host, then confirm.</span
+              >
+            </div>
+            <Button variant="destructive" size="sm" onclick={onOpenReset}>Reset…</Button>
+          </div>
+          <div class="row">
+            <div class="row-text">
+              <span class="name">Uninstall MSC 2</span>
+              <span class="hint"
+                >Permanently remove this computer's MSC installation, servers, worlds, and backups.</span
+              >
+            </div>
+            <Button variant="destructive" size="sm" onclick={onOpenUninstall}>Uninstall…</Button>
+          </div>
+        </Card>
+      </section>
+    {/if}
+
+    {#if activeTab === 'services'}
+      <p class="tab-context">On {hostName}</p>
 
       <section class="zone">
         <p class="msc2-type-overline">Services</p>
@@ -746,68 +784,38 @@
           {#if duckdnsNotice}<p class="hint" role="status">{duckdnsNotice}</p>{/if}
         </section>
       {/if}
+    {/if}
 
-      <section class="zone">
-        <p class="msc2-type-overline">Data &amp; Folders</p>
-        <Card padding="0">
-          <div class="row">
-            <div class="row-text">
-              <span class="name">Servers Folder</span>
-              <span class="hint dir">{serversRootPath || 'Loading…'}</span>
-            </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={revealBusy || !serversRootPath}
-              onclick={openServersFolder}>Open Server Folder…</Button
-            >
-          </div>
-        </Card>
-        {#if revealNotice}<p class="hint">{revealNotice}</p>{/if}
-      </section>
-
-      <section class="zone">
-        <p class="msc2-type-overline">Storage</p>
-        <Card padding="0"
-          ><div class="row">
-            <div class="row-text">
-              <span class="name">MSC files on your computers</span><span class="hint"
-                >Review dated inventories, measure usage and manage owned files.</span
-              >
-            </div>
-            <Button
-              size="sm"
-              onclick={() => {
-                showStorage = true;
-              }}>Manage Storage…</Button
-            >
-          </div></Card
-        >
-      </section>
-
-      <section class="zone">
-        <p class="msc2-type-overline">Reset and uninstall</p>
-        <Card padding="0">
-          <div class="row">
-            <div class="row-text">
-              <span class="name">Reset MSC</span>
-              <span class="hint"
-                >Choose whether to reset this device or the selected host, then confirm.</span
-              >
-            </div>
-            <Button variant="destructive" size="sm" onclick={onOpenReset}>Reset…</Button>
-          </div>
-          <div class="row">
-            <div class="row-text">
-              <span class="name">Uninstall MSC 2</span>
-              <span class="hint"
-                >Permanently remove this computer's MSC installation, servers, worlds, and backups.</span
-              >
-            </div>
-            <Button variant="destructive" size="sm" onclick={onOpenUninstall}>Uninstall…</Button>
-          </div>
-        </Card>
-      </section>
+    {#if storageOpened}
+      <div class="storage-tab" class:inactive={activeTab !== 'storage'}>
+        {#if storageAtOverview}
+          <section class="zone">
+            <p class="msc2-type-overline">Server folder</p>
+            <Card padding="0">
+              <div class="row">
+                <div class="row-text">
+                  <span class="name">On {hostName}</span>
+                  <span class="hint dir">{serversRootPath || 'Loading…'}</span>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={revealBusy || !serversRootPath}
+                  onclick={openServersFolder}>Open Server Folder…</Button
+                >
+              </div>
+            </Card>
+            {#if revealNotice}<p class="hint">{revealNotice}</p>{/if}
+          </section>
+        {/if}
+        <StorageView
+          {api}
+          {hostName}
+          showRootBack={false}
+          onOverviewChange={(overview) => (storageAtOverview = overview)}
+          onBack={() => selectTab('general')}
+        />
+      </div>
     {/if}
   </div>
 </Sheet>
@@ -832,6 +840,19 @@
     display: flex;
     flex-direction: column;
     gap: 18px;
+  }
+  .tab-context {
+    margin: 0;
+    color: var(--msc2-text-tertiary);
+    font-size: 12px;
+  }
+  .storage-tab {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .storage-tab.inactive {
+    display: none;
   }
   .zone {
     display: flex;

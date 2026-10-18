@@ -35,6 +35,8 @@
   export let api: ScreenApi | undefined = undefined;
   export let hostName = 'Selected host';
   export let onBack: () => void = () => {};
+  export let showRootBack = true;
+  export let onOverviewChange: (overview: boolean) => void = () => {};
   type Computer = {
     id: string;
     agentId: string | null;
@@ -59,6 +61,7 @@
   let category = '';
   let server = '';
   let group = '';
+  $: onOverviewChange(!selected);
   let local: LocalFootprint | null = null;
   let alive = true;
   let loading = true;
@@ -115,7 +118,7 @@
         ? (serverItems[0]?.label.split(' / ')[0] ?? 'Server')
         : category
           ? (categories.find((c) => c[0] === category)?.[1] ?? category)
-          : (computer?.name ?? 'Storage');
+          : (computer?.name ?? 'Computers');
   function update(c: Computer) {
     computers = computers.map((item) => (item.id === c.id ? c : item));
   }
@@ -550,28 +553,28 @@
 </script>
 
 <section class="storage-view" aria-label="Storage">
-  <div class="toolbar">
-    <Button size="sm" onclick={back}
-      >‹ {review
-        ? 'Selection'
-        : action
-          ? 'Inventory'
-          : group
-            ? 'Server'
-            : server
-              ? 'Servers'
-              : category
-                ? computer?.name
-                : selected
-                  ? 'Computers'
-                  : 'Settings'}</Button
-    >
-    {#if computer && !review && !action}<Button
-        size="sm"
-        disabled={computer.busy || !!computer.scan || computer.localScan || !!computer.cleanup}
-        onclick={() => void refresh(computer!)}>{computer.busy ? 'Starting…' : 'Refresh'}</Button
-      >{/if}
-  </div>
+  {#if showRootBack || selected}<div class="toolbar">
+      <Button size="sm" onclick={back}
+        >‹ {review
+          ? 'Selection'
+          : action
+            ? 'Inventory'
+            : group
+              ? 'Server'
+              : server
+                ? 'Servers'
+                : category
+                  ? computer?.name
+                  : selected
+                    ? 'Computers'
+                    : 'Settings'}</Button
+      >
+      {#if computer && !review && !action}<Button
+          size="sm"
+          disabled={computer.busy || !!computer.scan || computer.localScan || !!computer.cleanup}
+          onclick={() => void refresh(computer!)}>{computer.busy ? 'Starting…' : 'Refresh'}</Button
+        >{/if}
+    </div>{/if}
   <div class="heading">
     <h2>{title}</h2>
     <p class="quiet">

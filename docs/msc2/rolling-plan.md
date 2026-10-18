@@ -2,7 +2,7 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.30 implementation/candidate preparation is recorded, awaiting
+Phase 21 P21.1–P21.31 implementation/candidate preparation is recorded, awaiting
 owner verification. The matching Intel candidate and consolidated checks are in
 [Storage acceptance](storage/acceptance.md). Visual captures/acceptance and the
 independent Phase 21 gate review remain pending.
@@ -392,3 +392,12 @@ continuous deep scan or broad test matrix is implied.
 **Verify:** `npx tauri dev` — refresh storage and confirm each unregistered server's Open folder action opens that server's directory.
 **Batch:** solo.
 **Commit:** `P21.30: normalize unregistered folder identity paths`
+
+### P21.31 — Organize MSC Settings into tabs
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** Desktop `AppSettingsSheet.svelte`, `StorageView.svelte`; this plan.
+**What:** Group the existing settings into General (updates, preload, reset and uninstall), Services (Xbox Broadcast, CurseForge, Playit and DuckDNS), and Storage (the selected host's server folder and the computer inventory). Open Storage directly on the computers list, show the server-folder action only there, and keep storage navigation and ongoing inventory work in place when switching tabs. The Services tab names the selected host. Svelte checking passes with 10 existing CSS warnings; no tests or app build run.
+**Verify:** `npx tauri dev` — open MSC Settings, switch through all three tabs, then drill into Storage and back to Computers.
+**Batch:** solo.
+**Commit:** `P21.31: organize msc settings into tabs`

@@ -2,7 +2,7 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.23 implementation/candidate preparation is recorded, awaiting
+Phase 21 P21.1–P21.24 implementation/candidate preparation is recorded, awaiting
 owner verification. The matching Intel candidate and consolidated checks are in
 [Storage acceptance](storage/acceptance.md). Visual captures/acceptance and the
 independent Phase 21 gate review remain pending.
@@ -329,3 +329,12 @@ continuous deep scan or broad test matrix is implied.
 **Verify:** `npm --prefix clients/desktop-web run check`
 **Batch:** solo.
 **Commit:** `P21.23: hide saved-world containers from active world`
+
+### P21.24 — Show the active world folder name
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** Desktop `StorageView.svelte`; `crates/msc-application/src/storage.rs`; this plan.
+**What:** Add the configured active world folder name to the storage inventory label and show it in the Active world section instead of the generic “Live world” row. For Bedrock, use the configured level name inside the `worlds/` collection; for Java, label each discovered live world folder. Keep the generic label for older agents. Checked formatting, Svelte types and Rust lint; no tests or builds run. Frontend reload and agent refresh required.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.24: show active world folder name`

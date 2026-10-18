@@ -257,17 +257,23 @@ pub fn discover(input: &Discovery<'_>) -> Manifest {
                     server.id
                 ));
             } else if safe_relative(Path::new(&folder)) {
-                let mut world_rule = rule(
-                    folder,
-                    Category::Servers,
-                    if server.server_type == msc_domain::identity::ServerType::Bedrock {
-                        "Active Bedrock world"
-                    } else {
-                        "Active world"
-                    },
-                    Some(&server.id),
-                    false,
-                );
+                let folder_name = if server.server_type == msc_domain::identity::ServerType::Bedrock
+                {
+                    name.clone()
+                } else {
+                    Path::new(&folder)
+                        .file_name()
+                        .and_then(|part| part.to_str())
+                        .unwrap_or(&name)
+                        .to_string()
+                };
+                let label = if server.server_type == msc_domain::identity::ServerType::Bedrock {
+                    format!("Active Bedrock world / {folder_name}")
+                } else {
+                    format!("Active world / {folder_name}")
+                };
+                let mut world_rule =
+                    rule(folder, Category::Servers, &label, Some(&server.id), false);
                 world_rule.group = Group::Worlds;
                 root.rules.push(world_rule);
             } else {

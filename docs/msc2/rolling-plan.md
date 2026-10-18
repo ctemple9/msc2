@@ -2,7 +2,7 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.20 implementation/candidate preparation is recorded, awaiting
+Phase 21 P21.1–P21.21 implementation/candidate preparation is recorded, awaiting
 owner verification. The matching Intel candidate and consolidated checks are in
 [Storage acceptance](storage/acceptance.md). Visual captures/acceptance and the
 independent Phase 21 gate review remain pending.
@@ -302,3 +302,12 @@ continuous deep scan or broad test matrix is implied.
 **Verify:** `npm --prefix clients/desktop-web run check`
 **Batch:** solo.
 **Commit:** `P21.20: color the storage category bar`
+
+### P21.21 — Keep server-list actions focused
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** On the Servers list, retain only Remove a server. Backup and saved-world actions stay inside an individual registered server's detail screen. The protected unregistered-files row has no actions. Inspected the scoped branch and checked formatting; no tests or builds run. Frontend reload only.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.21: simplify server list actions`

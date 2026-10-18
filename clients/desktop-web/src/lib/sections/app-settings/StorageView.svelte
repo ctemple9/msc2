@@ -693,14 +693,6 @@
         <Button
           size="sm"
           disabled={!reviewAllowed}
-          onclick={() => void inspectAction('delete-backups')}>Manage backups…</Button
-        ><Button
-          size="sm"
-          disabled={!reviewAllowed}
-          onclick={() => void inspectAction('remove-world')}>Remove a saved world…</Button
-        ><Button
-          size="sm"
-          disabled={!reviewAllowed}
           onclick={() => void inspectAction('remove-server')}>Remove a server…</Button
         >
       </div>

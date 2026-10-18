@@ -80,6 +80,9 @@
   $: serverItems = categoryItems.filter((i) =>
     server === 'unassigned' ? i.serverId === null : i.serverId === server,
   );
+  $: unregisteredRoots = serverItems.filter(
+    (i) => i.group === 'other' && i.domainId === null && !!i.displayPath,
+  );
   $: worldItems = serverItems.filter((i) => i.group === 'worlds');
   $: savedWorldItems = bySize(
     worldItems.filter(
@@ -162,6 +165,9 @@
   }
   function size(bytes: number | null | undefined) {
     return bytes == null ? 'Unknown' : storageBytesLabel(bytes);
+  }
+  function folderName(item: StorageItem) {
+    return item.displayPath?.split(/[\\/]/).filter(Boolean).at(-1) ?? item.label;
   }
   function overviewOf(c: Computer) {
     return c.snapshot ?? c.summary;
@@ -763,6 +769,14 @@
           may belong to more than one former server. MSC cannot verify a server removal for them, so
           they remain protected. Open Logs &amp; other files to inspect their locations.
         </p>
+        {#if computer.local}
+          {#each unregisteredRoots as item (item.id)}
+            <div class="file-row">
+              <span>{folderName(item)}<small>{item.displayPath}</small></span>
+              <button class="text-action" onclick={() => void reveal(item)}>Open folder…</button>
+            </div>
+          {/each}
+        {/if}
       {:else}
         <p class="quiet">
           Choose a section to inspect this server's files. World and backup removal is reviewed from

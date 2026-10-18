@@ -2,7 +2,7 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.26 implementation/candidate preparation is recorded, awaiting
+Phase 21 P21.1–P21.27 implementation/candidate preparation is recorded, awaiting
 owner verification. The matching Intel candidate and consolidated checks are in
 [Storage acceptance](storage/acceptance.md). Visual captures/acceptance and the
 independent Phase 21 gate review remain pending.
@@ -356,3 +356,12 @@ continuous deep scan or broad test matrix is implied.
 **Verify:** `npm --prefix clients/desktop-web run check`
 **Batch:** solo.
 **Commit:** `P21.26: space the server size label`
+
+### P21.27 — Open unregistered server folders locally
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** On the unregistered-server detail page, list the detected server folder names and provide an Open folder action for each when viewing the local computer. Reuse the verified storage reveal operation; remote hosts get no local file-manager action. Checked formatting and Svelte types; no tests or builds run. Frontend reload only.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.27: open unregistered server folders locally`

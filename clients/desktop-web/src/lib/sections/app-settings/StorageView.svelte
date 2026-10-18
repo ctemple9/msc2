@@ -651,7 +651,7 @@
             ></span>{/each}
         </div>
         <div class="bar-labels">
-          {#each categories as cat}<span>{cat[1]}</span>{/each}
+          {#each categories as cat}<span><i aria-hidden="true"></i>{cat[1]}</span>{/each}
         </div>
         {#each snapshot.volumes as volume (volume.id)}<div class="volume">
             <span
@@ -946,12 +946,29 @@
     height: 8px;
     margin-top: 8px;
   }
-  .proportion span {
-    background: var(--msc2-text-secondary);
-    min-width: 1px;
+  .proportion span:nth-child(1),
+  .bar-labels span:nth-child(1) i {
+    --storage-category-color: #8ecfc0;
   }
-  .proportion span:nth-child(even) {
-    opacity: 0.55;
+  .proportion span:nth-child(2),
+  .bar-labels span:nth-child(2) i {
+    --storage-category-color: #91a9d6;
+  }
+  .proportion span:nth-child(3),
+  .bar-labels span:nth-child(3) i {
+    --storage-category-color: #d6b77d;
+  }
+  .proportion span:nth-child(4),
+  .bar-labels span:nth-child(4) i {
+    --storage-category-color: #bc9bd1;
+  }
+  .proportion span:nth-child(5),
+  .bar-labels span:nth-child(5) i {
+    --storage-category-color: #83bdcc;
+  }
+  .proportion span {
+    background: var(--storage-category-color);
+    min-width: 1px;
   }
   .bar-labels {
     display: flex;
@@ -959,6 +976,18 @@
     font-size: 10px;
     color: var(--msc2-text-tertiary);
     gap: 8px;
+  }
+  .bar-labels span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .bar-labels i {
+    width: 6px;
+    height: 6px;
+    flex: none;
+    border-radius: 1px;
+    background: var(--storage-category-color);
   }
   .notice {
     padding: 10px 0;

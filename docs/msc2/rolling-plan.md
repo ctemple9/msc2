@@ -2,7 +2,7 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.36 implementation/candidate preparation is recorded, awaiting
+Phase 21 P21.1–P21.37 implementation/candidate preparation is recorded, awaiting
 owner verification. The matching Intel candidate and consolidated checks are in
 [Storage acceptance](storage/acceptance.md). Visual captures/acceptance and the
 independent Phase 21 gate review remain pending.
@@ -446,3 +446,12 @@ continuous deep scan or broad test matrix is implied.
 **Verify:** `npx tauri dev` — open MSC Settings → Storage → This computer → Desktop app and confirm the entries have distinct names and descriptions matching their paths.
 **Batch:** solo.
 **Commit:** `P21.36: name desktop app storage entries`
+
+### P21.37 — Name agent storage entries
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Replace repeated Agent inventory labels with path-specific names and descriptions for the legacy support folder, Bedrock helper, current agent data, agent log and server configuration. Keep paths and sizes visible and preserve original labels for other paths.
+**Verify:** `npx tauri dev` — open MSC Settings → Storage → This computer → Agent and confirm each known entry has a distinct label and description that matches its path.
+**Batch:** solo.
+**Commit:** `P21.37: name agent storage entries`

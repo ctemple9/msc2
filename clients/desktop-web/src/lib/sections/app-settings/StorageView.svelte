@@ -192,6 +192,32 @@
       return { label: 'Saved window state', description: 'The desktop app’s last window state.' };
     return null;
   }
+  function agentEntry(item: StorageItem): { label: string; description: string } | null {
+    const path = item.displayPath?.replaceAll('\\', '/').replace(/\/$/, '').toLowerCase() ?? '';
+    if (path.endsWith('/server_config_swift.json'))
+      return {
+        label: 'Server configuration',
+        description: 'Saved server definitions used by the agent.',
+      };
+    if (path.endsWith('/logs/agent.log'))
+      return { label: 'Agent log', description: 'Diagnostic record of agent activity and errors.' };
+    if (path.endsWith('/bedrock-helper'))
+      return {
+        label: 'Bedrock helper',
+        description: 'Helper files used to manage Bedrock servers.',
+      };
+    if (path.endsWith('/library/application support/msc2'))
+      return {
+        label: 'Legacy support files',
+        description: 'Files from MSC’s earlier support folder.',
+      };
+    if (path.endsWith('/library/application support/msc 2'))
+      return {
+        label: 'Agent data',
+        description: 'Working files and configuration for the background agent.',
+      };
+    return null;
+  }
   function overviewOf(c: Computer) {
     return c.snapshot ?? c.summary;
   }
@@ -889,12 +915,16 @@
       </section>
     {:else}
       <p class="measured">{size(total(visibleItems))} <span>logical size</span></p>
-      {#each visibleItems as item (item.id)}{@const desktopEntry =
-          category === 'desktopApp' ? desktopAppEntry(item) : null}
+      {#each visibleItems as item (item.id)}{@const namedEntry =
+          category === 'desktopApp'
+            ? desktopAppEntry(item)
+            : category === 'agent'
+              ? agentEntry(item)
+              : null}
         <div class="file-row">
           <span
-            >{desktopEntry?.label ?? item.label}<small
-              >{desktopEntry?.description ?? item.protection}{item.partial
+            >{namedEntry?.label ?? item.label}<small
+              >{namedEntry?.description ?? item.protection}{item.partial
                 ? ' · Partial'
                 : ''}{item.absent ? ' · Absent' : ''}{item.sharedReferences
                 ? ` · ${item.sharedReferences} shared references`

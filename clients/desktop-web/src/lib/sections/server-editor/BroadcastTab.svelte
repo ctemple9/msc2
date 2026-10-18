@@ -1,8 +1,6 @@
 <script lang="ts">
   // Ports ServerEditorBroadcastTab.swift (Java) -- Xbox broadcast runtime
-  // controls plus the per-server Playit runtime panel. Host-wide Xbox account and
-  // helper settings live in MSC Settings; this tab only controls this server.
-  // assigned here rather than the host-level Manage sheet. Every route this tab calls
+  // controls plus the per-server Playit runtime panel. Every route this tab calls
   // (crates/msc-agent/src/routes/networking.rs) resolves a single
   // agent-wide "active server", so -- like GeneralTab's Memory block -- the
   // whole tab is gated on `isActive` rather than risking a mutation landing
@@ -17,10 +15,12 @@
   // Port below are ServerDTO's own real hostAddress/gamePort fields instead
   // of the IP-mode-aware preview.
   import Card from '../../components/base/Card.svelte';
+  import { onDestroy, onMount } from 'svelte';
   import Button from '../../components/base/Button.svelte';
   import Toggle from '../../components/base/Toggle.svelte';
   import StatusDot from '../../components/base/StatusDot.svelte';
   import PlayitSetupSheet from './PlayitSetupSheet.svelte';
+  import BroadcastAuthSheet from './BroadcastAuthSheet.svelte';
   import type { Schema, ScreenApi } from '../shared/types';
   import { call, errorMessage, mutate } from '../shared/types';
   import { pollOperation, serverEditorPaths } from './model';
@@ -39,6 +39,16 @@
   let serverStatus: Schema['RemoteAPIStatus'] = { running: false };
 
   let broadcastBusy = false;
+  let broadcastSetupBusy = false;
+  let broadcastJarBusy = false;
+  let broadcastAutostart: Schema['BroadcastAutoStartDTO'] | undefined;
+  let broadcastJar: Schema['BroadcastJarStatusDTO'] | undefined;
+  let broadcastAuth: Schema['BroadcastAuthPromptDTO'] = { isPresent: false };
+  let broadcastAuthKey = '';
+  let broadcastAuthHidden = false;
+  let showBroadcastAuth = false;
+  let broadcastPromptLoadBusy = false;
+  let broadcastPromptTimer: ReturnType<typeof setInterval> | undefined;
   let xboxEnabled = server.xboxBroadcastEnabled === true;
   let playitBusy = false;
   let showPlayitSetup = false;
@@ -56,10 +66,21 @@
   }
   $: if (!isActive) {
     loaded = false;
+    showBroadcastAuth = false;
     // Invalidate requests started for the former host/server boundary. The
     // shared API client can change targets while an awaited request is out.
     playitLoadVersion += 1;
   }
+
+  onMount(() => {
+    broadcastPromptTimer = setInterval(() => {
+      if (isActive && xboxEnabled) void refreshBroadcastAuthPrompt();
+    }, 1000);
+  });
+
+  onDestroy(() => {
+    if (broadcastPromptTimer) clearInterval(broadcastPromptTimer);
+  });
 
   async function loadAll(): Promise<void> {
     const loadVersion = ++playitLoadVersion;
@@ -67,21 +88,110 @@
       call(api, status, serverEditorPaths.broadcastStatus),
       call(api, playit, serverEditorPaths.playit),
       call(api, serverStatus, serverEditorPaths.status),
+      call<Schema['BroadcastAutoStartDTO']>(
+        api,
+        { enabled: true },
+        serverEditorPaths.broadcastAutostart,
+      ),
+      call<Schema['BroadcastJarStatusDTO']>(
+        api,
+        { installed: false, downloading: false },
+        serverEditorPaths.broadcastJarStatus,
+      ),
     ]);
     if (!isActive || loadVersion !== playitLoadVersion) return;
-    [status, playit, serverStatus] = nextValues;
+    [status, playit, serverStatus, broadcastAutostart, broadcastJar] = nextValues;
+    await refreshBroadcastAuthPrompt();
   }
 
-  async function clearCredentials(): Promise<void> {
-    if (broadcastBusy) return;
-    broadcastBusy = true;
+  async function refreshBroadcastAuthPrompt(): Promise<void> {
+    if (broadcastPromptLoadBusy || !api || !isActive || !xboxEnabled) return;
+    broadcastPromptLoadBusy = true;
     try {
-      await mutate(api, serverEditorPaths.broadcastCredentialsClear);
-      notice = 'Xbox Broadcast credentials cleared.';
+      const prompt = await api.get<Schema['BroadcastAuthPromptDTO']>(
+        serverEditorPaths.broadcastAuthPrompt,
+      );
+      broadcastAuth = prompt;
+      if (!prompt.isPresent) {
+        broadcastAuthKey = '';
+        broadcastAuthHidden = false;
+        showBroadcastAuth = false;
+        status = await call(api, status, serverEditorPaths.broadcastStatus);
+        return;
+      }
+      const promptKey = `${prompt.code ?? ''}|${prompt.linkURL ?? ''}`;
+      if (promptKey !== broadcastAuthKey) {
+        broadcastAuthKey = promptKey;
+        broadcastAuthHidden = false;
+      }
+      if (!broadcastAuthHidden) showBroadcastAuth = true;
+    } catch {
+      // Keep the last known prompt during a temporary host disconnect.
+    } finally {
+      broadcastPromptLoadBusy = false;
+    }
+  }
+
+  async function startBroadcastSignIn(): Promise<void> {
+    if (broadcastSetupBusy || !canControl || !isActive) return;
+    if (!xboxEnabled) {
+      notice = 'Enable Xbox Broadcast for this server before signing in.';
+      return;
+    }
+    broadcastSetupBusy = true;
+    notice = '';
+    try {
+      await refreshBroadcastAuthPrompt();
+      if (broadcastAuth.isPresent) return;
+      status = await call(api, status, serverEditorPaths.broadcastStatus);
+      if (status?.authenticated) {
+        notice = status.gamertag
+          ? `Xbox Broadcast is signed in as ${status.gamertag}.`
+          : 'Xbox Broadcast is signed in.';
+        return;
+      }
+      if (status?.xboxBroadcastRunning || status?.bedrockBroadcastRunning) {
+        notice = 'Xbox Broadcast is already running. Waiting for its sign-in code.';
+        return;
+      }
+      await mutate<Schema['BroadcastSimpleResultDTO']>(api, serverEditorPaths.broadcastStart);
+      notice = 'Xbox Broadcast is starting. Its sign-in code will appear here.';
+      await refreshBroadcastAuthPrompt();
     } catch (error) {
       notice = errorMessage(error);
     } finally {
-      broadcastBusy = false;
+      broadcastSetupBusy = false;
+    }
+  }
+
+  async function updateBroadcastAutostart(enabled: boolean): Promise<void> {
+    try {
+      broadcastAutostart = await mutate<Schema['BroadcastAutoStartDTO']>(
+        api,
+        serverEditorPaths.broadcastAutostart,
+        { enabled },
+      );
+    } catch (error) {
+      notice = errorMessage(error);
+    }
+  }
+
+  async function downloadBroadcastJar(): Promise<void> {
+    if (broadcastJarBusy) return;
+    broadcastJarBusy = true;
+    notice = '';
+    try {
+      const result = await mutate<Schema['BroadcastJarDownloadResultDTO']>(
+        api,
+        serverEditorPaths.broadcastDownloadJar,
+      );
+      if (result.operationId) await pollOperation(api, result.operationId);
+      notice = result.message;
+      broadcastJar = await call(api, broadcastJar, serverEditorPaths.broadcastJarStatus);
+    } catch (error) {
+      notice = errorMessage(error);
+    } finally {
+      broadcastJarBusy = false;
     }
   }
 
@@ -202,18 +312,6 @@
           >
         </div>
         <div class="row bordered">
-          <div class="toggle-info">
-            <span class="name">Sign-in credentials</span>
-            <span class="setup-state">Clear the saved Microsoft account and device sign-in.</span>
-          </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={broadcastBusy || !canControl}
-            onclick={() => void clearCredentials()}>Clear</Button
-          >
-        </div>
-        <div class="row bordered">
           <StatusDot
             tone={broadcastRunning ? 'ok' : 'warn'}
             label={broadcastRunning ? 'Running' : 'Stopped'}
@@ -224,6 +322,54 @@
             disabled={broadcastBusy || !canControl}
             onclick={toggleBroadcast}>{broadcastRunning ? 'Stop' : 'Start'}</Button
           >
+        </div>
+        <div class="row bordered">
+          <div class="row-text">
+            <span class="name">Microsoft sign-in</span>
+            <span class="setup-state">
+              {status?.authenticated
+                ? status.gamertag
+                  ? `Signed in as ${status.gamertag}`
+                  : 'Signed in'
+                : 'Sign in to Xbox Broadcast for this server.'}
+            </span>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={broadcastSetupBusy || !canControl}
+            onclick={() => void startBroadcastSignIn()}
+          >
+            {broadcastSetupBusy ? 'Starting…' : status?.authenticated ? 'Check sign-in' : 'Set up…'}
+          </Button>
+        </div>
+        <div class="row bordered">
+          <div class="row-text">
+            <span class="name">Start Xbox Broadcast automatically</span>
+            <span class="setup-state">Applies to eligible servers on this computer.</span>
+          </div>
+          <Toggle
+            checked={broadcastAutostart?.enabled ?? false}
+            label="Start Xbox Broadcast automatically"
+            disabled={!canControl}
+            onchange={updateBroadcastAutostart}
+          />
+        </div>
+        <div class="row bordered">
+          <div class="row-text">
+            <span class="name">Helper JAR</span>
+            <span class="setup-state">
+              {broadcastJar?.installed ? (broadcastJar.filename ?? 'Installed') : 'Not installed'}
+            </span>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={broadcastJarBusy || !canControl}
+            onclick={() => void downloadBroadcastJar()}
+          >
+            {broadcastJarBusy ? 'Downloading…' : broadcastJar?.installed ? 'Update…' : 'Download…'}
+          </Button>
         </div>
       </Card>
     </section>
@@ -299,6 +445,17 @@
   />
 {/if}
 
+{#if showBroadcastAuth && broadcastAuth.isPresent}
+  <BroadcastAuthSheet
+    {api}
+    prompt={broadcastAuth}
+    onClose={() => {
+      showBroadcastAuth = false;
+      broadcastAuthHidden = true;
+    }}
+  />
+{/if}
+
 <style>
   .tab {
     display: flex;
@@ -350,6 +507,12 @@
     display: flex;
     align-items: center;
     gap: 10px;
+  }
+  .row-text {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
   }
   .control {
     display: flex;

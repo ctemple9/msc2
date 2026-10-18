@@ -8,9 +8,10 @@ Physical acceptance and the independent Phase 21 gate review remain in
 [pending acceptance](pending-acceptance.md).
 Independent Phase 20 gate review remains in [pending acceptance](pending-acceptance.md).
 
-**Services follow-up:** P21.39 makes host-wide service account setup available
-from MSC Settings even when the selected server does not use that service.
-It awaits Cameron’s manual verification.
+**Services follow-up:** P21.39 makes host-wide Playit account setup available
+from MSC Settings even when the selected server does not use Playit. P21.40
+moves Xbox Broadcast setup to the selected server’s Services tab. Both await
+Cameron’s manual verification.
 
 Historical implementation and published release records were reconciled and
 moved to [the archive](rolling-plan-archive.md) at Cameron's October 16 request.
@@ -50,3 +51,12 @@ is separate from that closure; no earlier unobserved check is promoted to Pass.
 **Verify:** Run `npx tauri dev`; with a server selected that uses neither service, open MSC Settings → Services and confirm both setup buttons respond. Set up Playit and confirm the selected server’s service settings remain unchanged. If another server has Xbox Broadcast enabled, use Xbox sign-in and confirm the selected server remains unchanged.
 **Batch:** P21.39 only.
 **Commit:** `P21.39: decouple service account setup from selected server`
+
+### P21.40 — Put Xbox Broadcast setup with the server
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `clients/desktop-web/src/lib/sections/app-settings/AppSettingsSheet.svelte`; `clients/desktop-web/src/lib/sections/server-editor/BroadcastTab.svelte`; `clients/desktop-web/src/lib/sections/server-editor/BroadcastAuthSheet.svelte`; `crates/msc-agent/src/routes/networking.rs`; this plan.
+**What:** Remove Xbox Broadcast from global MSC Settings. Put its Microsoft device-code setup, helper JAR management, and autostart control in the active server’s Services tab beside its enable and runtime controls. Remove the email, gamertag, and password fields because the helper’s device-code sign-in does not consume them. Retire the now-unused cross-server Settings setup routes. Keep Playit account setup in global Settings.
+**Verify:** Run `npx tauri dev`; confirm MSC Settings → Services has no Xbox Broadcast section, then open a server’s Services tab and use Xbox Broadcast → Set up. The device-code prompt must appear for that server, and selecting another server must not be required.
+**Batch:** P21.40 only.
+**Commit:** `P21.40: move xbox broadcast setup to server services`

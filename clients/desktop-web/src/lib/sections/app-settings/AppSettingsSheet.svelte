@@ -17,7 +17,7 @@
   // What's left and real: Open Server Folder (GET /v1/config/servers-root +
   // the revealInFileManager seam P12.9 built for the Files tab), plus
   // host-wide service configuration below.
-  import { onDestroy, onMount } from 'svelte';
+  import { onMount } from 'svelte';
   import Sheet from '../../components/base/Sheet.svelte';
   import SegmentedControl from '../../components/base/SegmentedControl.svelte';
   import StorageView from './StorageView.svelte';
@@ -27,14 +27,12 @@
   import Field from '../../components/base/Field.svelte';
   import VisibilityIcon from '../../components/base/VisibilityIcon.svelte';
   import PlayitSetupSheet from '../server-editor/PlayitSetupSheet.svelte';
-  import BroadcastAuthSheet from '../server-editor/BroadcastAuthSheet.svelte';
   import { getPlatform } from '../../platform';
   import type { UpdateCheckResult } from '../../platform';
   import { updateErrorMessage, type UpdateWorkflowState } from '../../updates/coordinated';
   import { bundleIdentity } from '../../bundle-identity';
   import type { Schema, ScreenApi } from '../shared/types';
   import { call, errorMessage, mutate } from '../shared/types';
-  import { pollOperation } from '../server-editor/model';
 
   type SettingsTab = 'general' | 'services' | 'storage';
   const settingsTabs = [
@@ -59,29 +57,6 @@
   let serversRootPath = '';
   let revealBusy = false;
   let revealNotice = '';
-
-  let broadcastCredentials: Schema['BroadcastCredentialsStatusDTO'] | undefined;
-  let broadcastEmail = '';
-  let broadcastGamertag = '';
-  let broadcastPassword = '';
-  let broadcastPasswordVisible = false;
-  let broadcastSaving = false;
-  let broadcastNotice = '';
-  let broadcastAutostart: Schema['BroadcastAutoStartDTO'] | undefined;
-  let broadcastJar: Schema['BroadcastJarStatusDTO'] | undefined;
-  let broadcastJarBusy = false;
-  let broadcastStatus: Schema['BroadcastStatusDTO'] = {
-    xboxBroadcastRunning: false,
-    bedrockBroadcastRunning: false,
-    authenticated: false,
-  };
-  let broadcastAuth: Schema['BroadcastAuthPromptDTO'] = { isPresent: false };
-  let broadcastAuthKey = '';
-  let broadcastAuthHidden = false;
-  let showBroadcastAuth = false;
-  let broadcastSetupBusy = false;
-  let broadcastPromptLoadBusy = false;
-  let broadcastPromptTimer: ReturnType<typeof setInterval> | undefined;
 
   let curseforge: Schema['CurseForgeApiKeyStatusDTO'] = { configured: false };
   let curseforgeApiKey = '';
@@ -109,97 +84,24 @@
   let confirmUpdateInstall = false;
 
   $: showDuckDns = serverUsesPlayit === false;
-  $: broadcastAccountLabel = broadcastStatus.authenticated
-    ? broadcastStatus.gamertag
-      ? `Signed in as ${broadcastStatus.gamertag}`
-      : 'Signed in'
-    : 'Start the sign-in helper without starting Minecraft.';
-
   onMount(async () => {
-    broadcastPromptTimer = setInterval(() => void refreshBroadcastAuthPrompt(), 1000);
     const [
       root,
-      credentials,
-      autostart,
-      jar,
       playitStatus,
       duckdnsStatus,
       curseforgeStatus,
-      broadcastStatusResult,
     ] = await Promise.all([
       call<Schema['ServersRootResponseDTO']>(api, { path: '' }, '/v1/config/servers-root'),
-      call<Schema['BroadcastCredentialsStatusDTO']>(
-        api,
-        { hasPassword: false },
-        '/v1/broadcast/credentials',
-      ),
-      call<Schema['BroadcastAutoStartDTO']>(api, { enabled: true }, '/v1/broadcast/autostart'),
-      call<Schema['BroadcastJarStatusDTO']>(
-        api,
-        { installed: false, downloading: false },
-        '/v1/broadcast/jar-status',
-      ),
       call<Schema['PlayitStatusResponseDTO']>(api, playit, '/v1/playit'),
       call<Schema['DuckDNSStatusResponseDTO']>(api, duckdns, '/v1/duckdns'),
       call<Schema['CurseForgeApiKeyStatusDTO']>(api, curseforge, '/v1/config/curseforge'),
-      call<Schema['BroadcastStatusDTO']>(api, broadcastStatus, '/v1/broadcast/setup-status'),
     ]);
     serversRootPath = root.path;
-    broadcastCredentials = credentials;
-    broadcastEmail = credentials.email ?? '';
-    broadcastGamertag = credentials.gamertag ?? '';
-    broadcastAutostart = autostart;
-    broadcastJar = jar;
     playit = playitStatus;
     duckdns = duckdnsStatus;
     duckHost = duckdnsStatus.hostname ?? '';
     curseforge = curseforgeStatus;
-    broadcastStatus = broadcastStatusResult;
-    await refreshBroadcastAuthPrompt();
   });
-
-  onDestroy(() => {
-    if (broadcastPromptTimer) clearInterval(broadcastPromptTimer);
-  });
-
-  async function refreshBroadcastAuthPrompt(): Promise<void> {
-    if (broadcastPromptLoadBusy || !api) return;
-    broadcastPromptLoadBusy = true;
-    try {
-      let prompt: Schema['BroadcastAuthPromptDTO'];
-      try {
-        prompt = await api.get<Schema['BroadcastAuthPromptDTO']>('/v1/broadcast/setup-auth-prompt');
-      } catch {
-        return;
-      }
-      broadcastAuth = prompt;
-      if (!prompt.isPresent) {
-        broadcastAuthKey = '';
-        broadcastAuthHidden = false;
-        showBroadcastAuth = false;
-        try {
-          broadcastStatus = await api.get<Schema['BroadcastStatusDTO']>('/v1/broadcast/setup-status');
-        } catch {
-          // Keep the last known sign-in state during a temporary host disconnect.
-        }
-        return;
-      }
-
-      const promptKey = `${prompt.code ?? ''}|${prompt.linkURL ?? ''}`;
-      if (promptKey !== broadcastAuthKey) {
-        broadcastAuthKey = promptKey;
-        broadcastAuthHidden = false;
-      }
-      if (!broadcastAuthHidden) showBroadcastAuth = true;
-    } finally {
-      broadcastPromptLoadBusy = false;
-    }
-  }
-
-  function closeBroadcastAuth(): void {
-    showBroadcastAuth = false;
-    broadcastAuthHidden = true;
-  }
 
   function updatePreloadTabs(enabled: boolean): void {
     preloadTabs = enabled;
@@ -224,37 +126,6 @@
     }
   }
 
-  async function saveBroadcastCredentials(): Promise<void> {
-    if (
-      broadcastSaving ||
-      !broadcastEmail.trim() ||
-      !broadcastGamertag.trim() ||
-      !broadcastPassword
-    ) {
-      return;
-    }
-    broadcastSaving = true;
-    broadcastNotice = '';
-    try {
-      await mutate(api, '/v1/broadcast/credentials', {
-        email: broadcastEmail.trim(),
-        gamertag: broadcastGamertag.trim(),
-        password: broadcastPassword,
-      });
-      broadcastPassword = '';
-      broadcastCredentials = {
-        email: broadcastEmail.trim(),
-        gamertag: broadcastGamertag.trim(),
-        hasPassword: true,
-      };
-      broadcastNotice = 'Xbox Broadcast credentials saved for this agent.';
-    } catch (error) {
-      broadcastNotice = errorMessage(error);
-    } finally {
-      broadcastSaving = false;
-    }
-  }
-
   async function saveCurseForgeApiKey(value = curseforgeApiKey): Promise<void> {
     if (curseforgeSaving) return;
     curseforgeSaving = true;
@@ -271,71 +142,6 @@
       curseforgeNotice = errorMessage(error);
     } finally {
       curseforgeSaving = false;
-    }
-  }
-
-  async function updateBroadcastAutostart(enabled: boolean): Promise<void> {
-    try {
-      broadcastAutostart = await mutate<Schema['BroadcastAutoStartDTO']>(
-        api,
-        '/v1/broadcast/autostart',
-        { enabled },
-      );
-    } catch (error) {
-      broadcastNotice = errorMessage(error);
-    }
-  }
-
-  async function downloadBroadcastJar(): Promise<void> {
-    if (broadcastJarBusy) return;
-    broadcastJarBusy = true;
-    broadcastNotice = '';
-    try {
-      const result = await mutate<Schema['BroadcastJarDownloadResultDTO']>(
-        api,
-        '/v1/broadcast/download-jar',
-      );
-      if (result.operationId) await pollOperation(api, result.operationId);
-      broadcastNotice = result.message;
-      broadcastJar = await call(api, broadcastJar, '/v1/broadcast/jar-status');
-    } catch (error) {
-      broadcastNotice = errorMessage(error);
-    } finally {
-      broadcastJarBusy = false;
-    }
-  }
-
-  async function startBroadcastSignIn(): Promise<void> {
-    if (broadcastSetupBusy) return;
-    broadcastSetupBusy = true;
-    broadcastNotice = '';
-    try {
-      await refreshBroadcastAuthPrompt();
-      if (broadcastAuth.isPresent) return;
-
-      broadcastStatus = await call<Schema['BroadcastStatusDTO']>(
-        api,
-        broadcastStatus,
-        '/v1/broadcast/setup-status',
-      );
-      if (broadcastStatus.authenticated) {
-        broadcastNotice = broadcastStatus.gamertag
-          ? `Xbox Broadcast is signed in as ${broadcastStatus.gamertag}.`
-          : 'Xbox Broadcast is signed in.';
-        return;
-      }
-      if (broadcastStatus.xboxBroadcastRunning || broadcastStatus.bedrockBroadcastRunning) {
-        broadcastNotice = 'Xbox Broadcast is already running. Waiting for its sign-in code.';
-        return;
-      }
-
-      await mutate<Schema['BroadcastSimpleResultDTO']>(api, '/v1/broadcast/setup-start');
-      broadcastNotice = 'Xbox Broadcast is starting. Its sign-in code will appear here.';
-      await refreshBroadcastAuthPrompt();
-    } catch (error) {
-      broadcastNotice = errorMessage(error);
-    } finally {
-      broadcastSetupBusy = false;
     }
   }
 
@@ -561,111 +367,6 @@
 
     {#if activeTab === 'services'}
       <section class="zone">
-        <p class="msc2-type-overline">Xbox Broadcast</p>
-        <p class="hint">
-          These Xbox Broadcast settings belong to this agent and are shared by every server.
-        </p>
-        <Card padding="0">
-          <div class="service-form">
-            <div class="form-row">
-              <span class="name">Microsoft account email</span>
-              <Field
-                bind:value={broadcastEmail}
-                type="email"
-                width="220px"
-                onblur={() => void saveBroadcastCredentials()}
-                onkeydown={(event) => event.key === 'Enter' && void saveBroadcastCredentials()}
-              />
-            </div>
-            <div class="form-row">
-              <span class="name">Xbox gamertag</span>
-              <Field
-                bind:value={broadcastGamertag}
-                width="220px"
-                onblur={() => void saveBroadcastCredentials()}
-                onkeydown={(event) => event.key === 'Enter' && void saveBroadcastCredentials()}
-              />
-            </div>
-            <div class="form-row">
-              <span class="name">Password</span>
-              <div class="password-control">
-                <Field
-                  bind:value={broadcastPassword}
-                  type={broadcastPasswordVisible ? 'text' : 'password'}
-                  placeholder={broadcastCredentials?.hasPassword ? 'Saved — enter to replace' : ''}
-                  width="100%"
-                  onblur={() => void saveBroadcastCredentials()}
-                  onkeydown={(event) => event.key === 'Enter' && void saveBroadcastCredentials()}
-                />
-                <button
-                  type="button"
-                  class="visibility-toggle"
-                  aria-label={broadcastPasswordVisible ? 'Hide password' : 'Show password'}
-                  aria-pressed={broadcastPasswordVisible}
-                  title={broadcastPasswordVisible ? 'Hide password' : 'Show password'}
-                  onclick={() => (broadcastPasswordVisible = !broadcastPasswordVisible)}
-                >
-                  <VisibilityIcon visible={broadcastPasswordVisible} />
-                </button>
-              </div>
-            </div>
-          </div>
-          <div class="row bordered">
-            <div class="row-text">
-              <span class="name">Start Xbox Broadcast automatically</span>
-              <span class="hint">Applies when an eligible server starts.</span>
-            </div>
-            <Toggle
-              checked={broadcastAutostart?.enabled ?? false}
-              label="Start Xbox Broadcast automatically"
-              onchange={updateBroadcastAutostart}
-            />
-          </div>
-          <div class="row bordered">
-            <div class="row-text">
-              <span class="name">Helper JAR</span>
-              <span class="hint"
-                >{broadcastJar?.installed
-                  ? (broadcastJar.filename ?? 'Installed')
-                  : 'Not installed'}</span
-              >
-            </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={broadcastJarBusy}
-              onclick={downloadBroadcastJar}
-            >
-              {broadcastJarBusy
-                ? 'Downloading…'
-                : broadcastJar?.installed
-                  ? 'Update…'
-                  : 'Download…'}
-            </Button>
-          </div>
-          <div class="row bordered">
-            <div class="row-text">
-              <span class="name">Xbox account sign-in</span>
-              <span class="hint">{broadcastAccountLabel}</span>
-            </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={broadcastSetupBusy}
-              onclick={() => void startBroadcastSignIn()}
-            >
-              {broadcastSetupBusy
-                ? 'Starting…'
-                : broadcastStatus.authenticated
-                  ? 'Check sign-in'
-                  : 'Set up…'}
-            </Button>
-          </div>
-        </Card>
-        {#if broadcastNotice}<p class="hint" role="status">{broadcastNotice}</p>{/if}
-      </section>
-
-      <section class="zone">
         <p class="msc2-type-overline">Modpack Imports</p>
         <p class="hint">
           CurseForge modpacks need an API key to resolve their files. You can create one in the
@@ -824,15 +525,6 @@
   />
 {/if}
 
-{#if showBroadcastAuth && broadcastAuth.isPresent}
-  <BroadcastAuthSheet
-    {api}
-    prompt={broadcastAuth}
-    dismissPath="/v1/broadcast/setup-auth-prompt/dismiss"
-    onClose={closeBroadcastAuth}
-  />
-{/if}
-
 <style>
   .settings {
     display: flex;
@@ -933,19 +625,6 @@
     gap: 12px;
     padding: 10px 0 2px;
     border-top: 1px solid var(--msc2-hairline-faint);
-  }
-  .service-form {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    padding: 2px 14px 11px;
-  }
-  .form-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 9px 0;
   }
   .row-text {
     display: flex;

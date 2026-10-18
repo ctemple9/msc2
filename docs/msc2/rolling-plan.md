@@ -2,7 +2,7 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.12 implementation/candidate preparation is recorded, awaiting
+Phase 21 P21.1–P21.13 implementation/candidate preparation is recorded, awaiting
 owner verification. The matching Intel candidate and consolidated checks are in
 [Storage acceptance](storage/acceptance.md). Visual captures/acceptance and the
 independent Phase 21 gate review remain pending.
@@ -230,3 +230,12 @@ continuous deep scan or broad test matrix is implied.
 **Verify:** `cargo clippy --manifest-path clients/desktop-web/src-tauri/Cargo.toml --lib -- -D warnings -A clippy::needless_borrow -A clippy::needless_borrows_for_generic_args -A clippy::needless_return`
 **Batch:** solo.
 **Commit:** `P21.12: recover local capacity from the desktop session`
+
+### P21.13 — Explain protected unregistered files without server actions
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Hide backup/world/server management controls on the unregistered-files group, explain why those files are protected and point to their existing location details. Describe its size as unregistered files rather than one server. Guard action entry for this group so it cannot open an empty removal review. Registered server actions retain their existing behavior and deletion rules. Svelte checking passed with ten existing style warnings; no tests or builds run. This frontend-only change reloads in the existing dev session without agent repair.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.13: clarify protected unregistered server files`

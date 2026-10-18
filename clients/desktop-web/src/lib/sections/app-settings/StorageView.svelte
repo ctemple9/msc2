@@ -392,7 +392,7 @@
     return { hostId: c.agentId, category, action, itemIds: ids };
   }
   async function inspectAction(next: string) {
-    if (!bridge || !computer || !reviewAllowed) return;
+    if (!bridge || !computer || !reviewAllowed || server === 'unassigned') return;
     clearReview();
     action = next;
     const generation = reviewGeneration;
@@ -705,7 +705,10 @@
         >
       </div>
     {:else if server && !group && snapshot}
-      <p class="measured">{size(total(serverItems))} <span>in this server</span></p>
+      <p class="measured">
+        {size(total(serverItems))}
+        <span>{server === 'unassigned' ? 'in unregistered files' : 'in this server'}</span>
+      </p>
       {#each grouped(snapshot, 'group', serverItems) as entry (entry.id)}<button
           class="inventory-row"
           onclick={() => {
@@ -714,25 +717,33 @@
           ><span>{groupLabel(entry.id)}</span><span class="number">{size(entry.bytes)} ›</span
           ></button
         >{/each}
-      <p class="quiet">
-        Live worlds and server files are protected inventory. Manage saved slots, backups or the
-        whole server through separate reviews.
-      </p>
-      <div class="actions">
-        <Button
-          size="sm"
-          disabled={!reviewAllowed}
-          onclick={() => void inspectAction('delete-backups')}>Manage backups…</Button
-        ><Button
-          size="sm"
-          disabled={!reviewAllowed}
-          onclick={() => void inspectAction('remove-world')}>Remove a saved world…</Button
-        ><Button
-          size="sm"
-          disabled={!reviewAllowed}
-          onclick={() => void inspectAction('remove-server')}>Remove this server…</Button
-        >
-      </div>
+      {#if server === 'unassigned'}
+        <p class="quiet">
+          These files are in known server folders but are not linked to a registered server. They
+          may belong to more than one former server. MSC cannot verify a server removal for them, so
+          they remain protected. Open Logs &amp; other files to inspect their locations.
+        </p>
+      {:else}
+        <p class="quiet">
+          Live worlds and server files are protected inventory. Manage saved slots, backups or the
+          whole server through separate reviews.
+        </p>
+        <div class="actions">
+          <Button
+            size="sm"
+            disabled={!reviewAllowed}
+            onclick={() => void inspectAction('delete-backups')}>Manage backups…</Button
+          ><Button
+            size="sm"
+            disabled={!reviewAllowed}
+            onclick={() => void inspectAction('remove-world')}>Remove a saved world…</Button
+          ><Button
+            size="sm"
+            disabled={!reviewAllowed}
+            onclick={() => void inspectAction('remove-server')}>Remove this server…</Button
+          >
+        </div>
+      {/if}
     {:else}
       <p class="measured">{size(total(visibleItems))} <span>logical size</span></p>
       {#each visibleItems as item (item.id)}<div class="file-row">

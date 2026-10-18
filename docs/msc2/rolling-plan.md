@@ -2,7 +2,7 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.35 implementation/candidate preparation is recorded, awaiting
+Phase 21 P21.1–P21.36 implementation/candidate preparation is recorded, awaiting
 owner verification. The matching Intel candidate and consolidated checks are in
 [Storage acceptance](storage/acceptance.md). Visual captures/acceptance and the
 independent Phase 21 gate review remain pending.
@@ -437,3 +437,12 @@ continuous deep scan or broad test matrix is implied.
 **Verify:** `npx tauri dev` — open MSC Settings → Storage → This computer → Servers and confirm the completed removal shows a spaced operation line and no routine logical-bytes message.
 **Batch:** solo.
 **Commit:** `P21.35: tighten completed removal details`
+
+### P21.36 — Name desktop app storage entries
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Show path-specific labels and plain-language descriptions for the macOS installed app, WebKit data, cache, app support, preferences and saved window state. Keep paths and sizes visible and leave unrecognized entries with their original inventory labels.
+**Verify:** `npx tauri dev` — open MSC Settings → Storage → This computer → Desktop app and confirm the entries have distinct names and descriptions matching their paths.
+**Batch:** solo.
+**Commit:** `P21.36: name desktop app storage entries`

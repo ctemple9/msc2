@@ -176,6 +176,22 @@
   function folderName(item: StorageItem) {
     return item.displayPath?.split(/[\\/]/).filter(Boolean).at(-1) ?? item.label;
   }
+  function desktopAppEntry(item: StorageItem): { label: string; description: string } | null {
+    const path = item.displayPath?.replaceAll('\\', '/').replace(/\/$/, '').toLowerCase() ?? '';
+    if (path.endsWith('/msc 2.app'))
+      return { label: 'Installed app', description: 'The MSC 2 desktop application.' };
+    if (path.includes('/webkit/com.ctemple.msc2'))
+      return { label: 'WebKit data', description: "Data stored by the app's web-based interface." };
+    if (path.includes('/caches/com.ctemple.msc2'))
+      return { label: 'Cache', description: 'Temporary app data kept for faster loading.' };
+    if (path.includes('/application support/com.ctemple.msc2'))
+      return { label: 'App support', description: 'Files the desktop app keeps between launches.' };
+    if (path.includes('/preferences/com.ctemple.msc2.plist'))
+      return { label: 'Preferences', description: 'Saved desktop app preferences.' };
+    if (path.includes('/saved application state/com.ctemple.msc2.savedstate'))
+      return { label: 'Saved window state', description: 'The desktop app’s last window state.' };
+    return null;
+  }
   function overviewOf(c: Computer) {
     return c.snapshot ?? c.summary;
   }
@@ -873,12 +889,14 @@
       </section>
     {:else}
       <p class="measured">{size(total(visibleItems))} <span>logical size</span></p>
-      {#each visibleItems as item (item.id)}<div class="file-row">
+      {#each visibleItems as item (item.id)}{@const desktopEntry =
+          category === 'desktopApp' ? desktopAppEntry(item) : null}
+        <div class="file-row">
           <span
-            >{item.label}<small
-              >{item.protection}{item.partial ? ' · Partial' : ''}{item.absent
-                ? ' · Absent'
-                : ''}{item.sharedReferences
+            >{desktopEntry?.label ?? item.label}<small
+              >{desktopEntry?.description ?? item.protection}{item.partial
+                ? ' · Partial'
+                : ''}{item.absent ? ' · Absent' : ''}{item.sharedReferences
                 ? ` · ${item.sharedReferences} shared references`
                 : ''}</small
             ><small>{item.displayPath}</small

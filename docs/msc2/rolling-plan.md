@@ -2,7 +2,7 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.34 implementation/candidate preparation is recorded, awaiting
+Phase 21 P21.1–P21.35 implementation/candidate preparation is recorded, awaiting
 owner verification. The matching Intel candidate and consolidated checks are in
 [Storage acceptance](storage/acceptance.md). Visual captures/acceptance and the
 independent Phase 21 gate review remain pending.
@@ -428,3 +428,12 @@ continuous deep scan or broad test matrix is implied.
 **Verify:** `npx tauri dev` — open MSC Settings → Storage → This computer → Servers and confirm Last removal lists the operation and removed items without the extra capacity paragraphs.
 **Batch:** solo.
 **Commit:** `P21.34: simplify last removal summary`
+
+### P21.35 — Tighten completed removal details
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Hide the routine “Removed logical file bytes” message on successfully removed items, while retaining error details for retained or unconfirmed items. Add space between the Last removal heading and the operation line.
+**Verify:** `npx tauri dev` — open MSC Settings → Storage → This computer → Servers and confirm the completed removal shows a spaced operation line and no routine logical-bytes message.
+**Batch:** solo.
+**Commit:** `P21.35: tighten completed removal details`

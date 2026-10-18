@@ -926,14 +926,17 @@
         </p>{/if}
     {/if}
     {#if actionProblem}<p role="alert" class="notice">{actionProblem}</p>{/if}
-    {#if computer.result && !review && !action}<details open>
+    {#if computer.result && !review && !action}<details class="last-removal" open>
         <summary>Last removal · {computer.result.state}</summary>
         <p class="quiet">
           Operation {computer.result.operationId} · {dated(computer.result.observedAt)}
         </p>
         {#each computer.result.items as item (item.id)}<div class="file-row">
-            <span>{item.label}<small>{item.state} · {item.message}</small></span><span
-              class="number"
+            <span
+              >{item.label}<small
+                >{item.state}{item.state === 'removed' ? '' : ` · ${item.message}`}</small
+              ></span
+            ><span class="number"
               >{item.removedLogicalBytes == null
                 ? 'Unconfirmed'
                 : `${size(item.removedLogicalBytes)} removed`}</span
@@ -1193,6 +1196,9 @@
     font-size: 12px;
   }
   .coverage p {
+    margin-top: 12px;
+  }
+  .last-removal > p {
     margin-top: 12px;
   }
   .legacy[open] > summary {

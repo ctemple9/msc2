@@ -639,6 +639,10 @@ pub fn router(state: NetworkingState) -> Router {
         .route("/playit/stop", post(playit_stop))
         .route("/broadcast/status", axum::routing::get(broadcast_status))
         .route(
+            "/broadcast/setup-status",
+            axum::routing::get(broadcast_setup_status),
+        )
+        .route(
             "/broadcast/autostart",
             axum::routing::get(broadcast_autostart).post(set_broadcast_autostart),
         )
@@ -647,8 +651,16 @@ pub fn router(state: NetworkingState) -> Router {
             axum::routing::get(broadcast_auth_prompt),
         )
         .route(
+            "/broadcast/setup-auth-prompt",
+            axum::routing::get(broadcast_setup_auth_prompt),
+        )
+        .route(
             "/broadcast/auth-prompt/dismiss",
             post(dismiss_broadcast_prompt),
+        )
+        .route(
+            "/broadcast/setup-auth-prompt/dismiss",
+            post(dismiss_broadcast_setup_prompt),
         )
         .route(
             "/broadcast/credentials",
@@ -668,6 +680,7 @@ pub fn router(state: NetworkingState) -> Router {
         )
         .route("/broadcast/download-jar", post(download_broadcast_jar))
         .route("/broadcast/start", post(start_broadcast))
+        .route("/broadcast/setup-start", post(start_broadcast_setup))
         .route("/broadcast/stop", post(stop_broadcast))
         .route("/broadcast/restart", post(restart_broadcast))
         .route("/resourcepacks", axum::routing::get(resource_packs))
@@ -964,12 +977,18 @@ fn prepare_broadcast_config(
 
 pub async fn playit_status(State(state): State<NetworkingState>) -> Response {
     let Ok(server) = state.active_server() else {
+        let has_secret_key = state
+            .secrets
+            .get(PLAYIT_SECRET_KEY)
+            .ok()
+            .flatten()
+            .is_some_and(|key| !key.trim().is_empty());
         return Json(PlayitStatusDto {
             server_name: String::new(),
             server_type: "java".into(),
             playit_enabled: false,
             is_running: false,
-            has_secret_key: false,
+            has_secret_key,
             java_address: None,
             bedrock_address: None,
             voice_address: None,
@@ -1212,7 +1231,12 @@ pub async fn playit_setup(
     let transport = state.playit_transport;
     let secrets = state.secrets;
     let existing_agent_id = state.lifecycle.app_config_snapshot().playit_agent_id;
-    let active_server = state.lifecycle.active_config_server();
+    // MSC Settings provisions the host account without touching the selected server.
+    let active_server = if request.account_only {
+        None
+    } else {
+        state.lifecycle.active_config_server()
+    };
     let tunnel_specs = active_server
         .as_ref()
         .filter(|server| server.playit_enabled)
@@ -1574,7 +1598,25 @@ pub async fn playit_stop(
 }
 
 pub async fn broadcast_status(State(state): State<NetworkingState>) -> Response {
-    let Ok(server) = state.active_server() else {
+    broadcast_status_for(state.clone(), state.lifecycle.active_config_server())
+}
+
+pub async fn broadcast_setup_status(State(state): State<NetworkingState>) -> Response {
+    let server = broadcast_setup_server(&state);
+    broadcast_status_for(state, server)
+}
+
+fn broadcast_setup_server(state: &NetworkingState) -> Option<ConfigServer> {
+    state
+        .lifecycle
+        .app_config_snapshot()
+        .servers
+        .into_iter()
+        .find(|server| server.xbox_broadcast_enabled)
+}
+
+fn broadcast_status_for(state: NetworkingState, server: Option<ConfigServer>) -> Response {
+    let Some(server) = server else {
         return Json(BroadcastStatusDto {
             xbox_broadcast_running: false,
             bedrock_broadcast_running: false,
@@ -1729,7 +1771,16 @@ pub async fn set_broadcast_autostart(
 }
 
 pub async fn broadcast_auth_prompt(State(state): State<NetworkingState>) -> Response {
-    let Ok(server) = state.active_server() else {
+    broadcast_auth_prompt_for(state.clone(), state.lifecycle.active_config_server())
+}
+
+pub async fn broadcast_setup_auth_prompt(State(state): State<NetworkingState>) -> Response {
+    let server = broadcast_setup_server(&state);
+    broadcast_auth_prompt_for(state, server)
+}
+
+fn broadcast_auth_prompt_for(state: NetworkingState, server: Option<ConfigServer>) -> Response {
+    let Some(server) = server else {
         return Json(BroadcastAuthPromptDto {
             is_present: false,
             code: None,
@@ -1764,12 +1815,38 @@ pub async fn dismiss_broadcast_prompt(
     State(state): State<NetworkingState>,
     Extension(credential): Extension<AuthenticatedCredential>,
 ) -> Response {
+    dismiss_broadcast_prompt_for(
+        state.clone(),
+        credential,
+        state.lifecycle.active_config_server(),
+    )
+}
+
+pub async fn dismiss_broadcast_setup_prompt(
+    State(state): State<NetworkingState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+) -> Response {
+    let server = broadcast_setup_server(&state);
+    dismiss_broadcast_prompt_for(state, credential, server)
+}
+
+fn dismiss_broadcast_prompt_for(
+    state: NetworkingState,
+    credential: AuthenticatedCredential,
+    server: Option<ConfigServer>,
+) -> Response {
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Broadcast) {
         return response;
     }
-    let server = match state.active_server() {
-        Ok(server) => server,
-        Err(response) => return response,
+    let server = match server {
+        Some(server) => server,
+        None => {
+            return error_response(
+                StatusCode::CONFLICT,
+                "no_broadcast_server",
+                "Enable Xbox Broadcast on a server before signing in.",
+            );
+        }
     };
     let mut services = state.broadcast_service(&server);
     services
@@ -1970,20 +2047,38 @@ pub async fn start_broadcast(
     State(state): State<NetworkingState>,
     Extension(credential): Extension<AuthenticatedCredential>,
 ) -> Response {
-    request_broadcast_start(state, credential, "broadcast_start_requested")
+    request_broadcast_start(state, credential, "broadcast_start_requested", None)
+}
+
+pub async fn start_broadcast_setup(
+    State(state): State<NetworkingState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+) -> Response {
+    let server = broadcast_setup_server(&state);
+    request_broadcast_start(state, credential, "broadcast_start_requested", server)
 }
 
 fn request_broadcast_start(
     state: NetworkingState,
     credential: AuthenticatedCredential,
     result: &str,
+    server_override: Option<ConfigServer>,
 ) -> Response {
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Broadcast) {
         return response;
     }
-    let server = match state.active_server() {
-        Ok(server) => server,
-        Err(response) => return response,
+    let server = match server_override {
+        Some(server) => server,
+        None => match state.active_server() {
+            Ok(server) if server.xbox_broadcast_enabled => server,
+            _ => {
+                return error_response(
+                    StatusCode::CONFLICT,
+                    "no_broadcast_server",
+                    "Enable Xbox Broadcast on a server before signing in.",
+                );
+            }
+        },
     };
     let acquisition = match state.broadcast_acquisition() {
         Ok(acquisition) => acquisition,
@@ -2075,7 +2170,7 @@ pub async fn restart_broadcast(
             return helper_error_response(error.to_string(), "broadcast_restart_failed");
         }
     }
-    request_broadcast_start(state, credential, "broadcast_restart_requested")
+    request_broadcast_start(state, credential, "broadcast_restart_requested", None)
 }
 
 pub async fn resource_packs(

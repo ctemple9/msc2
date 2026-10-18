@@ -31,6 +31,8 @@ pub struct PlayitActionResultDto {
 pub struct PlayitSetupRequestDto {
     pub email: String,
     pub password: String,
+    #[serde(default)]
+    pub account_only: bool,
 }
 
 /// Admission response for the native Playit setup operation. The operation

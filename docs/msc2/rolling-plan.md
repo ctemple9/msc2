@@ -8,6 +8,10 @@ Physical acceptance and the independent Phase 21 gate review remain in
 [pending acceptance](pending-acceptance.md).
 Independent Phase 20 gate review remains in [pending acceptance](pending-acceptance.md).
 
+**Services follow-up:** P21.39 makes host-wide service account setup available
+from MSC Settings even when the selected server does not use that service.
+It awaits Cameron’s manual verification.
+
 Historical implementation and published release records were reconciled and
 moved to [the archive](rolling-plan-archive.md) at Cameron's October 16 request.
 Outstanding physical checks and independent reviews live in
@@ -35,3 +39,14 @@ is separate from that closure; no earlier unobserved check is promoted to Pass.
 **Verify:** `cargo build --locked -p msc-agent --bin msc`
 **Batch:** P20.12 only.
 **Commit:** `P20.12: detect versions of imported server jars`
+
+## Phase 21 — Services settings follow-up
+
+### P21.39 — Decouple service account setup from the selected server
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `clients/desktop-web/src/lib/sections/app-settings/AppSettingsSheet.svelte`; `clients/desktop-web/src/lib/sections/server-editor/PlayitSetupSheet.svelte`; `clients/desktop-web/src/lib/sections/server-editor/BroadcastAuthSheet.svelte`; `clients/desktop-web/src/App.svelte`; `crates/msc-api/src/dto/networking.rs`; `crates/msc-agent/src/routes/networking.rs`; this plan.
+**What:** Allow Playit setup from MSC Settings to claim or reuse the host account without creating tunnels or changing any server. Let Xbox Broadcast account sign-in use an eligible server on the host without selecting it in the app. Both Settings buttons remain available when the selected server does not use the service. Xbox Broadcast still needs an eligible server because its helper and sign-in state are server-scoped.
+**Verify:** Run `npx tauri dev`; with a server selected that uses neither service, open MSC Settings → Services and confirm both setup buttons respond. Set up Playit and confirm the selected server’s service settings remain unchanged. If another server has Xbox Broadcast enabled, use Xbox sign-in and confirm the selected server remains unchanged.
+**Batch:** P21.39 only.
+**Commit:** `P21.39: decouple service account setup from selected server`

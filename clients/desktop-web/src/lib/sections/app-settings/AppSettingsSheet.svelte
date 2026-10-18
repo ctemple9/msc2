@@ -49,7 +49,6 @@
   export let api: ScreenApi | undefined = undefined;
   export let hostId: string;
   export let hostName = 'Selected host';
-  export let activeServerXboxBroadcastEnabled = false;
   export let serverUsesPlayit: boolean | undefined = undefined;
   export let onClose: () => void;
   export let preloadTabs = true;
@@ -143,7 +142,7 @@
       call<Schema['PlayitStatusResponseDTO']>(api, playit, '/v1/playit'),
       call<Schema['DuckDNSStatusResponseDTO']>(api, duckdns, '/v1/duckdns'),
       call<Schema['CurseForgeApiKeyStatusDTO']>(api, curseforge, '/v1/config/curseforge'),
-      call<Schema['BroadcastStatusDTO']>(api, broadcastStatus, '/v1/broadcast/status'),
+      call<Schema['BroadcastStatusDTO']>(api, broadcastStatus, '/v1/broadcast/setup-status'),
     ]);
     serversRootPath = root.path;
     broadcastCredentials = credentials;
@@ -169,7 +168,7 @@
     try {
       let prompt: Schema['BroadcastAuthPromptDTO'];
       try {
-        prompt = await api.get<Schema['BroadcastAuthPromptDTO']>('/v1/broadcast/auth-prompt');
+        prompt = await api.get<Schema['BroadcastAuthPromptDTO']>('/v1/broadcast/setup-auth-prompt');
       } catch {
         return;
       }
@@ -179,7 +178,7 @@
         broadcastAuthHidden = false;
         showBroadcastAuth = false;
         try {
-          broadcastStatus = await api.get<Schema['BroadcastStatusDTO']>('/v1/broadcast/status');
+          broadcastStatus = await api.get<Schema['BroadcastStatusDTO']>('/v1/broadcast/setup-status');
         } catch {
           // Keep the last known sign-in state during a temporary host disconnect.
         }
@@ -317,7 +316,7 @@
       broadcastStatus = await call<Schema['BroadcastStatusDTO']>(
         api,
         broadcastStatus,
-        '/v1/broadcast/status',
+        '/v1/broadcast/setup-status',
       );
       if (broadcastStatus.authenticated) {
         broadcastNotice = broadcastStatus.gamertag
@@ -330,7 +329,7 @@
         return;
       }
 
-      await mutate<Schema['BroadcastSimpleResultDTO']>(api, '/v1/broadcast/start');
+      await mutate<Schema['BroadcastSimpleResultDTO']>(api, '/v1/broadcast/setup-start');
       broadcastNotice = 'Xbox Broadcast is starting. Its sign-in code will appear here.';
       await refreshBroadcastAuthPrompt();
     } catch (error) {
@@ -652,7 +651,7 @@
             <Button
               variant="secondary"
               size="sm"
-              disabled={broadcastSetupBusy || !activeServerXboxBroadcastEnabled}
+              disabled={broadcastSetupBusy}
               onclick={() => void startBroadcastSignIn()}
             >
               {broadcastSetupBusy
@@ -663,9 +662,6 @@
             </Button>
           </div>
         </Card>
-        {#if !activeServerXboxBroadcastEnabled}
-          <p class="hint">Select a server with Xbox Broadcast enabled to set up its account.</p>
-        {/if}
         {#if broadcastNotice}<p class="hint" role="status">{broadcastNotice}</p>{/if}
       </section>
 
@@ -739,7 +735,6 @@
             <Button
               variant="secondary"
               size="sm"
-              disabled={!playit.playitEnabled}
               onclick={() => (showPlayitSetup = true)}
               >{playit.hasSecretKey ? 'Manage setup…' : 'Set up…'}</Button
             >
@@ -830,7 +825,12 @@
 {/if}
 
 {#if showBroadcastAuth && broadcastAuth.isPresent}
-  <BroadcastAuthSheet {api} prompt={broadcastAuth} onClose={closeBroadcastAuth} />
+  <BroadcastAuthSheet
+    {api}
+    prompt={broadcastAuth}
+    dismissPath="/v1/broadcast/setup-auth-prompt/dismiss"
+    onClose={closeBroadcastAuth}
+  />
 {/if}
 
 <style>

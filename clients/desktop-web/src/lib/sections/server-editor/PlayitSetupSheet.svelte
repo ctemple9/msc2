@@ -71,7 +71,9 @@
     ? 'Your Playit agent is already configured. Sign in again to add the missing Simple Voice Chat tunnel; existing tunnels will be reused.'
     : playit?.hasSecretKey
       ? "Sign in again to repair this host's Playit setup or add any tunnel the agent says is missing."
-      : 'Sign in with your Playit account and MSC will create or reuse the agent and applicable tunnels for this server.';
+      : context === 'settings'
+        ? 'Sign in with your Playit account to set up this computer. Server tunnels stay unchanged.'
+        : 'Sign in with your Playit account and MSC will create or reuse the agent and applicable tunnels for this server.';
   $: submitLabel = voiceOnly ? 'Add voice tunnel' : 'Set up Playit';
   $: liveStatus = statusLine || setupSteps[currentStepIndex]?.label || 'Working…';
 
@@ -108,6 +110,7 @@
       const accepted = await mutate<PlayitSetupAccepted>(api, serverEditorPaths.playitSetup, {
         email: submittedEmail,
         password: submittedPassword,
+        accountOnly: context === 'settings',
       });
       operationId = accepted.operationId;
       statusLine = accepted.message ?? 'Sign-in accepted. Preparing Playit setup…';

@@ -24,6 +24,9 @@ const SAMPLES_SHA256: &str = "c0b6151f5f9a0c31ebe3c909dfc82d97f12473ed2c6e039aa7
 const MAX_DOWNLOAD: u64 = 180 * 1024 * 1024;
 const MAX_EXTRACTED: u64 = 384 * 1024 * 1024;
 const MAX_EXPORT_TIME: Duration = Duration::from_secs(600);
+// A converted multi-gigabyte world can take longer than ten minutes just to
+// enumerate saved chunks and build its first overview.
+const MAX_CATALOG_EXPORT_TIME: Duration = Duration::from_secs(3_600);
 
 #[derive(Clone, Default)]
 pub(crate) struct BedrockStore(Arc<Mutex<BedrockState>>, Arc<ExporterLifecycle>);
@@ -256,6 +259,7 @@ impl BedrockStore {
                         .arg(&next.output)
                         .arg(dimension),
                     &self.1,
+                    MAX_CATALOG_EXPORT_TIME,
                 ) {
                     return Err(format!(
                         "The refreshed {dimension} catalog could not be exported."
@@ -289,6 +293,7 @@ impl BedrockStore {
                         .arg(next.output.join("manifest.json"))
                         .arg(&diff_path),
                     &self.1,
+                    MAX_EXPORT_TIME,
                 ) {
                     return Err(format!(
                         "The refreshed {dimension} chunks could not be compared."
@@ -425,9 +430,12 @@ impl BedrockStore {
                                 break Err(error);
                             }
                         }
-                        if started.elapsed() >= MAX_EXPORT_TIME
-                            || self.1.shutdown.load(Ordering::Acquire)
-                        {
+                        if started.elapsed() >= MAX_CATALOG_EXPORT_TIME {
+                            eprintln!("Bedrock map: catalog export timed out after 60 minutes");
+                            self.1.stop(&mut child);
+                            break Ok(false);
+                        }
+                        if self.1.shutdown.load(Ordering::Acquire) {
                             self.1.stop(&mut child);
                             break Ok(false);
                         }
@@ -505,6 +513,7 @@ impl BedrockStore {
                         .arg(x.to_string())
                         .arg(z.to_string()),
                     &self.1,
+                    MAX_EXPORT_TIME,
                 );
                 eprintln!(
                     "[world-map] Bedrock {dimension} tile {x},{z}: {} after {:.2}s",
@@ -644,7 +653,7 @@ fn exporter_binary() -> Result<PathBuf, String> {
     Ok(binary)
 }
 
-fn run_exporter(command: &mut Command, lifecycle: &ExporterLifecycle) -> bool {
+fn run_exporter(command: &mut Command, lifecycle: &ExporterLifecycle, timeout: Duration) -> bool {
     command
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -663,9 +672,15 @@ fn run_exporter(command: &mut Command, lifecycle: &ExporterLifecycle) -> bool {
                         break Err(error);
                     }
                 }
-                if started.elapsed() >= MAX_EXPORT_TIME
-                    || lifecycle.shutdown.load(Ordering::Acquire)
-                {
+                if started.elapsed() >= timeout {
+                    eprintln!(
+                        "Bedrock map: exporter timed out after {} minutes",
+                        timeout.as_secs() / 60
+                    );
+                    lifecycle.stop(&mut child);
+                    break Ok(false);
+                }
+                if lifecycle.shutdown.load(Ordering::Acquire) {
                     lifecycle.stop(&mut child);
                     break Ok(false);
                 }

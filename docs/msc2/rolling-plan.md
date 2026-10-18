@@ -13,9 +13,10 @@ across steps and scrolls longer step content; awaiting owner verification.
 
 **Bedrock map follow-up:** P18.56's 16,384-file limit did not resolve the
 large converted world's Intel Mac failure; P18.57 supersedes that limit.
-P18.57 raises that limit again after the converted world completed a direct
-catalog scan at 65,536 files, and records the effective limit for the next
-installed-build check; awaiting owner verification.
+P18.57 confirmed the installed exporter received 65,536 files, but its catalog
+still failed without a new file error. P18.58 extends the catalog's ten-minute
+deadline after the same direct scan ran for more than fifteen minutes and
+completed; awaiting owner verification.
 
 **Services follow-up:** P21.39 makes host-wide Playit account setup available
 from MSC Settings even when the selected server does not use Playit. P21.40
@@ -69,12 +70,21 @@ not in this implementation queue.
 
 ### P18.57 — Match the successful large-world file limit
 
-**Status:** Implemented; awaiting owner verification.
+**Status:** Implemented; owner verification confirmed the 65,536-file limit but the catalog still failed; superseded by P18.58.
 **Files:** `tools/world-map-proof/src/main.rs`; this plan.
 **What:** Cameron's 7.5 GB converted Bedrock snapshot completed the same exporter catalog command from Terminal with a 65,536-file soft limit. The installed exporter requested only 16,384 and its agent-run catalog still failed with “Too many open files.” On macOS, request up to 65,536 for the short-lived exporter, bounded by the inherited hard limit. Log the effective soft and hard limits for catalog runs so the Intel check can distinguish an insufficient limit from a launchd inheritance problem without flooding per-tile logs. No new test: the decisive case is the owner's physical scan of this large world, and a synthetic small-limit test would not exercise its LevelDB table load.
 **Verify:** Run `open "$HOME/Downloads/msc2-bedrock-map-intel-p18.57.dmg"` on the Intel Mac, install and repair the agent, then open Bedtonic's map. Confirm it loads and the agent log reports a 65,536 soft limit; if it fails, provide that limit line and the new exporter error.
 **Batch:** P18.57 only.
 **Commit:** `P18.57: raise bedrock map exporter limit to 65536`
+
+### P18.58 — Allow the large Bedrock catalog to finish
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; this plan.
+**What:** The same 7.5 GB Bedrock snapshot's direct catalog scan was still using a full CPU core after fifteen minutes and then completed. The agent stops catalog exporters after ten minutes, which fits the installed build's generic catalog failure even though the exporter logged an effective 65,536-file limit and no new LevelDB error. Allow initial and refreshed Bedrock catalogs up to sixty minutes while preserving the ten-minute limit for individual tile and comparison exports. Keep shutdown cancellation and log a distinct timeout if the longer limit is reached. No new test: a short synthetic timing case would not represent the large-world scan, and Cameron will run the physical acceptance.
+**Verify:** Run `open "$HOME/Downloads/msc2-bedrock-map-intel-p18.58.dmg"` on the Intel Mac, install and repair the agent, then open Bedtonic's map and allow the catalog to finish. Confirm the overview loads; if it still fails, provide the recent agent log and elapsed time.
+**Batch:** P18.58 only.
+**Commit:** `P18.58: allow large bedrock catalogs to finish`
 
 ## Phase 20 — Imported server component follow-up
 

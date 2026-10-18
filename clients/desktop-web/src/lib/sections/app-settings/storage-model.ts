@@ -77,10 +77,10 @@ export function forgetCleanup(hostId: string): void {
   }
 }
 
-/** Binary byte counts must carry binary units; decimal GB gives a different value. */
+/** Match system storage displays with decimal byte units. */
 export function storageBytesLabel(bytes: number): string {
-  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB'];
-  if (bytes < 1024) return `${bytes} B`;
-  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  return `${(bytes / 1024 ** exponent).toFixed(1)} ${units[exponent]}`;
+  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB'];
+  if (bytes < 1000) return `${bytes} B`;
+  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1000)), units.length - 1);
+  return `${(bytes / 1000 ** exponent).toFixed(1)} ${units[exponent]}`;
 }

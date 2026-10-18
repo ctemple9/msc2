@@ -2,7 +2,7 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.9 implementation/candidate preparation is recorded, awaiting
+Phase 21 P21.1–P21.10 implementation/candidate preparation is recorded, awaiting
 owner verification. The matching Intel candidate and consolidated checks are in
 [Storage acceptance](storage/acceptance.md). Visual captures/acceptance and the
 independent Phase 21 gate review remain pending.
@@ -201,3 +201,12 @@ continuous deep scan or broad test matrix is implied.
 **Verify:** `npm --prefix clients/desktop-web run check`
 **Batch:** solo.
 **Commit:** `P21.9: restore storage results and clarify disk units`
+
+### P21.10 — Display decimal storage units
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** Desktop `storage-model.ts`, `StorageView.svelte`, `tests/storage/host-state.test.ts`; this plan.
+**What:** Apply Cameron's requested GB/MB display using decimal arithmetic (1 GB = 1,000,000,000 bytes), matching macOS units. Replace the binary-unit explanation. Update the existing essential unit regression with the reported disk capacity and an MB example; no new test case or runtime dependencies.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.10: display storage sizes in decimal units`

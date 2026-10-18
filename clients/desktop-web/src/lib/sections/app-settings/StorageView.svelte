@@ -815,7 +815,7 @@
         </p>
       </details>{/if}
     <p class="footnote">
-      Sizes use binary units (GiB). Free now is filesystem-reported free space; your system’s
+      Sizes use decimal units (GB and MB). Free now is filesystem-reported free space; your system’s
       storage estimate may include reclaimable data. File sizes may differ from disk space released
       by removal. Hard links, sparse files and filesystem clones affect allocation.
     </p>

@@ -1026,6 +1026,9 @@
     margin-top: 24px;
     border-top: 1px solid var(--msc2-hairline);
   }
+  .legacy[open] > summary {
+    margin-bottom: 12px;
+  }
   @media (max-width: 560px) {
     .computer-row,
     .column-head {

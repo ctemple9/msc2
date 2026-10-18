@@ -114,3 +114,12 @@ is separate from that closure; no earlier unobserved check is promoted to Pass.
 **Verify:** Run `npx tauri dev`; open a Playit-enabled server’s Services tab and confirm its tunnel addresses start hidden, the eye reveals and hides them, and selecting another server starts hidden again.
 **Batch:** P21.45 only.
 **Commit:** `P21.45: hide server playit addresses by default`
+
+### P21.46 — Hide shared Playit details in MSC Settings until revealed
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `clients/desktop-web/src/lib/sections/app-settings/AppSettingsSheet.svelte`; this plan.
+**What:** Add an eye control immediately left of Playit Manage setup in MSC Settings. Keep the agent ID and configured tunnel rows labeled, but show “Hidden” until the eye is selected. Re-hide when the settings sheet is reopened. This changes only on-screen visibility.
+**Verify:** Run `npx tauri dev`; open MSC Settings → Services and confirm the Playit agent ID and tunnel addresses start hidden, the eye reveals and hides them, and reopening MSC Settings starts hidden again.
+**Batch:** P21.46 only.
+**Commit:** `P21.46: hide shared playit details by default`

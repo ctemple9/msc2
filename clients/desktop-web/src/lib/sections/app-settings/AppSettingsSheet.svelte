@@ -73,6 +73,7 @@
     voiceChatEnabled: false,
   };
   let showPlayitSetup = false;
+  let playitAddressesVisible = false;
   let duckdns: Schema['DuckDNSStatusResponseDTO'] = { isConfigured: false };
   let duckHost = '';
   let duckBusy = false;
@@ -85,12 +86,7 @@
 
   $: showDuckDns = serverUsesPlayit === false;
   onMount(async () => {
-    const [
-      root,
-      playitStatus,
-      duckdnsStatus,
-      curseforgeStatus,
-    ] = await Promise.all([
+    const [root, playitStatus, duckdnsStatus, curseforgeStatus] = await Promise.all([
       call<Schema['ServersRootResponseDTO']>(api, { path: '' }, '/v1/config/servers-root'),
       call<Schema['PlayitStatusResponseDTO']>(api, playit, '/v1/playit'),
       call<Schema['DuckDNSStatusResponseDTO']>(api, duckdns, '/v1/duckdns'),
@@ -433,35 +429,56 @@
               <span class="name">Playit account</span>
               <span class="hint">{playit.hasSecretKey ? 'Configured' : 'Setup required'}</span>
             </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              onclick={() => (showPlayitSetup = true)}
-              >{playit.hasSecretKey ? 'Manage setup…' : 'Set up…'}</Button
-            >
+            <div class="control">
+              {#if playit.agentId || playit.javaAddress || playit.bedrockAddress || playit.voiceAddress}
+                <button
+                  type="button"
+                  class="playit-visibility-toggle"
+                  aria-label={playitAddressesVisible
+                    ? 'Hide Playit addresses'
+                    : 'Show Playit addresses'}
+                  aria-pressed={playitAddressesVisible}
+                  title={playitAddressesVisible ? 'Hide Playit addresses' : 'Show Playit addresses'}
+                  onclick={() => (playitAddressesVisible = !playitAddressesVisible)}
+                >
+                  <VisibilityIcon visible={playitAddressesVisible} />
+                </button>
+              {/if}
+              <Button variant="secondary" size="sm" onclick={() => (showPlayitSetup = true)}
+                >{playit.hasSecretKey ? 'Manage setup…' : 'Set up…'}</Button
+              >
+            </div>
           </div>
           {#if playit.agentId}
             <div class="row bordered">
               <span class="name">Agent</span>
-              <span class="hint mono playit-value">{playit.agentId}</span>
+              <span class="hint mono playit-value"
+                >{playitAddressesVisible ? playit.agentId : 'Hidden'}</span
+              >
             </div>
           {/if}
           {#if playit.javaAddress}
             <div class="row bordered">
               <span class="name">Java tunnel</span>
-              <span class="hint mono playit-value">{playit.javaAddress}</span>
+              <span class="hint mono playit-value"
+                >{playitAddressesVisible ? playit.javaAddress : 'Hidden'}</span
+              >
             </div>
           {/if}
           {#if playit.bedrockAddress}
             <div class="row bordered">
               <span class="name">Bedrock tunnel</span>
-              <span class="hint mono playit-value">{playit.bedrockAddress}</span>
+              <span class="hint mono playit-value"
+                >{playitAddressesVisible ? playit.bedrockAddress : 'Hidden'}</span
+              >
             </div>
           {/if}
           {#if playit.voiceAddress}
             <div class="row bordered">
               <span class="name">Voice tunnel</span>
-              <span class="hint mono playit-value">{playit.voiceAddress}</span>
+              <span class="hint mono playit-value"
+                >{playitAddressesVisible ? playit.voiceAddress : 'Hidden'}</span
+              >
             </div>
           {/if}
         </Card>
@@ -689,6 +706,26 @@
     outline: 2px solid var(--msc2-hairline);
     outline-offset: 2px;
     border-radius: 3px;
+  }
+  .playit-visibility-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    color: var(--msc2-text-tertiary);
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .playit-visibility-toggle:hover {
+    color: var(--msc2-text-primary);
+  }
+  .playit-visibility-toggle:focus-visible {
+    outline: 2px solid var(--msc2-hairline);
+    outline-offset: 2px;
   }
   .hint {
     margin: 0;

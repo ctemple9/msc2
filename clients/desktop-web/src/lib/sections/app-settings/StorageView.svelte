@@ -771,7 +771,7 @@
       {/if}
     {:else if server && group === 'worlds' && snapshot}
       <p class="measured">
-        {size(total([...worldItems, ...backupItems]))}<span>in this server</span>
+        {size(total([...worldItems, ...backupItems]))}{' '}<span>in this server</span>
       </p>
       <section class="world-section">
         <div class="world-section-heading">

@@ -832,9 +832,18 @@ pub fn compose(local: &Snapshot, agent: &Snapshot, bound_host: &str) -> Result<S
     for volume in &local.volumes {
         if let Some(existing) = result
             .volumes
-            .iter()
+            .iter_mut()
             .find(|v| !volume.physical_id.is_empty() && v.physical_id == volume.physical_id)
         {
+            // macOS reclaimable capacity can be unavailable in a LaunchDaemon
+            // session. The verified local desktop samples in the user's session.
+            // Preserve the agent's accounting ID while using that dated sample.
+            if volume.available_bytes.is_some() && volume.problem.is_none() {
+                existing.total_bytes = volume.total_bytes;
+                existing.available_bytes = volume.available_bytes;
+                existing.observed_at = volume.observed_at;
+                existing.problem = None;
+            }
             let id = existing.id.clone();
             for item in &mut result.items {
                 if item.volume_id.as_deref() == Some(&volume.id) {
@@ -981,10 +990,14 @@ mod tests {
         agent.items[0].id = "agent-item".into();
         agent.items[0].volume_id = Some("agent-volume".into());
         agent.volumes[0].id = "agent-volume".into();
+        // Essential: the background capacity API returned a false zero while
+        // the user's desktop had a valid available-capacity sample. No I/O.
+        agent.volumes[0].available_bytes = Some(0);
         let combined = compose(&local, &agent, "agent-one").unwrap();
         assert_eq!(combined.logical_bytes, 8);
         assert_eq!(combined.items.len(), 1);
         assert_eq!(combined.volumes.len(), 1);
+        assert_eq!(combined.volumes[0].available_bytes, Some(50));
         assert_eq!(combined.items[0].volume_id.as_deref(), Some("agent-volume"));
         assert!(compose(&local, &agent, "another-agent").is_err());
         local.items[0].physical_root_id = "another-root".into();

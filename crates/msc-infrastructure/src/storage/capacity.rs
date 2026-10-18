@@ -8,6 +8,20 @@ pub fn available_space(path: &Path) -> io::Result<u64> {
 
 #[cfg(target_os = "macos")]
 pub fn available_space(path: &Path) -> io::Result<u64> {
+    let available = macos_available_space(path)?;
+    // A service may receive a successful zero from the reclaimable-capacity
+    // service even when the filesystem has free blocks. That is unavailable
+    // information, not evidence of a full disk.
+    if available == 0 && fs2::available_space(path)? > 0 {
+        return Err(io::Error::other(
+            "macOS available capacity returned zero despite free space",
+        ));
+    }
+    Ok(available)
+}
+
+#[cfg(target_os = "macos")]
+fn macos_available_space(path: &Path) -> io::Result<u64> {
     use std::{ffi::c_void, os::unix::ffi::OsStrExt, ptr};
     type Ref = *const c_void;
     #[link(name = "CoreFoundation", kind = "framework")]

@@ -2,7 +2,7 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.11 implementation/candidate preparation is recorded, awaiting
+Phase 21 P21.1–P21.12 implementation/candidate preparation is recorded, awaiting
 owner verification. The matching Intel candidate and consolidated checks are in
 [Storage acceptance](storage/acceptance.md). Visual captures/acceptance and the
 independent Phase 21 gate review remain pending.
@@ -220,3 +220,13 @@ continuous deep scan or broad test matrix is implied.
 **Verify:** `cargo clippy -p msc-agent --bin msc -- -D warnings -A dead_code`
 **Batch:** solo.
 **Commit:** `P21.11: report macos available storage capacity`
+
+### P21.12 — Prefer the desktop capacity sample for verified local volumes
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `crates/msc-infrastructure/src/storage/capacity.rs`, `clients/desktop-web/src-tauri/src/storage.rs`; `storage/acceptance.md`; this plan.
+**What:** Correct the owner-observed zero after P21.11. Reject native reclaimable-capacity zero when filesystem free space is positive. When composing a verified local host, prefer a successful desktop capacity sample for the same physical volume, retaining the agent volume ID and desktop sample timestamp. Do not apply local capacity to remote hosts or unmatched volumes.
+**Implementation:** Repeated read-only exact Core Foundation calls in the interactive context returned 101,857,899,935 bytes available and 49,702,047,744 bytes free; the background-agent screenshot instead reported zero. The exact service-session failure is not established, so no synthetic reclaimable estimate is used. Existing composition kept agent capacity even when the desktop measured the same volume successfully; corrected that preference. Extended the existing pure composition regression to cover agent zero versus valid local capacity (no new fixtures, I/O or timing, expected under 1 ms); not run. Owner verification requires restarting `npx tauri dev` to compile/stage the changed native code, then Agent Repair and Storage Refresh. Agent/native Clippy and Rust formatting passed. No packaged builds or tests run.
+**Verify:** `cargo clippy --manifest-path clients/desktop-web/src-tauri/Cargo.toml --lib -- -D warnings -A clippy::needless_borrow -A clippy::needless_borrows_for_generic_args -A clippy::needless_return`
+**Batch:** solo.
+**Commit:** `P21.12: recover local capacity from the desktop session`

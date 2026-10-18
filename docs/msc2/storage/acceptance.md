@@ -209,3 +209,22 @@ Verify using the dev app, **Agent… → Repair**, then Storage **Refresh**, and
 compare the dated sample with macOS Settings. The old cached snapshot must be
 refreshed. Exact equality between independent samples is not guaranteed. No
 packaged build or tests were run for this correction; physical acceptance is pending.
+
+## Zero-capacity correction — P21.12
+
+After restarting dev and repairing the agent, Cameron observed 0 B available
+with a new capacity timestamp. A repeated read-only query of the exact Core
+Foundation functions in the interactive session returned 101.86 GB available
+and 49.70 GB free. The underlying reason the service returns zero remains
+unconfirmed; the P21.11 interactive diagnostic did not validate service behavior.
+
+The native capacity helper now rejects zero when filesystem free space is
+positive. Verified local composition uses a successful desktop sample for the
+same physical volume, retaining agent IDs and the desktop observation timestamp.
+Failed desktop samples do not replace usable agent samples. Remote-host data
+never receives the current computer's capacity. The existing in-memory
+composition regression now covers the reported false-zero case; not executed.
+
+Restart `npx tauri dev`, use **Agent… → Repair**, then Storage **Refresh**.
+Compare the new dated capacity sample with Settings. Physical acceptance remains
+pending; no new packaged artifact or test run is claimed.

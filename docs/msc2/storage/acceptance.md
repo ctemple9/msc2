@@ -189,3 +189,23 @@ also require **Agent… → Repair** to update the background service. Then use
 **Check status** for the original operation and **Refresh** for a dated inventory.
 Packaged candidates are prepared only when requested. The P21.8 archive predates
 this fix and is not evidence for P21.9. Physical acceptance remains pending.
+
+## Available-capacity correction — P21.11
+
+Cameron's refreshed screenshots showed 102.67 GB available in macOS Settings
+and 50.4 GB free in MSC. A read-only Foundation query on the same Mac returned
+102,523,008,415 bytes for available capacity for important usage and
+50,367,156,224 bytes for raw available capacity. This establishes that the
+measurement choice accounts for the reported gap; values change between samples.
+
+Storage now uses the [Apple available-capacity API](https://developer.apple.com/documentation/foundation/urlresourcekey/volumeavailablecapacityforimportantusagekey)
+on macOS for inventory and post-removal observations. That value includes
+capacity expected to become available through system reclamation. UI labels say
+Available. Other platforms retain their filesystem measurement; write/admission
+checks still use their existing conservative free-space checks. Native query
+failure remains unknown, with no silent fallback to the smaller metric.
+
+Verify using the dev app, **Agent… → Repair**, then Storage **Refresh**, and
+compare the dated sample with macOS Settings. The old cached snapshot must be
+refreshed. Exact equality between independent samples is not guaranteed. No
+packaged build or tests were run for this correction; physical acceptance is pending.

@@ -2,7 +2,7 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.10 implementation/candidate preparation is recorded, awaiting
+Phase 21 P21.1–P21.11 implementation/candidate preparation is recorded, awaiting
 owner verification. The matching Intel candidate and consolidated checks are in
 [Storage acceptance](storage/acceptance.md). Visual captures/acceptance and the
 independent Phase 21 gate review remain pending.
@@ -210,3 +210,13 @@ continuous deep scan or broad test matrix is implied.
 **Verify:** `npm --prefix clients/desktop-web run check`
 **Batch:** solo.
 **Commit:** `P21.10: display storage sizes in decimal units`
+
+### P21.11 — Use macOS available capacity in Storage
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `crates/msc-infrastructure/src/storage.rs`, `storage/capacity.rs`; agent Storage result sampling; desktop `StorageView.svelte`; `storage/acceptance.md`; this plan.
+**What:** Use Apple's available-capacity-for-important-usage API for macOS Storage display, including system-reclaimable capacity. Use the same helper for inventory and post-removal observations; retain filesystem availability on other platforms and existing conservative write/admission checks. Label the display Available. If the native query fails, report unknown through existing capacity-error handling rather than silently showing a different metric.
+**Implementation:** A read-only native query on Cameron's Mac reported 102,523,008,415 bytes available versus 50,367,156,224 bytes immediately free, matching the reported discrepancy. The shared implementation uses Core Foundation directly with checked numeric types and owned-reference cleanup; no subprocess, dependency or shell parsing. Existing identity guards surround volume observations. Agent Clippy, Rust formatting and Svelte checking passed (ten existing style warnings). No tests or packaged builds run; owner compares after agent Repair and Storage Refresh in the dev app. Independent samples can differ as disk usage changes.
+**Verify:** `cargo clippy -p msc-agent --bin msc -- -D warnings -A dead_code`
+**Batch:** solo.
+**Commit:** `P21.11: report macos available storage capacity`

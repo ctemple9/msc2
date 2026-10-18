@@ -1,6 +1,8 @@
 //! Read-only, bounded owned-root measurement. Inventory never grants removal.
+mod capacity;
 #[path = "storage/native.rs"]
 mod native;
+pub use capacity::available_space;
 
 use native::{Identity, Measurement};
 use serde::{Deserialize, Serialize};
@@ -553,7 +555,7 @@ impl Walker<'_> {
             // Check identity around pathname-based capacity inspection. It is a
             // dated sample, never permission or a guarantee about quotas.
             let capacity = fs2::total_space(&root.path)
-                .and_then(|total| fs2::available_space(&root.path).map(|free| (total, free)));
+                .and_then(|total| available_space(&root.path).map(|free| (total, free)));
             let unchanged = native::open(&root.path)
                 .and_then(|f| native::measure(&f))
                 .is_ok_and(|m| m.identity == meta.identity && m.mount == meta.mount);
@@ -1003,7 +1005,7 @@ pub fn inspect_volume(host: &str, path: &Path) -> io::Result<Volume> {
     let file = native::open(path)?;
     let before = native::measure(&file)?;
     let capacity = fs2::total_space(path)
-        .and_then(|total| fs2::available_space(path).map(|available| (total, available)));
+        .and_then(|total| available_space(path).map(|available| (total, available)));
     let unchanged = native::open(path)
         .and_then(|f| native::measure(&f))
         .is_ok_and(|m| m.identity == before.identity && m.mount == before.mount);

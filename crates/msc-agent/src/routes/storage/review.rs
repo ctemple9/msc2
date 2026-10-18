@@ -505,9 +505,10 @@ pub(super) async fn apply(
         }
         result.observed_at = storage::now();
         // Capacity is a separate observation, never the claimed amount reclaimed.
-        result.available_bytes =
-            fs2::available_space(msc_infrastructure::config_repository::default_app_data_dir())
-                .ok();
+        result.available_bytes = storage::available_space(
+            &msc_infrastructure::config_repository::default_app_data_dir(),
+        )
+        .ok();
         if persist(&result).is_err() {
             let _ = state.lifecycle.finish_operation_failure(
                 &operation,

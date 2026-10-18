@@ -8,6 +8,9 @@ Physical acceptance and the independent Phase 21 gate review remain in
 [pending acceptance](pending-acceptance.md).
 Independent Phase 20 gate review remains in [pending acceptance](pending-acceptance.md).
 
+**Add Server follow-up:** P12.190 keeps the Add Server wizard at one height
+across steps and scrolls longer step content; awaiting owner verification.
+
 **Services follow-up:** P21.39 makes host-wide Playit account setup available
 from MSC Settings even when the selected server does not use Playit. P21.40
 moves Xbox Broadcast setup to the selected server’s Services tab. Both await
@@ -35,6 +38,17 @@ P16.89 XboxBroadcast works on the affected
 Intel Mac with RakNet retained. Publication records live in the archive and
 [release notes](release/v0.1.30.md); live publication status belongs on GitHub,
 not in this implementation queue.
+
+## Phase 12 — Add Server wizard follow-up
+
+### P12.190 — Keep the Add Server wizard at one size
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `clients/desktop-web/src/lib/components/base/Sheet.svelte`; `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`; this plan.
+**What:** Give the Add Server sheet a steady 820 × 740 px frame, capped to the viewport. Keep its progress row and navigation footer visible while each step scrolls inside the body. Hide the body scrollbar and return to the top on step changes. Leave other sheets at their existing natural heights.
+**Verify:** Run `npx tauri dev`; open Manage Servers → Add Server and move through Fresh and Import steps. The sheet should keep the Configure step’s size, longer steps should scroll without a visible scrollbar, and Back/Continue should stay visible. Check at a shorter window height that the sheet fits and its content remains reachable.
+**Batch:** P12.190 only.
+**Commit:** `P12.190: keep add server wizard at one size`
 
 ## Phase 20 — Imported server component follow-up
 

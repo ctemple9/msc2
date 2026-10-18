@@ -86,6 +86,12 @@
 
   let path: WizardPath = 'importExisting';
   let currentStep = 1;
+  let contentElement: HTMLDivElement;
+  let scrollStep = currentStep;
+  $: if (scrollStep !== currentStep) {
+    scrollStep = currentStep;
+    if (contentElement) contentElement.scrollTop = 0;
+  }
   let draft = defaultWizardDraft();
 
   let displayName = '';
@@ -458,6 +464,7 @@
 <Sheet
   title="Add Server"
   size="lg"
+  height="740px"
   onClose={isCreating || transferBusy || showJavaRecovery || showJavaSelection || showJavaInstall
     ? undefined
     : closeWizard}
@@ -482,7 +489,7 @@
       {/each}
     </div>
 
-    <div class="content">
+    <div class="content" bind:this={contentElement}>
       {#if currentStep === 1}
         <div class="intro">
           <h2>How do you want to add this server?</h2>
@@ -683,6 +690,8 @@
     display: flex;
     flex-direction: column;
     gap: 20px;
+    height: 100%;
+    min-height: 0;
   }
 
   /* Step counter -- shape kept from the oracle's chips, color stripped to
@@ -741,7 +750,14 @@
     display: flex;
     flex-direction: column;
     gap: 18px;
-    min-height: 260px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .content::-webkit-scrollbar {
+    display: none;
+    width: 0;
   }
   .intro {
     display: flex;
@@ -810,6 +826,7 @@
     gap: 8px;
     padding-top: 14px;
     border-top: 1px solid var(--msc2-hairline-subtle);
+    flex-shrink: 0;
   }
   .spacer {
     flex: 1;

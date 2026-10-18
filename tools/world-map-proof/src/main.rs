@@ -10,6 +10,33 @@ use std::path::Path;
 
 mod render;
 
+#[cfg(target_os = "macos")]
+fn raise_open_file_limit() {
+    const TARGET: libc::rlim_t = 16_384;
+    let mut limit = libc::rlimit {
+        rlim_cur: 0,
+        rlim_max: 0,
+    };
+    if unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &mut limit) } != 0 {
+        eprintln!(
+            "Bedrock map: could not read the open-file limit: {}",
+            std::io::Error::last_os_error()
+        );
+        return;
+    }
+    let target = TARGET.min(limit.rlim_max);
+    if limit.rlim_cur >= target {
+        return;
+    }
+    limit.rlim_cur = target;
+    if unsafe { libc::setrlimit(libc::RLIMIT_NOFILE, &limit) } != 0 {
+        eprintln!(
+            "Bedrock map: could not raise the open-file limit to {target}: {}",
+            std::io::Error::last_os_error()
+        );
+    }
+}
+
 fn map_dimension(id: &str) -> Result<Dimension, Box<dyn Error>> {
     match id {
         "minecraft:overworld" => Ok(Dimension::Overworld),
@@ -283,6 +310,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("msc-bedrock-map {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
     }
+    // A large converted world can span more LevelDB tables than launchd's
+    // default 256-file soft limit. Only this short-lived exporter needs more.
+    #[cfg(target_os = "macos")]
+    raise_open_file_limit();
     if args.get(1).is_some_and(|arg| arg == "compare") {
         return compare_tiles(&args);
     }

@@ -11,6 +11,9 @@ Independent Phase 20 gate review remains in [pending acceptance](pending-accepta
 **Add Server follow-up:** P12.190 keeps the Add Server wizard at one height
 across steps and scrolls longer step content; awaiting owner verification.
 
+**Bedrock map follow-up:** P18.56 raises the macOS exporter’s open-file limit
+for large converted worlds; awaiting owner verification on the Intel Mac.
+
 **Services follow-up:** P21.39 makes host-wide Playit account setup available
 from MSC Settings even when the selected server does not use Playit. P21.40
 moves Xbox Broadcast setup to the selected server’s Services tab. Both await
@@ -49,6 +52,17 @@ not in this implementation queue.
 **Verify:** Run `npx tauri dev`; open Manage Servers → Add Server and move through Fresh and Import steps. The sheet should keep the Configure step’s size, longer steps should scroll without a visible scrollbar, and Back/Continue should stay visible. Check at a shorter window height that the sheet fits and its content remains reachable.
 **Batch:** P12.190 only.
 **Commit:** `P12.190: keep add server wizard at one size`
+
+## Phase 18 — Bedrock map follow-up
+
+### P18.56 — Allow large Bedrock maps to open more LevelDB tables
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `tools/world-map-proof/Cargo.toml`; `tools/world-map-proof/Cargo.lock`; `tools/world-map-proof/src/main.rs`; this plan.
+**What:** The Intel Mac’s agent log shows the Bedrock map exporter failing on a converted 7.3 GB world with “Too many open files (os error 24)” while reading LevelDB tables. The reader retains open table handles during catalog generation, while launchd starts the agent with a 256-file soft limit. On macOS, raise only the short-lived exporter’s soft limit to at most 16,384, bounded by the inherited hard limit, before it opens the world. Keep a log diagnostic if the OS rejects the increase. Do not change world data or the agent service’s limits. No new test: this requires the owner’s large-world Intel acceptance and an artificial small-file-limit unit test would not exercise the real table scan.
+**Verify:** Install an Intel build containing this step, then open the converted Bedrock world’s map. Confirm the catalog loads and the agent log no longer reports “Too many open files”; if it still fails, provide the new exporter error and the service’s hard file limit.
+**Batch:** P18.56 only.
+**Commit:** `P18.56: raise bedrock map exporter file limit`
 
 ## Phase 20 — Imported server component follow-up
 

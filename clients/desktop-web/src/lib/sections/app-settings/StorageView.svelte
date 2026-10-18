@@ -825,11 +825,6 @@
           This change is not attributed to MSC removal.
         </p>
       </details>{/if}
-    <p class="footnote">
-      Sizes use decimal units (GB and MB). On macOS, available space includes storage the system can
-      reclaim for your files. File sizes may differ from disk space released by removal. Hard links,
-      sparse files and filesystem clones affect allocation.
-    </p>
   {/if}
   <details class="legacy">
     <summary>Map cleanup on {hostName === 'Local agent' ? 'Local Agent' : hostName}</summary>

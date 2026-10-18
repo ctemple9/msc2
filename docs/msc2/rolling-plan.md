@@ -2,7 +2,7 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.15 implementation/candidate preparation is recorded, awaiting
+Phase 21 P21.1–P21.16 implementation/candidate preparation is recorded, awaiting
 owner verification. The matching Intel candidate and consolidated checks are in
 [Storage acceptance](storage/acceptance.md). Visual captures/acceptance and the
 independent Phase 21 gate review remain pending.
@@ -257,3 +257,12 @@ continuous deep scan or broad test matrix is implied.
 **Verify:** `npm --prefix clients/desktop-web run check`
 **Batch:** solo.
 **Commit:** `P21.15: space the map cleanup description`
+
+### P21.16 — Remove the detailed storage measurement footnote
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Remove the owner-identified paragraph about decimal units, reclaimable capacity and allocation caveats from Storage detail screens. Preserve dated capacity, partial coverage and existing coverage details. Explained that the displayed installation warning indicates unconfirmed package inspection and the socket error is an incomplete scan observation whose path is not shown. No backend behavior changes. Inspected the markup removal and checked formatting; no tests or builds run.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.16: remove the detailed storage measurement footnote`

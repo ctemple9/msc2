@@ -20,6 +20,7 @@
     type StorageResult,
   } from '../../platform/storage';
   import {
+    storageBytesLabel,
     categories,
     total,
     bySize,
@@ -29,7 +30,7 @@
     forgetCleanup,
     recentResults,
   } from './storage-model';
-  import { bytesLabel, errorMessage, type ScreenApi } from '../shared/types';
+  import { errorMessage, type ScreenApi } from '../shared/types';
   export let bridge: StorageBridge | undefined = undefined;
   export let api: ScreenApi | undefined = undefined;
   export let hostName = 'Selected host';
@@ -114,7 +115,7 @@
     return time ? new Date(time * 1000).toLocaleString() : 'Not scanned';
   }
   function size(bytes: number | null | undefined) {
-    return bytes == null ? 'Unknown' : bytesLabel(bytes);
+    return bytes == null ? 'Unknown' : storageBytesLabel(bytes);
   }
   function overviewOf(c: Computer) {
     return c.snapshot ?? c.summary;
@@ -526,7 +527,7 @@
   {#if loading}<p class="quiet">Reading dated inventories…</p>{:else if loadProblem}<p role="alert">
       {loadProblem}
     </p>{:else if !computer}
-    <div class="column-head"><span>Computer</span><span>MSC usage</span><span>Available</span></div>
+    <div class="column-head"><span>Computer</span><span>MSC usage</span><span>Free now</span></div>
     {#each computers as c (c.id)}<button class="computer-row" onclick={() => choose(c.id)}
         ><span
           >{c.name}<small
@@ -660,7 +661,7 @@
                   : ''}</small
               ></span
             ><span class="number"
-              >{size(volume.availableBytes)} available<small>of {size(volume.totalBytes)}</small
+              >{size(volume.availableBytes)} free now<small>of {size(volume.totalBytes)}</small
               ></span
             >
           </div>{/each}
@@ -804,18 +805,19 @@
             >
           </div>{/each}
         {#each computer.result.volumes as volume}<p class="quiet">
-            {volume.label}: {size(volume.availableBytes)} available · checked {dated(
+            {volume.label}: {size(volume.availableBytes)} free now · checked {dated(
               volume.observedAt,
             )}{volume.problem ? ' · ' + volume.problem : ''}
           </p>{/each}
         <p class="quiet">
-          Observed available on the agent data volume: {size(computer.result.availableBytes)}. This
+          Observed free space on the agent data volume: {size(computer.result.availableBytes)}. This
           change is not attributed to MSC removal.
         </p>
       </details>{/if}
     <p class="footnote">
-      File sizes may differ from disk space released by removal. Hard links, sparse files and
-      filesystem clones affect allocation.
+      Sizes use binary units (GiB). Free now is filesystem-reported free space; your system’s
+      storage estimate may include reclaimable data. File sizes may differ from disk space released
+      by removal. Hard links, sparse files and filesystem clones affect allocation.
     </p>
   {/if}
   <details class="legacy">

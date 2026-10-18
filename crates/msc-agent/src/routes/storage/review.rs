@@ -551,28 +551,42 @@ pub(super) async fn result(
         Ok(h) => h,
         Err(r) => return r,
     };
-    if uuid::Uuid::parse_str(&id).is_err() {
+    result_response(
+        &host,
+        &id,
+        || {
+            storage::read_small(&result_path(&host, &id), 256 * 1024)
+                .ok()
+                .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        },
+        || state.lifecycle.operations().snapshot(&id),
+    )
+}
+fn result_response(
+    host: &str,
+    id: &str,
+    load: impl FnOnce() -> Option<StorageReviewedResultDto>,
+    operation: impl FnOnce() -> Option<msc_api::dto::OperationDto>,
+) -> Response {
+    if !msc_api::dto::is_operation_reference(id) {
         return error_response(
             StatusCode::BAD_REQUEST,
             "storage_operation",
             "Invalid operation identity.",
         );
     }
-    let mut result = match storage::read_small(&result_path(&host, &id), 256 * 1024)
-        .ok()
-        .and_then(|b| serde_json::from_slice::<StorageReviewedResultDto>(&b).ok())
-        .filter(|r| r.host_id == host && r.operation_id == id)
-    {
-        Some(r) => r,
-        None => {
-            return error_response(
-                StatusCode::NOT_FOUND,
-                "storage_result",
-                "No retained result exists for this computer and operation.",
-            );
-        }
-    };
-    let ongoing = state.lifecycle.operations().snapshot(&id);
+    let mut result =
+        match load().filter(|result| result.host_id == host && result.operation_id == id) {
+            Some(result) => result,
+            None => {
+                return error_response(
+                    StatusCode::NOT_FOUND,
+                    "storage_result",
+                    "No retained result exists for this computer and operation.",
+                );
+            }
+        };
+    let ongoing = operation();
     if result.state == "running"
         && ongoing.as_ref().is_none_or(|o| {
             matches!(
@@ -607,6 +621,53 @@ fn action_permission(credential: &AuthenticatedCredential, action: &str) -> Opti
 #[cfg(test)]
 mod tests {
     use super::*;
+    // Essential: the reported cleanup succeeded in admission but its result was
+    // rejected solely because the actual journal ID was not a UUID. Fake journal
+    // and in-memory result only, no files/network/timers; expected under 1 ms.
+    #[tokio::test]
+    async fn cleanup_result_accepts_the_journals_own_operation_id() {
+        let operations = crate::routes::operations::OperationsState::fake_journaled();
+        let id = operations
+            .begin_lifecycle("host-storage-cleanup", None, "Controlled removal")
+            .unwrap();
+        let saved = StorageReviewedResultDto {
+            host_id: "controlled-host".into(),
+            operation_id: id.as_str().into(),
+            state: "completed".into(),
+            items: vec![],
+            volumes: vec![],
+            available_bytes: None,
+            observed_at: 0,
+        };
+        let response = result_response(
+            "controlled-host",
+            id.as_str(),
+            || Some(saved.clone()),
+            || operations.snapshot(id.as_str()),
+        );
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(response.into_body(), 4096)
+            .await
+            .unwrap();
+        let result: StorageReviewedResultDto = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(result.operation_id, id.as_str());
+        assert_eq!(result.state, "completed");
+        assert_eq!(
+            result_response("other-host", id.as_str(), || Some(saved), || None).status(),
+            StatusCode::NOT_FOUND
+        );
+        assert_eq!(
+            result_response(
+                "controlled-host",
+                "../result",
+                || panic!("Invalid reference must not read storage"),
+                || None
+            )
+            .status(),
+            StatusCode::BAD_REQUEST
+        );
+    }
+
     #[test]
     fn server_data_actions_keep_existing_permission_rules() {
         let mut credential = AuthenticatedCredential {

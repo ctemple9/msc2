@@ -52,3 +52,13 @@ pub struct OperationDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<ErrorDto>,
 }
+
+/// Operations use opaque IDs, not a required UUID format. Bound references used
+/// in client URLs without admitting separators or query/fragment characters.
+pub fn is_operation_reference(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+}

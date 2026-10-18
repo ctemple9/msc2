@@ -1634,7 +1634,7 @@ async fn run_storage(common: CommonArgs, command: StorageCommand) -> Result<(), 
             return print_json(&result);
         }
         StorageCommand::Result { operation_id } => {
-            if uuid::Uuid::parse_str(operation_id).is_err() {
+            if !msc_api::dto::is_operation_reference(operation_id) {
                 return Err(CliError::usage("Invalid operation ID"));
             }
             let result: serde_json::Value = client

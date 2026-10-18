@@ -2,7 +2,7 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.8 implementation/candidate preparation is recorded, awaiting
+Phase 21 P21.1–P21.9 implementation/candidate preparation is recorded, awaiting
 owner verification. The matching Intel candidate and consolidated checks are in
 [Storage acceptance](storage/acceptance.md). Visual captures/acceptance and the
 independent Phase 21 gate review remain pending.
@@ -191,3 +191,13 @@ continuous deep scan or broad test matrix is implied.
 **Commit:** `P21.8: document storage management acceptance`
 
 **Implementation:** Prepared the matching optimized Intel 0.1.30 local candidate and consolidated owner checklist in `storage/acceptance.md`; capability accounting and pending-gate links now describe delivered Storage behavior. Final handoff inspection corrected late UI completions clearing newer navigation, retained transfer-owner retry after an inspection lease, and separated read-only world-slot inspection from legacy metadata migration. Slot IDs must match their directories and unreadable active markers protect removal. Extended the existing six-byte transfer regression and added one two-file in-memory no-write/identity regression; controlled inputs, no timing/network, expected under one second and 1 ms respectively. Compiled without running tests; broader agent integration targets still have the documented pre-existing import/argument failures. Locked debug/optimized agent builds, final optimized native build, required Clippy/format/type checks and packaging passed. The initial pinned renderer fetch failed under sandbox DNS restrictions; permitted retry succeeded without a release workflow. Final ad-hoc bundle and extracted archive passed deep strict signature and packaged-file checksum verification. No installed app/service, valued data, release workflow or publication was changed. Browser runtime had no available browser, so rendered captures and physical/Windows/Linux observations remain explicitly Pending Cameron. No phase gate or owner status was closed.
+
+### P21.9 — Recover removal results and clarify storage units
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `crates/msc-api/src/dto/operation.rs`, `crates/msc-agent/src/routes/storage/review.rs`, `crates/msc-agent/src/cli/mod.rs`; desktop `StorageView.svelte`, `storage-model.ts`, `tests/storage/host-state.test.ts`; `storage/acceptance.md`; this plan.
+**What:** Accept the operation journal's opaque IDs when retrieving reviewed removal results, preserving host/result binding and bounded safe references. Label Storage binary sizes as GiB and filesystem capacity as Free now. Explain reclaimable-space differences without attributing a disk-space change to deletion.
+**Implementation:** Corrected the UUID-only result validation that rejected `op-96598-2` in the API and CLI. Added two essential controlled regressions for real journal IDs with host/reference rejection and the reported disk-unit mismatch (expected under 1 ms each, no filesystem/network/timing dependencies); compiled only. Agent/API Clippy, formatting and Svelte checking passed (ten existing unused-style warnings). Binary test-target compilation succeeded, while broader integration checking encountered the previously documented route imports and CLI argument errors. No tests executed. Owner requested dev-app verification going forward instead of packaged candidate builds: run `npx tauri dev` from `clients/desktop-web`; repair the agent for backend changes, then check the original removal result and refresh inventory. The earlier P21.8 candidate does not contain this correction. No live removal was retried and the original outcome remains unverified.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.9: restore storage results and clarify disk units`

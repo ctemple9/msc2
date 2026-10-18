@@ -160,3 +160,32 @@ new direct Swift parity audit is not claimed.
 
 After Cameron records the observations, the other agent reviews the feature
 gate. This implementing agent does not perform that review or advance Phase 21.
+
+## Owner feedback — P21.9
+
+The Tectonic removal screen reported HTTP 400 for operation `op-96598-2`.
+The result endpoint incorrectly required a UUID even though the operation
+journal generates opaque IDs of that form. API and CLI result lookup now accept
+bounded safe references and still require a matching host and operation in the
+retained result. The error alone does not establish whether removal completed.
+No deletion was resubmitted; check the original result after repairing the agent.
+
+The disk shown as 436 GB by macOS is 406.1 GiB: MSC used binary arithmetic
+with decimal labels. Storage now displays binary units explicitly. Its measured
+MSC-file total is not the whole disk's used space. Capacity is labelled Free now;
+macOS available space can include purgeable data, as described in
+[Apple's Disk Utility guide](https://support.apple.com/en-ie/guide/disk-utility/dskutl1005/mac).
+The reported MSC capacity sample was dated 8:30:57 PM, before the removal
+attempt, while macOS was still calculating. The exact composition of the
+103.82 GB macOS figure and the removal outcome remain unverified.
+
+Two essential regressions cover journal-ID result recovery with host/reference
+validation and the exact 436,001,021,952-byte unit conversion. Controlled inputs,
+no filesystem/network/timing dependencies, expected under 1 ms each; not run.
+
+Per Cameron's updated workflow, verify source changes with `npx tauri dev` from
+`clients/desktop-web`; frontend edits reload automatically. Agent/API changes
+also require **Agent… → Repair** to update the background service. Then use
+**Check status** for the original operation and **Refresh** for a dated inventory.
+Packaged candidates are prepared only when requested. The P21.8 archive predates
+this fix and is not evidence for P21.9. Physical acceptance remains pending.

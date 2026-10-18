@@ -76,3 +76,11 @@ export function forgetCleanup(hostId: string): void {
     /* Stale metadata is reconciled from its journal result. */
   }
 }
+
+/** Binary byte counts must carry binary units; decimal GB gives a different value. */
+export function storageBytesLabel(bytes: number): string {
+  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB'];
+  if (bytes < 1024) return `${bytes} B`;
+  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / 1024 ** exponent).toFixed(1)} ${units[exponent]}`;
+}

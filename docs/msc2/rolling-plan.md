@@ -15,6 +15,8 @@ Cameron’s manual verification.
 P21.41 reorders those server controls; it also awaits manual verification.
 P21.42 shows the shared Playit agent and saved tunnel addresses in MSC Settings;
 it awaits manual verification.
+P21.43 shows those saved addresses in the active server’s Services tab;
+it awaits manual verification.
 
 Historical implementation and published release records were reconciled and
 moved to [the archive](rolling-plan-archive.md) at Cameron's October 16 request.
@@ -81,3 +83,12 @@ is separate from that closure; no earlier unobserved check is promoted to Pass.
 **Verify:** Run `npx tauri dev`; open MSC Settings → Services after Playit setup and confirm the agent ID and each configured Java, Bedrock, and voice address appear on separate rows, including with no server selected. Missing tunnels should have no address row.
 **Batch:** P21.42 only.
 **Commit:** `P21.42: show shared playit agent and tunnels`
+
+### P21.43 — Show Playit tunnel addresses in server Services
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `clients/desktop-web/src/lib/sections/server-editor/BroadcastTab.svelte`; this plan.
+**What:** When Playit is enabled for the active server, show the saved shared Java, Bedrock, and voice addresses as separate labeled rows in its Services tab. Preserve the Simple Voice Chat restart hint when a voice address exists and the server is running. Do not create or change tunnels.
+**Verify:** Run `npx tauri dev`; open a Playit-enabled server’s Manage → Services tab and confirm every configured shared tunnel address appears on its own row. Disable Playit for that server and confirm the address rows disappear without changing MSC Settings’ shared addresses.
+**Batch:** P21.43 only.
+**Commit:** `P21.43: show playit tunnel addresses in server services`

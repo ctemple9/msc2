@@ -414,14 +414,31 @@
             >
           </div>
         </div>
+        {#if playit?.playitEnabled && playit.javaAddress}
+          <div class="row bordered">
+            <span class="name">Java tunnel</span>
+            <code class="tunnel-address">{playit.javaAddress}</code>
+          </div>
+        {/if}
+        {#if playit?.playitEnabled && playit.bedrockAddress}
+          <div class="row bordered">
+            <span class="name">Bedrock tunnel</span>
+            <code class="tunnel-address">{playit.bedrockAddress}</code>
+          </div>
+        {/if}
+        {#if playit?.playitEnabled && playit.voiceAddress}
+          <div class="row bordered">
+            <span class="name">Voice tunnel</span>
+            <code class="tunnel-address">{playit.voiceAddress}</code>
+          </div>
+        {/if}
       </Card>
       <p class="hint">
         {playit?.note ?? 'MSC reuses one shared Java, Bedrock, and voice tunnel set.'}
       </p>
-      {#if playit?.voiceAddress}
+      {#if playit?.playitEnabled && playit.voiceAddress && serverStatus.running}
         <p class="hint">
-          Voice tunnel: <code>{playit.voiceAddress}</code>.{#if serverStatus.running}
-            The server is running; Simple Voice Chat reads this address when the server restarts.{/if}
+          Simple Voice Chat reads the voice address when the server restarts.
         </p>
       {/if}
     </section>
@@ -512,6 +529,12 @@
     display: flex;
     align-items: center;
     gap: 10px;
+  }
+  .tunnel-address {
+    overflow-wrap: anywhere;
+    text-align: right;
+    font-size: 12px;
+    color: var(--msc2-text-secondary);
   }
   .setup-state {
     font-size: 12px;

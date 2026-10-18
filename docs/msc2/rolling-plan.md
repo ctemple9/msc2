@@ -12,6 +12,7 @@ Independent Phase 20 gate review remains in [pending acceptance](pending-accepta
 from MSC Settings even when the selected server does not use Playit. P21.40
 moves Xbox Broadcast setup to the selected server’s Services tab. Both await
 Cameron’s manual verification.
+P21.41 reorders those server controls; it also awaits manual verification.
 
 Historical implementation and published release records were reconciled and
 moved to [the archive](rolling-plan-archive.md) at Cameron's October 16 request.
@@ -60,3 +61,12 @@ is separate from that closure; no earlier unobserved check is promoted to Pass.
 **Verify:** Run `npx tauri dev`; confirm MSC Settings → Services has no Xbox Broadcast section, then open a server’s Services tab and use Xbox Broadcast → Set up. The device-code prompt must appear for that server, and selecting another server must not be required.
 **Batch:** P21.40 only.
 **Commit:** `P21.40: move xbox broadcast setup to server services`
+
+### P21.41 — Reorder Xbox Broadcast server controls
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `clients/desktop-web/src/lib/sections/server-editor/BroadcastTab.svelte`; this plan.
+**What:** Show Xbox Broadcast runtime status and Start/Stop first, followed by the server enable and automatic-start toggles, Microsoft sign-in, then Helper JAR download. Remove the Join address row from this card and update the enable hint for the new order.
+**Verify:** Run `npx tauri dev`; open a server’s Services tab and confirm the Xbox Broadcast rows appear in that order and each control still works as before.
+**Batch:** P21.41 only.
+**Commit:** `P21.41: reorder xbox broadcast service controls`

@@ -295,23 +295,6 @@
       <p class="msc2-type-overline">Xbox Broadcast</p>
       <Card padding="0">
         <div class="row">
-          <div class="toggle-info">
-            <span class="name">Xbox Broadcast settings</span>
-            <span class="setup-state">Enable this server, then start the helper below.</span>
-          </div>
-          <Toggle
-            checked={xboxEnabled}
-            label="Enable Xbox Broadcast"
-            onchange={(enabled) => void setXboxEnabled(enabled)}
-          />
-        </div>
-        <div class="row bordered">
-          <span class="name">Join address</span>
-          <span class="mono"
-            >{server.hostAddress ?? '—'}{server.gamePort ? `:${server.gamePort}` : ''}</span
-          >
-        </div>
-        <div class="row bordered">
           <StatusDot
             tone={broadcastRunning ? 'ok' : 'warn'}
             label={broadcastRunning ? 'Running' : 'Stopped'}
@@ -322,6 +305,29 @@
             disabled={broadcastBusy || !canControl}
             onclick={toggleBroadcast}>{broadcastRunning ? 'Stop' : 'Start'}</Button
           >
+        </div>
+        <div class="row bordered">
+          <div class="toggle-info">
+            <span class="name">Xbox Broadcast settings</span>
+            <span class="setup-state">Allow this server to use Xbox Broadcast.</span>
+          </div>
+          <Toggle
+            checked={xboxEnabled}
+            label="Enable Xbox Broadcast"
+            onchange={(enabled) => void setXboxEnabled(enabled)}
+          />
+        </div>
+        <div class="row bordered">
+          <div class="row-text">
+            <span class="name">Start Xbox Broadcast automatically</span>
+            <span class="setup-state">Applies to eligible servers on this computer.</span>
+          </div>
+          <Toggle
+            checked={broadcastAutostart?.enabled ?? false}
+            label="Start Xbox Broadcast automatically"
+            disabled={!canControl}
+            onchange={updateBroadcastAutostart}
+          />
         </div>
         <div class="row bordered">
           <div class="row-text">
@@ -342,18 +348,6 @@
           >
             {broadcastSetupBusy ? 'Starting…' : status?.authenticated ? 'Check sign-in' : 'Set up…'}
           </Button>
-        </div>
-        <div class="row bordered">
-          <div class="row-text">
-            <span class="name">Start Xbox Broadcast automatically</span>
-            <span class="setup-state">Applies to eligible servers on this computer.</span>
-          </div>
-          <Toggle
-            checked={broadcastAutostart?.enabled ?? false}
-            label="Start Xbox Broadcast automatically"
-            disabled={!canControl}
-            onchange={updateBroadcastAutostart}
-          />
         </div>
         <div class="row bordered">
           <div class="row-text">
@@ -497,11 +491,6 @@
     font-size: 13px;
     font-weight: 500;
     color: var(--msc2-text-primary);
-  }
-  .mono {
-    font-size: 12px;
-    font-family: var(--msc2-font-mono, monospace);
-    color: var(--msc2-text-tertiary);
   }
   .toggle-info {
     display: flex;

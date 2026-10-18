@@ -19,6 +19,8 @@ P21.43 shows those saved addresses in the active server’s Services tab;
 it awaits manual verification.
 P21.44 limits that server view to tunnels its own configuration uses;
 it awaits manual verification.
+P21.45 hides server Playit addresses until the owner reveals them;
+it awaits manual verification.
 
 Historical implementation and published release records were reconciled and
 moved to [the archive](rolling-plan-archive.md) at Cameron's October 16 request.
@@ -103,3 +105,12 @@ is separate from that closure; no earlier unobserved check is promoted to Pass.
 **Verify:** Run `npx tauri dev`; open a Playit-enabled Bedrock-only server and confirm only its Bedrock tunnel appears. Check a Java server, a Java server with Bedrock cross-play, and a server with Simple Voice Chat to confirm each sees only its applicable tunnel addresses.
 **Batch:** P21.44 only.
 **Commit:** `P21.44: filter server playit tunnel addresses`
+
+### P21.45 — Hide Playit addresses in server Services until revealed
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `clients/desktop-web/src/lib/sections/server-editor/BroadcastTab.svelte`; this plan.
+**What:** Add an eye control immediately left of Playit Manage setup. Tunnel rows remain labeled but show “Hidden” until the eye is selected. Re-hide on server change or when the server is no longer active. This changes only on-screen visibility, not Playit networking.
+**Verify:** Run `npx tauri dev`; open a Playit-enabled server’s Services tab and confirm its tunnel addresses start hidden, the eye reveals and hides them, and selecting another server starts hidden again.
+**Batch:** P21.45 only.
+**Commit:** `P21.45: hide server playit addresses by default`

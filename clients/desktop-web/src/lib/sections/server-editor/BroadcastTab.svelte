@@ -19,6 +19,7 @@
   import Button from '../../components/base/Button.svelte';
   import Toggle from '../../components/base/Toggle.svelte';
   import StatusDot from '../../components/base/StatusDot.svelte';
+  import VisibilityIcon from '../../components/base/VisibilityIcon.svelte';
   import PlayitSetupSheet from './PlayitSetupSheet.svelte';
   import BroadcastAuthSheet from './BroadcastAuthSheet.svelte';
   import type { Schema, ScreenApi } from '../shared/types';
@@ -52,6 +53,8 @@
   let xboxEnabled = server.xboxBroadcastEnabled === true;
   let playitBusy = false;
   let showPlayitSetup = false;
+  let playitAddressesVisible = false;
+  let visibilityServerId = server.id;
 
   let notice = '';
   let loaded = false;
@@ -67,9 +70,14 @@
   $: if (!isActive) {
     loaded = false;
     showBroadcastAuth = false;
+    playitAddressesVisible = false;
     // Invalidate requests started for the former host/server boundary. The
     // shared API client can change targets while an awaited request is out.
     playitLoadVersion += 1;
+  }
+  $: if (visibilityServerId !== server.id) {
+    visibilityServerId = server.id;
+    playitAddressesVisible = false;
   }
 
   onMount(() => {
@@ -396,6 +404,20 @@
             >
           </div>
           <div class="control">
+            {#if playit?.playitEnabled && ((playit.usesJavaTunnel && playit.javaAddress) || (playit.usesBedrockTunnel && playit.bedrockAddress) || (playit.usesVoiceTunnel && playit.voiceAddress))}
+              <button
+                type="button"
+                class="visibility-toggle"
+                aria-label={playitAddressesVisible
+                  ? 'Hide Playit addresses'
+                  : 'Show Playit addresses'}
+                aria-pressed={playitAddressesVisible}
+                title={playitAddressesVisible ? 'Hide Playit addresses' : 'Show Playit addresses'}
+                onclick={() => (playitAddressesVisible = !playitAddressesVisible)}
+              >
+                <VisibilityIcon visible={playitAddressesVisible} />
+              </button>
+            {/if}
             <Button
               variant="secondary"
               size="sm"
@@ -417,19 +439,25 @@
         {#if playit?.playitEnabled && playit.usesJavaTunnel && playit.javaAddress}
           <div class="row bordered">
             <span class="name">Java tunnel</span>
-            <code class="tunnel-address">{playit.javaAddress}</code>
+            <code class="tunnel-address"
+              >{playitAddressesVisible ? playit.javaAddress : 'Hidden'}</code
+            >
           </div>
         {/if}
         {#if playit?.playitEnabled && playit.usesBedrockTunnel && playit.bedrockAddress}
           <div class="row bordered">
             <span class="name">Bedrock tunnel</span>
-            <code class="tunnel-address">{playit.bedrockAddress}</code>
+            <code class="tunnel-address"
+              >{playitAddressesVisible ? playit.bedrockAddress : 'Hidden'}</code
+            >
           </div>
         {/if}
         {#if playit?.playitEnabled && playit.usesVoiceTunnel && playit.voiceAddress}
           <div class="row bordered">
             <span class="name">Voice tunnel</span>
-            <code class="tunnel-address">{playit.voiceAddress}</code>
+            <code class="tunnel-address"
+              >{playitAddressesVisible ? playit.voiceAddress : 'Hidden'}</code
+            >
           </div>
         {/if}
       </Card>
@@ -437,9 +465,7 @@
         {playit?.note ?? 'MSC reuses one shared Java, Bedrock, and voice tunnel set.'}
       </p>
       {#if playit?.playitEnabled && playit.usesVoiceTunnel && playit.voiceAddress && serverStatus.running}
-        <p class="hint">
-          Simple Voice Chat reads the voice address when the server restarts.
-        </p>
+        <p class="hint">Simple Voice Chat reads the voice address when the server restarts.</p>
       {/if}
     </section>
   {/if}
@@ -524,6 +550,26 @@
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+  .visibility-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    color: var(--msc2-text-tertiary);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+  }
+  .visibility-toggle:hover {
+    color: var(--msc2-text-primary);
+  }
+  .visibility-toggle:focus-visible {
+    outline: 2px solid var(--msc2-hairline);
+    outline-offset: 2px;
+    border-radius: 3px;
   }
   .playit-status {
     display: flex;

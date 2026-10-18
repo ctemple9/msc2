@@ -832,11 +832,7 @@
     </p>
   {/if}
   <details class="legacy">
-    <summary>Map cleanup on {hostName} using the earlier agent protocol</summary>
-    <p class="quiet">
-      For agents that support map cleanup but not the new inventory. This action uses the selected
-      Settings host shown below.
-    </p>
+    <summary>Map cleanup on {hostName === 'Local agent' ? 'Local Agent' : hostName}</summary>
     {#key api}<StorageCleanup {api} {hostName} />{/key}
   </details>
 </section>

@@ -55,7 +55,6 @@
 </script>
 
 <section class="storage">
-  <p class="msc2-type-overline">Disk space on {hostName}</p>
   <p class="hint">
     Check for abandoned map copies and render output on this host. This data is rebuilt when you
     open the map. Server worlds, backups, mods, settings and credentials are preserved.

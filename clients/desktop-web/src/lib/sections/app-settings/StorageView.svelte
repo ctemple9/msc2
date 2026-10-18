@@ -939,15 +939,6 @@
                 : `${size(item.removedLogicalBytes)} removed`}</span
             >
           </div>{/each}
-        {#each computer.result.volumes as volume}<p class="quiet">
-            {volume.label}: {size(volume.availableBytes)} available · checked {dated(
-              volume.observedAt,
-            )}{volume.problem ? ' · ' + volume.problem : ''}
-          </p>{/each}
-        <p class="quiet">
-          Observed available space on the agent data volume: {size(computer.result.availableBytes)}.
-          This change is not attributed to MSC removal.
-        </p>
       </details>{/if}
   {/if}
   <details class="legacy">

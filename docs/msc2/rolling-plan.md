@@ -2,7 +2,7 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.33 implementation/candidate preparation is recorded, awaiting
+Phase 21 P21.1–P21.34 implementation/candidate preparation is recorded, awaiting
 owner verification. The matching Intel candidate and consolidated checks are in
 [Storage acceptance](storage/acceptance.md). Visual captures/acceptance and the
 independent Phase 21 gate review remain pending.
@@ -419,3 +419,12 @@ continuous deep scan or broad test matrix is implied.
 **Verify:** `npx tauri dev` — open MSC Settings → Storage and confirm Server folder and Computers use the same heading size and the computer-list subtitle is absent.
 **Batch:** solo.
 **Commit:** `P21.33: align storage overview headings`
+
+### P21.34 — Simplify the last removal summary
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Remove the volume-capacity observations from the last-removal display while retaining the operation ID, timestamp, item outcomes and removed logical sizes.
+**Verify:** `npx tauri dev` — open MSC Settings → Storage → This computer → Servers and confirm Last removal lists the operation and removed items without the extra capacity paragraphs.
+**Batch:** solo.
+**Commit:** `P21.34: simplify last removal summary`

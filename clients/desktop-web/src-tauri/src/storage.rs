@@ -737,11 +737,42 @@ pub async fn storage_reveal(
                 .find(|path| {
                     storage::verified_root_id(&host, path).ok().as_deref() == Some(&item.root_id)
                 })
-                .ok_or("Local folder identity or ownership changed")?;
-            if !path.is_dir() {
-                return Err("The source is not a local folder".into());
+                .cloned();
+            if let Some(path) = path.filter(|path| path.is_dir()) {
+                return Ok(path);
             }
-            return Ok(path.clone());
+
+            // Some inventory roots are discovered inside MSC's owned server
+            // tree. The uninstall inventory knows the parent, while the agent
+            // snapshot supplies the child path and its independently measured
+            // identity. Require both proofs before opening that child.
+            let candidate = item
+                .display_path
+                .as_deref()
+                .map(PathBuf::from)
+                .ok_or("Local folder identity or ownership changed")?;
+            let verified_parent = found.inventory.entries.iter().any(|entry| {
+                entry.kind == EntryKind::ServerTree
+                    && entry.state == EntryState::Present
+                    && entry.path.as_ref().is_some_and(|parent| {
+                        candidate.strip_prefix(parent).is_ok_and(|relative| {
+                            !relative.as_os_str().is_empty()
+                                && relative
+                                    .components()
+                                    .all(|component| {
+                                        matches!(component, std::path::Component::Normal(_))
+                                    })
+                                && storage::verified_root_id(&host, parent).is_ok()
+                                && candidate.is_dir()
+                                && storage::verified_root_id(&host, &candidate)
+                                    .is_ok_and(|root_id| root_id == item.root_id)
+                        })
+                    })
+            });
+            if !verified_parent {
+                return Err("Local folder identity or ownership changed".into());
+            }
+            return Ok(candidate);
         }
         let id = local_id(&cache);
         let state = local_state(&id).lock().map_err(|e| e.to_string())?;

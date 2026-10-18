@@ -674,7 +674,7 @@
               >{size(total(snapshot.items.filter((i) => i.category === cat[0])))} ›</span
             ></button
           >{/each}
-        {#if snapshot.issues.length}<details>
+        {#if snapshot.issues.length}<details class="coverage">
             <summary>Coverage details ({snapshot.issues.length})</summary
             >{#each snapshot.issues as issue}<p class="quiet">{issue.reason}</p>{/each}
           </details>{/if}
@@ -1016,6 +1016,9 @@
     cursor: pointer;
     color: var(--msc2-text-secondary);
     font-size: 12px;
+  }
+  .coverage p {
+    margin-top: 12px;
   }
   .legacy {
     margin-top: 24px;

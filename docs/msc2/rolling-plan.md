@@ -2,7 +2,7 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.16 implementation/candidate preparation is recorded, awaiting
+Phase 21 P21.1–P21.17 implementation/candidate preparation is recorded, awaiting
 owner verification. The matching Intel candidate and consolidated checks are in
 [Storage acceptance](storage/acceptance.md). Visual captures/acceptance and the
 independent Phase 21 gate review remain pending.
@@ -266,3 +266,12 @@ continuous deep scan or broad test matrix is implied.
 **Verify:** `npm --prefix clients/desktop-web run check`
 **Batch:** solo.
 **Commit:** `P21.16: remove the detailed storage measurement footnote`
+
+### P21.17 — Space coverage detail messages
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Add 12 px above each expanded coverage message, separating the first from its disclosure heading and subsequent messages from one another. Development mode can explain unconfirmed installed-package inspection; the socket error's cause remains unconfirmed. Inspected the scoped CSS and checked formatting; no tests or builds run. Frontend reload only.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.17: space storage coverage messages`

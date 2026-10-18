@@ -80,6 +80,16 @@
   $: serverItems = categoryItems.filter((i) =>
     server === 'unassigned' ? i.serverId === null : i.serverId === server,
   );
+  $: worldItems = serverItems.filter((i) => i.group === 'worlds');
+  $: savedWorldItems = bySize(
+    worldItems.filter(
+      (i) =>
+        i.domainId !== null && !['active_slot_id.txt', '.p6_reconciled'].includes(i.domainId ?? ''),
+    ),
+  );
+  $: activeWorldItems = bySize(worldItems.filter((i) => i.domainId === null));
+  $: backupItems = bySize(serverItems.filter((i) => i.group === 'backups'));
+  $: serverGroups = snapshot ? serverGroupEntries(snapshot, serverItems) : [];
   $: visibleItems = bySize(
     server ? (group ? serverItems.filter((i) => i.group === group) : serverItems) : categoryItems,
   );
@@ -110,6 +120,22 @@
       other: 'Logs & other files',
     };
     return labels[id] ?? id;
+  }
+  function serverGroupEntries(data: StorageSnapshot, items: StorageItem[]) {
+    const entries = grouped(data, 'group', items).filter(
+      (entry) => entry.id !== 'backups' && entry.id !== 'worlds',
+    );
+    const worldBytes = total(
+      items.filter((item) => item.group === 'worlds' || item.group === 'backups'),
+    );
+    if (items.some((item) => item.group === 'worlds' || item.group === 'backups')) {
+      entries.push({ id: 'worlds', label: 'Worlds', bytes: worldBytes });
+    }
+    return entries.sort((a, b) => b.bytes - a.bytes || a.label.localeCompare(b.label));
+  }
+  function sectionName(item: StorageItem, prefix: string): string {
+    const separator = `${prefix} / `;
+    return item.label.startsWith(separator) ? item.label.slice(separator.length) : item.label;
   }
   function dated(time: number) {
     return time ? new Date(time * 1000).toLocaleString() : 'Not scanned';
@@ -701,7 +727,7 @@
         {size(total(serverItems))}
         <span>{server === 'unassigned' ? 'in unregistered files' : 'in this server'}</span>
       </p>
-      {#each grouped(snapshot, 'group', serverItems) as entry (entry.id)}<button
+      {#each serverGroups as entry (entry.id)}<button
           class="inventory-row"
           onclick={() => {
             group = entry.id;
@@ -717,25 +743,90 @@
         </p>
       {:else}
         <p class="quiet">
-          Live worlds and server files are protected inventory. Manage saved slots, backups or the
-          whole server through separate reviews.
+          Choose a section to inspect this server's files. World and backup removal is reviewed from
+          the Worlds page.
         </p>
-        <div class="actions">
+      {/if}
+    {:else if server && group === 'worlds' && snapshot}
+      <p class="measured">
+        {size(total([...worldItems, ...backupItems]))}<span>in this server</span>
+      </p>
+      <section class="world-section">
+        <div class="world-section-heading">
+          <div>
+            <h3>Active world</h3>
+            <p class="quiet">The live world folder the server currently uses.</p>
+          </div>
+        </div>
+        {#if activeWorldItems.length}
+          {#each activeWorldItems as item (item.id)}<div class="file-row world-row">
+              <span
+                >{sectionName(
+                  item,
+                  item.label.startsWith('Active Bedrock world')
+                    ? 'Active Bedrock world'
+                    : 'Active world',
+                )}
+                <small>{item.partial ? 'Partial inventory' : 'Live server data'}</small></span
+              >
+              <span class="number">{itemSize(item)}</span>
+            </div>{/each}
+        {:else}<p class="quiet">No active world folder was identified.</p>{/if}
+        {#if activeWorldItems.some((item) => item.label.includes('Bedrock'))}
+          <p class="footnote">
+            Bedrock stores its live world inside the worlds folder. Saved worlds and backups contain
+            the full worlds collection.
+          </p>
+        {/if}
+      </section>
+      <section class="world-section">
+        <div class="world-section-heading">
+          <div>
+            <h3>Saved worlds</h3>
+            <p class="quiet">
+              Saved copies you can restore or remove. Each row represents one saved world.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            disabled={!reviewAllowed}
+            onclick={() => void inspectAction('remove-world')}>Remove a saved world…</Button
+          >
+        </div>
+        {#if savedWorldItems.length}
+          {#each savedWorldItems as item (item.id)}<div class="file-row world-row">
+              <span
+                >{sectionName(item, item.label.split(' / ')[0])}
+                <small>{item.partial ? 'Partial inventory' : 'Saved world'}</small></span
+              >
+              <span class="number">{itemSize(item)}</span>
+            </div>{/each}
+        {:else}<p class="quiet">No saved worlds were found.</p>{/if}
+      </section>
+      <section class="world-section">
+        <div class="world-section-heading">
+          <div>
+            <h3>Backups</h3>
+            <p class="quiet">
+              Backup archives are separate from the active world and saved worlds.
+            </p>
+          </div>
           <Button
             size="sm"
             disabled={!reviewAllowed}
             onclick={() => void inspectAction('delete-backups')}>Manage backups…</Button
-          ><Button
-            size="sm"
-            disabled={!reviewAllowed}
-            onclick={() => void inspectAction('remove-world')}>Remove a saved world…</Button
-          ><Button
-            size="sm"
-            disabled={!reviewAllowed}
-            onclick={() => void inspectAction('remove-server')}>Remove this server…</Button
           >
         </div>
-      {/if}
+        {#if backupItems.length}
+          {#each backupItems as item (item.id)}<div class="file-row world-row">
+              <span
+                >{sectionName(item, item.label.split(' / ')[0])}
+                <small>{item.partial ? 'Partial inventory' : 'Backup archive'}</small></span
+              >
+              <span class="number">{itemSize(item)}</span>
+            </div>{/each}
+        {:else}<p class="quiet">No backups were found.</p>{/if}
+      </section>
     {:else}
       <p class="measured">{size(total(visibleItems))} <span>logical size</span></p>
       {#each visibleItems as item (item.id)}<div class="file-row">
@@ -913,6 +1004,27 @@
     justify-content: space-between;
     align-items: start;
     gap: 20px;
+  }
+  .world-section {
+    padding-top: 18px;
+  }
+  .world-section + .world-section {
+    border-top: 1px solid var(--msc2-hairline);
+  }
+  .world-section-heading {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 8px;
+  }
+  h3 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0 0 6px;
+  }
+  .world-row {
+    padding: 10px 0;
   }
   .file-row,
   .volume {

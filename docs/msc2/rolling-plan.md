@@ -2,7 +2,7 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.21 implementation/candidate preparation is recorded, awaiting
+Phase 21 P21.1–P21.22 implementation/candidate preparation is recorded, awaiting
 owner verification. The matching Intel candidate and consolidated checks are in
 [Storage acceptance](storage/acceptance.md). Visual captures/acceptance and the
 independent Phase 21 gate review remain pending.
@@ -311,3 +311,12 @@ continuous deep scan or broad test matrix is implied.
 **Verify:** `npm --prefix clients/desktop-web run check`
 **Batch:** solo.
 **Commit:** `P21.21: simplify server list actions`
+
+### P21.22 — Organize server worlds and backups
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** Desktop `StorageView.svelte`; `crates/msc-application/src/storage.rs`; `crates/msc-infrastructure/src/storage.rs`; this plan.
+**What:** Combine Worlds and Backups into one server page with Active world, Saved worlds and Backups sections. Show saved-slot names and backup metadata labels instead of UUIDs and internal marker files. Put saved-world and backup review actions in their matching sections; keep server removal on the Servers list. Explain Bedrock's live `worlds/` folder and collection snapshots. Preserve existing candidate/review safety. Do not run tests or builds; use frontend type checking and Rust lint/format checks. Frontend reload only.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.22: organize server worlds and backups`

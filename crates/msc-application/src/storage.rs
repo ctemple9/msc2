@@ -154,14 +154,22 @@ pub fn discover(input: &Discovery<'_>) -> Manifest {
             rule(
                 "backups",
                 Category::Servers,
-                "Backups",
+                if server.server_type == msc_domain::identity::ServerType::Bedrock {
+                    "Bedrock collection backups"
+                } else {
+                    "Backups"
+                },
                 Some(&server.id),
                 true,
             ),
             rule(
                 "world_slots",
                 Category::Servers,
-                "Worlds / Stored slots",
+                if server.server_type == msc_domain::identity::ServerType::Bedrock {
+                    "Saved world collection"
+                } else {
+                    "Saved world"
+                },
                 Some(&server.id),
                 true,
             ),
@@ -252,7 +260,11 @@ pub fn discover(input: &Discovery<'_>) -> Manifest {
                 let mut world_rule = rule(
                     folder,
                     Category::Servers,
-                    "Worlds / Active data",
+                    if server.server_type == msc_domain::identity::ServerType::Bedrock {
+                        "Active Bedrock world"
+                    } else {
+                        "Active world"
+                    },
                     Some(&server.id),
                     false,
                 );

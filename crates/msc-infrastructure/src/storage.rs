@@ -466,7 +466,9 @@ impl Walker<'_> {
             (
                 rule.category,
                 rule.server_id.clone(),
-                child.map_or_else(|| rule.label.clone(), |c| format!("{} / {c}", rule.label)),
+                child
+                    .as_deref()
+                    .map_or_else(|| rule.label.clone(), |name| child_label(root, rule, name)),
                 key,
             )
         } else {
@@ -704,6 +706,50 @@ impl Walker<'_> {
             .insert(meta.identity, (bucket, meta.logical, meta.allocated));
         Ok(())
     }
+}
+
+fn child_label(root: &Root, rule: &Rule, name: &str) -> String {
+    if rule.relative == Path::new("world_slots") {
+        if matches!(name, "active_slot_id.txt" | ".p6_reconciled") {
+            return format!("{} / {name}", rule.label);
+        }
+        let slot_path = root.path.join(&rule.relative).join(name).join("slot.json");
+        let slot = read_small(&slot_path, 256 * 1024)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+            .and_then(|value| msc_domain::world::WorldSlot::decode(&value).ok())
+            .filter(|slot| slot.id == name);
+        if let Some(slot) = slot {
+            let name = slot.name.trim();
+            if !name.is_empty() {
+                return format!("{} / {name}", rule.label);
+            }
+        }
+        return format!("{} / Saved slot (name unavailable)", rule.label);
+    }
+    if rule.group == Group::Backups {
+        let sidecar = root
+            .path
+            .join(&rule.relative)
+            .join(name)
+            .with_extension("meta.json");
+        let metadata = read_small(&sidecar, 256 * 1024)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+            .and_then(|value| msc_domain::backup::BackupMeta::decode(&value).ok());
+        let filename = Path::new(name)
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .unwrap_or(name);
+        if let Some(slot_name) = metadata.as_ref().and_then(|meta| meta.slot_name.as_deref()) {
+            return format!("{} / {} · {filename}", rule.label, slot_name.trim());
+        }
+        if metadata.as_ref().is_some_and(|meta| meta.slot_id.is_some()) {
+            return format!("{} / Saved world backup · {filename}", rule.label);
+        }
+        return format!("{} / {filename}", rule.label);
+    }
+    format!("{} / {name}", rule.label)
 }
 
 /// Read only a small known metadata file through the no-follow boundary.

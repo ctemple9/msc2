@@ -11,8 +11,11 @@ Independent Phase 20 gate review remains in [pending acceptance](pending-accepta
 **Add Server follow-up:** P12.190 keeps the Add Server wizard at one height
 across steps and scrolls longer step content; awaiting owner verification.
 
-**Bedrock map follow-up:** P18.56 raises the macOS exporter’s open-file limit
-for large converted worlds; awaiting owner verification on the Intel Mac.
+**Bedrock map follow-up:** P18.56's 16,384-file limit did not resolve the
+large converted world's Intel Mac failure; P18.57 supersedes that limit.
+P18.57 raises that limit again after the converted world completed a direct
+catalog scan at 65,536 files, and records the effective limit for the next
+installed-build check; awaiting owner verification.
 
 **Services follow-up:** P21.39 makes host-wide Playit account setup available
 from MSC Settings even when the selected server does not use Playit. P21.40
@@ -57,12 +60,21 @@ not in this implementation queue.
 
 ### P18.56 — Allow large Bedrock maps to open more LevelDB tables
 
-**Status:** Implemented; awaiting owner verification.
+**Status:** Implemented; owner verification failed on the large Intel Bedrock world; superseded by P18.57.
 **Files:** `tools/world-map-proof/Cargo.toml`; `tools/world-map-proof/Cargo.lock`; `tools/world-map-proof/src/main.rs`; this plan.
 **What:** The Intel Mac’s agent log shows the Bedrock map exporter failing on a converted 7.3 GB world with “Too many open files (os error 24)” while reading LevelDB tables. The reader retains open table handles during catalog generation, while launchd starts the agent with a 256-file soft limit. On macOS, raise only the short-lived exporter’s soft limit to at most 16,384, bounded by the inherited hard limit, before it opens the world. Keep a log diagnostic if the OS rejects the increase. Do not change world data or the agent service’s limits. No new test: this requires the owner’s large-world Intel acceptance and an artificial small-file-limit unit test would not exercise the real table scan.
 **Verify:** Install an Intel build containing this step, then open the converted Bedrock world’s map. Confirm the catalog loads and the agent log no longer reports “Too many open files”; if it still fails, provide the new exporter error and the service’s hard file limit.
 **Batch:** P18.56 only.
 **Commit:** `P18.56: raise bedrock map exporter file limit`
+
+### P18.57 — Match the successful large-world file limit
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `tools/world-map-proof/src/main.rs`; this plan.
+**What:** Cameron's 7.5 GB converted Bedrock snapshot completed the same exporter catalog command from Terminal with a 65,536-file soft limit. The installed exporter requested only 16,384 and its agent-run catalog still failed with “Too many open files.” On macOS, request up to 65,536 for the short-lived exporter, bounded by the inherited hard limit. Log the effective soft and hard limits for catalog runs so the Intel check can distinguish an insufficient limit from a launchd inheritance problem without flooding per-tile logs. No new test: the decisive case is the owner's physical scan of this large world, and a synthetic small-limit test would not exercise its LevelDB table load.
+**Verify:** Run `open "$HOME/Downloads/msc2-bedrock-map-intel-p18.57.dmg"` on the Intel Mac, install and repair the agent, then open Bedtonic's map. Confirm it loads and the agent log reports a 65,536 soft limit; if it fails, provide that limit line and the new exporter error.
+**Batch:** P18.57 only.
+**Commit:** `P18.57: raise bedrock map exporter limit to 65536`
 
 ## Phase 20 — Imported server component follow-up
 

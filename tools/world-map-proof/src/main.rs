@@ -11,8 +11,8 @@ use std::path::Path;
 mod render;
 
 #[cfg(target_os = "macos")]
-fn raise_open_file_limit() {
-    const TARGET: libc::rlim_t = 16_384;
+fn raise_open_file_limit(report_effective: bool) {
+    const TARGET: libc::rlim_t = 65_536;
     let mut limit = libc::rlimit {
         rlim_cur: 0,
         rlim_max: 0,
@@ -25,14 +25,33 @@ fn raise_open_file_limit() {
         return;
     }
     let target = TARGET.min(limit.rlim_max);
-    if limit.rlim_cur >= target {
-        return;
+    if limit.rlim_cur < target {
+        limit.rlim_cur = target;
+        if unsafe { libc::setrlimit(libc::RLIMIT_NOFILE, &limit) } != 0 {
+            eprintln!(
+                "Bedrock map: could not raise the open-file limit to {target}: {}",
+                std::io::Error::last_os_error()
+            );
+        }
     }
-    limit.rlim_cur = target;
-    if unsafe { libc::setrlimit(libc::RLIMIT_NOFILE, &limit) } != 0 {
+    // Catalog is the expensive scan; record its actual limit in the agent log
+    // so a launchd limit can be distinguished from a reader failure.
+    if report_effective {
+        if unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &mut limit) } != 0 {
+            eprintln!(
+                "Bedrock map: could not verify the open-file limit: {}",
+                std::io::Error::last_os_error()
+            );
+            return;
+        }
+        let hard = if limit.rlim_max == libc::RLIM_INFINITY {
+            "unlimited".to_string()
+        } else {
+            limit.rlim_max.to_string()
+        };
         eprintln!(
-            "Bedrock map: could not raise the open-file limit to {target}: {}",
-            std::io::Error::last_os_error()
+            "Bedrock map: open-file limit soft={} hard={hard} (requested {TARGET})",
+            limit.rlim_cur
         );
     }
 }
@@ -313,7 +332,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // A large converted world can span more LevelDB tables than launchd's
     // default 256-file soft limit. Only this short-lived exporter needs more.
     #[cfg(target_os = "macos")]
-    raise_open_file_limit();
+    raise_open_file_limit(args.get(1).is_some_and(|arg| arg == "catalog"));
     if args.get(1).is_some_and(|arg| arg == "compare") {
         return compare_tiles(&args);
     }

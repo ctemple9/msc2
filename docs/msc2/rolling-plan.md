@@ -2,7 +2,7 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.17 implementation/candidate preparation is recorded, awaiting
+Phase 21 P21.1–P21.18 implementation/candidate preparation is recorded, awaiting
 owner verification. The matching Intel candidate and consolidated checks are in
 [Storage acceptance](storage/acceptance.md). Visual captures/acceptance and the
 independent Phase 21 gate review remain pending.
@@ -275,3 +275,12 @@ continuous deep scan or broad test matrix is implied.
 **Verify:** `npm --prefix clients/desktop-web run check`
 **Batch:** solo.
 **Commit:** `P21.17: space storage coverage messages`
+
+### P21.18 — Remove the refresh reminder and tighten cleanup spacing
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Remove the owner-identified refresh/unknown-files reminder. Remove the extra 24 px above Map cleanup, retaining the standard section gap, divider and expanded heading spacing. Refresh requirements for removal remain enforced by existing controls. Inspected the markup/CSS and checked formatting; no tests or builds run. Frontend reload only.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.18: tighten storage coverage and cleanup spacing`

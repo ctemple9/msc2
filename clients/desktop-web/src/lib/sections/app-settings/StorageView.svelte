@@ -796,12 +796,6 @@
         </p>{/if}
     {/if}
     {#if actionProblem}<p role="alert" class="notice">{actionProblem}</p>{/if}
-    {#if !computer.fresh && !computer.scan && !computer.localScan && !review && !action}<p
-        class="footnote"
-      >
-        Refresh this computer before reviewing removal. Unknown or unreadable files are never
-        reported as zero.
-      </p>{/if}
     {#if computer.result && !review && !action}<details open>
         <summary>Last removal · {computer.result.state}</summary>
         <p class="quiet">
@@ -1021,7 +1015,7 @@
     margin-top: 12px;
   }
   .legacy {
-    margin-top: 24px;
+    margin-top: 0;
     border-top: 1px solid var(--msc2-hairline);
   }
   .legacy[open] > summary {

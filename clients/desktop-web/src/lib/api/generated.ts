@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: b1ba638f9ebf1183a9c02599fdf415d49d9f368592bfba12807d3a4700ca7c52
+// Contract SHA-256: ef1defe596d535e95eea3462b30f9f295bd985d5efe9a0311953cb98f1ea9a19
 
 export interface paths {
   '/v1/active-server': {
@@ -9080,6 +9080,9 @@ export interface components {
       playitEnabled: boolean;
       serverName: string;
       serverType: string;
+      usesBedrockTunnel?: boolean;
+      usesJavaTunnel?: boolean;
+      usesVoiceTunnel?: boolean;
       voiceAddress?: string;
       voiceChatEnabled: boolean;
     } & {

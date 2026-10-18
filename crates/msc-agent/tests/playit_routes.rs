@@ -143,6 +143,9 @@ fn playit_status_and_actions_cannot_return_the_secret_key() {
         bedrock_address: None,
         voice_address: None,
         voice_chat_enabled: false,
+        uses_java_tunnel: true,
+        uses_bedrock_tunnel: false,
+        uses_voice_tunnel: false,
         note: Some("Waiting for Playit tunnels.".into()),
     })
     .unwrap();

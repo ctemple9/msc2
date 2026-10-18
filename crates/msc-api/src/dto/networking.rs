@@ -13,6 +13,9 @@ pub struct PlayitStatusDto {
     pub bedrock_address: Option<String>,
     pub voice_address: Option<String>,
     pub voice_chat_enabled: bool,
+    pub uses_java_tunnel: bool,
+    pub uses_bedrock_tunnel: bool,
+    pub uses_voice_tunnel: bool,
     pub note: Option<String>,
 }
 

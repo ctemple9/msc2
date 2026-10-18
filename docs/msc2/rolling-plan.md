@@ -17,6 +17,8 @@ P21.42 shows the shared Playit agent and saved tunnel addresses in MSC Settings;
 it awaits manual verification.
 P21.43 shows those saved addresses in the active server’s Services tab;
 it awaits manual verification.
+P21.44 limits that server view to tunnels its own configuration uses;
+it awaits manual verification.
 
 Historical implementation and published release records were reconciled and
 moved to [the archive](rolling-plan-archive.md) at Cameron's October 16 request.
@@ -92,3 +94,12 @@ is separate from that closure; no earlier unobserved check is promoted to Pass.
 **Verify:** Run `npx tauri dev`; open a Playit-enabled server’s Manage → Services tab and confirm every configured shared tunnel address appears on its own row. Disable Playit for that server and confirm the address rows disappear without changing MSC Settings’ shared addresses.
 **Batch:** P21.43 only.
 **Commit:** `P21.43: show playit tunnel addresses in server services`
+
+### P21.44 — Filter Playit addresses to the selected server’s tunnels
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `crates/msc-api/src/dto/networking.rs`; `crates/msc-agent/src/routes/networking.rs`; `crates/msc-agent/tests/playit_routes.rs`; `docs/msc2/api-contract/openapi.json`; `clients/desktop-web/src/lib/api/generated.ts`; `clients/desktop-web/src/lib/sections/server-editor/BroadcastTab.svelte`; this plan.
+**What:** Report which of the shared Java, Bedrock, and voice tunnel kinds the active server actually uses, following the existing backend tunnel rules. Display only those configured addresses in that server’s Services tab; MSC Settings continues to show the full shared host inventory.
+**Verify:** Run `npx tauri dev`; open a Playit-enabled Bedrock-only server and confirm only its Bedrock tunnel appears. Check a Java server, a Java server with Bedrock cross-play, and a server with Simple Voice Chat to confirm each sees only its applicable tunnel addresses.
+**Batch:** P21.44 only.
+**Commit:** `P21.44: filter server playit tunnel addresses`

@@ -11530,6 +11530,15 @@
           "voiceChatEnabled": {
             "type": "boolean"
           },
+          "usesJavaTunnel": {
+            "type": "boolean"
+          },
+          "usesBedrockTunnel": {
+            "type": "boolean"
+          },
+          "usesVoiceTunnel": {
+            "type": "boolean"
+          },
           "note": {
             "type": "string"
           }

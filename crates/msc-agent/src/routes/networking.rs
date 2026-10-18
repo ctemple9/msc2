@@ -982,6 +982,9 @@ pub async fn playit_status(State(state): State<NetworkingState>) -> Response {
             bedrock_address: config.playit_bedrock_address,
             voice_address: config.playit_voice_address,
             voice_chat_enabled: false,
+            uses_java_tunnel: false,
+            uses_bedrock_tunnel: false,
+            uses_voice_tunnel: false,
             note: Some("no_active_server".into()),
         })
         .into_response();
@@ -1009,6 +1012,15 @@ pub async fn playit_status(State(state): State<NetworkingState>) -> Response {
     };
     let mut config = state.lifecycle.app_config_snapshot();
     let tunnel_specs = server_playit_tunnel_specs(&server);
+    let uses_java_tunnel = tunnel_specs
+        .iter()
+        .any(|spec| spec.kind == msc_domain::networking::PlayitTunnelKind::Java);
+    let uses_bedrock_tunnel = tunnel_specs
+        .iter()
+        .any(|spec| spec.kind == msc_domain::networking::PlayitTunnelKind::Bedrock);
+    let uses_voice_tunnel = tunnel_specs
+        .iter()
+        .any(|spec| spec.kind == msc_domain::networking::PlayitTunnelKind::Voice);
     let configured_agent_id = config.playit_agent_id.clone();
     let has_missing_address = tunnel_specs.iter().any(|spec| match spec.kind {
         msc_domain::networking::PlayitTunnelKind::Java => config.playit_java_address.is_none(),
@@ -1084,6 +1096,9 @@ pub async fn playit_status(State(state): State<NetworkingState>) -> Response {
         bedrock_address: config.playit_bedrock_address,
         voice_address,
         voice_chat_enabled,
+        uses_java_tunnel,
+        uses_bedrock_tunnel,
+        uses_voice_tunnel,
         note: status_note,
     })
     .into_response()

@@ -749,7 +749,9 @@ pub async fn storage_reveal(
             let candidate = item
                 .display_path
                 .as_deref()
-                .map(PathBuf::from)
+                // The scanner joins an empty relative path for root items,
+                // which leaves a separator that was absent from the root ID.
+                .map(|path| Path::new(path).components().collect::<PathBuf>())
                 .ok_or("Local folder identity or ownership changed")?;
             let verified_parent = found.inventory.entries.iter().any(|entry| {
                 entry.kind == EntryKind::ServerTree

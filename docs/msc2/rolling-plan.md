@@ -2,7 +2,7 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.29 implementation/candidate preparation is recorded, awaiting
+Phase 21 P21.1–P21.30 implementation/candidate preparation is recorded, awaiting
 owner verification. The matching Intel candidate and consolidated checks are in
 [Storage acceptance](storage/acceptance.md). Visual captures/acceptance and the
 independent Phase 21 gate review remain pending.
@@ -377,9 +377,18 @@ continuous deep scan or broad test matrix is implied.
 
 ### P21.29 — Open verified unregistered server folders
 
-**Status:** Implemented; awaiting owner verification.
+**Status:** Owner verification failed; corrected by P21.30.
 **Files:** Desktop Tauri `storage.rs`; this plan.
 **What:** The desktop could not open individual unregistered server folders because its native ownership inventory only identifies the shared server root. Allow the local file-manager action when the agent snapshot's exact child path is beneath a present, verified server root and the child's current filesystem identity still matches the snapshot. Keep the existing exact-root check for other inventory items. Formatting, targeted Clippy, and Svelte checks pass. Strict Clippy still reports three existing warnings in `update.rs` and `lib.rs`; no tests or app build run. Restart `npx tauri dev`, then refresh storage.
 **Verify:** `cargo clippy --locked --manifest-path clients/desktop-web/src-tauri/Cargo.toml --lib -- -D warnings -A clippy::needless_borrow -A clippy::needless_borrows_for_generic_args -A clippy::needless_return && npm --prefix clients/desktop-web run check`
 **Batch:** solo.
 **Commit:** `P21.29: open verified unregistered server folders`
+
+### P21.30 — Normalize unregistered folder paths before identity checks
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** Desktop Tauri `storage.rs`; this plan.
+**What:** The storage scanner adds a trailing separator to a root item's display path when it joins an empty relative path. The root identity is calculated from the original path without that separator, so P21.29 rejected the same unchanged directory. Normalize the displayed path into filesystem components before comparing identities and opening it. Checked formatting and targeted Clippy; no tests or app build run. Restart `npx tauri dev`, refresh storage, then use Open folder on an unregistered server.
+**Verify:** `npx tauri dev` — refresh storage and confirm each unregistered server's Open folder action opens that server's directory.
+**Batch:** solo.
+**Commit:** `P21.30: normalize unregistered folder identity paths`

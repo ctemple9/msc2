@@ -288,6 +288,45 @@ pub fn discover(input: &Discovery<'_>) -> Manifest {
     if !roots.contains_key(&server_root) {
         issues.push("Configured servers root unavailable; coverage is incomplete".into());
     }
+    if roots
+        .get(&server_root)
+        .is_some_and(|root| root.category == Category::Servers && root.server_id.is_none())
+    {
+        let server_root_evidence = roots[&server_root].evidence.clone();
+        match unregistered_server_directories(&server_root, &input.config.servers) {
+            Ok(directories) => {
+                for directory in directories {
+                    let Some(name) = directory
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .map(str::to_owned)
+                    else {
+                        continue;
+                    };
+                    if let Some(existing) = roots.get_mut(&directory) {
+                        if existing.category == Category::Servers && existing.server_id.is_none() {
+                            existing.label = format!("Unregistered server / {name}");
+                        }
+                    } else {
+                        roots.insert(
+                            directory.clone(),
+                            Root {
+                                path: directory,
+                                category: Category::Servers,
+                                label: format!("Unregistered server / {name}"),
+                                server_id: None,
+                                evidence: server_root_evidence.clone(),
+                                rules: vec![],
+                            },
+                        );
+                    }
+                }
+            }
+            Err(error) => issues.push(format!(
+                "Unregistered server folders could not be inspected: {error}"
+            )),
+        }
+    }
     if let Some(root) = roots.get_mut(&server_root) {
         root.rules.push(rule(
             ".msc2-staging",
@@ -314,6 +353,83 @@ pub fn discover(input: &Discovery<'_>) -> Manifest {
         &format!("{:?}", manifest.excluded_roots),
     ]);
     manifest
+}
+
+/// Split folders inside MSC's servers root into individually openable inventory
+/// roots without assigning them a registered-server identity. The standard
+/// java/bedrock type folders are containers; legacy folders can sit at the root.
+fn unregistered_server_directories(
+    servers_root: &Path,
+    servers: &[msc_domain::app_config_schema::ConfigServer],
+) -> io::Result<Vec<PathBuf>> {
+    const MAX_CHILDREN: usize = 512;
+    let registered: Vec<_> = servers
+        .iter()
+        .map(|server| PathBuf::from(&server.server_dir))
+        .collect();
+    let read_directories = |parent: &Path| -> io::Result<Vec<PathBuf>> {
+        if !std::fs::symlink_metadata(parent)?.file_type().is_dir() {
+            return Err(io::Error::other("folder is not a plain directory"));
+        }
+        let mut directories = Vec::new();
+        let mut visited = 0;
+        for entry in std::fs::read_dir(parent)? {
+            visited += 1;
+            if visited > MAX_CHILDREN {
+                return Err(io::Error::other("directory entry limit reached"));
+            }
+            let entry = entry?;
+            if entry.file_type()?.is_dir() {
+                directories.push(entry.path());
+            }
+        }
+        Ok(directories)
+    };
+
+    let mut candidates = Vec::new();
+    for child in read_directories(servers_root)? {
+        let name = child
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default();
+        if matches!(name, ".msc2-staging" | "_addon_cache") {
+            continue;
+        }
+        let is_type_container = matches!(name, "java" | "bedrock")
+            || registered.iter().any(|path| path.starts_with(&child));
+        if is_type_container {
+            for candidate in read_directories(&child)? {
+                if candidates.len() == MAX_CHILDREN {
+                    return Err(io::Error::other("unregistered server folder limit reached"));
+                }
+                candidates.push(candidate);
+            }
+        } else {
+            if candidates.len() == MAX_CHILDREN {
+                return Err(io::Error::other("unregistered server folder limit reached"));
+            }
+            candidates.push(child);
+        }
+    }
+
+    let mut result = Vec::new();
+    for candidate in candidates {
+        let Ok(relative) = candidate.strip_prefix(servers_root) else {
+            continue;
+        };
+        if !safe_relative(relative)
+            || registered.iter().any(|path| {
+                path == &candidate || path.starts_with(&candidate) || candidate.starts_with(path)
+            })
+        {
+            continue;
+        }
+        if result.len() == MAX_CHILDREN {
+            return Err(io::Error::other("unregistered server folder limit reached"));
+        }
+        result.push(candidate);
+    }
+    Ok(result)
 }
 
 fn safe_relative(path: &Path) -> bool {
@@ -598,8 +714,8 @@ mod tests {
 
     // The scanner's boundary tests cannot catch lost custom-server roots or
     // counting external Java as MSC-owned. This tiny end-to-end discovery case
-    // also checks custom world names and backup companion accounting. <1 s,
-    // no running service, network, sleeps or permission/environment assumptions.
+    // also checks unregistered folder boundaries, custom world names and backup
+    // companion accounting. <1 s, no service, network, sleeps or machine paths.
     #[test]
     fn custom_server_worlds_and_backups_are_partitioned_without_external_java() {
         struct Fixture(PathBuf);
@@ -614,9 +730,11 @@ mod tests {
         let fixture = Fixture(std::fs::canonicalize(path).unwrap());
         let data = fixture.0.join("data");
         let managed = data.join("servers");
+        let unregistered = managed.join("java").join("old_server");
         let custom = fixture.0.join("custom");
         for path in [
             &managed,
+            &unregistered,
             &custom.join("oak"),
             &custom.join("backups"),
             &data.join("runtimes"),
@@ -627,6 +745,7 @@ mod tests {
         std::fs::write(custom.join("oak/level.dat"), b"world").unwrap();
         std::fs::write(custom.join("backups/save.zip"), b"zip").unwrap();
         std::fs::write(custom.join("backups/save.meta.json"), b"{}").unwrap();
+        std::fs::write(unregistered.join("server.properties"), b"old").unwrap();
         std::fs::write(data.join("runtimes/managed-java"), b"java").unwrap();
         std::fs::write(fixture.0.join("external-java"), b"not MSC-owned").unwrap();
         let mut config = AppConfig::default_config(managed.display().to_string());
@@ -670,7 +789,17 @@ mod tests {
         });
         let snapshot = storage::scan(&manifest, Limits::default(), &|| false, &mut |_| {});
         assert!(!snapshot.partial, "{:?}", snapshot.issues);
-        assert_eq!(snapshot.logical_bytes, 29);
+        assert_eq!(snapshot.logical_bytes, 32);
+        let orphan = snapshot
+            .items
+            .iter()
+            .find(|item| item.label == "Unregistered server / old_server")
+            .expect("unregistered server directory should have its own inventory row");
+        assert_eq!(orphan.logical_bytes, 3);
+        assert_eq!(
+            orphan.display_path.as_deref(),
+            Some(unregistered.to_str().unwrap())
+        );
         assert_eq!(
             snapshot
                 .items

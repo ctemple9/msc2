@@ -2,7 +2,7 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.27 implementation/candidate preparation is recorded, awaiting
+Phase 21 P21.1–P21.28 implementation/candidate preparation is recorded, awaiting
 owner verification. The matching Intel candidate and consolidated checks are in
 [Storage acceptance](storage/acceptance.md). Visual captures/acceptance and the
 independent Phase 21 gate review remain pending.
@@ -365,3 +365,12 @@ continuous deep scan or broad test matrix is implied.
 **Verify:** `npm --prefix clients/desktop-web run check`
 **Batch:** solo.
 **Commit:** `P21.27: open unregistered server folders locally`
+
+### P21.28 — Split unregistered server folders from their shared parent
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `crates/msc-application/src/storage.rs`; desktop `StorageView.svelte`; this plan.
+**What:** MSC had measured the shared `servers/` parent as one protected item, so Open folder correctly opened that parent and could not target an individual server. During storage discovery, split direct legacy server folders and child folders under the standard `java/` and `bedrock/` containers into separate protected roots, while skipping configured servers and their ancestors. Keep these folders non-removable and open them only on the local computer. Add an essential discovery regression to verify nested unregistered folders get their own measured row and do not double-count against the parent; no tests run. Run formatting, Clippy and desktop Svelte checking.
+**Verify:** `cargo clippy --locked -p msc-application --lib -- -D warnings && npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.28: split unregistered server folders`

@@ -81,7 +81,11 @@
     server === 'unassigned' ? i.serverId === null : i.serverId === server,
   );
   $: unregisteredRoots = serverItems.filter(
-    (i) => i.group === 'other' && i.domainId === null && !!i.displayPath,
+    (i) =>
+      i.group === 'other' &&
+      i.domainId === null &&
+      i.label.startsWith('Unregistered server / ') &&
+      !!i.displayPath,
   );
   $: worldItems = serverItems.filter((i) => i.group === 'worlds');
   $: savedWorldItems = bySize(

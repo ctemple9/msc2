@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 9a348eccd3e7e82d77d5c4646feb186ebee57fe22a40397ac61ab90b13cfeb37
+// Contract SHA-256: b1ba638f9ebf1183a9c02599fdf415d49d9f368592bfba12807d3a4700ca7c52
 
 export interface paths {
   '/v1/active-server': {
@@ -9071,6 +9071,7 @@ export interface components {
       [key: string]: unknown;
     };
     PlayitStatusResponseDTO: {
+      agentId?: string;
       bedrockAddress?: string;
       hasSecretKey: boolean;
       isRunning: boolean;

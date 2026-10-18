@@ -11500,6 +11500,9 @@
       "PlayitStatusResponseDTO": {
         "type": "object",
         "properties": {
+          "agentId": {
+            "type": "string"
+          },
           "serverName": {
             "type": "string"
           },

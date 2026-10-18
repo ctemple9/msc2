@@ -8,6 +8,7 @@ pub struct PlayitStatusDto {
     pub playit_enabled: bool,
     pub is_running: bool,
     pub has_secret_key: bool,
+    pub agent_id: Option<String>,
     pub java_address: Option<String>,
     pub bedrock_address: Option<String>,
     pub voice_address: Option<String>,

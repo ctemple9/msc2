@@ -440,14 +440,28 @@
               >{playit.hasSecretKey ? 'Manage setup…' : 'Set up…'}</Button
             >
           </div>
-          {#if playit.javaAddress || playit.bedrockAddress || playit.voiceAddress}
+          {#if playit.agentId}
             <div class="row bordered">
-              <div class="row-text">
-                <span class="name">Shared tunnel addresses</span>
-                <span class="hint mono"
-                  >{playit.javaAddress ?? playit.bedrockAddress ?? playit.voiceAddress}</span
-                >
-              </div>
+              <span class="name">Agent</span>
+              <span class="hint mono playit-value">{playit.agentId}</span>
+            </div>
+          {/if}
+          {#if playit.javaAddress}
+            <div class="row bordered">
+              <span class="name">Java tunnel</span>
+              <span class="hint mono playit-value">{playit.javaAddress}</span>
+            </div>
+          {/if}
+          {#if playit.bedrockAddress}
+            <div class="row bordered">
+              <span class="name">Bedrock tunnel</span>
+              <span class="hint mono playit-value">{playit.bedrockAddress}</span>
+            </div>
+          {/if}
+          {#if playit.voiceAddress}
+            <div class="row bordered">
+              <span class="name">Voice tunnel</span>
+              <span class="hint mono playit-value">{playit.voiceAddress}</span>
             </div>
           {/if}
         </Card>
@@ -689,6 +703,12 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .playit-value {
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-align: right;
+    white-space: normal;
   }
   .hint.dir {
     overflow: hidden;

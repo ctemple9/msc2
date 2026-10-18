@@ -964,6 +964,7 @@ fn prepare_broadcast_config(
 
 pub async fn playit_status(State(state): State<NetworkingState>) -> Response {
     let Ok(server) = state.active_server() else {
+        let config = state.lifecycle.app_config_snapshot();
         let has_secret_key = state
             .secrets
             .get(PLAYIT_SECRET_KEY)
@@ -976,9 +977,10 @@ pub async fn playit_status(State(state): State<NetworkingState>) -> Response {
             playit_enabled: false,
             is_running: false,
             has_secret_key,
-            java_address: None,
-            bedrock_address: None,
-            voice_address: None,
+            agent_id: config.playit_agent_id,
+            java_address: config.playit_java_address,
+            bedrock_address: config.playit_bedrock_address,
+            voice_address: config.playit_voice_address,
             voice_chat_enabled: false,
             note: Some("no_active_server".into()),
         })
@@ -1077,6 +1079,7 @@ pub async fn playit_status(State(state): State<NetworkingState>) -> Response {
         playit_enabled: server.playit_enabled,
         is_running: lifecycle_status.is_active(),
         has_secret_key: has_secret,
+        agent_id: config.playit_agent_id,
         java_address: config.playit_java_address,
         bedrock_address: config.playit_bedrock_address,
         voice_address,

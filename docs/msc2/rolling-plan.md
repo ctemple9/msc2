@@ -13,6 +13,8 @@ from MSC Settings even when the selected server does not use Playit. P21.40
 moves Xbox Broadcast setup to the selected server’s Services tab. Both await
 Cameron’s manual verification.
 P21.41 reorders those server controls; it also awaits manual verification.
+P21.42 shows the shared Playit agent and saved tunnel addresses in MSC Settings;
+it awaits manual verification.
 
 Historical implementation and published release records were reconciled and
 moved to [the archive](rolling-plan-archive.md) at Cameron's October 16 request.
@@ -70,3 +72,12 @@ is separate from that closure; no earlier unobserved check is promoted to Pass.
 **Verify:** Run `npx tauri dev`; open a server’s Services tab and confirm the Xbox Broadcast rows appear in that order and each control still works as before.
 **Batch:** P21.41 only.
 **Commit:** `P21.41: reorder xbox broadcast service controls`
+
+### P21.42 — Show shared Playit agent and tunnels in MSC Settings
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `crates/msc-api/src/dto/networking.rs`; `crates/msc-agent/src/routes/networking.rs`; `crates/msc-agent/tests/playit_routes.rs`; `docs/msc2/api-contract/openapi.json`; `clients/desktop-web/src/lib/api/generated.ts`; `clients/desktop-web/src/lib/sections/app-settings/AppSettingsSheet.svelte`; this plan.
+**What:** Include the saved host Playit agent ID and Java, Bedrock, and voice tunnel addresses in status even when no server is active. Show each configured tunnel on its own labeled row in global Services settings, preserving the full provider address and port. This is read-only and does not create tunnels or change server participation.
+**Verify:** Run `npx tauri dev`; open MSC Settings → Services after Playit setup and confirm the agent ID and each configured Java, Bedrock, and voice address appear on separate rows, including with no server selected. Missing tunnels should have no address row.
+**Batch:** P21.42 only.
+**Commit:** `P21.42: show shared playit agent and tunnels`

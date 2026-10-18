@@ -346,13 +346,15 @@ acceptance remain required; no test or CI/release gate is added by this plan.
 
 ## Phase 21 — Storage inventory and management
 
-**State:** P21.1–P21.7 specification, inventory, API/CLI, reviewed cleanup and
-Settings Storage are implemented, awaiting owner verification. P21.8 prepared
-the matching local candidate and [acceptance record](storage/acceptance.md).
-Visual/physical acceptance and the other agent's gate review remain pending.
-See the
-[contract](storage/contract.md), [static sketches](storage/screens.md) and
-[step queue](rolling-plan.md#phase-21--storage-inventory-and-management).
+**State:** P21.1–P21.37 implementation steps were closed and
+[archived](rolling-plan-archive.md#phase-21--storage-inventory-and-management)
+at Cameron's October 17 direction after he accepted the Storage management UI.
+P21.29 failed owner verification and was corrected by P21.30. P21.8's matching
+local candidate predates later corrections; it is not acceptance evidence for
+them. Representative physical and cross-platform acceptance and the other
+agent's gate review remain pending. See the [contract](storage/contract.md),
+[static sketches](storage/screens.md) and
+[acceptance record](storage/acceptance.md).
 
 **Exit gate:** Settings → Storage supports saved-computer overview → computer →
 category/server → separate removal review on supported desktop platforms and

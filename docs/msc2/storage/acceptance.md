@@ -1,10 +1,13 @@
 # Storage acceptance — Phase 21
 
-October 17, 2026. P21.1–P21.7 implemented; owner verification and the independent
-feature-gate review remain open. Cameron authorized sequential implementation
-with verification at the end. No step or physical case below is closed by a
-successful build. This record accompanies the [contract](contract.md),
-[screen sketches](screens.md) and [phase gate](../msc2-port-plan.md#phase-21--storage-inventory-and-management).
+October 17, 2026. Cameron accepted the Storage management UI and directed
+P21.1–P21.37 implementation steps to be closed and [archived](../rolling-plan-archive.md#phase-21--storage-inventory-and-management).
+P21.29 failed owner verification and was corrected by P21.30. The candidate and
+checks below describe the earlier P21.8 state, not the later corrections or UI
+refinements. Representative physical cases in this record and the independent
+feature-gate review remain open; no unrecorded case is promoted to Pass. This
+record accompanies the [contract](contract.md), [screen sketches](screens.md)
+and [phase gate](../msc2-port-plan.md#phase-21--storage-inventory-and-management).
 
 ## Candidate
 
@@ -65,8 +68,9 @@ unused-style warnings). No tests were run.
 
 ## Acceptance observations
 
-All rows are **Pending Cameron**. No live destructive check or test suite was
-executed during implementation.
+All physical-case rows remain **Pending Cameron**. Cameron's acceptance of the
+local Storage UI did not supply observations for every case below. No live
+destructive check or test suite was executed during implementation.
 
 | Case | Expected observation | Owner observation |
 |---|---|---|
@@ -129,7 +133,7 @@ npm --prefix clients/desktop-web run check
 cargo build --locked -p msc-agent --bin msc
 ```
 
-Step-specific Verify lines remain in [the rolling plan](../rolling-plan.md).
+Step-specific Verify lines remain in [the rolling plan archive](../rolling-plan-archive.md#phase-21--storage-inventory-and-management).
 No `cargo test`, Nextest, Vitest, Playwright suite, smoke suite or Xcode tests
 were run. The existing agent binary unit-test target compiled as metadata;
 broader integration-target checking encounters the already recorded

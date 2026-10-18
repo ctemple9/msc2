@@ -2,7 +2,7 @@
 
 **Current priority:** P20.12 corrects imported Java JAR presence/version reporting;
 awaiting owner verification. Earlier Phase 20 steps remain accepted and archived.
-Phase 21 P21.1–P21.18 implementation/candidate preparation is recorded, awaiting
+Phase 21 P21.1–P21.19 implementation/candidate preparation is recorded, awaiting
 owner verification. The matching Intel candidate and consolidated checks are in
 [Storage acceptance](storage/acceptance.md). Visual captures/acceptance and the
 independent Phase 21 gate review remain pending.
@@ -284,3 +284,12 @@ continuous deep scan or broad test matrix is implied.
 **Verify:** `npm --prefix clients/desktop-web run check`
 **Batch:** solo.
 **Commit:** `P21.18: tighten storage coverage and cleanup spacing`
+
+### P21.19 — Align coverage and map cleanup disclosures
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** Desktop `StorageView.svelte`; this plan.
+**What:** Remove Map cleanup's divider and redundant margin override so both disclosures use the same section gap and vertical padding. Preserve the added spacing inside expanded disclosures. Inspected the shared spacing rules and checked formatting; no tests or builds run. Frontend reload only.
+**Verify:** `npm --prefix clients/desktop-web run check`
+**Batch:** solo.
+**Commit:** `P21.19: align storage disclosure spacing`

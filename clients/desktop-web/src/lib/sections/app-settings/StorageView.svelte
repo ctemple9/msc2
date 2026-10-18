@@ -1014,10 +1014,6 @@
   .coverage p {
     margin-top: 12px;
   }
-  .legacy {
-    margin-top: 0;
-    border-top: 1px solid var(--msc2-hairline);
-  }
   .legacy[open] > summary {
     margin-bottom: 12px;
   }

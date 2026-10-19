@@ -408,13 +408,20 @@ fn main() -> Result<(), Box<dyn Error>> {
                 continue;
             }
             let result = (|| -> Result<(), Box<dyn Error>> {
-                let (x, z) = line.split_once(' ').ok_or("invalid tile request")?;
+                let (preview, request) = line
+                    .strip_prefix("preview ")
+                    .map_or((false, line.as_str()), |request| (true, request));
+                let (x, z) = request.split_once(' ').ok_or("invalid tile request")?;
                 let x = x.parse::<i32>()?;
                 let z = z.parse::<i32>()?;
                 if x.rem_euclid(4) != 0 || z.rem_euclid(4) != 0 {
                     return Err("tile origin must align to four chunks".into());
                 }
-                render::render_catalog_tile(&world, (x, z), pack, output, dimension)
+                if preview {
+                    render::render_catalog_preview_tile(&world, (x, z), pack, output, dimension)
+                } else {
+                    render::render_catalog_tile(&world, (x, z), pack, output, dimension)
+                }
             })();
             if let Err(error) = &result {
                 eprintln!("Bedrock map: tile-session {line}: {error}");

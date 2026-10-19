@@ -85,15 +85,14 @@
   $: activeQuality = qualityPresets.find((preset) =>
     preset.viewDistance === quality.viewDistance && preset.maxTiles === quality.maxTiles &&
     preset.memoryMiB === quality.memoryMiB && preset.renderScale === quality.renderScale &&
-    (serverType === 'bedrock' || preset.mapMemory === quality.mapMemory));
+    preset.mapMemory === quality.mapMemory);
 
   function applyQuality(): void {
     viewer?.setStreaming({
       viewDistance: quality.viewDistance,
       maxTiles: quality.maxTiles,
       maxBytes: quality.memoryMiB * 1024 * 1024,
-      // Bedrock's overview already represents unloaded terrain.
-      mapMemory: serverType === 'bedrock' ? 0 : quality.mapMemory,
+      mapMemory: quality.mapMemory,
     });
     viewer?.setDisplay({ renderScale: quality.renderScale, fog: quality.fog });
   }
@@ -172,7 +171,7 @@
     if (stats.total === 0) return `No saved terrain in ${displayName}`;
     const loading = stats.loading > 0 ? ` · ${stats.loading} loading` : '';
     const overview = stats.lowres ? ` · ${stats.lowres} overview tiles` : '';
-    return `Saved ${displayName} terrain · ${stats.loaded} detailed / ${stats.total} saved tiles${overview}${loading}`;
+    return `Saved ${displayName} terrain · ${stats.loaded} shown / ${stats.total} saved tiles${overview}${loading}`;
   }
 
   $: selected = dimensions.find((dimension) => dimension.id === selectedDimension);
@@ -260,8 +259,7 @@
                 concurrency: 1,
                 maxBytes: 512 * 1024 * 1024,
                 maxTiles: 120,
-                // The whole-world overview replaces remembered screenshots.
-                mapMemory: 0,
+                mapMemory: quality.mapMemory,
               },
             }
           : {}),
@@ -279,7 +277,7 @@
         opening.on('stats', (stats) => {
           if (!alive || generation !== loadGeneration) return;
           bedrockStats = stats;
-          status = `${bedrockTileStatus(entry.displayName, stats)}${nearbyCatalog ? ' · building wider map' : ''}`;
+          status = bedrockTileStatus(entry.displayName, stats);
         });
       }
       const source: WorldSource = {
@@ -311,7 +309,7 @@
         ? worldSpawn : undefined;
       status = serverType === 'bedrock'
         ? bedrockStats
-          ? `${bedrockTileStatus(entry.displayName, bedrockStats)}${nearbyCatalog ? ' · building wider map' : ''}`
+          ? bedrockTileStatus(entry.displayName, bedrockStats)
           : `Rendering saved ${entry.displayName} terrain tiles…${nearbyCatalog ? ' Building wider map.' : ''}`
         : `Saved ${entry.displayName} terrain`;
     } catch (error) {
@@ -904,14 +902,12 @@
         <p>Higher budgets load more terrain and can increase agent work.</p>
         <div class="quality-sliders">
           {#each qualitySliders as slider}
-            {#if slider.key !== 'mapMemory' || serverType !== 'bedrock'}
               <label title={slider.hint}>
                 <span class="quality-label">{slider.label}<output>{qualityValue(slider.key)}</output></span>
                 <input type="range" min={slider.min} max={slider.max} step={slider.step}
                   value={quality[slider.key]} disabled={!viewer}
                   oninput={(event) => setQualityKnob(slider.key, Number(event.currentTarget.value))} />
               </label>
-            {/if}
           {/each}
         </div>
       </details>

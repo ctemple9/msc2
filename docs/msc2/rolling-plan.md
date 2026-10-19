@@ -22,6 +22,9 @@ roughly one minute per tile. P18.61 corrects its reply channel after owner
 verification found no tiles appearing; awaiting owner verification.
 P18.62 adds saved-chunk discovery around the moving Bedrock map camera;
 awaiting owner verification before the next release.
+P18.63 adds a fast surface preview and batches detailed tile reads. It keeps
+map discovery near the camera instead of running a competing full-world scan;
+awaiting owner verification on the imported 7.5 GB world.
 
 **Services follow-up:** P21.39 makes host-wide Playit account setup available
 from MSC Settings even when the selected server does not use Playit. P21.40
@@ -126,6 +129,15 @@ not in this implementation queue.
 **Verify:** Install the local P18.62 candidate, repair the agent, open the imported Bedtonic-world map, then fly beyond the original 25 tiles to another area known to contain saved terrain. New tiles should appear around the camera without reopening the map; an unsaved area should remain empty. Check `~/Library/Application Support/MSC 2/logs/agent.log` for `discovered ... saved tiles near block` and tile-ready lines. Confirm that flight stays active if the full catalog completes.
 **Batch:** P18.62 only.
 **Commit:** `P18.62: load saved bedrock tiles near the camera`
+
+### P18.63 — Stream Bedrock surface previews before detailed tiles
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `tools/world-map-proof/src/render.rs`; `tools/world-map-proof/src/main.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; this plan.
+**What:** On the converted 7.5 GB Bedrock world, a detailed tile took 8–27 seconds and the full-world overview used the same disk and CPU in the background. Query each tile's 16 chunks in one exact-key batch, cache block visibility classification, and skip fully enclosed solid blocks before modeling. Return a surface-only preview first; after preview requests settle, refine cached preview tiles nearest the camera and replace them in the viewer using tile revisions. Keep the shared texture atlas count current as materials are added. Discover saved terrain around the moving camera without an automatic full-world scan; retain rendered previews and details for the selected snapshot so revisiting them does not rerender. Let the viewer remember explored Bedrock tiles after they leave its memory budget, since the full-world overview no longer supplies that context. Log preview time and detailed read/mesh time separately. The five-second target is a physical performance goal, not a claim established by static checks. No new test: the owner’s large converted world is the acceptance case, and tests were not authorized to run.
+**Verify:** Open `~/Desktop/msc2-bedrock-map-intel-p18.63.dmg`, install the app, repair the agent, then open the imported Bedtonic-world map. Surface tiles should appear before full 3D detail and refine near the camera without resetting flight. Fly to another saved area and back; returning tiles should load from the current snapshot cache. In `~/Library/Application Support/MSC 2/logs/agent.log`, compare `surface preview` and `detail ... read ..., mesh ...` times with the former 8–27 seconds per tile. Confirm normal viewing no longer starts a full-world catalog. Report preview and detail times from the Intel Mac to assess the under-five-second goal.
+**Batch:** P18.63 only.
+**Commit:** `P18.63: stream bedrock map surface previews`
 
 ## Phase 20 — Imported server component follow-up
 

@@ -4,7 +4,8 @@ use bedrock_block_model::{
 };
 use bedrock_world::chunk::parse_subchunk;
 use bedrock_world::{
-    BedrockWorld, BlockState, ChunkKey, ChunkPos, Dimension, NbtTag, SubChunkFormat,
+    BedrockWorld, BiomeDataRequirement, BlockState, ChunkDataRequest, ChunkKey, ChunkLoadOptions,
+    ChunkPos, Dimension, ExactSurfaceSubchunkPolicy, NbtTag, SubChunkFormat, TerrainColumnBiome,
 };
 use image::{DynamicImage, GenericImageView, imageops::FilterType};
 use std::collections::{BTreeMap, HashMap};
@@ -12,6 +13,7 @@ use std::error::Error;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 const SIDE: usize = 64;
 const MIN_Y: i32 = -64;
@@ -20,6 +22,9 @@ const MAX_Y: i32 = 320;
 struct Grid {
     blocks: Vec<u16>,
     states: Vec<BlockState>,
+    opaque: Vec<bool>,
+    water: Vec<bool>,
+    leaf: Vec<bool>,
     biomes: Vec<u32>,
     biomes_3d: Vec<u32>,
 }
@@ -33,6 +38,9 @@ impl Grid {
                 states: BTreeMap::new(),
                 version: None,
             }],
+            opaque: vec![false],
+            water: vec![false],
+            leaf: vec![false],
             biomes: vec![u32::MAX; SIDE * SIDE],
             biomes_3d: vec![u32::MAX; SIDE * SIDE * (MAX_Y - MIN_Y) as usize],
         }
@@ -60,6 +68,9 @@ impl Grid {
             return index as u16;
         }
         let index = self.states.len() as u16;
+        self.opaque.push(is_full_opaque_block(&state.name));
+        self.water.push(is_water(&state.name));
+        self.leaf.push(is_leaf(&state.name));
         self.states.push(state.clone());
         index
     }
@@ -579,80 +590,88 @@ fn read_grid(
     dimension: Dimension,
 ) -> Result<Grid, Box<dyn Error>> {
     let mut grid = Grid::new();
-    for cz in 0..4 {
-        for cx in 0..4 {
-            let pos = ChunkPos {
+    let positions = (0..4)
+        .flat_map(|cz| {
+            (0..4).map(move |cx| ChunkPos {
                 x: anchor.0 + cx,
                 z: anchor.1 + cz,
                 dimension,
+            })
+        })
+        .collect::<Vec<_>>();
+    // One exact-key batch avoids a separate LevelDB table scan for each chunk.
+    let request = ChunkDataRequest::new()
+        .full_3d_indices()
+        .height_map()
+        .biome(BiomeDataRequirement::All);
+    let chunks = world
+        .query_chunk_data_many_blocking(positions, ChunkLoadOptions::for_data_request(request))?;
+    for chunk in chunks {
+        let cx = chunk.pos.x - anchor.0;
+        let cz = chunk.pos.z - anchor.1;
+        if !(0..4).contains(&cx) || !(0..4).contains(&cz) {
+            continue;
+        }
+        for storage in chunk.biome_data.values() {
+            let (start, end) = match storage.y {
+                Some(y) => (y.max(MIN_Y), (y + 16).min(MAX_Y)),
+                None => (MIN_Y, MAX_Y),
             };
-            let chunk = world.get_chunk_blocking(pos)?;
-            if let Some(storages) = world.get_biome_storages_blocking(pos)? {
-                for storage in storages {
-                    let (start, end) = match storage.y {
-                        Some(y) => (y.max(MIN_Y), (y + 16).min(MAX_Y)),
-                        None => (MIN_Y, MAX_Y),
-                    };
-                    for y in start..end {
-                        let ly = storage.y.map_or(0, |section_y| (y - section_y) as u8);
-                        for lz in 0..16u8 {
-                            for lx in 0..16u8 {
-                                let x = cx as usize * 16 + lx as usize;
-                                let z = cz as usize * 16 + lz as usize;
-                                grid.biomes_3d[Grid::index(x, y, z)] =
-                                    storage.biome_id_at(lx, ly, lz).unwrap_or(u32::MAX);
-                            }
-                        }
+            for y in start..end {
+                let ly = storage.y.map_or(0, |section_y| (y - section_y) as u8);
+                for lz in 0..16u8 {
+                    for lx in 0..16u8 {
+                        let x = cx as usize * 16 + lx as usize;
+                        let z = cz as usize * 16 + lz as usize;
+                        grid.biomes_3d[Grid::index(x, y, z)] =
+                            storage.biome_id_at(lx, ly, lz).unwrap_or(u32::MAX);
                     }
                 }
             }
-            // get_height_at_blocking reparses the complete biome record on
-            // every call. Read its 256-column height map once per chunk.
-            let heights = world.get_height_map_blocking(pos)?;
-            for lz in 0..16u8 {
-                for lx in 0..16u8 {
-                    let x = cx as usize * 16 + usize::from(lx);
-                    let z = cz as usize * 16 + usize::from(lz);
-                    let y = heights
-                        .as_ref()
-                        .and_then(|map| map[usize::from(lz)][usize::from(lx)])
-                        .map(i32::from)
-                        .unwrap_or(87);
-                    grid.biomes[z * SIDE + x] = if (MIN_Y..MAX_Y).contains(&y) {
-                        grid.biomes_3d[Grid::index(x, y, z)]
-                    } else {
-                        u32::MAX
-                    };
+        }
+        let heights = chunk.height_map.as_ref();
+        for lz in 0..16u8 {
+            for lx in 0..16u8 {
+                let x = cx as usize * 16 + usize::from(lx);
+                let z = cz as usize * 16 + usize::from(lz);
+                let y = heights
+                    .and_then(|map| map[usize::from(lz)][usize::from(lx)])
+                    .map(i32::from)
+                    .unwrap_or(87);
+                grid.biomes[z * SIDE + x] = if (MIN_Y..MAX_Y).contains(&y) {
+                    grid.biomes_3d[Grid::index(x, y, z)]
+                } else {
+                    u32::MAX
+                };
+            }
+        }
+        for sy in -4i8..=19i8 {
+            let Some(subchunk) = chunk.subchunks.get(&sy) else {
+                continue;
+            };
+            let SubChunkFormat::Paletted { ref storages, .. } = subchunk.format else {
+                continue;
+            };
+            let mut local_ids = HashMap::<usize, u16>::new();
+            for storage in storages {
+                for state in &storage.states {
+                    local_ids.insert(state as *const BlockState as usize, grid.state_id(state));
                 }
             }
-            for sy in -4i8..=19i8 {
-                let Some(subchunk) = chunk.get_subchunk(sy)? else {
-                    continue;
-                };
-                let SubChunkFormat::Paletted { ref storages, .. } = subchunk.format else {
-                    continue;
-                };
-                let mut local_ids = HashMap::<usize, u16>::new();
-                for storage in storages {
-                    for state in &storage.states {
-                        local_ids.insert(state as *const BlockState as usize, grid.state_id(state));
-                    }
-                }
-                for ly in 0..16u8 {
-                    for lz in 0..16u8 {
-                        for lx in 0..16u8 {
-                            let Some(state) = subchunk.visible_block_state_at(lx, ly, lz) else {
-                                continue;
-                            };
-                            let Some(&id) = local_ids.get(&(state as *const BlockState as usize))
-                            else {
-                                continue;
-                            };
-                            let x = cx as usize * 16 + lx as usize;
-                            let z = cz as usize * 16 + lz as usize;
-                            let y = i32::from(sy) * 16 + i32::from(ly);
-                            grid.blocks[Grid::index(x, y, z)] = id;
-                        }
+            for ly in 0..16u8 {
+                for lz in 0..16u8 {
+                    for lx in 0..16u8 {
+                        let Some(state) = subchunk.visible_block_state_at(lx, ly, lz) else {
+                            continue;
+                        };
+                        let Some(&id) = local_ids.get(&(state as *const BlockState as usize))
+                        else {
+                            continue;
+                        };
+                        let x = cx as usize * 16 + lx as usize;
+                        let z = cz as usize * 16 + lz as usize;
+                        let y = i32::from(sy) * 16 + i32::from(ly);
+                        grid.blocks[Grid::index(x, y, z)] = id;
                     }
                 }
             }
@@ -686,11 +705,9 @@ fn face_hidden(grid: &Grid, id: u16, x: i32, y: i32, z: i32, side: BlockFace) ->
     if other == 0 {
         return false;
     }
-    let other_name = &grid.states[other as usize].name;
-    let name = &grid.states[id as usize].name;
-    is_full_opaque_block(other_name)
-        || is_water(name) && is_water(other_name)
-        || is_leaf(name) && is_leaf(other_name)
+    grid.opaque[other as usize]
+        || grid.water[id as usize] && grid.water[other as usize]
+        || grid.leaf[id as usize] && grid.leaf[other as usize]
 }
 
 fn on_boundary(min: [f32; 3], max: [f32; 3], side: BlockFace) -> bool {
@@ -1039,6 +1056,145 @@ pub fn render_catalog_tile(
     Ok(())
 }
 
+pub fn render_catalog_preview_tile(
+    world: &BedrockWorld,
+    anchor: (i32, i32),
+    pack: &Path,
+    output: &Path,
+    dimension: Dimension,
+) -> Result<(), Box<dyn Error>> {
+    let started = Instant::now();
+    let mut textures = Textures::restore(pack, output)?;
+    let positions = (0..4)
+        .flat_map(|cz| {
+            (0..4).map(move |cx| ChunkPos {
+                x: anchor.0 + cx,
+                z: anchor.1 + cz,
+                dimension,
+            })
+        })
+        .collect::<Vec<_>>();
+    let request = ChunkDataRequest::new()
+        .surface_columns(ExactSurfaceSubchunkPolicy::HintThenVerify)
+        .biome(BiomeDataRequirement::All);
+    let chunks = world
+        .query_chunk_data_many_blocking(positions, ChunkLoadOptions::for_data_request(request))?;
+    let mut surface = vec![None; SIDE * SIDE];
+    for chunk in chunks {
+        let cx = chunk.pos.x - anchor.0;
+        let cz = chunk.pos.z - anchor.1;
+        if !(0..4).contains(&cx) || !(0..4).contains(&cz) {
+            continue;
+        }
+        for lz in 0..16u8 {
+            for lx in 0..16u8 {
+                let Some(sample) = chunk.column_sample_at(lx, lz) else {
+                    continue;
+                };
+                let x = cx as usize * 16 + lx as usize;
+                let z = cz as usize * 16 + lz as usize;
+                let (y, name) = sample.water.as_ref().map_or_else(
+                    || (sample.surface_y, sample.surface_block_state.name.as_str()),
+                    |water| (water.surface_y, water.block_state.name.as_str()),
+                );
+                let biome = match sample.biome {
+                    Some(TerrainColumnBiome::Id(id)) => id,
+                    _ => u32::MAX,
+                };
+                surface[z * SIDE + x] = Some((i32::from(y), name.to_owned(), biome));
+            }
+        }
+    }
+    let mut solid = Mesh::default();
+    let mut fluid = Mesh::default();
+    for z in 0..SIDE {
+        for x in 0..SIDE {
+            let Some((y, name, biome)) = surface[z * SIDE + x].as_ref() else {
+                continue;
+            };
+            let mesh = if is_water(name) {
+                &mut fluid
+            } else {
+                &mut solid
+            };
+            let origin = [
+                (anchor.0 * 16 + x as i32) as f32,
+                *y as f32,
+                (anchor.1 * 16 + z as i32) as f32,
+            ];
+            face(
+                mesh,
+                &mut textures,
+                name,
+                origin,
+                [0.0, 0.0, 0.0],
+                [1.0, 1.0, 1.0],
+                BlockFace::Up,
+                None,
+                *biome,
+            );
+            for (nx, nz, side) in [
+                (x.checked_sub(1), Some(z), BlockFace::West),
+                (
+                    x.checked_add(1).filter(|&v| v < SIDE),
+                    Some(z),
+                    BlockFace::East,
+                ),
+                (Some(x), z.checked_sub(1), BlockFace::North),
+                (
+                    Some(x),
+                    z.checked_add(1).filter(|&v| v < SIDE),
+                    BlockFace::South,
+                ),
+            ] {
+                let (Some(nx), Some(nz)) = (nx, nz) else {
+                    continue;
+                };
+                let Some((neighbor_y, _, _)) = &surface[nz * SIDE + nx] else {
+                    continue;
+                };
+                if neighbor_y < y {
+                    face(
+                        mesh,
+                        &mut textures,
+                        name,
+                        origin,
+                        [0.0, (*neighbor_y - *y) as f32, 0.0],
+                        [1.0, 1.0, 1.0],
+                        side,
+                        None,
+                        *biome,
+                    );
+                }
+            }
+        }
+    }
+    let mut tile = Vec::new();
+    tile.extend(b"VTL6");
+    tile.extend(6u32.to_le_bytes());
+    solid.write_quantized(&mut tile);
+    fluid.write_quantized(&mut tile);
+    for value in [0u32, 0u32, 0u32, 0u32] {
+        tile.extend(value.to_le_bytes());
+    }
+    tile.extend(1u32.to_le_bytes());
+    tile.extend(4u16.to_le_bytes());
+    tile.extend(b"none");
+    let path = output.join(format!(
+        "tiles/t.{}.{}.vtile",
+        anchor.0.div_euclid(4),
+        anchor.1.div_euclid(4)
+    ));
+    fs::write(path.with_extension("preview"), tile)?;
+    textures.write_shared(output)?;
+    fs::rename(path.with_extension("preview"), path)?;
+    eprintln!(
+        "Bedrock map: surface preview {anchor:?} ready in {:.2}s",
+        started.elapsed().as_secs_f64()
+    );
+    Ok(())
+}
+
 fn render_tile(
     world: &BedrockWorld,
     anchor: (i32, i32),
@@ -1064,7 +1220,9 @@ fn render_tile_in_dimension(
     textures: &mut Textures,
     dimension: Dimension,
 ) -> Result<(), Box<dyn Error>> {
+    let started = Instant::now();
     let grid = read_grid(world, anchor, dimension)?;
+    let read_seconds = started.elapsed().as_secs_f64();
     let shapes: Vec<Option<ModelShape>> = grid.states.iter().map(shape_with_lantern_uv).collect();
     let mut solid = Mesh::default();
     let mut fluid = Mesh::default();
@@ -1080,6 +1238,22 @@ fn render_tile_in_dimension(
             for x in 0..SIDE as i32 {
                 let id = grid.get(x, y, z);
                 if id == 0 {
+                    continue;
+                }
+                // Most blocks in a large generated mountain are completely
+                // enclosed. Skip their model and texture work altogether.
+                if grid.opaque[id as usize]
+                    && [
+                        (x - 1, y, z),
+                        (x + 1, y, z),
+                        (x, y - 1, z),
+                        (x, y + 1, z),
+                        (x, y, z - 1),
+                        (x, y, z + 1),
+                    ]
+                    .iter()
+                    .all(|&(nx, ny, nz)| grid.opaque[grid.get(nx, ny, nz) as usize])
+                {
                     continue;
                 }
                 let state = &grid.states[id as usize];
@@ -1186,6 +1360,10 @@ fn render_tile_in_dimension(
     tile.extend(4u16.to_le_bytes());
     tile.extend(b"none");
     fs::write(output.join("terrain.vtile"), tile)?;
+    eprintln!(
+        "Bedrock map: detail {anchor:?} read {read_seconds:.2}s, mesh {:.2}s",
+        started.elapsed().as_secs_f64() - read_seconds
+    );
     let mut summary = fs::File::create(output.join("summary.txt"))?;
     writeln!(
         summary,

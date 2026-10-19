@@ -53,7 +53,6 @@ struct BedrockState {
     tiles: BTreeMap<String, BedrockTile>,
     regions: BTreeMap<String, BTreeSet<(i32, i32)>>,
     snapshot: Option<BedrockSnapshot>,
-    background: BTreeMap<String, Arc<AtomicBool>>,
     sessions: BTreeMap<String, TileSession>,
 }
 
@@ -67,9 +66,6 @@ impl BedrockState {
             self.tiles.remove(dimension);
             self.sessions.remove(dimension);
             self.regions.remove(dimension);
-            if let Some(cancel) = self.background.remove(dimension) {
-                cancel.store(true, Ordering::Release);
-            }
             // A map opened before anyone joins may snapshot an ungenerated
             // world. Retry from fresh saved data instead of pinning that copy.
             // Other rendered dimensions still need their consistent snapshot.
@@ -90,10 +86,15 @@ struct BedrockSnapshot {
     snapshot: Arc<crate::backup_operations::WorldMapSnapshot>,
 }
 
+#[derive(Default)]
 struct BedrockTile {
     _staging: Option<crate::map_staging::Staging>,
     output: PathBuf,
     tiles: BTreeSet<String>,
+    previewed: BTreeSet<String>,
+    detailed: BTreeSet<String>,
+    last_preview: Option<Instant>,
+    camera: Option<(i32, i32)>,
 }
 
 struct TileSession {
@@ -159,6 +160,16 @@ impl TileSession {
                 Err("The Bedrock tile helper could not render this tile.".into())
             }
             _ => Err("The Bedrock tile helper gave an invalid reply.".into()),
+        }
+    }
+
+    fn preview(&mut self, x: i32, z: i32) -> Result<(), String> {
+        match self.request(&format!("preview {x} {z}"), MAX_EXPORT_TIME)? {
+            reply if reply == "ok" => Ok(()),
+            reply if reply == "error" => {
+                Err("The Bedrock tile helper could not preview this tile.".into())
+            }
+            reply => Err(format!("Unexpected Bedrock tile helper reply: {reply}")),
         }
     }
 
@@ -319,10 +330,6 @@ impl BedrockStore {
 
     pub(crate) fn release(&self) {
         let mut state = self.0.lock().unwrap();
-        for cancel in state.background.values() {
-            cancel.store(true, Ordering::Release);
-        }
-        state.background.clear();
         state.sessions.clear();
         state.tiles.clear();
         state.regions.clear();
@@ -347,10 +354,6 @@ impl BedrockStore {
         if self.1.shutdown.load(Ordering::Acquire) {
             return Err("The local agent is shutting down.".into());
         }
-        for cancel in current.background.values() {
-            cancel.store(true, Ordering::Release);
-        }
-        current.background.clear();
         current.sessions.clear();
         current.regions.clear();
         let mut next_tiles = BTreeMap::new();
@@ -377,6 +380,7 @@ impl BedrockStore {
                     _staging: Some(staging),
                     output,
                     tiles: BTreeSet::new(),
+                    ..BedrockTile::default()
                 };
                 if !run_exporter(
                     Command::new(&binary)
@@ -447,6 +451,11 @@ impl BedrockStore {
                         fs::copy(old_file, next.output.join(path)).map_err(|error| {
                             format!("Could not keep an unchanged Bedrock tile: {error}")
                         })?;
+                        if old.detailed.contains(path) {
+                            next.detailed.insert(path.to_owned());
+                        } else {
+                            next.previewed.insert(path.to_owned());
+                        }
                         stats.reused_tiles += 1;
                     }
                 }
@@ -464,6 +473,9 @@ impl BedrockStore {
                     as usize;
                 let _ = fs::remove_file(diff_path);
                 next.tiles = tiles;
+                if !next.previewed.is_empty() {
+                    next.last_preview = Some(Instant::now());
+                }
                 next_tiles.insert(dimension.to_owned(), next);
             }
         }
@@ -495,10 +507,6 @@ impl BedrockStore {
             .as_ref()
             .is_some_and(|saved| saved.server_id != server_id || saved.world != world)
         {
-            for cancel in current.background.values() {
-                cancel.store(true, Ordering::Release);
-            }
-            current.background.clear();
             current.sessions.clear();
             current.tiles.clear();
             current.regions.clear();
@@ -622,78 +630,12 @@ impl BedrockStore {
                     output,
                     tiles,
                     _staging: Some(staging),
+                    ..BedrockTile::default()
                 },
             );
-            if nearby && let Some(snapshot) = current.snapshot.as_ref() {
-                let snapshot = Arc::clone(&snapshot.snapshot);
-                let cancel = Arc::new(AtomicBool::new(false));
-                current
-                    .background
-                    .insert(dimension.to_owned(), Arc::clone(&cancel));
-                let state = Arc::clone(&self.0);
-                let lifecycle = Arc::clone(&self.1);
-                let dimension = dimension.to_owned();
-                std::thread::spawn(move || {
-                    let result = (|| -> Result<BedrockTile, String> {
-                        let staging = crate::map_staging::Staging::create("bedrock-tiles", 0)
-                            .map_err(|error| error.to_string())?;
-                        let output = staging.path().to_path_buf();
-                        if !run_exporter_cancellable(
-                            Command::new(binary)
-                                .arg("catalog")
-                                .arg(&snapshot.path)
-                                .arg(pack)
-                                .arg(&output)
-                                .arg(&dimension),
-                            &lifecycle,
-                            None,
-                            Some(&cancel),
-                        ) {
-                            return Err("Full Bedrock catalog export did not complete.".into());
-                        }
-                        let manifest: serde_json::Value = serde_json::from_slice(
-                            &fs::read(output.join("manifest.json"))
-                                .map_err(|error| error.to_string())?,
-                        )
-                        .map_err(|error| error.to_string())?;
-                        let tiles = manifest["tiles"]
-                            .as_array()
-                            .ok_or("Full Bedrock catalog has no tile list.")?
-                            .iter()
-                            .filter_map(|tile| tile["path"].as_str().map(str::to_owned))
-                            .collect();
-                        Ok(BedrockTile {
-                            _staging: Some(staging),
-                            output,
-                            tiles,
-                        })
-                    })();
-                    let mut current = state.lock().unwrap();
-                    if !cancel.load(Ordering::Acquire)
-                        && current
-                            .snapshot
-                            .as_ref()
-                            .is_some_and(|active| Arc::ptr_eq(&active.snapshot, &snapshot))
-                    {
-                        match result {
-                            Ok(full) => {
-                                current.sessions.remove(&dimension);
-                                current.tiles.insert(dimension.clone(), full);
-                                current.regions.remove(&dimension);
-                                eprintln!("Bedrock map: full {dimension} catalog ready");
-                            }
-                            Err(error) => eprintln!("Bedrock map: {dimension}: {error}"),
-                        }
-                    }
-                    if current
-                        .background
-                        .get(&dimension)
-                        .is_some_and(|active| Arc::ptr_eq(active, &cancel))
-                    {
-                        current.background.remove(&dimension);
-                    }
-                });
-            }
+            // The camera discovers saved regions on demand. A simultaneous
+            // full-world scan used the same LevelDB tables and CPU for hours on
+            // converted worlds, delaying every visible tile.
         }
         current.require_saved_terrain(dimension)?;
         if artifact == "manifest.json"
@@ -775,6 +717,92 @@ impl BedrockStore {
                 }
             }
         }
+        if artifact == "manifest.json" {
+            if let Some(position) = center
+                && let Some(tile) = current.tiles.get_mut(dimension)
+            {
+                tile.camera = Some(position);
+            }
+            let next = current.tiles.get(dimension).and_then(|tile| {
+                if tile
+                    .last_preview
+                    .is_none_or(|when| when.elapsed() < Duration::from_secs(3))
+                {
+                    return None;
+                }
+                let (cx, cz) = tile.camera.unwrap_or((0, 0));
+                tile.previewed
+                    .difference(&tile.detailed)
+                    .filter_map(|path| {
+                        let (x, z) = tile_origin(path).ok()?;
+                        let dx = i64::from(x) * 16 - i64::from(cx);
+                        let dz = i64::from(z) * 16 - i64::from(cz);
+                        let distance = dx * dx + dz * dz;
+                        (distance <= 512 * 512).then_some((distance, path.clone(), x, z))
+                    })
+                    .min_by_key(|item| item.0)
+            });
+            if let Some((_, path, x, z)) = next {
+                let source = current
+                    .snapshot
+                    .as_ref()
+                    .ok_or("The Bedrock snapshot is unavailable.")?
+                    .snapshot
+                    .path
+                    .clone();
+                let output = current
+                    .tiles
+                    .get(dimension)
+                    .ok_or("The Bedrock tile is unavailable.")?
+                    .output
+                    .clone();
+                let stale = current
+                    .sessions
+                    .get_mut(dimension)
+                    .is_some_and(|session| !matches!(session.child.try_wait(), Ok(None)));
+                if stale {
+                    current.sessions.remove(dimension);
+                }
+                if !current.sessions.contains_key(dimension) {
+                    current.sessions.insert(
+                        dimension.to_owned(),
+                        TileSession::start(
+                            &exporter_binary()?,
+                            &source,
+                            &resource_pack()?,
+                            &output,
+                            dimension,
+                            Arc::clone(&self.1),
+                        )?,
+                    );
+                }
+                let started = Instant::now();
+                let result = current
+                    .sessions
+                    .get_mut(dimension)
+                    .ok_or("The Bedrock tile helper is unavailable.")?
+                    .render(x, z);
+                eprintln!(
+                    "[world-map] Bedrock {dimension} detail {x},{z}: {} after {:.2}s",
+                    if result.is_ok() { "ready" } else { "failed" },
+                    started.elapsed().as_secs_f64()
+                );
+                match result {
+                    Ok(()) => {
+                        if let Some(tile) = current.tiles.get_mut(dimension) {
+                            tile.detailed.insert(path);
+                        }
+                    }
+                    Err(error) => {
+                        eprintln!("Bedrock map: detail refinement failed: {error}");
+                        current.sessions.remove(dimension);
+                        if let Some(tile) = current.tiles.get_mut(dimension) {
+                            tile.last_preview = Some(Instant::now());
+                        }
+                    }
+                }
+            }
+        }
         let tile = current
             .tiles
             .get(dimension)
@@ -786,6 +814,7 @@ impl BedrockStore {
                 .map_err(|error| format!("Could not read the Bedrock catalog: {error}"))?;
             let mut manifest: serde_json::Value = serde_json::from_slice(&bytes)
                 .map_err(|error| format!("The Bedrock catalog is invalid: {error}"))?;
+            manifest["textureLayers"] = serde_json::json!(atlas_layers(&output)?);
             if manifest["catalogPhase"] == "nearby" {
                 let entries = manifest["tiles"]
                     .as_array_mut()
@@ -801,36 +830,32 @@ impl BedrockStore {
                     if let Some((x, z)) = name.and_then(|name| name.split_once('.'))
                         && let (Ok(x), Ok(z)) = (x.parse::<i32>(), z.parse::<i32>())
                     {
-                        entries.push(serde_json::json!({"x": x, "z": z, "path": path, "bytes": 0}));
+                        entries.push(serde_json::json!({"x": x, "z": z, "path": path, "bytes": 0, "revision": 1}));
                     }
                 }
-                return serde_json::to_vec(&manifest)
-                    .map_err(|error| format!("Could not send the Bedrock catalog: {error}"));
             }
-            return Ok(bytes);
+            if let Some(entries) = manifest["tiles"].as_array_mut() {
+                for entry in entries {
+                    let revision = if entry["path"]
+                        .as_str()
+                        .is_some_and(|path| tile.detailed.contains(path))
+                    {
+                        2
+                    } else {
+                        1
+                    };
+                    entry["revision"] = serde_json::json!(revision);
+                }
+            }
+            return serde_json::to_vec(&manifest)
+                .map_err(|error| format!("Could not send the Bedrock catalog: {error}"));
         }
         if artifact.starts_with("tiles/") {
             if !tile.tiles.contains(artifact) {
                 return Err("This Bedrock tile has no saved chunks.".into());
             }
             if !path.is_file() {
-                let name = artifact
-                    .strip_prefix("tiles/t.")
-                    .ok_or("Invalid Bedrock tile path")?;
-                let parts: Vec<_> = name.split('.').collect();
-                let [x, z, "vtile"] = parts.as_slice() else {
-                    return Err("Invalid Bedrock tile path".into());
-                };
-                let x = x
-                    .parse::<i32>()
-                    .map_err(|_| "Invalid Bedrock tile x")?
-                    .checked_mul(4)
-                    .ok_or("Bedrock tile x exceeds world bounds")?;
-                let z = z
-                    .parse::<i32>()
-                    .map_err(|_| "Invalid Bedrock tile z")?
-                    .checked_mul(4)
-                    .ok_or("Bedrock tile z exceeds world bounds")?;
+                let (x, z) = tile_origin(artifact)?;
                 let source = current
                     .snapshot
                     .as_ref()
@@ -839,7 +864,7 @@ impl BedrockStore {
                 let binary = exporter_binary()?;
                 let pack = resource_pack()?;
                 let started = Instant::now();
-                eprintln!("[world-map] Rendering Bedrock {dimension} tile {x},{z}");
+                eprintln!("[world-map] Previewing Bedrock {dimension} tile {x},{z}");
                 let stale = current
                     .sessions
                     .get_mut(dimension)
@@ -862,9 +887,9 @@ impl BedrockStore {
                     .sessions
                     .get_mut(dimension)
                     .ok_or("The Bedrock tile helper is unavailable.")?
-                    .render(x, z);
+                    .preview(x, z);
                 eprintln!(
-                    "[world-map] Bedrock {dimension} tile {x},{z}: {} after {:.2}s",
+                    "[world-map] Bedrock {dimension} preview {x},{z}: {} after {:.2}s",
                     if rendered.is_ok() { "ready" } else { "failed" },
                     started.elapsed().as_secs_f64()
                 );
@@ -873,6 +898,14 @@ impl BedrockStore {
                     return Err(format!(
                         "The saved Bedrock tile could not be exported at {}: {error} See the agent log for the exporter error, including any disk or quota failure.",
                         output.display(),
+                    ));
+                }
+                if let Some(tile) = current.tiles.get_mut(dimension) {
+                    tile.previewed.insert(artifact.to_owned());
+                    tile.last_preview = Some(Instant::now());
+                    tile.camera = Some((
+                        x.saturating_mul(16).saturating_add(32),
+                        z.saturating_mul(16).saturating_add(32),
                     ));
                 }
             }
@@ -926,6 +959,7 @@ mod tests {
                 _staging: None,
                 output: empty_output.clone(),
                 tiles: BTreeSet::new(),
+                ..BedrockTile::default()
             },
         );
 
@@ -952,6 +986,7 @@ mod tests {
                 _staging: None,
                 output: root.join("populated"),
                 tiles: BTreeSet::from(["tiles/t.0.0.vtile".into()]),
+                ..BedrockTile::default()
             },
         );
         state.tiles.insert(
@@ -960,6 +995,7 @@ mod tests {
                 _staging: None,
                 output: root.join("empty-nether"),
                 tiles: BTreeSet::new(),
+                ..BedrockTile::default()
             },
         );
         assert!(state.require_saved_terrain("minecraft:the_nether").is_err());
@@ -981,6 +1017,36 @@ fn valid_tile_path(path: &str) -> bool {
         return false;
     };
     x.parse::<i32>().is_ok() && z.parse::<i32>().is_ok()
+}
+
+fn tile_origin(path: &str) -> Result<(i32, i32), String> {
+    let name = path
+        .strip_prefix("tiles/t.")
+        .and_then(|name| name.strip_suffix(".vtile"))
+        .ok_or("Invalid Bedrock tile path")?;
+    let (x, z) = name.split_once('.').ok_or("Invalid Bedrock tile path")?;
+    let x = x
+        .parse::<i32>()
+        .map_err(|_| "Invalid Bedrock tile x")?
+        .checked_mul(4)
+        .ok_or("Bedrock tile x exceeds world bounds")?;
+    let z = z
+        .parse::<i32>()
+        .map_err(|_| "Invalid Bedrock tile z")?
+        .checked_mul(4)
+        .ok_or("Bedrock tile z exceeds world bounds")?;
+    Ok((x, z))
+}
+
+fn atlas_layers(output: &Path) -> Result<u32, String> {
+    let mut header = [0u8; 20];
+    File::open(output.join("terrain.vtexarr"))
+        .and_then(|mut file| file.read_exact(&mut header))
+        .map_err(|error| format!("Could not read Bedrock map textures: {error}"))?;
+    if &header[..4] != b"VTA1" {
+        return Err("The Bedrock map texture atlas is invalid.".into());
+    }
+    Ok(u32::from_le_bytes(header[16..20].try_into().unwrap()))
 }
 
 fn exporter_binary() -> Result<PathBuf, String> {

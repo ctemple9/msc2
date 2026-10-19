@@ -34,6 +34,8 @@ P18.66 corrects stretched cliff textures in the fast Bedrock surface preview;
 awaiting owner verification.
 P18.67 removes the preview's tall leaf walls while keeping the quick surface
 sampling path; awaiting owner verification.
+P18.68 smooths the Bedrock map depth slider's drag and camera movement;
+awaiting owner verification.
 
 **Services follow-up:** P21.39 makes host-wide Playit account setup available
 from MSC Settings even when the selected server does not use Playit. P21.40
@@ -183,6 +185,15 @@ not in this implementation queue.
 **Verify:** Install the local P18.67 Intel candidate, repair the agent, reopen or refresh the imported Bedtonic-world map, and fly near trees while preview tiles are still loading. Tree foliage should no longer form tall square curtains reaching the ground. As detailed tiles replace the previews, their complete trunks and canopies should appear.
 **Batch:** P18.67 only.
 **Commit:** `P18.67: bound bedrock preview foliage to sampled leaves`
+
+### P18.68 — Smooth the map depth slider
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; this plan.
+**What:** Keep the depth slider's pointer position precise while dragging, show the nearest block Y, and settle on that whole block when released. Ease the orbit camera's focus toward the selected depth instead of jumping it on every drag event. Keep keyboard depth changes on whole-block steps and preserve the existing immediate positioning used when switching map views. No test was added or run; the imported Bedtonic-world map is the physical acceptance case.
+**Verify:** Open the imported Bedtonic-world map, choose Depth, and slowly drag the slider up and down while watching both the Y label and the cutaway. The cutaway and camera should move smoothly rather than jumping between distant heights; release should settle on the displayed whole-number Y. Check Alt/Option+Up/Down still moves by the selected whole-block step, and switching between 2D, 3D, and Fly still works.
+**Batch:** P18.68 only.
+**Commit:** `P18.68: smooth bedrock map depth control`
 
 ## Phase 20 — Imported server component follow-up
 

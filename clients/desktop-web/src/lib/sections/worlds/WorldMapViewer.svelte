@@ -138,7 +138,7 @@
       if (!event.repeat) depthStepIndex = Math.max(0, Math.min(depthSteps.length - 1,
         depthStepIndex + (event.key === 'ArrowRight' ? 1 : -1)));
     } else {
-      setDepth(depthY + (event.key === 'ArrowUp' ? 1 : -1) * depthSteps[depthStepIndex]);
+      setDepth(Math.round(depthY) + (event.key === 'ArrowUp' ? 1 : -1) * depthSteps[depthStepIndex], true);
     }
     showDepthStep();
   }
@@ -384,14 +384,22 @@
     frameId = requestAnimationFrame(updateToolbar);
   }
 
-  function setDepth(y: number): void {
-    if (!viewer) return;
+  function setDepth(y: number, smooth = false): void {
+    if (!viewer || !Number.isFinite(y)) return;
     stopFollowing();
     // Surface-following would lift the focus back above the selected cave level.
     if (!viewer.isFlying) holdFocusHeight();
-    depthY = Math.max(depthMin, Math.min(depthMax, Math.round(y)));
+    depthY = Math.max(depthMin, Math.min(depthMax, smooth ? y : Math.round(y)));
     viewer.setSlice(depthY);
-    if (!viewer.isFlying) viewer.controls.position.y = depthY;
+    if (!viewer.isFlying) {
+      if (smooth) {
+        const position = viewer.controls.position.clone();
+        position.y = depthY;
+        viewer.controls.animateTo({ position });
+      } else {
+        viewer.controls.position.y = depthY;
+      }
+    }
     viewer.invalidate();
   }
 
@@ -869,13 +877,14 @@
       </details>
     {#if depthOpen && viewer}
       <aside class="depth-position" id="map-depth-control" aria-label="Terrain depth">
-        <label for="terrain-depth">Y <output>{depthY}</output></label>
+        <label for="terrain-depth">Y <output>{Math.round(depthY)}</output></label>
         <div class="depth-track">
-          <input id="terrain-depth" type="range" min={depthMin} max={depthMax} step="1"
-            value={depthY} aria-label="Terrain depth Y"
+          <input id="terrain-depth" type="range" min={depthMin} max={depthMax} step="any"
+            value={depthY} aria-label="Terrain depth Y" aria-valuetext={`Y ${Math.round(depthY)}`}
             title="Drag, or hold Alt/Option and use Up/Down. Alt/Option+Left/Right changes the step."
             onkeydown={depthKey}
-            oninput={(event) => { setDepth(Number(event.currentTarget.value)); showDepthStep(); }} />
+            oninput={(event) => { setDepth(Number(event.currentTarget.value), true); showDepthStep(); }}
+            onchange={() => setDepth(Math.round(depthY), true)} />
           {#if selectedDimension === 'minecraft:overworld' && depthMin <= 63 && depthMax >= 63}
             <span class="sea-marker" style:bottom={`${(63 - depthMin) / (depthMax - depthMin) * 100}%`}>Sea 63</span>
           {/if}

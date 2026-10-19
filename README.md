@@ -17,19 +17,20 @@ everything first.
 
 ## Current release and support
 
-The latest published build is [MSC 2 v0.1.29](https://github.com/ctemple9/msc2/releases/tag/v0.1.29),
+The latest published build is [MSC 2 v0.1.31](https://github.com/ctemple9/msc2/releases/tag/v0.1.31),
 an unsigned prerelease. There is no stable release yet. Download the
 platform-specific installer or archive from that release page and verify its
 entry in `SHA256SUMS` before installing. The Phase 16 acceptance record
 (P16.29) is still open; this prerelease has not passed the full physical
 release acceptance gate.
 
-**Next candidate: v0.1.30.** The XboxBroadcast correction is prepared for the
-build-only release workflow. It prevents broadcast cancellation during Bedrock
-status polling and keeps helper downloads outside the broadcast state lock.
-Cameron confirmed the temporary Intel build works with RakNet retained. See
-[the v0.1.30 notes](docs/msc2/release/v0.1.30.md). Download links below remain
-on the confirmed published v0.1.29 until this candidate is published.
+v0.1.31 includes native file imports, storage management, service-setting
+improvements and a progressively loading Bedrock map for large worlds. See its
+[release notes](docs/msc2/release/v0.1.31.md).
+
+v0.1.30 corrects XboxBroadcast cancellation during Bedrock status polling and
+keeps helper downloads outside the broadcast state lock. See its
+[release notes](docs/msc2/release/v0.1.30.md).
 
 v0.1.29 fixes automatic remote SSH pairing on Macs whose SSH search path or
 pairing-storage settings differ from the desktop-installed agent. Pairing stays
@@ -47,7 +48,7 @@ of these fixes remains open. Existing root-owned Bedrock data still requires
 the one-time ownership repair described in the release history.
 
 **macOS 0.1.25/0.1.26:** stop the Minecraft server, quit MSC 2, manually install
-v0.1.29 from its disk image, and repair the agent once. The older updater's helper
+v0.1.31 from its disk image, and repair the agent once. The older updater's helper
 contains the rollback bug; subsequent updates can use the corrected updater.
 
 | Installation | Published platform and architecture | Supported control surface |
@@ -238,26 +239,26 @@ app already includes the MSC 2 agent; you do not need to download both.
   environment. Manage it from another computer with the desktop app or CLI.
 ### macOS desktop — Intel and Apple Silicon Macs
 
-Download the matching macOS disk image from the [v0.1.29 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.29), open it, and drag MSC 2 into your Applications folder. Intel Macs include the local Bedrock runtime. Apple Silicon Macs include the app and Java runtime support, but no local Bedrock VM; Bedrock servers can still be managed on a compatible remote host.
+Download the matching macOS disk image from the [v0.1.31 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.31), open it, and drag MSC 2 into your Applications folder. Intel Macs include the local Bedrock runtime. Apple Silicon Macs include the app and Java runtime support, but no local Bedrock VM; Bedrock servers can still be managed on a compatible remote host.
 
 ### Windows desktop — 64-bit Windows
 
-Download the Windows `.msi` installer from the [v0.1.29 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.29) and follow the installation prompts.
+Download the Windows `.msi` installer from the [v0.1.31 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.31) and follow the installation prompts.
 
 ### Debian or Ubuntu desktop
 
-Download the Linux `.deb` package from the [v0.1.29 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.29), then install it with:
+Download the Linux `.deb` package from the [v0.1.31 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.31), then install it with:
 
 ~~~sh
-sudo apt install ./msc2-0.1.29-linux-x86_64.deb
+sudo apt install ./msc2-0.1.31-linux-x86_64.deb
 ~~~
 
 ### Fedora or other RPM-based Linux
 
-Download the Linux `.rpm` package from the [v0.1.29 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.29), then install it with:
+Download the Linux `.rpm` package from the [v0.1.31 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.31), then install it with:
 
 ~~~sh
-sudo dnf install ./msc2-0.1.29-linux-x86_64.rpm
+sudo dnf install ./msc2-0.1.31-linux-x86_64.rpm
 ~~~
 
 ### Headless agent — macOS, Windows, and Linux

@@ -1,10 +1,11 @@
 //! Saved Bedrock tiles exported from a consistent BDS copy.
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File};
-use std::io::{Read, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Component, Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -52,6 +53,7 @@ struct BedrockState {
     tiles: BTreeMap<String, BedrockTile>,
     snapshot: Option<BedrockSnapshot>,
     background: BTreeMap<String, Arc<AtomicBool>>,
+    sessions: BTreeMap<String, TileSession>,
 }
 
 impl BedrockState {
@@ -62,6 +64,7 @@ impl BedrockState {
             .ok_or("The Bedrock tile is unavailable.")?;
         if tile.tiles.is_empty() {
             self.tiles.remove(dimension);
+            self.sessions.remove(dimension);
             if let Some(cancel) = self.background.remove(dimension) {
                 cancel.store(true, Ordering::Release);
             }
@@ -89,6 +92,95 @@ struct BedrockTile {
     _staging: Option<crate::map_staging::Staging>,
     output: PathBuf,
     tiles: BTreeSet<String>,
+}
+
+struct TileSession {
+    child: Child,
+    input: ChildStdin,
+    replies: Receiver<String>,
+    lifecycle: Arc<ExporterLifecycle>,
+}
+
+impl TileSession {
+    fn start(
+        binary: &Path,
+        source: &Path,
+        pack: &Path,
+        output: &Path,
+        dimension: &str,
+        lifecycle: Arc<ExporterLifecycle>,
+    ) -> Result<Self, String> {
+        let mut child = Command::new(binary)
+            .arg("tile-session")
+            .arg(source)
+            .arg(pack)
+            .arg(output)
+            .arg(dimension)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .map_err(|error| format!("Could not start the Bedrock tile helper: {error}"))?;
+        let Some(input) = child.stdin.take() else {
+            lifecycle.stop(&mut child);
+            return Err("The Bedrock tile helper has no input pipe.".into());
+        };
+        let Some(output_pipe) = child.stdout.take() else {
+            lifecycle.stop(&mut child);
+            return Err("The Bedrock tile helper has no output pipe.".into());
+        };
+        let (sender, replies) = mpsc::channel();
+        std::thread::spawn(move || {
+            for line in BufReader::new(output_pipe).lines() {
+                match line {
+                    Ok(line) => {
+                        if sender.send(line).is_err() {
+                            break;
+                        }
+                    }
+                    _ => break,
+                }
+            }
+        });
+        Ok(Self {
+            child,
+            input,
+            replies,
+            lifecycle,
+        })
+    }
+
+    fn render(&mut self, x: i32, z: i32) -> Result<(), String> {
+        writeln!(self.input, "{x} {z}")
+            .and_then(|()| self.input.flush())
+            .map_err(|error| format!("Could not request a Bedrock tile: {error}"))?;
+        let started = Instant::now();
+        loop {
+            if self.lifecycle.shutdown.load(Ordering::Acquire) {
+                return Err("The local agent is shutting down.".into());
+            }
+            if started.elapsed() >= MAX_EXPORT_TIME {
+                return Err("The Bedrock tile helper timed out.".into());
+            }
+            match self.replies.recv_timeout(Duration::from_millis(100)) {
+                Ok(reply) if reply == "ok" => return Ok(()),
+                Ok(reply) if reply == "error" => {
+                    return Err("The Bedrock tile helper could not render this tile.".into());
+                }
+                Ok(_) => return Err("The Bedrock tile helper gave an invalid reply.".into()),
+                Err(RecvTimeoutError::Disconnected) => {
+                    return Err("The Bedrock tile helper stopped unexpectedly.".into());
+                }
+                Err(RecvTimeoutError::Timeout) => {}
+            }
+        }
+    }
+}
+
+impl Drop for TileSession {
+    fn drop(&mut self) {
+        self.lifecycle.stop(&mut self.child);
+    }
 }
 
 pub(crate) struct RefreshStats {
@@ -213,6 +305,7 @@ impl BedrockStore {
             cancel.store(true, Ordering::Release);
         }
         state.background.clear();
+        state.sessions.clear();
         state.tiles.clear();
         state.snapshot = None;
     }
@@ -239,6 +332,7 @@ impl BedrockStore {
             cancel.store(true, Ordering::Release);
         }
         current.background.clear();
+        current.sessions.clear();
         let mut next_tiles = BTreeMap::new();
         let mut stats = RefreshStats {
             reused_tiles: 0,
@@ -383,6 +477,7 @@ impl BedrockStore {
                 cancel.store(true, Ordering::Release);
             }
             current.background.clear();
+            current.sessions.clear();
             current.tiles.clear();
             current.snapshot = None;
         }
@@ -559,6 +654,7 @@ impl BedrockStore {
                     {
                         match result {
                             Ok(full) => {
+                                current.sessions.remove(&dimension);
                                 current.tiles.insert(dimension.clone(), full);
                                 eprintln!("Bedrock map: full {dimension} catalog ready");
                             }
@@ -580,7 +676,8 @@ impl BedrockStore {
             .tiles
             .get(dimension)
             .ok_or("The Bedrock tile is unavailable.")?;
-        let path = tile.output.join(artifact);
+        let output = tile.output.clone();
+        let path = output.join(artifact);
         if artifact.starts_with("tiles/") {
             if !tile.tiles.contains(artifact) {
                 return Err("This Bedrock tile has no saved chunks.".into());
@@ -606,32 +703,45 @@ impl BedrockStore {
                 let source = current
                     .snapshot
                     .as_ref()
-                    .map_or(world, |saved| saved.snapshot.path.as_path());
+                    .map_or(world, |saved| saved.snapshot.path.as_path())
+                    .to_path_buf();
                 let binary = exporter_binary()?;
                 let pack = resource_pack()?;
                 let started = Instant::now();
                 eprintln!("[world-map] Rendering Bedrock {dimension} tile {x},{z}");
-                let rendered = run_exporter(
-                    Command::new(binary)
-                        .arg("tile")
-                        .arg(source)
-                        .arg(pack)
-                        .arg(&tile.output)
-                        .arg(dimension)
-                        .arg(x.to_string())
-                        .arg(z.to_string()),
-                    &self.1,
-                    MAX_EXPORT_TIME,
-                );
+                let stale = current
+                    .sessions
+                    .get_mut(dimension)
+                    .is_some_and(|session| !matches!(session.child.try_wait(), Ok(None)));
+                if stale {
+                    current.sessions.remove(dimension);
+                }
+                if !current.sessions.contains_key(dimension) {
+                    let session = TileSession::start(
+                        &binary,
+                        &source,
+                        &pack,
+                        &output,
+                        dimension,
+                        Arc::clone(&self.1),
+                    )?;
+                    current.sessions.insert(dimension.to_owned(), session);
+                }
+                let rendered = current
+                    .sessions
+                    .get_mut(dimension)
+                    .ok_or("The Bedrock tile helper is unavailable.")?
+                    .render(x, z);
                 eprintln!(
                     "[world-map] Bedrock {dimension} tile {x},{z}: {} after {:.2}s",
-                    if rendered { "ready" } else { "failed" },
+                    if rendered.is_ok() { "ready" } else { "failed" },
                     started.elapsed().as_secs_f64()
                 );
-                if !rendered {
+                if let Err(error) = rendered {
+                    current.sessions.remove(dimension);
                     return Err(format!(
-                        "The saved Bedrock tile could not be exported at {}. See the agent log for the exporter error, including any disk or quota failure.",
-                        tile.output.display()
+                        "The saved Bedrock tile could not be exported at {}: {error} See the agent log for the exporter error, including any disk or quota failure.",
+                        output.display(),
                     ));
                 }
             }

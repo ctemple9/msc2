@@ -16,7 +16,9 @@ large converted world's Intel Mac failure; P18.57 supersedes that limit.
 P18.57 confirmed the installed exporter received 65,536 files, but its catalog
 still failed without a new file error. P18.58's sixty-minute catalog deadline
 also expired on the Intel Mac. P18.59 moves first map opening to a bounded
-spawn-area catalog and builds wider coverage separately; awaiting owner verification.
+spawn-area catalog and builds wider coverage separately. P18.60 reuses one
+read-only world handle across tile requests after the local 7.5 GB copy showed
+roughly one minute per tile; awaiting owner verification.
 
 **Services follow-up:** P21.39 makes host-wide Playit account setup available
 from MSC Settings even when the selected server does not use Playit. P21.40
@@ -94,6 +96,15 @@ not in this implementation queue.
 **Verify:** Run `open "$HOME/Downloads/msc2-bedrock-map-intel-p18.59.dmg"` on the Intel Mac, install and repair the agent, then open Bedtonic's Overworld map. Nearby terrain should load without waiting for whole-world indexing. The agent log should report `catalog-nearby indexed`, `nearby ... catalog ready`, and later full-index/overview progress; when the full catalog completes, the viewer should expand coverage without changing the selected world or camera position. If nearby loading fails, provide the new `Bedrock map:` log lines.
 **Batch:** P18.59 only.
 **Commit:** `P18.59: open nearby bedrock terrain before full catalog`
+
+### P18.60 — Reuse the Bedrock world handle across terrain tiles
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `tools/world-map-proof/src/main.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; this plan.
+**What:** On Cameron's local copy of the 7.5 GB converted world, the nearby catalog took 50.9 seconds, of which 15.4 seconds indexed 289 nearby chunks. Each subsequent tile took about 50–66 seconds because the agent started a new exporter that reopened the large LevelDB before rendering. Add a tile helper that opens the read-only snapshot once and answers successive tile requests over pipes. Reuse it only while its snapshot and catalog remain selected; stop it on refresh, selection change, or release, and let it exit after two idle minutes. Preserve the ten-minute per-tile timeout and existing full-catalog background behavior. No new test: a small fixture cannot represent the large-world open cost; Cameron's imported copy provides the decisive physical check. Do not run a test without his specific instruction.
+**Verify:** Install `~/Desktop/msc2-bedrock-map-intel-p18.60.dmg`, repair the agent, and open the imported Bedtonic-world map. After the first tile, later nearby tiles should no longer each take about a minute. Compare the `[world-map] Bedrock ... tile ... ready after` lines in `~/Library/Application Support/MSC 2/logs/agent.log` and confirm terrain fills progressively without a tile error.
+**Batch:** P18.60 only.
+**Commit:** `P18.60: reuse bedrock world handle across map tiles`
 
 ## Phase 20 — Imported server component follow-up
 

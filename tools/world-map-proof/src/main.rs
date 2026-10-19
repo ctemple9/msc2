@@ -1,13 +1,15 @@
 use bedrock_world::{
-    BedrockWorld, ChunkKey, ChunkPos, ChunkRecordTag, Dimension, NbtTag, OpenOptions,
-    ProgressSink, SubChunkFormat, WorldChunkQueryRegion, WorldScanOptions,
+    BedrockWorld, ChunkKey, ChunkPos, ChunkRecordTag, Dimension, NbtTag, OpenOptions, ProgressSink,
+    SubChunkFormat, WorldChunkQueryRegion, WorldScanOptions,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::error::Error;
 use std::fs;
+use std::io::{self, BufRead, Write};
 use std::path::Path;
-use std::time::Instant;
+use std::sync::mpsc;
+use std::time::{Duration, Instant};
 
 mod render;
 
@@ -333,12 +335,54 @@ fn main() -> Result<(), Box<dyn Error>> {
     // A large converted world can span more LevelDB tables than launchd's
     // default 256-file soft limit. Only this short-lived exporter needs more.
     #[cfg(target_os = "macos")]
-    raise_open_file_limit(args.get(1).is_some_and(|arg| arg == "catalog" || arg == "catalog-nearby"));
+    raise_open_file_limit(
+        args.get(1).is_some_and(|arg| {
+            arg == "catalog" || arg == "catalog-nearby" || arg == "tile-session"
+        }),
+    );
     if args.get(1).is_some_and(|arg| arg == "compare") {
         return compare_tiles(&args);
     }
     if args.get(1).is_some_and(|arg| arg == "diff-catalogs") {
         return diff_catalogs(&args);
+    }
+    if args.get(1).is_some_and(|arg| arg == "tile-session") {
+        let path = Path::new(args.get(2).ok_or("saved world path required")?);
+        let pack = Path::new(args.get(3).ok_or("resource pack path required")?);
+        let output = Path::new(args.get(4).ok_or("output directory required")?);
+        let dimension = map_dimension(
+            args.get(5)
+                .map(String::as_str)
+                .unwrap_or("minecraft:overworld"),
+        )?;
+        let world = BedrockWorld::open_blocking(path, OpenOptions::default())?;
+        let mut replies = io::stdout().lock();
+        let (sender, requests) = mpsc::channel();
+        std::thread::spawn(move || {
+            for line in io::stdin().lock().lines() {
+                if sender.send(line).is_err() {
+                    break;
+                }
+            }
+        });
+        while let Ok(line) = requests.recv_timeout(Duration::from_secs(120)) {
+            let line = line?;
+            let result = (|| -> Result<(), Box<dyn Error>> {
+                let (x, z) = line.split_once(' ').ok_or("invalid tile request")?;
+                let x = x.parse::<i32>()?;
+                let z = z.parse::<i32>()?;
+                if x.rem_euclid(4) != 0 || z.rem_euclid(4) != 0 {
+                    return Err("tile origin must align to four chunks".into());
+                }
+                render::render_catalog_tile(&world, (x, z), pack, output, dimension)
+            })();
+            if let Err(error) = &result {
+                eprintln!("Bedrock map: tile-session {line}: {error}");
+            }
+            replies.write_all(if result.is_ok() { b"ok\n" } else { b"error\n" })?;
+            replies.flush()?;
+        }
+        return Ok(());
     }
     if args
         .get(1)
@@ -393,7 +437,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .list_render_chunk_positions_blocking(WorldScanOptions {
                     progress: Some(ProgressSink::new(|progress| {
                         if progress.entries_seen.is_multiple_of(1_048_576) {
-                            eprintln!("Bedrock map: indexed {} database keys", progress.entries_seen);
+                            eprintln!(
+                                "Bedrock map: indexed {} database keys",
+                                progress.entries_seen
+                            );
                         }
                     })),
                     ..WorldScanOptions::default()
@@ -402,7 +449,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .filter(|p| p.dimension == dimension)
                 .collect()
         };
-        eprintln!("Bedrock map: {} indexed {} chunks in {:.1}s", args[1], positions.len(), started.elapsed().as_secs_f64());
+        eprintln!(
+            "Bedrock map: {} indexed {} chunks in {:.1}s",
+            args[1],
+            positions.len(),
+            started.elapsed().as_secs_f64()
+        );
         let anchors: BTreeSet<_> = positions
             .iter()
             .map(|p| (p.x.div_euclid(4) * 4, p.z.div_euclid(4) * 4))
@@ -418,7 +470,11 @@ fn main() -> Result<(), Box<dyn Error>> {
             dimension_id,
             args[1] == "catalog",
         );
-        eprintln!("Bedrock map: {} wrote catalog in {:.1}s", args[1], started.elapsed().as_secs_f64());
+        eprintln!(
+            "Bedrock map: {} wrote catalog in {:.1}s",
+            args[1],
+            started.elapsed().as_secs_f64()
+        );
         return result;
     }
     if args.get(1).is_some_and(|arg| arg == "grid") {

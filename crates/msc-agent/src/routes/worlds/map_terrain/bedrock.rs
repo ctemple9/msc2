@@ -830,7 +830,7 @@ impl BedrockStore {
                     if let Some((x, z)) = name.and_then(|name| name.split_once('.'))
                         && let (Ok(x), Ok(z)) = (x.parse::<i32>(), z.parse::<i32>())
                     {
-                        entries.push(serde_json::json!({"x": x, "z": z, "path": path, "bytes": 0, "revision": 1}));
+                        entries.push(serde_json::json!({"x": x, "z": z, "path": path, "bytes": 0, "revision": "preview"}));
                     }
                 }
             }
@@ -840,9 +840,9 @@ impl BedrockStore {
                         .as_str()
                         .is_some_and(|path| tile.detailed.contains(path))
                     {
-                        2
+                        "detail"
                     } else {
-                        1
+                        "preview"
                     };
                     entry["revision"] = serde_json::json!(revision);
                 }

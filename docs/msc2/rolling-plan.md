@@ -23,8 +23,10 @@ verification found no tiles appearing; awaiting owner verification.
 P18.62 adds saved-chunk discovery around the moving Bedrock map camera;
 awaiting owner verification before the next release.
 P18.63 adds a fast surface preview and batches detailed tile reads. It keeps
-map discovery near the camera instead of running a competing full-world scan;
-awaiting owner verification on the imported 7.5 GB world.
+map discovery near the camera instead of running a competing full-world scan.
+Owner verification found its tile revision values rejected by the viewer;
+P18.64 corrects that manifest format and awaits owner verification on the
+imported 7.5 GB world.
 
 **Services follow-up:** P21.39 makes host-wide Playit account setup available
 from MSC Settings even when the selected server does not use Playit. P21.40
@@ -138,6 +140,15 @@ not in this implementation queue.
 **Verify:** Open `~/Desktop/msc2-bedrock-map-intel-p18.63.dmg`, install the app, repair the agent, then open the imported Bedtonic-world map. Surface tiles should appear before full 3D detail and refine near the camera without resetting flight. Fly to another saved area and back; returning tiles should load from the current snapshot cache. In `~/Library/Application Support/MSC 2/logs/agent.log`, compare `surface preview` and `detail ... read ..., mesh ...` times with the former 8–27 seconds per tile. Confirm normal viewing no longer starts a full-world catalog. Report preview and detail times from the Intel Mac to assess the under-five-second goal.
 **Batch:** P18.63 only.
 **Commit:** `P18.63: stream bedrock map surface previews`
+
+### P18.64 — Send valid Bedrock tile revisions to the viewer
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; this plan.
+**What:** Vantage rejects numeric manifest tile revisions before it loads any terrain. Send nonempty string revisions for both initially listed and newly discovered tiles, changing each tile from `preview` to `detail` when its detailed mesh replaces the surface preview. The imported 7.5 GB world remains the physical acceptance case; no test was added or run without owner authorization.
+**Verify:** Install `~/Desktop/msc2-bedrock-map-intel-p18.64.dmg`, repair the agent, and reopen the imported Bedtonic-world map. The `invalid revision` error should be gone; surface previews should appear and refine into detail near the camera. Fly to another saved area and back, then compare preview and detail times in `~/Library/Application Support/MSC 2/logs/agent.log` with the earlier 8–27 seconds per tile.
+**Batch:** P18.64 only.
+**Commit:** `P18.64: send valid bedrock tile revisions`
 
 ## Phase 20 — Imported server component follow-up
 

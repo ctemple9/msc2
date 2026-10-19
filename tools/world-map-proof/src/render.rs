@@ -796,7 +796,10 @@ fn create_overview(
     let mut samples = BTreeMap::new();
     for (index, &pos) in positions.iter().enumerate() {
         if index > 0 && index.is_multiple_of(100_000) {
-            eprintln!("Bedrock map: overview sampled {index}/{} chunks", positions.len());
+            eprintln!(
+                "Bedrock map: overview sampled {index}/{} chunks",
+                positions.len()
+            );
         }
         let Some(map) = world.get_height_map_blocking(pos)? else {
             continue;
@@ -945,7 +948,10 @@ pub fn create_catalog(
         let started = std::time::Instant::now();
         eprintln!("Bedrock map: overview sampling {} chunks", positions.len());
         let result = create_overview(world, positions, pack, output)?;
-        eprintln!("Bedrock map: overview ready in {:.1}s", started.elapsed().as_secs_f64());
+        eprintln!(
+            "Bedrock map: overview ready in {:.1}s",
+            started.elapsed().as_secs_f64()
+        );
         result
     };
     let tiles: Vec<_> = anchors
@@ -1227,7 +1233,8 @@ fn render_tile_in_dimension(
         "birch grass tint: {:?}, foliage tint: {:?}",
         textures.birch_grass_tint, textures.birch_foliage_tint
     )?;
-    println!(
+    // The tile-session protocol reserves stdout for replies to the agent.
+    eprintln!(
         "render: {} solid faces, {} water faces, {} textures, {} fallback faces, {} log blocks",
         solid.indices.len() / 6,
         fluid.indices.len() / 6,
@@ -1235,15 +1242,15 @@ fn render_tile_in_dimension(
         textures.fallback,
         drawn_logs
     );
-    println!("missing shape blocks: {missing_shapes:?}");
-    println!("fallback blocks: {:?}", textures.fallback_blocks);
-    println!("surface biome IDs by column: {biome_counts:?}");
-    println!("biome IDs by non-air block: {rendered_block_biome_counts:?}");
-    println!(
+    eprintln!("missing shape blocks: {missing_shapes:?}");
+    eprintln!("fallback blocks: {:?}", textures.fallback_blocks);
+    eprintln!("surface biome IDs by column: {biome_counts:?}");
+    eprintln!("biome IDs by non-air block: {rendered_block_biome_counts:?}");
+    eprintln!(
         "mapped mountain grass/foliage tints: {:?}",
         textures.mountain_tints
     );
-    println!(
+    eprintln!(
         "birch grass tint: {:?}, foliage tint: {:?}",
         textures.birch_grass_tint, textures.birch_foliage_tint
     );

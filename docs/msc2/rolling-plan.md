@@ -20,6 +20,8 @@ spawn-area catalog and builds wider coverage separately. P18.60 reuses one
 read-only world handle across tile requests after the local 7.5 GB copy showed
 roughly one minute per tile. P18.61 corrects its reply channel after owner
 verification found no tiles appearing; awaiting owner verification.
+P18.62 adds saved-chunk discovery around the moving Bedrock map camera;
+awaiting owner verification before the next release.
 
 **Services follow-up:** P21.39 makes host-wide Playit account setup available
 from MSC Settings even when the selected server does not use Playit. P21.40
@@ -115,6 +117,15 @@ not in this implementation queue.
 **Verify:** Install `~/Desktop/msc2-bedrock-map-intel-p18.61.dmg`, repair the agent, then reopen the imported Bedtonic-world map. Terrain tiles should appear, and subsequent tiles should avoid reopening the world. Check `~/Library/Application Support/MSC 2/logs/agent.log` for `[world-map] Bedrock ... tile ... ready after` lines without new tile failures.
 **Batch:** P18.61 only.
 **Commit:** `P18.61: reserve bedrock tile helper stdout for replies`
+
+### P18.62 — Load saved Bedrock terrain near the camera
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `tools/world-map-proof/src/main.rs`; `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; this plan.
+**What:** The first Bedrock catalog advertises only 25 spawn-area tiles while the full-world overview is still building. Let the existing read-only tile helper query saved chunks in a bounded 16 × 16-chunk region around the camera, cache inspected regions for the selected snapshot, and add only discovered tiles to the dynamic manifest. Poll the camera position while that nearby catalog is active; Vantage streams the new tiles into the open viewer. Keep the camera and flight state when the full catalog eventually replaces the nearby one. No new test: a small fixture would not represent this converted 7.5 GB world, and Cameron's imported copy is the physical acceptance case. Do not run a test without specific owner instruction.
+**Verify:** Install the local P18.62 candidate, repair the agent, open the imported Bedtonic-world map, then fly beyond the original 25 tiles to another area known to contain saved terrain. New tiles should appear around the camera without reopening the map; an unsaved area should remain empty. Check `~/Library/Application Support/MSC 2/logs/agent.log` for `discovered ... saved tiles near block` and tile-ready lines. Confirm that flight stays active if the full catalog completes.
+**Batch:** P18.62 only.
+**Commit:** `P18.62: load saved bedrock tiles near the camera`
 
 ## Phase 20 — Imported server component follow-up
 

@@ -367,6 +367,46 @@ fn main() -> Result<(), Box<dyn Error>> {
         });
         while let Ok(line) = requests.recv_timeout(Duration::from_secs(120)) {
             let line = line?;
+            if let Some(region) = line.strip_prefix("region ") {
+                let result = (|| -> Result<Vec<(i32, i32)>, Box<dyn Error>> {
+                    let (x, z) = region.split_once(' ').ok_or("invalid region request")?;
+                    let x = x
+                        .parse::<i32>()?
+                        .checked_mul(16)
+                        .ok_or("region outside world")?;
+                    let z = z
+                        .parse::<i32>()?
+                        .checked_mul(16)
+                        .ok_or("region outside world")?;
+                    let positions = world.list_chunk_positions_in_region_blocking(
+                        WorldChunkQueryRegion {
+                            dimension,
+                            min_chunk_x: x,
+                            min_chunk_z: z,
+                            max_chunk_x: x.checked_add(15).ok_or("region outside world")?,
+                            max_chunk_z: z.checked_add(15).ok_or("region outside world")?,
+                        },
+                        WorldScanOptions::default(),
+                    )?;
+                    Ok(positions
+                        .iter()
+                        .map(|p| (p.x.div_euclid(4), p.z.div_euclid(4)))
+                        .collect::<BTreeSet<_>>()
+                        .into_iter()
+                        .collect())
+                })();
+                match result {
+                    Ok(anchors) => {
+                        writeln!(replies, "region {}", serde_json::to_string(&anchors)?)?
+                    }
+                    Err(error) => {
+                        eprintln!("Bedrock map: tile-session {line}: {error}");
+                        replies.write_all(b"error\n")?;
+                    }
+                }
+                replies.flush()?;
+                continue;
+            }
             let result = (|| -> Result<(), Box<dyn Error>> {
                 let (x, z) = line.split_once(' ').ok_or("invalid tile request")?;
                 let x = x.parse::<i32>()?;

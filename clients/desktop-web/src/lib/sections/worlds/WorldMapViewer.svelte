@@ -36,14 +36,14 @@
     catalogRequest = true;
     const dimension = selectedDimension;
     try {
-      const bytes = await api.getBytes(artifactPath(dimension, 'manifest.json'));
+      const camera = viewer.controls.mode === 'fly' ? viewer.camera.position : viewer.controls.position;
+      const path = `${artifactPath(dimension, 'manifest.json')}&center_x=${Math.floor(camera.x)}&center_z=${Math.floor(camera.z)}`;
+      const bytes = await api.getBytes(path);
       const manifest = JSON.parse(new TextDecoder().decode(bytes)) as { catalogPhase?: string };
       if (alive && selectedDimension === dimension && manifest.catalogPhase === 'full') {
+        // Vantage follows dynamic manifests itself; replacing the viewer here
+        // would interrupt flight just as the wider catalog becomes available.
         nearbyCatalog = false;
-        const position = viewer.controls.position.clone();
-        const distance = viewer.controls.distance;
-        await loadDimension(dimension);
-        viewer?.controls.animateTo({ position, distance });
       }
     } catch { /* Keep the nearby view if the full catalog is unavailable. */ }
     finally { catalogRequest = false; }

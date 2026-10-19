@@ -151,6 +151,8 @@ impl Drop for Renderer {
 pub(super) struct ArtifactQuery {
     dimension: String,
     path: String,
+    center_x: Option<i32>,
+    center_z: Option<i32>,
 }
 
 pub(super) async fn artifact(

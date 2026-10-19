@@ -638,23 +638,41 @@ impl BedrockStore {
             // converted worlds, delaying every visible tile.
         }
         current.require_saved_terrain(dimension)?;
+        let mut discovered_region = false;
         if artifact == "manifest.json"
             && let Some((x, z)) = center
             && (-30_000_000..=30_000_000).contains(&x)
             && (-30_000_000..=30_000_000).contains(&z)
+            && current.tiles.get(dimension).is_some_and(|tile| {
+                fs::read(tile.output.join("manifest.json"))
+                    .ok()
+                    .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+                    .is_some_and(|manifest| manifest["catalogPhase"] == "nearby")
+            })
         {
-            let region = (x.div_euclid(256), z.div_euclid(256));
-            if !current
-                .regions
-                .get(dimension)
-                .is_some_and(|regions| regions.contains(&region))
-                && current.tiles.get(dimension).is_some_and(|tile| {
-                    fs::read(tile.output.join("manifest.json"))
-                        .ok()
-                        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
-                        .is_some_and(|manifest| manifest["catalogPhase"] == "nearby")
-                })
-            {
+            let (rx, rz) = (x.div_euclid(256), z.div_euclid(256));
+            let mut nearby = Vec::with_capacity(9);
+            for dz in -1..=1 {
+                for dx in -1..=1 {
+                    nearby.push((rx + dx, rz + dz));
+                }
+            }
+            nearby.sort_by_key(|&(region_x, region_z)| {
+                let axis_distance = |coordinate: i32, region: i32| {
+                    let start = i64::from(region) * 256;
+                    let closest = i64::from(coordinate).clamp(start, start + 255);
+                    i64::from(coordinate) - closest
+                };
+                let dx = axis_distance(x, region_x);
+                let dz = axis_distance(z, region_z);
+                dx * dx + dz * dz
+            });
+            if let Some(region) = nearby.into_iter().find(|region| {
+                !current
+                    .regions
+                    .get(dimension)
+                    .is_some_and(|regions| regions.contains(region))
+            }) {
                 let source = current
                     .snapshot
                     .as_ref()
@@ -708,7 +726,11 @@ impl BedrockStore {
                             .entry(dimension.to_owned())
                             .or_default()
                             .insert(region);
-                        eprintln!("Bedrock map: discovered {count} saved tiles near block {x},{z}");
+                        discovered_region = true;
+                        eprintln!(
+                            "Bedrock map: discovered {count} saved tiles in region {},{} near block {x},{z}",
+                            region.0, region.1
+                        );
                     }
                     Err(error) => {
                         current.sessions.remove(dimension);
@@ -724,6 +746,9 @@ impl BedrockStore {
                 tile.camera = Some(position);
             }
             let next = current.tiles.get(dimension).and_then(|tile| {
+                if center.is_none() || discovered_region {
+                    return None;
+                }
                 if tile
                     .last_preview
                     .is_none_or(|when| when.elapsed() < Duration::from_secs(3))
@@ -903,10 +928,6 @@ impl BedrockStore {
                 if let Some(tile) = current.tiles.get_mut(dimension) {
                     tile.previewed.insert(artifact.to_owned());
                     tile.last_preview = Some(Instant::now());
-                    tile.camera = Some((
-                        x.saturating_mul(16).saturating_add(32),
-                        z.saturating_mul(16).saturating_add(32),
-                    ));
                 }
             }
         }

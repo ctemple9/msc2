@@ -27,6 +27,9 @@ map discovery near the camera instead of running a competing full-world scan.
 Owner verification found its tile revision values rejected by the viewer;
 P18.64 corrects that manifest format and awaits owner verification on the
 imported 7.5 GB world.
+P18.65 addresses the owner's follow-up that nearby Bedrock terrain remains
+blank when the camera stays near a discovery-region boundary; awaiting owner
+verification.
 
 **Services follow-up:** P21.39 makes host-wide Playit account setup available
 from MSC Settings even when the selected server does not use Playit. P21.40
@@ -149,6 +152,15 @@ not in this implementation queue.
 **Verify:** Install `~/Desktop/msc2-bedrock-map-intel-p18.64.dmg`, repair the agent, and reopen the imported Bedtonic-world map. The `invalid revision` error should be gone; surface previews should appear and refine into detail near the camera. Fly to another saved area and back, then compare preview and detail times in `~/Library/Application Support/MSC 2/logs/agent.log` with the earlier 8–27 seconds per tile.
 **Batch:** P18.64 only.
 **Commit:** `P18.64: send valid bedrock tile revisions`
+
+### P18.65 — Discover saved Bedrock terrain around the visible camera
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; this plan.
+**What:** The Bedrock map previously checked only the 256-block region containing the camera. A stationary camera near a boundary could see blank adjacent regions indefinitely. Inspect one unvisited region from the surrounding 3 × 3 neighborhood on each camera poll, nearest first, and poll every two seconds instead of ten. Let discovery and surface previews take precedence over detailed mesh refinement; only camera-aware polls refine details, and preview requests no longer replace the actual camera position with a tile center. Region results remain cached for the selected snapshot. This improves nearby coverage without repeating the earlier hour-long full-world catalog scan. No test was added or run without owner authorization.
+**Verify:** Install `~/Desktop/msc2-bedrock-map-intel-p18.65.dmg`, repair the agent, then reopen the imported Bedtonic-world map. Hold the camera near a previously blank region edge for at least a minute. Saved terrain across the edge should appear without moving the camera into it. Fly to another saved area and stop; nearby terrain should continue filling before its detailed meshes. The agent log should show `discovered ... in region` lines around each stationary camera position and preview timings; report any persistent blank area with the camera XYZ and recent discovery/preview log lines.
+**Batch:** P18.65 only.
+**Commit:** `P18.65: discover bedrock terrain around camera`
 
 ## Phase 20 — Imported server component follow-up
 

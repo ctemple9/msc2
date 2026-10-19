@@ -714,7 +714,7 @@
     void loadDimensions();
     void refreshPlayers();
     progressPoll = setInterval(() => void refreshPreparation(), 1000);
-    catalogPoll = setInterval(() => void refreshCatalog(), 10000);
+    catalogPoll = setInterval(() => void refreshCatalog(), 2000);
     playerPoll = setInterval(() => void refreshPlayers(), 1000);
     frameId = requestAnimationFrame(updateToolbar);
     return () => {

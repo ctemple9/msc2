@@ -32,6 +32,8 @@ blank when the camera stays near a discovery-region boundary; awaiting owner
 verification.
 P18.66 corrects stretched cliff textures in the fast Bedrock surface preview;
 awaiting owner verification.
+P18.67 removes the preview's tall leaf walls while keeping the quick surface
+sampling path; awaiting owner verification.
 
 **Services follow-up:** P21.39 makes host-wide Playit account setup available
 from MSC Settings even when the selected server does not use Playit. P21.40
@@ -172,6 +174,15 @@ not in this implementation queue.
 **Verify:** Install the local P18.66 candidate, repair the agent, then reopen or refresh the imported Bedtonic-world map. Fly near the cliff shown in the owner's screenshot while the status still shows preview tiles. Cliff textures should have block-sized detail rather than stretched vertical bands; grass should be confined to the surface layer. Confirm detailed tiles still replace previews as they finish.
 **Batch:** P18.66 only.
 **Commit:** `P18.66: repeat bedrock preview cliff textures`
+
+### P18.67 — Keep Bedrock preview foliage to sampled leaves
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `tools/world-map-proof/src/render.rs`; this plan.
+**What:** The fast preview knows only the highest leaf block in each column, so its former height-difference side faces invented leaf walls down to nearby lower terrain. Limit preview leaf geometry to that one sampled block and add its underside so a camera beneath the canopy sees it. Detailed tiles continue to supply actual trunks and full foliage. No test was added or run; the imported converted world is the physical acceptance case.
+**Verify:** Install the local P18.67 Intel candidate, repair the agent, reopen or refresh the imported Bedtonic-world map, and fly near trees while preview tiles are still loading. Tree foliage should no longer form tall square curtains reaching the ground. As detailed tiles replace the previews, their complete trunks and canopies should appear.
+**Batch:** P18.67 only.
+**Commit:** `P18.67: bound bedrock preview foliage to sampled leaves`
 
 ## Phase 20 — Imported server component follow-up
 

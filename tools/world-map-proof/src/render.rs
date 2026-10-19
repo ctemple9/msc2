@@ -1117,6 +1117,7 @@ pub fn render_catalog_preview_tile(
             } else {
                 &mut solid
             };
+            let foliage = is_leaf(name);
             let origin = [
                 (anchor.0 * 16 + x as i32) as f32,
                 *y as f32,
@@ -1133,6 +1134,22 @@ pub fn render_catalog_preview_tile(
                 None,
                 *biome,
             );
+            if foliage {
+                // A surface sample does not contain the rest of the tree.
+                // Close the sampled leaf block rather than inventing a leaf
+                // column all the way down to the terrain below it.
+                face(
+                    mesh,
+                    &mut textures,
+                    name,
+                    origin,
+                    [0.0, 0.0, 0.0],
+                    [1.0, 1.0, 1.0],
+                    BlockFace::Down,
+                    None,
+                    *biome,
+                );
+            }
             for (nx, nz, side) in [
                 (x.checked_sub(1), Some(z), BlockFace::West),
                 (
@@ -1157,7 +1174,11 @@ pub fn render_catalog_preview_tile(
                     // The surface query knows only the top block. Keep its grass
                     // side one block high; the exposed ground below is a preview
                     // until the detailed mesh supplies the actual blocks.
-                    let bottom = (*neighbor_y - *y) as f32;
+                    let bottom = if foliage {
+                        0.0
+                    } else {
+                        (*neighbor_y - *y) as f32
+                    };
                     let is_grass = name == "minecraft:grass_block" || name == "grass_block";
                     if is_grass {
                         let depth = -bottom;

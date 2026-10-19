@@ -30,6 +30,8 @@ imported 7.5 GB world.
 P18.65 addresses the owner's follow-up that nearby Bedrock terrain remains
 blank when the camera stays near a discovery-region boundary; awaiting owner
 verification.
+P18.66 corrects stretched cliff textures in the fast Bedrock surface preview;
+awaiting owner verification.
 
 **Services follow-up:** P21.39 makes host-wide Playit account setup available
 from MSC Settings even when the selected server does not use Playit. P21.40
@@ -161,6 +163,15 @@ not in this implementation queue.
 **Verify:** Install `~/Desktop/msc2-bedrock-map-intel-p18.65.dmg`, repair the agent, then reopen the imported Bedtonic-world map. Hold the camera near a previously blank region edge for at least a minute. Saved terrain across the edge should appear without moving the camera into it. Fly to another saved area and stop; nearby terrain should continue filling before its detailed meshes. The agent log should show `discovered ... in region` lines around each stationary camera position and preview timings; report any persistent blank area with the camera XYZ and recent discovery/preview log lines.
 **Batch:** P18.65 only.
 **Commit:** `P18.65: discover bedrock terrain around camera`
+
+### P18.66 — Keep Bedrock preview cliff textures at block scale
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `tools/world-map-proof/src/render.rs`; this plan.
+**What:** The surface preview uses one tall quad per exposed cliff face but previously applied one block's texture coordinates to its full height. Repeat side textures once per vertical block and keep grass sides to the uppermost block, with dirt beneath in the provisional mesh. Detailed tiles still replace the preview with actual saved blocks. No test was added or run; the imported converted world is the physical acceptance case.
+**Verify:** Install the local P18.66 candidate, repair the agent, then reopen or refresh the imported Bedtonic-world map. Fly near the cliff shown in the owner's screenshot while the status still shows preview tiles. Cliff textures should have block-sized detail rather than stretched vertical bands; grass should be confined to the surface layer. Confirm detailed tiles still replace previews as they finish.
+**Batch:** P18.66 only.
+**Commit:** `P18.66: repeat bedrock preview cliff textures`
 
 ## Phase 20 — Imported server component follow-up
 

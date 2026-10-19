@@ -1154,15 +1154,46 @@ pub fn render_catalog_preview_tile(
                     continue;
                 };
                 if neighbor_y < y {
+                    // The surface query knows only the top block. Keep its grass
+                    // side one block high; the exposed ground below is a preview
+                    // until the detailed mesh supplies the actual blocks.
+                    let bottom = (*neighbor_y - *y) as f32;
+                    let is_grass = name == "minecraft:grass_block" || name == "grass_block";
+                    if is_grass {
+                        let depth = -bottom;
+                        face(
+                            mesh,
+                            &mut textures,
+                            "minecraft:dirt",
+                            origin,
+                            [0.0, bottom, 0.0],
+                            [1.0, 0.0, 1.0],
+                            side,
+                            Some([
+                                [0.0, 1.0 - depth],
+                                [1.0, 1.0 - depth],
+                                [1.0, 1.0],
+                                [0.0, 1.0],
+                            ]),
+                            *biome,
+                        );
+                    }
+                    let top_bottom = if is_grass { 0.0 } else { bottom };
+                    let height = 1.0 - top_bottom;
                     face(
                         mesh,
                         &mut textures,
                         name,
                         origin,
-                        [0.0, (*neighbor_y - *y) as f32, 0.0],
+                        [0.0, top_bottom, 0.0],
                         [1.0, 1.0, 1.0],
                         side,
-                        None,
+                        Some([
+                            [0.0, 1.0 - height],
+                            [1.0, 1.0 - height],
+                            [1.0, 1.0],
+                            [0.0, 1.0],
+                        ]),
                         *biome,
                     );
                 }

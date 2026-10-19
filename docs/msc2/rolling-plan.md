@@ -14,9 +14,9 @@ across steps and scrolls longer step content; awaiting owner verification.
 **Bedrock map follow-up:** P18.56's 16,384-file limit did not resolve the
 large converted world's Intel Mac failure; P18.57 supersedes that limit.
 P18.57 confirmed the installed exporter received 65,536 files, but its catalog
-still failed without a new file error. P18.58 extends the catalog's ten-minute
-deadline after the same direct scan ran for more than fifteen minutes and
-completed; awaiting owner verification.
+still failed without a new file error. P18.58's sixty-minute catalog deadline
+also expired on the Intel Mac. P18.59 moves first map opening to a bounded
+spawn-area catalog and builds wider coverage separately; awaiting owner verification.
 
 **Services follow-up:** P21.39 makes host-wide Playit account setup available
 from MSC Settings even when the selected server does not use Playit. P21.40
@@ -79,12 +79,21 @@ not in this implementation queue.
 
 ### P18.58 — Allow the large Bedrock catalog to finish
 
-**Status:** Implemented; awaiting owner verification.
+**Status:** Implemented; owner verification failed on the large Intel Bedrock world; superseded by P18.59.
 **Files:** `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; this plan.
 **What:** The same 7.5 GB Bedrock snapshot's direct catalog scan was still using a full CPU core after fifteen minutes and then completed. The agent stops catalog exporters after ten minutes, which fits the installed build's generic catalog failure even though the exporter logged an effective 65,536-file limit and no new LevelDB error. Allow initial and refreshed Bedrock catalogs up to sixty minutes while preserving the ten-minute limit for individual tile and comparison exports. Keep shutdown cancellation and log a distinct timeout if the longer limit is reached. No new test: a short synthetic timing case would not represent the large-world scan, and Cameron will run the physical acceptance.
 **Verify:** Run `open "$HOME/Downloads/msc2-bedrock-map-intel-p18.58.dmg"` on the Intel Mac, install and repair the agent, then open Bedtonic's map and allow the catalog to finish. Confirm the overview loads; if it still fails, provide the recent agent log and elapsed time.
 **Batch:** P18.58 only.
 **Commit:** `P18.58: allow large bedrock catalogs to finish`
+
+### P18.59 — Open nearby Bedrock terrain before whole-world indexing
+
+**Status:** Implemented; awaiting owner verification.
+**Files:** `tools/world-map-proof/src/main.rs`; `tools/world-map-proof/src/render.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; this plan.
+**What:** The Intel Mac's exporter received 65,536 open files but reached the full catalog's sixty-minute deadline. For an Overworld's first map request, query only saved chunks within eight chunks of the configured spawn and write a valid nearby manifest without a whole-world overview. Return that map first, then index the complete saved snapshot in a cancellable background exporter. Hold the snapshot until it finishes, atomically replace the in-memory catalog only if that snapshot is still selected, and let an open viewer reload its full manifest while retaining its camera position. Remove the background job's arbitrary deadline; cancel it on snapshot release or replacement. Log snapshot, index, and overview durations and periodic large-scan progress. Keep Nether and End catalog behavior unchanged. No new test: a tiny fixture cannot represent this multi-gigabyte LevelDB workload, and the owner's Intel Mac is the acceptance machine.
+**Verify:** Run `open "$HOME/Downloads/msc2-bedrock-map-intel-p18.59.dmg"` on the Intel Mac, install and repair the agent, then open Bedtonic's Overworld map. Nearby terrain should load without waiting for whole-world indexing. The agent log should report `catalog-nearby indexed`, `nearby ... catalog ready`, and later full-index/overview progress; when the full catalog completes, the viewer should expand coverage without changing the selected world or camera position. If nearby loading fails, provide the new `Bedrock map:` log lines.
+**Batch:** P18.59 only.
+**Commit:** `P18.59: open nearby bedrock terrain before full catalog`
 
 ## Phase 20 — Imported server component follow-up
 

@@ -1,12 +1,13 @@
 use bedrock_world::{
     BedrockWorld, ChunkKey, ChunkPos, ChunkRecordTag, Dimension, NbtTag, OpenOptions,
-    SubChunkFormat, WorldScanOptions,
+    ProgressSink, SubChunkFormat, WorldChunkQueryRegion, WorldScanOptions,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::error::Error;
 use std::fs;
 use std::path::Path;
+use std::time::Instant;
 
 mod render;
 
@@ -332,7 +333,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // A large converted world can span more LevelDB tables than launchd's
     // default 256-file soft limit. Only this short-lived exporter needs more.
     #[cfg(target_os = "macos")]
-    raise_open_file_limit(args.get(1).is_some_and(|arg| arg == "catalog"));
+    raise_open_file_limit(args.get(1).is_some_and(|arg| arg == "catalog" || arg == "catalog-nearby"));
     if args.get(1).is_some_and(|arg| arg == "compare") {
         return compare_tiles(&args);
     }
@@ -341,7 +342,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
     if args
         .get(1)
-        .is_some_and(|arg| arg == "catalog" || arg == "tile")
+        .is_some_and(|arg| arg == "catalog" || arg == "catalog-nearby" || arg == "tile")
     {
         let path = Path::new(args.get(2).ok_or("saved world path required")?);
         let pack = Path::new(args.get(3).ok_or("resource pack path required")?);
@@ -360,15 +361,6 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
             return render::render_catalog_tile(&world, (x, z), pack, output, dimension);
         }
-        let positions: Vec<_> = world
-            .list_render_chunk_positions_blocking(WorldScanOptions::default())?
-            .into_iter()
-            .filter(|p| p.dimension == dimension)
-            .collect();
-        let anchors: BTreeSet<_> = positions
-            .iter()
-            .map(|p| (p.x.div_euclid(4) * 4, p.z.div_euclid(4) * 4))
-            .collect();
         let spawn = (dimension == Dimension::Overworld)
             .then(|| world.read_level_dat_blocking().ok())
             .flatten()
@@ -383,7 +375,40 @@ fn main() -> Result<(), Box<dyn Error>> {
                 };
                 (-64..320).contains(y).then_some((*x, *y, *z))
             });
-        return render::create_catalog(
+        let started = Instant::now();
+        let positions: Vec<_> = if args[1] == "catalog-nearby" {
+            let (x, z) = spawn.map_or((0, 0), |(x, _, z)| (x.div_euclid(16), z.div_euclid(16)));
+            world.list_chunk_positions_in_region_blocking(
+                WorldChunkQueryRegion {
+                    dimension,
+                    min_chunk_x: x.saturating_sub(8),
+                    min_chunk_z: z.saturating_sub(8),
+                    max_chunk_x: x.saturating_add(8),
+                    max_chunk_z: z.saturating_add(8),
+                },
+                WorldScanOptions::default(),
+            )?
+        } else {
+            world
+                .list_render_chunk_positions_blocking(WorldScanOptions {
+                    progress: Some(ProgressSink::new(|progress| {
+                        if progress.entries_seen.is_multiple_of(1_048_576) {
+                            eprintln!("Bedrock map: indexed {} database keys", progress.entries_seen);
+                        }
+                    })),
+                    ..WorldScanOptions::default()
+                })?
+                .into_iter()
+                .filter(|p| p.dimension == dimension)
+                .collect()
+        };
+        eprintln!("Bedrock map: {} indexed {} chunks in {:.1}s", args[1], positions.len(), started.elapsed().as_secs_f64());
+        let anchors: BTreeSet<_> = positions
+            .iter()
+            .map(|p| (p.x.div_euclid(4) * 4, p.z.div_euclid(4) * 4))
+            .collect();
+        let started = Instant::now();
+        let result = render::create_catalog(
             &world,
             &positions,
             &anchors.into_iter().collect::<Vec<_>>(),
@@ -391,7 +416,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             output,
             spawn,
             dimension_id,
+            args[1] == "catalog",
         );
+        eprintln!("Bedrock map: {} wrote catalog in {:.1}s", args[1], started.elapsed().as_secs_f64());
+        return result;
     }
     if args.get(1).is_some_and(|arg| arg == "grid") {
         let path = Path::new(args.get(2).ok_or("grid requires saved world path")?);

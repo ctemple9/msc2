@@ -28,6 +28,26 @@
   type PreparationProgress = { dimension: string; stage: string; completed: number | null; total: number | null };
   let preparation: PreparationProgress | undefined;
   let progressPoll: ReturnType<typeof setInterval> | undefined;
+  let catalogPoll: ReturnType<typeof setInterval> | undefined;
+  let catalogRequest = false;
+  let nearbyCatalog = false;
+  async function refreshCatalog(): Promise<void> {
+    if (!alive || !nearbyCatalog || !viewer || catalogRequest || !api?.getBytes || busy) return;
+    catalogRequest = true;
+    const dimension = selectedDimension;
+    try {
+      const bytes = await api.getBytes(artifactPath(dimension, 'manifest.json'));
+      const manifest = JSON.parse(new TextDecoder().decode(bytes)) as { catalogPhase?: string };
+      if (alive && selectedDimension === dimension && manifest.catalogPhase === 'full') {
+        nearbyCatalog = false;
+        const position = viewer.controls.position.clone();
+        const distance = viewer.controls.distance;
+        await loadDimension(dimension);
+        viewer?.controls.animateTo({ position, distance });
+      }
+    } catch { /* Keep the nearby view if the full catalog is unavailable. */ }
+    finally { catalogRequest = false; }
+  }
   let progressRequest = false;
   async function refreshPreparation(): Promise<void> {
     if (!alive || !busy || progressRequest || !api?.getBytes) return;
@@ -187,6 +207,7 @@
 
   async function loadDimension(dimension: string): Promise<void> {
     selectedDimension = dimension;
+    nearbyCatalog = false;
     const generation = ++loadGeneration;
     disposeViewer();
     spawn = undefined;
@@ -220,7 +241,9 @@
       };
       const manifest = JSON.parse(new TextDecoder().decode(await read('manifest.json'))) as {
         spawn?: { x: number; y: number; z: number };
+        catalogPhase?: string;
       };
+      nearbyCatalog = serverType === 'bedrock' && manifest.catalogPhase === 'nearby';
       if (!alive || generation !== loadGeneration) return;
       const { VantageViewer: Viewer, PlayerLayer: Layer } =
         await import('@thoughts-on-things/vantage-mc/three');
@@ -256,7 +279,7 @@
         opening.on('stats', (stats) => {
           if (!alive || generation !== loadGeneration) return;
           bedrockStats = stats;
-          status = bedrockTileStatus(entry.displayName, stats);
+          status = `${bedrockTileStatus(entry.displayName, stats)}${nearbyCatalog ? ' · building wider map' : ''}`;
         });
       }
       const source: WorldSource = {
@@ -288,8 +311,8 @@
         ? worldSpawn : undefined;
       status = serverType === 'bedrock'
         ? bedrockStats
-          ? bedrockTileStatus(entry.displayName, bedrockStats)
-          : `Rendering saved ${entry.displayName} terrain tiles…`
+          ? `${bedrockTileStatus(entry.displayName, bedrockStats)}${nearbyCatalog ? ' · building wider map' : ''}`
+          : `Rendering saved ${entry.displayName} terrain tiles…${nearbyCatalog ? ' Building wider map.' : ''}`
         : `Saved ${entry.displayName} terrain`;
     } catch (error) {
       if (alive && generation === loadGeneration) {
@@ -693,6 +716,7 @@
     void loadDimensions();
     void refreshPlayers();
     progressPoll = setInterval(() => void refreshPreparation(), 1000);
+    catalogPoll = setInterval(() => void refreshCatalog(), 10000);
     playerPoll = setInterval(() => void refreshPlayers(), 1000);
     frameId = requestAnimationFrame(updateToolbar);
     return () => {
@@ -704,6 +728,7 @@
       if (depthStepTimer) clearTimeout(depthStepTimer);
       if (playerPoll) clearInterval(playerPoll);
       if (progressPoll) clearInterval(progressPoll);
+      if (catalogPoll) clearInterval(catalogPoll);
       window.removeEventListener('pointermove', onMove, true);
       window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('blur', releaseDesktopLook);

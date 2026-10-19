@@ -794,7 +794,10 @@ fn create_overview(
     let mut textures = Textures::new(pack);
     let mut colors = HashMap::<String, [u8; 3]>::new();
     let mut samples = BTreeMap::new();
-    for &pos in positions {
+    for (index, &pos) in positions.iter().enumerate() {
+        if index > 0 && index.is_multiple_of(100_000) {
+            eprintln!("Bedrock map: overview sampled {index}/{} chunks", positions.len());
+        }
         let Some(map) = world.get_height_map_blocking(pos)? else {
             continue;
         };
@@ -920,6 +923,7 @@ fn create_overview(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn create_catalog(
     world: &BedrockWorld,
     positions: &[ChunkPos],
@@ -928,16 +932,21 @@ pub fn create_catalog(
     output: &Path,
     spawn: Option<(i32, i32, i32)>,
     dimension_id: &str,
+    include_overview: bool,
 ) -> Result<(), Box<dyn Error>> {
     fs::create_dir_all(output.join("tiles"))?;
     Textures::new(pack).write_shared(output)?;
     // A roof heightfield cannot cover the Nether's hollow interior. Advertising
     // it as whole-world coverage disables the viewer's detail-frontier fog and
     // exposes unloaded cave tile edges. Keep interior views bounded by detail.
-    let overview = if dimension_id == "minecraft:the_nether" {
+    let overview = if !include_overview || dimension_id == "minecraft:the_nether" {
         serde_json::Value::Null
     } else {
-        create_overview(world, positions, pack, output)?
+        let started = std::time::Instant::now();
+        eprintln!("Bedrock map: overview sampling {} chunks", positions.len());
+        let result = create_overview(world, positions, pack, output)?;
+        eprintln!("Bedrock map: overview ready in {:.1}s", started.elapsed().as_secs_f64());
+        result
     };
     let tiles: Vec<_> = anchors
         .iter()
@@ -953,6 +962,7 @@ pub fn create_catalog(
         output.join("manifest.json"),
         serde_json::to_vec(&serde_json::json!({
             "format": 2, "tileChunks": 4, "tileBlocks": 64, "lowres": overview,
+            "catalogPhase": if include_overview { "full" } else { "nearby" },
             "textures": "terrain.vtexarr", "textureLayers": 1,
             "rendering": true, "dynamic": true, "caves": true,
             "yRange": match dimension_id {

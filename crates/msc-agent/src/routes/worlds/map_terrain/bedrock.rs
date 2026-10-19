@@ -24,6 +24,7 @@ const SAMPLES_SHA256: &str = "c0b6151f5f9a0c31ebe3c909dfc82d97f12473ed2c6e039aa7
 const MAX_DOWNLOAD: u64 = 180 * 1024 * 1024;
 const MAX_EXTRACTED: u64 = 384 * 1024 * 1024;
 const MAX_EXPORT_TIME: Duration = Duration::from_secs(600);
+const MAX_NEARBY_CATALOG_TIME: Duration = Duration::from_secs(120);
 // A converted multi-gigabyte world can take longer than ten minutes just to
 // enumerate saved chunks and build its first overview.
 const MAX_CATALOG_EXPORT_TIME: Duration = Duration::from_secs(3_600);
@@ -50,6 +51,7 @@ impl ExporterLifecycle {
 struct BedrockState {
     tiles: BTreeMap<String, BedrockTile>,
     snapshot: Option<BedrockSnapshot>,
+    background: BTreeMap<String, Arc<AtomicBool>>,
 }
 
 impl BedrockState {
@@ -60,6 +62,9 @@ impl BedrockState {
             .ok_or("The Bedrock tile is unavailable.")?;
         if tile.tiles.is_empty() {
             self.tiles.remove(dimension);
+            if let Some(cancel) = self.background.remove(dimension) {
+                cancel.store(true, Ordering::Release);
+            }
             // A map opened before anyone joins may snapshot an ungenerated
             // world. Retry from fresh saved data instead of pinning that copy.
             // Other rendered dimensions still need their consistent snapshot.
@@ -77,7 +82,7 @@ impl BedrockState {
 struct BedrockSnapshot {
     server_id: String,
     world: PathBuf,
-    snapshot: crate::backup_operations::WorldMapSnapshot,
+    snapshot: Arc<crate::backup_operations::WorldMapSnapshot>,
 }
 
 struct BedrockTile {
@@ -204,6 +209,10 @@ impl BedrockStore {
 
     pub(crate) fn release(&self) {
         let mut state = self.0.lock().unwrap();
+        for cancel in state.background.values() {
+            cancel.store(true, Ordering::Release);
+        }
+        state.background.clear();
         state.tiles.clear();
         state.snapshot = None;
     }
@@ -217,7 +226,7 @@ impl BedrockStore {
         let pending = BedrockSnapshot {
             server_id,
             world,
-            snapshot,
+            snapshot: Arc::new(snapshot),
         };
         let mut current = self
             .0
@@ -226,6 +235,10 @@ impl BedrockStore {
         if self.1.shutdown.load(Ordering::Acquire) {
             return Err("The local agent is shutting down.".into());
         }
+        for cancel in current.background.values() {
+            cancel.store(true, Ordering::Release);
+        }
+        current.background.clear();
         let mut next_tiles = BTreeMap::new();
         let mut stats = RefreshStats {
             reused_tiles: 0,
@@ -366,6 +379,10 @@ impl BedrockStore {
             .as_ref()
             .is_some_and(|saved| saved.server_id != server_id || saved.world != world)
         {
+            for cancel in current.background.values() {
+                cancel.store(true, Ordering::Release);
+            }
+            current.background.clear();
             current.tiles.clear();
             current.snapshot = None;
         }
@@ -376,6 +393,7 @@ impl BedrockStore {
                 .map_err(|error| error.to_string())?;
             let output = staging.path().to_path_buf();
             if current.snapshot.is_none() {
+                let snapshot_started = Instant::now();
                 let copied = if lifecycle.status_snapshot().running {
                     crate::backup_operations::snapshot_bedrock_world(
                         lifecycle.clone(),
@@ -393,10 +411,15 @@ impl BedrockStore {
                 };
                 match copied {
                     Ok(snapshot) => {
+                        eprintln!(
+                            "Bedrock map: saved snapshot ready in {:.1}s ({} bytes)",
+                            snapshot_started.elapsed().as_secs_f64(),
+                            snapshot.bytes
+                        );
                         current.snapshot = Some(BedrockSnapshot {
                             server_id: server_id.to_owned(),
                             world: world.to_owned(),
-                            snapshot,
+                            snapshot: Arc::new(snapshot),
                         })
                     }
                     Err(error) => {
@@ -409,8 +432,10 @@ impl BedrockStore {
                 .as_ref()
                 .map(|saved| saved.snapshot.path.as_path())
                 .unwrap_or(world);
-            let rendered = Command::new(binary)
-                .arg("catalog")
+            let nearby = dimension == "minecraft:overworld";
+            let catalog_started = Instant::now();
+            let rendered = Command::new(&binary)
+                .arg(if nearby { "catalog-nearby" } else { "catalog" })
                 .arg(source)
                 .arg(&pack)
                 .arg(&output)
@@ -430,8 +455,18 @@ impl BedrockStore {
                                 break Err(error);
                             }
                         }
-                        if started.elapsed() >= MAX_CATALOG_EXPORT_TIME {
-                            eprintln!("Bedrock map: catalog export timed out after 60 minutes");
+                        if started.elapsed()
+                            >= if nearby {
+                                MAX_NEARBY_CATALOG_TIME
+                            } else {
+                                MAX_CATALOG_EXPORT_TIME
+                            }
+                        {
+                            eprintln!(
+                                "Bedrock map: {} catalog export timed out after {} minutes",
+                                if nearby { "nearby" } else { "full" },
+                                if nearby { 2 } else { 60 }
+                            );
                             self.1.stop(&mut child);
                             break Ok(false);
                         }
@@ -448,6 +483,11 @@ impl BedrockStore {
                     output.display()
                 ));
             }
+            eprintln!(
+                "Bedrock map: {} {dimension} catalog ready in {:.1}s",
+                if nearby { "nearby" } else { "full" },
+                catalog_started.elapsed().as_secs_f64()
+            );
             let manifest: serde_json::Value = serde_json::from_slice(
                 &fs::read(output.join("manifest.json")).map_err(|error| error.to_string())?,
             )
@@ -466,6 +506,74 @@ impl BedrockStore {
                     _staging: Some(staging),
                 },
             );
+            if nearby && let Some(snapshot) = current.snapshot.as_ref() {
+                let snapshot = Arc::clone(&snapshot.snapshot);
+                let cancel = Arc::new(AtomicBool::new(false));
+                current
+                    .background
+                    .insert(dimension.to_owned(), Arc::clone(&cancel));
+                let state = Arc::clone(&self.0);
+                let lifecycle = Arc::clone(&self.1);
+                let dimension = dimension.to_owned();
+                std::thread::spawn(move || {
+                    let result = (|| -> Result<BedrockTile, String> {
+                        let staging = crate::map_staging::Staging::create("bedrock-tiles", 0)
+                            .map_err(|error| error.to_string())?;
+                        let output = staging.path().to_path_buf();
+                        if !run_exporter_cancellable(
+                            Command::new(binary)
+                                .arg("catalog")
+                                .arg(&snapshot.path)
+                                .arg(pack)
+                                .arg(&output)
+                                .arg(&dimension),
+                            &lifecycle,
+                            None,
+                            Some(&cancel),
+                        ) {
+                            return Err("Full Bedrock catalog export did not complete.".into());
+                        }
+                        let manifest: serde_json::Value = serde_json::from_slice(
+                            &fs::read(output.join("manifest.json"))
+                                .map_err(|error| error.to_string())?,
+                        )
+                        .map_err(|error| error.to_string())?;
+                        let tiles = manifest["tiles"]
+                            .as_array()
+                            .ok_or("Full Bedrock catalog has no tile list.")?
+                            .iter()
+                            .filter_map(|tile| tile["path"].as_str().map(str::to_owned))
+                            .collect();
+                        Ok(BedrockTile {
+                            _staging: Some(staging),
+                            output,
+                            tiles,
+                        })
+                    })();
+                    let mut current = state.lock().unwrap();
+                    if !cancel.load(Ordering::Acquire)
+                        && current
+                            .snapshot
+                            .as_ref()
+                            .is_some_and(|active| Arc::ptr_eq(&active.snapshot, &snapshot))
+                    {
+                        match result {
+                            Ok(full) => {
+                                current.tiles.insert(dimension.clone(), full);
+                                eprintln!("Bedrock map: full {dimension} catalog ready");
+                            }
+                            Err(error) => eprintln!("Bedrock map: {dimension}: {error}"),
+                        }
+                    }
+                    if current
+                        .background
+                        .get(&dimension)
+                        .is_some_and(|active| Arc::ptr_eq(active, &cancel))
+                    {
+                        current.background.remove(&dimension);
+                    }
+                });
+            }
         }
         current.require_saved_terrain(dimension)?;
         let tile = current
@@ -562,12 +670,12 @@ mod tests {
             snapshot: Some(BedrockSnapshot {
                 server_id: "server".into(),
                 world: root.join("live-world"),
-                snapshot: crate::backup_operations::WorldMapSnapshot {
+                snapshot: Arc::new(crate::backup_operations::WorldMapSnapshot {
                     staging: None,
                     path: snapshot_dir.join("world"),
                     bytes: 0,
                     hold_millis: 0,
-                },
+                }),
             }),
             ..BedrockState::default()
         };
@@ -590,12 +698,12 @@ mod tests {
         state.snapshot = Some(BedrockSnapshot {
             server_id: "server".into(),
             world: root.join("live-world"),
-            snapshot: crate::backup_operations::WorldMapSnapshot {
+            snapshot: Arc::new(crate::backup_operations::WorldMapSnapshot {
                 staging: None,
                 path: snapshot_dir.join("world"),
                 bytes: 1,
                 hold_millis: 0,
-            },
+            }),
         });
         state.tiles.insert(
             "minecraft:overworld".into(),
@@ -654,6 +762,15 @@ fn exporter_binary() -> Result<PathBuf, String> {
 }
 
 fn run_exporter(command: &mut Command, lifecycle: &ExporterLifecycle, timeout: Duration) -> bool {
+    run_exporter_cancellable(command, lifecycle, Some(timeout), None)
+}
+
+fn run_exporter_cancellable(
+    command: &mut Command,
+    lifecycle: &ExporterLifecycle,
+    timeout: Option<Duration>,
+    cancel: Option<&AtomicBool>,
+) -> bool {
     command
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -672,15 +789,19 @@ fn run_exporter(command: &mut Command, lifecycle: &ExporterLifecycle, timeout: D
                         break Err(error);
                     }
                 }
-                if started.elapsed() >= timeout {
+                if let Some(limit) = timeout
+                    && started.elapsed() >= limit
+                {
                     eprintln!(
                         "Bedrock map: exporter timed out after {} minutes",
-                        timeout.as_secs() / 60
+                        limit.as_secs() / 60
                     );
                     lifecycle.stop(&mut child);
                     break Ok(false);
                 }
-                if lifecycle.shutdown.load(Ordering::Acquire) {
+                if lifecycle.shutdown.load(Ordering::Acquire)
+                    || cancel.is_some_and(|flag| flag.load(Ordering::Acquire))
+                {
                     lifecycle.stop(&mut child);
                     break Ok(false);
                 }

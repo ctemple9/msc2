@@ -2,6 +2,7 @@
 pub(super) mod bedrock;
 mod dependencies;
 mod java_terrain_compat;
+use std::fs::OpenOptions;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -13,6 +14,7 @@ use axum::body::Body;
 use axum::extract::{Extension, Query, State};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
+use fs2::FileExt;
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -126,6 +128,7 @@ struct SavedSnapshot {
 
 struct Renderer {
     _staging: crate::map_staging::Staging,
+    _cache_lock: std::fs::File,
     server_id: String,
     world: PathBuf,
     dimension: String,
@@ -491,22 +494,21 @@ impl RendererStore {
                 eprintln!("Java terrain artifact read failed: {error}");
                 TerrainError::from(())
             })?;
-        if first_tile_pending {
-            if let Ok(mut guard) = self.0.current.lock()
-                && let Some(renderer) = guard.as_mut()
-                && renderer.server_id == server_id
-                && renderer.port == port
-                && status == 200
-                && !renderer.first_tile_reported
-            {
-                renderer.first_tile_reported = true;
-                eprintln!(
-                    "Java map: first tile response completed {:.1}s after renderer startup ({} bytes; HTTP {})",
-                    renderer.started_at.elapsed().as_secs_f64(),
-                    bytes.len(),
-                    status
-                );
-            }
+        if first_tile_pending
+            && let Ok(mut guard) = self.0.current.lock()
+            && let Some(renderer) = guard.as_mut()
+            && renderer.server_id == server_id
+            && renderer.port == port
+            && status == 200
+            && !renderer.first_tile_reported
+        {
+            renderer.first_tile_reported = true;
+            eprintln!(
+                "Java map: first tile response completed {:.1}s after renderer startup ({} bytes; HTTP {})",
+                renderer.started_at.elapsed().as_secs_f64(),
+                bytes.len(),
+                status
+            );
         }
         Ok((status, bytes))
     }
@@ -553,6 +555,26 @@ impl Renderer {
         let binary = dependencies::binary()?;
         progress.update("Checking and preparing Minecraft textures", None, None);
         let assets = dependencies::assets(world, selected_version)?;
+        let (tile_cache, cache_key) =
+            java_terrain_compat::persistent_tiles(server_id, source_world, dimension, &assets)
+                .map_err(|error| TerrainError::new("map_storage_failed", error.to_string()))?;
+        let lock_path = tile_cache.join("lock");
+        if std::fs::symlink_metadata(&lock_path).is_ok_and(|meta| !meta.file_type().is_file()) {
+            return Err(TerrainError::new(
+                "map_storage_failed",
+                "The Java tile cache lock is not a regular file.",
+            ));
+        }
+        let cache_lock = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(lock_path)
+            .map_err(|error| TerrainError::new("map_storage_failed", error.to_string()))?;
+        cache_lock
+            .lock_exclusive()
+            .map_err(|error| TerrainError::new("map_storage_failed", error.to_string()))?;
         progress.update("Inspecting saved terrain", None, None);
         let listener = std::net::TcpListener::bind("127.0.0.1:0").map_err(|_| ())?;
         let port = listener.local_addr().map_err(|_| ())?.port();
@@ -588,6 +610,19 @@ impl Renderer {
             "Java map: compatible region preparation returned in {:.1}s",
             conversion_started.elapsed().as_secs_f64()
         );
+        let used = crate::map_staging::estimate_tree(&tile_cache)
+            .map_err(|error| TerrainError::new("map_storage_failed", error.to_string()))?;
+        let free = fs2::available_space(&tile_cache)
+            .map_err(|error| TerrainError::new("map_storage_failed", error.to_string()))?;
+        let growth = free.saturating_sub(msc_infrastructure::conversion_resources::DISK_RESERVE);
+        if growth < 64 * 1024 * 1024 {
+            return Err(TerrainError::new(
+                "map_storage_failed",
+                "The Java tile cache needs at least 64 MiB beyond MSC's disk reserve. Free space in Storage, then reopen the map.",
+            ));
+        }
+        let cache_limit_mib =
+            ((used.saturating_add(growth)).min(4 * 1024 * 1024 * 1024) / (1024 * 1024)).max(64);
         let token = format!(
             "{}{}{}",
             Uuid::new_v4().simple(),
@@ -599,7 +634,8 @@ impl Renderer {
             .arg("server")
             .arg(render_world)
             .args(["--dimension", dimension, "--out"])
-            .arg(cache.join("render"))
+            .arg(&tile_cache)
+            .args(["--cache-key", &cache_key])
             .arg("--assets")
             .arg(assets)
             .args([
@@ -609,6 +645,8 @@ impl Renderer {
                 &port.to_string(),
                 "--memory",
                 "512",
+                "--cache-limit-mib",
+                &cache_limit_mib.to_string(),
                 "--threads",
                 "2",
                 "--prebake",
@@ -653,6 +691,7 @@ impl Renderer {
             port,
             token,
             _staging: staging,
+            _cache_lock: cache_lock,
             child,
             diagnostics,
             diagnostic_reader,

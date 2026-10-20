@@ -1,0 +1,5047 @@
+//! Vantage CLI.
+//!
+//! Subcommands:
+//!   vantage mesh  <region.mca> <out.vtile> [cx0 cz0 cx1 cz1]
+//!       Decode a rectangular range of chunks (region-local coords 0..31,
+//!       inclusive; default 0 0 0 0 = one chunk), build a culled cube mesh, and
+//!       write a v1 `.vtile` — the asset-free flat-color path.
+//!
+//!   vantage histo <region.mca> [localX localZ]
+//!       Block histogram for one chunk (default 0 0). Also runs when no
+//!       subcommand is given, for back-compat: `vantage <region.mca> [lx lz]`.
+
+const std = @import("std");
+const compress = @import("compress.zig");
+const nbt = @import("nbt.zig");
+const region = @import("region.zig");
+const chunk = @import("chunk.zig");
+const grid = @import("grid.zig");
+const mesh = @import("mesh.zig");
+const tile = @import("tile.zig");
+const blocks = @import("blocks.zig");
+const model = @import("model.zig");
+const texture = @import("texture.zig");
+const biome = @import("biome.zig");
+const lang = @import("lang.zig");
+const world = @import("world.zig");
+const dimension = @import("dimension.zig");
+const lowres = @import("lowres.zig");
+const extract = @import("extract.zig");
+const serve = @import("serve.zig");
+const players = @import("players.zig");
+pub const discovery = @import("discovery.zig");
+pub const version = @import("build_options").version;
+
+pub fn main(init: std.process.Init) !void {
+    const a = init.arena.allocator();
+    const args = try init.minimal.args.toSlice(a);
+    if (args.len < 2) return usage();
+
+    // Dispatch. If args[1] is a known subcommand use it, else treat args[1] as a
+    // region path for the legacy histogram form.
+    if (std.mem.eql(u8, args[1], "--help") or std.mem.eql(u8, args[1], "-h") or std.mem.eql(u8, args[1], "help")) {
+        printUsage();
+        return;
+    } else if (std.mem.eql(u8, args[1], "--version") or std.mem.eql(u8, args[1], "version")) {
+        std.debug.print("vantage {s}\n", .{@import("build_options").version});
+        return;
+    } else if (std.mem.eql(u8, args[1], "render")) {
+        return runRender(init, a, args[2..]);
+    } else if (std.mem.eql(u8, args[1], "desktop-discover")) {
+        return runDesktopDiscover(init, a);
+    } else if (std.mem.eql(u8, args[1], "desktop-render")) {
+        return runDesktopRender(init, a, args[2..]);
+    } else if (std.mem.eql(u8, args[1], "serve")) {
+        return runServe(init, a, args[2..]);
+    } else if (std.mem.eql(u8, args[1], "live")) {
+        return runLive(init, a, args[2..]);
+    } else if (std.mem.eql(u8, args[1], "server")) {
+        return runServer(init, a, args[2..]);
+    } else if (std.mem.eql(u8, args[1], "extract")) {
+        return runExtract(init, a, args[2..]);
+    } else if (std.mem.eql(u8, args[1], "mesh")) {
+        return runMesh(init, a, args[2..]);
+    } else if (std.mem.eql(u8, args[1], "meshtex")) {
+        return runMeshTex(init, a, args[2..]);
+    } else if (std.mem.eql(u8, args[1], "histo")) {
+        return runHisto(init, a, args[2..]);
+    } else if (std.mem.eql(u8, args[1], "biomes")) {
+        return runBiomes(init, a, args[2..]);
+    } else if (std.mem.eql(u8, args[1], "resolve")) {
+        return runResolve(init, a, args[2..]);
+    } else if (std.mem.eql(u8, args[1], "texinfo")) {
+        return runTexinfo(init, a, args[2..]);
+    } else {
+        return runHisto(init, a, args[1..]);
+    }
+}
+
+fn usage() error{MissingArgument} {
+    printUsage();
+    return error.MissingArgument;
+}
+
+fn printUsage() void {
+    std.debug.print(
+        \\usage:
+        \\  vantage render  <world-save-dir> [--assets <dir>] [--out <dir>] [--tile-chunks <n>]
+        \\                  [--radius <chunks>] [--light flat|smooth] [--biome-blend on|off] [--caves full|<y>]
+        \\                  [--dimension all|overworld|nether|end|<list>] [--ceiling <y>|keep]
+        \\                  [--threads <n>] [--memory <MiB>] [--gz <1..12>] [--players on|off]
+        \\      Render the whole populated world as streamable tiles + manifest.json
+        \\      (default out: web/public). --radius caps to a window around spawn.
+        \\      Every dimension the save has is rendered: the overworld at the root,
+        \\      the nether and the end in their own directories, indexed by world.json.
+        \\      --ceiling moves the nether's roof cut (default 104), which is what
+        \\      opens the map into the caverns instead of showing the bedrock lid.
+        \\      Missing assets are extracted automatically from your newest client jar.
+        \\      A players.json snapshot of the save's last known player positions is
+        \\      written alongside the map (--players off to leave it out).
+        \\  vantage serve   [render-dir] [--port <n>] [--host <addr>] [--open]
+        \\      View a render in your browser — a local web server with the viewer
+        \\      built in (default dir: web/public, port: 8268). --open launches the
+        \\      browser; --host 0.0.0.0 shares the map on your local network.
+        \\  vantage live    <world-save-dir> [--out <dir>] [--tile-chunks <n>] [--radius <chunks>]
+        \\                  [--light flat|smooth] [--biome-blend on|off] [--caves full|<y>]
+        \\                  [--dimension <name>] [--ceiling <y>|keep]
+        \\                  [--threads <n>] [--memory <MiB>] [--gz <1..12>] [--port <n>] [--host <addr>] [--open]
+        \\                  [--prebake on|off] [--lod on|off] [--players on|off] [--players-file <path>]
+        \\      Open a world in the browser NOW — no full pre-render. Every tile is
+        \\      listed up front and baked on demand as it scrolls into view, caching
+        \\      into --out (default web/public) so panning back is instant.
+        \\      Streams one dimension per session (--dimension, default overworld).
+        \\      --prebake on also bakes the rest of the world in the background.
+        \\      Baked tiles also feed a zoomed-out overview that fills in as they
+        \\      land and survives a reload (--lod off to skip it).
+        \\      Players appear on the map from the save's own player files; point
+        \\      --players-file at a live feed for real-time positions.
+        \\  vantage server  <world-save-dir> [live render flags] [--port <n>] [--host <addr>]
+        \\                  [--token-env <name>] [--allow-origin <origin>] [--max-connections <n>]
+        \\                  [--scan-interval <seconds>] [--prebake on|off] [--lod on|off]
+        \\                  [--focus-file <path>] [--players-file <path>] [--players on|off]
+        \\      Run the hardened Vantage server data plane for launchers and web apps.
+        \\      Binds to 127.0.0.1 by default for an authenticating reverse proxy.
+        \\      Non-loopback binds require a >=32-byte bearer secret in the environment
+        \\      (VANTAGE_SERVER_TOKEN by default). TLS belongs at the reverse proxy.
+        \\      Idle bake slots prebake the world around the viewer (--prebake off
+        \\      to disable); saved world edits re-bake changed tiles automatically.
+        \\      --focus-file points prebake at a JSON file of block coordinates the
+        \\      host rewrites as its players move, so the map warms where they are.
+        \\      --players-file serves live player positions from a JSON file the host
+        \\      rewrites (BlueMap's live/players.json works as-is), and steers prebake
+        \\      at them too. Reading positions out of the save is opt-in here
+        \\      (--players on): they are last-known, including for offline players.
+        \\  vantage extract [client.jar]
+        \\      Extract the assets a render needs into ~/.cache/vantage/assets/<version>.
+        \\      With no argument, uses the newest jar in your .minecraft/versions.
+        \\  vantage mesh    <region.mca> <out.vtile> [cx0 cz0 cx1 cz1]
+        \\  vantage meshtex <region.mca> <out.vtile> <assets/minecraft dir> [cx0 cz0 cx1 cz1] [--light flat|smooth] [--biome-blend on|off]
+        \\  vantage histo   <region.mca> [localX localZ]
+        \\  vantage biomes  <region.mca> [cx0 cz0 cx1 cz1]
+        \\  vantage resolve <assets/minecraft dir> <block-name> [state e.g. axis=x]
+        \\  vantage texinfo <assets/minecraft dir> <block-name...>
+        \\
+    , .{});
+}
+
+/// Line-delimited desktop protocol. Human CLI output remains unchanged; the
+/// Tauri host filters only records carrying a `VANTAGE_` prefix.
+fn runDesktopDiscover(init: std.process.Init, a: std.mem.Allocator) !void {
+    const worlds = try discovery.discover(
+        a,
+        init.io,
+        discovery.environmentFromProcess(init.environ_map),
+        &.{},
+    );
+    for (worlds) |info| {
+        var json: std.ArrayList(u8) = .empty;
+        try json.appendSlice(a, "{\"path\":");
+        try appendJsonString(a, &json, info.path);
+        try json.appendSlice(a, ",\"name\":");
+        try appendJsonString(a, &json, info.name);
+        try json.print(a, ",\"lastPlayedMs\":{d},\"dataVersion\":{d},\"source\":", .{ info.last_played_ms, info.data_version });
+        try appendJsonString(a, &json, @tagName(info.source));
+        try json.appendSlice(a, ",\"iconPath\":");
+        if (info.icon_path) |icon| try appendJsonString(a, &json, icon) else try json.appendSlice(a, "null");
+        try json.append(a, '}');
+        std.debug.print("VANTAGE_WORLD {s}\n", .{json.items});
+    }
+    std.debug.print("VANTAGE_DISCOVERY_DONE {{\"count\":{d}}}\n", .{worlds.len});
+}
+
+fn runDesktopRender(init: std.process.Init, a: std.mem.Allocator, args: []const []const u8) !void {
+    if (args.len < 2) return usage();
+    var progress: RenderProgress = .{
+        .callback = emitDesktopProgress,
+    };
+    var render_args: std.ArrayList([]const u8) = .empty;
+    try render_args.append(a, args[0]);
+    try render_args.appendSlice(a, &.{ "--out", args[1] });
+    try render_args.appendSlice(a, args[2..]);
+    progress.setPhase(.scanning);
+    renderWorldArgs(init, a, render_args.items, &progress) catch |err| {
+        progress.setPhase(.failed);
+        return err;
+    };
+    progress.setPhase(.done);
+}
+
+fn emitDesktopProgress(_: ?*anyopaque, snapshot: RenderProgress.Snapshot) void {
+    std.debug.print(
+        "VANTAGE_PROGRESS {{\"phase\":\"{s}\",\"completed\":{d},\"total\":{d}}}\n",
+        .{ @tagName(snapshot.phase), snapshot.completed, snapshot.total },
+    );
+}
+
+/// Scan args for `--light flat|smooth` (default `smooth`). The bake-time light
+/// quality: `smooth` averages light over each vertex's neighbourhood, `flat`
+/// lights per face. Tolerant of position — both meshtex and render accept it.
+fn parseLightQuality(args: []const []const u8) error{InvalidArgument}!mesh.LightQuality {
+    var i: usize = 0;
+    while (i + 1 < args.len) : (i += 1) {
+        if (!std.mem.eql(u8, args[i], "--light")) continue;
+        if (std.mem.eql(u8, args[i + 1], "flat")) return .flat;
+        if (std.mem.eql(u8, args[i + 1], "smooth")) return .smooth;
+        return badValue("--light", args[i + 1], "flat|smooth");
+    }
+    return .smooth;
+}
+
+/// `--caves full|<y>`: faces below this world Y that only look into dark
+/// (sky-light-0) cells are culled — they are invisible from any above-ground
+/// view and dominate tile size on modern worlds. `full` keeps every cave: tiles
+/// grow, but the viewer's depth-slice cave view has real geometry to reveal
+/// (the manifest gains `"caves": true` so the UI knows to offer it). `off` is
+/// an alias of `full` kept for old scripts.
+const CaveSetting = union(enum) { full, horizon: i32 };
+
+/// Scan args for `--caves`. Null means the flag was absent, so each dimension
+/// applies its own default (`dimension.Profile.default_cave_y`) — the overworld
+/// culls below y=55, the end and the nether never do.
+fn parseCaveY(args: []const []const u8) error{InvalidArgument}!?CaveSetting {
+    var i: usize = 0;
+    while (i + 1 < args.len) : (i += 1) {
+        if (!std.mem.eql(u8, args[i], "--caves")) continue;
+        if (std.mem.eql(u8, args[i + 1], "full") or std.mem.eql(u8, args[i + 1], "off")) return .full;
+        const y = std.fmt.parseInt(i32, args[i + 1], 10) catch return badValue("--caves", args[i + 1], "full|<y>");
+        return CaveSetting{ .horizon = y };
+    }
+    return null;
+}
+
+/// The cave-culling horizon for one dimension: the `--caves` value when given,
+/// else the dimension's own default. Ignored entirely by `open_volume`
+/// dimensions, where reachability decides and every visible cave is kept.
+fn caveHorizonFor(dim: dimension.Profile, setting: ?CaveSetting) ?i32 {
+    if (dim.visibility == .open_volume) return null;
+    const s = setting orelse return dim.default_cave_y;
+    return switch (s) {
+        .full => null,
+        // A depth only means something where there are caves under it. The end
+        // has none — its islands float — so an overworld horizon would cull
+        // their undersides instead of a cave system. Dimensions that declare no
+        // horizon of their own keep every face whatever the flag says.
+        .horizon => |y| if (dim.default_cave_y == null) null else y,
+    };
+}
+
+/// Scan args for `--dimension <list>` (default: every dimension the save has).
+/// Values name dimensions the way people already do — `nether`, `the_end`,
+/// `minecraft:overworld`, `DIM-1` — comma-separated, or `all`. Returns null for
+/// "everything", so the common case needs no flag at all.
+fn parseDimensionArg(args: []const []const u8) ?[]const u8 {
+    var i: usize = 0;
+    while (i + 1 < args.len) : (i += 1) {
+        if (!std.mem.eql(u8, args[i], "--dimension") and !std.mem.eql(u8, args[i], "--dimensions")) continue;
+        if (std.ascii.eqlIgnoreCase(args[i + 1], "all")) return null;
+        return args[i + 1];
+    }
+    return null;
+}
+
+/// The nether's roof cut (see `dimension.Profile.ceiling_cut`): `--ceiling <y>`
+/// moves it, `--ceiling keep` renders the bedrock lid as it is. Null leaves the
+/// dimension's own default.
+const CeilingOverride = union(enum) { keep, at: i32 };
+
+fn parseCeiling(args: []const []const u8) error{InvalidArgument}!?CeilingOverride {
+    var i: usize = 0;
+    while (i + 1 < args.len) : (i += 1) {
+        if (!std.mem.eql(u8, args[i], "--ceiling")) continue;
+        if (std.mem.eql(u8, args[i + 1], "keep") or std.mem.eql(u8, args[i + 1], "off")) return .keep;
+        const y = std.fmt.parseInt(i32, args[i + 1], 10) catch return badValue("--ceiling", args[i + 1], "keep|<y>");
+        return CeilingOverride{ .at = y };
+    }
+    return null;
+}
+
+/// Scan args for `--threads <n>`. Null means "not given" — the memory planner
+/// chooses a safe value from the logical CPU count. `--threads 1` renders tiles
+/// serially; the memory budget remains a hard upper bound on parallel bakes.
+fn parseThreads(args: []const []const u8) error{InvalidArgument}!?usize {
+    var i: usize = 0;
+    while (i + 1 < args.len) : (i += 1) {
+        if (!std.mem.eql(u8, args[i], "--threads")) continue;
+        return std.fmt.parseInt(usize, args[i + 1], 10) catch badValue("--threads", args[i + 1], "<n>");
+    }
+    return null;
+}
+
+/// Scan args for `--memory <MiB>`. This bounds concurrent tile working sets,
+/// not the process's small long-lived asset/index state. Null selects an
+/// adaptive fraction of physical RAM; explicit values make container/host
+/// policy predictable.
+fn parseMemoryMiB(args: []const []const u8) error{InvalidArgument}!?usize {
+    var i: usize = 0;
+    while (i + 1 < args.len) : (i += 1) {
+        if (!std.mem.eql(u8, args[i], "--memory")) continue;
+        const mib = std.fmt.parseInt(usize, args[i + 1], 10) catch return badValue("--memory", args[i + 1], "64..");
+        if (mib < 64) return badValue("--memory", args[i + 1], "64..");
+        return mib;
+    }
+    return null;
+}
+
+const MiB: usize = 1024 * 1024;
+
+/// Conservative peak for one tile arena. The dense id/light grid is three
+/// bytes per voxel; NBT decode, lighting scratch, parallel mesh partials, the
+/// final compact mesh, and compression temporarily coexist. Four dense-grid
+/// equivalents plus fixed headroom tracks measured pathological/full-cave tiles while
+/// still allowing useful parallelism for the default 8-chunk tile.
+fn estimatedTileWorkingSet(tile_chunks: i32) usize {
+    const edge: usize = @intCast((tile_chunks + 2) * 16); // one-chunk apron on each side
+    const voxels = std.math.mul(usize, edge * edge, 384) catch return std.math.maxInt(usize);
+    const dense_and_scratch = std.math.mul(usize, voxels, 14) catch return std.math.maxInt(usize);
+    return std.math.add(usize, dense_and_scratch, 64 * MiB) catch std.math.maxInt(usize);
+}
+
+/// Default to one eighth of physical RAM, clamped so small hosts keep room for
+/// the OS/viewer and large workstations do not turn every logical core into a
+/// 150+ MiB tile arena. `--memory` overrides this capacity directly.
+fn bakeMemoryBudget(explicit_mib: ?usize) usize {
+    if (explicit_mib) |mib| return std.math.mul(usize, mib, MiB) catch std.math.maxInt(usize);
+    const physical: usize = @intCast(@min(std.process.totalSystemMemory() catch 4 * 1024 * MiB, std.math.maxInt(usize)));
+    return std.math.clamp(physical / 8, 512 * MiB, 1024 * MiB);
+}
+
+/// `vantage server` is a dedicated service, so its default bake pool is
+/// sized like one: a quarter of physical RAM, clamped 512 MiB – 4 GiB. More
+/// budget means more concurrent bake slots, which is what prebake throughput
+/// and multi-viewer cold starts scale with. `--memory` still overrides.
+fn serverBakeMemoryBudget(explicit_mib: ?usize) usize {
+    if (explicit_mib) |mib| return std.math.mul(usize, mib, MiB) catch std.math.maxInt(usize);
+    const physical: usize = @intCast(@min(std.process.totalSystemMemory() catch 4 * 1024 * MiB, std.math.maxInt(usize)));
+    return std.math.clamp(physical / 4, 512 * MiB, 4096 * MiB);
+}
+
+fn bakeWorkerCount(cpu_count: usize, work_items: usize, requested: ?usize, memory_bytes: usize, per_worker: usize) usize {
+    const cpu_limit = @max(1, requested orelse cpu_count);
+    const memory_limit = @max(1, memory_bytes / @max(1, per_worker));
+    return @max(1, @min(@min(cpu_limit, memory_limit), @max(1, work_items)));
+}
+
+test "server bake budget honors --memory and clamps its default" {
+    try std.testing.expectEqual(@as(usize, 2048 * MiB), serverBakeMemoryBudget(2048));
+    const auto = serverBakeMemoryBudget(null);
+    try std.testing.expect(auto >= 512 * MiB and auto <= 4096 * MiB);
+}
+
+test "bake admission is bounded by memory, cpu, request, and work" {
+    try std.testing.expectEqual(@as(usize, 4), bakeWorkerCount(16, 64, null, 800 * MiB, 200 * MiB));
+    try std.testing.expectEqual(@as(usize, 2), bakeWorkerCount(16, 64, 2, 800 * MiB, 200 * MiB));
+    try std.testing.expectEqual(@as(usize, 1), bakeWorkerCount(16, 1, null, 800 * MiB, 200 * MiB));
+    try std.testing.expectEqual(@as(usize, 1), bakeWorkerCount(16, 64, null, 64 * MiB, 200 * MiB));
+}
+
+test "tile working-set estimate grows with tile area" {
+    try std.testing.expect(estimatedTileWorkingSet(8) > estimatedTileWorkingSet(4));
+    try std.testing.expect(estimatedTileWorkingSet(16) > estimatedTileWorkingSet(8));
+}
+
+/// Scan args for `--biome-blend on|off` (default `on`). When on, biome tint
+/// colours (grass/foliage/water) are bilinearly blended across biome borders for
+/// smooth vanilla-style gradients; off steps hard at each biome cell.
+fn parseBiomeBlend(args: []const []const u8) error{InvalidArgument}!bool {
+    var i: usize = 0;
+    while (i + 1 < args.len) : (i += 1) {
+        if (!std.mem.eql(u8, args[i], "--biome-blend")) continue;
+        if (std.mem.eql(u8, args[i + 1], "off")) return false;
+        if (std.mem.eql(u8, args[i + 1], "on")) return true;
+        return badValue("--biome-blend", args[i + 1], "on|off");
+    }
+    return true;
+}
+
+/// Scan args for `--players on|off`. Null means "not given", which each command
+/// resolves to its own default — see {@link playersMode}.
+fn parsePlayersFlag(args: []const []const u8) error{InvalidArgument}!?bool {
+    var i: usize = 0;
+    while (i + 1 < args.len) : (i += 1) {
+        if (!std.mem.eql(u8, args[i], "--players")) continue;
+        if (std.mem.eql(u8, args[i + 1], "off")) return false;
+        if (std.mem.eql(u8, args[i + 1], "on")) return true;
+        return badValue("--players", args[i + 1], "on|off");
+    }
+    return null;
+}
+
+/// Where this command gets player positions.
+///
+/// A host feed always wins: it is the only live source, and asking for one is
+/// unambiguous. Otherwise the save's own player files fill in — by default for
+/// the local commands, where the map and the save belong to the same person,
+/// and only on request for `vantage server`, where "last known position of
+/// every player who ever logged in" is a different disclosure from "who is
+/// online right now" and should be a deliberate choice.
+fn playersMode(host_file: ?[]const u8, flag: ?bool, server_mode: bool) players.Mode {
+    if (flag == false) return .off;
+    if (host_file != null) return .host_file;
+    if (flag == true) return .save;
+    return if (server_mode) .off else .save;
+}
+
+fn badValue(flag: []const u8, got: []const u8, want: []const u8) error{InvalidArgument} {
+    std.debug.print("invalid value for {s}: '{s}' (expected {s})\n", .{ flag, got, want });
+    return error.InvalidArgument;
+}
+
+/// Consume and return the value following a `--flag` token, erroring if absent.
+fn flagValue(args: []const []const u8, argi: *usize) error{MissingArgument}![]const u8 {
+    argi.* += 1;
+    if (argi.* >= args.len) {
+        std.debug.print("missing value for {s}\n", .{args[argi.* - 1]});
+        return error.MissingArgument;
+    }
+    return args[argi.*];
+}
+
+fn runTexinfo(init: std.process.Init, a: std.mem.Allocator, args: []const []const u8) !void {
+    if (args.len < 2) return usage();
+    const root = args[0];
+    const resolver: model.Resolver = .{ .arena = a, .io = init.io, .root = root };
+    var builder = try texture.Builder.init(a, init.io, root);
+
+    // Track which (texture -> layer) we assign so we can report a sample pixel.
+    var samples: std.ArrayList([]const u8) = .empty;
+    for (args[1..]) |block| {
+        const parts = resolver.resolveBlock(block, "") catch |e| {
+            std.debug.print("{s}: resolve failed: {s}\n", .{ block, @errorName(e) });
+            continue;
+        };
+        for (parts) |rm| {
+            for (rm.elements) |el| {
+                for (el.faces) |f| {
+                    _ = builder.layerFor(f.texture);
+                    try samples.append(a, f.texture);
+                }
+            }
+        }
+    }
+
+    const arr = try builder.finish();
+    std.debug.print("texture array: {d}x{d}, {d} layers ({d} bytes)\n\n", .{
+        arr.width, arr.height, arr.layer_count, arr.pixels.len,
+    });
+    // Report unique texture -> layer + center pixel.
+    var seen = std.StringHashMap(void).init(a);
+    for (samples.items) |path| {
+        if (seen.contains(path)) continue;
+        try seen.put(path, {});
+        const layer = builder.layerFor(path);
+        const center = (layer * texture.TILE * texture.TILE + (texture.TILE / 2) * texture.TILE + texture.TILE / 2) * 4;
+        std.debug.print("  layer {d:>3}  {s:<34}  center rgba=({d},{d},{d},{d})\n", .{
+            layer,                  path,
+            arr.pixels[center + 0], arr.pixels[center + 1],
+            arr.pixels[center + 2], arr.pixels[center + 3],
+        });
+    }
+}
+
+fn runResolve(init: std.process.Init, a: std.mem.Allocator, args: []const []const u8) !void {
+    if (args.len < 2) return usage();
+    const root = args[0];
+    const block = args[1];
+    const state = if (args.len > 2) args[2] else ""; // e.g. "axis=x"
+
+    const resolver: model.Resolver = .{ .arena = a, .io = init.io, .root = root };
+    const parts = try resolver.resolveBlock(block, state);
+
+    std.debug.print("block: {s}\nstate: {s}\nassets: {s}\nparts: {d}\n", .{ block, state, root, parts.len });
+    for (parts, 0..) |rm, pi| {
+        std.debug.print("\npart[{d}]  rot(x={d},y={d}) uvlock={}  elements={d}\n", .{
+            pi, rm.x, rm.y, rm.uvlock, rm.elements.len,
+        });
+        for (rm.elements, 0..) |el, ei| {
+            std.debug.print("  element[{d}] from({d:.0},{d:.0},{d:.0}) to({d:.0},{d:.0},{d:.0})\n", .{
+                ei, el.from[0], el.from[1], el.from[2], el.to[0], el.to[1], el.to[2],
+            });
+            for (el.faces) |f| {
+                std.debug.print("     {s:<6} tex={s:<34} uv=[{d:.0},{d:.0},{d:.0},{d:.0}] cull={s:<5} tint={d} rot={d}\n", .{
+                    @tagName(f.dir),
+                    f.texture,
+                    f.uv[0],
+                    f.uv[1],
+                    f.uv[2],
+                    f.uv[3],
+                    if (f.cullface) |c| @tagName(c) else "-",
+                    f.tintindex,
+                    f.rotation,
+                });
+            }
+        }
+    }
+}
+
+fn runMesh(init: std.process.Init, a: std.mem.Allocator, args: []const []const u8) !void {
+    if (args.len < 2) return usage();
+    const region_path = args[0];
+    const out_path = args[1];
+
+    var cx0: u5 = 0;
+    var cz0: u5 = 0;
+    var cx1: u5 = 0;
+    var cz1: u5 = 0;
+    if (args.len >= 6) {
+        cx0 = @truncate(try std.fmt.parseInt(u8, args[2], 10));
+        cz0 = @truncate(try std.fmt.parseInt(u8, args[3], 10));
+        cx1 = @truncate(try std.fmt.parseInt(u8, args[4], 10));
+        cz1 = @truncate(try std.fmt.parseInt(u8, args[5], 10));
+    }
+    if (cx1 < cx0 or cz1 < cz0) return error.BadRange;
+
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, region_path, a, .unlimited);
+
+    var stats: grid.Stats = .{};
+    const g = try grid.assemble(a, bytes, cx0, cz0, cx1, cz1, &stats);
+    const m = try mesh.build(a, g);
+    const blob = try tile.serialize(a, m);
+
+    try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = out_path, .data = blob });
+
+    std.debug.print(
+        \\region:    {s}
+        \\chunks:    {d} loaded, {d} missing  (range {d},{d}..{d},{d})
+        \\grid:      {d} x {d} x {d} blocks  (minY={d})
+        \\mesh:      {d} vertices, {d} quads, {d} triangles
+        \\tile:      {s}  ({d} bytes)
+        \\
+    , .{
+        region_path,
+        stats.chunks_loaded,
+        stats.chunks_missing,
+        cx0,
+        cz0,
+        cx1,
+        cz1,
+        g.sx,
+        g.sy,
+        g.sz,
+        g.min_y,
+        m.vertex_count,
+        m.quadCount(),
+        m.triangleCount(),
+        out_path,
+        blob.len,
+    });
+}
+
+fn runMeshTex(init: std.process.Init, a: std.mem.Allocator, args: []const []const u8) !void {
+    if (args.len < 3) return usage();
+    const region_path = args[0];
+    const out_path = args[1];
+    const assets = args[2];
+
+    var cx0: u5 = 0;
+    var cz0: u5 = 0;
+    var cx1: u5 = 0;
+    var cz1: u5 = 0;
+    if (args.len >= 7) {
+        cx0 = @truncate(try std.fmt.parseInt(u8, args[3], 10));
+        cz0 = @truncate(try std.fmt.parseInt(u8, args[4], 10));
+        cx1 = @truncate(try std.fmt.parseInt(u8, args[5], 10));
+        cz1 = @truncate(try std.fmt.parseInt(u8, args[6], 10));
+    }
+    if (cx1 < cx0 or cz1 < cz0) return error.BadRange;
+
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, region_path, a, .unlimited);
+
+    var stats: grid.Stats = .{};
+    const g = try grid.assemble(a, bytes, cx0, cz0, cx1, cz1, &stats);
+
+    const resolver: model.Resolver = .{ .arena = a, .io = init.io, .root = assets };
+    var builder = try texture.Builder.init(a, init.io, assets);
+    const maps = biome.Colormaps.load(a, init.io, assets);
+    const data_root = dataRootFromAssets(a, assets);
+    var reg = biome.Registry.init(a, init.io, data_root);
+    const built = try mesh.buildTextured(a, g, resolver, &builder, maps, &reg, try parseLightQuality(args), try parseBiomeBlend(args), null, .{ .sky_light = caveHorizonFor(dimension.overworld, try parseCaveY(args)) }, 0, null);
+    const arr = try builder.finish();
+
+    // Resolve human-readable biome names from the language file for the legend.
+    const names = lang.Lang.load(a, init.io, assets);
+    const display = try a.alloc([]const u8, g.biome_names.len);
+    if (display.len > 0) display[0] = ""; // air/no-data sentinel
+    for (g.biome_names[1..], 1..) |bn, i| display[i] = names.biomeName(a, bn);
+
+    const surface = try grid.buildSurface(a, g, null);
+    const geo = try tile.serializeWithLightmap(a, built, surface, display);
+    const tex_blob = try texture.serialize(a, arr);
+
+    const tex_path = try texArrayPath(a, out_path);
+    try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = out_path, .data = geo });
+    try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = tex_path, .data = tex_blob });
+
+    std.debug.print(
+        \\region:    {s}
+        \\assets:    {s}
+        \\chunks:    {d} loaded, {d} missing  (range {d},{d}..{d},{d})
+        \\blocks:    {d} distinct, {d} biomes
+        \\grid:      {d} x {d} x {d} blocks  (minY={d})
+        \\textures:  {d} layers ({d}x{d})
+        \\mesh:      {d} vertices, {d} triangles ({d} water verts)
+        \\tile:      {s}  ({d} bytes)
+        \\texarray:  {s}  ({d} bytes)
+        \\
+    , .{
+        region_path,                                               assets,
+        stats.chunks_loaded,                                       stats.chunks_missing,
+        cx0,                                                       cz0,
+        cx1,                                                       cz1,
+        stats.distinct_blocks,                                     stats.distinct_biomes,
+        g.sx,                                                      g.sy,
+        g.sz,                                                      g.min_y,
+        arr.layer_count,                                           arr.width,
+        arr.height,                                                built.solid.vertex_count + built.fluid.vertex_count,
+        built.solid.triangleCount() + built.fluid.triangleCount(), built.fluid.vertex_count,
+        out_path,                                                  geo.len,
+        tex_path,                                                  tex_blob.len,
+    });
+
+    // Resolved tint colours per biome present — confirms the data pack loaded and
+    // that biomes map to distinct grass/foliage/water (savanna gold vs plains green).
+    if (g.biome_names.len > 1) {
+        std.debug.print("biome data: {s}\nbiome tints (grass / foliage / water):\n", .{
+            if (data_root.len > 0) data_root else "(none — using temperate defaults)",
+        });
+        for (g.biome_names[1..]) |bname| {
+            const info = reg.lookup(bname);
+            const gr = biome.colorFor(maps, .grass, info);
+            const fo = biome.colorFor(maps, .foliage, info);
+            const wa = biome.colorFor(maps, .water, info);
+            std.debug.print("  {s:<28} #{x:0>2}{x:0>2}{x:0>2} / #{x:0>2}{x:0>2}{x:0>2} / #{x:0>2}{x:0>2}{x:0>2}\n", .{
+                model.stripNs(bname),
+                gr[0],
+                gr[1],
+                gr[2],
+                fo[0],
+                fo[1],
+                fo[2],
+                wa[0],
+                wa[1],
+                wa[2],
+            });
+        }
+        if (reg.missing > 0) std.debug.print(
+            "  note: {d} biome(s) had no data file — extract data/minecraft/worldgen/biome\n",
+            .{reg.missing},
+        );
+    }
+}
+
+/// Map `<root>/assets/minecraft` -> `<root>/data/minecraft` (the data pack lives
+/// beside the resource pack in an extracted client jar). Returns "" if the assets
+/// path isn't in that layout, in which case the registry falls back to defaults.
+fn dataRootFromAssets(a: std.mem.Allocator, assets: []const u8) []const u8 {
+    var p = assets;
+    while (p.len > 0 and (p[p.len - 1] == '/' or p[p.len - 1] == '\\')) p = p[0 .. p.len - 1];
+    const suffix = "assets/minecraft";
+    if (p.len < suffix.len) return "";
+    // Separator-insensitive suffix match so native Windows paths work too.
+    for (p[p.len - suffix.len ..], suffix) |c, s| {
+        const norm: u8 = if (c == '\\') '/' else c;
+        if (norm != s) return "";
+    }
+    return std.fmt.allocPrint(a, "{s}data/minecraft", .{p[0 .. p.len - suffix.len]}) catch "";
+}
+
+/// One dimension of a world, located and indexed: its region directory, the
+/// region location tables (payloads stream per tile), the populated-chunk set,
+/// spawn, and the centre chunk the `--radius` cap and spawn-outward order pivot
+/// on. Shared by `render` (batch) and `live` (on-demand).
+const WorldLoad = struct {
+    dim: dimension.Profile,
+    region_dir: []const u8,
+    assets: []const u8,
+    loaded: []const world.LoadedRegion,
+    bounds: world.ChunkBounds,
+    populated: std.AutoHashMap(u64, void),
+    spawn: ?[3]i32,
+    centre_cx: i32,
+    centre_cz: i32,
+};
+
+/// Locate the extracted assets, auto-discovering a local Minecraft (and
+/// extracting from its newest client jar) when `--assets` wasn't passed.
+fn resolveAssets(init: std.process.Init, a: std.mem.Allocator, assets_opt: ?[]const u8) ![]const u8 {
+    if (assets_opt) |assets| return assets;
+    const home = init.environ_map.get("HOME") orelse
+        init.environ_map.get("USERPROFILE") orelse ""; // Windows has no HOME
+    return (try findAssets(a, init.io, home)) orelse (try autoExtract(init, a, home)) orelse {
+        std.debug.print(
+            \\no extracted assets found, and no Minecraft installation to extract from.
+            \\Point `vantage extract` at any client jar first:
+            \\  vantage extract <path/to/client.jar>    (or pass --assets <assets/minecraft dir>)
+            \\
+        , .{});
+        return error.NoAssets;
+    };
+}
+
+/// The dimensions of `save` that `--dimension` asked for, in render order
+/// (overworld first). A save with no region files anywhere is an error; a
+/// request for a dimension the save doesn't have says which ones it does.
+fn resolveDimensions(
+    init: std.process.Init,
+    a: std.mem.Allocator,
+    save: []const u8,
+    spec: ?[]const u8,
+) ![]dimension.Found {
+    const found = try dimension.discover(a, init.io, save);
+    if (found.len == 0) {
+        std.debug.print(
+            \\no Minecraft region files found under:
+            \\  {s}
+            \\Point me at a world save folder (the one with level.dat), e.g.
+            \\  ~/Library/Application Support/minecraft/saves/<World>
+            \\
+        , .{save});
+        return error.NoRegions;
+    }
+    const want = spec orelse return found;
+
+    var selected: std.ArrayList(dimension.Found) = .empty;
+    var it = std.mem.splitScalar(u8, want, ',');
+    while (it.next()) |raw| {
+        const name = std.mem.trim(u8, raw, " ");
+        if (name.len == 0) continue;
+        const hit = matchDimension(found, name) orelse {
+            std.debug.print("this world has no dimension '{s}'. It has:\n", .{name});
+            for (found) |f| std.debug.print("  {s}  ({s})\n", .{ f.profile.id, f.region_dir });
+            return error.InvalidArgument;
+        };
+        for (selected.items) |s| {
+            if (std.mem.eql(u8, s.profile.id, hit.profile.id)) break;
+        } else try selected.append(a, hit);
+    }
+    if (selected.items.len == 0) return error.InvalidArgument;
+    return selected.toOwnedSlice(a);
+}
+
+/// Match one `--dimension` value against the discovered set: by resource id,
+/// by output slug, or by the friendly/folder aliases `dimension.builtinFor`
+/// understands.
+fn matchDimension(found: []const dimension.Found, name: []const u8) ?dimension.Found {
+    const builtin = dimension.builtinFor(name);
+    for (found) |f| {
+        if (std.ascii.eqlIgnoreCase(f.profile.id, name)) return f;
+        if (f.profile.slug.len > 0 and std.ascii.eqlIgnoreCase(f.profile.slug, name)) return f;
+        if (builtin) |b| {
+            if (std.mem.eql(u8, f.profile.id, b.id)) return f;
+        }
+    }
+    return null;
+}
+
+/// Index one dimension: read its region location tables, take the populated
+/// bounds/chunk set, and pick the centre that `--radius` and the spawn-outward
+/// tile order pivot on. `overworld_spawn` comes from the save's level.dat; each
+/// dimension maps it to its own frame (see `dimension.spawnFor`). Returns a
+/// `WorldLoad` with `bounds.count == 0` for an empty dimension; callers decide
+/// how to report that.
+fn loadDimension(
+    a: std.mem.Allocator,
+    io: std.Io,
+    found: dimension.Found,
+    assets: []const u8,
+    overworld_spawn: ?[3]i32,
+) !WorldLoad {
+    const loaded = try world.loadRegions(a, io, found.region_dir);
+    const bounds = world.populatedBounds(loaded);
+    const populated = if (bounds.count == 0)
+        std.AutoHashMap(u64, void).init(a)
+    else
+        try world.populatedChunks(a, loaded);
+    const spawn = dimension.spawnFor(found.profile, overworld_spawn);
+
+    // The optional --radius cap and spawn-outward order centre on the spawn
+    // point when known (that's where the interesting builds are), else the
+    // populated centre.
+    const centre_cx: i32 = if (spawn) |s| @divFloor(s[0], 16) else @divFloor(bounds.min_cx + bounds.max_cx, 2);
+    const centre_cz: i32 = if (spawn) |s| @divFloor(s[2], 16) else @divFloor(bounds.min_cz + bounds.max_cz, 2);
+
+    return .{
+        .dim = found.profile,
+        .region_dir = found.region_dir,
+        .assets = assets,
+        .loaded = loaded,
+        .bounds = bounds,
+        .populated = populated,
+        .spawn = spawn,
+        .centre_cx = centre_cx,
+        .centre_cz = centre_cz,
+    };
+}
+
+/// Locate + index exactly one dimension — the setup `live` and `server` share,
+/// which stream a single dimension per session (`--dimension`, default the
+/// overworld).
+fn resolveWorld(
+    init: std.process.Init,
+    a: std.mem.Allocator,
+    save: []const u8,
+    assets_opt: ?[]const u8,
+    spec: ?[]const u8,
+) !WorldLoad {
+    const dims = try resolveDimensions(init, a, save, spec);
+    if (dims.len > 1 and spec != null) {
+        std.debug.print("this command streams one dimension at a time; pass a single --dimension\n", .{});
+        return error.InvalidArgument;
+    }
+    const assets = try resolveAssets(init, a, assets_opt);
+    const chosen = dims[0]; // discovery orders the overworld first
+    if (dims.len > 1) std.debug.print(
+        "note:    this save has {d} dimensions; streaming {s} (pass --dimension to pick another)\n",
+        .{ dims.len, chosen.profile.id },
+    );
+    std.debug.print("world:   {s}\nassets:  {s}\n", .{ chosen.region_dir, assets });
+    return loadDimension(a, init.io, chosen, assets, world.readSpawn(a, init.io, save));
+}
+
+/// The tiles containing at least one populated chunk (within `--radius` of the
+/// centre, if set), sorted spawn-outward: nearest-to-centre first so a
+/// progressive/on-demand view blooms from where the builds are. Ties break on
+/// (z, x) for a deterministic order.
+fn enumerateTilesSpawnOutward(
+    a: std.mem.Allocator,
+    populated: std.AutoHashMap(u64, void),
+    radius: i32,
+    centre_cx: i32,
+    centre_cz: i32,
+    tile_chunks: i32,
+) ![]u64 {
+    var tile_set = std.AutoHashMap(u64, void).init(a);
+    var pit = populated.keyIterator();
+    while (pit.next()) |key| {
+        const cx: i32 = @bitCast(@as(u32, @truncate(key.* >> 32)));
+        const cz: i32 = @bitCast(@as(u32, @truncate(key.*)));
+        if (radius > 0 and (@abs(cx - centre_cx) > radius or @abs(cz - centre_cz) > radius)) continue;
+        try tile_set.put(world.packChunk(@divFloor(cx, tile_chunks), @divFloor(cz, tile_chunks)), {});
+    }
+    var list: std.ArrayList(u64) = .empty;
+    var tit = tile_set.keyIterator();
+    while (tit.next()) |k| try list.append(a, k.*);
+    const keys = list.items;
+
+    const centre_tx = @divFloor(centre_cx, tile_chunks);
+    const centre_tz = @divFloor(centre_cz, tile_chunks);
+    const SortCtx = struct { tx: i32, tz: i32 };
+    std.mem.sort(u64, keys, SortCtx{ .tx = centre_tx, .tz = centre_tz }, struct {
+        fn lt(c: SortCtx, x: u64, y: u64) bool {
+            const xx: i32 = @bitCast(@as(u32, @truncate(x >> 32)));
+            const xz: i32 = @bitCast(@as(u32, @truncate(x)));
+            const yx: i32 = @bitCast(@as(u32, @truncate(y >> 32)));
+            const yz: i32 = @bitCast(@as(u32, @truncate(y)));
+            const dx1: i64 = xx - c.tx;
+            const dz1: i64 = xz - c.tz;
+            const dx2: i64 = yx - c.tx;
+            const dz2: i64 = yz - c.tz;
+            const d1 = dx1 * dx1 + dz1 * dz1;
+            const d2 = dx2 * dx2 + dz2 * dz2;
+            if (d1 != d2) return d1 < d2;
+            if (xz != yz) return xz < yz;
+            return xx < yx;
+        }
+    }.lt);
+    return keys;
+}
+
+/// `vantage render <save-dir>` — the friendly entry point: auto-discover the
+/// world's region directory and the extracted assets, then render the WHOLE
+/// populated world as a grid of streamable tiles + a manifest. Each tile
+/// spans `--tile-chunks`² chunks and is meshed with a 1-chunk apron of
+/// neighbour data, so culling, AO, light (range 15 < 16-block apron), and
+/// biome blending are seam-free across tile borders.
+pub const RenderPhase = enum(u8) {
+    idle,
+    scanning,
+    tiles,
+    lowres,
+    finalizing,
+    done,
+    failed,
+};
+
+pub const RenderProgress = struct {
+    phase: std.atomic.Value(u8) = .init(@intFromEnum(RenderPhase.idle)),
+    completed: std.atomic.Value(usize) = .init(0),
+    total: std.atomic.Value(usize) = .init(0),
+    callback: ?*const fn (?*anyopaque, Snapshot) void = null,
+    callback_context: ?*anyopaque = null,
+
+    pub const Snapshot = struct {
+        phase: RenderPhase,
+        completed: usize,
+        total: usize,
+
+        pub fn fraction(self: Snapshot) f32 {
+            if (self.total == 0) return 0;
+            return @as(f32, @floatFromInt(self.completed)) / @as(f32, @floatFromInt(self.total));
+        }
+    };
+
+    pub fn snapshot(self: *const RenderProgress) Snapshot {
+        return .{
+            .phase = @enumFromInt(self.phase.load(.acquire)),
+            .completed = self.completed.load(.acquire),
+            .total = self.total.load(.acquire),
+        };
+    }
+
+    fn setPhase(self: *RenderProgress, phase: RenderPhase) void {
+        self.phase.store(@intFromEnum(phase), .release);
+        self.notify();
+    }
+
+    fn beginTiles(self: *RenderProgress, total: usize) void {
+        self.completed.store(0, .release);
+        self.total.store(total, .release);
+        self.setPhase(.tiles);
+    }
+
+    fn setCompleted(self: *RenderProgress, completed: usize) void {
+        self.completed.store(completed, .release);
+        self.notify();
+    }
+
+    fn notify(self: *RenderProgress) void {
+        if (self.callback) |callback| callback(self.callback_context, self.snapshot());
+    }
+};
+
+pub const RenderOptions = struct {
+    save_dir: []const u8,
+    out_dir: []const u8,
+    full_caves: bool = false,
+    /// Which dimensions to render, in `--dimension` syntax ("nether",
+    /// "overworld,the_end"). Null renders every dimension the save has.
+    dimensions: ?[]const u8 = null,
+};
+
+/// Typed, in-process render entry point shared by the desktop app and future
+/// embedders. The CLI remains an argument adapter around the same implementation.
+pub fn renderWorld(
+    init: std.process.Init,
+    a: std.mem.Allocator,
+    options: RenderOptions,
+    progress: *RenderProgress,
+) !void {
+    var args: [7][]const u8 = undefined;
+    var len: usize = 0;
+    args[len] = options.save_dir;
+    len += 1;
+    args[len] = "--out";
+    len += 1;
+    args[len] = options.out_dir;
+    len += 1;
+    if (options.full_caves) {
+        args[len] = "--caves";
+        len += 1;
+        args[len] = "full";
+        len += 1;
+    }
+    if (options.dimensions) |dims| {
+        args[len] = "--dimension";
+        len += 1;
+        args[len] = dims;
+        len += 1;
+    }
+    progress.setPhase(.scanning);
+    renderWorldArgs(init, a, args[0..len], progress) catch |err| {
+        progress.setPhase(.failed);
+        return err;
+    };
+    progress.setPhase(.done);
+}
+
+pub fn runRender(init: std.process.Init, a: std.mem.Allocator, args: []const []const u8) !void {
+    return renderWorldArgs(init, a, args, null);
+}
+
+/// Everything `render` parsed from the command line, minus the world itself —
+/// the same knobs apply to every dimension of the save.
+const RenderSettings = struct {
+    out_dir: []const u8,
+    tile_chunks: i32,
+    radius: i32,
+    gz_level: i32,
+    quality: mesh.LightQuality,
+    blend_biomes: bool,
+    /// `--caves`, for the dimensions whose visibility is decided by sky light.
+    /// Null = not given, so each dimension uses its own default.
+    caves: ?CaveSetting,
+    ceiling: ?CeilingOverride,
+    /// Whether the run targets one named dimension. A `--ceiling <y>` given
+    /// alongside a whole-save render must not behead the dimensions that have
+    /// no roof; named on its own, it is an instruction about that dimension.
+    single_dimension: bool = false,
+    requested_threads: ?usize,
+    memory_budget: usize,
+    /// The save being rendered, for the artifacts that read it directly rather
+    /// than through the region catalog (the player snapshot).
+    save_dir: []const u8 = "",
+    /// Whether to write `players.json` beside each dimension's manifest.
+    players: players.Mode = .save,
+};
+
+/// The roof cut for one dimension: its own by default, moved or removed by
+/// `--ceiling`. A numeric cut only reaches dimensions that have a lid of their
+/// own (the nether) unless the render was narrowed to a single dimension —
+/// otherwise `vantage render <save> --ceiling 104` would silently delete every
+/// overworld build above y=104 on its way to trimming the nether's roof.
+fn ceilingFor(dim: dimension.Profile, override: ?CeilingOverride, single_dimension: bool) ?i32 {
+    const o = override orelse return dim.ceiling_cut;
+    return switch (o) {
+        .keep => null,
+        .at => |y| if (dim.ceiling_cut != null or single_dimension) y else dim.ceiling_cut,
+    };
+}
+
+/// What one finished dimension contributes to the world index.
+const DimSummary = struct {
+    profile: dimension.Profile,
+    tiles: usize,
+    bytes: u64,
+    spawn: ?[3]i32,
+};
+
+fn renderWorldArgs(
+    init: std.process.Init,
+    a: std.mem.Allocator,
+    args: []const []const u8,
+    observer: ?*RenderProgress,
+) !void {
+    if (args.len < 1) return usage();
+    const save = args[0];
+    var assets_opt: ?[]const u8 = null;
+    var settings: RenderSettings = .{
+        .out_dir = "web/public",
+        .tile_chunks = 8, // tile span in chunks (128×128 blocks)
+        .radius = 0, // optional cap: only tiles within ±radius chunks of spawn/centre (0 = whole world)
+        // Level 7 is the measured Pareto point for quantized tiles: much less CPU
+        // than 9 for only a small payload increase. Users can still choose 1..12.
+        .gz_level = 7,
+        .quality = try parseLightQuality(args),
+        .blend_biomes = try parseBiomeBlend(args),
+        .caves = try parseCaveY(args),
+        .ceiling = try parseCeiling(args),
+        .requested_threads = try parseThreads(args),
+        .memory_budget = bakeMemoryBudget(try parseMemoryMiB(args)),
+        .save_dir = save,
+        // A batch render has no live source to poll, so the only players it can
+        // describe are the ones the save persisted. `--players off` skips it.
+        .players = playersMode(null, try parsePlayersFlag(args), false),
+    };
+    const dimension_spec = parseDimensionArg(args);
+    var argi: usize = 1;
+    while (argi < args.len) : (argi += 1) {
+        const arg = args[argi];
+        if (std.mem.eql(u8, arg, "--assets")) {
+            assets_opt = try flagValue(args, &argi);
+        } else if (std.mem.eql(u8, arg, "--out")) {
+            settings.out_dir = try flagValue(args, &argi);
+        } else if (std.mem.eql(u8, arg, "--tile-chunks")) {
+            const v = try flagValue(args, &argi);
+            const n = std.fmt.parseInt(i32, v, 10) catch return badValue("--tile-chunks", v, "1..32");
+            settings.tile_chunks = std.math.clamp(n, 1, 32);
+        } else if (std.mem.eql(u8, arg, "--radius")) {
+            const v = try flagValue(args, &argi);
+            settings.radius = std.fmt.parseInt(i32, v, 10) catch return badValue("--radius", v, "<chunks>");
+        } else if (std.mem.eql(u8, arg, "--gz")) {
+            const v = try flagValue(args, &argi);
+            const n = std.fmt.parseInt(i32, v, 10) catch return badValue("--gz", v, "1..12");
+            settings.gz_level = std.math.clamp(n, 1, 12);
+        } else if (std.mem.eql(u8, arg, "--light") or std.mem.eql(u8, arg, "--biome-blend") or
+            std.mem.eql(u8, arg, "--caves") or std.mem.eql(u8, arg, "--threads") or
+            std.mem.eql(u8, arg, "--memory") or std.mem.eql(u8, arg, "--ceiling") or
+            std.mem.eql(u8, arg, "--players") or
+            std.mem.eql(u8, arg, "--dimension") or std.mem.eql(u8, arg, "--dimensions"))
+        {
+            // Parsed by their dedicated scanners above; skip the value here.
+            argi += 1;
+        } else if (std.mem.startsWith(u8, arg, "-")) {
+            std.debug.print("unknown flag for render: {s} (see `vantage --help`)\n", .{arg});
+            return error.InvalidArgument;
+        }
+    }
+
+    const dims = try resolveDimensions(init, a, save, dimension_spec);
+    // One dimension asked for by name takes `--ceiling` literally; a whole-save
+    // render only applies it where there is a roof to cut.
+    settings.single_dimension = dimension_spec != null and dims.len == 1;
+    const assets = try resolveAssets(init, a, assets_opt);
+    const overworld_spawn = world.readSpawn(a, init.io, save);
+    std.debug.print("assets:  {s}\n", .{assets});
+
+    // Index every selected dimension first: the region tables are small, and
+    // knowing the whole tile count up front lets one progress bar (and the
+    // desktop app's) span the entire render instead of restarting per world.
+    var loads: std.ArrayList(WorldLoad) = .empty;
+    var tile_sets: std.ArrayList([]u64) = .empty;
+    var total_tiles: usize = 0;
+    for (dims) |found| {
+        const wl = try loadDimension(a, init.io, found, assets, overworld_spawn);
+        if (wl.bounds.count == 0) {
+            std.debug.print("{s}: no populated chunks, skipped\n", .{found.profile.id});
+            continue;
+        }
+        // The tiles that contain at least one populated chunk, sorted
+        // spawn-outward. Sparse worlds (exploration trails across hundreds of
+        // regions) stay proportional to what exists, not to the bounding box.
+        const keys = try enumerateTilesSpawnOutward(a, wl.populated, settings.radius, wl.centre_cx, wl.centre_cz, settings.tile_chunks);
+        try loads.append(a, wl);
+        try tile_sets.append(a, keys);
+        total_tiles += keys.len;
+    }
+    if (loads.items.len == 0) {
+        std.debug.print("no populated chunks found.\n", .{});
+        return;
+    }
+    if (observer) |p| p.beginTiles(total_tiles);
+
+    // One progress root for the whole render: std.Progress allows a single
+    // root per process, and a save's dimensions bake one after another.
+    const root = std.Progress.start(init.io, .{ .root_name = "vantage render" });
+    defer root.end();
+
+    var summaries: std.ArrayList(DimSummary) = .empty;
+    var done_before: usize = 0;
+    for (loads.items, tile_sets.items) |wl, keys| {
+        if (loads.items.len > 1) std.debug.print("\n── {s} ──\n", .{wl.dim.label});
+        const summary = try renderDimension(init, a, wl, keys, settings, root, observer, done_before);
+        try summaries.append(a, summary);
+        done_before += keys.len;
+    }
+
+    // The world index ties the dimensions together for the viewer's switcher.
+    // Written even for a single dimension, so adding one later doesn't change
+    // how a deployed viewer finds them.
+    const index = try buildWorldIndex(a, summaries.items);
+    try atomicWrite(init.io, a, settings.out_dir, "world.json", index);
+    if (summaries.items.len > 1) {
+        std.debug.print("\nworld:   {d} dimensions in {s}/world.json\n", .{ summaries.items.len, settings.out_dir });
+        for (summaries.items) |s| {
+            const rel = if (s.profile.slug.len == 0) "manifest.json" else s.profile.slug;
+            std.debug.print("  {s: <12} {d} tiles · {d:.1} MB → {s}/{s}\n", .{
+                s.profile.label,
+                s.tiles,
+                @as(f64, @floatFromInt(s.bytes)) / (1024.0 * 1024.0),
+                settings.out_dir,
+                rel,
+            });
+        }
+    }
+}
+
+/// Render one dimension into its own output directory: tiles, LOD pyramid,
+/// texture atlas and manifest. `done_before` offsets this dimension's tile
+/// progress into the whole-render count the observer reports.
+fn renderDimension(
+    init: std.process.Init,
+    a: std.mem.Allocator,
+    wl: WorldLoad,
+    tile_keys: []const u64,
+    settings: RenderSettings,
+    root: std.Progress.Node,
+    observer: ?*RenderProgress,
+    done_before: usize,
+) !DimSummary {
+    const loaded = wl.loaded;
+    const bounds = wl.bounds;
+    const spawn = wl.spawn;
+    const assets = wl.assets;
+    const tile_chunks = settings.tile_chunks;
+    const gz_level = settings.gz_level;
+    // A dimension with a ceiling renders below its roof cut; `--ceiling`
+    // overrides both the cut and (with `keep`) the whole idea.
+    var dim = wl.dim;
+    dim.ceiling_cut = ceilingFor(dim, settings.ceiling, settings.single_dimension);
+    const cave_y = caveHorizonFor(dim, settings.caves);
+    const out_dir = try dimension.outputDir(a, settings.out_dir, dim);
+
+    std.debug.print("world:   {s}\nregions: {d} files · {d} populated chunks · extent {d}×{d} chunks · {d} tiles of {d}×{d} chunks\n", .{
+        wl.region_dir,  loaded.len,    bounds.count, bounds.spanX(),
+        bounds.spanZ(), tile_keys.len, tile_chunks,  tile_chunks,
+    });
+
+    // ---- parallel tile rendering --------------------------------------------
+    // Workers pull tile indices from an atomic counter; each renders into its
+    // own slot of `results`, so the manifest keeps its deterministic (z,x)
+    // order no matter how tiles interleave. Peak memory is one tile's working
+    // set per thread (each worker keeps a reusable arena).
+    const cpu_count = std.Thread.getCpuCount() catch 4;
+    const worker_bytes = estimatedTileWorkingSet(tile_chunks);
+    const thread_count = bakeWorkerCount(cpu_count, tile_keys.len, settings.requested_threads, settings.memory_budget, worker_bytes);
+    std.debug.print("bakes:   {d} concurrent · {d} MiB budget · ~{d} MiB/worker\n", .{
+        thread_count,
+        settings.memory_budget / MiB,
+        worker_bytes / MiB,
+    });
+
+    const tiles_dir = try std.fmt.allocPrint(a, "{s}/tiles", .{out_dir});
+    try std.Io.Dir.cwd().createDirPath(init.io, tiles_dir);
+
+    // Lowres source maps are external-memory checkpoints. Keeping one ~80 KiB
+    // map per tile in the run arena made a 24k-tile world retain ~1.9 GiB before
+    // its pyramid even began. Workers now spill them here and the level builder
+    // reads only one parent group/neighbour apron at a time.
+    const lod_cache_dir = try std.fmt.allocPrint(a, "{s}/.vantage-lod", .{out_dir});
+    std.Io.Dir.cwd().deleteTree(init.io, lod_cache_dir) catch {};
+    try std.Io.Dir.cwd().createDirPath(init.io, lod_cache_dir);
+    defer std.Io.Dir.cwd().deleteTree(init.io, lod_cache_dir) catch {};
+
+    // Long-lived shared bake state (resolver + memo, atlas, biome
+    // registry/colormaps/lang, world biome table). When tiles already run in
+    // parallel each tile meshes single-threaded; a one-worker render lets each
+    // tile use every core.
+    const sh = try setupShared(init.io, a, assets, loaded, .{
+        .dim = dim,
+        .tile_chunks = tile_chunks,
+        .out_dir = out_dir,
+        .quality = settings.quality,
+        .blend_biomes = settings.blend_biomes,
+        .cave_y = cave_y,
+        .gz_level = gz_level,
+        .mesh_threads = if (thread_count > 1) 1 else 0,
+        .lod_cache_dir = lod_cache_dir,
+    });
+
+    var manifest_tiles: std.ArrayList(TileEntry) = .empty;
+    const tile_blocks: i64 = @as(i64, tile_chunks) * 16;
+
+    const tiles_node = root.start("rendering tiles", tile_keys.len);
+
+    const t0 = std.Io.Timestamp.now(init.io, .awake);
+
+    const results = try a.alloc(TileResult, tile_keys.len);
+    for (results) |*r| r.* = .{};
+    var next_tile = std.atomic.Value(usize).init(0);
+    var done_tiles = std.atomic.Value(usize).init(0);
+
+    // std.Progress paints its live bar only on a TTY. When stderr is piped —
+    // CI, or a supervisor like beacon tailing the process — emit plain
+    // `rendering tiles [done/total]` lines instead (throttled to ~1% steps)
+    // so the wrapper can surface real progress.
+    const plain_progress = !(std.Io.File.stderr().isTty(init.io) catch false);
+
+    var live: Live = .{};
+
+    var ctx: RenderCtx = .{
+        .shared = sh,
+        .tile_keys = tile_keys,
+        .results = results,
+        .next = &next_tile,
+        .done = &done_tiles,
+        .live = &live,
+        .plain_progress = plain_progress,
+        .progress = tiles_node,
+        .observer = observer,
+        .done_before = done_before,
+    };
+
+    // Progressive render: a background thread republishes manifest.json (and the
+    // atlas, when it grows) as tiles land, so `vantage serve` shows the world
+    // streaming in live instead of only after the whole bake finishes.
+    var flush_ctx: FlushCtx = .{
+        .io = init.io,
+        .out_dir = out_dir,
+        .dim = dim,
+        .live = &live,
+        .builder = &sh.builder,
+        .world_mutex = &sh.world_mutex,
+        .world_display = &sh.world_display,
+        .done = &done_tiles,
+        .total = tile_keys.len,
+        .spawn = spawn,
+        .tile_chunks = tile_chunks,
+        .cave_y = cave_y,
+    };
+    const flush_thread: ?std.Thread = std.Thread.spawn(.{}, flushWorker, .{&flush_ctx}) catch null;
+
+    {
+        var group: std.Io.Group = .init;
+        for (0..thread_count - 1) |_| {
+            // If a helper can't get a thread, the remaining workers cover it.
+            group.concurrent(init.io, tileWorker, .{&ctx}) catch break;
+        }
+        tileWorker(&ctx); // the calling thread is worker 0
+        group.await(init.io) catch |err| switch (err) {
+            error.Canceled => unreachable, // nothing cancels the render
+        };
+    }
+    // Stop the progressive flusher before the final manifest write below takes over.
+    if (flush_thread) |t| {
+        flush_ctx.stop.store(true, .release);
+        t.join();
+    }
+    tiles_node.end();
+    if (observer) |p| p.setPhase(.lowres);
+
+    // Merge per-tile results in key order (deterministic manifest).
+    var stats: grid.Stats = .{};
+    var total_solid_verts: u64 = 0;
+    var total_fluid_verts: u64 = 0;
+    var max_section_verts: u64 = 0;
+    var world_y_min: i32 = std.math.maxInt(i32);
+    var world_y_max: i32 = std.math.minInt(i32);
+    var total_tris: u64 = 0;
+    var total_bytes: u64 = 0;
+    var total_raw_bytes: u64 = 0;
+    var read_ms: i64 = 0;
+    var light_ms: i64 = 0;
+    var mesh_ms: i64 = 0;
+    var write_ms: i64 = 0;
+    var tiles_failed: usize = 0;
+    var first_tile_err: ?anyerror = null;
+    for (results, tile_keys) |*r, key| {
+        if (r.err) |e| {
+            // One bad tile (a corrupt region, a decode blow-up) must not
+            // take down the whole map — render everything else and say so.
+            const tx: i32 = @bitCast(@as(u32, @truncate(key >> 32)));
+            const tz: i32 = @bitCast(@as(u32, @truncate(key)));
+            std.debug.print("tile ({d},{d}) failed: {s}\n", .{ tx, tz, @errorName(e) });
+            tiles_failed += 1;
+            if (first_tile_err == null) first_tile_err = e;
+            continue;
+        }
+        stats.chunks_loaded += r.stats.chunks_loaded;
+        stats.chunks_missing += r.stats.chunks_missing;
+        stats.chunks_premodern += r.stats.chunks_premodern;
+        stats.chunks_unreadable += r.stats.chunks_unreadable;
+        read_ms += r.read_ms;
+        light_ms += r.light_ms;
+        mesh_ms += r.mesh_ms;
+        write_ms += r.write_ms;
+        if (!r.written) continue;
+        try manifest_tiles.append(a, r.entry);
+        total_solid_verts += r.solid_verts;
+        total_fluid_verts += r.fluid_verts;
+        max_section_verts = @max(max_section_verts, @max(r.solid_verts, r.fluid_verts));
+        world_y_min = @min(world_y_min, r.y_min);
+        world_y_max = @max(world_y_max, r.y_max);
+        total_tris += r.tris;
+        total_bytes += r.entry.bytes;
+        total_raw_bytes += r.raw_bytes;
+    }
+
+    // Every tile failing means something systemic (not one corrupt spot) —
+    // surface the first error instead of shipping an empty manifest that
+    // would wipe the previous render.
+    if (tiles_failed > 0 and tiles_failed == tile_keys.len) return first_tile_err.?;
+    if (tiles_failed > 0) std.debug.print(
+        "  note: {d} tile(s) failed and were skipped — the map has gaps there (details above)\n",
+        .{tiles_failed},
+    );
+
+    // A world saved before 1.18 stores chunks in the legacy `Level` layout and
+    // decodes to nothing — explain that instead of writing an empty map.
+    if (stats.chunks_loaded == 0 and stats.chunks_premodern > 0) {
+        std.debug.print(
+            \\this world's chunks use the pre-1.18 format, which vantage can't read.
+            \\Open and save it in Minecraft 1.18+ (which upgrades the chunks), then re-run.
+            \\
+        , .{});
+        return error.WorldTooOld;
+    }
+    if (stats.chunks_premodern > 0) std.debug.print(
+        "  note: {d} chunk(s) still in the pre-1.18 format were skipped\n",
+        .{stats.chunks_premodern},
+    );
+    if (stats.chunks_unreadable > 0) std.debug.print(
+        "  note: {d} chunk(s) skipped: lz4-compressed or external .mcc chunks are not supported yet\n",
+        .{stats.chunks_unreadable},
+    );
+
+    // ---- lowres LOD pyramid -------------------------------------------------
+    // Downsample the per-tile color maps 2× per level until the world fits in
+    // one tile. Every level ≥1 ships as gzipped VLR1 tiles; the viewer keeps
+    // coarse levels resident far beyond the hires ring, so zooming out shows
+    // the whole world instead of a fogged edge.
+    const lod_node = root.start("lowres pyramid", 0);
+    const pyramid = try buildLowresPyramid(a, init.io, out_dir, lod_cache_dir, manifest_tiles.items, tile_blocks, false);
+    const lowres_levels = pyramid.levels;
+    const lowres_count = pyramid.count;
+    const lowres_bytes = pyramid.bytes;
+    lod_node.end();
+
+    if (observer) |p| p.setPhase(.finalizing);
+    const tex_node = root.start("writing textures + manifest", 0);
+    const arr = try sh.builder.finish();
+    // Atomic (temp + rename) like the progressive flusher: a browser still
+    // polling as the render finishes never reads a half-rewritten atlas/manifest.
+    try writeAtlas(init.io, a, out_dir, arr);
+
+    const manifest = try buildManifest(a, .{
+        .dim = dim,
+        .tile_chunks = tile_chunks,
+        .spawn = spawn,
+        .biomes = sh.world_display.items,
+        .tiles = manifest_tiles.items,
+        .lowres = lowres_levels,
+        .max_section_verts = max_section_verts,
+        .caves = cave_y == null,
+        .y_range = if (world_y_min < world_y_max) .{ world_y_min, world_y_max } else null,
+        .texture_layers = arr.layer_count,
+    });
+    try atomicWrite(init.io, a, out_dir, "manifest.json", manifest);
+    // A batch render is a point in time, and so is its player list: the
+    // positions the save last persisted, each marked stale. `vantage serve`
+    // hands the file straight to the viewer, so a plain render already shows
+    // who was where — and a host that later drops a live players.json into the
+    // same directory simply replaces it.
+    writePlayerSnapshot(init.io, a, out_dir, settings, dim);
+    // Re-rendering onto an existing output dir can leave tiles from a previous
+    // bake behind; now that the manifest is written, sweep anything tile-shaped
+    // it doesn't reference.
+    const stale_removed = sweepStaleTiles(a, init.io, out_dir, manifest_tiles.items, lowres_levels);
+    tex_node.end();
+    const t_end = std.Io.Timestamp.now(init.io, .awake);
+
+    std.debug.print(
+        \\
+        \\chunks:  {d} populated ({d} decodes incl. apron overlap)
+        \\blocks:  {d} block states, {d} biomes
+        \\tiles:   {d} written ({d:.1} MB gzipped, {d:.1} MB raw) + texture array ({d} layers)
+        \\lowres:  {d} LOD tiles across {d} levels ({d:.1} MB)
+        \\mesh:    {d} vertices, {d} triangles ({d} water verts)
+        \\out:     {s}/manifest.json
+        \\
+        \\→ view it:  vantage serve {s} --open
+        \\
+    , .{
+        bounds.count,
+        stats.chunks_loaded,
+        sh.memo.count(),
+        sh.world_raw.items.len - 1,
+        manifest_tiles.items.len,
+        @as(f64, @floatFromInt(total_bytes)) / (1024.0 * 1024.0),
+        @as(f64, @floatFromInt(total_raw_bytes)) / (1024.0 * 1024.0),
+        arr.layer_count,
+        lowres_count,
+        lowres_levels.len,
+        @as(f64, @floatFromInt(lowres_bytes)) / (1024.0 * 1024.0),
+        total_solid_verts + total_fluid_verts,
+        total_tris,
+        total_fluid_verts,
+        out_dir,
+        settings.out_dir, // serve the render root: it carries every dimension
+    });
+    if (stale_removed > 0) std.debug.print("cleanup: removed {d} stale tile file(s) from a previous render\n", .{stale_removed});
+    std.debug.print("timings: wall {d}ms on {d} thread(s) · cpu: read {d}ms · light {d}ms · geometry {d}ms · write {d}ms\n", .{
+        t0.durationTo(t_end).toMilliseconds(), thread_count, read_ms, light_ms, mesh_ms, write_ms,
+    });
+    return .{
+        .profile = dim,
+        .tiles = manifest_tiles.items.len,
+        .bytes = total_bytes + lowres_bytes,
+        .spawn = spawn,
+    };
+}
+
+/// Mutex-guarded view of a non-thread-safe allocator (the run arena), for
+/// allocations that outlive one tile while tiles render on worker threads.
+/// Everything still lives — and is freed — with the arena.
+const LockedAllocator = struct {
+    child: std.mem.Allocator,
+    io: std.Io,
+    mutex: std.Io.Mutex = .init,
+
+    fn allocator(self: *LockedAllocator) std.mem.Allocator {
+        return .{ .ptr = self, .vtable = &vtable };
+    }
+
+    const vtable: std.mem.Allocator.VTable = .{
+        .alloc = alloc,
+        .resize = resize,
+        .remap = remap,
+        .free = free,
+    };
+
+    fn alloc(ctx: *anyopaque, len: usize, alignment: std.mem.Alignment, ret_addr: usize) ?[*]u8 {
+        const self: *LockedAllocator = @ptrCast(@alignCast(ctx));
+        self.mutex.lockUncancelable(self.io);
+        defer self.mutex.unlock(self.io);
+        return self.child.vtable.alloc(self.child.ptr, len, alignment, ret_addr);
+    }
+    fn resize(ctx: *anyopaque, memory: []u8, alignment: std.mem.Alignment, new_len: usize, ret_addr: usize) bool {
+        const self: *LockedAllocator = @ptrCast(@alignCast(ctx));
+        self.mutex.lockUncancelable(self.io);
+        defer self.mutex.unlock(self.io);
+        return self.child.vtable.resize(self.child.ptr, memory, alignment, new_len, ret_addr);
+    }
+    fn remap(ctx: *anyopaque, memory: []u8, alignment: std.mem.Alignment, new_len: usize, ret_addr: usize) ?[*]u8 {
+        const self: *LockedAllocator = @ptrCast(@alignCast(ctx));
+        self.mutex.lockUncancelable(self.io);
+        defer self.mutex.unlock(self.io);
+        return self.child.vtable.remap(self.child.ptr, memory, alignment, new_len, ret_addr);
+    }
+    fn free(ctx: *anyopaque, memory: []u8, alignment: std.mem.Alignment, ret_addr: usize) void {
+        const self: *LockedAllocator = @ptrCast(@alignCast(ctx));
+        self.mutex.lockUncancelable(self.io);
+        defer self.mutex.unlock(self.io);
+        self.child.vtable.free(self.child.ptr, memory, alignment, ret_addr);
+    }
+};
+
+/// Shared, mutex-guarded record of finished tiles — appended by each worker as
+/// it writes a `.vtile`, drained by the progressive flusher into a live manifest
+/// while the rest are still meshing. Tiles, biome ids and atlas layers are all
+/// append-only, so a snapshot taken mid-render is always internally consistent:
+/// every listed tile only references legend/atlas entries that already exist.
+const Live = struct {
+    mutex: std.Io.Mutex = .init,
+    completed: std.ArrayList(TileEntry) = .empty,
+    max_section_verts: u64 = 0,
+    y_min: i32 = std.math.maxInt(i32),
+    y_max: i32 = std.math.minInt(i32),
+};
+
+/// Inputs to the background flusher thread that publishes progressive manifests.
+const FlushCtx = struct {
+    io: std.Io,
+    out_dir: []const u8,
+    dim: dimension.Profile = dimension.overworld,
+    live: *Live,
+    builder: *texture.Builder,
+    world_mutex: *std.Io.Mutex,
+    world_display: *std.ArrayList([]const u8),
+    done: *std.atomic.Value(usize),
+    total: usize,
+    spawn: ?[3]i32,
+    tile_chunks: i32,
+    cave_y: ?i32,
+    /// Atlas layers last written to disk — the atlas is re-serialized only when
+    /// it grows past this (layers are append-only, so it's always a superset).
+    last_layers: u32 = 0,
+    /// Tiles in the last published manifest — a flush with no new tiles and no
+    /// atlas growth is skipped, so the final stretch of a big render doesn't
+    /// re-serialize an unchanged multi-MB manifest every tick.
+    last_tiles: usize = 0,
+    stop: std.atomic.Value(bool) = .init(false),
+};
+
+/// Poll the shared `Live` state every ~400 ms and publish a manifest of the
+/// tiles finished so far, re-writing the texture atlas whenever it has grown, so
+/// a browser pointed at `vantage serve` watches the world stream in tile by tile.
+fn flushWorker(fc: *FlushCtx) void {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    while (!fc.stop.load(.acquire)) {
+        std.Io.sleep(fc.io, std.Io.Duration.fromMilliseconds(400), .awake) catch {};
+        _ = arena.reset(.retain_capacity);
+        flushOnce(fc, arena.allocator()) catch {}; // a dropped flush retries next tick
+    }
+}
+
+/// Publish one progressive manifest (+ atlas, if it grew) — the mid-render
+/// snapshot the browser polls. Any allocation failure just drops this tick; the
+/// next one retries. The final, authoritative manifest is written by the caller
+/// once the workers join.
+fn flushOnce(fc: *FlushCtx, a: std.mem.Allocator) !void {
+    fc.live.mutex.lockUncancelable(fc.io);
+    const tiles = a.dupe(TileEntry, fc.live.completed.items) catch |e| {
+        fc.live.mutex.unlock(fc.io); // never propagate an error while holding the lock
+        return e;
+    };
+    const msv = fc.live.max_section_verts;
+    const ymin = fc.live.y_min;
+    const ymax = fc.live.y_max;
+    fc.live.mutex.unlock(fc.io);
+
+    // Skip when there's nothing new to show: no tiles yet, or neither the tile
+    // list nor the atlas has grown since the last publish.
+    const atlas_grew = fc.builder.layerCount() > fc.last_layers;
+    if (tiles.len == 0 or (tiles.len == fc.last_tiles and !atlas_grew)) return;
+
+    // Atlas: re-serialize only when it grew. Written before the manifest that
+    // references the new tiles, so the atlas is never behind the tile list.
+    if (atlas_grew) {
+        fc.builder.mutex.lockUncancelable(fc.io);
+        const arr = fc.builder.finishAlloc(a) catch |e| {
+            fc.builder.mutex.unlock(fc.io);
+            return e;
+        };
+        fc.builder.mutex.unlock(fc.io);
+        try writeAtlas(fc.io, a, fc.out_dir, arr);
+        fc.last_layers = arr.layer_count;
+    }
+
+    fc.world_mutex.lockUncancelable(fc.io);
+    const biomes = a.dupe([]const u8, fc.world_display.items) catch |e| {
+        fc.world_mutex.unlock(fc.io);
+        return e;
+    };
+    fc.world_mutex.unlock(fc.io);
+
+    const manifest = try buildManifest(a, .{
+        .dim = fc.dim,
+        .tile_chunks = fc.tile_chunks,
+        .spawn = fc.spawn,
+        .biomes = biomes,
+        .tiles = tiles,
+        .max_section_verts = msv,
+        .caves = fc.cave_y == null,
+        .y_range = if (ymin < ymax) .{ ymin, ymax } else null,
+        .rendering = true,
+        .progress = .{ fc.done.load(.monotonic), fc.total },
+        .texture_layers = fc.last_layers,
+    });
+    try atomicWrite(fc.io, a, fc.out_dir, "manifest.json", manifest);
+    fc.last_tiles = tiles.len;
+}
+
+/// Write `dir/name` by writing a temp file and renaming over it, so a browser
+/// polling the file never reads a half-written manifest or atlas.
+/// Write the last-known player positions beside a finished dimension's
+/// manifest. Best-effort throughout: a save whose player files can't be read is
+/// still a perfectly good map, and a render must not fail over a decoration.
+fn writePlayerSnapshot(
+    io: std.Io,
+    a: std.mem.Allocator,
+    out_dir: []const u8,
+    settings: RenderSettings,
+    dim: dimension.Profile,
+) void {
+    if (settings.players == .off or settings.save_dir.len == 0) return;
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const snap = players.readSaveSnapshot(arena.allocator(), io, settings.save_dir, dim.id) catch return;
+    const json = players.serialize(arena.allocator(), snap) catch return;
+    atomicWrite(io, a, out_dir, "players.json", json) catch return;
+    if (snap.players.len > 0) std.debug.print("players: {d} last known position(s) → {s}/players.json\n", .{
+        snap.players.len, out_dir,
+    });
+}
+
+fn atomicWrite(io: std.Io, a: std.mem.Allocator, dir: []const u8, name: []const u8, data: []const u8) !void {
+    const tmp = try std.fmt.allocPrint(a, "{s}/.{s}.tmp", .{ dir, name });
+    const final = try std.fmt.allocPrint(a, "{s}/{s}", .{ dir, name });
+    try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = tmp, .data = data });
+    try std.Io.Dir.cwd().rename(tmp, std.Io.Dir.cwd(), final, io);
+}
+
+/// Serialize + gzip the texture array and write it atomically to
+/// `dir/terrain.vtexarr` (the progressive flusher's superset flush and the final
+/// write share this).
+fn writeAtlas(io: std.Io, a: std.mem.Allocator, dir: []const u8, arr: texture.Array) !void {
+    const blob = try compress.gzipCompress(a, try texture.serialize(a, arr), 6);
+    try atomicWrite(io, a, dir, "terrain.vtexarr", blob);
+}
+
+/// Long-lived, thread-safe state shared by every tile bake — built once by
+/// `setupShared`, then used by BOTH the batch `render` command and the
+/// on-demand `live` server. It owns the caches whose addresses the bake path
+/// captures (resolver memo, texture atlas, biome registry, world biome table),
+/// so it lives on the heap and travels as a single `*Shared`: pointers into it
+/// stay valid for the process lifetime. Concurrent bakes are safe — every
+/// mutating cache takes its own lock (the atlas/registry/resolver) or the
+/// `world_mutex` (the world-level biome table), and `sa` is a locked view of
+/// the run arena.
+const Shared = struct {
+    io: std.Io,
+    /// The run arena (single-threaded); `sa` is its locked, thread-safe view.
+    base: std.mem.Allocator,
+    sa: std.mem.Allocator = undefined,
+    loaded: []const world.LoadedRegion,
+    /// The dimension being baked: its roof cut, how invisible geometry is
+    /// found, and the light defaults the lowres colour maps shade with.
+    dim: dimension.Profile,
+    tile_chunks: i32,
+    out_dir: []const u8,
+    persistent_cache: bool = false,
+    quality: mesh.LightQuality,
+    blend_biomes: bool,
+    cave_y: ?i32,
+    gz_level: i32,
+    /// Batch-only external-memory checkpoints for the lowres pyramid. Null for
+    /// live bakes, which do not build/retain color maps.
+    lod_cache_dir: ?[]const u8,
+    /// Thread budget for each tile's internal mesh pass: 1 when tiles already
+    /// run in parallel, 0 (= all cores) for a single-worker bake.
+    mesh_threads: usize,
+
+    locked: LockedAllocator = undefined,
+    resolver_lock: std.Io.Mutex = .init,
+    memo: std.StringHashMap([]model.ResolvedModel) = undefined,
+    resolver: model.Resolver = undefined,
+    builder: texture.Builder = undefined,
+    maps: biome.Colormaps = undefined,
+    reg: biome.Registry = undefined,
+    names: lang.Lang = undefined,
+    surf_colors: lowres.SurfaceColors = undefined,
+
+    /// The world-level biome table (guarded by `world_mutex`): resource names
+    /// and legend labels, id-indexed, kept globally consistent across tiles.
+    world_mutex: std.Io.Mutex = .init,
+    world_raw: std.ArrayList([]const u8) = .empty,
+    world_display: std.ArrayList([]const u8) = .empty,
+    world_biome_ids: std.StringHashMap(u16) = undefined,
+
+    /// How this dimension's hidden geometry is found (see `mesh.CaveMode`).
+    fn caveMode(self: *const Shared) mesh.CaveMode {
+        return switch (self.dim.visibility) {
+            .sky_light => .{ .sky_light = self.cave_y },
+            .open_volume => .open_volume,
+        };
+    }
+
+    /// The light defaults the viewer will apply, so lowres colour maps shade
+    /// like the hires terrain they sit under.
+    fn shading(self: *const Shared) lowres.Shading {
+        return .{ .ambient = self.dim.ambient, .daylight = self.dim.daylight };
+    }
+};
+
+/// Per-render knobs for `setupShared` (everything not derived from the world).
+const SharedConfig = struct {
+    dim: dimension.Profile = dimension.overworld,
+    tile_chunks: i32,
+    out_dir: []const u8,
+    quality: mesh.LightQuality,
+    blend_biomes: bool,
+    cave_y: ?i32,
+    gz_level: i32,
+    mesh_threads: usize,
+    lod_cache_dir: ?[]const u8 = null,
+};
+
+/// Build the long-lived bake context once: model resolver (+ memo), texture
+/// atlas, biome registry/colormaps/lang, and the world-level biome table. The
+/// struct is heap-allocated on `a` so every self-reference (`&sh.memo`,
+/// `&sh.builder`, …) stays valid after this returns.
+fn setupShared(io: std.Io, a: std.mem.Allocator, assets: []const u8, loaded: []const world.LoadedRegion, cfg: SharedConfig) !*Shared {
+    const sh = try a.create(Shared);
+    sh.* = .{
+        .io = io,
+        .base = a,
+        .loaded = loaded,
+        .dim = cfg.dim,
+        .tile_chunks = cfg.tile_chunks,
+        .out_dir = cfg.out_dir,
+        .quality = cfg.quality,
+        .blend_biomes = cfg.blend_biomes,
+        .cave_y = cfg.cave_y,
+        .gz_level = cfg.gz_level,
+        .mesh_threads = cfg.mesh_threads,
+        .lod_cache_dir = cfg.lod_cache_dir,
+    };
+    sh.locked = .{ .child = a, .io = io };
+    sh.sa = sh.locked.allocator();
+    sh.memo = std.StringHashMap([]model.ResolvedModel).init(sh.sa);
+    sh.resolver = .{ .arena = sh.sa, .io = io, .root = assets, .memo = &sh.memo, .lock = &sh.resolver_lock };
+    sh.builder = try texture.Builder.init(sh.sa, io, assets);
+    sh.maps = biome.Colormaps.load(a, io, assets);
+    sh.reg = biome.Registry.init(sh.sa, io, dataRootFromAssets(a, assets));
+    sh.names = lang.Lang.load(a, io, assets);
+    sh.world_biome_ids = std.StringHashMap(u16).init(sh.sa);
+    try sh.world_raw.append(sh.sa, ""); // id 0 = the "no-data" sentinel
+    try sh.world_display.append(sh.sa, "");
+    sh.surf_colors = lowres.SurfaceColors.init(sh.sa, sh.resolver, &sh.builder, sh.maps, &sh.reg);
+    return sh;
+}
+
+/// Everything the tile workers share for a batch render: the long-lived bake
+/// context plus this run's work queue, result slots, and progress plumbing.
+const RenderCtx = struct {
+    shared: *Shared,
+    tile_keys: []const u64,
+    results: []TileResult,
+    next: *std.atomic.Value(usize),
+    /// Count of finished tiles (any outcome) — drives the plain-text
+    /// progress lines. Distinct from `next`, which hands out work and runs
+    /// ahead of completion.
+    done: *std.atomic.Value(usize),
+    /// Finished-tile ledger for the progressive flusher; each worker appends its
+    /// entry here as it writes a `.vtile`.
+    live: *Live,
+    /// Emit `rendering tiles [done/total]` lines (stderr is not a TTY, so
+    /// std.Progress' live bar is invisible to whoever is reading us).
+    plain_progress: bool,
+    progress: std.Progress.Node,
+    observer: ?*RenderProgress,
+    /// Tiles finished by earlier dimensions of this render — the observer
+    /// counts one bar across the whole save, not one per dimension.
+    done_before: usize = 0,
+};
+
+/// One tile's outcome, written only by the worker that owns the slot.
+const TileResult = struct {
+    err: ?anyerror = null,
+    /// False for empty tiles (nothing meshed) — skipped in the manifest.
+    written: bool = false,
+    /// Whether this bake also wrote the tile's lowres colour map (`keep_cmap`),
+    /// which is what lets a live session fold the tile into its LOD pyramid.
+    cmap_written: bool = false,
+    entry: TileEntry = .{ .tx = 0, .tz = 0, .bytes = 0 },
+    /// World-Y extent of this tile's grid (min inclusive, max exclusive) —
+    /// aggregated into the manifest's `yRange` for the viewer's depth slider.
+    y_min: i32 = 0,
+    y_max: i32 = 0,
+    solid_verts: u64 = 0,
+    fluid_verts: u64 = 0,
+    tris: u64 = 0,
+    raw_bytes: u64 = 0,
+    stats: grid.Stats = .{},
+    read_ms: i64 = 0,
+    light_ms: i64 = 0,
+    mesh_ms: i64 = 0,
+    write_ms: i64 = 0,
+};
+
+/// Worker loop: pull the next tile index, render it, repeat. Each worker keeps
+/// one arena, reset (capacity retained) between tiles, so peak memory is one
+/// tile's working set per thread.
+fn tileWorker(ctx: *RenderCtx) void {
+    var tile_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer tile_arena.deinit();
+    while (true) {
+        const idx = ctx.next.fetchAdd(1, .monotonic);
+        if (idx >= ctx.tile_keys.len) return;
+        _ = tile_arena.reset(.retain_capacity);
+        renderOneTile(ctx, tile_arena.allocator(), idx) catch |e| {
+            ctx.results[idx].err = e;
+        };
+        // Publish a written tile to the progressive ledger (a small critical
+        // section — one append, once per tile) so the flusher can stream it out.
+        const r = &ctx.results[idx];
+        if (r.written) {
+            ctx.live.mutex.lockUncancelable(ctx.shared.io);
+            ctx.live.completed.append(ctx.shared.sa, r.entry) catch {};
+            ctx.live.max_section_verts = @max(ctx.live.max_section_verts, @max(r.solid_verts, r.fluid_verts));
+            ctx.live.y_min = @min(ctx.live.y_min, r.y_min);
+            ctx.live.y_max = @max(ctx.live.y_max, r.y_max);
+            ctx.live.mutex.unlock(ctx.shared.io);
+        }
+        ctx.progress.completeOne();
+        const done = ctx.done.fetchAdd(1, .monotonic) + 1;
+        if (ctx.observer) |p| p.setCompleted(ctx.done_before + done);
+        if (ctx.plain_progress) {
+            // ~1% steps (every tile on small worlds) keeps the line count
+            // bounded no matter how many tiles a world has.
+            const total = ctx.tile_keys.len;
+            const step = @max(total / 100, 1);
+            if (done % step == 0 or done == total)
+                std.debug.print("rendering tiles [{d}/{d}]\n", .{ done, total });
+        }
+    }
+}
+
+/// Render tile `idx` of a batch run into its result slot.
+fn renderOneTile(ctx: *RenderCtx, ta: std.mem.Allocator, idx: usize) !void {
+    const key = ctx.tile_keys[idx];
+    const tx: i32 = @bitCast(@as(u32, @truncate(key >> 32)));
+    const tz: i32 = @bitCast(@as(u32, @truncate(key)));
+    // The pyramid consumes every tile's colour map, so retain it (`cmap = true`).
+    try bakeTile(ctx.shared, ta, tx, tz, true, &ctx.results[idx]);
+}
+
+/// Bake tile `(tx,tz)`: assemble its chunk window (+1 apron), remap biome ids
+/// onto the world table, compute light, mesh, serialize, gzip, and write the
+/// `.vtile`. Fills `res` with the outcome (bytes, verts, y-extent, timings);
+/// `res.written` stays false for a tile that meshes to nothing (all air /
+/// cave-culled), which never lands a file. Shared caches are thread-safe, so
+/// this runs concurrently from the batch workers OR from live-server request
+/// threads. `keep_cmap` retains the lowres colour map (the batch pyramid needs
+/// it; the live server, which builds no pyramid, passes false so nothing
+/// accumulates across a long session).
+fn bakeTile(sh: *Shared, ta: std.mem.Allocator, tx: i32, tz: i32, keep_cmap: bool, res: *TileResult) !void {
+    return bakeTileFromRegions(sh, ta, sh.loaded, tx, tz, keep_cmap, res);
+}
+
+/// Snapshot-aware bake used by the long-running server. Batch rendering and
+/// local live sessions call `bakeTile`, which supplies their immutable catalog.
+fn bakeTileFromRegions(
+    sh: *Shared,
+    ta: std.mem.Allocator,
+    regions: []const world.LoadedRegion,
+    tx: i32,
+    tz: i32,
+    keep_cmap: bool,
+    res: *TileResult,
+) !void {
+    const io = sh.io;
+    const tile_chunks = sh.tile_chunks;
+    if (sh.persistent_cache) {
+        var scratch = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer scratch.deinit();
+        const meta = try std.fmt.allocPrint(scratch.allocator(), "{s}/tiles/t.{d}.{d}.cache", .{ sh.out_dir, tx, tz });
+        std.Io.Dir.cwd().deleteFile(io, meta) catch {};
+    }
+
+    // Window = the tile's chunks plus a 1-chunk apron on every side.
+    const cx0 = tx * tile_chunks - 1;
+    const cz0 = tz * tile_chunks - 1;
+    const cx1 = (tx + 1) * tile_chunks;
+    const cz1 = (tz + 1) * tile_chunks;
+
+    const t_r0 = std.Io.Timestamp.now(io, .awake);
+    var g = try world.assembleWindow(ta, io, regions, cx0, cz0, cx1, cz1, &res.stats, null);
+    res.read_ms = t_r0.durationTo(std.Io.Timestamp.now(io, .awake)).toMilliseconds();
+    // The nether's lid comes off before anything else touches the grid, so the
+    // roof is never lit, meshed, or colour-mapped — the cut saves work rather
+    // than costing it (see dimension.Profile.ceiling_cut).
+    if (sh.dim.ceiling_cut) |cut| grid.trimTop(&g, cut);
+    if (g.ids.len == 0) return;
+
+    // Remap this grid's interned biome ids onto the world-level table so every
+    // tile's vertex biome ids agree (and one legend serves them all). The
+    // snapshots taken under the lock are what this tile meshes/serializes
+    // against — another worker may grow (and reallocate) the live table, but
+    // every id this tile uses is below the snapshot's length.
+    const remap = try ta.alloc(u16, g.biome_names.len);
+    var raw_names: [][]const u8 = &.{};
+    var display_names: [][]const u8 = &.{};
+    {
+        sh.world_mutex.lockUncancelable(io);
+        defer sh.world_mutex.unlock(io);
+        if (remap.len > 0) remap[0] = 0;
+        for (g.biome_names[1..], 1..) |bn, gi| {
+            const gop = try sh.world_biome_ids.getOrPut(bn);
+            if (!gop.found_existing) {
+                const dup = try sh.sa.dupe(u8, bn); // bn lives in the tile arena
+                gop.key_ptr.* = dup;
+                const id: u16 = @intCast(sh.world_raw.items.len);
+                try sh.world_raw.append(sh.sa, dup);
+                try sh.world_display.append(sh.sa, sh.names.biomeName(sh.sa, dup));
+                gop.value_ptr.* = id;
+            }
+            remap[gi] = gop.value_ptr.*;
+        }
+        raw_names = try ta.dupe([]const u8, sh.world_raw.items);
+        display_names = try ta.dupe([]const u8, sh.world_display.items);
+    }
+    for (g.biome_ids) |*b| b.* = remap[b.*];
+    var g2 = g;
+    g2.biome_names = raw_names;
+
+    // The tile's interior (its own chunks, apron excluded) in grid coords.
+    const bx0 = @as(i64, tx) * tile_chunks * 16;
+    const bz0 = @as(i64, tz) * tile_chunks * 16;
+    const bx1 = bx0 + @as(i64, tile_chunks) * 16;
+    const bz1 = bz0 + @as(i64, tile_chunks) * 16;
+    const interior: grid.Interior = .{
+        .x0 = @intCast(std.math.clamp(bx0 - g2.min_x, 0, @as(i64, @intCast(g2.sx)))),
+        .z0 = @intCast(std.math.clamp(bz0 - g2.min_z, 0, @as(i64, @intCast(g2.sz)))),
+        .x1 = @intCast(std.math.clamp(bx1 - g2.min_x, 0, @as(i64, @intCast(g2.sx)))),
+        .z1 = @intCast(std.math.clamp(bz1 - g2.min_z, 0, @as(i64, @intCast(g2.sz)))),
+    };
+    if (interior.x0 >= interior.x1 or interior.z0 >= interior.z1) return;
+
+    const t_m0 = std.Io.Timestamp.now(io, .awake);
+    const built = try mesh.buildTextured(ta, g2, sh.resolver, &sh.builder, sh.maps, &sh.reg, sh.quality, sh.blend_biomes, interior, sh.caveMode(), sh.mesh_threads, null);
+    res.light_ms = built.light_ms;
+    res.mesh_ms = t_m0.durationTo(std.Io.Timestamp.now(io, .awake)).toMilliseconds() - built.light_ms;
+    if (built.solid.vertex_count == 0 and built.fluid.vertex_count == 0) return;
+
+    const surface = try grid.buildSurface(ta, g2, interior);
+    const geo = try tile.serializeWithLightmap(ta, built, surface, display_names);
+
+    // Spill the tile's lowres source map to the batch checkpoint directory.
+    // It stays in this tile arena only until the write completes; the pyramid
+    // later reads four children at a time, keeping host memory independent of
+    // world tile count.
+    if (keep_cmap) {
+        const tile_blocks: i64 = @as(i64, tile_chunks) * 16;
+        const cmap = try lowres.buildColorMap(ta, g2, interior, &sh.surf_colors, @intCast(bx0), @intCast(bz0), @intCast(tile_blocks), sh.shading());
+        try writeColorMapCache(io, ta, sh.lod_cache_dir.?, 0, tx, tz, cmap);
+        res.cmap_written = true;
+    }
+
+    // Tiles ship gzip-wrapped (~8× smaller): any static host can serve
+    // them and the viewer inflates via native DecompressionStream.
+    const t_w0 = std.Io.Timestamp.now(io, .awake);
+    const zipped = try compress.gzipCompress(ta, geo, sh.gz_level);
+    const tiles_dir = try std.fmt.allocPrint(ta, "{s}/tiles", .{sh.out_dir});
+    const tile_name = try std.fmt.allocPrint(ta, "t.{d}.{d}.vtile", .{ tx, tz });
+    try atomicWrite(io, ta, tiles_dir, tile_name, zipped);
+    res.write_ms = t_w0.durationTo(std.Io.Timestamp.now(io, .awake)).toMilliseconds();
+
+    res.entry = .{ .tx = tx, .tz = tz, .bytes = zipped.len };
+    res.y_min = g2.min_y;
+    res.y_max = g2.min_y + @as(i32, @intCast(g2.sy));
+    res.solid_verts = built.solid.vertex_count;
+    res.fluid_verts = built.fluid.vertex_count;
+    res.tris = built.solid.triangleCount() + built.fluid.triangleCount();
+    res.raw_bytes = geo.len;
+    res.written = true;
+}
+
+/// One rendered tile's manifest record.
+const TileEntry = struct {
+    tx: i32,
+    tz: i32,
+    bytes: usize,
+    /// Per-tile source revision for continuous server sessions. Zero omits the
+    /// field from static/local manifests.
+    revision: u64 = 0,
+};
+
+/// One lowres tile / one pyramid level, for the manifest's `lowres` section.
+/// `revision` fingerprints the serialized tile so a live viewer can tell a
+/// rebuilt overview tile from an unchanged one; a batch render's pyramid never
+/// changes, so it omits the field.
+const LowresTileEntry = struct { x: i32, z: i32, bytes: usize, revision: u64 = 0 };
+const LowresLevel = struct {
+    level: u5,
+    tile_blocks: i64,
+    span: u32,
+    tiles: []const LowresTileEntry,
+};
+
+const LowresPyramid = struct {
+    levels: []const LowresLevel,
+    count: usize,
+    bytes: u64,
+};
+
+fn colorMapCachePath(a: std.mem.Allocator, dir: []const u8, level: u5, x: i32, z: i32) ![]u8 {
+    return std.fmt.allocPrint(a, "{s}/c.{d}.{d}.{d}.vcm", .{ dir, level, x, z });
+}
+
+/// Written atomically: in a live session a bake can replace a tile's colour map
+/// while the LOD worker is reading it for a rebuild, and a half-written file
+/// parses as terrain rather than failing.
+fn writeColorMapCache(io: std.Io, a: std.mem.Allocator, dir: []const u8, level: u5, x: i32, z: i32, m: lowres.ColorMap) !void {
+    const name = try std.fmt.allocPrint(a, "c.{d}.{d}.{d}.vcm", .{ level, x, z });
+    const data = try lowres.serializeCache(a, m);
+    try atomicWrite(io, a, dir, name, data);
+}
+
+fn readColorMapCache(io: std.Io, a: std.mem.Allocator, dir: []const u8, level: u5, key: u64) !lowres.ColorMap {
+    const x: i32 = @bitCast(@as(u32, @truncate(key >> 32)));
+    const z: i32 = @bitCast(@as(u32, @truncate(key)));
+    const path = try colorMapCachePath(a, dir, level, x, z);
+    const data = try std.Io.Dir.cwd().readFileAlloc(io, path, a, .unlimited);
+    return lowres.parseCache(a, data);
+}
+
+fn deleteColorMapLevel(io: std.Io, dir: []const u8, level: u5, keys: []const u64) void {
+    var scratch = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer scratch.deinit();
+    for (keys) |key| {
+        _ = scratch.reset(.retain_capacity);
+        const x: i32 = @bitCast(@as(u32, @truncate(key >> 32)));
+        const z: i32 = @bitCast(@as(u32, @truncate(key)));
+        const path = colorMapCachePath(scratch.allocator(), dir, level, x, z) catch continue;
+        std.Io.Dir.cwd().deleteFile(io, path) catch {};
+    }
+}
+
+/// External-memory quadtree construction. Only a four-child parent group (or a
+/// tile plus its three apron neighbours) is resident at once. World size now
+/// grows temporary disk by ~80 KiB/tile, while process memory remains flat.
+///
+/// `retain_source` keeps the level-0 colour maps on disk instead of consuming
+/// them. A batch render builds its pyramid once and wants the space back; a
+/// live session rebuilds as more tiles bake, so its sources have to survive.
+fn buildLowresPyramid(
+    a: std.mem.Allocator,
+    io: std.Io,
+    out_dir: []const u8,
+    cache_dir: []const u8,
+    hires: []const TileEntry,
+    tile_blocks: i64,
+    retain_source: bool,
+) !LowresPyramid {
+    var initial: std.ArrayList(u64) = .empty;
+    for (hires) |t| try initial.append(a, world.packChunk(t.tx, t.tz));
+    var current = try initial.toOwnedSlice(a);
+    var current_level: u5 = 0;
+    var levels: std.ArrayList(LowresLevel) = .empty;
+    var total_count: usize = 0;
+    var total_bytes: u64 = 0;
+
+    // An origin-anchored quadtree can end as the 2×2 around (0,0); ≤4 tiles is
+    // therefore the practical root rather than waiting for an impossible one.
+    var level: u5 = 1;
+    while (current.len > 4 and level <= 10) : (level += 1) {
+        const lvl_blocks = tile_blocks << level;
+        var parents = std.AutoHashMap(u64, [2][2]?u64).init(a);
+        for (current) |key| {
+            const x: i32 = @bitCast(@as(u32, @truncate(key >> 32)));
+            const z: i32 = @bitCast(@as(u32, @truncate(key)));
+            const px = @divFloor(x, 2);
+            const pz = @divFloor(z, 2);
+            const qx: usize = @intCast(x - px * 2);
+            const qz: usize = @intCast(z - pz * 2);
+            const gop = try parents.getOrPut(world.packChunk(px, pz));
+            if (!gop.found_existing) gop.value_ptr.* = .{ .{ null, null }, .{ null, null } };
+            gop.value_ptr.*[qz][qx] = key;
+        }
+
+        var next_list: std.ArrayList(u64) = .empty;
+        var scratch = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer scratch.deinit();
+        var pit = parents.iterator();
+        while (pit.next()) |entry| {
+            _ = scratch.reset(.free_all);
+            const sa = scratch.allocator();
+            var maps: [2][2]?lowres.ColorMap = .{ .{ null, null }, .{ null, null } };
+            var refs: [2][2]?*const lowres.ColorMap = .{ .{ null, null }, .{ null, null } };
+            for (0..2) |qz| {
+                for (0..2) |qx| {
+                    if (entry.value_ptr.*[qz][qx]) |child_key| {
+                        maps[qz][qx] = try readColorMapCache(io, sa, cache_dir, current_level, child_key);
+                        if (maps[qz][qx]) |*m| refs[qz][qx] = m;
+                    }
+                }
+            }
+            const px: i32 = @bitCast(@as(u32, @truncate(entry.key_ptr.* >> 32)));
+            const pz: i32 = @bitCast(@as(u32, @truncate(entry.key_ptr.*)));
+            const parent = try lowres.downsample(
+                sa,
+                refs,
+                @intCast(@as(i64, px) * lvl_blocks),
+                @intCast(@as(i64, pz) * lvl_blocks),
+                @as(u32, 1) << level,
+            );
+            try writeColorMapCache(io, sa, cache_dir, level, px, pz, parent);
+            try next_list.append(a, entry.key_ptr.*);
+        }
+
+        const next = try next_list.toOwnedSlice(a);
+        std.mem.sort(u64, next, {}, struct {
+            fn lt(_: void, x: u64, y: u64) bool {
+                return x < y;
+            }
+        }.lt);
+        if (current_level > 0 or !retain_source) deleteColorMapLevel(io, cache_dir, current_level, current);
+
+        var next_index = std.AutoHashMap(u64, void).init(a);
+        for (next) |key| try next_index.put(key, {});
+        var entries: std.ArrayList(LowresTileEntry) = .empty;
+        for (next) |key| {
+            _ = scratch.reset(.free_all);
+            const sa = scratch.allocator();
+            const px: i32 = @bitCast(@as(u32, @truncate(key >> 32)));
+            const pz: i32 = @bitCast(@as(u32, @truncate(key)));
+            const center = try readColorMapCache(io, sa, cache_dir, level, key);
+            var right: ?lowres.ColorMap = if (next_index.contains(world.packChunk(px + 1, pz)))
+                try readColorMapCache(io, sa, cache_dir, level, world.packChunk(px + 1, pz))
+            else
+                null;
+            var down: ?lowres.ColorMap = if (next_index.contains(world.packChunk(px, pz + 1)))
+                try readColorMapCache(io, sa, cache_dir, level, world.packChunk(px, pz + 1))
+            else
+                null;
+            var corner: ?lowres.ColorMap = if (next_index.contains(world.packChunk(px + 1, pz + 1)))
+                try readColorMapCache(io, sa, cache_dir, level, world.packChunk(px + 1, pz + 1))
+            else
+                null;
+            const blob = try lowres.serialize(
+                sa,
+                center,
+                if (right) |*m| m else null,
+                if (down) |*m| m else null,
+                if (corner) |*m| m else null,
+            );
+            const zipped = try compress.gzipCompress(sa, blob, 6);
+            // Atomic, because a live rebuild republishes these paths while
+            // clients are fetching them: a direct write would hand somebody a
+            // truncated gzip stream and put a hole in their map until a retry.
+            const tiles_dir = try std.fmt.allocPrint(sa, "{s}/tiles", .{out_dir});
+            const name = try std.fmt.allocPrint(sa, "l{d}.{d}.{d}.vlr", .{ level, px, pz });
+            try atomicWrite(io, sa, tiles_dir, name, zipped);
+            try entries.append(a, .{
+                .x = px,
+                .z = pz,
+                .bytes = zipped.len,
+                .revision = std.hash.Wyhash.hash(LOWRES_REVISION_SEED, zipped),
+            });
+            total_count += 1;
+            total_bytes += zipped.len;
+        }
+        try levels.append(a, .{
+            .level = level,
+            .tile_blocks = lvl_blocks,
+            .span = @as(u32, 1) << level,
+            .tiles = try entries.toOwnedSlice(a),
+        });
+        current = next;
+        current_level = level;
+    }
+    if (current_level > 0 or !retain_source) deleteColorMapLevel(io, cache_dir, current_level, current);
+    return .{ .levels = try levels.toOwnedSlice(a), .count = total_count, .bytes = total_bytes };
+}
+
+const ManifestInput = struct {
+    /// Which dimension this manifest describes, and how the viewer should light
+    /// and fog it (see the `dimension` and `atmosphere` keys).
+    dim: dimension.Profile = dimension.overworld,
+    tile_chunks: i32,
+    spawn: ?[3]i32,
+    /// Biome display names, id-indexed (index 0 = the "" no-data sentinel).
+    biomes: []const []const u8,
+    tiles: []const TileEntry,
+    lowres: []const LowresLevel = &.{},
+    /// Largest per-section vertex count across every tile — the viewer sizes
+    /// its one shared quad index buffer from this before the first tile lands.
+    max_section_verts: u64 = 0,
+    /// True when cave culling was off (`--caves full`) — the tiles carry every
+    /// cave, so the viewer can offer its depth-slice cave view.
+    caves: bool = false,
+    /// World-Y extent across all tiles [min, max) — bounds for the depth slider.
+    y_range: ?[2]i32 = null,
+    /// Progressive render: true while tiles are still being baked (the viewer
+    /// polls and streams new tiles in), false in the final manifest.
+    rendering: bool = false,
+    /// [done, total] tiles, surfaced to the viewer's progress readout while
+    /// `rendering` is true.
+    progress: ?[2]usize = null,
+    /// Atlas layer count backing `terrain.vtexarr`. The viewer re-fetches the
+    /// texture array when this grows between progressive polls (layers are
+    /// append-only, so a superset is always safe for already-loaded tiles).
+    texture_layers: u32 = 0,
+    /// On-demand live server (`vantage live`): every populated tile is listed
+    /// up front but baked lazily on first fetch, so the viewer gates a tile's
+    /// insertion on the atlas covering its layers (the atlas grows in
+    /// viewport order, not tile-list order). Implies `rendering`.
+    dynamic: bool = false,
+};
+
+/// Whether `name` is a render-owned tile file: `t.<x>.<z>.vtile` (hires) or
+/// `l<level>.<x>.<z>.vlr` (lowres). The stale sweep only ever touches names
+/// this recognizes — anything else in the output dir is left alone.
+fn isTileFileName(name: []const u8) bool {
+    if (std.mem.startsWith(u8, name, "t.") and std.mem.endsWith(u8, name, ".vtile")) {
+        var it = std.mem.splitScalar(u8, name["t.".len .. name.len - ".vtile".len], '.');
+        for (0..2) |_| {
+            _ = std.fmt.parseInt(i32, it.next() orelse return false, 10) catch return false;
+        }
+        return it.next() == null;
+    }
+    if (name.len > 1 and name[0] == 'l' and std.mem.endsWith(u8, name, ".vlr")) {
+        var it = std.mem.splitScalar(u8, name[1 .. name.len - ".vlr".len], '.');
+        _ = std.fmt.parseInt(u5, it.next() orelse return false, 10) catch return false;
+        for (0..2) |_| {
+            _ = std.fmt.parseInt(i32, it.next() orelse return false, 10) catch return false;
+        }
+        return it.next() == null;
+    }
+    return false;
+}
+
+/// Delete tile files in `{out_dir}/tiles` left over from a previous render —
+/// names the just-written manifest no longer references (a re-render with a
+/// different tile grid or a shrunken world leaves them behind: unreachable,
+/// but they waste disk and confuse anyone inspecting the directory). Only
+/// exact tile-shaped names (see `isTileFileName`) are candidates. Returns the
+/// number removed; all failures are swallowed — a stale file is cosmetic,
+/// never worth failing a finished render over.
+fn sweepStaleTiles(
+    a: std.mem.Allocator,
+    io: std.Io,
+    out_dir: []const u8,
+    tiles: []const TileEntry,
+    lowres_levels: []const LowresLevel,
+) usize {
+    var expected = std.StringHashMap(void).init(a);
+    for (tiles) |t| {
+        const name = std.fmt.allocPrint(a, "t.{d}.{d}.vtile", .{ t.tx, t.tz }) catch return 0;
+        expected.put(name, {}) catch return 0;
+    }
+    for (lowres_levels) |lvl| {
+        for (lvl.tiles) |t| {
+            const name = std.fmt.allocPrint(a, "l{d}.{d}.{d}.vlr", .{ lvl.level, t.x, t.z }) catch return 0;
+            expected.put(name, {}) catch return 0;
+        }
+    }
+
+    const dir_path = std.fmt.allocPrint(a, "{s}/tiles", .{out_dir}) catch return 0;
+    var dir = std.Io.Dir.cwd().openDir(io, dir_path, .{ .iterate = true }) catch return 0;
+    defer dir.close(io);
+
+    // Collect first, delete after: removing entries mid-iteration can skip
+    // files on some filesystems. Entry names point into the iterator's reused
+    // buffer, so they must be duped.
+    var stale: std.ArrayList([]const u8) = .empty;
+    var it = dir.iterate();
+    while (true) {
+        const e = (it.next(io) catch break) orelse break;
+        if (e.kind != .file) continue;
+        if (!isTileFileName(e.name)) continue;
+        if (expected.contains(e.name)) continue;
+        stale.append(a, a.dupe(u8, e.name) catch break) catch break;
+    }
+    var removed: usize = 0;
+    for (stale.items) |name| {
+        dir.deleteFile(io, name) catch continue;
+        removed += 1;
+    }
+    return removed;
+}
+
+test "parseTilePath extracts tile coords, rejects everything else" {
+    try std.testing.expectEqual([2]i32{ 0, 0 }, parseTilePath("tiles/t.0.0.vtile").?);
+    try std.testing.expectEqual([2]i32{ -3, 12 }, parseTilePath("tiles/t.-3.12.vtile").?);
+    try std.testing.expect(parseTilePath("manifest.json") == null);
+    try std.testing.expect(parseTilePath("terrain.vtexarr") == null);
+    try std.testing.expect(parseTilePath("tiles/l3.0.0.vlr") == null); // lowres, not hires
+    try std.testing.expect(parseTilePath("tiles/t.0.vtile") == null); // one coord
+    try std.testing.expect(parseTilePath("tiles/t.a.b.vtile") == null); // non-numeric
+    try std.testing.expect(parseTilePath("t.0.0.vtile") == null); // missing tiles/ prefix
+}
+
+test "isTileFileName accepts render-owned tiles and nothing else" {
+    try std.testing.expect(isTileFileName("t.0.0.vtile"));
+    try std.testing.expect(isTileFileName("t.-12.4.vtile"));
+    try std.testing.expect(isTileFileName("l3.-1.7.vlr"));
+    // Wrong shape, wrong extension, non-numeric keys, extra segments.
+    try std.testing.expect(!isTileFileName("t.0.vtile"));
+    try std.testing.expect(!isTileFileName("t.0.0.0.vtile"));
+    try std.testing.expect(!isTileFileName("t.a.b.vtile"));
+    try std.testing.expect(!isTileFileName("t.0.0.vtile.bak"));
+    try std.testing.expect(!isTileFileName("l.0.0.vlr"));
+    try std.testing.expect(!isTileFileName("l3.0.vlr"));
+    try std.testing.expect(!isTileFileName("manifest.json"));
+    try std.testing.expect(!isTileFileName("terrain.vtexarr"));
+    try std.testing.expect(!isTileFileName("notes.txt"));
+}
+
+/// Serialize the world manifest — the small JSON the viewer streams tiles from.
+/// Hand-rolled (the shape is tiny and fixed) to stay off the std.json churn.
+fn buildManifest(a: std.mem.Allocator, m: ManifestInput) ![]u8 {
+    var out: std.ArrayList(u8) = .empty;
+    // Format 6 = VTLA tiles (VTL9's packed RG8 lightmaps + the cave partition
+    // boundaries in each section header).
+    try out.print(a, "{{\n  \"format\": 6,\n  \"tileChunks\": {d},\n  \"tileBlocks\": {d},\n  \"maxSectionVerts\": {d},\n  \"textures\": \"terrain.vtexarr\",\n  \"textureLayers\": {d},\n", .{
+        m.tile_chunks, m.tile_chunks * 16, m.max_section_verts, m.texture_layers,
+    });
+    // Which dimension this is, and the look that makes it read as that
+    // dimension: the viewer takes its sky, fog and light floor from here, so a
+    // nether map arrives crimson and dim without the page configuring anything.
+    try out.appendSlice(a, "  \"dimension\": ");
+    try appendDimensionJson(a, &out, m.dim);
+    try out.appendSlice(a, ",\n");
+    try out.print(
+        a,
+        "  \"atmosphere\": {{ \"skyTop\": [{d}, {d}, {d}], \"skyHorizon\": [{d}, {d}, {d}], \"fog\": [{d}, {d}, {d}], \"ambient\": {d:.3}, \"daylight\": {d:.3} }},\n",
+        .{
+            m.dim.sky_top[0],     m.dim.sky_top[1],     m.dim.sky_top[2],
+            m.dim.sky_horizon[0], m.dim.sky_horizon[1], m.dim.sky_horizon[2],
+            m.dim.fog[0],         m.dim.fog[1],         m.dim.fog[2],
+            m.dim.ambient,        m.dim.daylight,
+        },
+    );
+    if (m.rendering) try out.appendSlice(a, "  \"rendering\": true,\n");
+    if (m.dynamic) try out.appendSlice(a, "  \"dynamic\": true,\n");
+    if (m.progress) |p| try out.print(a, "  \"progress\": {{ \"done\": {d}, \"total\": {d} }},\n", .{ p[0], p[1] });
+    if (m.caves) try out.appendSlice(a, "  \"caves\": true,\n");
+    if (m.y_range) |yr| try out.print(a, "  \"yRange\": {{ \"min\": {d}, \"max\": {d} }},\n", .{ yr[0], yr[1] });
+    if (m.spawn) |s| try out.print(a, "  \"spawn\": {{ \"x\": {d}, \"y\": {d}, \"z\": {d} }},\n", .{ s[0], s[1], s[2] });
+    try out.appendSlice(a, "  \"biomes\": [");
+    for (m.biomes, 0..) |name, i| {
+        if (i > 0) try out.appendSlice(a, ", ");
+        try appendJsonString(a, &out, name);
+    }
+    try out.appendSlice(a, "],\n");
+    if (m.lowres.len > 0) {
+        try out.print(a, "  \"lowres\": {{\n    \"grid\": {d},\n    \"levels\": [\n", .{lowres.CELLS + 1});
+        for (m.lowres, 0..) |lvl, li| {
+            try out.print(a, "      {{ \"level\": {d}, \"tileBlocks\": {d}, \"span\": {d}, \"tiles\": [\n", .{
+                lvl.level, lvl.tile_blocks, lvl.span,
+            });
+            for (lvl.tiles, 0..) |t, i| {
+                // A live pyramid is rebuilt as tiles bake, so its entries carry
+                // the fingerprint that tells the viewer which ones to re-fetch.
+                if (m.dynamic) {
+                    try out.print(a, "        {{ \"x\": {d}, \"z\": {d}, \"path\": \"tiles/l{d}.{d}.{d}.vlr\", \"bytes\": {d}, \"revision\": \"{x}\" }}{s}\n", .{
+                        t.x, t.z, lvl.level, t.x, t.z, t.bytes, t.revision, if (i + 1 < lvl.tiles.len) "," else "",
+                    });
+                } else {
+                    try out.print(a, "        {{ \"x\": {d}, \"z\": {d}, \"path\": \"tiles/l{d}.{d}.{d}.vlr\", \"bytes\": {d} }}{s}\n", .{
+                        t.x, t.z, lvl.level, t.x, t.z, t.bytes, if (i + 1 < lvl.tiles.len) "," else "",
+                    });
+                }
+            }
+            try out.print(a, "      ] }}{s}\n", .{if (li + 1 < m.lowres.len) "," else ""});
+        }
+        try out.appendSlice(a, "    ]\n  },\n");
+    }
+    try out.appendSlice(a, "  \"tiles\": [\n");
+    for (m.tiles, 0..) |t, i| {
+        if (t.revision == 0) {
+            try out.print(a, "    {{ \"x\": {d}, \"z\": {d}, \"path\": \"tiles/t.{d}.{d}.vtile\", \"bytes\": {d} }}{s}\n", .{
+                t.tx, t.tz, t.tx, t.tz, t.bytes, if (i + 1 < m.tiles.len) "," else "",
+            });
+        } else {
+            try out.print(a, "    {{ \"x\": {d}, \"z\": {d}, \"path\": \"tiles/t.{d}.{d}.vtile\", \"bytes\": {d}, \"revision\": \"{x}\" }}{s}\n", .{
+                t.tx, t.tz, t.tx, t.tz, t.bytes, t.revision, if (i + 1 < m.tiles.len) "," else "",
+            });
+        }
+    }
+    try out.appendSlice(a, "  ]\n}\n");
+    return out.toOwnedSlice(a);
+}
+
+/// Serialize `world.json` — the dimension index for the viewer's switcher.
+///
+/// Each entry points at a *self-contained* manifest (its own tiles, LOD
+/// pyramid and texture atlas), so nothing here is load-bearing: a viewer handed
+/// `the_nether/manifest.json` directly still works, and an old viewer that only
+/// knows about `manifest.json` keeps rendering the overworld at the root.
+fn buildWorldIndex(a: std.mem.Allocator, dims: []const DimSummary) ![]u8 {
+    var out: std.ArrayList(u8) = .empty;
+    try out.appendSlice(a, "{\n  \"format\": 1,\n  \"dimensions\": [\n");
+    for (dims, 0..) |d, i| {
+        try out.appendSlice(a, "    { \"id\": ");
+        try appendJsonString(a, &out, d.profile.id);
+        try out.appendSlice(a, ", \"slug\": ");
+        try appendJsonString(a, &out, if (d.profile.slug.len == 0) "overworld" else d.profile.slug);
+        try out.appendSlice(a, ", \"label\": ");
+        try appendJsonString(a, &out, d.profile.label);
+        try out.print(a, ", \"kind\": \"{s}\", \"manifest\": ", .{@tagName(d.profile.kind)});
+        const manifest_path = if (d.profile.slug.len == 0)
+            "manifest.json"
+        else
+            try std.fmt.allocPrint(a, "{s}/manifest.json", .{d.profile.slug});
+        try appendJsonString(a, &out, manifest_path);
+        try out.print(a, ", \"tiles\": {d}, \"bytes\": {d}", .{ d.tiles, d.bytes });
+        if (d.spawn) |s| try out.print(a, ", \"spawn\": {{ \"x\": {d}, \"y\": {d}, \"z\": {d} }}", .{ s[0], s[1], s[2] });
+        try out.print(a, " }}{s}\n", .{if (i + 1 < dims.len) "," else ""});
+    }
+    try out.appendSlice(a, "  ]\n}\n");
+    return out.toOwnedSlice(a);
+}
+
+/// A dimension's identity, as both the manifest and the world list carry it.
+/// The overworld renders at the root, so its slug is empty on disk — but a
+/// document has to name it something a client can address.
+fn appendDimensionJson(a: std.mem.Allocator, out: *std.ArrayList(u8), dim: dimension.Profile) !void {
+    try out.appendSlice(a, "{ \"id\": ");
+    try appendJsonString(a, out, dim.id);
+    try out.appendSlice(a, ", \"slug\": ");
+    try appendJsonString(a, out, if (dim.slug.len == 0) "overworld" else dim.slug);
+    try out.appendSlice(a, ", \"label\": ");
+    try appendJsonString(a, out, dim.label);
+    try out.print(a, ", \"kind\": \"{s}\" }}", .{@tagName(dim.kind)});
+}
+
+/// The `/v1/worlds` document for a session streaming one dimension.
+///
+/// Protocol v1 serves one world per connection, but a client offering a
+/// switcher across several needs to know what each one *is* before it opens
+/// any of them — so the descriptor carries the same `dimension` block the
+/// manifest does. Built once at startup: it is fixed for the process's life
+/// and answered on every connect.
+fn buildWorldsJson(a: std.mem.Allocator, dim: dimension.Profile) ![]u8 {
+    var out: std.ArrayList(u8) = .empty;
+    try out.appendSlice(a, "{\"worlds\":[{\"id\":\"default\",\"manifest\":\"/v1/worlds/default/manifest.json\",\"dimension\":");
+    try appendDimensionJson(a, &out, dim);
+    try out.appendSlice(a, "}]}\n");
+    return out.toOwnedSlice(a);
+}
+
+fn appendJsonString(a: std.mem.Allocator, out: *std.ArrayList(u8), s: []const u8) !void {
+    try out.append(a, '"');
+    for (s) |ch| switch (ch) {
+        '"' => try out.appendSlice(a, "\\\""),
+        '\\' => try out.appendSlice(a, "\\\\"),
+        '\n' => try out.appendSlice(a, "\\n"),
+        '\r' => try out.appendSlice(a, "\\r"),
+        '\t' => try out.appendSlice(a, "\\t"),
+        else => if (ch < 0x20) {
+            try out.print(a, "\\u{x:0>4}", .{ch});
+        } else {
+            try out.append(a, ch);
+        },
+    };
+    try out.append(a, '"');
+}
+
+test "the cave horizon follows --caves, then the dimension's own default" {
+    // No flag: each dimension decides. The overworld culls its caves; the
+    // nether culls by reachability instead; the end keeps every face so island
+    // undersides survive.
+    try std.testing.expectEqual(@as(?i32, 55), caveHorizonFor(dimension.overworld, try parseCaveY(&.{})));
+    try std.testing.expectEqual(@as(?i32, null), caveHorizonFor(dimension.nether, try parseCaveY(&.{})));
+    try std.testing.expectEqual(@as(?i32, null), caveHorizonFor(dimension.end, try parseCaveY(&.{})));
+
+    // `full`/`off` keep everything, a number sets the horizon.
+    try std.testing.expectEqual(@as(?i32, null), caveHorizonFor(dimension.overworld, try parseCaveY(&.{ "--caves", "full" })));
+    try std.testing.expectEqual(@as(?i32, null), caveHorizonFor(dimension.overworld, try parseCaveY(&.{ "--caves", "off" })));
+    try std.testing.expectEqual(@as(?i32, 40), caveHorizonFor(dimension.overworld, try parseCaveY(&.{ "--caves", "40" })));
+    // A reachability-culled dimension ignores the flag either way.
+    try std.testing.expectEqual(@as(?i32, null), caveHorizonFor(dimension.nether, try parseCaveY(&.{ "--caves", "40" })));
+    // So does the end: a horizon there would cut the islands, not caves. This
+    // is the desktop app's default path — it always passes an explicit depth.
+    try std.testing.expectEqual(@as(?i32, null), caveHorizonFor(dimension.end, try parseCaveY(&.{ "--caves", "55" })));
+    // The reject path (`--caves deep`) prints its complaint to stderr, which
+    // `zig build test` treats as failure — covered by manual CLI use instead.
+}
+
+test "buildManifest describes the dimension and its atmosphere" {
+    const a = std.testing.allocator;
+    const json = try buildManifest(a, .{
+        .dim = dimension.nether,
+        .tile_chunks = 8,
+        .spawn = null,
+        .biomes = &.{""},
+        .tiles = &.{.{ .tx = 0, .tz = 0, .bytes = 1 }},
+    });
+    defer a.free(json);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"id\": \"minecraft:the_nether\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"slug\": \"the_nether\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"kind\": \"nether\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"atmosphere\"") != null);
+    // The overworld still names itself, so a viewer can label it without
+    // special-casing the render root.
+    const ow = try buildManifest(a, .{
+        .tile_chunks = 8,
+        .spawn = null,
+        .biomes = &.{""},
+        .tiles = &.{.{ .tx = 0, .tz = 0, .bytes = 1 }},
+    });
+    defer a.free(ow);
+    try std.testing.expect(std.mem.indexOf(u8, ow, "\"slug\": \"overworld\"") != null);
+}
+
+test "buildWorldIndex points at each dimension's own manifest" {
+    // Arena-allocated like the render run it serializes from (slug paths are
+    // interned into the same arena as the JSON).
+    var arena_inst = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_inst.deinit();
+    const a = arena_inst.allocator();
+    const json = try buildWorldIndex(a, &.{
+        .{ .profile = dimension.overworld, .tiles = 4, .bytes = 100, .spawn = .{ 1, 2, 3 } },
+        .{ .profile = dimension.nether, .tiles = 2, .bytes = 50, .spawn = null },
+    });
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"manifest\": \"manifest.json\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"manifest\": \"the_nether/manifest.json\"") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"spawn\": { \"x\": 1, \"y\": 2, \"z\": 3 }") != null);
+}
+
+test "buildManifest carries caves + yRange for the depth slider" {
+    const a = std.testing.allocator;
+    const json = try buildManifest(a, .{
+        .tile_chunks = 8,
+        .spawn = null,
+        .biomes = &.{""},
+        .tiles = &.{.{ .tx = 0, .tz = 0, .bytes = 1 }},
+        .caves = true,
+        .y_range = .{ -64, 320 },
+    });
+    defer a.free(json);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"caves\": true") != null);
+    try std.testing.expect(std.mem.indexOf(u8, json, "\"yRange\": { \"min\": -64, \"max\": 320 }") != null);
+    // Default (culled) renders advertise neither key.
+    const plain = try buildManifest(a, .{
+        .tile_chunks = 8,
+        .spawn = null,
+        .biomes = &.{""},
+        .tiles = &.{.{ .tx = 0, .tz = 0, .bytes = 1 }},
+    });
+    defer a.free(plain);
+    try std.testing.expect(std.mem.indexOf(u8, plain, "caves") == null);
+    try std.testing.expect(std.mem.indexOf(u8, plain, "yRange") == null);
+}
+
+/// `vantage extract [client.jar]` — populate the asset cache from a client jar.
+/// With no argument, auto-discovers the newest jar in the local Minecraft
+/// installation, so a fresh `vantage render <save>` works with zero setup.
+/// `vantage serve [render-dir] [--port n] [--host addr] [--open]` — host a
+/// rendered world plus the embedded web viewer on a local HTTP server.
+fn runServe(init: std.process.Init, a: std.mem.Allocator, args: []const []const u8) !void {
+    var opts: serve.Options = .{ .dir = "web/public" };
+    var argi: usize = 0;
+    while (argi < args.len) : (argi += 1) {
+        const arg = args[argi];
+        if (std.mem.eql(u8, arg, "--port")) {
+            const v = try flagValue(args, &argi);
+            opts.port = std.fmt.parseInt(u16, v, 10) catch return badValue("--port", v, "1..65535");
+        } else if (std.mem.eql(u8, arg, "--host")) {
+            opts.host = try flagValue(args, &argi);
+        } else if (std.mem.eql(u8, arg, "--open")) {
+            opts.open = true;
+        } else if (!std.mem.startsWith(u8, arg, "-")) {
+            opts.dir = arg;
+        } else {
+            std.debug.print("unknown flag for serve: {s} (see `vantage --help`)\n", .{arg});
+            return error.InvalidArgument;
+        }
+    }
+    return serve.run(init.io, a, opts);
+}
+
+/// On-demand ("live") server state: keeps the world loaded and bakes tiles
+/// lazily as the viewer fetches them, so a huge world is explorable in seconds
+/// with a flat memory footprint — only the region tables + assets stay resident;
+/// each tile bakes into `out_dir` (a session cache) and its working set
+/// evaporates. The bake path and its shared caches (atlas, biome table) are the
+/// same thread-safe ones the batch render uses, so concurrent request-thread
+/// bakes are safe.
+const BakedTile = struct {
+    bytes: usize,
+    revision: u64,
+};
+
+const PersistentAtlas = struct {
+    format: u32 = 1,
+    layers: u32,
+    keys: []const texture.LayerKey,
+    biomes: []const []const u8,
+};
+
+const PersistentTile = struct {
+    format: u32 = 1,
+    x: i32,
+    z: i32,
+    bytes: usize,
+    revision: u64,
+    max_section_verts: u64,
+    y_min: i32,
+    y_max: i32,
+};
+
+/// One built manifest representation, kept until the catalog's generation
+/// moves: the raw JSON, a gzip coding of it, and the strong validator over
+/// the raw bytes. Owns its allocations via a dedicated arena so a swap can
+/// free the previous generation in O(1) once no reader holds the mutex.
+const ManifestCache = struct {
+    arena: std.heap.ArenaAllocator,
+    generation: u64,
+    body: []const u8,
+    gzip: []const u8,
+    etag: []const u8,
+    /// When this representation was built. A prebaking server moves the
+    /// generation several times a second, which would otherwise make the
+    /// cache above useless exactly when rebuilding is most expensive; polls
+    /// inside `manifest_coalesce_ns` of this share it anyway.
+    built_at: std.Io.Timestamp,
+};
+
+/// Ref-counted, independently allocated view of the live region catalog. A
+/// refresh swaps the current pointer in O(1); in-flight bakes retain their old
+/// snapshot until completion, then its arena is reclaimed in one operation.
+/// This avoids both use-after-free and the unbounded arena growth that repeated
+/// table rescans would otherwise cause on a months-long server process.
+const RegionSnapshot = struct {
+    arena: std.heap.ArenaAllocator,
+    loaded: []const world.LoadedRegion,
+    tile_keys: []const u64,
+    /// Membership and revision in one O(1) lookup. The revision was computed
+    /// with a small region-coordinate index while this epoch was assembled.
+    tile_revisions: std.AutoHashMap(u64, u64),
+    metadata_revision: u64,
+    catalog_revision: u64,
+    refs: usize = 1, // the LiveServer's owner reference
+    retired: bool = false,
+
+    fn destroy(self: *RegionSnapshot) void {
+        self.arena.deinit();
+        std.heap.page_allocator.destroy(self);
+    }
+};
+
+fn createRegionSnapshot(
+    io: std.Io,
+    region_dir: []const u8,
+    radius: i32,
+    centre_cx: i32,
+    centre_cz: i32,
+    tile_chunks: i32,
+    known_metadata_revision: ?u64,
+) !*RegionSnapshot {
+    // Capture the cheap gate before loading tables. If Minecraft saves during
+    // construction, the next poll observes a different gate and retries; doing
+    // this afterward could label an older catalog with the newer fingerprint.
+    const metadata_revision = known_metadata_revision orelse blk: {
+        var metadata_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer metadata_arena.deinit();
+        break :blk try world.catalogMetadataRevision(metadata_arena.allocator(), io, region_dir);
+    };
+    const snapshot = try std.heap.page_allocator.create(RegionSnapshot);
+    errdefer std.heap.page_allocator.destroy(snapshot);
+    snapshot.arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    errdefer snapshot.arena.deinit();
+    const a = snapshot.arena.allocator();
+    const loaded = try world.loadRegions(a, io, region_dir);
+    const bounds = world.populatedBounds(loaded);
+    const populated = if (bounds.count == 0)
+        std.AutoHashMap(u64, void).init(a)
+    else
+        try world.populatedChunks(a, loaded);
+    const tile_keys = try enumerateTilesSpawnOutward(a, populated, radius, centre_cx, centre_cz, tile_chunks);
+    var region_revisions = try world.indexRegionRevisions(a, loaded);
+    var tile_revisions = std.AutoHashMap(u64, u64).init(a);
+    for (tile_keys) |key| {
+        const tx: i32 = @bitCast(@as(u32, @truncate(key >> 32)));
+        const tz: i32 = @bitCast(@as(u32, @truncate(key)));
+        try tile_revisions.put(key, world.tileRevisionIndexed(&region_revisions, tx, tz, tile_chunks));
+    }
+    region_revisions.deinit();
+    snapshot.* = .{
+        .arena = snapshot.arena,
+        .loaded = loaded,
+        .tile_keys = tile_keys,
+        .tile_revisions = tile_revisions,
+        .metadata_revision = metadata_revision,
+        .catalog_revision = world.catalogRevision(loaded),
+    };
+    return snapshot;
+}
+
+const LiveServer = struct {
+    sh: *Shared,
+    /// Every populated tile, spawn-outward — the manifest lists them all; each
+    /// bakes on first fetch.
+    tile_keys: []const u64,
+    spawn: ?[3]i32,
+
+    /// Guards the session cache ledger + the live manifest aggregates below.
+    mutex: std.Io.Mutex = .init,
+    ready: std.Io.Condition = .init,
+    /// Immutable membership gate: arbitrary URLs cannot make the host bake
+    /// coordinates that were not advertised by this world's manifest.
+    known: std.AutoHashMap(u64, void) = undefined,
+    /// Tiles baked THIS session → gzipped bytes on disk (0 = an empty tile, or
+    /// one that failed to bake: a gap). A tile is served from the on-disk cache
+    /// only when it's here, so the cache always agrees with THIS session's
+    /// atlas — a prior session's tiles, baked against a different atlas layer
+    /// order, are simply re-baked on first fetch.
+    baked: std.AutoHashMap(u64, BakedTile) = undefined,
+    /// Keys currently being filled. Duplicate requests wait on `ready` and
+    /// share the first result instead of stampeding the same expensive bake.
+    baking: std.AutoHashMap(u64, void) = undefined,
+    /// Admission control for the actual memory-heavy work. Connection threads
+    /// may wait cheaply, but only this many tile arenas can exist at once.
+    bake_slots: std.Io.Semaphore = .{},
+    /// `vantage server` continuously refreshes this catalog; local `live`
+    /// leaves it null and uses the immutable fields above.
+    region_dir: ?[]const u8 = null,
+    radius: i32 = 0,
+    centre_cx: i32 = 0,
+    centre_cz: i32 = 0,
+    snapshot: ?*RegionSnapshot = null,
+    scan_interval_ns: i96 = 5 * std.time.ns_per_s,
+    last_scan: std.Io.Timestamp = .zero,
+    scanning: bool = false,
+    max_section_verts: u64 = 0,
+    y_min: i32 = std.math.maxInt(i32),
+    y_max: i32 = std.math.minInt(i32),
+    /// Monotonic change counter over everything the manifest reports: bumped
+    /// by every recorded bake and snapshot swap. The manifest cache below is
+    /// valid exactly while this stands still — which on a warm server is
+    /// almost always, so idle polls cost a generation compare, not an
+    /// O(tiles) JSON rebuild.
+    manifest_generation: u64 = 1,
+    manifest_cache: ?ManifestCache = null,
+    /// Longest a cached manifest representation may outlive its generation.
+    /// Zero disables coalescing (local `live`, whose catalog only moves when
+    /// the person at the keyboard scrolls).
+    manifest_coalesce_ns: i96 = 0,
+    /// One thread rebuilds the cache per generation; racers fall back to a
+    /// plain per-request build rather than sharing a build arena.
+    manifest_building: bool = false,
+    /// Tile coordinates of the viewer's most recent tile request — the
+    /// prebake workers' focus, so idle bake slots warm the terrain the
+    /// player is actually near. Guarded by `mutex`.
+    last_request: ?[2]i32 = null,
+    /// Host-supplied prebake focus (tile coordinates), refreshed from
+    /// `--focus-file` on the scan tick. A host that knows where its players
+    /// are steers the warm cache toward them instead of leaving it to spiral
+    /// out from spawn. Guarded by `mutex`; a small fixed array keeps the
+    /// prebake scan's inner loop cache-resident and allocation-free.
+    focus_buf: [MAX_FOCUS_POINTS][2]i32 = undefined,
+    focus_len: usize = 0,
+    /// Read-only after startup. The fields below it belong solely to the scan
+    /// thread, so they need no lock.
+    focus_file: ?[]const u8 = null,
+    /// Cheap change gate for the focus file: `{size, mtime}`.
+    focus_stamp: ?[2]u64 = null,
+    focus_complained: bool = false,
+    /// The focus file's own points, kept apart from the players' so that
+    /// re-reading either source doesn't drop the other's contribution.
+    focus_file_buf: [MAX_FOCUS_POINTS][2]i32 = undefined,
+    focus_file_len: usize = 0,
+    /// Live player positions served at `players.json`, and a second prebake
+    /// focus: a host that tells the map where its players are has also told it
+    /// which tiles to warm. Null when players are switched off.
+    player_feed: ?*players.Feed = null,
+    /// Interactive fetches using the live-tile path. This is incremented
+    /// before they take the state mutex: prebake's O(tiles * focus points)
+    /// candidate scan holds that same mutex, so counting only at the bake
+    /// permit would hide the request precisely while it was blocked. Prebake
+    /// workers check this both between bakes and during long candidate scans.
+    interactive_demand: std.atomic.Value(usize) = .init(0),
+    /// Prebake focus fallback (the spawn tile) when nothing was requested yet.
+    centre_tx: i32 = 0,
+    centre_tz: i32 = 0,
+    /// Random per process, and half of every tile validator. Tile payloads
+    /// reference texture-array layers by index and the atlas is built in
+    /// encounter order, so a tile is only interchangeable with one from the
+    /// same session — a world revision alone would let a client revalidate a
+    /// tile against a differently-ordered atlas. Layers are only ever
+    /// appended within a session, so an early tile stays valid as it grows.
+    session_tag: u64 = 0,
+    /// Serializes atlas-state and tile-metadata publication. A tile is
+    /// recoverable only after the atlas and biome IDs it references are durable.
+    cache_mutex: std.Io.Mutex = .init,
+    persistent_cache: bool = false,
+    persisted_layers: u32 = 0,
+    persisted_keys: usize = 0,
+    persisted_biomes: usize = 0,
+    cache_limit: usize = 0,
+    cache_bytes: usize = 0,
+    cache_clock: u64 = 0,
+    cache_age: std.AutoHashMap(u64, u64) = undefined,
+
+    // --- progressive LOD pyramid ---------------------------------------------
+    //
+    // A streamed world used to be visible only where hires tiles were resident:
+    // beyond that ring there was nothing to draw, so the map ended at a fog wall
+    // and a page reload started from an empty map again. Live sessions now keep
+    // each baked tile's lowres colour map and rebuild the same quadtree pyramid
+    // `vantage render` bakes, publishing it in the manifest as it fills in. The
+    // pyramid is a fraction of a percent of the tiles' bytes, has no dependency
+    // on this session's texture atlas, and lives in the tile cache — so it
+    // survives a reload, and a restart republishes it before anything re-bakes.
+
+    /// Colour-map cache directory, or null when the pyramid is disabled.
+    lod_dir: ?[]const u8 = null,
+    /// Tiles whose level-0 colour map is on disk (the pyramid's source set).
+    lod_maps: std.AutoHashMap(u64, void) = undefined,
+    /// A colour map landed since the last rebuild.
+    lod_dirty: bool = false,
+    /// A rebuild is in flight — its worker owns the sources until it finishes.
+    lod_building: bool = false,
+    /// The published pyramid, and the arena owning it. Swapped whole on every
+    /// rebuild; readers copy what they need out from under `mutex`.
+    lod_levels: []const LowresLevel = &.{},
+    lod_arena: ?std.heap.ArenaAllocator = null,
+
+    fn producer(self: *LiveServer) serve.Producer {
+        return .{ .ctx = self, .func = produce };
+    }
+
+    /// Record a finished bake in the session ledger (bytes, and the running
+    /// max-section-verts / y-extent the live manifest reports). `res` is null
+    /// for an empty or failed tile (recorded as 0 bytes so it isn't re-baked).
+    fn record(self: *LiveServer, key: u64, revision: u64, res: ?*const TileResult) void {
+        if (self.persistent_cache) if (res) |result| {
+            if (result.written) persistTile(self, key, revision, result) catch |e| {
+                std.debug.print("live: could not persist tile metadata: {s}\n", .{@errorName(e)});
+            };
+        };
+        self.mutex.lockUncancelable(self.sh.io);
+        self.recordLocked(key, revision, res);
+        _ = self.baking.remove(key);
+        self.ready.broadcast(self.sh.io);
+        self.mutex.unlock(self.sh.io);
+        if (self.persistent_cache) prunePersistentTiles(self, key);
+    }
+
+    fn recordLocked(self: *LiveServer, key: u64, revision: u64, res: ?*const TileResult) void {
+        if (self.baked.get(key)) |old| self.cache_bytes -|= old.bytes;
+        self.baked.put(key, .{ .bytes = if (res) |r| r.entry.bytes else 0, .revision = revision }) catch {};
+        if (res) |r| self.cache_bytes +|= r.entry.bytes;
+        self.cache_clock +%= 1;
+        self.cache_age.put(key, self.cache_clock) catch {};
+        if (res) |r| {
+            self.max_section_verts = @max(self.max_section_verts, @max(r.solid_verts, r.fluid_verts));
+            self.y_min = @min(self.y_min, r.y_min);
+            self.y_max = @max(self.y_max, r.y_max);
+            if (r.cmap_written) {
+                self.lod_maps.put(key, {}) catch {};
+                self.lod_dirty = true; // fold it into the overview
+            }
+        }
+        self.manifest_generation +%= 1; // the served catalog moved
+    }
+
+    fn acquireSnapshot(self: *LiveServer) ?*RegionSnapshot {
+        self.mutex.lockUncancelable(self.sh.io);
+        defer self.mutex.unlock(self.sh.io);
+        const current = self.snapshot orelse return null;
+        current.refs += 1;
+        return current;
+    }
+
+    fn releaseSnapshot(self: *LiveServer, snapshot: *RegionSnapshot) void {
+        var destroy = false;
+        self.mutex.lockUncancelable(self.sh.io);
+        snapshot.refs -= 1;
+        destroy = snapshot.refs == 0 and snapshot.retired;
+        self.mutex.unlock(self.sh.io);
+        if (destroy) snapshot.destroy();
+    }
+
+    fn retireOwnerLocked(self: *LiveServer, snapshot: *RegionSnapshot) bool {
+        _ = self;
+        snapshot.retired = true;
+        snapshot.refs -= 1;
+        return snapshot.refs == 0;
+    }
+
+    /// Throttled world refresh. A cheap directory metadata fingerprint is the
+    /// common path; the 4 KiB location tables and tile catalog are rebuilt only
+    /// after that fingerprint advances. I/O happens outside the state mutex;
+    /// concurrent manifest polls keep using the prior consistent snapshot.
+    fn maybeRefresh(self: *LiveServer) void {
+        const region_dir = self.region_dir orelse return;
+        const io = self.sh.io;
+        const now = std.Io.Timestamp.now(io, .awake);
+        self.mutex.lockUncancelable(io);
+        if (self.scanning or (self.last_scan.nanoseconds != 0 and self.last_scan.durationTo(now).nanoseconds < self.scan_interval_ns)) {
+            self.mutex.unlock(io);
+            return;
+        }
+        self.scanning = true;
+        self.last_scan = now;
+        self.mutex.unlock(io);
+
+        var scan_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer scan_arena.deinit();
+        const metadata_revision = world.catalogMetadataRevision(scan_arena.allocator(), io, region_dir) catch |e| {
+            self.mutex.lockUncancelable(io);
+            self.scanning = false;
+            self.mutex.unlock(io);
+            std.debug.print("server: region metadata scan failed: {s}; retaining the previous snapshot\n", .{@errorName(e)});
+            return;
+        };
+
+        self.mutex.lockUncancelable(io);
+        const metadata_unchanged = if (self.snapshot) |current| current.metadata_revision == metadata_revision else false;
+        if (metadata_unchanged) self.scanning = false;
+        self.mutex.unlock(io);
+        if (metadata_unchanged) return;
+
+        const candidate = createRegionSnapshot(io, region_dir, self.radius, self.centre_cx, self.centre_cz, self.sh.tile_chunks, metadata_revision) catch |e| {
+            self.mutex.lockUncancelable(io);
+            self.scanning = false;
+            self.mutex.unlock(io);
+            std.debug.print("server: region catalog refresh failed: {s}; retaining the previous snapshot\n", .{@errorName(e)});
+            return;
+        };
+
+        var old_to_destroy: ?*RegionSnapshot = null;
+        var changed = false;
+        self.mutex.lockUncancelable(io);
+        const current = self.snapshot;
+        if (current == null or current.?.catalog_revision != candidate.catalog_revision) {
+            self.snapshot = candidate;
+            changed = true;
+            self.manifest_generation +%= 1; // tile set/revisions moved
+            if (current) |old| {
+                if (self.retireOwnerLocked(old)) old_to_destroy = old;
+            }
+        }
+        self.scanning = false;
+        self.mutex.unlock(io);
+
+        if (!changed) candidate.destroy();
+        if (old_to_destroy) |old| old.destroy();
+        if (changed) std.debug.print("server: world snapshot advanced ({d} render tiles)\n", .{candidate.tile_keys.len});
+    }
+
+    /// Re-read `--focus-file` when its size or mtime moved. Absent or
+    /// unparseable clears the host focus rather than failing anything: the
+    /// file is an optimisation hint, and a half-written one must never cost
+    /// the map its warm-up. The complaint is printed once per bad state so a
+    /// misconfigured path cannot flood the log every scan tick.
+    fn refreshFocus(self: *LiveServer) void {
+        self.refreshFocusFile();
+        self.republishFocus();
+    }
+
+    fn refreshFocusFile(self: *LiveServer) void {
+        const path = self.focus_file orelse return;
+        const io = self.sh.io;
+        const stat = std.Io.Dir.cwd().statFile(io, path, .{}) catch {
+            // Not yet written, or deliberately removed — no host focus.
+            self.focus_file_len = 0;
+            self.focus_stamp = null;
+            // Absent is its own state, so a file that comes back malformed
+            // is a new bad state and gets to complain again.
+            self.focus_complained = false;
+            return;
+        };
+        const mtime_bits: u96 = @bitCast(stat.mtime.nanoseconds);
+        const stamp: [2]u64 = .{ stat.size, @truncate(mtime_bits) };
+        if (self.focus_stamp) |previous| if (previous[0] == stamp[0] and previous[1] == stamp[1]) return;
+        self.focus_stamp = stamp;
+
+        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer arena.deinit();
+        const a = arena.allocator();
+        const bytes = std.Io.Dir.cwd().readFileAlloc(io, path, a, .limited(FOCUS_FILE_LIMIT)) catch |e| {
+            self.complainAboutFocus(@errorName(e));
+            return;
+        };
+        const points = parseFocusPoints(a, bytes, self.sh.tile_chunks, &self.focus_file_buf) catch |e| {
+            self.complainAboutFocus(@errorName(e));
+            return;
+        };
+        self.focus_complained = false;
+        self.focus_file_len = points.len;
+    }
+
+    /// Combine the focus file's points with wherever the players are standing.
+    /// Both are hints about the same thing, and a host that supplies both means
+    /// both: de-duplication at tile granularity keeps a base full of players
+    /// from crowding out the other side of the map.
+    fn republishFocus(self: *LiveServer) void {
+        var candidates: [2 * MAX_FOCUS_POINTS][2]i32 = undefined;
+        var len: usize = 0;
+        if (self.player_feed) |feed| {
+            var player_points: [players.MAX_FOCUS][2]i32 = undefined;
+            for (feed.focusPoints(self.sh.io, &player_points)) |p| {
+                candidates[len] = p;
+                len += 1;
+            }
+        }
+        // The focus file arrives already reduced to tile coordinates; convert
+        // back so both sources go through one de-duplication.
+        const blocks_per_tile = self.sh.tile_chunks * 16;
+        for (self.focus_file_buf[0..self.focus_file_len]) |t| {
+            if (len == candidates.len) break;
+            candidates[len] = .{ t[0] * blocks_per_tile, t[1] * blocks_per_tile };
+            len += 1;
+        }
+        var tiles: [MAX_FOCUS_POINTS][2]i32 = undefined;
+        self.publishFocus(dedupeTilePoints(candidates[0..len], self.sh.tile_chunks, &tiles));
+    }
+
+    fn complainAboutFocus(self: *LiveServer, reason: []const u8) void {
+        if (self.focus_complained) return;
+        self.focus_complained = true;
+        std.debug.print("server: ignoring --focus-file ({s}); prebake keeps its previous focus\n", .{reason});
+    }
+
+    fn publishFocus(self: *LiveServer, points: []const [2]i32) void {
+        const io = self.sh.io;
+        self.mutex.lockUncancelable(io);
+        defer self.mutex.unlock(io);
+        @memcpy(self.focus_buf[0..points.len], points);
+        self.focus_len = points.len;
+    }
+};
+
+/// A focus file is a handful of coordinates; anything larger is a mistake.
+const FOCUS_FILE_LIMIT: usize = 64 * 1024;
+/// Enough for every player on the kind of server that runs one sidecar, and
+/// small enough that prebake's per-candidate distance test stays trivial.
+const MAX_FOCUS_POINTS: usize = 16;
+
+/// Parse a host focus document — `{"points":[{"x":120,"z":-340}, …]}` in
+/// BLOCK coordinates — into de-duplicated tile coordinates. Blocks rather
+/// than tiles because the host knows where its players stand, not how this
+/// process was configured to tile the world. De-duplication matters: several
+/// players in one base collapse to a single candidate instead of crowding
+/// out everyone else's.
+fn parseFocusPoints(
+    arena: std.mem.Allocator,
+    bytes: []const u8,
+    tile_chunks: i32,
+    out: *[MAX_FOCUS_POINTS][2]i32,
+) ![]const [2]i32 {
+    const root = std.json.parseFromSliceLeaky(std.json.Value, arena, bytes, .{}) catch return error.InvalidFocusDocument;
+    if (root != .object) return error.InvalidFocusDocument;
+    const points = root.object.get("points") orelse return error.InvalidFocusDocument;
+    if (points != .array) return error.InvalidFocusDocument;
+    var candidates: [MAX_FOCUS_POINTS][2]i32 = undefined;
+    var len: usize = 0;
+    for (points.array.items) |entry| {
+        if (len == MAX_FOCUS_POINTS) break;
+        if (entry != .object) continue;
+        const x = focusCoordinate(entry.object.get("x")) orelse continue;
+        const z = focusCoordinate(entry.object.get("z")) orelse continue;
+        candidates[len] = .{ x, z };
+        len += 1;
+    }
+    return dedupeTilePoints(candidates[0..len], tile_chunks, out);
+}
+
+/// Reduce block coordinates to distinct tile coordinates, in order, capped.
+/// De-duplication is what makes several players in one base a single prebake
+/// candidate instead of five copies of the same ring.
+fn dedupeTilePoints(
+    block_points: []const [2]i32,
+    tile_chunks: i32,
+    out: *[MAX_FOCUS_POINTS][2]i32,
+) []const [2]i32 {
+    var len: usize = 0;
+    for (block_points) |b| {
+        if (len == MAX_FOCUS_POINTS) break;
+        const point: [2]i32 = .{
+            @divFloor(@divFloor(b[0], 16), tile_chunks),
+            @divFloor(@divFloor(b[1], 16), tile_chunks),
+        };
+        for (out[0..len]) |existing| {
+            if (existing[0] == point[0] and existing[1] == point[1]) break;
+        } else {
+            out[len] = point;
+            len += 1;
+        }
+    }
+    return out[0..len];
+}
+
+/// One block coordinate from JSON. Players stand at fractional positions, so
+/// a float is as valid as an integer here; anything out of Minecraft's
+/// coordinate range is dropped rather than wrapped.
+fn focusCoordinate(value: ?std.json.Value) ?i32 {
+    const v = value orelse return null;
+    const raw: f64 = switch (v) {
+        .integer => |n| @floatFromInt(n),
+        .float => |f| f,
+        else => return null,
+    };
+    if (!std.math.isFinite(raw) or raw < -30_000_000.0 or raw > 30_000_000.0) return null;
+    return @intFromFloat(@floor(raw));
+}
+
+/// The server's world-change and focus tick. Before this loop existed a
+/// refresh only happened inside a manifest poll, which meant an unwatched
+/// server never noticed new terrain — so prebake, whose whole job is to be
+/// warm before anyone looks, converged on whatever the world was at boot.
+/// Running the scan here also keeps its multi-second catalog rebuild off the
+/// request thread that would otherwise have been unlucky enough to trigger it.
+fn scanLoop(self: *LiveServer, interval_ms: i64) void {
+    const io = self.sh.io;
+    while (true) {
+        std.Io.sleep(io, std.Io.Duration.fromMilliseconds(interval_ms), .awake) catch {};
+        // Players move faster than the world changes, and prebake wants to know
+        // where they went whether or not anyone has the map open — so the feed
+        // is refreshed on the tick as well as on request.
+        if (self.player_feed) |feed| feed.refresh(io);
+        self.refreshFocus();
+        self.maybeRefresh();
+    }
+}
+
+/// The `serve.Producer` hook: synthesize the paths the live server owns — the
+/// manifest, the texture atlas, and un-cached tiles — and fall through
+/// (null) to static disk serving for everything else.
+fn produce(ctx: *anyopaque, io: std.Io, arena: std.mem.Allocator, request: serve.ProduceRequest) !?serve.Produced {
+    const self: *LiveServer = @ptrCast(@alignCast(ctx));
+    const path = request.path;
+    if (std.mem.eql(u8, path, "manifest.json"))
+        return try manifestResponse(self, arena, request);
+    // The roster is a cached body, not work: answering a HEAD from it costs a
+    // stat and a copy. Doing so is also what keeps HEAD and GET agreeing about
+    // whether this deployment has players at all — falling through would let a
+    // stale file in the cache directory answer a probe that GET answers 404.
+    if (std.mem.eql(u8, path, "players.json")) return try playersResponse(self, io, arena);
+    // A HEAD gets the catalog (that is how a viewer discovers the world) but
+    // never enough of a foothold to make the host bake a tile or re-serialize
+    // the atlas. Those fall through to whatever is already cached on disk.
+    if (request.head) return null;
+    if (std.mem.eql(u8, path, "terrain.vtexarr"))
+        return .{ .body = try liveAtlas(self, arena), .content_type = "application/octet-stream" };
+    if (parseTilePath(path)) |xz| return try tileResponse(self, arena, xz[0], xz[1], request);
+    return null; // not ours — static disk serves it (lowres, favicon, …)
+}
+
+/// The live player roster. Its body is derived from the source's own
+/// modification time rather than the clock, so a world where nobody moved
+/// re-serializes to the same bytes and the poll settles into a `304` — a map
+/// with an open player list costs a status line per second, not a document.
+///
+/// Answers 404 — not null — when players are switched off. Falling through
+/// would let a `players.json` left in the cache directory by an earlier run
+/// answer in its place, which would make `--players off` mean "off unless you
+/// forgot to delete something". This is also how a client discovers that a
+/// deployment doesn't offer a roster at all.
+fn playersResponse(self: *LiveServer, io: std.Io, arena: std.mem.Allocator) !?serve.Produced {
+    const missing: serve.Produced = .{
+        .body = "not found\n",
+        .content_type = "text/plain; charset=utf-8",
+        .status = .not_found,
+    };
+    const feed = self.player_feed orelse return missing;
+    const body = (try feed.snapshot(io, arena)) orelse return missing;
+    return .{
+        .body = body.bytes,
+        .content_type = "application/json",
+        .etag = body.etag,
+        // Storable but never usable without revalidating: positions are as
+        // private as the map, and a second-old roster is already wrong.
+        .cache_control = "private, no-cache",
+    };
+}
+
+/// Tiles are immutable for a `{session, revision}` pair, so they are the one
+/// artifact worth letting a client keep: `no-cache` stores a copy that must
+/// be revalidated, and the revalidation is a 304 with no body — no transfer,
+/// no disk read, and on a cold tile no bake either. Panning back over
+/// explored terrain after a reload therefore costs a status line per tile.
+/// It stays `private` and revalidated because the map is private world data:
+/// a shared cache must not hold it and a client must not use it blind.
+const TILE_CACHE_CONTROL = "private, no-cache";
+
+fn tileResponse(
+    self: *LiveServer,
+    arena: std.mem.Allocator,
+    tx: i32,
+    tz: i32,
+    request: serve.ProduceRequest,
+) !serve.Produced {
+    const body = try liveTile(self, arena, tx, tz, request.validator);
+    // Revision 0 is a local `vantage live` session, whose catalog never
+    // revises; it has no stable validator to offer.
+    if (body.revision == 0)
+        return .{ .body = body.bytes, .content_type = "application/octet-stream" };
+    return .{
+        .body = body.bytes,
+        .content_type = "application/octet-stream",
+        .etag = try tileEtag(arena, self.session_tag, body.revision),
+        .cache_control = TILE_CACHE_CONTROL,
+    };
+}
+
+fn tileEtag(arena: std.mem.Allocator, session_tag: u64, revision: u64) ![]const u8 {
+    return std.fmt.allocPrint(arena, "\"{x}-{x}\"", .{ session_tag, revision });
+}
+
+/// The manifest ETag seed ("VANTETAG").
+const MANIFEST_ETAG_SEED: u64 = 0x5641_4e54_4554_4147;
+
+/// Seed for lowres tile fingerprints ("VANTELOD").
+const LOWRES_REVISION_SEED: u64 = 0x5641_4e54_454c_4f44;
+
+/// Serve the live manifest through a generation-keyed cache. A strong
+/// validator over the exact raw bytes lets idle pollers trade the full
+/// catalog for a 304 — and with the cache, that 304 costs a generation
+/// compare instead of an O(tiles) JSON rebuild. Changed catalogs go out
+/// gzip-coded when the poller accepts it: a large world's manifest is
+/// megabytes of highly repetitive JSON, re-fetched every poll while tiles
+/// bake, and gzip is ~10× on it.
+fn manifestResponse(self: *LiveServer, arena: std.mem.Allocator, request: serve.ProduceRequest) !serve.Produced {
+    const io = self.sh.io;
+    self.maybeRefresh();
+
+    // Fast path: the catalog hasn't moved since the cache was built — or it
+    // has, but only within the coalescing window. Prebake moves the
+    // generation with every tile it lands, so without that window a busy
+    // server rebuilds and re-gzips a megabyte-scale catalog for every poll of
+    // every client; with it, at most one rebuild per window is shared by all
+    // of them and a client sees the extra tiles on its next poll instead.
+    // The representation is copied into the request arena UNDER the mutex —
+    // the cache's memory can be freed by a later swap the moment it's
+    // released.
+    self.mutex.lockUncancelable(io);
+    // Sampled under the lock so it can never precede the `built_at` it is
+    // about to be compared against.
+    const now = std.Io.Timestamp.now(io, .awake);
+    const generation = self.manifest_generation;
+    if (self.manifest_cache) |cache| if (cache.generation == generation or
+        (self.manifest_coalesce_ns > 0 and cache.built_at.durationTo(now).nanoseconds < self.manifest_coalesce_ns))
+    {
+        const out = manifestRepresentation(arena, cache.body, cache.gzip, cache.etag, request) catch |e| {
+            self.mutex.unlock(io);
+            return e;
+        };
+        self.mutex.unlock(io);
+        return out;
+    };
+    const lead_build = !self.manifest_building;
+    if (lead_build) self.manifest_building = true;
+    self.mutex.unlock(io);
+
+    if (!lead_build) {
+        // A concurrent poller is already rebuilding the cache; answer this
+        // request with a plain per-request build instead of racing it.
+        const body = try liveManifest(self, arena);
+        const etag = try std.fmt.allocPrint(arena, "\"{x}\"", .{std.hash.Wyhash.hash(MANIFEST_ETAG_SEED, body)});
+        return finishManifest(arena, body, etag, request);
+    }
+
+    // Lead builder: build into a cache-owned arena, answer THIS request from
+    // the freshly-built parts, and only then swap the cache in — after the
+    // swap the arena belongs to the cache and no failable step may run.
+    var cache_arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    errdefer cache_arena.deinit();
+    // Any failure before the swap must clear the build claim, or the cache
+    // could never be rebuilt and every poll would degrade to the racer path.
+    errdefer {
+        self.mutex.lockUncancelable(io);
+        self.manifest_building = false;
+        self.mutex.unlock(io);
+    }
+    const ca = cache_arena.allocator();
+    const body = try liveManifest(self, ca);
+    const etag = try std.fmt.allocPrint(ca, "\"{x}\"", .{std.hash.Wyhash.hash(MANIFEST_ETAG_SEED, body)});
+    const gz = try compress.gzipCompress(ca, body, 6);
+    const out = try manifestRepresentation(arena, body, gz, etag, request);
+
+    var old: ?std.heap.ArenaAllocator = null;
+    self.mutex.lockUncancelable(io);
+    self.manifest_building = false;
+    if (self.manifest_cache) |cache| old = cache.arena;
+    // Tagged with the generation observed BEFORE the build: if a bake landed
+    // mid-build the cache is immediately stale and the next poll rebuilds —
+    // the body served now is still a consistent snapshot.
+    self.manifest_cache = .{
+        .arena = cache_arena,
+        .generation = generation,
+        .body = body,
+        .gzip = gz,
+        .etag = etag,
+        .built_at = std.Io.Timestamp.now(io, .awake),
+    };
+    self.mutex.unlock(io);
+    if (old) |*stale| stale.deinit();
+    return out;
+}
+
+/// Pick and copy the representation a request gets — nothing for a validator
+/// match (the transport answers 304), the gzip coding when accepted, else the
+/// raw body — into the request arena.
+fn manifestRepresentation(arena: std.mem.Allocator, body: []const u8, gz: []const u8, etag_src: []const u8, request: serve.ProduceRequest) !serve.Produced {
+    const etag = try arena.dupe(u8, etag_src);
+    if (request.validator) |validator| if (serve.etagMatches(validator, etag)) {
+        return .{ .body = "", .content_type = "application/json", .etag = etag };
+    };
+    if (request.accept_gzip) {
+        return .{
+            .body = try arena.dupe(u8, gz),
+            .content_type = "application/json",
+            .etag = etag,
+            .content_encoding = "gzip",
+        };
+    }
+    return .{ .body = try arena.dupe(u8, body), .content_type = "application/json", .etag = etag };
+}
+
+/// A per-request (uncached) manifest response — the racer path.
+fn finishManifest(arena: std.mem.Allocator, body: []const u8, etag: []const u8, request: serve.ProduceRequest) !serve.Produced {
+    if (request.validator) |validator| if (serve.etagMatches(validator, etag))
+        return .{ .body = "", .content_type = "application/json", .etag = etag };
+    if (request.accept_gzip) {
+        return .{
+            .body = try compress.gzipCompress(arena, body, 6),
+            .content_type = "application/json",
+            .etag = etag,
+            .content_encoding = "gzip",
+        };
+    }
+    return .{ .body = body, .content_type = "application/json", .etag = etag };
+}
+
+/// Parse `tiles/t.<x>.<z>.vtile` → `{x, z}`; null for any other path.
+fn parseTilePath(path: []const u8) ?[2]i32 {
+    const prefix = "tiles/t.";
+    const suffix = ".vtile";
+    if (!std.mem.startsWith(u8, path, prefix) or !std.mem.endsWith(u8, path, suffix)) return null;
+    const mid = path[prefix.len .. path.len - suffix.len];
+    const dot = std.mem.indexOfScalar(u8, mid, '.') orelse return null;
+    const x = std.fmt.parseInt(i32, mid[0..dot], 10) catch return null;
+    const z = std.fmt.parseInt(i32, mid[dot + 1 ..], 10) catch return null;
+    return .{ x, z };
+}
+
+fn cacheTileName(a: std.mem.Allocator, tx: i32, tz: i32) ![]const u8 {
+    return std.fmt.allocPrint(a, "t.{d}.{d}.cache", .{ tx, tz });
+}
+
+fn openPersistentCache(io: std.Io, a: std.mem.Allocator, out_dir: []const u8, stamp: []const u8) !void {
+    try std.Io.Dir.cwd().createDirPath(io, out_dir);
+    const stamp_path = try std.fmt.allocPrint(a, "{s}/.msc-cache-stamp", .{out_dir});
+    const old = std.Io.Dir.cwd().readFileAlloc(io, stamp_path, a, .limited(8192)) catch "";
+    if (!std.mem.eql(u8, old, stamp)) {
+        const tiles = try std.fmt.allocPrint(a, "{s}/tiles", .{out_dir});
+        std.Io.Dir.cwd().deleteTree(io, tiles) catch |err| if (err != error.FileNotFound) return err;
+        const lod = try std.fmt.allocPrint(a, "{s}/.vantage-lod", .{out_dir});
+        std.Io.Dir.cwd().deleteTree(io, lod) catch |err| if (err != error.FileNotFound) return err;
+        const atlas_state = try std.fmt.allocPrint(a, "{s}/atlas-state.json", .{out_dir});
+        const atlas_pixels = try std.fmt.allocPrint(a, "{s}/atlas-state.vtexarr", .{out_dir});
+        std.Io.Dir.cwd().deleteFile(io, atlas_state) catch |err| if (err != error.FileNotFound) return err;
+        std.Io.Dir.cwd().deleteFile(io, atlas_pixels) catch |err| if (err != error.FileNotFound) return err;
+        try atomicWrite(io, a, out_dir, ".msc-cache-stamp", stamp);
+    }
+}
+
+fn restorePersistentAtlas(sh: *Shared) bool {
+    const io = sh.io;
+    var scratch = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer scratch.deinit();
+    const a = scratch.allocator();
+    const state_path = std.fmt.allocPrint(a, "{s}/atlas-state.json", .{sh.out_dir}) catch return false;
+    const atlas_path = std.fmt.allocPrint(a, "{s}/atlas-state.vtexarr", .{sh.out_dir}) catch return false;
+    const json = std.Io.Dir.cwd().readFileAlloc(io, state_path, a, .limited(16 * 1024 * 1024)) catch return false;
+    const parsed = std.json.parseFromSlice(PersistentAtlas, a, json, .{ .ignore_unknown_fields = true }) catch return false;
+    const raw = std.Io.Dir.cwd().readFileAlloc(io, atlas_path, a, .limited(128 * 1024 * 1024)) catch return false;
+    const arr = texture.deserialize(a, raw) catch return false;
+    if (parsed.value.format != 1 or parsed.value.layers != arr.layer_count or parsed.value.biomes.len == 0 or
+        parsed.value.biomes.len > std.math.maxInt(u16) or !std.mem.eql(u8, parsed.value.biomes[0], "")) return false;
+    sh.builder.restore(arr, parsed.value.keys) catch return false;
+    for (parsed.value.biomes[1..]) |name| {
+        const dup = sh.sa.dupe(u8, name) catch return false;
+        const id: u16 = @intCast(sh.world_raw.items.len);
+        sh.world_raw.append(sh.sa, dup) catch return false;
+        sh.world_display.append(sh.sa, sh.names.biomeName(sh.sa, dup)) catch return false;
+        sh.world_biome_ids.put(dup, id) catch return false;
+    }
+    std.debug.print("live: restored {d} atlas layers and {d} biome IDs\n", .{ arr.layer_count, parsed.value.biomes.len });
+    return true;
+}
+
+fn persistAtlasState(self: *LiveServer, a: std.mem.Allocator) !void {
+    const sh = self.sh;
+    const io = sh.io;
+    sh.builder.mutex.lockUncancelable(io);
+    const arr = sh.builder.finishAlloc(a) catch |e| {
+        sh.builder.mutex.unlock(io);
+        return e;
+    };
+    const keys = a.alloc(texture.LayerKey, sh.builder.map.count()) catch |e| {
+        sh.builder.mutex.unlock(io);
+        return e;
+    };
+    var it = sh.builder.map.iterator();
+    var ki: usize = 0;
+    while (it.next()) |entry| : (ki += 1) {
+        keys[ki] = .{ .key = entry.key_ptr.*, .layer = entry.value_ptr.* };
+    }
+    sh.builder.mutex.unlock(io);
+    sh.world_mutex.lockUncancelable(io);
+    const biomes = a.dupe([]const u8, sh.world_raw.items) catch |e| {
+        sh.world_mutex.unlock(io);
+        return e;
+    };
+    sh.world_mutex.unlock(io);
+    if (arr.layer_count == self.persisted_layers and keys.len == self.persisted_keys and
+        biomes.len == self.persisted_biomes) return;
+    const state: PersistentAtlas = .{ .layers = arr.layer_count, .keys = keys, .biomes = biomes };
+    const binary = try texture.serialize(a, arr);
+    const json = try std.json.Stringify.valueAlloc(a, state, .{});
+    try atomicWrite(io, a, sh.out_dir, "atlas-state.vtexarr", binary);
+    try atomicWrite(io, a, sh.out_dir, "atlas-state.json", json);
+    self.persisted_layers = arr.layer_count;
+    self.persisted_keys = keys.len;
+    self.persisted_biomes = biomes.len;
+}
+
+fn persistTile(self: *LiveServer, key: u64, revision: u64, res: *const TileResult) !void {
+    var scratch = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer scratch.deinit();
+    const a = scratch.allocator();
+    self.cache_mutex.lockUncancelable(self.sh.io);
+    defer self.cache_mutex.unlock(self.sh.io);
+    try persistAtlasState(self, a);
+    const tx: i32 = @bitCast(@as(u32, @truncate(key >> 32)));
+    const tz: i32 = @bitCast(@as(u32, @truncate(key)));
+    const meta: PersistentTile = .{
+        .x = tx,
+        .z = tz,
+        .bytes = res.entry.bytes,
+        .revision = revision,
+        .max_section_verts = @max(res.solid_verts, res.fluid_verts),
+        .y_min = res.y_min,
+        .y_max = res.y_max,
+    };
+    const json = try std.json.Stringify.valueAlloc(a, meta, .{});
+    const dir = try std.fmt.allocPrint(a, "{s}/tiles", .{self.sh.out_dir});
+    try atomicWrite(self.sh.io, a, dir, try cacheTileName(a, tx, tz), json);
+}
+
+fn seedPersistentTiles(self: *LiveServer) void {
+    var scratch = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer scratch.deinit();
+    const a = scratch.allocator();
+    const io = self.sh.io;
+    const dir_path = std.fmt.allocPrint(a, "{s}/tiles", .{self.sh.out_dir}) catch return;
+    var dir = std.Io.Dir.cwd().openDir(io, dir_path, .{ .iterate = true }) catch return;
+    defer dir.close(io);
+    var it = dir.iterate();
+    var reused: usize = 0;
+    while (it.next(io) catch null) |entry| {
+        if (entry.kind != .file or !std.mem.endsWith(u8, entry.name, ".cache")) continue;
+        const raw = dir.readFileAlloc(io, entry.name, a, .limited(1024)) catch {
+            discardCachedTile(io, &dir, a, entry.name);
+            continue;
+        };
+        const parsed = std.json.parseFromSlice(PersistentTile, a, raw, .{ .ignore_unknown_fields = true }) catch {
+            discardCachedTile(io, &dir, a, entry.name);
+            continue;
+        };
+        const m = parsed.value;
+        if (m.format != 1 or m.bytes == 0 or m.y_min >= m.y_max) {
+            discardCachedTile(io, &dir, a, entry.name);
+            continue;
+        }
+        const expected = cacheTileName(a, m.x, m.z) catch continue;
+        if (!std.mem.eql(u8, entry.name, expected)) {
+            discardCachedTile(io, &dir, a, entry.name);
+            continue;
+        }
+        const key = world.packChunk(m.x, m.z);
+        const revision = if (self.snapshot) |snapshot| snapshot.tile_revisions.get(key) orelse 0 else 0;
+        if (revision == 0 or revision != m.revision) {
+            discardCachedTile(io, &dir, a, entry.name);
+            continue;
+        }
+        const tile_name = std.fmt.allocPrint(a, "t.{d}.{d}.vtile", .{ m.x, m.z }) catch continue;
+        const stat = dir.statFile(io, tile_name, .{}) catch {
+            discardCachedTile(io, &dir, a, entry.name);
+            continue;
+        };
+        if (stat.kind != .file or stat.size != m.bytes) {
+            discardCachedTile(io, &dir, a, entry.name);
+            continue;
+        }
+        self.baked.put(key, .{ .bytes = m.bytes, .revision = revision }) catch continue;
+        self.cache_bytes +|= m.bytes;
+        self.cache_clock +%= 1;
+        self.cache_age.put(key, self.cache_clock) catch {};
+        self.max_section_verts = @max(self.max_section_verts, m.max_section_verts);
+        self.y_min = @min(self.y_min, m.y_min);
+        self.y_max = @max(self.y_max, m.y_max);
+        reused += 1;
+    }
+    if (reused > 0) std.debug.print("live: reused {d} detailed tiles from the prior session\n", .{reused});
+}
+
+fn discardCachedTile(io: std.Io, dir: *std.Io.Dir, a: std.mem.Allocator, meta_name: []const u8) void {
+    const tile_name = std.fmt.allocPrint(a, "{s}.vtile", .{meta_name[0 .. meta_name.len - ".cache".len]}) catch return;
+    dir.deleteFile(io, meta_name) catch {};
+    dir.deleteFile(io, tile_name) catch {};
+}
+
+fn prunePersistentTiles(self: *LiveServer, keep: u64) void {
+    if (self.cache_limit == 0) return;
+    const io = self.sh.io;
+    self.cache_mutex.lockUncancelable(io);
+    defer self.cache_mutex.unlock(io);
+    while (true) {
+        self.mutex.lockUncancelable(io);
+        if (self.cache_bytes <= self.cache_limit) {
+            self.mutex.unlock(io);
+            return;
+        }
+        var oldest: ?u64 = null;
+        var age: u64 = std.math.maxInt(u64);
+        var it = self.cache_age.iterator();
+        while (it.next()) |entry| {
+            const key = entry.key_ptr.*;
+            if (key == keep or self.baking.contains(key)) continue;
+            const baked = self.baked.get(key) orelse continue;
+            if (baked.bytes == 0) continue;
+            if (entry.value_ptr.* < age) {
+                oldest = key;
+                age = entry.value_ptr.*;
+            }
+        }
+        const victim = oldest orelse {
+            self.mutex.unlock(io);
+            return;
+        };
+        if (self.baked.fetchRemove(victim)) |removed| self.cache_bytes -|= removed.value.bytes;
+        _ = self.cache_age.remove(victim);
+        self.manifest_generation +%= 1;
+        self.mutex.unlock(io);
+
+        var scratch = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        const a = scratch.allocator();
+        const tx: i32 = @bitCast(@as(u32, @truncate(victim >> 32)));
+        const tz: i32 = @bitCast(@as(u32, @truncate(victim)));
+        const tile_path = std.fmt.allocPrint(a, "{s}/tiles/t.{d}.{d}.vtile", .{ self.sh.out_dir, tx, tz }) catch {
+            scratch.deinit();
+            return;
+        };
+        const meta = std.fmt.allocPrint(a, "{s}/tiles/t.{d}.{d}.cache", .{ self.sh.out_dir, tx, tz }) catch {
+            scratch.deinit();
+            return;
+        };
+        std.Io.Dir.cwd().deleteFile(io, meta) catch {};
+        std.Io.Dir.cwd().deleteFile(io, tile_path) catch {};
+        scratch.deinit();
+    }
+}
+
+/// One tile's bytes plus the revision they were baked at — the revision is
+/// what makes them cacheable, so the response layer needs it alongside them.
+const TileBody = struct {
+    bytes: []const u8,
+    revision: u64,
+};
+
+/// Serve one tile: nothing at all if the client already holds this revision,
+/// else from the session cache if already baked (0 bytes = a valid empty
+/// body), else join or lead a single in-flight fill. Leaders wait for a
+/// memory-budgeted bake permit before allocating their tile arena. A failure
+/// becomes a gap (an empty body the viewer marks empty), never a retry storm.
+fn liveTile(
+    self: *LiveServer,
+    arena: std.mem.Allocator,
+    tx: i32,
+    tz: i32,
+    validator: ?[]const u8,
+) !TileBody {
+    const key = world.packChunk(tx, tz);
+    // Publish interactive demand before acquireSnapshot takes the state lock.
+    // In particular, this lets a world-wide prebake candidate scan notice and
+    // yield to the request instead of making the request invisible until
+    // after that scan. Keep the claim through the bake as well: a free arena
+    // is not useful if newly-started background bakes immediately consume the
+    // CPU and I/O it needs to finish.
+    _ = self.interactive_demand.fetchAdd(1, .acq_rel);
+    defer _ = self.interactive_demand.fetchSub(1, .acq_rel);
+
+    const snapshot = self.acquireSnapshot();
+    defer if (snapshot) |current| self.releaseSnapshot(current);
+    const regions = if (snapshot) |current| current.loaded else self.sh.loaded;
+    const revision = if (snapshot) |current| current.tile_revisions.get(key) orelse return .{ .bytes = "", .revision = 0 } else 0;
+    if (snapshot == null and !self.known.contains(key)) return .{ .bytes = "", .revision = 0 };
+
+    // A client holding this exact revision needs no bytes — and, on a tile
+    // that hasn't been baked yet, no bake. The transport turns the empty body
+    // into the 304 because it re-derives the same condition from the same
+    // validator; a duplicate If-None-Match reaches us as null and takes the
+    // full path, exactly as it does there.
+    if (revision != 0) if (validator) |presented| {
+        const etag = try tileEtag(arena, self.session_tag, revision);
+        if (serve.etagMatches(presented, etag)) return .{ .bytes = "", .revision = revision };
+    };
+
+    self.mutex.lockUncancelable(self.sh.io);
+    self.last_request = .{ tx, tz }; // the prebake workers' focus
+    while (true) {
+        if (self.baked.get(key)) |cached| if (cached.revision == revision) {
+            self.mutex.unlock(self.sh.io);
+            const bytes = if (cached.bytes == 0) "" else readCachedTile(self, arena, tx, tz) catch {
+                self.mutex.lockUncancelable(self.sh.io);
+                if (self.baked.fetchRemove(key)) |removed| self.cache_bytes -|= removed.value.bytes;
+                _ = self.cache_age.remove(key);
+                continue;
+            };
+            self.mutex.lockUncancelable(self.sh.io);
+            self.cache_clock +%= 1;
+            self.cache_age.put(key, self.cache_clock) catch {};
+            self.mutex.unlock(self.sh.io);
+            return .{ .bytes = bytes, .revision = revision };
+        };
+        if (!self.baking.contains(key)) {
+            self.baking.put(key, {}) catch |e| {
+                self.mutex.unlock(self.sh.io);
+                return e;
+            };
+            self.mutex.unlock(self.sh.io);
+            break;
+        }
+        self.ready.waitUncancelable(self.sh.io, &self.mutex);
+    }
+
+    self.bake_slots.waitUncancelable(self.sh.io);
+    defer self.bake_slots.post(self.sh.io);
+
+    var res: TileResult = .{};
+    bakeTileFromRegions(self.sh, arena, regions, tx, tz, self.lod_dir != null, &res) catch |e| {
+        std.debug.print("live: tile ({d},{d}) failed: {s} — leaving a gap\n", .{ tx, tz, @errorName(e) });
+        self.record(key, revision, null);
+        return .{ .bytes = "", .revision = revision }; // the viewer marks it empty, no retry
+    };
+    self.record(key, revision, if (res.written) &res else null);
+    if (!res.cmap_written) retireLodSource(self, key);
+    // Meshed to nothing (all air / cave-culled) is still a real answer.
+    const bytes = if (res.written) try readCachedTile(self, arena, tx, tz) else "";
+    return .{ .bytes = bytes, .revision = revision };
+}
+
+/// Background prebake: while bake slots sit idle, bake the unbaked (or
+/// revision-stale) tile nearest the viewer's last request — else the spawn —
+/// so exploration mostly lands on warm cache instead of waiting a full bake
+/// per tile. Workers share the interactive path's `baking` registry, so a
+/// viewer request for a tile mid-prebake simply waits on the same bake
+/// instead of duplicating it, and revision-stale tiles re-bake on their own
+/// after a world save — players see edits without ever fetching cold.
+fn prebakeLoop(self: *LiveServer) void {
+    const io = self.sh.io;
+    while (true) {
+        if (self.interactive_demand.load(.acquire) > 0) {
+            std.Io.sleep(io, std.Io.Duration.fromMilliseconds(25), .awake) catch {};
+            continue;
+        }
+        if (!prebakeOne(self)) {
+            // Everything is baked at the current revisions. New work appears
+            // only after a snapshot swap (throttled by --scan-interval), so a
+            // long idle nap keeps the converged no-work scan — O(tiles) under
+            // the state mutex per worker wake — off big worlds' lock.
+            std.Io.sleep(io, std.Io.Duration.fromMilliseconds(2000), .awake) catch {};
+        }
+    }
+}
+
+/// One prebake step. Returns false when no tile needs baking right now.
+fn prebakeOne(self: *LiveServer) bool {
+    const io = self.sh.io;
+    const snapshot = self.acquireSnapshot();
+    defer if (snapshot) |current| self.releaseSnapshot(current);
+    const keys = if (snapshot) |current| current.tile_keys else self.tile_keys;
+    const regions = if (snapshot) |current| current.loaded else self.sh.loaded;
+
+    self.mutex.lockUncancelable(io);
+    // A viewer can arrive after prebakeLoop's check but before this worker
+    // takes the mutex. Do not start a full catalog scan in that window.
+    if (self.interactive_demand.load(.acquire) > 0) {
+        self.mutex.unlock(io);
+        return true;
+    }
+    var focus_buf: [MAX_FOCUS_POINTS + 1][2]i32 = undefined;
+    const focus = focusLocked(self, &focus_buf);
+    var best_key: ?u64 = null;
+    var best_revision: u64 = 0;
+    var best_d: i64 = std.math.maxInt(i64);
+    for (keys, 0..) |key, i| {
+        // Multi-focus ranking made this locked scan substantially longer in
+        // 0.10.0. Poll periodically so a request that arrived mid-scan waits
+        // for at most a small batch rather than the rest of a large world.
+        if (i & 255 == 0 and self.interactive_demand.load(.acquire) > 0) {
+            self.mutex.unlock(io);
+            return true;
+        }
+        const revision = if (snapshot) |current| current.tile_revisions.get(key).? else 0;
+        if (self.baked.get(key)) |cached| if (cached.revision == revision) continue;
+        if (self.baking.contains(key)) continue;
+        const tx: i32 = @bitCast(@as(u32, @truncate(key >> 32)));
+        const tz: i32 = @bitCast(@as(u32, @truncate(key)));
+        const d = nearestFocusDistance(focus, tx, tz);
+        if (d < best_d) {
+            best_d = d;
+            best_key = key;
+            best_revision = revision;
+        }
+    }
+    const key = best_key orelse {
+        self.mutex.unlock(io);
+        return false;
+    };
+    // Close the last race between the final periodic poll and publishing a
+    // background bake. The viewer owns the next scheduling decision now.
+    if (self.interactive_demand.load(.acquire) > 0) {
+        self.mutex.unlock(io);
+        return true;
+    }
+    self.baking.put(key, {}) catch {
+        self.mutex.unlock(io);
+        return false;
+    };
+    self.mutex.unlock(io);
+
+    self.bake_slots.waitUncancelable(io);
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const tx: i32 = @bitCast(@as(u32, @truncate(key >> 32)));
+    const tz: i32 = @bitCast(@as(u32, @truncate(key)));
+    var res: TileResult = .{};
+    const baked = bakeTileFromRegions(self.sh, arena.allocator(), regions, tx, tz, self.lod_dir != null, &res);
+    self.bake_slots.post(io);
+    if (baked) |_| {
+        self.record(key, best_revision, if (res.written) &res else null);
+        if (!res.cmap_written) retireLodSource(self, key);
+    } else |e| {
+        std.debug.print("prebake: tile ({d},{d}) failed: {s} — leaving a gap\n", .{ tx, tz, @errorName(e) });
+        self.record(key, best_revision, null);
+    }
+    return true;
+}
+
+/// Shortest wait between LOD rebuilds. Tiles that bake inside one window are
+/// folded into the overview together.
+const LOD_MIN_INTERVAL_MS: u64 = 3000;
+/// …and at most this fraction of the time is spent rebuilding: a world large
+/// enough for a rebuild to take a second waits proportionally longer, so the
+/// overview never competes with the bakes that feed it.
+const LOD_DUTY: u64 = 8;
+
+/// Background pyramid builder: fold newly baked tiles' colour maps into the
+/// published LOD pyramid. One worker; it yields to interactive fetches exactly
+/// like prebake, and backs off in proportion to how long its own rebuilds take.
+fn liveLodLoop(self: *LiveServer) void {
+    const io = self.sh.io;
+    var wait: u64 = LOD_MIN_INTERVAL_MS;
+    var complained = false;
+    while (true) {
+        std.Io.sleep(io, std.Io.Duration.fromMilliseconds(@intCast(wait)), .awake) catch {};
+        if (self.interactive_demand.load(.acquire) > 0) continue;
+        const ms = rebuildLiveLod(self) catch |e| {
+            if (!complained) {
+                std.debug.print("live: LOD pyramid rebuild failed: {s} — the zoomed-out overview will lag\n", .{@errorName(e)});
+                complained = true;
+            }
+            wait = LOD_MIN_INTERVAL_MS * LOD_DUTY; // don't spin on a broken cache
+            continue;
+        };
+        wait = @max(LOD_MIN_INTERVAL_MS, @as(u64, @intCast(@max(0, ms))) * LOD_DUTY);
+    }
+}
+
+/// Rebuild the pyramid from every colour map baked so far and publish it.
+/// Returns how long the rebuild took, or 0 when there was nothing to do.
+///
+/// The whole pyramid is rebuilt rather than patched: it is pure downsampling
+/// over ~80 KiB per tile, the level-0 maps are the only inputs, and one
+/// rebuild covers however many tiles landed since the last one. Sharing
+/// `buildLowresPyramid` with the batch renderer also means a live world's
+/// overview is byte-identical to the one `vantage render` bakes.
+fn rebuildLiveLod(self: *LiveServer) !i64 {
+    const io = self.sh.io;
+    const lod_dir = self.lod_dir orelse return 0;
+
+    self.mutex.lockUncancelable(io);
+    if (self.lod_building or !self.lod_dirty or self.lod_maps.count() == 0) {
+        self.mutex.unlock(io);
+        return 0;
+    }
+    self.lod_building = true;
+    // Cleared before the sources are read, so a tile baked mid-rebuild sets it
+    // again and gets its own pass rather than being missed.
+    self.lod_dirty = false;
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    const a = arena.allocator();
+    var sources: std.ArrayList(TileEntry) = .empty;
+    // Terrain the world no longer has must leave the overview too: a region
+    // deleted between snapshots drops out of the catalog, and its colour map
+    // would otherwise keep it drawable forever. Dead entries are collected
+    // rather than removed mid-iteration, and their files deleted after the
+    // lock is released.
+    var retired: std.ArrayList(u64) = .empty;
+    var ok = true;
+    var it = self.lod_maps.keyIterator();
+    while (it.next()) |key| {
+        if (!knownTile(self, key.*)) {
+            retired.append(a, key.*) catch {
+                ok = false;
+                break;
+            };
+            continue;
+        }
+        sources.append(a, .{
+            .tx = @bitCast(@as(u32, @truncate(key.* >> 32))),
+            .tz = @bitCast(@as(u32, @truncate(key.*))),
+            .bytes = 0,
+        }) catch {
+            ok = false;
+            break;
+        };
+    }
+    if (ok) {
+        for (retired.items) |key| _ = self.lod_maps.remove(key);
+    }
+    self.mutex.unlock(io);
+    errdefer {
+        arena.deinit();
+        self.mutex.lockUncancelable(io);
+        self.lod_building = false;
+        self.lod_dirty = true; // whatever failed is still unpublished
+        self.mutex.unlock(io);
+    }
+    if (!ok) return error.OutOfMemory;
+    if (retired.items.len > 0) deleteColorMapLevel(io, lod_dir, 0, retired.items);
+    if (sources.items.len == 0) {
+        // Every source retired: publish an empty overview rather than a stale one.
+        self.mutex.lockUncancelable(io);
+        var stale = self.lod_arena;
+        self.lod_arena = null;
+        self.lod_levels = &.{};
+        self.lod_building = false;
+        self.manifest_generation +%= 1;
+        self.mutex.unlock(io);
+        if (stale) |*old| old.deinit();
+        arena.deinit();
+        return 0;
+    }
+
+    const t0 = std.Io.Timestamp.now(io, .awake);
+    const pyramid = try buildLowresPyramid(a, io, self.sh.out_dir, lod_dir, sources.items, @as(i64, self.sh.tile_chunks) * 16, true);
+    const elapsed = t0.durationTo(std.Io.Timestamp.now(io, .awake)).toMilliseconds();
+
+    self.mutex.lockUncancelable(io);
+    var old = self.lod_arena;
+    self.lod_arena = arena; // the arena now owns the published levels
+    self.lod_levels = pyramid.levels;
+    self.lod_building = false;
+    self.manifest_generation +%= 1; // the overview moved
+    self.mutex.unlock(io);
+    if (old) |*stale| stale.deinit();
+    return elapsed;
+}
+
+/// Drop a tile's colour map from the overview.
+///
+/// Called after a bake that produced no map: the tile meshed to nothing, which
+/// on a revised tile means the terrain that was there has been removed. Its
+/// previous map would otherwise stay an input to every rebuild — and, because
+/// the coordinate is still in the catalog, survive a restart through
+/// `seedLiveLod` — so deleted terrain would linger in the overview forever.
+/// Only reached on a SUCCESSFUL bake; a failure keeps what it had rather than
+/// erasing the map over a transient error.
+fn retireLodSource(self: *LiveServer, key: u64) void {
+    const io = self.sh.io;
+    const lod_dir = self.lod_dir orelse return;
+    self.mutex.lockUncancelable(io);
+    const had = self.lod_maps.remove(key);
+    if (had) self.lod_dirty = true;
+    self.mutex.unlock(io);
+    if (!had) return;
+    deleteColorMapLevel(io, lod_dir, 0, &.{key}); // outside the lock: it's I/O
+}
+
+/// Adopt the colour maps a previous session left in the cache. They describe
+/// terrain, not this session's texture atlas, so they stay valid across a
+/// restart — which is what lets a restarted server publish the whole explored
+/// overview before it has re-baked a single tile. Only coordinates the current
+/// catalog still lists are adopted, and each is replaced as soon as its tile
+/// re-bakes. Runs at startup, before any worker thread exists, so it touches
+/// the ledger without the mutex.
+fn seedLiveLod(self: *LiveServer) void {
+    const io = self.sh.io;
+    const lod_dir = self.lod_dir orelse return;
+    var dir = std.Io.Dir.cwd().openDir(io, lod_dir, .{ .iterate = true }) catch return;
+    defer dir.close(io);
+    var known: usize = 0;
+    var it = dir.iterate();
+    while (it.next(io) catch null) |entry| {
+        if (entry.kind != .file) continue;
+        const key = parseColorMapName(entry.name) orelse continue;
+        if (!knownTile(self, key)) continue;
+        self.lod_maps.put(key, {}) catch continue;
+        known += 1;
+    }
+    if (known == 0) return;
+    self.lod_dirty = true;
+    std.debug.print("lod:     {d} tile(s) of a previous session's overview reused\n", .{known});
+}
+
+/// `c.0.<x>.<z>.vcm` -> the tile key it holds a level-0 colour map for.
+fn parseColorMapName(name: []const u8) ?u64 {
+    if (!std.mem.startsWith(u8, name, "c.0.") or !std.mem.endsWith(u8, name, ".vcm")) return null;
+    const mid = name["c.0.".len .. name.len - ".vcm".len];
+    const dot = std.mem.indexOfScalar(u8, mid, '.') orelse return null;
+    const x = std.fmt.parseInt(i32, mid[0..dot], 10) catch return null;
+    const z = std.fmt.parseInt(i32, mid[dot + 1 ..], 10) catch return null;
+    return world.packChunk(x, z);
+}
+
+test "colour-map cache names round-trip through the pyramid key" {
+    try std.testing.expectEqual(world.packChunk(3, -7), parseColorMapName("c.0.3.-7.vcm").?);
+    try std.testing.expect(parseColorMapName("c.1.3.-7.vcm") == null); // a derived level, not a source
+    try std.testing.expect(parseColorMapName("t.3.-7.vtile") == null);
+    try std.testing.expect(parseColorMapName("c.0.3.vcm") == null);
+}
+
+/// Whether the current catalog still lists a tile coordinate. The server's
+/// authority is its live snapshot; a local `live` session's is the immutable
+/// tile list it started from. Both are guarded by `mutex`, which the rebuild
+/// holds while it scans; startup seeding runs before any worker exists.
+fn knownTile(self: *LiveServer, key: u64) bool {
+    if (self.snapshot) |current| return current.tile_revisions.contains(key);
+    return self.known.contains(key);
+}
+
+/// Everything that changes what a colour map means. Reusing maps across
+/// restarts is the whole point of the cache, so its key has to cover every
+/// input to them — not just the geometry, but which world and which settings
+/// produced the colours.
+const LodStamp = struct {
+    /// The region directory being served. Two saves pointed at one `--out`
+    /// would otherwise share coordinates and show each other's terrain.
+    world: []const u8,
+    /// Assets decide the textures the colours are averaged from, and the biome
+    /// data those colours are tinted by.
+    assets: []const u8,
+    dim: []const u8,
+    tile_chunks: i32,
+    /// Trimming the grid moves which block is the surface.
+    ceiling: ?i32,
+    /// Sky light shades the maps, and the mode changes it.
+    light: mesh.LightQuality,
+    blend_biomes: bool,
+
+    fn write(self: LodStamp, a: std.mem.Allocator) ![]const u8 {
+        return std.fmt.allocPrint(a, "vantage-lod 2\nworld {s}\nassets {s}\ndim {s}\ntile {d}\nceiling {?d}\nlight {s}\nblend {}\n", .{
+            self.world,
+            self.assets,
+            self.dim,
+            self.tile_chunks,
+            self.ceiling,
+            @tagName(self.light),
+            self.blend_biomes,
+        });
+    }
+};
+
+/// Open (and validate) the colour-map cache for a live session. A stamp
+/// mismatch wipes the cache rather than mixing two worlds' — or two
+/// configurations' — overviews together.
+fn openLiveLodDir(a: std.mem.Allocator, io: std.Io, out_dir: []const u8, stamp_fields: LodStamp) ![]const u8 {
+    const dir = try std.fmt.allocPrint(a, "{s}/.vantage-lod", .{out_dir});
+    const stamp_path = try std.fmt.allocPrint(a, "{s}/stamp", .{dir});
+    const stamp = try stamp_fields.write(a);
+    const existing = std.Io.Dir.cwd().readFileAlloc(io, stamp_path, a, .limited(8192)) catch "";
+    if (!std.mem.eql(u8, existing, stamp)) {
+        std.Io.Dir.cwd().deleteTree(io, dir) catch {};
+    }
+    try std.Io.Dir.cwd().createDirPath(io, dir);
+    try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = stamp_path, .data = stamp });
+    return dir;
+}
+
+test "the LOD cache key covers every input to a colour map" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const base: LodStamp = .{
+        .world = "/saves/A/region",
+        .assets = "/assets/1.21.11",
+        .dim = "overworld",
+        .tile_chunks = 8,
+        .ceiling = null,
+        .light = .smooth,
+        .blend_biomes = true,
+    };
+    const stamp = try base.write(a);
+    try std.testing.expectEqualStrings(stamp, try base.write(a)); // stable
+
+    // Every field must be able to invalidate the cache on its own: each of
+    // these produces different colour maps for the same tile coordinates.
+    var other_world = base;
+    other_world.world = "/saves/B/region";
+    var other_assets = base;
+    other_assets.assets = "/assets/26.2";
+    var other_dim = base;
+    other_dim.dim = "the_nether";
+    var other_tile = base;
+    other_tile.tile_chunks = 16;
+    var other_ceiling = base;
+    other_ceiling.ceiling = 104;
+    var other_light = base;
+    other_light.light = .flat;
+    var other_blend = base;
+    other_blend.blend_biomes = false;
+    for ([_]LodStamp{ other_world, other_assets, other_dim, other_tile, other_ceiling, other_light, other_blend }) |changed| {
+        try std.testing.expect(!std.mem.eql(u8, stamp, try changed.write(a)));
+    }
+}
+
+/// The tiles prebake warms outward from: every place a player is (from the
+/// host's focus file) plus wherever a viewer last looked, because someone
+/// scrolling the map wants the next tile as much as someone standing in a
+/// base does. Falls back to spawn when nothing else is known. Callers already
+/// hold `mutex`; `out` gives the result a caller-owned lifetime.
+fn focusLocked(self: *LiveServer, out: *[MAX_FOCUS_POINTS + 1][2]i32) []const [2]i32 {
+    @memcpy(out[0..self.focus_len], self.focus_buf[0..self.focus_len]);
+    var len = self.focus_len;
+    if (self.last_request) |viewer| {
+        out[len] = viewer;
+        len += 1;
+    }
+    if (len == 0) {
+        out[0] = .{ self.centre_tx, self.centre_tz };
+        len = 1;
+    }
+    return out[0..len];
+}
+
+/// Squared tile distance to the nearest focus point. Nearest-of-several (not
+/// a centroid) is what makes several separated bases warm in parallel-ish
+/// rings instead of the empty ocean between them.
+fn nearestFocusDistance(focus: []const [2]i32, tx: i32, tz: i32) i64 {
+    var best: i64 = std.math.maxInt(i64);
+    for (focus) |point| {
+        const dx: i64 = tx - point[0];
+        const dz: i64 = tz - point[1];
+        best = @min(best, dx * dx + dz * dz);
+    }
+    return best;
+}
+
+test "focus points map blocks to tiles, de-duplicate, and bound" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var out: [MAX_FOCUS_POINTS][2]i32 = undefined;
+
+    // 8-chunk tiles span 128 blocks. Two players in the same base are one
+    // candidate; a fractional stand-position floors like any other.
+    const points = try parseFocusPoints(
+        arena.allocator(),
+        \\{"points":[{"x":10,"z":20},{"x":100.5,"z":40},{"x":-1,"z":-1},{"x":900,"z":0}]}
+    ,
+        8,
+        &out,
+    );
+    try std.testing.expectEqual(@as(usize, 3), points.len);
+    try std.testing.expectEqual([2]i32{ 0, 0 }, points[0]);
+    try std.testing.expectEqual([2]i32{ -1, -1 }, points[1]);
+    try std.testing.expectEqual([2]i32{ 7, 0 }, points[2]);
+
+    // More players than we track: take the first MAX_FOCUS_POINTS.
+    var many: std.ArrayList(u8) = .empty;
+    defer many.deinit(std.testing.allocator);
+    try many.appendSlice(std.testing.allocator, "{\"points\":[");
+    for (0..MAX_FOCUS_POINTS + 8) |i| {
+        if (i > 0) try many.append(std.testing.allocator, ',');
+        try many.print(std.testing.allocator, "{{\"x\":{d},\"z\":0}}", .{i * 1000});
+    }
+    try many.appendSlice(std.testing.allocator, "]}");
+    const capped = try parseFocusPoints(arena.allocator(), many.items, 8, &out);
+    try std.testing.expectEqual(MAX_FOCUS_POINTS, capped.len);
+}
+
+test "focus points reject malformed documents and skip unusable entries" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var out: [MAX_FOCUS_POINTS][2]i32 = undefined;
+
+    // A truncated write, or a document of the wrong shape, is not a focus.
+    try std.testing.expectError(error.InvalidFocusDocument, parseFocusPoints(a, "{\"points\":[{\"x\":1,", 8, &out));
+    try std.testing.expectError(error.InvalidFocusDocument, parseFocusPoints(a, "[]", 8, &out));
+    try std.testing.expectError(error.InvalidFocusDocument, parseFocusPoints(a, "{\"points\":5}", 8, &out));
+    // An empty list is well-formed and simply means "nobody online".
+    try std.testing.expectEqual(@as(usize, 0), (try parseFocusPoints(a, "{\"points\":[]}", 8, &out)).len);
+    // Individual junk entries drop without taking the rest of the file down.
+    const mixed = try parseFocusPoints(
+        a,
+        \\{"points":[{"x":"here","z":0},{"z":0},{"x":1e30,"z":0},{"x":300,"z":300}]}
+    ,
+        8,
+        &out,
+    );
+    try std.testing.expectEqual(@as(usize, 1), mixed.len);
+    try std.testing.expectEqual([2]i32{ 2, 2 }, mixed[0]);
+}
+
+test "prebake ranks candidates by the nearest focus, not their centroid" {
+    // Two bases far apart: the tile beside one of them outranks the empty
+    // ocean halfway between, which is what a centroid would have picked.
+    const focus = [_][2]i32{ .{ -50, 0 }, .{ 50, 0 } };
+    try std.testing.expectEqual(@as(i64, 1), nearestFocusDistance(&focus, 51, 0));
+    try std.testing.expectEqual(@as(i64, 2500), nearestFocusDistance(&focus, 0, 0));
+    // A single focus degrades to plain squared distance.
+    try std.testing.expectEqual(@as(i64, 25), nearestFocusDistance(&.{.{ 0, 0 }}, 3, 4));
+}
+
+test "tile validators are scoped to both the session and the revision" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const etag = try tileEtag(a, 0xfeed, 0x1234);
+    try std.testing.expectEqualStrings("\"feed-1234\"", etag);
+    try std.testing.expect(serve.etagMatches(etag, etag));
+    // A restart re-orders the texture atlas, so last session's copy of the
+    // same world revision must not revalidate.
+    try std.testing.expect(!serve.etagMatches(try tileEtag(a, 0xbeef, 0x1234), etag));
+    try std.testing.expect(!serve.etagMatches(try tileEtag(a, 0xfeed, 0x1235), etag));
+}
+
+/// Read a session-cached tile off disk into the request arena (it was written
+/// by THIS session's bake, so it agrees with the current atlas).
+fn readCachedTile(self: *LiveServer, arena: std.mem.Allocator, tx: i32, tz: i32) ![]const u8 {
+    self.cache_mutex.lockUncancelable(self.sh.io);
+    defer self.cache_mutex.unlock(self.sh.io);
+    const path = try std.fmt.allocPrint(arena, "{s}/tiles/t.{d}.{d}.vtile", .{ self.sh.out_dir, tx, tz });
+    return std.Io.Dir.cwd().readFileAlloc(self.sh.io, path, arena, .unlimited);
+}
+
+/// Build the live manifest: every populated tile listed (with its baked size,
+/// 0 until fetched), the running atlas/biome/extent state, and progress. Stays
+/// `rendering: true` until every tile has been baked at least once.
+fn liveManifest(self: *LiveServer, arena: std.mem.Allocator) ![]const u8 {
+    const io = self.sh.io;
+    // maybeRefresh runs in manifestResponse, before the cache fast path.
+    const snapshot = self.acquireSnapshot();
+    defer if (snapshot) |current| self.releaseSnapshot(current);
+    const tile_keys = if (snapshot) |current| current.tile_keys else self.tile_keys;
+
+    self.mutex.lockUncancelable(io);
+    const tiles = arena.alloc(TileEntry, tile_keys.len) catch |e| {
+        self.mutex.unlock(io);
+        return e;
+    };
+    var done: usize = 0;
+    for (tile_keys, tiles) |key, *t| {
+        const tx: i32 = @bitCast(@as(u32, @truncate(key >> 32)));
+        const tz: i32 = @bitCast(@as(u32, @truncate(key)));
+        const revision = if (snapshot) |current_snapshot| current_snapshot.tile_revisions.get(key).? else 0;
+        const cached = self.baked.get(key);
+        const current = if (cached) |entry| entry.revision == revision else false;
+        if (current) done += 1;
+        t.* = .{
+            .tx = tx,
+            .tz = tz,
+            .bytes = if (current) cached.?.bytes else 0,
+            .revision = revision,
+        };
+    }
+    const msv = self.max_section_verts;
+    const ymin = self.y_min;
+    const ymax = self.y_max;
+    // Copied out under the lock: a rebuild landing between here and
+    // `buildManifest` frees the arena these levels live in.
+    const lod = copyLowresLevels(arena, self.lod_levels) catch |e| {
+        self.mutex.unlock(io);
+        return e;
+    };
+    self.mutex.unlock(io);
+
+    self.sh.world_mutex.lockUncancelable(io);
+    const biomes = arena.dupe([]const u8, self.sh.world_display.items) catch |e| {
+        self.sh.world_mutex.unlock(io);
+        return e;
+    };
+    self.sh.world_mutex.unlock(io);
+
+    return buildManifest(arena, .{
+        .dim = self.sh.dim,
+        .tile_chunks = self.sh.tile_chunks,
+        .spawn = self.spawn,
+        .biomes = biomes,
+        .tiles = tiles,
+        .lowres = lod,
+        .max_section_verts = msv,
+        .caves = self.sh.cave_y == null,
+        .y_range = if (ymin < ymax) .{ ymin, ymax } else null,
+        // Continuous servers keep polling even after the current snapshot is
+        // warm so newly-saved terrain can advance tile revisions in place.
+        .rendering = snapshot != null or done < tile_keys.len,
+        .dynamic = true,
+        .progress = .{ done, tile_keys.len },
+        .texture_layers = self.sh.builder.layerCount(),
+    });
+}
+
+/// Deep-copy the published pyramid into a caller-owned arena, so the manifest
+/// can be formatted after the state mutex is released.
+fn copyLowresLevels(a: std.mem.Allocator, levels: []const LowresLevel) ![]const LowresLevel {
+    const out = try a.alloc(LowresLevel, levels.len);
+    for (levels, out) |src, *dst| {
+        dst.* = src;
+        dst.tiles = try a.dupe(LowresTileEntry, src.tiles);
+    }
+    return out;
+}
+
+/// Serialize + gzip the current atlas into the request arena — a fresh snapshot
+/// per fetch (the viewer re-fetches when a tile needs a layer it lacks).
+fn liveAtlas(self: *LiveServer, arena: std.mem.Allocator) ![]const u8 {
+    const io = self.sh.io;
+    self.sh.builder.mutex.lockUncancelable(io);
+    const arr = self.sh.builder.finishAlloc(arena) catch |e| {
+        self.sh.builder.mutex.unlock(io);
+        return e;
+    };
+    self.sh.builder.mutex.unlock(io);
+    return compress.gzipCompress(arena, try texture.serialize(arena, arr), 6);
+}
+
+/// `vantage live <save-dir> [render flags] [--port n] [--host addr] [--open]` —
+/// open a world in the browser NOW: the whole populated map is listed up front
+/// but each tile is baked on demand as it scrolls into view, so there's no
+/// hour-long pre-render. Tiles cache into `--out` (default web/public), so
+/// panning back is instant.
+fn runLive(init: std.process.Init, a: std.mem.Allocator, args: []const []const u8) !void {
+    return runLiveMode(init, a, args, false);
+}
+
+/// `vantage server` shares the live renderer but replaces its local embedded
+/// viewer with a versioned, authenticated data plane. Keeping one bake engine
+/// means both products retain the same memory admission and in-flight request
+/// coalescing guarantees.
+fn runServer(init: std.process.Init, a: std.mem.Allocator, args: []const []const u8) !void {
+    return runLiveMode(init, a, args, true);
+}
+
+fn runLiveMode(init: std.process.Init, a: std.mem.Allocator, args: []const []const u8, server_mode: bool) !void {
+    if (args.len < 1) return usage();
+    const save = args[0];
+    var assets_opt: ?[]const u8 = null;
+    var out_dir: []const u8 = if (server_mode) "vantage-server-cache" else "web/public"; // doubles as the on-demand tile cache
+    var tile_chunks: i32 = 8;
+    var radius: i32 = 0;
+    var gz_level: i32 = 6; // live favours bake-and-serve latency over the last few % of size
+    var port: u16 = 8268;
+    var host: []const u8 = "127.0.0.1";
+    var open = false;
+    var token_env: []const u8 = "VANTAGE_SERVER_TOKEN";
+    var allowed_origins: std.ArrayList([]const u8) = .empty;
+    var max_connections: usize = 64;
+    var scan_interval_seconds: u32 = 5;
+    var focus_file: ?[]const u8 = null;
+    var players_file: ?[]const u8 = null;
+    var cache_key: ?[]const u8 = null;
+    var cache_limit_mib: usize = 4096;
+    const players_flag = try parsePlayersFlag(args);
+    // Prebake defaults on for `vantage server` (a persistent service whose
+    // cache SHOULD converge on the whole world) and off for local `vantage
+    // live` (whose pitch is instant startup with a footprint that follows
+    // what you actually looked at). `--prebake on|off` overrides either.
+    var prebake: bool = server_mode;
+    // The zoomed-out overview. Cheap (a colour map is a fraction of a tile's
+    // bake, and the whole pyramid is well under 1% of a world's bytes) and it
+    // is what makes a streamed world readable beyond the streaming ring, so it
+    // defaults on for both commands; `--lod off` skips it.
+    var lod = true;
+    const quality = try parseLightQuality(args);
+    const blend_biomes = try parseBiomeBlend(args);
+    const requested_caves = try parseCaveY(args);
+    const ceiling = try parseCeiling(args);
+    // These stream one dimension per session (the manifest and tile paths are
+    // per-world); `--dimension` picks which, defaulting to the overworld.
+    const dimension_spec = parseDimensionArg(args);
+    const requested_threads = try parseThreads(args);
+    const memory_budget = if (server_mode)
+        serverBakeMemoryBudget(try parseMemoryMiB(args))
+    else
+        bakeMemoryBudget(try parseMemoryMiB(args));
+    var argi: usize = 1;
+    while (argi < args.len) : (argi += 1) {
+        const arg = args[argi];
+        if (std.mem.eql(u8, arg, "--assets")) {
+            assets_opt = try flagValue(args, &argi);
+        } else if (std.mem.eql(u8, arg, "--out")) {
+            out_dir = try flagValue(args, &argi);
+        } else if (server_mode and std.mem.eql(u8, arg, "--cache-key")) {
+            cache_key = try flagValue(args, &argi);
+        } else if (server_mode and std.mem.eql(u8, arg, "--cache-limit-mib")) {
+            const v = try flagValue(args, &argi);
+            const n = std.fmt.parseInt(usize, v, 10) catch return badValue("--cache-limit-mib", v, "64..16384");
+            cache_limit_mib = std.math.clamp(n, 64, 16384);
+        } else if (std.mem.eql(u8, arg, "--tile-chunks")) {
+            const v = try flagValue(args, &argi);
+            const n = std.fmt.parseInt(i32, v, 10) catch return badValue("--tile-chunks", v, "1..32");
+            tile_chunks = std.math.clamp(n, 1, 32);
+        } else if (std.mem.eql(u8, arg, "--radius")) {
+            const v = try flagValue(args, &argi);
+            radius = std.fmt.parseInt(i32, v, 10) catch return badValue("--radius", v, "<chunks>");
+        } else if (std.mem.eql(u8, arg, "--gz")) {
+            const v = try flagValue(args, &argi);
+            const n = std.fmt.parseInt(i32, v, 10) catch return badValue("--gz", v, "1..12");
+            gz_level = std.math.clamp(n, 1, 12);
+        } else if (std.mem.eql(u8, arg, "--port")) {
+            const v = try flagValue(args, &argi);
+            port = std.fmt.parseInt(u16, v, 10) catch return badValue("--port", v, "1..65535");
+        } else if (std.mem.eql(u8, arg, "--host")) {
+            host = try flagValue(args, &argi);
+        } else if (std.mem.eql(u8, arg, "--open")) {
+            open = true;
+        } else if (server_mode and std.mem.eql(u8, arg, "--token-env")) {
+            token_env = try flagValue(args, &argi);
+        } else if (server_mode and std.mem.eql(u8, arg, "--allow-origin")) {
+            const origin = try flagValue(args, &argi);
+            if (!validCorsOrigin(origin)) return badValue("--allow-origin", origin, "an exact http(s) origin without a path");
+            try allowed_origins.append(a, origin);
+        } else if (server_mode and std.mem.eql(u8, arg, "--max-connections")) {
+            const v = try flagValue(args, &argi);
+            const n = std.fmt.parseInt(usize, v, 10) catch return badValue("--max-connections", v, "1..4096");
+            max_connections = std.math.clamp(n, 1, 4096);
+        } else if (server_mode and std.mem.eql(u8, arg, "--scan-interval")) {
+            const v = try flagValue(args, &argi);
+            const n = std.fmt.parseInt(u32, v, 10) catch return badValue("--scan-interval", v, "1..3600 seconds");
+            scan_interval_seconds = std.math.clamp(n, 1, 3600);
+        } else if (server_mode and std.mem.eql(u8, arg, "--focus-file")) {
+            focus_file = try flagValue(args, &argi);
+        } else if (std.mem.eql(u8, arg, "--players-file")) {
+            players_file = try flagValue(args, &argi);
+        } else if (std.mem.eql(u8, arg, "--players")) {
+            argi += 1; // value parsed by parsePlayersFlag above
+        } else if (std.mem.eql(u8, arg, "--prebake")) {
+            const v = try flagValue(args, &argi);
+            if (std.mem.eql(u8, v, "on")) {
+                prebake = true;
+            } else if (std.mem.eql(u8, v, "off")) {
+                prebake = false;
+            } else return badValue("--prebake", v, "on|off");
+        } else if (std.mem.eql(u8, arg, "--lod")) {
+            const v = try flagValue(args, &argi);
+            if (std.mem.eql(u8, v, "on")) {
+                lod = true;
+            } else if (std.mem.eql(u8, v, "off")) {
+                lod = false;
+            } else return badValue("--lod", v, "on|off");
+        } else if (std.mem.eql(u8, arg, "--light") or std.mem.eql(u8, arg, "--biome-blend") or
+            std.mem.eql(u8, arg, "--caves") or std.mem.eql(u8, arg, "--threads") or
+            std.mem.eql(u8, arg, "--memory") or std.mem.eql(u8, arg, "--ceiling") or
+            std.mem.eql(u8, arg, "--dimension") or std.mem.eql(u8, arg, "--dimensions"))
+        {
+            argi += 1; // value parsed by the dedicated scanners above
+        } else if (std.mem.startsWith(u8, arg, "-")) {
+            std.debug.print("unknown flag for live: {s} (see `vantage --help`)\n", .{arg});
+            return error.InvalidArgument;
+        }
+    }
+
+    if (server_mode and open) {
+        std.debug.print("--open is only available for `vantage live`; the server command exposes a data API, not a web page\n", .{});
+        return error.InvalidArgument;
+    }
+
+    var bearer_sha256: ?[32]u8 = null;
+    if (server_mode) {
+        if (token_env.len == 0) return badValue("--token-env", token_env, "a non-empty environment variable name");
+        if (init.environ_map.get(token_env)) |token| {
+            if (token.len < 32) {
+                std.debug.print("{s} must contain at least 32 bytes; generate a high-entropy secret and keep it out of command-line arguments\n", .{token_env});
+                return error.InvalidArgument;
+            }
+            var digest: [32]u8 = undefined;
+            std.crypto.hash.sha2.Sha256.hash(token, &digest, .{});
+            bearer_sha256 = digest;
+        }
+        const loopback = std.mem.eql(u8, host, "127.0.0.1") or std.mem.eql(u8, host, "::1");
+        if (!loopback and bearer_sha256 == null) {
+            std.debug.print("refusing an unauthenticated non-loopback bind ({s}); set {s} or bind to 127.0.0.1 behind an authenticating proxy\n", .{ host, token_env });
+            return error.InvalidArgument;
+        }
+        if (allowed_origins.items.len > 0 and bearer_sha256 == null) {
+            std.debug.print("--allow-origin requires bearer authentication; set {s} so a browser origin cannot expose an unauthenticated world\n", .{token_env});
+            return error.InvalidArgument;
+        }
+    }
+
+    const wl = try resolveWorld(init, a, save, assets_opt, dimension_spec);
+    if (wl.bounds.count == 0) {
+        std.debug.print("no populated chunks found.\n", .{});
+        return;
+    }
+    var dim = wl.dim;
+    // A session streams exactly one dimension, so `--ceiling` can only be about
+    // that one — it applies whether or not the dimension has a roof of its own.
+    dim.ceiling_cut = ceilingFor(dim, ceiling, true);
+    const cave_y = caveHorizonFor(dim, requested_caves);
+    const tile_keys = try enumerateTilesSpawnOutward(a, wl.populated, radius, wl.centre_cx, wl.centre_cz, tile_chunks);
+
+    if (cache_key) |key| {
+        const stamp = try std.fmt.allocPrint(a, "msc-vantage 1\nrenderer {s}\nkey {s}\nassets {s}\ndimension {s}\ntile {d}\nlight {s}\nblend {}\ncave {?d}\nceiling {?d}\n", .{ version, key, wl.assets, dim.slug, tile_chunks, @tagName(quality), blend_biomes, cave_y, dim.ceiling_cut });
+        try openPersistentCache(init.io, a, out_dir, stamp);
+    }
+
+    std.debug.print("regions: {d} files · {d} populated chunks · {d} tiles of {d}×{d} chunks — baked on demand\n", .{
+        wl.loaded.len, wl.bounds.count, tile_keys.len, tile_chunks, tile_chunks,
+    });
+
+    const cpu_count = std.Thread.getCpuCount() catch 4;
+    const worker_bytes = estimatedTileWorkingSet(tile_chunks);
+    const bake_count = bakeWorkerCount(cpu_count, tile_keys.len, requested_threads, memory_budget, worker_bytes);
+    std.debug.print("bakes:   {d} concurrent · {d} MiB budget · ~{d} MiB/worker\n", .{
+        bake_count,
+        memory_budget / MiB,
+        worker_bytes / MiB,
+    });
+
+    // Where each baked tile spills its lowres colour map. Reused across
+    // restarts (see `openLiveLodDir`), which is what lets a restarted session
+    // publish the whole explored overview before re-baking anything.
+    const lod_dir: ?[]const u8 = if (lod)
+        openLiveLodDir(a, init.io, out_dir, .{
+            .world = cache_key orelse wl.region_dir,
+            .assets = wl.assets,
+            .dim = dim.slug,
+            .tile_chunks = tile_chunks,
+            .ceiling = dim.ceiling_cut,
+            .light = quality,
+            .blend_biomes = blend_biomes,
+        }) catch |e| blk: {
+            std.debug.print("live: no LOD cache ({s}); the zoomed-out overview is disabled\n", .{@errorName(e)});
+            break :blk null;
+        }
+    else
+        null;
+
+    const sh = try setupShared(init.io, a, wl.assets, wl.loaded, .{
+        .dim = dim,
+        .tile_chunks = tile_chunks,
+        .out_dir = out_dir,
+        .quality = quality,
+        .blend_biomes = blend_biomes,
+        .cave_y = cave_y,
+        .gz_level = gz_level,
+        // Each tile meshes single-threaded; parallelism comes from serving
+        // several tile fetches (browser connections) at once.
+        .mesh_threads = 1,
+        .lod_cache_dir = lod_dir,
+    });
+    sh.persistent_cache = cache_key != null;
+    const restored_atlas = if (cache_key != null) restorePersistentAtlas(sh) else false;
+    if (cache_key != null and !restored_atlas) {
+        // A half-written or old atlas cannot interpret detailed tile layer IDs.
+        const tiles = try std.fmt.allocPrint(a, "{s}/tiles", .{out_dir});
+        std.Io.Dir.cwd().deleteTree(init.io, tiles) catch {};
+    }
+
+    const tiles_dir = try std.fmt.allocPrint(a, "{s}/tiles", .{out_dir});
+    try std.Io.Dir.cwd().createDirPath(init.io, tiles_dir);
+
+    // Player positions: a host feed if one was named, else the save's own
+    // player files for the local commands. The feed owns its cached body with
+    // a real allocator (it replaces it on every change), so it takes the page
+    // allocator rather than the run arena.
+    const players_mode = playersMode(players_file, players_flag, server_mode);
+    const player_feed: ?*players.Feed = if (players_mode == .off) null else blk: {
+        const feed = try a.create(players.Feed);
+        feed.* = .{
+            .gpa = std.heap.page_allocator,
+            .mode = players_mode,
+            .path = players_file,
+            .save_dir = save,
+            .dimension_id = dim.id,
+        };
+        feed.refresh(init.io);
+        break :blk feed;
+    };
+    if (player_feed) |feed| switch (players_mode) {
+        .host_file => std.debug.print("players: live feed from {s} ({d} online)\n", .{ players_file.?, feed.count(init.io) }),
+        .save => std.debug.print("players: {d} last known position(s) from the save\n", .{feed.count(init.io)}),
+        .off => unreachable,
+    };
+
+    const server = try a.create(LiveServer);
+    var session_bytes: [8]u8 = undefined;
+    init.io.random(&session_bytes);
+    const session_tag = std.mem.readInt(u64, &session_bytes, .little);
+    var known = std.AutoHashMap(u64, void).init(sh.sa);
+    for (tile_keys) |key| try known.put(key, {});
+    const region_snapshot = if (server_mode)
+        try createRegionSnapshot(init.io, wl.region_dir, radius, wl.centre_cx, wl.centre_cz, tile_chunks, null)
+    else
+        null;
+    server.* = .{
+        .sh = sh,
+        .tile_keys = tile_keys,
+        .spawn = wl.spawn,
+        .known = known,
+        .baked = std.AutoHashMap(u64, BakedTile).init(sh.sa),
+        .baking = std.AutoHashMap(u64, void).init(sh.sa),
+        .bake_slots = .{ .permits = bake_count },
+        .region_dir = if (server_mode) wl.region_dir else null,
+        .radius = radius,
+        .centre_cx = wl.centre_cx,
+        .centre_cz = wl.centre_cz,
+        .centre_tx = @divFloor(wl.centre_cx, tile_chunks),
+        .centre_tz = @divFloor(wl.centre_cz, tile_chunks),
+        .snapshot = region_snapshot,
+        .scan_interval_ns = @as(i96, scan_interval_seconds) * std.time.ns_per_s,
+        .focus_file = focus_file,
+        .player_feed = player_feed,
+        // A poll may lag the catalog by up to this long. The viewer polls
+        // roughly every 1.2 s while anything is moving, so one window is
+        // under one poll of latency in exchange for bounding manifest
+        // rebuilds to one per window no matter how many clients are watching.
+        .manifest_coalesce_ns = if (server_mode) 1 * std.time.ns_per_s else 0,
+        .session_tag = session_tag,
+        .persistent_cache = cache_key != null,
+        .cache_limit = cache_limit_mib * MiB,
+        .cache_age = std.AutoHashMap(u64, u64).init(sh.sa),
+        .persisted_layers = if (restored_atlas) sh.builder.layerCount() else 0,
+        .persisted_keys = if (restored_atlas) sh.builder.map.count() else 0,
+        .persisted_biomes = if (restored_atlas) sh.world_raw.items.len else 0,
+        .lod_dir = lod_dir,
+        .lod_maps = std.AutoHashMap(u64, void).init(sh.sa),
+    };
+    if (restored_atlas) seedPersistentTiles(server);
+    if (restored_atlas) prunePersistentTiles(server, std.math.maxInt(u64));
+    seedLiveLod(server);
+
+    // Seed the nearest tile synchronously: fail fast if assets/pipeline are
+    // broken (rather than per-request in the browser), and start the atlas +
+    // maxSectionVerts non-empty so the very first manifest is well-sized.
+    const seed_keys = if (region_snapshot) |snapshot| snapshot.tile_keys else tile_keys;
+    if (seed_keys.len > 0 and !server.baked.contains(seed_keys[0])) {
+        var seed = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer seed.deinit();
+        const tx: i32 = @bitCast(@as(u32, @truncate(seed_keys[0] >> 32)));
+        const tz: i32 = @bitCast(@as(u32, @truncate(seed_keys[0])));
+        const regions = if (region_snapshot) |snapshot| snapshot.loaded else sh.loaded;
+        const revision = if (region_snapshot) |snapshot| snapshot.tile_revisions.get(seed_keys[0]).? else 0;
+        var res: TileResult = .{};
+        bakeTileFromRegions(sh, seed.allocator(), regions, tx, tz, lod_dir != null, &res) catch |e| {
+            std.debug.print("live: initial bake failed ({s}) — check the world/assets\n", .{@errorName(e)});
+            return e;
+        };
+        server.record(world.packChunk(tx, tz), revision, if (res.written) &res else null);
+    }
+
+    // Background prebake: fill idle bake slots warming the world around the
+    // viewer (spawn-outward until anyone connects). One slot's worth of
+    // headroom is left to interactive requests by the workers' politeness
+    // check, so first-fetch latency stays interactive even while the whole
+    // world bakes behind the scenes.
+    if (prebake and tile_keys.len > 0) {
+        const workers = @max(1, bake_count -| 1);
+        var spawned: usize = 0;
+        for (0..workers) |_| {
+            const t = std.Thread.spawn(.{}, prebakeLoop, .{server}) catch break;
+            t.detach();
+            spawned += 1;
+        }
+        if (spawned > 0) std.debug.print("prebake: {d} background worker(s) warming the tile cache\n", .{spawned});
+    }
+
+    // Fold baked tiles into the zoomed-out overview as they land, so the map
+    // beyond the streaming ring fills in instead of ending at a fog wall.
+    if (lod_dir != null) {
+        if (std.Thread.spawn(.{}, liveLodLoop, .{server})) |t| {
+            t.detach();
+            std.debug.print("lod:     building the zoomed-out overview as tiles bake\n", .{});
+        } else |e| {
+            std.debug.print("live: no LOD thread ({s}); only streamed tiles will be visible\n", .{@errorName(e)});
+        }
+    }
+
+    // The world/focus tick. Only the server needs it: local `live` has no
+    // region snapshot to advance and its single viewer is always the focus.
+    if (server_mode) {
+        server.refreshFocus(); // start warm on the host's points, not spawn
+        if (std.Thread.spawn(.{}, scanLoop, .{ server, @as(i64, scan_interval_seconds) * 1000 })) |t| {
+            t.detach();
+            if (focus_file) |path| std.debug.print("focus:   prebake follows {s}\n", .{path});
+        } else |e| {
+            std.debug.print("server: no background scan thread ({s}); world changes will be picked up by manifest polls only\n", .{@errorName(e)});
+        }
+    }
+
+    std.debug.print("live: rendering on demand — tiles bake as you explore (cache: {s}/tiles)\n", .{out_dir});
+    if (server_mode) {
+        std.debug.print("server: protocol v1 · auth {s} · endpoint http://{s}:{d}/v1/worlds/default/manifest.json\n", .{
+            if (bearer_sha256 == null) "proxy/loopback" else "bearer",
+            host,
+            port,
+        });
+    }
+    return serve.run(init.io, a, .{
+        .dir = out_dir,
+        .port = port,
+        .host = host,
+        .open = open,
+        .producer = server.producer(),
+        .api = if (server_mode) .{
+            .bearer_sha256 = bearer_sha256,
+            .allowed_origins = allowed_origins.items,
+            .max_connections = max_connections,
+            .worlds_json = try buildWorldsJson(a, dim),
+        } else null,
+    });
+}
+
+fn validCorsOrigin(value: []const u8) bool {
+    const uri = std.Uri.parse(value) catch return false;
+    if (!std.mem.eql(u8, uri.scheme, "http") and !std.mem.eql(u8, uri.scheme, "https")) return false;
+    if (uri.host == null or uri.user != null or uri.password != null) return false;
+    if (!uri.path.isEmpty() or uri.query != null or uri.fragment != null) return false;
+    return true;
+}
+
+test "CORS origins are absolute HTTP origins without paths or credentials" {
+    try std.testing.expect(validCorsOrigin("https://launcher.example"));
+    try std.testing.expect(validCorsOrigin("http://127.0.0.1:3000"));
+    try std.testing.expect(!validCorsOrigin("https://launcher.example/path"));
+    try std.testing.expect(!validCorsOrigin("https://user@launcher.example"));
+    try std.testing.expect(!validCorsOrigin("file:///tmp/launcher"));
+    try std.testing.expect(!validCorsOrigin("launcher.example"));
+}
+
+fn runExtract(init: std.process.Init, a: std.mem.Allocator, args: []const []const u8) !void {
+    const home = init.environ_map.get("HOME") orelse
+        init.environ_map.get("USERPROFILE") orelse "";
+    const jar = if (args.len >= 1 and !std.mem.startsWith(u8, args[0], "-"))
+        args[0]
+    else
+        (try findClientJar(a, init.io, init.environ_map, home)) orelse {
+            std.debug.print(
+                \\no Minecraft client jar found under .minecraft/versions.
+                \\Pass one explicitly:  vantage extract <path/to/client.jar>
+                \\
+            , .{});
+            return error.NoClientJar;
+        };
+    const dest = try assetCachePathForJar(a, home, jar);
+    const summary = try extract.extractJar(init.io, jar, dest);
+    if (summary.reused)
+        std.debug.print("assets already complete for {s}\n  -> {s}\n", .{ jar, dest })
+    else
+        std.debug.print("extracted {d} files ({Bi:.1}) from {s}\n  -> {s}\n", .{ summary.files, summary.bytes, jar, dest });
+}
+
+/// When a render finds no cached assets, extract them from the newest local
+/// client jar automatically (announcing what happened). Returns the resulting
+/// `assets/minecraft` dir, or null when there is nothing to extract from.
+fn autoExtract(init: std.process.Init, a: std.mem.Allocator, home: []const u8) !?[]const u8 {
+    if (home.len == 0) return null;
+    const jar = (try findClientJar(a, init.io, init.environ_map, home)) orelse return null;
+    const dest = try assetCachePathForJar(a, home, jar);
+    std.debug.print("no cached assets found — extracting from {s} (one-time)\n", .{jar});
+    const summary = extract.extractJar(init.io, jar, dest) catch |e| {
+        std.debug.print("extraction failed ({t}); pass --assets or run `vantage extract <jar>`\n", .{e});
+        return null;
+    };
+    if (summary.reused)
+        std.debug.print("another process completed the assets -> {s}\n", .{dest})
+    else
+        std.debug.print("extracted {d} files ({Bi:.1}) -> {s}\n", .{ summary.files, summary.bytes, dest });
+    return try std.fmt.allocPrint(a, "{s}/assets/minecraft", .{dest});
+}
+
+/// `~/.cache/vantage/assets/<version>` for a jar, versioned by the jar's file
+/// stem ("26.2.jar" -> "26.2") so `findAssets` picks the newest via its
+/// natural version sort.
+fn assetCachePathForJar(a: std.mem.Allocator, home: []const u8, jar_path: []const u8) ![]const u8 {
+    const base = std.fs.path.basename(jar_path);
+    const stem = if (std.mem.endsWith(u8, base, ".jar")) base[0 .. base.len - ".jar".len] else base;
+    const name = if (stem.len == 0) "default" else stem;
+    return std.fmt.allocPrint(a, "{s}/.cache/vantage/assets/{s}", .{ home, name });
+}
+
+/// Find the newest client jar in the local Minecraft installation
+/// (`.minecraft/versions/<v>/<v>.jar`), checking the platform's launcher
+/// locations. Returns null when Minecraft isn't installed locally.
+fn findClientJar(a: std.mem.Allocator, io: std.Io, environ: anytype, home: []const u8) !?[]const u8 {
+    var roots_buf: [3][]const u8 = undefined;
+    var roots_len: usize = 0;
+    if (environ.get("APPDATA")) |appdata| { // Windows launcher default
+        roots_buf[roots_len] = try std.fmt.allocPrint(a, "{s}/.minecraft", .{appdata});
+        roots_len += 1;
+    }
+    if (home.len > 0) {
+        // macOS launcher default, then the Linux/portable default.
+        roots_buf[roots_len] = try std.fmt.allocPrint(a, "{s}/Library/Application Support/minecraft", .{home});
+        roots_len += 1;
+        roots_buf[roots_len] = try std.fmt.allocPrint(a, "{s}/.minecraft", .{home});
+        roots_len += 1;
+    }
+
+    // Prefer vanilla-looking versions (they start with a digit: "1.21.11",
+    // "26.2", "25w34b") over modded profiles ("fabric-loader-…", "forge-…"),
+    // which would otherwise win the lexical tie-break; within a tier, newest
+    // wins by natural version order. Modded jars still work as a last resort —
+    // most bundle the vanilla assets.
+    var best_jar: ?[]const u8 = null;
+    var best_name: []const u8 = "";
+    var best_vanilla = false;
+    for (roots_buf[0..roots_len]) |root| {
+        const versions = try std.fmt.allocPrint(a, "{s}/versions", .{root});
+        var dir = std.Io.Dir.cwd().openDir(io, versions, .{ .iterate = true }) catch continue;
+        defer dir.close(io);
+        var it = dir.iterate();
+        while (try it.next(io)) |e| {
+            if (e.kind != .directory) continue;
+            const jar = try std.fmt.allocPrint(a, "{s}/{s}/{s}.jar", .{ versions, e.name, e.name });
+            if (!fileExists(io, jar)) continue;
+            const vanilla = e.name.len > 0 and std.ascii.isDigit(e.name[0]);
+            const better = best_jar == null or
+                (vanilla and !best_vanilla) or
+                (vanilla == best_vanilla and versionLessThan(best_name, e.name));
+            if (better) {
+                best_jar = jar;
+                best_name = try a.dupe(u8, e.name);
+                best_vanilla = vanilla;
+            }
+        }
+    }
+    return best_jar;
+}
+
+fn fileExists(io: std.Io, path: []const u8) bool {
+    var f = std.Io.Dir.cwd().openFile(io, path, .{}) catch return false;
+    f.close(io);
+    return true;
+}
+
+const AssetCacheCandidate = struct {
+    name: []const u8,
+    path: []const u8,
+    usable: bool,
+};
+
+fn chooseNewestAssetCache(candidates: []const AssetCacheCandidate) ?[]const u8 {
+    var newest: ?AssetCacheCandidate = null;
+    for (candidates) |candidate| {
+        if (newest == null or versionLessThan(newest.?.name, candidate.name)) newest = candidate;
+    }
+    const selected = newest orelse return null;
+    // Never silently fall back to an older cache when the newest is stale:
+    // returning null deliberately drives resolveAssets through autoExtract.
+    return if (selected.usable) selected.path else null;
+}
+
+/// Auto-detect an extracted `assets/minecraft` under `~/.cache/vantage/assets/<ver>/`,
+/// preferring the highest-named version. Returns null if none is found.
+fn findAssets(a: std.mem.Allocator, io: std.Io, home: []const u8) !?[]const u8 {
+    if (home.len == 0) return null;
+    const base = try std.fmt.allocPrint(a, "{s}/.cache/vantage/assets", .{home});
+    var dir = std.Io.Dir.cwd().openDir(io, base, .{ .iterate = true }) catch return null;
+    defer dir.close(io);
+    var candidates: std.ArrayList(AssetCacheCandidate) = .empty;
+    var it = dir.iterate();
+    while (try it.next(io)) |e| {
+        if (e.kind != .directory) continue;
+        const candidate = try std.fmt.allocPrint(a, "{s}/{s}/assets/minecraft", .{ base, e.name });
+        const bs = try std.fmt.allocPrint(a, "{s}/blockstates", .{candidate});
+        // The extractor writes this versioned marker only after every selected
+        // entry succeeds. Old or interrupted caches have no marker and force the
+        // normal auto-extract path instead of silently using partial assets.
+        const marker = try std.fmt.allocPrint(a, "{s}/{s}/{s}", .{ base, e.name, extract.completion_marker });
+        try candidates.append(a, .{
+            .name = try a.dupe(u8, e.name),
+            .path = candidate,
+            .usable = dirExists(io, bs) and fileExists(io, marker),
+        });
+    }
+    return chooseNewestAssetCache(candidates.items);
+}
+
+/// Natural-order compare for version-ish directory names, so "1.21.10" beats
+/// "1.21.4", and the year-versioned scheme ("26.2", 2026+) beats both (lexical
+/// order gets all of these wrong). Digit runs compare numerically, everything
+/// else byte-wise. A `-suffix` marks a pre-release, so "26.2" beats
+/// "26.2-pre-4" — otherwise auto-picking would prefer release candidates over
+/// the release they precede.
+fn versionLessThan(a_name: []const u8, b_name: []const u8) bool {
+    var i: usize = 0;
+    var j: usize = 0;
+    while (i < a_name.len and j < b_name.len) {
+        const ac = a_name[i];
+        const bc = b_name[j];
+        if (std.ascii.isDigit(ac) and std.ascii.isDigit(bc)) {
+            var ie = i;
+            while (ie < a_name.len and std.ascii.isDigit(a_name[ie])) ie += 1;
+            var je = j;
+            while (je < b_name.len and std.ascii.isDigit(b_name[je])) je += 1;
+            const an = std.fmt.parseInt(u64, a_name[i..ie], 10) catch 0;
+            const bn = std.fmt.parseInt(u64, b_name[j..je], 10) catch 0;
+            if (an != bn) return an < bn;
+            i = ie;
+            j = je;
+        } else {
+            if (ac != bc) return ac < bc;
+            i += 1;
+            j += 1;
+        }
+    }
+    // One name is a prefix of the other. If the remainder starts with `-`, the
+    // longer name is a pre-release of the shorter — it sorts BELOW the release.
+    if (i >= a_name.len and j < b_name.len and b_name[j] == '-') return false;
+    if (j >= b_name.len and i < a_name.len and a_name[i] == '-') return true;
+    return (a_name.len - i) < (b_name.len - j);
+}
+
+test versionLessThan {
+    try std.testing.expect(versionLessThan("1.21.4", "1.21.10"));
+    try std.testing.expect(versionLessThan("1.9", "1.21.4"));
+    try std.testing.expect(versionLessThan("1.20", "1.20.1"));
+    try std.testing.expect(!versionLessThan("1.21.10", "1.21.4"));
+    // Year-versioned releases (25.x/26.x, 2026+) sort above every 1.x release.
+    try std.testing.expect(versionLessThan("1.21.11", "26.2"));
+    try std.testing.expect(versionLessThan("25.4", "26.2"));
+    try std.testing.expect(versionLessThan("26.2", "26.10"));
+    try std.testing.expect(!versionLessThan("default", "1.21.4") or versionLessThan("1.21.4", "default"));
+    // Pre-releases sort below the release they precede, but above older releases.
+    try std.testing.expect(versionLessThan("26.2-pre-4", "26.2"));
+    try std.testing.expect(!versionLessThan("26.2", "26.2-pre-4"));
+    try std.testing.expect(versionLessThan("26.2-pre-4", "26.2-pre-5"));
+    try std.testing.expect(versionLessThan("26.1.2", "26.2-pre-4"));
+}
+
+test "newest stale asset cache forces re-extraction" {
+    const caches = [_]AssetCacheCandidate{
+        .{ .name = "1.21.11", .path = "old", .usable = true },
+        .{ .name = "26.2", .path = "new", .usable = false },
+    };
+    try std.testing.expect(chooseNewestAssetCache(&caches) == null);
+
+    const valid = [_]AssetCacheCandidate{
+        .{ .name = "1.21.11", .path = "old", .usable = true },
+        .{ .name = "26.2", .path = "new", .usable = true },
+    };
+    try std.testing.expectEqualStrings("new", chooseNewestAssetCache(&valid).?);
+}
+
+test "cache with one special texture but no completion marker is stale" {
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    const io = std.testing.io;
+    try tmp.dir.createDirPath(io, ".cache/vantage/assets/1.21.11/assets/minecraft/blockstates");
+    try tmp.dir.createDirPath(io, ".cache/vantage/assets/1.21.11/assets/minecraft/textures/entity/chest");
+    try tmp.dir.writeFile(io, .{
+        .sub_path = ".cache/vantage/assets/1.21.11/assets/minecraft/textures/entity/chest/normal.png",
+        .data = "partial",
+    });
+    var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+    const path_len = try tmp.dir.realPath(io, &path_buf);
+    var arena_inst = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_inst.deinit();
+    const a = arena_inst.allocator();
+    try std.testing.expect(try findAssets(a, io, path_buf[0..path_len]) == null);
+
+    try tmp.dir.writeFile(io, .{
+        .sub_path = ".cache/vantage/assets/1.21.11/" ++ extract.completion_marker,
+        .data = "complete\n",
+    });
+    try std.testing.expect((try findAssets(a, io, path_buf[0..path_len])) != null);
+
+    // A corrupt newer directory must not disappear from consideration and let
+    // the older complete cache win; its presence forces a fresh extraction.
+    try tmp.dir.createDirPath(io, ".cache/vantage/assets/26.2");
+    try std.testing.expect(try findAssets(a, io, path_buf[0..path_len]) == null);
+}
+
+fn dirExists(io: std.Io, path: []const u8) bool {
+    var d = std.Io.Dir.cwd().openDir(io, path, .{}) catch return false;
+    d.close(io);
+    return true;
+}
+
+/// `foo.vtile` -> `foo.vtexarr`; otherwise append `.vtexarr`.
+fn texArrayPath(a: std.mem.Allocator, out_path: []const u8) ![]u8 {
+    const stem = if (std.mem.endsWith(u8, out_path, ".vtile"))
+        out_path[0 .. out_path.len - ".vtile".len]
+    else
+        out_path;
+    return std.fmt.allocPrint(a, "{s}.vtexarr", .{stem});
+}
+
+fn runHisto(init: std.process.Init, a: std.mem.Allocator, args: []const []const u8) !void {
+    if (args.len < 1) return usage();
+    const path = args[0];
+    const lx: u5 = if (args.len > 1) @truncate(try std.fmt.parseInt(u8, args[1], 10)) else 0;
+    const lz: u5 = if (args.len > 2) @truncate(try std.fmt.parseInt(u8, args[2], 10)) else 0;
+
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, path, a, .unlimited);
+    std.debug.print("region file: {s} ({d} bytes)\n", .{ path, bytes.len });
+
+    const reg = region.Region.fromBytes(bytes);
+    const raw = (try reg.rawChunk(lx, lz)) orelse {
+        std.debug.print("chunk ({d},{d}) is absent in this region\n", .{ lx, lz });
+        return;
+    };
+    const chunk_nbt = try region.decompress(a, raw);
+    var parser = nbt.Parser{ .buf = chunk_nbt, .arena = a };
+    const root = try parser.parseRoot();
+    const ch = try chunk.decode(a, root);
+
+    std.debug.print("chunk ({d},{d}): DataVersion={d}, {d} sections\n", .{
+        ch.x, ch.z, ch.data_version, ch.sections.len,
+    });
+
+    var hist = std.StringHashMap(u64).init(a);
+    var total_nonair: u64 = 0;
+    for (ch.sections) |s| {
+        var by: u32 = 0;
+        while (by < 16) : (by += 1) {
+            var bz: u32 = 0;
+            while (bz < 16) : (bz += 1) {
+                var bx: u32 = 0;
+                while (bx < 16) : (bx += 1) {
+                    const name = s.names[s.paletteIndexAt(bx, by, bz)];
+                    if (blocks.isAir(name)) continue;
+                    total_nonair += 1;
+                    try bump(&hist, name);
+                }
+            }
+        }
+    }
+
+    std.debug.print("\nnon-air blocks: {d}\ndistinct types: {d}\n\ntop blocks:\n", .{
+        total_nonair, hist.count(),
+    });
+    try printTop(a, &hist, 25);
+}
+
+/// Histogram of biome cells over a chunk range — verifies biome decode and
+/// enumerates which biomes a region actually contains.
+fn runBiomes(init: std.process.Init, a: std.mem.Allocator, args: []const []const u8) !void {
+    if (args.len < 1) return usage();
+    const path = args[0];
+    var cx0: u5 = 0;
+    var cz0: u5 = 0;
+    var cx1: u5 = 0;
+    var cz1: u5 = 0;
+    if (args.len >= 5) {
+        cx0 = @truncate(try std.fmt.parseInt(u8, args[1], 10));
+        cz0 = @truncate(try std.fmt.parseInt(u8, args[2], 10));
+        cx1 = @truncate(try std.fmt.parseInt(u8, args[3], 10));
+        cz1 = @truncate(try std.fmt.parseInt(u8, args[4], 10));
+    }
+
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, path, a, .unlimited);
+    const reg = region.Region.fromBytes(bytes);
+
+    var hist = std.StringHashMap(u64).init(a);
+    var sections: u64 = 0;
+    var cz: u32 = cz0;
+    while (cz <= cz1) : (cz += 1) {
+        var cx: u32 = cx0;
+        while (cx <= cx1) : (cx += 1) {
+            const raw = (try reg.rawChunk(@intCast(cx), @intCast(cz))) orelse continue;
+            const chunk_nbt = try region.decompress(a, raw);
+            var parser = nbt.Parser{ .buf = chunk_nbt, .arena = a };
+            const root = try parser.parseRoot();
+            const ch = try chunk.decode(a, root);
+            for (ch.sections) |s| {
+                if (s.biome_names.len == 0) continue;
+                sections += 1;
+                var cell: u32 = 0;
+                while (cell < chunk.BIOME_CELLS) : (cell += 1) {
+                    const idx = if (s.biome_indices.len == 0) 0 else s.biome_indices[cell];
+                    try bump(&hist, s.biome_names[idx]);
+                }
+            }
+        }
+    }
+
+    std.debug.print("biome cells over chunks ({d},{d})..({d},{d}): {d} sections, {d} distinct biomes\n\n", .{
+        cx0, cz0, cx1, cz1, sections, hist.count(),
+    });
+    try printTop(a, &hist, 50);
+}
+
+fn bump(hist: *std.StringHashMap(u64), name: []const u8) !void {
+    const gop = try hist.getOrPut(name);
+    if (!gop.found_existing) gop.value_ptr.* = 0;
+    gop.value_ptr.* += 1;
+}
+
+const Pair = struct { name: []const u8, count: u64 };
+
+fn printTop(a: std.mem.Allocator, hist: *std.StringHashMap(u64), limit: usize) !void {
+    const pairs = try a.alloc(Pair, hist.count());
+    var it = hist.iterator();
+    var k: usize = 0;
+    while (it.next()) |e| : (k += 1) {
+        pairs[k] = .{ .name = e.key_ptr.*, .count = e.value_ptr.* };
+    }
+    std.mem.sort(Pair, pairs, {}, struct {
+        fn desc(_: void, x: Pair, y: Pair) bool {
+            return x.count > y.count;
+        }
+    }.desc);
+    for (pairs[0..@min(limit, pairs.len)]) |p| {
+        std.debug.print("  {d:>9}  {s}\n", .{ p.count, p.name });
+    }
+}
+
+// Pull unit tests from the modules into the default test run.
+test {
+    std.testing.refAllDecls(@This());
+    _ = blocks;
+    _ = chunk;
+    _ = grid;
+    _ = mesh;
+    _ = tile;
+    _ = model;
+    _ = texture;
+    _ = biome;
+    _ = lang;
+    _ = world;
+    _ = serve;
+    _ = discovery;
+}

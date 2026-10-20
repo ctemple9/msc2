@@ -1,93 +1,77 @@
 #!/usr/bin/env python3
-"""Download and verify the pinned Vantage CLI for one MSC target."""
+"""Build and stage MSC's pinned Vantage renderer for this host."""
 
 from __future__ import annotations
 
 import argparse
-import hashlib
-import io
 import json
 import os
 from pathlib import Path
+import platform
+import shutil
+import subprocess
 import sys
-import tarfile
-from typing import NoReturn
-from urllib.request import Request, urlopen
-from zipfile import ZipFile
 
 
-RELEASE = json.loads(Path(__file__).with_name("vantage-release.json").read_text())
-VERSION = RELEASE["version"]
-BASE_URL = f"https://github.com/thoughts-on-things/vantage-mc/releases/download/v{VERSION}"
-ASSETS = RELEASE["assets"]
-MAX_ARCHIVE_BYTES = 32 * 1024 * 1024
-LICENSE_PATH = Path(__file__).with_name("VANTAGE-LICENSE.txt")
+ROOT = Path(__file__).resolve().parents[2]
+SOURCE = ROOT / "third_party" / "vantage"
+PIN = json.loads(Path(__file__).with_name("vantage-release.json").read_text())
+ZIG_VERSION = PIN["zig_version"]
+LICENSE = Path(__file__).with_name("VANTAGE-LICENSE.txt")
 
 
-def fail(message: str) -> NoReturn:
-    print(f"Vantage staging failed: {message}", file=sys.stderr)
-    raise SystemExit(1)
+def native_platform() -> str:
+    system = {"Darwin": "macos", "Linux": "linux", "Windows": "windows"}.get(platform.system())
+    machine = {"x86_64": "x86_64", "AMD64": "x86_64", "arm64": "aarch64", "aarch64": "aarch64"}.get(platform.machine())
+    if not system or not machine:
+        raise SystemExit("unsupported renderer build host")
+    return f"{system}-{machine}"
 
 
-def read_archive(url: str) -> bytes:
-    request = Request(url, headers={"User-Agent": "MSC-2-release-stager"})
-    try:
-        with urlopen(request, timeout=45) as response:
-            payload = response.read(MAX_ARCHIVE_BYTES + 1)
-    except Exception as error:  # noqa: BLE001 - surfaced with the pinned asset name
-        fail(f"could not download the pinned release asset: {error}")
-    if len(payload) > MAX_ARCHIVE_BYTES:
-        fail(f"release asset exceeds the {MAX_ARCHIVE_BYTES}-byte staging limit")
-    return payload
-
-
-def executable_from_archive(archive_name: str, executable_name: str, payload: bytes) -> bytes:
-    if archive_name.endswith(".zip"):
-        try:
-            with ZipFile(io.BytesIO(payload)) as archive:
-                if archive.namelist() != [executable_name]:
-                    fail("ZIP contents do not match the expected single executable")
-                return archive.read(executable_name)
-        except Exception as error:  # noqa: BLE001 - preserve a useful staging error
-            fail(f"could not read the Vantage ZIP: {error}")
-    try:
-        with tarfile.open(fileobj=io.BytesIO(payload), mode="r:gz") as archive:
-            members = archive.getmembers()
-            if len(members) != 1 or members[0].name != executable_name or not members[0].isfile():
-                fail("tarball contents do not match the expected single executable")
-            stream = archive.extractfile(members[0])
-            if stream is None:
-                fail("Vantage executable is missing from the release tarball")
-            return stream.read()
-    except Exception as error:  # noqa: BLE001 - preserve a useful staging error
-        fail(f"could not read the Vantage tarball: {error}")
+def zig_binary() -> Path:
+    override = os.environ.get("MSC2_ZIG_BIN")
+    if override:
+        candidate = Path(override)
+        if not candidate.is_file():
+            raise SystemExit(f"MSC2_ZIG_BIN does not exist: {candidate}")
+    else:
+        cached = ROOT / "target" / "toolchains" / f"ziglang-{ZIG_VERSION}"
+        name = "zig.exe" if os.name == "nt" else "zig"
+        candidate = cached / "ziglang" / name
+        if not candidate.is_file():
+            cached.mkdir(parents=True, exist_ok=True)
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", "--disable-pip-version-check",
+                 "--no-deps", "--only-binary=:all:", "--target", str(cached),
+                 f"ziglang=={ZIG_VERSION}"],
+                check=True,
+            )
+    actual = subprocess.check_output([str(candidate), "version"], text=True).strip()
+    if actual != ZIG_VERSION:
+        raise SystemExit(f"renderer requires Zig {ZIG_VERSION}; found {actual}")
+    return candidate
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--platform", choices=sorted(ASSETS), required=True)
+    parser.add_argument("--platform", choices=PIN["platforms"], required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args()
-
-    archive_name, expected_hash, executable_name = ASSETS[args.platform]
-    payload = read_archive(f"{BASE_URL}/{archive_name}")
-    actual_hash = hashlib.sha256(payload).hexdigest()
-    if actual_hash != expected_hash:
-        fail(f"SHA-256 mismatch for {archive_name}: expected {expected_hash}, got {actual_hash}")
-
-    executable = executable_from_archive(archive_name, executable_name, payload)
-    if not executable:
-        fail("Vantage executable is empty")
+    if args.platform != native_platform():
+        raise SystemExit(f"renderer build requires native {args.platform} host")
+    subprocess.run([str(zig_binary()), "build", "-Doptimize=ReleaseFast"], cwd=SOURCE, check=True)
+    executable = "vantage.exe" if os.name == "nt" else "vantage"
+    built = SOURCE / "zig-out" / "bin" / executable
+    if not built.is_file():
+        raise SystemExit(f"renderer build produced no executable: {built}")
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    destination = args.output_dir / executable_name
-    temporary = destination.with_name(f".{destination.name}.staging")
-    temporary.write_bytes(executable)
-    if executable_name == "vantage":
-        os.chmod(temporary, 0o755)
-    temporary.replace(destination)
-    license_destination = args.output_dir / "VANTAGE-LICENSE.txt"
-    license_destination.write_bytes(LICENSE_PATH.read_bytes())
-    print(f"staged Vantage {VERSION} for {args.platform}: {destination}")
+    temporary = args.output_dir / f".{executable}.staging"
+    shutil.copy2(built, temporary)
+    if os.name != "nt":
+        temporary.chmod(0o755)
+    temporary.replace(args.output_dir / executable)
+    shutil.copy2(LICENSE, args.output_dir / LICENSE.name)
+    print(f"staged MSC Vantage {PIN['upstream_version']} cache format {PIN['cache_format']} for {args.platform}")
     return 0
 
 

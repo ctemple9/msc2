@@ -297,6 +297,35 @@ fn persistent_regions(
     Ok(world)
 }
 
+pub(super) fn persistent_tiles(
+    server_id: &str,
+    source_world: &Path,
+    dimension: &str,
+    assets: &Path,
+) -> io::Result<(PathBuf, String)> {
+    let canonical = source_world.canonicalize()?;
+    let mut hasher = Sha256::new();
+    let canonical_text = canonical.to_string_lossy();
+    let assets_text = assets.to_string_lossy();
+    for part in [
+        server_id,
+        canonical_text.as_ref(),
+        dimension,
+        assets_text.as_ref(),
+    ] {
+        hasher.update(part.as_bytes());
+        hasher.update([0]);
+    }
+    let key = format!("{:x}", hasher.finalize());
+    let root = msc_infrastructure::config_repository::default_app_data_dir().join("map-cache");
+    safe_directory(&root)?;
+    let version = root.join("java-tiles-v1");
+    safe_directory(&version)?;
+    let world = version.join(&key);
+    safe_directory(&world)?;
+    Ok((world, key))
+}
+
 fn safe_directory(path: &Path) -> io::Result<()> {
     match fs::symlink_metadata(path) {
         Ok(meta) if meta.file_type().is_dir() => Ok(()),

@@ -111,6 +111,15 @@ The Java renderer currently launches with `--prebake off`, `--threads 2`, `--mem
 **Batch:** P18.79 only.
 **Commit:** `P18.79: use exact pre-render progress and refresh resume state`
 
+### P18.80 — Allow the exact pre-render manifest route
+
+**Status:** Implemented; awaiting Cameron's verification. No tests run.
+**Files:** `third_party/vantage/src/serve.zig`; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; `docs/msc2/rolling-plan.md`.
+**What:** Vantage's HTTP artifact allowlist now admits the `manifest-fresh.json` route introduced in P18.79. The producer already handled that route, but the transport rejected it first with HTTP 400 `bad path`, stopping pre-render after the next progress check. Add the path to the existing allowlist check while keeping all other private cache files inaccessible. The desktop suggests increasing the cache limit only when a failure actually mentions cache, storage, or eviction. The existing route-allowlist unit case includes the new path; it was not run.
+**Verify:** Build the optimized app with `cd clients/desktop-web && npx tauri build`. Open the large Java map and click Resume once. Confirm progress continues past the prior 171-tile HTTP 400 stop and the cached-tile count rises. Cameron performs this verification.
+**Batch:** P18.80 only.
+**Commit:** `P18.80: allow exact pre-render manifest route`
+
 **Later Bedrock parity, after Java acceptance:** Plan separate Bedrock steps against the same owner-visible contract: persistent saved-area index, durable tile cache, explicit pre-render, changed-chunk refresh and the same moving-radius/low-detail behavior. Bedrock LevelDB needs its own safe snapshot and change detection; do not reuse Java `.mca` assumptions. The earlier full Bedrock scan indexed about 1.57 million chunk positions in 89 seconds on a large world, while the subsequent whole-world overview sampling ran toward the 60-minute limit. Avoid making that overview scan the prerequisite for opening or navigating the map. P18.69's motion deferral did not remove Cameron's Bedrock stutter, so investigate and measure the renderer/viewer path instead of treating that step as accepted.
 
 Cameron directed the implemented Add Server, Bedrock map, imported-JAR and Services follow-ups to Done and into [the rolling-plan archive](rolling-plan-archive.md#october-19-2026--v0131-follow-up-step-closure). Failed intermediate Bedrock attempts retain their supersession history there. Independent phase reviews and remaining physical checks stay in [pending acceptance](pending-acceptance.md).

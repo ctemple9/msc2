@@ -1022,7 +1022,9 @@
             <span role="alert"
               >Pre-render stopped: {preRenderEstimate.operation.error?.message ?? 'The renderer reported a failure.'}</span
             >
-            <span>Adjust the cache limit if storage permits, then resume the saved tiles.</span>
+            {#if /cache|storage|evict/i.test(preRenderEstimate.operation.error?.message ?? '')}
+              <span>Adjust the cache limit if storage permits, then resume the saved tiles.</span>
+            {/if}
           {/if}
           {#if preRenderEstimate.cachedTiles < preRenderEstimate.totalTiles}
             <label

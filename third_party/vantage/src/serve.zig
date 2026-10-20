@@ -642,7 +642,9 @@ fn safePath(rel: []const u8) bool {
 /// one URL per tile, so aliases ("+1", "007") can't dodge caches or logs.
 fn safeArtifactPath(rel: []const u8) bool {
     if (!safePath(rel)) return false;
-    if (std.mem.eql(u8, rel, "manifest.json") or std.mem.eql(u8, rel, "terrain.vtexarr")) return true;
+    if (std.mem.eql(u8, rel, "manifest.json") or
+        std.mem.eql(u8, rel, "manifest-fresh.json") or
+        std.mem.eql(u8, rel, "terrain.vtexarr")) return true;
     if (std.mem.eql(u8, rel, "players.json")) return true;
     if (!std.mem.startsWith(u8, rel, "tiles/t.") or !std.mem.endsWith(u8, rel, ".vtile")) return false;
     const mid = rel["tiles/t.".len .. rel.len - ".vtile".len];
@@ -718,6 +720,7 @@ test "safePath rejects escapes and accepts render files" {
 
 test "server artifacts expose only protocol files" {
     try std.testing.expect(safeArtifactPath("manifest.json"));
+    try std.testing.expect(safeArtifactPath("manifest-fresh.json"));
     try std.testing.expect(safeArtifactPath("terrain.vtexarr"));
     try std.testing.expect(safeArtifactPath("players.json"));
     // The player feed is one document, not a directory the world can be

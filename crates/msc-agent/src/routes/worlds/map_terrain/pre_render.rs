@@ -543,6 +543,12 @@ fn run(state: WorldsRoutesState, id: OperationId, task: RunRequest) {
                             std::thread::sleep(Duration::from_millis(100));
                             continue;
                         }
+                        // Let a moving camera take the next bake slot before
+                        // claiming more background work.
+                        if state.map_renderer.visible_tile_busy() {
+                            std::thread::sleep(Duration::from_millis(50));
+                            continue;
+                        }
                         let index = next.fetch_add(1, Ordering::AcqRel);
                         let Some(tile) = tiles.get(index) else { break };
                         let result = fetch_tile(&state, task, tile);

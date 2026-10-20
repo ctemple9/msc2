@@ -46,7 +46,7 @@ export interface ScreenApi {
   get<T>(path: string): Promise<T>;
   post<T>(path: string, body?: unknown): Promise<T>;
   /** Fetches binary resources through the authenticated host transport. */
-  getBytes?(path: string): Promise<Uint8Array>;
+  getBytes?(path: string, signal?: AbortSignal): Promise<Uint8Array>;
   /** Builds a host-aware URL for resources rendered directly by the webview. */
   resourceUrl?(path: string): string;
   upload?(

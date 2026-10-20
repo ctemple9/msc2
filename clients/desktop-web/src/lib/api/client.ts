@@ -430,6 +430,9 @@ export class ApiClient {
         signal: options.signal,
       });
     } catch (error) {
+      if (options.signal?.aborted) {
+        throw new DOMException('Cancelled', 'AbortError');
+      }
       throw new Error(`Unable to reach host '${this.hostId}': ${String(error)}`);
     }
 

@@ -429,7 +429,8 @@
       get: <T,>(path: string) => currentClient().requestJson<T>('GET', path),
       post: <T,>(path: string, body?: unknown) =>
         currentClient().requestJson<T>('POST', path, { body }),
-      getBytes: (path: string) => currentClient().requestBytes('GET', path),
+      getBytes: (path: string, signal?: AbortSignal) =>
+        currentClient().requestBytes('GET', path, { signal }),
       resourceUrl: (path: string) => currentClient().resourceUrl(path),
       upload: (purpose, bytes, options) =>
         currentClient().stagedUpload({ purpose, ...options }, bytes),

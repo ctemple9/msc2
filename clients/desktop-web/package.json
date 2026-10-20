@@ -42,7 +42,6 @@
     "@tauri-apps/plugin-dialog": "^2.4.0",
     "@tauri-apps/plugin-fs": "^2.4.0",
     "@tauri-apps/plugin-notification": "^2.3.0",
-    "@thoughts-on-things/vantage-mc": "0.15.1",
     "svelte": "^5.38.7",
     "three": "0.180.0"
   },

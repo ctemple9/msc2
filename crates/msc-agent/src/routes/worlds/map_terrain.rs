@@ -7,7 +7,7 @@ use std::fs::OpenOptions;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 use std::time::{Duration, Instant};
 
@@ -85,6 +85,19 @@ struct RendererState {
     sweeping: AtomicBool,
     progress: Mutex<Option<PreparationProgress>>,
     pre_render: Mutex<Option<pre_render::Job>>,
+    visible_tile_active: AtomicUsize,
+    last_visible_tile: Mutex<Option<Instant>>,
+}
+
+struct VisibleTileRequest(Arc<RendererState>);
+
+impl Drop for VisibleTileRequest {
+    fn drop(&mut self) {
+        if let Ok(mut last) = self.0.last_visible_tile.lock() {
+            *last = Some(Instant::now());
+        }
+        self.0.visible_tile_active.fetch_sub(1, Ordering::AcqRel);
+    }
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -263,7 +276,7 @@ pub(super) async fn artifact(
     let artifact = query.path;
     let lifecycle = state.lifecycle.clone();
     match tokio::task::spawn_blocking(move || {
-        store.fetch(
+        store.fetch_visible(
             &server_id,
             &world,
             &dimension_id,
@@ -360,6 +373,43 @@ fn artifact_type(path: &str) -> Option<&'static str> {
 }
 
 impl RendererStore {
+    fn fetch_visible(
+        &self,
+        server_id: &str,
+        world: &Path,
+        dimension: &str,
+        artifact: &str,
+        selected_version: Option<&str>,
+        server_running: &(impl Fn() -> bool + Sync),
+    ) -> Result<(u16, Vec<u8>), TerrainError> {
+        let _visible = if artifact.starts_with("tiles/t.") {
+            self.0.visible_tile_active.fetch_add(1, Ordering::AcqRel);
+            Some(VisibleTileRequest(self.0.clone()))
+        } else {
+            None
+        };
+        self.fetch(
+            server_id,
+            world,
+            dimension,
+            artifact,
+            selected_version,
+            server_running,
+        )
+    }
+
+    fn visible_tile_busy(&self) -> bool {
+        if self.0.visible_tile_active.load(Ordering::Acquire) > 0 {
+            return true;
+        }
+        self.0
+            .last_visible_tile
+            .lock()
+            .ok()
+            .and_then(|last| *last)
+            .is_some_and(|last| last.elapsed() < Duration::from_millis(350))
+    }
+
     #[cfg(target_os = "windows")]
     pub(super) fn set_shutdown(&self, shutdown: bool) {
         self.0.shutdown.store(shutdown, Ordering::Release);

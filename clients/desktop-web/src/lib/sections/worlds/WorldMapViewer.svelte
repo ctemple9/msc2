@@ -3,12 +3,12 @@
   import Select from '../../components/base/Select.svelte';
   import { isTauri } from '@tauri-apps/api/core';
   import { getCurrentWindow, LogicalPosition } from '@tauri-apps/api/window';
-  import type { BiomeEntry, WorldSource } from '@thoughts-on-things/vantage-mc/core';
+  import type { BiomeEntry, WorldSource } from '../../vantage/core/index.js';
   import type {
     PlayerLayer,
     PlayerSnapshot,
     VantageViewer,
-  } from '@thoughts-on-things/vantage-mc/three';
+  } from '../../vantage/three/index.js';
   import type { Schema, ScreenApi } from '../shared/types';
   import { ApiError } from '../../api/client';
   import { pollOperation } from './model';
@@ -219,6 +219,9 @@
     { name: 'Ultra', viewDistance: 1408, maxTiles: 400, memoryMiB: 1024, renderScale: 1, mapMemory: 128 },
   ];
   let quality = { ...qualityPresets[1], fog: 1 };
+  let detailStatus = '';
+  let lastDetailStatusAt = 0;
+  let visibleTileStats = { loaded: 0, loading: 0 };
   type QualityKnob = 'viewDistance' | 'maxTiles' | 'memoryMiB' | 'renderScale' | 'fog' | 'mapMemory';
   const qualitySliders: { key: QualityKnob; label: string; min: number; max: number; step: number; hint: string }[] = [
     { key: 'viewDistance', label: 'View distance', min: 256, max: 2048, step: 64, hint: 'Radius of detailed terrain around the camera, in blocks.' },
@@ -241,6 +244,19 @@
       mapMemory: quality.mapMemory,
     });
     viewer?.setDisplay({ renderScale: quality.renderScale, fog: quality.fog });
+    updateDetailStatus();
+  }
+
+  function updateDetailStatus(): void {
+    if (serverType !== 'java' || !viewer) {
+      detailStatus = '';
+      return;
+    }
+    const admitted = Math.max(0, Math.floor(viewer.plannedDetailRadius));
+    const requested = viewer.streamingSettings.viewDistance;
+    const limit = admitted + 16 < requested ? `, budget-limited from ${requested}` : '';
+    const loading = visibleTileStats.loading > 0 ? ` · ${visibleTileStats.loading} loading` : '';
+    detailStatus = `Planned detail radius ${admitted} blocks${limit} · ${visibleTileStats.loaded} shown${loading}`;
   }
 
   function setQualityKnob(key: QualityKnob, value: number): void {
@@ -370,6 +386,8 @@
     if (preRenderOpen) void readPreRenderEstimate();
     nearbyCatalog = false;
     lastCameraPose = undefined;
+    detailStatus = '';
+    visibleTileStats = { loaded: 0, loading: 0 };
     const generation = ++loadGeneration;
     disposeViewer();
     mapTiming = {
@@ -404,7 +422,7 @@
       const read = async (path: string, signal?: AbortSignal): Promise<ArrayBuffer> => {
         if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
         const started = performance.now();
-        const bytes = await api!.getBytes!(artifactPath(dimension, path));
+        const bytes = await api!.getBytes!(artifactPath(dimension, path), signal);
         if (signal?.aborted || !alive || generation !== loadGeneration) {
           throw new DOMException('Cancelled', 'AbortError');
         }
@@ -426,7 +444,7 @@
       nearbyCatalog = serverType === 'bedrock' && manifest.catalogPhase === 'nearby';
       if (!alive || generation !== loadGeneration) return;
       const { VantageViewer: Viewer, PlayerLayer: Layer } =
-        await import('@thoughts-on-things/vantage-mc/three');
+        await import('../../vantage/three/index.js');
       if (!alive || generation !== loadGeneration) return;
       opening = new Viewer(canvas, {
         players: { enabled: false },
@@ -443,7 +461,7 @@
                 mapMemory: quality.mapMemory,
               },
             }
-          : {}),
+          : { streaming: { concurrency: 4 } }),
       });
       opening.on('biomes', (entries) => {
         if (alive && generation === loadGeneration) biomes = entries;
@@ -460,6 +478,7 @@
             bedrockStats = stats;
             status = bedrockTileStatus(entry.displayName, stats);
           } else if (mapTiming) {
+            visibleTileStats = { loaded: stats.loaded, loading: stats.loading };
             mapTiming.loaded = stats.loaded;
             mapTiming.total = stats.total;
             if (stats.loaded > 0 && mapTiming.firstLoadedTileAt === undefined) {
@@ -561,6 +580,10 @@
       mapTiming.worstFrame = Math.max(mapTiming.worstFrame, frameMs);
     }
     if (viewer) {
+      if (serverType === 'java' && now - lastDetailStatusAt >= 250) {
+        updateDetailStatus();
+        lastDetailStatusAt = now;
+      }
       const moved = playerLayer?.update(performance.now());
       if (followedId && playerLayer) {
         const position = playerLayer.positionOf(followedId);
@@ -1209,7 +1232,7 @@
       <summary aria-label="Terrain status" title="Show or hide terrain status">
         <span class="terrain-caret" aria-hidden="true">▴</span>
         <span class="terrain-caption-text" role="status">
-          {status}{message ? ` · ${message}` : ''}
+          {status}{detailStatus ? ` · ${detailStatus}` : ''}{message ? ` · ${message}` : ''}
         </span>
       </summary>
     </details>

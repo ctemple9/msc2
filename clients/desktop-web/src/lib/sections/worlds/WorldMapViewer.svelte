@@ -1015,35 +1015,36 @@
           <button type="button" class="refresh" disabled={preRenderBusy} onclick={cancelPreRender}
             >Stop</button
           >
-        {:else if preRenderEstimate.operation?.state === 'failed'}
-          <span role="alert"
-            >Pre-render stopped: {preRenderEstimate.operation.error?.message ?? 'The renderer reported a failure.'}</span
-          >
         {:else}
-          <label
-            >Cache limit (GB)
-            <input
-              type="number"
-              min={Math.ceil(Math.max(4096, preRenderEstimate.suggestedBudgetMib) * 1024 ** 2 / 1_000_000_000 * 10) / 10}
-              max={Math.floor(preRenderEstimate.maxBudgetMib * 1024 ** 2 / 1_000_000_000 * 10) / 10}
-              step="0.1"
-              bind:value={preRenderBudgetGb}
-            />
-          </label>
-          <button
-            type="button"
-            class="refresh"
-            disabled={preRenderBusy ||
-              preRenderEstimate.cachedTiles >= preRenderEstimate.totalTiles ||
-              preRenderBudgetMib() < preRenderEstimate.suggestedBudgetMib ||
-              preRenderBudgetMib() > preRenderEstimate.maxBudgetMib}
-            onclick={startPreRender}
-            >{preRenderEstimate.cachedTiles >= preRenderEstimate.totalTiles
-              ? 'Complete'
-              : preRenderEstimate.cachedTiles > 0
-                ? 'Resume'
-                : 'Start'}</button
-          >
+          {#if preRenderEstimate.operation?.state === 'failed'}
+            <span role="alert"
+              >Pre-render stopped: {preRenderEstimate.operation.error?.message ?? 'The renderer reported a failure.'}</span
+            >
+            <span>Adjust the cache limit if storage permits, then resume the saved tiles.</span>
+          {/if}
+          {#if preRenderEstimate.cachedTiles < preRenderEstimate.totalTiles}
+            <label
+              >Cache limit (GB)
+              <input
+                type="number"
+                min={Math.ceil(Math.max(4096, preRenderEstimate.suggestedBudgetMib) * 1024 ** 2 / 1_000_000_000 * 10) / 10}
+                max={Math.floor(preRenderEstimate.maxBudgetMib * 1024 ** 2 / 1_000_000_000 * 10) / 10}
+                step="0.1"
+                bind:value={preRenderBudgetGb}
+              />
+            </label>
+            <button
+              type="button"
+              class="refresh"
+              disabled={preRenderBusy ||
+                preRenderBudgetMib() < preRenderEstimate.suggestedBudgetMib ||
+                preRenderBudgetMib() > preRenderEstimate.maxBudgetMib}
+              onclick={startPreRender}
+              >{preRenderEstimate.cachedTiles > 0 ? 'Resume' : 'Start'}</button
+            >
+          {:else}
+            <span>All saved terrain tiles are cached.</span>
+          {/if}
         {/if}
       {:else}
         <span>Checking saved tiles and available storage…</span>

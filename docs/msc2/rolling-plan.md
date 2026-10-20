@@ -93,6 +93,15 @@ The Java renderer currently launches with `--prebake off`, `--threads 2`, `--mem
 **Verify:** Run `open -a 'MSC 2'`, fly repeatedly across the large pregenerated Java world, and return through cached areas in 2D, 3D and Fly. Controls should stay responsive, known saved terrain should fill the requested radius promptly or show lower detail while it catches up, and frame-time diagnostics should not show recurring multi-second hitches. Cameron records cold/warm/refresh timings and visual acceptance before Bedrock work begins.
 **Batch:** P18.77 only.
 
+### P18.78 — Keep pre-render controls available after a failure
+
+**Status:** Implemented; awaiting Cameron's verification. No tests added or run.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; `docs/msc2/rolling-plan.md`.
+**What:** When a pre-render operation fails, keep its error visible and restore the cache-limit field and Resume action whenever uncached tiles remain. This lets the user raise the limit after an eviction stop and retry without reopening the map or losing completed tiles. Show a short instruction to adjust the budget if storage permits. The original branch showed only the terminal error, hiding all recovery controls.
+**Verify:** Build the optimized app with `cd clients/desktop-web && npx tauri build`. In a Java map, trigger or resume a pre-render that reaches its cache limit; confirm the failure reason remains visible alongside Cache limit (GB) and Resume. Raise the budget within the displayed storage limit and resume; confirm cached tiles are retained and progress continues. Cameron performs this verification; no tests were run.
+**Batch:** P18.78 only.
+**Commit:** `P18.78: restore pre-render controls after failure`
+
 **Later Bedrock parity, after Java acceptance:** Plan separate Bedrock steps against the same owner-visible contract: persistent saved-area index, durable tile cache, explicit pre-render, changed-chunk refresh and the same moving-radius/low-detail behavior. Bedrock LevelDB needs its own safe snapshot and change detection; do not reuse Java `.mca` assumptions. The earlier full Bedrock scan indexed about 1.57 million chunk positions in 89 seconds on a large world, while the subsequent whole-world overview sampling ran toward the 60-minute limit. Avoid making that overview scan the prerequisite for opening or navigating the map. P18.69's motion deferral did not remove Cameron's Bedrock stutter, so investigate and measure the renderer/viewer path instead of treating that step as accepted.
 
 Cameron directed the implemented Add Server, Bedrock map, imported-JAR and Services follow-ups to Done and into [the rolling-plan archive](rolling-plan-archive.md#october-19-2026--v0131-follow-up-step-closure). Failed intermediate Bedrock attempts retain their supersession history there. Independent phase reviews and remaining physical checks stay in [pending acceptance](pending-acceptance.md).

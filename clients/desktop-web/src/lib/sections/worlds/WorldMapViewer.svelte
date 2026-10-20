@@ -94,6 +94,7 @@
   type PreRenderEstimate = {
     totalTiles: number;
     cachedTiles: number;
+    cachedBytes: number;
     estimatedTotalBytes: number;
     suggestedBudgetMib: number;
     maxBudgetMib: number;
@@ -102,11 +103,20 @@
   };
   let preRenderOpen = false;
   let preRenderEstimate: PreRenderEstimate | undefined;
-  let preRenderBudget = 4096;
+  let preRenderBudgetGb = 4.3;
   let preRenderError = '';
   let preRenderBusy = false;
   let preRenderPoll: ReturnType<typeof setInterval> | undefined;
   let preRenderRequest = false;
+  let preRenderPollCount = 0;
+
+  function bytesAsGb(bytes: number): string {
+    return `${(bytes / 1_000_000_000).toFixed(1)} GB`;
+  }
+
+  function preRenderBudgetMib(): number {
+    return Math.round((preRenderBudgetGb * 1_000_000_000) / 1024 ** 2);
+  }
   async function readPreRenderEstimate(): Promise<void> {
     if (
       !api ||
@@ -124,7 +134,9 @@
         `/v1/worlds/map/pre-render?dimension=${encodeURIComponent(dimension)}`,
       );
       if (!alive || dimension !== selectedDimension) return;
-      if (!preRenderEstimate) preRenderBudget = result.suggestedBudgetMib;
+      if (!preRenderEstimate) {
+        preRenderBudgetGb = Math.ceil((result.suggestedBudgetMib * 1024 ** 2) / 1_000_000_000 * 10) / 10;
+      }
       preRenderEstimate = result;
       preRenderError = '';
     } catch (error) {
@@ -155,6 +167,10 @@
         operation: updated,
         cachedTiles: updated.progress?.current ?? preRenderEstimate.cachedTiles,
       };
+      // Refresh the byte total occasionally from Vantage's current manifest;
+      // the operation endpoint itself stays small and is polled every 2s.
+      preRenderPollCount += 1;
+      if (preRenderPollCount % 5 === 0) void readPreRenderEstimate();
       if (updated.state !== 'running' && updated.state !== 'queued') void readPreRenderEstimate();
     } catch {
       /* The next poll can recover after a brief agent disconnect. */
@@ -167,7 +183,7 @@
     try {
       await api.post('/v1/worlds/map/pre-render', {
         dimension: selectedDimension,
-        cacheBudgetMib: preRenderBudget,
+        cacheBudgetMib: preRenderBudgetMib(),
       });
       await readPreRenderEstimate();
     } catch (error) {
@@ -982,7 +998,8 @@
           >{preRenderEstimate.cachedTiles} / {preRenderEstimate.totalTiles} saved tiles cached</span
         >
         <span
-          >Estimated full cache: {(preRenderEstimate.estimatedTotalBytes / 1024 ** 3).toFixed(1)} GiB</span
+          >{bytesAsGb(preRenderEstimate.cachedBytes)} currently cached · estimated full cache:
+          {bytesAsGb(preRenderEstimate.estimatedTotalBytes)}</span
         >
         {#if preRenderEstimate.maxBudgetMib < preRenderEstimate.suggestedBudgetMib}
           <span>Free storage is below the estimated cache limit. Free space before starting.</span>
@@ -998,15 +1015,19 @@
           <button type="button" class="refresh" disabled={preRenderBusy} onclick={cancelPreRender}
             >Stop</button
           >
+        {:else if preRenderEstimate.operation?.state === 'failed'}
+          <span role="alert"
+            >Pre-render stopped: {preRenderEstimate.operation.error?.message ?? 'The renderer reported a failure.'}</span
+          >
         {:else}
           <label
-            >Cache limit (MiB)
+            >Cache limit (GB)
             <input
               type="number"
-              min={Math.max(4096, preRenderEstimate.suggestedBudgetMib)}
-              max={preRenderEstimate.maxBudgetMib}
-              step="1024"
-              bind:value={preRenderBudget}
+              min={Math.ceil(Math.max(4096, preRenderEstimate.suggestedBudgetMib) * 1024 ** 2 / 1_000_000_000 * 10) / 10}
+              max={Math.floor(preRenderEstimate.maxBudgetMib * 1024 ** 2 / 1_000_000_000 * 10) / 10}
+              step="0.1"
+              bind:value={preRenderBudgetGb}
             />
           </label>
           <button
@@ -1014,8 +1035,8 @@
             class="refresh"
             disabled={preRenderBusy ||
               preRenderEstimate.cachedTiles >= preRenderEstimate.totalTiles ||
-              preRenderBudget < preRenderEstimate.suggestedBudgetMib ||
-              preRenderBudget > preRenderEstimate.maxBudgetMib}
+              preRenderBudgetMib() < preRenderEstimate.suggestedBudgetMib ||
+              preRenderBudgetMib() > preRenderEstimate.maxBudgetMib}
             onclick={startPreRender}
             >{preRenderEstimate.cachedTiles >= preRenderEstimate.totalTiles
               ? 'Complete'

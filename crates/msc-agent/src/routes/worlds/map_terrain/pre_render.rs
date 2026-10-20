@@ -458,21 +458,39 @@ fn run(state: WorldsRoutesState, id: OperationId, task: RunRequest) {
                 continue;
             }
             let path = format!("tiles/t.{}.{}.vtile", tile.x, tile.z);
-            let (status, _) = state
-                .map_renderer
-                .fetch(
-                    &server_id,
-                    &world,
-                    &dimension,
-                    &path,
-                    version.as_deref(),
-                    &|| state.lifecycle.status_snapshot().running,
+            let tile_started = Instant::now();
+            let response = state.map_renderer.fetch(
+                &server_id,
+                &world,
+                &dimension,
+                &path,
+                version.as_deref(),
+                &|| state.lifecycle.status_snapshot().running,
+            );
+            let elapsed = tile_started.elapsed();
+            if elapsed >= Duration::from_secs(5) {
+                eprintln!(
+                    "Java map: pre-render tile ({},{}) request took {:.1}s",
+                    tile.x,
+                    tile.z,
+                    elapsed.as_secs_f64()
+                );
+            }
+            let (status, _) = response.map_err(|error| {
+                format!(
+                    "Tile ({},{}) failed after {:.1}s: {}",
+                    tile.x,
+                    tile.z,
+                    elapsed.as_secs_f64(),
+                    error.message
                 )
-                .map_err(|error| error.message)?;
+            })?;
             if status != 200 {
                 return Err(format!(
-                    "Tile ({},{}) returned HTTP {status}",
-                    tile.x, tile.z
+                    "Tile ({},{}) returned HTTP {status} after {:.1}s",
+                    tile.x,
+                    tile.z,
+                    elapsed.as_secs_f64()
                 ));
             }
             completed += 1;

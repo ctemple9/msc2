@@ -10,6 +10,7 @@
     VantageViewer,
   } from '@thoughts-on-things/vantage-mc/three';
   import type { Schema, ScreenApi } from '../shared/types';
+  import { ApiError } from '../../api/client';
   import { pollOperation } from './model';
 
   export let api: ScreenApi | undefined;
@@ -31,14 +32,33 @@
   let catalogPoll: ReturnType<typeof setInterval> | undefined;
   let catalogRequest = false;
   let nearbyCatalog = false;
+  let cameraStatusSupported = true;
+  let lastCameraPose: number[] | undefined;
   async function refreshCatalog(): Promise<void> {
     if (!alive || !nearbyCatalog || !viewer || catalogRequest || !api?.getBytes || busy) return;
     catalogRequest = true;
     const dimension = selectedDimension;
     try {
       const camera = viewer.controls.mode === 'fly' ? viewer.camera.position : viewer.controls.position;
-      const path = `${artifactPath(dimension, 'manifest.json')}&center_x=${Math.floor(camera.x)}&center_z=${Math.floor(camera.z)}`;
-      const bytes = await api.getBytes(path);
+      const position = viewer.camera.position;
+      const rotation = viewer.camera.quaternion;
+      const target = viewer.controls.position;
+      const pose = [position.x, position.y, position.z, target.x, target.y, target.z,
+        rotation.x, rotation.y, rotation.z, rotation.w, viewer.camera.zoom];
+      const moving = !lastCameraPose || pose.some((value, index) =>
+        Math.abs(value - lastCameraPose![index]) > (index < 6 ? 0.01 : 0.0005));
+      lastCameraPose = pose;
+      const cameraPath = `${artifactPath(dimension, 'camera.json')}&center_x=${Math.floor(camera.x)}&center_z=${Math.floor(camera.z)}&moving=${moving}`;
+      const legacyPath = `${artifactPath(dimension, 'manifest.json')}&center_x=${Math.floor(camera.x)}&center_z=${Math.floor(camera.z)}`;
+      let bytes: Uint8Array;
+      try {
+        bytes = await api.getBytes(cameraStatusSupported ? cameraPath : legacyPath);
+      } catch (error) {
+        if (!cameraStatusSupported || !(error instanceof ApiError) || error.status !== 400) throw error;
+        // An older agent still expects the camera position on a manifest request.
+        cameraStatusSupported = false;
+        bytes = await api.getBytes(legacyPath);
+      }
       const manifest = JSON.parse(new TextDecoder().decode(bytes)) as { catalogPhase?: string };
       if (alive && selectedDimension === dimension && manifest.catalogPhase === 'full') {
         // Vantage follows dynamic manifests itself; replacing the viewer here
@@ -207,6 +227,7 @@
   async function loadDimension(dimension: string): Promise<void> {
     selectedDimension = dimension;
     nearbyCatalog = false;
+    lastCameraPose = undefined;
     const generation = ++loadGeneration;
     disposeViewer();
     spawn = undefined;

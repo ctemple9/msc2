@@ -153,6 +153,7 @@ pub(super) struct ArtifactQuery {
     path: String,
     center_x: Option<i32>,
     center_z: Option<i32>,
+    moving: Option<bool>,
 }
 
 pub(super) async fn artifact(
@@ -297,6 +298,7 @@ pub(super) fn is_direct_child(parent: &Path, child: &Path) -> bool {
 fn artifact_type(path: &str) -> Option<&'static str> {
     match path {
         "manifest.json" => return Some("application/json"),
+        "camera.json" => return Some("application/json"),
         "viewer-world.json" => return Some("application/json"),
         "terrain.vtile" => return Some("application/octet-stream"),
         "terrain.vtexarr" => return Some("application/octet-stream"),

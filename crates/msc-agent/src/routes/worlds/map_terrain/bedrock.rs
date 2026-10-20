@@ -95,6 +95,8 @@ struct BedrockTile {
     detailed: BTreeSet<String>,
     last_preview: Option<Instant>,
     camera: Option<(i32, i32)>,
+    nearby_catalog: bool,
+    last_camera_motion: Option<Instant>,
 }
 
 struct TileSession {
@@ -233,16 +235,16 @@ pub(super) async fn artifact(
             "This Bedrock dimension is not supported by the saved terrain map.",
         );
     }
-    if !matches!(query.path.as_str(), "manifest.json" | "terrain.vtexarr")
-        && !matches!(query.path.strip_prefix("tiles/t."), Some(name) if {
-            let parts: Vec<_> = name.split('.').collect();
-            matches!(parts.as_slice(), [x, z, "vtile"] if x.parse::<i32>().is_ok() && z.parse::<i32>().is_ok())
-        })
-        && !matches!(query.path.strip_prefix("overview/t."), Some(name) if {
-            let parts: Vec<_> = name.split('.').collect();
-            matches!(parts.as_slice(), [x, z, "vlr"] if x.parse::<i32>().is_ok() && z.parse::<i32>().is_ok())
-        })
-    {
+    if !matches!(
+        query.path.as_str(),
+        "manifest.json" | "camera.json" | "terrain.vtexarr"
+    ) && !matches!(query.path.strip_prefix("tiles/t."), Some(name) if {
+        let parts: Vec<_> = name.split('.').collect();
+        matches!(parts.as_slice(), [x, z, "vtile"] if x.parse::<i32>().is_ok() && z.parse::<i32>().is_ok())
+    }) && !matches!(query.path.strip_prefix("overview/t."), Some(name) if {
+        let parts: Vec<_> = name.split('.').collect();
+        matches!(parts.as_slice(), [x, z, "vlr"] if x.parse::<i32>().is_ok() && z.parse::<i32>().is_ok())
+    }) {
         return error_response(
             StatusCode::BAD_REQUEST,
             "invalid_artifact",
@@ -279,6 +281,7 @@ pub(super) async fn artifact(
     let artifact = query.path.clone();
     let dimension = query.dimension.clone();
     let center = query.center_x.zip(query.center_z);
+    let moving = query.moving.unwrap_or(false);
     match tokio::task::spawn_blocking(move || {
         store.read(
             &lifecycle,
@@ -286,7 +289,7 @@ pub(super) async fn artifact(
             &server_id,
             &world,
             &dimension,
-            (&artifact, center),
+            (&artifact, center, moving),
         )
     })
     .await
@@ -492,9 +495,9 @@ impl BedrockStore {
         server_id: &str,
         world: &Path,
         dimension: &str,
-        request: (&str, Option<(i32, i32)>),
+        request: (&str, Option<(i32, i32)>, bool),
     ) -> Result<Vec<u8>, String> {
-        let (artifact, center) = request;
+        let (artifact, center, moving) = request;
         let mut current = self
             .0
             .lock()
@@ -629,6 +632,7 @@ impl BedrockStore {
                 BedrockTile {
                     output,
                     tiles,
+                    nearby_catalog: nearby,
                     _staging: Some(staging),
                     ..BedrockTile::default()
                 },
@@ -639,16 +643,14 @@ impl BedrockStore {
         }
         current.require_saved_terrain(dimension)?;
         let mut discovered_region = false;
-        if artifact == "manifest.json"
+        if matches!(artifact, "manifest.json" | "camera.json")
             && let Some((x, z)) = center
             && (-30_000_000..=30_000_000).contains(&x)
             && (-30_000_000..=30_000_000).contains(&z)
-            && current.tiles.get(dimension).is_some_and(|tile| {
-                fs::read(tile.output.join("manifest.json"))
-                    .ok()
-                    .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
-                    .is_some_and(|manifest| manifest["catalogPhase"] == "nearby")
-            })
+            && current
+                .tiles
+                .get(dimension)
+                .is_some_and(|tile| tile.nearby_catalog)
         {
             let (rx, rz) = (x.div_euclid(256), z.div_euclid(256));
             let mut nearby = Vec::with_capacity(9);
@@ -739,14 +741,23 @@ impl BedrockStore {
                 }
             }
         }
-        if artifact == "manifest.json" {
+        if matches!(artifact, "manifest.json" | "camera.json") {
             if let Some(position) = center
                 && let Some(tile) = current.tiles.get_mut(dimension)
             {
                 tile.camera = Some(position);
+                if moving {
+                    tile.last_camera_motion = Some(Instant::now());
+                }
             }
             let next = current.tiles.get(dimension).and_then(|tile| {
-                if center.is_none() || discovered_region {
+                if center.is_none()
+                    || discovered_region
+                    || moving
+                    || tile
+                        .last_camera_motion
+                        .is_some_and(|when| when.elapsed() < Duration::from_secs(3))
+                {
                     return None;
                 }
                 if tile
@@ -832,6 +843,12 @@ impl BedrockStore {
             .tiles
             .get(dimension)
             .ok_or("The Bedrock tile is unavailable.")?;
+        if artifact == "camera.json" {
+            return serde_json::to_vec(&serde_json::json!({
+                "catalogPhase": if tile.nearby_catalog { "nearby" } else { "full" }
+            }))
+            .map_err(|error| format!("Could not send the Bedrock camera status: {error}"));
+        }
         let output = tile.output.clone();
         let path = output.join(artifact);
         if artifact == "manifest.json" {

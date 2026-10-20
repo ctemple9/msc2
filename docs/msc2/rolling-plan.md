@@ -1,15 +1,96 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** P18.69 — smooth Bedrock map movement while saved terrain continues loading.
+**Current priority:** Java-first saved-terrain performance plan (P18.70–P18.77). Cameron will review the plan before implementation. Bedrock must ultimately provide the same user experience through its own world-data pipeline.
 
 ### P18.69 — Defer detailed Bedrock tile swaps during camera movement
 
-**Status:** Implemented; awaiting Cameron's verification.
+**Status:** Implemented; Cameron reported that the Bedrock map still stutters, so this did not satisfy the movement goal. Retained for the later Bedrock parity work; not accepted as a fix.
 **Files:** `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; this plan.
 **What:** Bedrock camera updates run every two seconds and previously downloaded and parsed the complete manifest on the UI thread while also triggering a detailed tile replacement. The agent now answers camera updates with a small status message, keeps discovering saved terrain around the camera, and waits until camera movement has settled before replacing preview tiles with detailed meshes. Position, rotation, and zoom all count as movement, covering 2D, 3D, and Fly. Older agents continue to receive the original manifest request. The renderer still receives its normal manifest updates and can stream newly discovered previews. No test was added or run; the stutter requires owner verification in the actual large Bedrock world.
 **Verify:** Open `~/Desktop/msc2-bedrock-map-intel-p18.69.dmg`, install the app, repair the agent, and reopen the imported Bedtonic-world map. Move continuously in 2D, 3D, and Fly while preview terrain loads; motion should remain smooth, new saved areas should still appear, and detailed textures should fill in after stopping for a few seconds. Compare against a Java map to confirm Java behavior is unchanged.
 **Batch:** P18.69 only.
 **Commit:** `P18.69: defer bedrock map details while moving`
+
+## Java-first saved-terrain map performance — owner direction, October 19, 2026
+
+**Owner-visible goal.** A large, pregenerated Java world may take time on its first map preparation. After that, opening the same unchanged map should be fast, including after closing the desktop app, restarting the agent, or returning days later. In 2D, 3D, and Fly, camera controls should remain smooth while a predictable terrain radius follows the camera. Saved terrain inside that radius should arrive promptly as the user travels; if detailed tiles are still being made, a lower-detail view should cover the gap and refine without a visible reset. A distant jump into an uncached area may require catch-up, but it must not freeze input or falsely imply that the full detail radius is already present. Cameron compared this to flying through a pregenerated Minecraft world with a stable render distance (12 chunks was an analogy, not an approved MSC default). A user-invoked **Pre-render map** job should be available for people who want the populated world cached in advance. **Refresh terrain** should update only changed saved chunks and affected tiles. Once the Java behavior is verified, Bedrock should match this user experience despite its different file structure.
+
+**Current behavior and evidence.** Java's 26.x compatibility path normalizes every `.mca` file from the selected dimension into a private copy before opening Vantage. The loop is serial, reads and writes each whole region, and decompresses, parses, and recompresses each present chunk even when the normalization changes nothing. The October 19 Tectonic import showed 1,600 regions; on Cameron's 8-physical-core, 16 GB Mac the conversion used roughly one CPU core. A check during the run found 559 converted files and 108 written in the preceding three minutes; a subsequent check found 604. This was progress, not a hang; the remaining-time estimate was only an observation because region sizes vary. The preparation folder was about 4.7 GB with about 27 GB available at that check. These are observations from one machine, not performance promises or defaults.
+
+The Java renderer currently launches with `--prebake off`, `--threads 2`, `--memory 512`, and an output directory inside disposable map staging. Its compatible world copy and baked tiles are removed after 90 seconds of renderer idleness; closing the app therefore does not preserve the expensive result. The first 1,600-region pass prepares input for the renderer; it does **not** render every tile. The viewer streams tiles on demand and keeps only bounded resident and byte-cache budgets. Medium currently requests a 768-block view distance and at most 120 detailed tiles, so the effective detailed radius can shrink when tile count or memory runs out. Java Refresh terrain takes a safe world snapshot, replaces the renderer, and repeats preparation. On APFS, snapshot files can be cloned cheaply; other filesystems use a bounded copy fallback. Snapshot capture, conversion, tile baking, and viewer upload are separate costs and must be measured separately.
+
+**Proposed implementation contract.** Keep private, versioned map data on the agent host, keyed by stable server/world identity, dimension, renderer and compatibility-format version, Minecraft assets/resource-pack identity, and render settings that change tile output. Preserve it when the desktop app closes or the renderer process stops. Reuse unchanged converted regions and baked tiles across agent restarts; discard or rebuild only invalid generations. Never render from a mutable running-world path: use the existing save-flush/snapshot boundary, compare an immutable new snapshot with stored fingerprints, and publish a new generation atomically. A cheap file metadata check may narrow candidates, but correctness must come from saved chunk content fingerprints, not modification time alone. Comparing compressed chunk records is safe even if harmless recompression causes an extra rebuild. A changed chunk invalidates its containing tile, neighboring tiles when edge visibility depends on it, and affected low-detail/overview cells; added/deleted chunks must also update coverage. Texture/renderer/format changes invalidate all dependent tiles. Keep the previous visible tile until its replacement has been built and uploaded; do not clear the entire viewer on refresh. Retain old cache data only as long as needed for safe replacement, with disk estimates, bounds, and explicit cleanup.
+
+**Pre-render and resource policy proposal.** Pre-render is an explicit per-world/dimension operation, with progress, estimated storage, cancellation and resumable completed tiles; it does not block ordinary nearby viewing. A stopped server can use more CPU for first conversion and requested pre-render. On the observed 8-core/16 GB Mac, four bounded region workers are a candidate starting point, **not** a fixed cross-platform rule or a claimed fourfold speedup. Keep per-worker region buffers and total memory bounded (the converter permits regions up to 256 MB), adapt to memory/disk pressure, and reserve capacity for MSC and the OS. While the server is running, use fewer workers/lower priority; if it starts mid-job, throttle without discarding progress. Camera-visible tiles take priority over background pre-render, and GPU decode/upload work must be budgeted so a burst of completed tiles cannot hitch movement. Do not run an automatic whole-world bake just because a map was opened. Full pre-render of a very large pregenerated world may take substantial time and storage; report both instead of promising Minecraft-game speed.
+
+**Success and limits.** Separate cold first-open, warm reopen after app/agent restart, changed-terrain refresh, distant flight, return flight, stopped-server pre-render, running-server pre-render, disk use, memory, CPU, and frame-hitch measurements on Cameron's large Java world. Reopening unchanged terrain should not repeat the 1,600-region conversion. Refresh should preserve unchanged regions/tiles and show changed terrain without a blank-map reset. The selected detailed radius should be honest about tile/memory admission; lower detail is an acceptable temporary fallback when camera movement outruns baking, but prolonged empty space over known saved chunks is not. Do not assert a fixed time target or parity from a build alone; Cameron performs physical verification. No tests, CI, or release gates are authorized by this plan.
+
+### P18.70 — Record the Java-first map contract and observed bottlenecks
+
+**Status:** Implemented as a plan; awaiting Cameron's review. No product code changed.
+**Files:** `docs/msc2/rolling-plan.md`.
+**What:** Record Cameron's exact first-use, warm-reopen, moving-radius, optional pre-render, incremental-refresh, stopped-server resource, and eventual Bedrock-parity goals above. Preserve measured observations and current implementation facts separately from proposed engineering choices. Keep P18.69's failed owner verification visible.
+**Verify:** Run `sed -n '16,150p' docs/msc2/rolling-plan.md` and confirm the Java-first contract, evidence, and steps match the intended behavior before implementation.
+**Batch:** P18.70 only.
+**Commit:** `P18.70: record java-first map performance plan`
+
+### P18.71 — Measure the Java map pipeline on the large world
+
+**Status:** Planned; awaiting Cameron's review.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/java_terrain_compat.rs`; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte` only if needed for diagnostic timing; `docs/msc2/rolling-plan.md`.
+**What:** Add bounded, low-noise timing for snapshot selection, compatible-region conversion, renderer startup, first visible tile, warm reopen, and refresh. Distinguish renderer tile generation from browser decode/upload and camera-frame stalls; inspect Vantage's actual cache/revision behavior before relying on it. Record baseline, hardware, world size, and disk use without running another speculative whole-world scan. Do not add a test for timing.
+**Verify:** Open the large Java map once, reopen it, and refresh it, then run `rg 'Java map:' "$HOME/Library/Application Support/MSC 2/logs/agent.log" | tail -n 40`; the timing lines and viewer diagnostics should identify each stage without credentials or per-tile log noise.
+**Batch:** P18.71 only.
+
+### P18.72 — Persist and reuse compatible Java region preparation
+
+**Status:** Planned; awaiting Cameron's review.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/java_terrain_compat.rs`; agent-owned map-cache/storage code; `docs/msc2/rolling-plan.md`.
+**What:** Move normalized regions out of disposable renderer staging into a safe, versioned, agent-owned cache. Validate source identity and snapshot generation, keep only successful atomic outputs, reuse unchanged regions after app/agent restart, and rebuild changed/invalidated regions. Preserve snapshot isolation, symlink/path checks, disk admission, and cleanup of obsolete generations. A first render can still take time; an unchanged reopen must not reconvert all regions.
+**Verify:** Run `open -a 'MSC 2'`, prepare the 1,600-region Java world, close the app and let the renderer exit, then reopen after an agent restart. Preparation should reuse the cache rather than repeat all 1,600 regions; changing one region in a disposable world should invalidate only that region.
+**Batch:** P18.72 only.
+
+### P18.73 — Use bounded parallel Java conversion when resources permit
+
+**Status:** Planned; awaiting Cameron's review.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain/java_terrain_compat.rs`; resource-policy code used by the map operation; `docs/msc2/rolling-plan.md`.
+**What:** Process independent region files with a bounded worker pool, avoid recompressing a chunk whose normalized bytes are unchanged, and commit region outputs atomically. Choose concurrency from CPU, available memory, disk conditions, and server state; four workers on the observed 8-core/16 GB stopped-server Mac is a starting measurement candidate. Throttle if the server starts. Keep progress truthful with out-of-order completion and ensure cancellation leaves reusable completed regions.
+**Verify:** Run `open -a 'MSC 2'` and compare first-pass time and peak memory on Cameron's large Java world or an unchanged safe copy with P18.71 while the server is stopped; then start the server and confirm workers yield resources without losing completed progress.
+**Batch:** P18.73 only.
+
+### P18.74 — Keep baked Java tiles across map sessions
+
+**Status:** Planned; awaiting Cameron's review.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain.rs`; Java renderer dependency/launch code; agent-owned map-cache/storage code; `docs/msc2/rolling-plan.md`.
+**What:** Give Vantage a durable, versioned output cache and confirm whether it can reuse baked tiles safely after renderer restart. Reopen unchanged terrain without re-baking previously visited tiles. Define limits, storage estimates and cleanup so a 10,000-block pregenerated extent cannot silently consume unlimited disk. If Vantage's on-disk format or startup scan prevents safe reuse, change that integration deliberately instead of assuming `--out` alone supplies it.
+**Verify:** Run `open -a 'MSC 2'`, visit several Java map areas, close the app and let the renderer stop, then reopen those areas after agent restart. Previously baked tiles should be reused quickly; an unvisited area should still load on demand, and cache size should stay within policy.
+**Batch:** P18.74 only.
+
+### P18.75 — Add user-invoked Java map pre-render
+
+**Status:** Planned; awaiting Cameron's review.
+**Files:** Java map operation/API and renderer integration; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte` or the relevant Worlds map control; CLI command required by D-041; `docs/msc2/antiAIslop.md` as required design reading; `docs/msc2/rolling-plan.md`.
+**What:** Add an explicit Pre-render map action for the selected world/dimension. Estimate work and disk cost, show meaningful progress, allow cancellation and resume, retain completed tiles across app closure, and give visible-camera tiles priority. Use a larger bounded budget when the server is stopped and throttle when it runs. Inspect Vantage's `--prebake on` behavior and operation lifecycle; do not equate enabling the flag with complete, persistent pre-render until verified. Do not launch automatically on normal map open.
+**Verify:** Run `open -a 'MSC 2'`, invoke Pre-render map on a Java world, close and reopen the app during the job, then cancel and resume it. Progress and cached tile counts should remain truthful; browsing should continue, and starting the server should reduce background load without losing finished work. Confirm the corresponding CLI command works.
+**Batch:** P18.75 only.
+
+### P18.76 — Refresh only changed Java terrain
+
+**Status:** Planned; awaiting Cameron's review.
+**Files:** `crates/msc-agent/src/backup_operations.rs`; `crates/msc-agent/src/routes/worlds.rs`; Java map-cache and renderer integration; viewer tile-revision handling if required; `docs/msc2/rolling-plan.md`.
+**What:** After a safe save-flush/snapshot, compare persisted region/chunk fingerprints with the previous generation. Convert and bake only changed chunks' affected tiles and low-detail coverage, including tile-edge neighbors and additions/removals; preserve unchanged cached tiles. Atomically publish new revisions and keep old visible tiles until replacement is ready. Measure snapshot capture separately: APFS clone support already avoids a full physical copy on that filesystem, while other platforms may need an incremental snapshot strategy. Do not depend on mtime alone or read a live mutable world without the existing safety boundary.
+**Verify:** Run `open -a 'MSC 2'`, change blocks in one chunk of a disposable Java world, refresh terrain, and confirm only affected tiles update without resetting the camera or showing a blank map. Refresh again without changes and confirm no tile rebake; verify source files and the running server remain safe.
+**Batch:** P18.76 only.
+
+### P18.77 — Make Java camera travel smooth within an honest render radius
+
+**Status:** Planned; awaiting Cameron's review.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; Vantage integration or upstream renderer code if needed; map artifact/API code only where the existing interface cannot support stable streaming; `docs/msc2/antiAIslop.md` as required design reading; `docs/msc2/rolling-plan.md`.
+**What:** Keep input and rendering responsive in 2D, 3D and Fly while prioritizing visible tiles and prefetching in the travel direction. Admit a consistent detailed radius within tile/memory budgets and disclose when the budget reduces it. Retain or generate low-detail coverage for missing detailed tiles; budget parsing and GPU uploads per frame, avoid whole-manifest work on camera movement, and swap changed tiles only when replacements are ready. Measure fast flight, distant jumps and revisits rather than claiming a permanently full radius at arbitrary speed. This Java behavior becomes the Bedrock parity target.
+**Verify:** Run `open -a 'MSC 2'`, fly repeatedly across the large pregenerated Java world, and return through cached areas in 2D, 3D and Fly. Controls should stay responsive, known saved terrain should fill the requested radius promptly or show lower detail while it catches up, and frame-time diagnostics should not show recurring multi-second hitches. Cameron records cold/warm/refresh timings and visual acceptance before Bedrock work begins.
+**Batch:** P18.77 only.
+
+**Later Bedrock parity, after Java acceptance:** Plan separate Bedrock steps against the same owner-visible contract: persistent saved-area index, durable tile cache, explicit pre-render, changed-chunk refresh and the same moving-radius/low-detail behavior. Bedrock LevelDB needs its own safe snapshot and change detection; do not reuse Java `.mca` assumptions. The earlier full Bedrock scan indexed about 1.57 million chunk positions in 89 seconds on a large world, while the subsequent whole-world overview sampling ran toward the 60-minute limit. Avoid making that overview scan the prerequisite for opening or navigating the map. P18.69's motion deferral did not remove Cameron's Bedrock stutter, so investigate and measure the renderer/viewer path instead of treating that step as accepted.
 
 Cameron directed the implemented Add Server, Bedrock map, imported-JAR and Services follow-ups to Done and into [the rolling-plan archive](rolling-plan-archive.md#october-19-2026--v0131-follow-up-step-closure). Failed intermediate Bedrock attempts retain their supersession history there. Independent phase reviews and remaining physical checks stay in [pending acceptance](pending-acceptance.md).
 

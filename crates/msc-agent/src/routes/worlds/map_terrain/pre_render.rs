@@ -159,13 +159,18 @@ fn manifest(
     world: &Path,
     dimension: &str,
     version: Option<&str>,
+    fresh: bool,
 ) -> Result<Manifest, String> {
     let (status, bytes) = store
         .fetch(
             server_id,
             world,
             dimension,
-            "manifest.json",
+            if fresh {
+                "manifest-fresh.json"
+            } else {
+                "manifest.json"
+            },
             version,
             &|| state.lifecycle.status_snapshot().running,
         )
@@ -190,6 +195,7 @@ fn estimate(
         world,
         dimension,
         version,
+        false,
     )?;
     let cached_bytes: u64 = current.tiles.iter().map(|tile| tile.bytes).sum();
     let cached_tiles = current.progress.as_ref().map_or(0, |p| p.done);
@@ -440,6 +446,7 @@ fn run(state: WorldsRoutesState, id: OperationId, task: RunRequest) {
             &world,
             &dimension,
             version.as_deref(),
+            true,
         )?;
         let total = initial
             .progress
@@ -502,6 +509,7 @@ fn run(state: WorldsRoutesState, id: OperationId, task: RunRequest) {
                     &world,
                     &dimension,
                     version.as_deref(),
+                    true,
                 )?;
                 let retained = current.progress.as_ref().map_or(completed, |p| p.done);
                 if retained + 2 < completed {
@@ -526,6 +534,7 @@ fn run(state: WorldsRoutesState, id: OperationId, task: RunRequest) {
             &world,
             &dimension,
             version.as_deref(),
+            true,
         )?;
         let done = final_manifest
             .progress

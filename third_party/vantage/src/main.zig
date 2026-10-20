@@ -3137,7 +3137,11 @@ fn produce(ctx: *anyopaque, io: std.Io, arena: std.mem.Allocator, request: serve
     const self: *LiveServer = @ptrCast(@alignCast(ctx));
     const path = request.path;
     if (std.mem.eql(u8, path, "manifest.json"))
-        return try manifestResponse(self, arena, request);
+        return try manifestResponse(self, arena, request, false);
+    // The pre-render worker needs an exact retained count; the viewer may use
+    // the coalesced representation while tiles are landing rapidly.
+    if (std.mem.eql(u8, path, "manifest-fresh.json"))
+        return try manifestResponse(self, arena, request, true);
     // The roster is a cached body, not work: answering a HEAD from it costs a
     // stat and a copy. Doing so is also what keeps HEAD and GET agreeing about
     // whether this deployment has players at all — falling through would let a
@@ -3227,7 +3231,7 @@ const LOWRES_REVISION_SEED: u64 = 0x5641_4e54_454c_4f44;
 /// gzip-coded when the poller accepts it: a large world's manifest is
 /// megabytes of highly repetitive JSON, re-fetched every poll while tiles
 /// bake, and gzip is ~10× on it.
-fn manifestResponse(self: *LiveServer, arena: std.mem.Allocator, request: serve.ProduceRequest) !serve.Produced {
+fn manifestResponse(self: *LiveServer, arena: std.mem.Allocator, request: serve.ProduceRequest, fresh: bool) !serve.Produced {
     const io = self.sh.io;
     self.maybeRefresh();
 
@@ -3246,7 +3250,7 @@ fn manifestResponse(self: *LiveServer, arena: std.mem.Allocator, request: serve.
     const now = std.Io.Timestamp.now(io, .awake);
     const generation = self.manifest_generation;
     if (self.manifest_cache) |cache| if (cache.generation == generation or
-        (self.manifest_coalesce_ns > 0 and cache.built_at.durationTo(now).nanoseconds < self.manifest_coalesce_ns))
+        (!fresh and self.manifest_coalesce_ns > 0 and cache.built_at.durationTo(now).nanoseconds < self.manifest_coalesce_ns))
     {
         const out = manifestRepresentation(arena, cache.body, cache.gzip, cache.etag, request) catch |e| {
             self.mutex.unlock(io);

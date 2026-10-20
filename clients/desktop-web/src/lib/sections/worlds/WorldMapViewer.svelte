@@ -108,6 +108,7 @@
   let preRenderBusy = false;
   let preRenderPoll: ReturnType<typeof setInterval> | undefined;
   let preRenderRequest = false;
+  let preRenderReadGeneration = 0;
   let preRenderPollCount = 0;
 
   function bytesAsGb(bytes: number): string {
@@ -117,34 +118,35 @@
   function preRenderBudgetMib(): number {
     return Math.round((preRenderBudgetGb * 1_000_000_000) / 1024 ** 2);
   }
-  async function readPreRenderEstimate(): Promise<void> {
+  async function readPreRenderEstimate(force = false): Promise<void> {
     if (
       !api ||
       !alive ||
       !preRenderOpen ||
       serverType !== 'java' ||
       !selectedDimension ||
-      preRenderRequest
+      (preRenderRequest && !force)
     )
       return;
     preRenderRequest = true;
+    const generation = ++preRenderReadGeneration;
     const dimension = selectedDimension;
     try {
       const result = await api.get<PreRenderEstimate>(
         `/v1/worlds/map/pre-render?dimension=${encodeURIComponent(dimension)}`,
       );
-      if (!alive || dimension !== selectedDimension) return;
+      if (!alive || dimension !== selectedDimension || generation !== preRenderReadGeneration) return;
       if (!preRenderEstimate) {
         preRenderBudgetGb = Math.ceil((result.suggestedBudgetMib * 1024 ** 2) / 1_000_000_000 * 10) / 10;
       }
       preRenderEstimate = result;
       preRenderError = '';
     } catch (error) {
-      if (alive && dimension === selectedDimension)
+      if (alive && dimension === selectedDimension && generation === preRenderReadGeneration)
         preRenderError =
           error instanceof Error ? error.message : 'Pre-render estimate unavailable.';
     } finally {
-      preRenderRequest = false;
+      if (generation === preRenderReadGeneration) preRenderRequest = false;
     }
   }
   async function refreshPreRenderStatus(): Promise<void> {
@@ -185,7 +187,7 @@
         dimension: selectedDimension,
         cacheBudgetMib: preRenderBudgetMib(),
       });
-      await readPreRenderEstimate();
+      await readPreRenderEstimate(true);
     } catch (error) {
       preRenderError = error instanceof Error ? error.message : 'Pre-render could not start.';
     } finally {
@@ -198,7 +200,7 @@
     preRenderError = '';
     try {
       await api.post('/v1/worlds/map/pre-render/cancel', { dimension: selectedDimension });
-      await readPreRenderEstimate();
+      await readPreRenderEstimate(true);
     } catch (error) {
       preRenderError = error instanceof Error ? error.message : 'Pre-render could not stop.';
     } finally {

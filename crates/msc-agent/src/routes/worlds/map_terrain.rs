@@ -134,6 +134,8 @@ struct Renderer {
     child: Child,
     diagnostics: Arc<Mutex<Vec<u8>>>,
     diagnostic_reader: Option<std::thread::JoinHandle<()>>,
+    started_at: Instant,
+    first_tile_reported: bool,
     last_use: Instant,
 }
 
@@ -367,6 +369,9 @@ impl RendererStore {
         source_world: PathBuf,
         snapshot: crate::backup_operations::WorldMapSnapshot,
     ) -> Result<(), ()> {
+        let started = Instant::now();
+        let bytes = snapshot.bytes;
+        let hold_millis = snapshot.hold_millis;
         let next = SavedSnapshot {
             server_id,
             source_world,
@@ -381,6 +386,12 @@ impl RendererStore {
         // Stop the renderer before deleting the previous snapshot it reads.
         *renderer = None;
         *saved = Some(next);
+        eprintln!(
+            "Java map: selected refreshed snapshot in {:.1}ms ({} bytes copied; {}ms save hold)",
+            started.elapsed().as_secs_f64() * 1000.0,
+            bytes,
+            hold_millis
+        );
         Ok(())
     }
 
@@ -392,7 +403,7 @@ impl RendererStore {
         artifact: &str,
         selected_version: Option<&str>,
     ) -> Result<(u16, Vec<u8>), TerrainError> {
-        let (port, token) = {
+        let (port, token, first_tile_pending) = {
             let mut guard = self.0.current.lock().map_err(|_| ())?;
             if self.0.shutdown.load(Ordering::Acquire) {
                 return Err(().into());
@@ -414,6 +425,16 @@ impl RendererStore {
                     && renderer.last_use.elapsed() < IDLE
                     && renderer.child.try_wait().ok().flatten().is_none()
             });
+            if reuse
+                && artifact == "manifest.json"
+                && let Some(renderer) = guard.as_ref()
+            {
+                eprintln!(
+                    "Java map: warm renderer reused (ready for {:.1}s; last request {:.1}s ago)",
+                    renderer.started_at.elapsed().as_secs_f64(),
+                    renderer.last_use.elapsed().as_secs_f64()
+                );
+            }
             if !reuse {
                 if let Ok(mut progress) = self.0.progress.lock() {
                     *progress = Some(PreparationProgress {
@@ -425,6 +446,8 @@ impl RendererStore {
                     });
                 }
                 let reporter = PreparationReporter(&self.0.progress);
+                let source = if saved.is_some() { "snapshot" } else { "world" };
+                eprintln!("Java map: selecting {source} input for renderer startup");
                 *guard = Some(Renderer::launch(
                     server_id,
                     render_world,
@@ -435,7 +458,9 @@ impl RendererStore {
             }
             let renderer = guard.as_mut().ok_or(())?;
             renderer.last_use = Instant::now();
-            (renderer.port, renderer.token.clone())
+            let first_tile_pending =
+                artifact.starts_with("tiles/t.") && !renderer.first_tile_reported;
+            (renderer.port, renderer.token.clone(), first_tile_pending)
         };
         self.ensure_sweeper();
         let url = format!("http://127.0.0.1:{port}/v1/worlds/default/{artifact}");
@@ -461,6 +486,23 @@ impl RendererStore {
                 eprintln!("Java terrain artifact read failed: {error}");
                 TerrainError::from(())
             })?;
+        if first_tile_pending {
+            if let Ok(mut guard) = self.0.current.lock()
+                && let Some(renderer) = guard.as_mut()
+                && renderer.server_id == server_id
+                && renderer.port == port
+                && status == 200
+                && !renderer.first_tile_reported
+            {
+                renderer.first_tile_reported = true;
+                eprintln!(
+                    "Java map: first tile response completed {:.1}s after renderer startup ({} bytes; HTTP {})",
+                    renderer.started_at.elapsed().as_secs_f64(),
+                    bytes.len(),
+                    status
+                );
+            }
+        }
         Ok((status, bytes))
     }
 
@@ -513,6 +555,7 @@ impl Renderer {
         let staging = crate::map_staging::Staging::create("java-renderer", estimate)
             .map_err(|error| TerrainError::new("map_storage_failed", error.to_string()))?;
         let cache = staging.path().to_path_buf();
+        let conversion_started = Instant::now();
         let render_world =
             match java_terrain_compat::prepare(world, dimension, &cache, &|completed, total| {
                 progress.update("Converting saved terrain", Some(completed), Some(total))
@@ -529,6 +572,10 @@ impl Renderer {
                     ));
                 }
             };
+        eprintln!(
+            "Java map: compatible region preparation returned in {:.1}s",
+            conversion_started.elapsed().as_secs_f64()
+        );
         let token = format!(
             "{}{}{}",
             Uuid::new_v4().simple(),
@@ -586,6 +633,7 @@ impl Renderer {
                 }
             })
         });
+        let started_at = Instant::now();
         let mut renderer = Self {
             server_id: server_id.to_string(),
             world: world.to_path_buf(),
@@ -596,10 +644,12 @@ impl Renderer {
             child,
             diagnostics,
             diagnostic_reader,
+            started_at,
+            first_tile_reported: false,
             last_use: Instant::now(),
         };
-        let started = Instant::now();
-        while started.elapsed() < Duration::from_secs(45) {
+        let startup_started = Instant::now();
+        while startup_started.elapsed() < Duration::from_secs(45) {
             if let Some(status) = renderer.child.try_wait().map_err(|_| ())? {
                 if let Some(reader) = renderer.diagnostic_reader.take() {
                     let _ = reader.join();
@@ -614,6 +664,10 @@ impl Renderer {
             if let Ok(response) = http().get(&health).call()
                 && response.status().as_u16() == 200
             {
+                eprintln!(
+                    "Java map: renderer ready in {:.1}s",
+                    startup_started.elapsed().as_secs_f64()
+                );
                 return Ok(renderer);
             }
             std::thread::sleep(Duration::from_millis(250));

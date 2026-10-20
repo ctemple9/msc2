@@ -34,6 +34,16 @@
   let nearbyCatalog = false;
   let cameraStatusSupported = true;
   let lastCameraPose: number[] | undefined;
+  let mapTiming: {
+    startedAt: number;
+    firstTileResponseAt?: number;
+    firstLoadedTileAt?: number;
+    loaded: number;
+    total: number;
+    frameAt: number;
+    longFrames: number;
+    worstFrame: number;
+  } | undefined;
   async function refreshCatalog(): Promise<void> {
     if (!alive || !nearbyCatalog || !viewer || catalogRequest || !api?.getBytes || busy) return;
     catalogRequest = true;
@@ -203,6 +213,20 @@
   }
 
   function disposeViewer(): void {
+    if (mapTiming) {
+      const timing = mapTiming;
+      console.info('Java map: viewer diagnostics', {
+        firstTileResponseSeconds: timing.firstTileResponseAt === undefined
+          ? null : Number(((timing.firstTileResponseAt - timing.startedAt) / 1000).toFixed(1)),
+        firstTileAttachedSeconds: timing.firstLoadedTileAt === undefined
+          ? null : Number(((timing.firstLoadedTileAt - timing.startedAt) / 1000).toFixed(1)),
+        loadedTilesAtClose: timing.loaded,
+        totalTiles: timing.total,
+        framesOver100ms: timing.longFrames,
+        worstFrameMs: Number(timing.worstFrame.toFixed(1)),
+      });
+      mapTiming = undefined;
+    }
     stopFollowing();
     releaseDesktopLook();
     playerLayer?.dispose();
@@ -230,6 +254,14 @@
     lastCameraPose = undefined;
     const generation = ++loadGeneration;
     disposeViewer();
+    mapTiming = {
+      startedAt: performance.now(),
+      loaded: 0,
+      total: 0,
+      frameAt: performance.now(),
+      longFrames: 0,
+      worstFrame: 0,
+    };
     spawn = undefined;
     const entry = dimensions.find((item) => item.id === dimension);
     if (!entry) return;
@@ -253,9 +285,19 @@
     try {
       const read = async (path: string, signal?: AbortSignal): Promise<ArrayBuffer> => {
         if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
+        const started = performance.now();
         const bytes = await api!.getBytes!(artifactPath(dimension, path));
         if (signal?.aborted || !alive || generation !== loadGeneration) {
           throw new DOMException('Cancelled', 'AbortError');
+        }
+        if (serverType === 'java' && path.startsWith('tiles/') && path.endsWith('.vtile') && mapTiming &&
+            mapTiming.firstTileResponseAt === undefined) {
+          mapTiming.firstTileResponseAt = performance.now();
+          console.info('Java map: first tile received from agent', {
+            seconds: Number(((mapTiming.firstTileResponseAt - mapTiming.startedAt) / 1000).toFixed(1)),
+            requestMs: Number((mapTiming.firstTileResponseAt - started).toFixed(1)),
+            bytes: bytes.byteLength,
+          });
         }
         return asBuffer(bytes);
       };
@@ -294,13 +336,24 @@
           highlightedBiome = state.highlight;
         }
       });
-      if (serverType === 'bedrock') {
-        opening.on('stats', (stats) => {
+      opening.on('stats', (stats) => {
           if (!alive || generation !== loadGeneration) return;
-          bedrockStats = stats;
-          status = bedrockTileStatus(entry.displayName, stats);
+          if (serverType === 'bedrock') {
+            bedrockStats = stats;
+            status = bedrockTileStatus(entry.displayName, stats);
+          } else if (mapTiming) {
+            mapTiming.loaded = stats.loaded;
+            mapTiming.total = stats.total;
+            if (stats.loaded > 0 && mapTiming.firstLoadedTileAt === undefined) {
+              mapTiming.firstLoadedTileAt = performance.now();
+              console.info('Java map: first tile attached to viewer', {
+                seconds: Number(((mapTiming.firstLoadedTileAt - mapTiming.startedAt) / 1000).toFixed(1)),
+                loadedTiles: stats.loaded,
+                totalTiles: stats.total,
+              });
+            }
+          }
         });
-      }
       const source: WorldSource = {
         label: `${worldName} · ${entry.displayName}`,
         manifest,
@@ -382,6 +435,13 @@
 
   function updateToolbar(): void {
     if (!alive) return;
+    const now = performance.now();
+    if (mapTiming) {
+      const frameMs = now - mapTiming.frameAt;
+      mapTiming.frameAt = now;
+      if (frameMs > 100) mapTiming.longFrames += 1;
+      mapTiming.worstFrame = Math.max(mapTiming.worstFrame, frameMs);
+    }
     if (viewer) {
       const moved = playerLayer?.update(performance.now());
       if (followedId && playerLayer) {

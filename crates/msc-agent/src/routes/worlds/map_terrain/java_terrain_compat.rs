@@ -76,7 +76,13 @@ pub(super) fn prepare(
         }
     }
     let total = regions.len();
+    let conversion_started = std::time::Instant::now();
+    let source_bytes = regions
+        .iter()
+        .filter_map(|entry| entry.metadata().ok().map(|metadata| metadata.len()))
+        .sum::<u64>();
     progress(0, total);
+    let mut output_bytes = 0u64;
     for (index, entry) in regions.into_iter().enumerate() {
         let path = entry.path();
         let name = entry.file_name();
@@ -91,9 +97,14 @@ pub(super) fn prepare(
         let raw = fs::read(path)?;
         let normalized = normalize_region(&raw)?;
         crate::map_staging::ensure_space(cache, normalized.len() as u64 + 64 * 1024 * 1024)?;
+        output_bytes = output_bytes.saturating_add(normalized.len() as u64);
         fs::write(target.join(name), normalized)?;
         progress(index + 1, total);
     }
+    eprintln!(
+        "Java map: converted {total} compatible region files ({source_bytes} source bytes; {output_bytes} staged bytes) in {:.1}s",
+        conversion_started.elapsed().as_secs_f64()
+    );
     Ok(staged)
 }
 

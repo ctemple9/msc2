@@ -2990,6 +2990,7 @@ pub async fn refresh_map(
     let task_operation_id = operation_id.clone();
     let renderer = state.map_renderer.clone();
     tokio::spawn(async move {
+        let snapshot_started = std::time::Instant::now();
         let snapshot_lifecycle = task_lifecycle.clone();
         let result = tokio::task::spawn_blocking(move || {
             crate::backup_operations::snapshot_java_world(
@@ -3001,6 +3002,12 @@ pub async fn refresh_map(
         .await;
         match result {
             Ok(Ok(snapshot)) => {
+                eprintln!(
+                    "Java map: refresh snapshot captured in {:.1}s ({} bytes; {}ms save hold)",
+                    snapshot_started.elapsed().as_secs_f64(),
+                    snapshot.bytes,
+                    snapshot.hold_millis
+                );
                 let mut details = BTreeMap::new();
                 details.insert("bytesCopied".to_string(), snapshot.bytes.to_string());
                 details.insert("holdMillis".to_string(), snapshot.hold_millis.to_string());

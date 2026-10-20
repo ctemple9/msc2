@@ -52,10 +52,10 @@ The Java renderer currently launches with `--prebake off`, `--threads 2`, `--mem
 
 ### P18.73 — Use bounded parallel Java conversion when resources permit
 
-**Status:** Planned; awaiting Cameron's review.
-**Files:** `crates/msc-agent/src/routes/worlds/map_terrain/java_terrain_compat.rs`; resource-policy code used by the map operation; `docs/msc2/rolling-plan.md`.
-**What:** Process independent region files with a bounded worker pool, avoid recompressing a chunk whose normalized bytes are unchanged, and commit region outputs atomically. Choose concurrency from CPU, available memory, disk conditions, and server state; four workers on the observed 8-core/16 GB stopped-server Mac is a starting measurement candidate. Throttle if the server starts. Keep progress truthful with out-of-order completion and ensure cancellation leaves reusable completed regions.
-**Verify:** Run `open -a 'MSC 2'` and compare first-pass time and peak memory on Cameron's large Java world or an unchanged safe copy with P18.71 while the server is stopped; then start the server and confirm workers yield resources without losing completed progress.
+**Status:** Implemented; awaiting Cameron's verification. No tests added or run.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/java_terrain_compat.rs`; `docs/msc2/rolling-plan.md`.
+**What:** Java compatibility conversion now uses a bounded pool sized by available logical cores, a conservative memory budget, and free staging-volume space after MSC's disk reserve, capped at four workers. It allows the pool to use its full capacity while the server is stopped and gates new region work to one active worker when the server runs; work already underway finishes before the reduced limit takes effect. Completed regions are atomically renamed into staging, progress counts completed regions despite out-of-order finishes, and chunks that need no NBT normalization retain their existing compressed payload instead of being recompressed. Agent logs report pool capacity, resource inputs, conversion totals, and when a running server reduces concurrency. This step was implemented in response to Cameron's explicit first-render parallelism request; P18.72's persistent cache remains outstanding and addresses repeated opens rather than this first conversion.
+**Verify:** Build the optimized app with `cd clients/desktop-web && npx tauri build`, then run that release app against the large Java world with the server stopped. Confirm the agent log reports multiple workers when CPU and memory permit and compare first-pass time and peak memory with P18.71. Start the server during a conversion; new region work should be limited to one active worker and progress should retain completed regions.
 **Batch:** P18.73 only.
 
 ### P18.74 — Keep baked Java tiles across map sessions

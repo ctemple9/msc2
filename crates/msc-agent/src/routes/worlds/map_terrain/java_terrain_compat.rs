@@ -3,6 +3,9 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Condvar, Mutex};
+use std::time::Instant;
 
 use fastnbt::Value;
 use flate2::{Compression, read::GzDecoder, read::ZlibDecoder, write::ZlibEncoder};
@@ -38,7 +41,8 @@ pub(super) fn prepare(
     world: &Path,
     dimension: &str,
     cache: &Path,
-    progress: &impl Fn(usize, usize),
+    progress: &(impl Fn(usize, usize) + Sync),
+    server_running: &(impl Fn() -> bool + Sync),
 ) -> io::Result<PathBuf> {
     let (modern, legacy) = match dimension {
         "minecraft:overworld" => ("dimensions/minecraft/overworld/region", "region"),
@@ -76,36 +80,145 @@ pub(super) fn prepare(
         }
     }
     let total = regions.len();
-    let conversion_started = std::time::Instant::now();
+    let conversion_started = Instant::now();
     let source_bytes = regions
         .iter()
         .filter_map(|entry| entry.metadata().ok().map(|metadata| metadata.len()))
         .sum::<u64>();
     progress(0, total);
-    let mut output_bytes = 0u64;
-    for (index, entry) in regions.into_iter().enumerate() {
-        let path = entry.path();
-        let name = entry.file_name();
-        if !name.to_string_lossy().ends_with(".mca") || !entry.file_type()?.is_file() {
-            continue;
+    let available_cores = std::thread::available_parallelism().map_or(1, usize::from);
+    let memory_budget_mib =
+        msc_infrastructure::conversion_resources::available_heap_mib().unwrap_or(1024);
+    let available_disk = fs2::available_space(cache).unwrap_or(0);
+    let disk_worker_budget = if available_disk == 0 {
+        1
+    } else {
+        (available_disk.saturating_sub(msc_infrastructure::conversion_resources::DISK_RESERVE)
+            / (512 * 1024 * 1024))
+            .max(1) as usize
+    };
+    let max_workers = available_cores
+        .min((memory_budget_mib / 1024).max(1) as usize)
+        .min(disk_worker_budget)
+        .min(4);
+    let next_region = AtomicUsize::new(0);
+    let completed = AtomicUsize::new(0);
+    let failed = AtomicBool::new(false);
+    let output_bytes = AtomicU64::new(0);
+    let first_error = Mutex::new(None);
+    let active_workers = Mutex::new(0usize);
+    let worker_changed = Condvar::new();
+    let server_throttle_logged = AtomicBool::new(false);
+    let target = target.as_path();
+
+    eprintln!(
+        "Java map: converting {total} regions with pool capacity {max_workers} ({available_cores} logical cores; {memory_budget_mib} MiB memory budget; {available_disk} bytes available on staging volume; concurrency limited to one while server runs)"
+    );
+    std::thread::scope(|scope| {
+        for _ in 0..max_workers {
+            scope.spawn(|| loop {
+                if failed.load(Ordering::Acquire) {
+                    break;
+                }
+                let index = next_region.fetch_add(1, Ordering::Relaxed);
+                let Some(entry) = regions.get(index) else {
+                    break;
+                };
+                let mut active = active_workers.lock().expect("worker gate poisoned");
+                loop {
+                    if failed.load(Ordering::Acquire) {
+                        return;
+                    }
+                    let running = server_running();
+                    if running && max_workers > 1 {
+                        if !server_throttle_logged.swap(true, Ordering::AcqRel) {
+                            eprintln!(
+                                "Java map: server started during conversion; limiting new region work to one worker"
+                            );
+                        }
+                    } else if !running {
+                        server_throttle_logged.store(false, Ordering::Release);
+                    }
+                    let limit = if running { 1 } else { max_workers };
+                    if *active < limit {
+                        *active += 1;
+                        break;
+                    }
+                    let (next, _) = worker_changed
+                        .wait_timeout(active, std::time::Duration::from_millis(250))
+                        .expect("worker gate poisoned");
+                    active = next;
+                }
+                drop(active);
+
+                let result = convert_region(entry, target, cache, index);
+                let mut active = active_workers.lock().expect("worker gate poisoned");
+                *active -= 1;
+                worker_changed.notify_all();
+                drop(active);
+                match result {
+                    Ok(bytes) => {
+                        output_bytes.fetch_add(bytes, Ordering::Relaxed);
+                        let done = completed.fetch_add(1, Ordering::AcqRel) + 1;
+                        progress(done, total);
+                    }
+                    Err(error) => {
+                        failed.store(true, Ordering::Release);
+                        if let Ok(mut first) = first_error.lock()
+                            && first.is_none()
+                        {
+                            *first = Some(error);
+                        }
+                        worker_changed.notify_all();
+                        break;
+                    }
+                }
+            });
         }
-        if entry.metadata()?.len() > MAX_REGION_BYTES {
-            return Err(io::Error::other(
-                "Java region exceeds the terrain renderer limit",
-            ));
-        }
-        let raw = fs::read(path)?;
-        let normalized = normalize_region(&raw)?;
-        crate::map_staging::ensure_space(cache, normalized.len() as u64 + 64 * 1024 * 1024)?;
-        output_bytes = output_bytes.saturating_add(normalized.len() as u64);
-        fs::write(target.join(name), normalized)?;
-        progress(index + 1, total);
+    });
+    if let Some(error) = first_error
+        .into_inner()
+        .map_err(|_| io::Error::other("Java region conversion error state was poisoned"))?
+    {
+        return Err(error);
     }
     eprintln!(
-        "Java map: converted {total} compatible region files ({source_bytes} source bytes; {output_bytes} staged bytes) in {:.1}s",
+        "Java map: converted {total} compatible region files ({source_bytes} source bytes; {} staged bytes) in {:.1}s",
+        output_bytes.load(Ordering::Relaxed),
         conversion_started.elapsed().as_secs_f64()
     );
     Ok(staged)
+}
+
+fn convert_region(
+    entry: &fs::DirEntry,
+    target: &Path,
+    cache: &Path,
+    index: usize,
+) -> io::Result<u64> {
+    let name = entry.file_name();
+    if !name.to_string_lossy().ends_with(".mca") || !entry.file_type()?.is_file() {
+        return Ok(0);
+    }
+    if entry.metadata()?.len() > MAX_REGION_BYTES {
+        return Err(io::Error::other(
+            "Java region exceeds the terrain renderer limit",
+        ));
+    }
+    let raw = fs::read(entry.path())?;
+    let normalized = normalize_region(&raw)?;
+    crate::map_staging::ensure_space(cache, normalized.len() as u64 + 64 * 1024 * 1024)?;
+    let output = target.join(name);
+    let temporary = target.join(format!(".region-{}-{index}.tmp", std::process::id()));
+    let result = (|| {
+        fs::write(&temporary, &normalized)?;
+        fs::rename(&temporary, output)?;
+        Ok(normalized.len() as u64)
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(temporary);
+    }
+    result
 }
 
 fn invalid(message: &'static str) -> io::Error {
@@ -164,13 +277,15 @@ fn normalize_region(region: &[u8]) -> io::Result<Vec<u8>> {
         }
         let mut chunk: Value =
             fastnbt::from_bytes(&decoded).map_err(|_| invalid("Java chunk NBT is invalid"))?;
-        if normalize_chunk(&mut chunk) {
+        let (compressed, output_compression) = if normalize_chunk(&mut chunk) {
             decoded = fastnbt::to_bytes(&chunk)
                 .map_err(|_| invalid("Could not encode Java chunk NBT"))?;
-        }
-        let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-        encoder.write_all(&decoded)?;
-        let compressed = encoder.finish()?;
+            let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+            encoder.write_all(&decoded)?;
+            (encoder.finish()?, 2)
+        } else {
+            (payload.to_vec(), compression)
+        };
         let record_len = compressed.len() + 5;
         let needed = record_len.div_ceil(SECTOR);
         if needed > 255 {
@@ -185,7 +300,7 @@ fn normalize_region(region: &[u8]) -> io::Result<Vec<u8>> {
         output[entry + 2] = new_offset as u8;
         output[entry + 3] = needed as u8;
         output.extend_from_slice(&((compressed.len() + 1) as u32).to_be_bytes());
-        output.push(2);
+        output.push(output_compression);
         output.extend_from_slice(&compressed);
         output.resize(output.len().div_ceil(SECTOR) * SECTOR, 0);
     }

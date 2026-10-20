@@ -238,6 +238,7 @@ pub(super) async fn artifact(
     let server_id = server.id;
     let dimension_id = query.dimension;
     let artifact = query.path;
+    let lifecycle = state.lifecycle.clone();
     match tokio::task::spawn_blocking(move || {
         store.fetch(
             &server_id,
@@ -245,6 +246,7 @@ pub(super) async fn artifact(
             &dimension_id,
             &artifact,
             selected_version.as_deref(),
+            &|| lifecycle.status_snapshot().running,
         )
     })
     .await
@@ -402,6 +404,7 @@ impl RendererStore {
         dimension: &str,
         artifact: &str,
         selected_version: Option<&str>,
+        server_running: &(impl Fn() -> bool + Sync),
     ) -> Result<(u16, Vec<u8>), TerrainError> {
         let (port, token, first_tile_pending) = {
             let mut guard = self.0.current.lock().map_err(|_| ())?;
@@ -454,6 +457,7 @@ impl RendererStore {
                     dimension,
                     selected_version,
                     &reporter,
+                    server_running,
                 )?);
             }
             let renderer = guard.as_mut().ok_or(())?;
@@ -542,6 +546,7 @@ impl Renderer {
         dimension: &str,
         selected_version: Option<&str>,
         progress: &PreparationReporter<'_>,
+        server_running: &(impl Fn() -> bool + Sync),
     ) -> Result<Self, TerrainError> {
         let binary = dependencies::binary()?;
         progress.update("Checking and preparing Minecraft textures", None, None);
@@ -556,22 +561,27 @@ impl Renderer {
             .map_err(|error| TerrainError::new("map_storage_failed", error.to_string()))?;
         let cache = staging.path().to_path_buf();
         let conversion_started = Instant::now();
-        let render_world =
-            match java_terrain_compat::prepare(world, dimension, &cache, &|completed, total| {
+        let render_world = match java_terrain_compat::prepare(
+            world,
+            dimension,
+            &cache,
+            &|completed, total| {
                 progress.update("Converting saved terrain", Some(completed), Some(total))
-            }) {
-                Ok(path) => path,
-                Err(error) => {
-                    eprintln!("Java terrain compatibility preparation failed: {error}");
-                    return Err(TerrainError::new(
-                        "terrain_preparation_failed",
-                        format!(
-                            "Saved Java terrain preparation failed at {}: {error}",
-                            cache.display()
-                        ),
-                    ));
-                }
-            };
+            },
+            server_running,
+        ) {
+            Ok(path) => path,
+            Err(error) => {
+                eprintln!("Java terrain compatibility preparation failed: {error}");
+                return Err(TerrainError::new(
+                    "terrain_preparation_failed",
+                    format!(
+                        "Saved Java terrain preparation failed at {}: {error}",
+                        cache.display()
+                    ),
+                ));
+            }
+        };
         eprintln!(
             "Java map: compatible region preparation returned in {:.1}s",
             conversion_started.elapsed().as_secs_f64()

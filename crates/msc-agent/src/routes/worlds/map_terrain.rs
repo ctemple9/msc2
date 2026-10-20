@@ -32,6 +32,24 @@ use msc_infrastructure::fs::StdFileSystem;
 const IDLE: Duration = Duration::from_secs(90);
 const MAX_ARTIFACT: usize = 32 * 1024 * 1024;
 
+fn java_bake_capacity(running: bool) -> (u64, usize) {
+    let cores = std::thread::available_parallelism().map_or(1, usize::from);
+    let memory_mib = if running {
+        512
+    } else {
+        msc_infrastructure::conversion_resources::available_heap_mib()
+            .unwrap_or(512)
+            .clamp(512, 1024)
+    };
+    // Each tile can need roughly 200 MiB of working memory. Keep another
+    // core free for the desktop or server, and never admit more than four.
+    let workers = cores
+        .saturating_sub(1)
+        .clamp(1, 4)
+        .min((memory_mib / 256) as usize);
+    (memory_mib, workers)
+}
+
 #[derive(Debug)]
 struct TerrainError {
     code: &'static str,
@@ -634,6 +652,10 @@ impl Renderer {
             Uuid::new_v4().simple(),
             Uuid::new_v4().simple()
         );
+        let (bake_memory_mib, bake_workers) = java_bake_capacity(server_running());
+        eprintln!(
+            "Java map: renderer allowing {bake_workers} concurrent bakes with {bake_memory_mib} MiB working budget"
+        );
         progress.update("Starting terrain renderer", None, None);
         let mut child = Command::new(binary)
             .arg("server")
@@ -649,11 +671,11 @@ impl Renderer {
                 "--port",
                 &port.to_string(),
                 "--memory",
-                "512",
+                &bake_memory_mib.to_string(),
                 "--cache-limit-mib",
                 &cache_limit_mib.to_string(),
                 "--threads",
-                "2",
+                &bake_workers.to_string(),
                 "--prebake",
                 "off",
                 "--players",

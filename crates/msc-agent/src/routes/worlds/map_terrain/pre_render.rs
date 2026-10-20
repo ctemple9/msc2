@@ -1,7 +1,8 @@
 //! Explicit, cancellable Java map warming over Vantage's ordinary tile route.
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, mpsc};
 use std::time::{Duration, Instant};
 
 use axum::Json;
@@ -179,6 +180,46 @@ fn manifest(
         return Err(format!("renderer returned HTTP {status}"));
     }
     serde_json::from_slice(&bytes).map_err(|error| error.to_string())
+}
+
+fn fetch_tile(state: &WorldsRoutesState, task: &RunRequest, tile: &Tile) -> Result<(), String> {
+    let path = format!("tiles/t.{}.{}.vtile", tile.x, tile.z);
+    let started = Instant::now();
+    let response = state.map_renderer.fetch(
+        &task.server_id,
+        &task.world,
+        &task.dimension,
+        &path,
+        task.version.as_deref(),
+        &|| state.lifecycle.status_snapshot().running,
+    );
+    let elapsed = started.elapsed();
+    if elapsed >= Duration::from_secs(5) {
+        eprintln!(
+            "Java map: pre-render tile ({},{}) request took {:.1}s",
+            tile.x,
+            tile.z,
+            elapsed.as_secs_f64()
+        );
+    }
+    let (status, _) = response.map_err(|error| {
+        format!(
+            "Tile ({},{}) failed after {:.1}s: {}",
+            tile.x,
+            tile.z,
+            elapsed.as_secs_f64(),
+            error.message
+        )
+    })?;
+    if status != 200 {
+        return Err(format!(
+            "Tile ({},{}) returned HTTP {status} after {:.1}s",
+            tile.x,
+            tile.z,
+            elapsed.as_secs_f64()
+        ));
+    }
+    Ok(())
 }
 
 fn estimate(
@@ -456,77 +497,120 @@ fn run(state: WorldsRoutesState, id: OperationId, task: RunRequest) {
         operations
             .progress(&id, completed, total, "Pre-rendering saved Java terrain.")
             .map_err(|error| error.to_string())?;
-        let mut last_report = Instant::now();
-        for tile in initial.tiles {
-            if cancel() {
-                return Err("cancelled".into());
+        let tiles: Vec<_> = initial
+            .tiles
+            .into_iter()
+            .filter(|tile| !tile.baked)
+            .collect();
+        let (_, bake_capacity) =
+            super::java_bake_capacity(state.lifecycle.status_snapshot().running);
+        let workers = bake_capacity
+            .saturating_sub(1)
+            .max(1)
+            .min(tiles.len().max(1));
+        eprintln!("Java map: pre-render using {workers} background tile worker(s)");
+        let next = AtomicUsize::new(0);
+        let stop = Arc::new(AtomicBool::new(false));
+        let (send, receive) = mpsc::channel::<Result<(), String>>();
+        let fetch_task = RunRequest {
+            server_id: server_id.clone(),
+            server_dir: server_dir.clone(),
+            world: world.clone(),
+            dimension: dimension.clone(),
+            version: version.clone(),
+            budget_mib,
+        };
+        std::thread::scope(|scope| -> Result<(), String> {
+            for worker in 0..workers {
+                let send = send.clone();
+                let state = state.clone();
+                let cancel = cancel.clone();
+                let stop = stop.clone();
+                let tiles = &tiles;
+                let next = &next;
+                let task = &fetch_task;
+                scope.spawn(move || {
+                    loop {
+                        if stop.load(Ordering::Acquire)
+                            || cancel()
+                            || next.load(Ordering::Acquire) >= tiles.len()
+                        {
+                            break;
+                        }
+                        // Already-started requests finish, but a running server
+                        // admits only the first background lane.
+                        if worker > 0 && state.lifecycle.status_snapshot().running {
+                            std::thread::sleep(Duration::from_millis(100));
+                            continue;
+                        }
+                        let index = next.fetch_add(1, Ordering::AcqRel);
+                        let Some(tile) = tiles.get(index) else { break };
+                        let result = fetch_tile(&state, task, tile);
+                        if result.is_err() {
+                            stop.store(true, Ordering::Release);
+                        }
+                        if send.send(result).is_err() {
+                            break;
+                        }
+                        if state.lifecycle.status_snapshot().running {
+                            std::thread::sleep(Duration::from_millis(500));
+                        }
+                    }
+                });
             }
-            if tile.baked {
-                continue;
-            }
-            let path = format!("tiles/t.{}.{}.vtile", tile.x, tile.z);
-            let tile_started = Instant::now();
-            let response = state.map_renderer.fetch(
-                &server_id,
-                &world,
-                &dimension,
-                &path,
-                version.as_deref(),
-                &|| state.lifecycle.status_snapshot().running,
-            );
-            let elapsed = tile_started.elapsed();
-            if elapsed >= Duration::from_secs(5) {
-                eprintln!(
-                    "Java map: pre-render tile ({},{}) request took {:.1}s",
-                    tile.x,
-                    tile.z,
-                    elapsed.as_secs_f64()
-                );
-            }
-            let (status, _) = response.map_err(|error| {
-                format!(
-                    "Tile ({},{}) failed after {:.1}s: {}",
-                    tile.x,
-                    tile.z,
-                    elapsed.as_secs_f64(),
-                    error.message
-                )
-            })?;
-            if status != 200 {
-                return Err(format!(
-                    "Tile ({},{}) returned HTTP {status} after {:.1}s",
-                    tile.x,
-                    tile.z,
-                    elapsed.as_secs_f64()
-                ));
-            }
-            completed += 1;
-            if last_report.elapsed() >= Duration::from_secs(2) {
-                let current = manifest(
-                    &state.map_renderer,
-                    &state,
-                    &server_id,
-                    &world,
-                    &dimension,
-                    version.as_deref(),
-                    true,
-                )?;
-                let retained = current.progress.as_ref().map_or(completed, |p| p.done);
-                if retained + 2 < completed {
-                    return Err("The detailed-tile cache filled and started evicting pre-rendered tiles. Increase its budget or free storage, then resume.".into());
+            drop(send);
+            let mut received = 0;
+            let mut last_report = Instant::now();
+            while received < tiles.len() {
+                if cancel() {
+                    stop.store(true, Ordering::Release);
+                    return Err("cancelled".into());
                 }
-                completed = retained;
-                operations
-                    .progress(&id, retained, total, "Pre-rendering saved Java terrain.")
-                    .map_err(|error| error.to_string())?;
-                last_report = Instant::now();
+                match receive.recv_timeout(Duration::from_millis(200)) {
+                    Ok(Ok(())) => {
+                        received += 1;
+                        completed += 1;
+                    }
+                    Ok(Err(error)) => {
+                        stop.store(true, Ordering::Release);
+                        return Err(error);
+                    }
+                    Err(mpsc::RecvTimeoutError::Timeout) => {}
+                    Err(mpsc::RecvTimeoutError::Disconnected) => {
+                        return Err(
+                            "The pre-render workers stopped before all tiles completed.".into()
+                        );
+                    }
+                }
+                if last_report.elapsed() >= Duration::from_secs(2) {
+                    let current = manifest(
+                        &state.map_renderer,
+                        &state,
+                        &server_id,
+                        &world,
+                        &dimension,
+                        version.as_deref(),
+                        true,
+                    )
+                    .inspect_err(|_| {
+                        stop.store(true, Ordering::Release);
+                    })?;
+                    let retained = current.progress.as_ref().map_or(completed, |p| p.done);
+                    if retained + 2 < completed {
+                        stop.store(true, Ordering::Release);
+                        return Err("The detailed-tile cache filled and started evicting pre-rendered tiles. Increase its budget or free storage, then resume.".into());
+                    }
+                    operations
+                        .progress(&id, retained, total, "Pre-rendering saved Java terrain.")
+                        .map_err(|error| {
+                            stop.store(true, Ordering::Release);
+                            error.to_string()
+                        })?;
+                    last_report = Instant::now();
+                }
             }
-            std::thread::sleep(if state.lifecycle.status_snapshot().running {
-                Duration::from_millis(500)
-            } else {
-                Duration::from_millis(60)
-            });
-        }
+            Ok(())
+        })?;
         let final_manifest = manifest(
             &state.map_renderer,
             &state,

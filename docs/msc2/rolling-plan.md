@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** Java-first saved-terrain performance plan (P18.70–P18.77). P18.75 is implemented and awaits Cameron's verification. Bedrock must ultimately provide the same user experience through its own world-data pipeline.
+**Current priority:** Bedrock saved-terrain parity plan (P18.82–P18.89), following Cameron's positive Java travel check. Earlier Java pre-render and refresh steps retain their recorded verification status; Bedrock must match the owner-visible Java experience through its own world-data pipeline.
 
 ### P18.69 — Defer detailed Bedrock tile swaps during camera movement
 
@@ -130,7 +130,85 @@ The Java renderer currently launches with `--prebake off`, `--threads 2`, `--mem
 **Batch:** P18.81 only.
 **Commit:** `P18.81: parallelize java map pre-render within host limits`
 
-**Later Bedrock parity, after Java acceptance:** Plan separate Bedrock steps against the same owner-visible contract: persistent saved-area index, durable tile cache, explicit pre-render, changed-chunk refresh and the same moving-radius/low-detail behavior. Bedrock LevelDB needs its own safe snapshot and change detection; do not reuse Java `.mca` assumptions. The earlier full Bedrock scan indexed about 1.57 million chunk positions in 89 seconds on a large world, while the subsequent whole-world overview sampling ran toward the 60-minute limit. Avoid making that overview scan the prerequisite for opening or navigating the map. P18.69's motion deferral did not remove Cameron's Bedrock stutter, so investigate and measure the renderer/viewer path instead of treating that step as accepted.
+## Bedrock saved-terrain parity — planned after Cameron's Java travel acceptance
+
+**Owner-visible contract.** The 7.9 GB Bedtonic world on the test Bedrock server is the primary physical check. Opening the map must show nearby saved terrain without a whole-world wait. After the initial preparation, closing/reopening the app or restarting the agent must reuse saved work. In 2D, 3D and Fly, a bounded, honestly reported detail radius follows the camera without periodic input hitches; known saved terrain receives a usable low-detail view while detail catches up. A distant jump may need catch-up, but it must not require reopening the map or leave known terrain blank for minutes. Pre-render remains an explicit user action, with retained progress and storage costs shown. Refresh compares saved content, keeps the existing camera/map, and rebakes only affected tiles. The Java viewer and controls remain shared; Bedrock's LevelDB read, snapshot, index, texture atlas and tile-bake implementation must meet the same behavior without pretending its file structure is Java's.
+
+**Current code findings.** `WorldMapViewer.svelte` already uses the same locally pinned Vantage viewer, including Java's request cancellation and tile-admission fixes, but forces Bedrock to one fetch lane and omits the Java detail-radius status. `bedrock.rs` holds one `BedrockState` mutex across snapshot copy, catalog creation, region discovery, tile rendering, file reads and manifest responses. Each camera request may discover one 256-block region and later refine one preview tile; discovery and refinement use the same synchronous `tile-session`, so a long operation delays unrelated requests and can cause repeated camera hitches. The helper opens one LevelDB handle per session, but detail and preview both restore/write a mutable shared texture atlas. Bedrock map tiles and region discoveries live in temporary staging and are discarded on agent restart. Overworld first opens with a spawn-near catalog; full `catalog` scans every chunk and samples heights for a whole-world overview, which previously ran toward a 60-minute timeout after indexing about 1.57 million positions. Refresh currently runs full catalog/diff, compares each previously rendered tile's chunks, and copies reusable files to fresh staging. The Java pre-render API explicitly rejects Bedrock. These are implementation findings, not measured promises about Bedtonic's current build. P18.69's motion deferral did not satisfy Cameron's stutter check.
+
+**Sequence and limits.** Establish a release-build baseline first, then make the Bedrock world index and tile assets durable, remove lock/atlas serialization from the camera path, provide bounded low-detail coverage, add explicit pre-render, and make refresh incremental. Keep safe BDS save-hold/resume and stopped-world snapshots, source-world permissions, resource-pack versioning, disk reserves, cancellation and process cleanup. No automatic whole-world bake on map open. Use Bedtonic for physical timing and visual acceptance, plus a small disposable world for changed/removed-chunk refresh; do not edit the Bedtonic source to manufacture a test. Record cold open, warm reopen, local flight, distant jump, return flight, refresh, server-running/stopped behavior, CPU/memory/disk, and frame hitches. No test run, CI gate or release attempt is authorized by this plan.
+
+### P18.82 — Measure Bedrock map latency and identify the hot path
+
+**Status:** Implemented; awaiting Cameron's release-build Bedtonic verification. No tests added or run.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `tools/world-map-proof/src/main.rs`; `tools/world-map-proof/src/render.rs`; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; `docs/msc2/rolling-plan.md`.
+**What:** Slow Bedrock artifact requests now log worker-queue wait, state-lock wait and time spent under the lock by request kind. Region discovery and manifest assembly report their own slow paths. The exporter reports LevelDB open, tile-session query/export, texture restore and atlas write times; existing snapshot, catalog, preview and detailed-mesh timings remain. The viewer records manifest arrival, first tile response/attachment, viewer readiness and long frame gaps for Bedrock as it already did for Java. The interval from tile response to attachment includes decode, GPU upload and viewer scheduling; it is not falsely labeled as GPU time alone. Request logs omit coordinates, and fast requests do not produce per-request timing lines. Cameron's optimized-build Bedtonic measurements are still needed to choose concurrency and memory limits for subsequent steps; debug speed is not the baseline.
+**Verify:** `cd clients/desktop-web && npx tauri build` — Cameron opens Bedtonic in that app, flies locally and jumps to distant known terrain in all three modes, then checks the Bedrock map agent/viewer timing summary for wait versus bake versus upload and records visible gaps and resource use.
+**Batch:** P18.82 only.
+**Commit:** `P18.82: measure bedrock map travel latency`
+
+### P18.83 — Persist a saved-area index without blocking map open
+
+**Status:** Planned.
+**Files:** `tools/world-map-proof/src/main.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `crates/msc-agent/src/map_staging.rs`; `docs/msc2/rolling-plan.md`.
+**What:** Build a versioned per-world/dimension index of saved Bedrock chunk and 4×4-chunk tile positions from the private snapshot. Make it resumable, atomically published and reusable after an agent restart; record source identity and validated content generation so a fresh copy of unchanged data can reuse it without accepting stale membership. Keep the near-spawn/near-camera path available while the full scan runs separately, so index completion is never a condition for opening or flying. A camera jump consults indexed locations immediately and schedules an indexed-range lookup only where the persistent index is incomplete. Bound scan I/O and memory and lower its priority while the server or visible tile work is active. Do not run the old whole-world height-sampling overview as part of this index.
+**Verify:** `cd clients/desktop-web && npx tauri build` — Cameron opens Bedtonic, jumps beyond spawn before indexing completes, then restarts the app and agent; nearby known saved tiles still appear, index progress resumes or is reused, and map opening does not wait for a complete world scan.
+**Batch:** P18.83 only.
+**Commit:** `P18.83: persist bedrock saved-area index`
+
+### P18.84 — Keep Bedrock textures and tiles across sessions
+
+**Status:** Planned.
+**Files:** `tools/world-map-proof/src/render.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `crates/msc-agent/src/map_staging.rs`; `docs/msc2/rolling-plan.md`.
+**What:** Move the generated texture atlas and preview/detail tiles from throwaway staging into a versioned durable cache keyed by world, validated source content, dimension, verified pack and renderer format. Publish files atomically after successful bake and keep a bounded disk budget/reserve. Make tile results independent of mutable shared-atlas writes during ordinary camera travel, either by using a deterministic complete atlas before concurrent bakes or an equivalently safe immutable generation. Reject partial or mismatched entries and let an active snapshot keep using its generation during replacement. Preserve cache entries across desktop/agent restart without keeping a 7.9 GB snapshot forever.
+**Verify:** `cd clients/desktop-web && npx tauri build` — Cameron opens and travels through Bedtonic, records tile/atlas cache hits, closes and restarts the app and agent, then revisits the same area; the atlas and completed tiles are reused without a second bake, while resource-pack changes invalidate only incompatible assets.
+**Batch:** P18.84 only.
+**Commit:** `P18.84: persist bedrock map tiles and textures`
+
+### P18.85 — Serve camera-visible Bedrock tiles without a global lock
+
+**Status:** Planned.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `tools/world-map-proof/src/main.rs`; `tools/world-map-proof/src/render.rs`; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; `docs/msc2/rolling-plan.md`.
+**What:** Replace the long-held `BedrockState` mutex and single blocking session path with short metadata locks and bounded, cancellable work queues. Prioritize visible tiles nearest the camera, then travel-direction prefetch, ahead of background discovery/pre-render; cap concurrent LevelDB readers and bake memory from measured host resources, and throttle when BDS runs. Ensure obsolete camera work does not occupy all slots after a move, without interrupting an unsafe file write. Serve manifest/camera status promptly while bakes continue. Use the shared Vantage admission and replacement behavior, report Bedrock's planned versus actually shown detail radius, and remove the three-second idle rule as the sole gate for detail once foreground scheduling is safe.
+**Verify:** `cd clients/desktop-web && npx tauri build` — Cameron flies continuously and makes distant/return trips through Bedtonic in 2D, 3D and Fly; controls remain responsive, camera status returns while tiles bake, the displayed detail radius is honest, and saved tiles near the new camera take precedence over old requests.
+**Batch:** P18.85 only.
+**Commit:** `P18.85: prioritize visible bedrock map tiles`
+
+### P18.86 — Cover known Bedrock terrain while detail catches up
+
+**Status:** Planned.
+**Files:** `tools/world-map-proof/src/render.rs`; `tools/world-map-proof/src/main.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; `docs/msc2/rolling-plan.md`.
+**What:** Generate bounded, persistent low-detail tiles from the saved-area index and nearby height/biome samples in prioritized batches, instead of sampling all 1.57 million chunks before publishing an overview. Publish each ready area into the existing Vantage low-detail manifest and retain it across sessions; keep unsaved areas honest. Match Java's gradual low-detail-to-detail transition in 2D, 3D and Fly without foliage curtains, stretched cliffs, or a large blank gap around a known saved camera position. Avoid promising Nether roof coverage for hollow interiors. Budget low-detail GPU insertions so a backlog cannot produce recurring hitches.
+**Verify:** `cd clients/desktop-web && npx tauri build` — Cameron jumps to several known Bedtonic areas that have no detailed tile cache and watches lower detail appear before full geometry, then returns after restart; no whole-world overview wait, false filled-in unsaved area, foliage curtain or repeated movement hitch appears.
+**Batch:** P18.86 only.
+**Commit:** `P18.86: stream persistent bedrock low-detail coverage`
+
+### P18.87 — Add optional, resumable Bedrock map pre-render
+
+**Status:** Planned.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain/pre_render.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `crates/msc-agent/src/cli/mod.rs`; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; API contract and generated types; `docs/msc2/rolling-plan.md`.
+**What:** Extend the Java Pre-render map action and CLI contract to Bedrock using the persistent index and cache. Show saved/cached tile counts, actual bytes, a labeled estimate and user-selected decimal-GB disk budget; keep Stop/Resume and retained progress across app/agent restart. Schedule bounded background work only when requested, subordinate to visible tiles and BDS, and use the same immutable pack/format generation as normal viewing. Report when a whole-world Bedtonic bake exceeds the chosen cache budget instead of evicting completed tiles while claiming completion. Keep camera travel useful while the job runs.
+**Verify:** `cd clients/desktop-web && npx tauri build` — Cameron starts Bedrock Pre-render on Bedtonic, flies while it runs, stops it, restarts the app/agent, and resumes; the cached count remains, visible tiles win, disk use stays within the chosen budget, and a full run is not required to verify Stop/Resume.
+**Batch:** P18.87 only.
+**Commit:** `P18.87: add resumable bedrock map pre-render`
+
+### P18.88 — Refresh only changed Bedrock saved terrain
+
+**Status:** Planned.
+**Files:** `tools/world-map-proof/src/main.rs`; `tools/world-map-proof/src/render.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `crates/msc-agent/src/backup_operations.rs`; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; `docs/msc2/rolling-plan.md`.
+**What:** Keep the safe BDS snapshot boundary, but compare Bedrock chunk content and tile seam dependencies at a stable snapshot generation rather than running a full catalog and re-reading every rendered tile on each refresh. Update added/removed chunk membership in the persistent index, invalidate only overlapping detailed/low-detail tiles, and reuse the rest of the durable cache. Preserve the open viewer and camera; old geometry stays until replacement is ready, within memory limits. A source or format change that truly requires a full rebuild must be reported as such. Never read live LevelDB while it is being written merely to save snapshot time.
+**Verify:** `cd clients/desktop-web && npx tauri build` — Cameron refreshes unchanged Bedtonic and confirms reuse without a blank reset; on a small disposable Bedrock world, he changes, adds and removes saved chunks and confirms only affected tiles/low-detail areas update while the camera and source world remain safe.
+**Batch:** P18.88 only.
+**Commit:** `P18.88: refresh changed bedrock map tiles`
+
+### P18.89 — Compare Bedrock and Java map behavior on release builds
+
+**Status:** Planned.
+**Files:** `docs/msc2/phase18-map-acceptance.md`; `docs/msc2/rolling-plan.md`.
+**What:** Compare the same camera-travel, warm-reopen, optional pre-render, cache-budget, low-detail and changed-terrain-refresh contract on the optimized Java world and 7.9 GB Bedtonic world. Record actual cold/warm timings, visible radius, frame gaps, CPU/memory/disk and running-server impact. Treat a remaining Bedrock-only blank area or periodic stutter as an open defect with a measured cause and a separately planned corrective step, not as parity. This step records evidence; it does not publish a release or close the independent phase gate.
+**Verify:** `cd clients/desktop-web && npx tauri build` — Cameron repeats the documented 2D, 3D and Fly travel and refresh checks on both worlds and records whether Bedrock now feels as responsive as Java, including any remaining limits.
+**Batch:** P18.89 only.
+**Commit:** `P18.89: record bedrock map parity evidence`
 
 Cameron directed the implemented Add Server, Bedrock map, imported-JAR and Services follow-ups to Done and into [the rolling-plan archive](rolling-plan-archive.md#october-19-2026--v0131-follow-up-step-closure). Failed intermediate Bedrock attempts retain their supersession history there. Independent phase reviews and remaining physical checks stay in [pending acceptance](pending-acceptance.md).
 

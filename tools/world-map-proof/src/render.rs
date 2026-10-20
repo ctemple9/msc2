@@ -1032,7 +1032,9 @@ pub fn render_catalog_tile(
     output: &Path,
     dimension: Dimension,
 ) -> Result<(), Box<dyn Error>> {
+    let restore_started = Instant::now();
     let mut textures = Textures::restore(pack, output)?;
+    let restore_seconds = restore_started.elapsed().as_secs_f64();
     let working = output.join("working-tile");
     if working.exists() {
         fs::remove_dir_all(&working)?;
@@ -1045,7 +1047,9 @@ pub fn render_catalog_tile(
         &mut textures,
         dimension,
     )?;
+    let atlas_started = Instant::now();
     textures.write_shared(output)?;
+    let atlas_seconds = atlas_started.elapsed().as_secs_f64();
     let tile = output.join(format!(
         "tiles/t.{}.{}.vtile",
         anchor.0.div_euclid(4),
@@ -1053,6 +1057,9 @@ pub fn render_catalog_tile(
     ));
     fs::rename(working.join("terrain.vtile"), tile)?;
     fs::remove_dir_all(working)?;
+    if restore_seconds + atlas_seconds >= 0.25 {
+        eprintln!("Bedrock map: detail texture restore {restore_seconds:.2}s, atlas write {atlas_seconds:.2}s");
+    }
     Ok(())
 }
 
@@ -1064,7 +1071,9 @@ pub fn render_catalog_preview_tile(
     dimension: Dimension,
 ) -> Result<(), Box<dyn Error>> {
     let started = Instant::now();
+    let restore_started = Instant::now();
     let mut textures = Textures::restore(pack, output)?;
+    let restore_seconds = restore_started.elapsed().as_secs_f64();
     let positions = (0..4)
         .flat_map(|cz| {
             (0..4).map(move |cx| ChunkPos {
@@ -1238,10 +1247,12 @@ pub fn render_catalog_preview_tile(
         anchor.1.div_euclid(4)
     ));
     fs::write(path.with_extension("preview"), tile)?;
+    let atlas_started = Instant::now();
     textures.write_shared(output)?;
+    let atlas_seconds = atlas_started.elapsed().as_secs_f64();
     fs::rename(path.with_extension("preview"), path)?;
     eprintln!(
-        "Bedrock map: surface preview {anchor:?} ready in {:.2}s",
+        "Bedrock map: surface preview {anchor:?} ready in {:.2}s (texture restore {restore_seconds:.2}s, atlas write {atlas_seconds:.2}s)",
         started.elapsed().as_secs_f64()
     );
     Ok(())

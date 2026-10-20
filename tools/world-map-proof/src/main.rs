@@ -355,7 +355,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .map(String::as_str)
                 .unwrap_or("minecraft:overworld"),
         )?;
+        let opened_at = Instant::now();
         let world = BedrockWorld::open_blocking(path, OpenOptions::default())?;
+        eprintln!("Bedrock map: tile-session LevelDB open {:.2}s", opened_at.elapsed().as_secs_f64());
         let mut replies = io::stdout().lock();
         let (sender, requests) = mpsc::channel();
         std::thread::spawn(move || {
@@ -368,6 +370,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         while let Ok(line) = requests.recv_timeout(Duration::from_secs(120)) {
             let line = line?;
             if let Some(region) = line.strip_prefix("region ") {
+                let region_started = Instant::now();
                 let result = (|| -> Result<Vec<(i32, i32)>, Box<dyn Error>> {
                     let (x, z) = region.split_once(' ').ok_or("invalid region request")?;
                     let x = x
@@ -404,9 +407,13 @@ fn main() -> Result<(), Box<dyn Error>> {
                         replies.write_all(b"error\n")?;
                     }
                 }
+                if region_started.elapsed() >= Duration::from_millis(250) {
+                    eprintln!("Bedrock map: tile-session region query {:.2}s", region_started.elapsed().as_secs_f64());
+                }
                 replies.flush()?;
                 continue;
             }
+            let tile_started = Instant::now();
             let result = (|| -> Result<(), Box<dyn Error>> {
                 let (preview, request) = line
                     .strip_prefix("preview ")
@@ -426,6 +433,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             if let Err(error) = &result {
                 eprintln!("Bedrock map: tile-session {line}: {error}");
             }
+            if tile_started.elapsed() >= Duration::from_secs(1) {
+                eprintln!("Bedrock map: tile-session tile export {:.2}s", tile_started.elapsed().as_secs_f64());
+            }
             replies.write_all(if result.is_ok() { b"ok\n" } else { b"error\n" })?;
             replies.flush()?;
         }
@@ -443,7 +453,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             .map(String::as_str)
             .unwrap_or("minecraft:overworld");
         let dimension = map_dimension(dimension_id)?;
+        let opened_at = Instant::now();
         let world = BedrockWorld::open_blocking(path, OpenOptions::default())?;
+        eprintln!("Bedrock map: catalog LevelDB open {:.2}s", opened_at.elapsed().as_secs_f64());
         if args[1] == "tile" {
             let x = args.get(6).ok_or("tile chunk x required")?.parse::<i32>()?;
             let z = args.get(7).ok_or("tile chunk z required")?.parse::<i32>()?;

@@ -86,6 +86,31 @@ struct BedrockSnapshot {
     snapshot: Arc<crate::backup_operations::WorldMapSnapshot>,
 }
 
+struct RequestTiming {
+    kind: &'static str,
+    started: Instant,
+    worker_wait: Duration,
+    lock_wait: Duration,
+}
+
+impl Drop for RequestTiming {
+    fn drop(&mut self) {
+        let elapsed = self.started.elapsed();
+        if elapsed >= Duration::from_millis(250) {
+            eprintln!(
+                "Bedrock map: {} request {:.2}s (worker wait {:.2}s, state lock wait {:.2}s, under lock {:.2}s)",
+                self.kind,
+                elapsed.as_secs_f64(),
+                self.worker_wait.as_secs_f64(),
+                self.lock_wait.as_secs_f64(),
+                elapsed
+                    .saturating_sub(self.worker_wait + self.lock_wait)
+                    .as_secs_f64(),
+            );
+        }
+    }
+}
+
 #[derive(Default)]
 struct BedrockTile {
     _staging: Option<crate::map_staging::Staging>,
@@ -282,6 +307,7 @@ pub(super) async fn artifact(
     let dimension = query.dimension.clone();
     let center = query.center_x.zip(query.center_z);
     let moving = query.moving.unwrap_or(false);
+    let queued_at = Instant::now();
     match tokio::task::spawn_blocking(move || {
         store.read(
             &lifecycle,
@@ -289,7 +315,7 @@ pub(super) async fn artifact(
             &server_id,
             &world,
             &dimension,
-            (&artifact, center, moving),
+            (&artifact, center, moving, queued_at),
         )
     })
     .await
@@ -495,13 +521,30 @@ impl BedrockStore {
         server_id: &str,
         world: &Path,
         dimension: &str,
-        request: (&str, Option<(i32, i32)>, bool),
+        request: (&str, Option<(i32, i32)>, bool, Instant),
     ) -> Result<Vec<u8>, String> {
-        let (artifact, center, moving) = request;
+        let (artifact, center, moving, queued_at) = request;
+        let kind = if artifact == "camera.json" {
+            "camera"
+        } else if artifact == "manifest.json" {
+            "manifest"
+        } else if artifact.starts_with("tiles/") {
+            "tile"
+        } else {
+            "asset"
+        };
+        let worker_wait = queued_at.elapsed();
+        let lock_started = Instant::now();
         let mut current = self
             .0
             .lock()
             .map_err(|_| "The Bedrock map cache is unavailable.")?;
+        let _timing = RequestTiming {
+            kind,
+            started: queued_at,
+            worker_wait,
+            lock_wait: lock_started.elapsed(),
+        };
         if self.1.shutdown.load(Ordering::Acquire) {
             return Err("The local agent is shutting down.".into());
         }
@@ -708,11 +751,18 @@ impl BedrockStore {
                         )?,
                     );
                 }
+                let discovery_started = Instant::now();
                 let discovered = current
                     .sessions
                     .get_mut(dimension)
                     .ok_or("The Bedrock tile helper is unavailable.")?
                     .discover(region.0, region.1);
+                if discovery_started.elapsed() >= Duration::from_millis(250) {
+                    eprintln!(
+                        "Bedrock map: region discovery {:.2}s under state lock",
+                        discovery_started.elapsed().as_secs_f64()
+                    );
+                }
                 match discovered {
                     Ok(anchors) => {
                         let count = anchors.len();
@@ -852,6 +902,7 @@ impl BedrockStore {
         let output = tile.output.clone();
         let path = output.join(artifact);
         if artifact == "manifest.json" {
+            let manifest_started = Instant::now();
             let bytes = fs::read(&path)
                 .map_err(|error| format!("Could not read the Bedrock catalog: {error}"))?;
             let mut manifest: serde_json::Value = serde_json::from_slice(&bytes)
@@ -889,8 +940,15 @@ impl BedrockStore {
                     entry["revision"] = serde_json::json!(revision);
                 }
             }
-            return serde_json::to_vec(&manifest)
+            let result = serde_json::to_vec(&manifest)
                 .map_err(|error| format!("Could not send the Bedrock catalog: {error}"));
+            if manifest_started.elapsed() >= Duration::from_millis(100) {
+                eprintln!(
+                    "Bedrock map: manifest assembly {:.2}s under state lock",
+                    manifest_started.elapsed().as_secs_f64()
+                );
+            }
+            return result;
         }
         if artifact.starts_with("tiles/") {
             if !tile.tiles.contains(artifact) {

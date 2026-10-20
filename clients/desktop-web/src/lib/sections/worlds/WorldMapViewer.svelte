@@ -35,7 +35,10 @@
   let cameraStatusSupported = true;
   let lastCameraPose: number[] | undefined;
   let mapTiming: {
+    edition: string;
     startedAt: number;
+    manifestAt?: number;
+    viewerAttachedAt?: number;
     firstTileResponseAt?: number;
     firstLoadedTileAt?: number;
     loaded: number;
@@ -347,7 +350,11 @@
   function disposeViewer(): void {
     if (mapTiming) {
       const timing = mapTiming;
-      console.info('Java map: viewer diagnostics', {
+      console.info(`${timing.edition} map: viewer diagnostics`, {
+        manifestSeconds: timing.manifestAt === undefined
+          ? null : Number(((timing.manifestAt - timing.startedAt) / 1000).toFixed(1)),
+        viewerAttachedSeconds: timing.viewerAttachedAt === undefined
+          ? null : Number(((timing.viewerAttachedAt - timing.startedAt) / 1000).toFixed(1)),
         firstTileResponseSeconds: timing.firstTileResponseAt === undefined
           ? null : Number(((timing.firstTileResponseAt - timing.startedAt) / 1000).toFixed(1)),
         firstTileAttachedSeconds: timing.firstLoadedTileAt === undefined
@@ -391,6 +398,7 @@
     const generation = ++loadGeneration;
     disposeViewer();
     mapTiming = {
+      edition: serverType === 'bedrock' ? 'Bedrock' : 'Java',
       startedAt: performance.now(),
       loaded: 0,
       total: 0,
@@ -426,10 +434,10 @@
         if (signal?.aborted || !alive || generation !== loadGeneration) {
           throw new DOMException('Cancelled', 'AbortError');
         }
-        if (serverType === 'java' && path.startsWith('tiles/') && path.endsWith('.vtile') && mapTiming &&
+        if (path.startsWith('tiles/') && path.endsWith('.vtile') && mapTiming &&
             mapTiming.firstTileResponseAt === undefined) {
           mapTiming.firstTileResponseAt = performance.now();
-          console.info('Java map: first tile received from agent', {
+          console.info(`${mapTiming.edition} map: first tile received from agent`, {
             seconds: Number(((mapTiming.firstTileResponseAt - mapTiming.startedAt) / 1000).toFixed(1)),
             requestMs: Number((mapTiming.firstTileResponseAt - started).toFixed(1)),
             bytes: bytes.byteLength,
@@ -441,6 +449,7 @@
         spawn?: { x: number; y: number; z: number };
         catalogPhase?: string;
       };
+      if (mapTiming) mapTiming.manifestAt = performance.now();
       nearbyCatalog = serverType === 'bedrock' && manifest.catalogPhase === 'nearby';
       if (!alive || generation !== loadGeneration) return;
       const { VantageViewer: Viewer, PlayerLayer: Layer } =
@@ -477,6 +486,18 @@
           if (serverType === 'bedrock') {
             bedrockStats = stats;
             status = bedrockTileStatus(entry.displayName, stats);
+            if (mapTiming) {
+              mapTiming.loaded = stats.loaded;
+              mapTiming.total = stats.total;
+              if (stats.loaded > 0 && mapTiming.firstLoadedTileAt === undefined) {
+                mapTiming.firstLoadedTileAt = performance.now();
+                console.info('Bedrock map: first tile attached to viewer', {
+                  seconds: Number(((mapTiming.firstLoadedTileAt - mapTiming.startedAt) / 1000).toFixed(1)),
+                  afterFirstTileResponseMs: mapTiming.firstTileResponseAt === undefined ? null
+                    : Number((mapTiming.firstLoadedTileAt - mapTiming.firstTileResponseAt).toFixed(1)),
+                });
+              }
+            }
           } else if (mapTiming) {
             visibleTileStats = { loaded: stats.loaded, loading: stats.loading };
             mapTiming.loaded = stats.loaded;
@@ -499,6 +520,7 @@
       await opening.load({ world: source });
       if (!alive || generation !== loadGeneration) return;
       viewer = opening;
+      if (mapTiming) mapTiming.viewerAttachedAt = performance.now();
       biomes = viewer.biomes;
       viewer.setBiomeLayer(biomeEnabled);
       applyQuality();

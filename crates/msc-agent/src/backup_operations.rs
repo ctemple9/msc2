@@ -543,6 +543,53 @@ pub(crate) fn snapshot_stopped_bedrock_world(
     })
 }
 
+/// Copies a stopped Java world so tile baking cannot race later world writes.
+pub(crate) fn snapshot_stopped_java_world(
+    server_dir: &Path,
+    should_cancel: impl Fn() -> bool,
+) -> Result<WorldMapSnapshot, String> {
+    let configured = msc_application::worlds::read_java_level_name(&StdFileSystem, server_dir)
+        .ok_or("Java server.properties has no level-name")?;
+    if configured.is_empty()
+        || configured == "."
+        || configured == ".."
+        || configured.contains('/')
+        || configured.contains('\\')
+    {
+        return Err("Java level-name is not a single safe folder name".into());
+    }
+    let world = server_dir.join(configured);
+    if !world.join("level.dat").is_file() {
+        return Err("configured Java world has no level.dat".into());
+    }
+    let estimate = crate::map_staging::estimate_tree(&world).map_err(|error| error.to_string())?;
+    if estimate > MAP_SNAPSHOT_MAX_BYTES {
+        return Err("snapshot exceeds 1 TiB safety limit".into());
+    }
+    let staging = crate::map_staging::Staging::create("snapshot", estimate)
+        .map_err(|error| error.to_string())?;
+    let destination = staging.path().to_path_buf();
+    let mut bytes = 0;
+    copy_snapshot_tree(
+        &world,
+        &destination.join("world"),
+        &mut bytes,
+        Instant::now() + MAP_SNAPSHOT_STOPPED_COPY_LIMIT,
+        &should_cancel,
+        0,
+    )
+    .map_err(|error| format!("Java stopped-world map copy failed: {error}"))?;
+    if should_cancel() {
+        return Err("Stopped-world map snapshot cancelled because the agent is stopping or the server started.".into());
+    }
+    Ok(WorldMapSnapshot {
+        staging: Some(staging),
+        path: destination.join("world"),
+        bytes,
+        hold_millis: 0,
+    })
+}
+
 /// Captures a Java world only after a forced disk flush has been confirmed
 /// behind save-off on the same MSC-managed run. A missing acknowledgement
 /// fails closed; the guard still sends save-on before the operation ends.

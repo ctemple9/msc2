@@ -986,6 +986,121 @@
         }
       }
     },
+    "/v1/worlds/map/pre-render": {
+      "get": {
+        "summary": "Estimate saved Java tile work, disk budget and current pre-render operation",
+        "operationId": "getJavaMapPreRender",
+        "x-permission-category": "worlds",
+        "parameters": [
+          {
+            "name": "dimension",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estimate and current progress",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JavaMapPreRenderEstimateDTO"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Worlds permission required"
+          },
+          "409": {
+            "description": "No active Java saved terrain"
+          },
+          "502": {
+            "description": "Renderer unavailable"
+          }
+        }
+      },
+      "post": {
+        "summary": "Start or resume explicit saved Java tile pre-render",
+        "operationId": "startJavaMapPreRender",
+        "x-permission-category": "worlds",
+        "x-notes": "Completed tiles persist across app and agent restarts; the user selects a disk budget based on the estimate. One background lane yields to visible tile requests. Normal map opening never starts this job.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JavaMapPreRenderStartRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Long-running operation started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "operationId"
+                  ],
+                  "properties": {
+                    "operationId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Worlds permission required"
+          },
+          "409": {
+            "description": "Another pre-render is running or budget/storage is insufficient"
+          }
+        }
+      }
+    },
+    "/v1/worlds/map/pre-render/cancel": {
+      "post": {
+        "summary": "Cancel a Java map pre-render while keeping completed tiles",
+        "operationId": "cancelJavaMapPreRender",
+        "x-permission-category": "worlds",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JavaMapPreRenderCancelRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Cancellation requested",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationDTO"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Worlds permission required"
+          },
+          "404": {
+            "description": "No pre-render job for this world and dimension"
+          }
+        }
+      }
+    },
     "/v1/worlds/map/refresh": {
       "post": {
         "summary": "Capture current terrain for the selected active world",
@@ -10384,6 +10499,75 @@
           "players": { "type": "array", "items": { "$ref": "#/components/schemas/WorldMapPlayerDTO" } }
         },
         "required": ["serverId", "source", "fresh", "status", "sampledAtMs", "sequence", "players"]
+      },
+      "JavaMapPreRenderEstimateDTO": {
+        "type": "object",
+        "required": [
+          "totalTiles",
+          "cachedTiles",
+          "cachedBytes",
+          "estimatedTotalBytes",
+          "suggestedBudgetMib",
+          "maxBudgetMib",
+          "operationId",
+          "operation"
+        ],
+        "properties": {
+          "totalTiles": {
+            "type": "integer"
+          },
+          "cachedTiles": {
+            "type": "integer"
+          },
+          "cachedBytes": {
+            "type": "integer"
+          },
+          "estimatedTotalBytes": {
+            "type": "integer"
+          },
+          "suggestedBudgetMib": {
+            "type": "integer"
+          },
+          "maxBudgetMib": {
+            "type": "integer"
+          },
+          "operationId": {
+            "type": "string",
+            "nullable": true
+          },
+          "operation": {
+            "$ref": "#/components/schemas/OperationDTO",
+            "nullable": true
+          }
+        }
+      },
+      "JavaMapPreRenderStartRequestDTO": {
+        "type": "object",
+        "required": [
+          "dimension",
+          "cacheBudgetMib"
+        ],
+        "properties": {
+          "dimension": {
+            "type": "string"
+          },
+          "cacheBudgetMib": {
+            "type": "integer",
+            "minimum": 4096,
+            "maximum": 65536
+          }
+        }
+      },
+      "JavaMapPreRenderCancelRequestDTO": {
+        "type": "object",
+        "required": [
+          "dimension"
+        ],
+        "properties": {
+          "dimension": {
+            "type": "string"
+          }
+        }
       },
       "WorldMapDimensionsResponseDTO": {
         "type": "object",

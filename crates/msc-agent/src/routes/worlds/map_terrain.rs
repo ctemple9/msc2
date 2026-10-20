@@ -2,6 +2,7 @@
 pub(super) mod bedrock;
 mod dependencies;
 mod java_terrain_compat;
+pub(super) mod pre_render;
 use std::fs::OpenOptions;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -65,6 +66,7 @@ struct RendererState {
     snapshot: Mutex<Option<SavedSnapshot>>,
     sweeping: AtomicBool,
     progress: Mutex<Option<PreparationProgress>>,
+    pre_render: Mutex<Option<pre_render::Job>>,
 }
 
 #[derive(Clone, serde::Serialize)]
@@ -534,6 +536,7 @@ impl RendererStore {
                     *current = None;
                 }
                 if current.is_none() {
+                    state.snapshot.lock().unwrap().take();
                     state.sweeping.store(false, Ordering::Release);
                     break;
                 }
@@ -621,8 +624,10 @@ impl Renderer {
                 "The Java tile cache needs at least 64 MiB beyond MSC's disk reserve. Free space in Storage, then reopen the map.",
             ));
         }
-        let cache_limit_mib =
-            ((used.saturating_add(growth)).min(4 * 1024 * 1024 * 1024) / (1024 * 1024)).max(64);
+        let requested_mib = java_terrain_compat::tile_cache_budget_mib(&tile_cache).unwrap_or(4096);
+        let cache_limit_mib = ((used.saturating_add(growth)).min(requested_mib * 1024 * 1024)
+            / (1024 * 1024))
+            .max(64);
         let token = format!(
             "{}{}{}",
             Uuid::new_v4().simple(),

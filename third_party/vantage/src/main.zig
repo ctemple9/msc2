@@ -1990,6 +1990,7 @@ const TileEntry = struct {
     tx: i32,
     tz: i32,
     bytes: usize,
+    baked: bool = false,
     /// Per-tile source revision for continuous server sessions. Zero omits the
     /// field from static/local manifests.
     revision: u64 = 0,
@@ -2384,8 +2385,8 @@ fn buildManifest(a: std.mem.Allocator, m: ManifestInput) ![]u8 {
                 t.tx, t.tz, t.tx, t.tz, t.bytes, if (i + 1 < m.tiles.len) "," else "",
             });
         } else {
-            try out.print(a, "    {{ \"x\": {d}, \"z\": {d}, \"path\": \"tiles/t.{d}.{d}.vtile\", \"bytes\": {d}, \"revision\": \"{x}\" }}{s}\n", .{
-                t.tx, t.tz, t.tx, t.tz, t.bytes, t.revision, if (i + 1 < m.tiles.len) "," else "",
+            try out.print(a, "    {{ \"x\": {d}, \"z\": {d}, \"path\": \"tiles/t.{d}.{d}.vtile\", \"bytes\": {d}, \"revision\": \"{x}\", \"baked\": {} }}{s}\n", .{
+                t.tx, t.tz, t.tx, t.tz, t.bytes, t.revision, t.baked, if (i + 1 < m.tiles.len) "," else "",
             });
         }
     }
@@ -4181,6 +4182,7 @@ fn liveManifest(self: *LiveServer, arena: std.mem.Allocator) ![]const u8 {
             .tx = tx,
             .tz = tz,
             .bytes = if (current) cached.?.bytes else 0,
+            .baked = current,
             .revision = revision,
         };
     }
@@ -4315,8 +4317,8 @@ fn runLiveMode(init: std.process.Init, a: std.mem.Allocator, args: []const []con
             cache_key = try flagValue(args, &argi);
         } else if (server_mode and std.mem.eql(u8, arg, "--cache-limit-mib")) {
             const v = try flagValue(args, &argi);
-            const n = std.fmt.parseInt(usize, v, 10) catch return badValue("--cache-limit-mib", v, "64..16384");
-            cache_limit_mib = std.math.clamp(n, 64, 16384);
+            const n = std.fmt.parseInt(usize, v, 10) catch return badValue("--cache-limit-mib", v, "64..65536");
+            cache_limit_mib = std.math.clamp(n, 64, 65536);
         } else if (std.mem.eql(u8, arg, "--tile-chunks")) {
             const v = try flagValue(args, &argi);
             const n = std.fmt.parseInt(i32, v, 10) catch return badValue("--tile-chunks", v, "1..32");

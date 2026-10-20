@@ -326,6 +326,27 @@ pub(super) fn persistent_tiles(
     Ok((world, key))
 }
 
+pub(super) fn tile_cache_budget_mib(cache: &Path) -> Option<u64> {
+    let text = fs::read_to_string(cache.join("pre-render-budget-mib")).ok()?;
+    text.trim()
+        .parse::<u64>()
+        .ok()
+        .filter(|n| (4096..=65536).contains(n))
+}
+
+pub(super) fn set_tile_cache_budget_mib(cache: &Path, mib: u64) -> io::Result<()> {
+    if !(4096..=65536).contains(&mib) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "cache budget must be 4096–65536 MiB",
+        ));
+    }
+    let target = cache.join("pre-render-budget-mib");
+    let temporary = cache.join(".pre-render-budget-mib.tmp");
+    fs::write(&temporary, mib.to_string())?;
+    fs::rename(temporary, target)
+}
+
 fn safe_directory(path: &Path) -> io::Result<()> {
     match fs::symlink_metadata(path) {
         Ok(meta) if meta.file_type().is_dir() => Ok(()),

@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: ef1defe596d535e95eea3462b30f9f295bd985d5efe9a0311953cb98f1ea9a19
+// Contract SHA-256: f2ef64919655989720a1dbf73229ddcbc4d767e6463ce4c63e7889d5d07b5758
 
 export interface paths {
   '/v1/active-server': {
@@ -7308,6 +7308,41 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/worlds/map/pre-render': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Estimate saved Java tile work, disk budget and current pre-render operation */
+    get: operations['getJavaMapPreRender'];
+    put?: never;
+    /** Start or resume explicit saved Java tile pre-render */
+    post: operations['startJavaMapPreRender'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/worlds/map/pre-render/cancel': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Cancel a Java map pre-render while keeping completed tiles */
+    post: operations['cancelJavaMapPreRender'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/worlds/map/refresh': {
     parameters: {
       query?: never;
@@ -8603,6 +8638,29 @@ export interface components {
       pack: components['schemas']['WorldPackRecordDTO'];
       /** @enum {string} */
       result: 'installed';
+    } & {
+      [key: string]: unknown;
+    };
+    JavaMapPreRenderCancelRequestDTO: {
+      dimension: string;
+    } & {
+      [key: string]: unknown;
+    };
+    JavaMapPreRenderEstimateDTO: {
+      cachedBytes: number;
+      cachedTiles: number;
+      estimatedTotalBytes: number;
+      maxBudgetMib: number;
+      operation: components['schemas']['OperationDTO'];
+      operationId: string | null;
+      suggestedBudgetMib: number;
+      totalTiles: number;
+    } & {
+      [key: string]: unknown;
+    };
+    JavaMapPreRenderStartRequestDTO: {
+      cacheBudgetMib: number;
+      dimension: string;
     } & {
       [key: string]: unknown;
     };
@@ -13012,6 +13070,129 @@ export interface operations {
       };
       /** @description Worlds permission required */
       403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getJavaMapPreRender: {
+    parameters: {
+      query: {
+        dimension: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Estimate and current progress */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['JavaMapPreRenderEstimateDTO'];
+        };
+      };
+      /** @description Worlds permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description No active Java saved terrain */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Renderer unavailable */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  startJavaMapPreRender: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['JavaMapPreRenderStartRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Long-running operation started */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            operationId: string;
+          } & {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Worlds permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Another pre-render is running or budget/storage is insufficient */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  cancelJavaMapPreRender: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['JavaMapPreRenderCancelRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Cancellation requested */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['OperationDTO'];
+        };
+      };
+      /** @description Worlds permission required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description No pre-render job for this world and dimension */
+      404: {
         headers: {
           [name: string]: unknown;
         };

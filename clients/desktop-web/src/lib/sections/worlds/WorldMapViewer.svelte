@@ -91,6 +91,104 @@
     finally { progressRequest = false; }
   }
   let refreshing = false;
+  type PreRenderEstimate = {
+    totalTiles: number;
+    cachedTiles: number;
+    estimatedTotalBytes: number;
+    suggestedBudgetMib: number;
+    maxBudgetMib: number;
+    operationId: string | null;
+    operation: Schema['OperationDTO'] | null;
+  };
+  let preRenderOpen = false;
+  let preRenderEstimate: PreRenderEstimate | undefined;
+  let preRenderBudget = 4096;
+  let preRenderError = '';
+  let preRenderBusy = false;
+  let preRenderPoll: ReturnType<typeof setInterval> | undefined;
+  let preRenderRequest = false;
+  async function readPreRenderEstimate(): Promise<void> {
+    if (
+      !api ||
+      !alive ||
+      !preRenderOpen ||
+      serverType !== 'java' ||
+      !selectedDimension ||
+      preRenderRequest
+    )
+      return;
+    preRenderRequest = true;
+    const dimension = selectedDimension;
+    try {
+      const result = await api.get<PreRenderEstimate>(
+        `/v1/worlds/map/pre-render?dimension=${encodeURIComponent(dimension)}`,
+      );
+      if (!alive || dimension !== selectedDimension) return;
+      if (!preRenderEstimate) preRenderBudget = result.suggestedBudgetMib;
+      preRenderEstimate = result;
+      preRenderError = '';
+    } catch (error) {
+      if (alive && dimension === selectedDimension)
+        preRenderError =
+          error instanceof Error ? error.message : 'Pre-render estimate unavailable.';
+    } finally {
+      preRenderRequest = false;
+    }
+  }
+  async function refreshPreRenderStatus(): Promise<void> {
+    const operation = preRenderEstimate?.operation;
+    if (
+      !api ||
+      !preRenderOpen ||
+      !preRenderEstimate?.operationId ||
+      !operation ||
+      (operation.state !== 'running' && operation.state !== 'queued')
+    )
+      return;
+    try {
+      const updated = await api.get<Schema['OperationDTO']>(
+        `/v1/operations/${preRenderEstimate.operationId}`,
+      );
+      if (!alive || !preRenderEstimate || preRenderEstimate.operationId !== updated.id) return;
+      preRenderEstimate = {
+        ...preRenderEstimate,
+        operation: updated,
+        cachedTiles: updated.progress?.current ?? preRenderEstimate.cachedTiles,
+      };
+      if (updated.state !== 'running' && updated.state !== 'queued') void readPreRenderEstimate();
+    } catch {
+      /* The next poll can recover after a brief agent disconnect. */
+    }
+  }
+  async function startPreRender(): Promise<void> {
+    if (!api || preRenderBusy || !selectedDimension) return;
+    preRenderBusy = true;
+    preRenderError = '';
+    try {
+      await api.post('/v1/worlds/map/pre-render', {
+        dimension: selectedDimension,
+        cacheBudgetMib: preRenderBudget,
+      });
+      await readPreRenderEstimate();
+    } catch (error) {
+      preRenderError = error instanceof Error ? error.message : 'Pre-render could not start.';
+    } finally {
+      preRenderBusy = false;
+    }
+  }
+  async function cancelPreRender(): Promise<void> {
+    if (!api || preRenderBusy || !selectedDimension) return;
+    preRenderBusy = true;
+    preRenderError = '';
+    try {
+      await api.post('/v1/worlds/map/pre-render/cancel', { dimension: selectedDimension });
+      await readPreRenderEstimate();
+    } catch (error) {
+      preRenderError = error instanceof Error ? error.message : 'Pre-render could not stop.';
+    } finally {
+      preRenderBusy = false;
+    }
+  }
   let canvas: HTMLDivElement;
   let viewer: VantageViewer | undefined;
   let biomes: BiomeEntry[] = [];
@@ -250,6 +348,8 @@
 
   async function loadDimension(dimension: string): Promise<void> {
     selectedDimension = dimension;
+    preRenderEstimate = undefined;
+    if (preRenderOpen) void readPreRenderEstimate();
     nearbyCatalog = false;
     lastCameraPose = undefined;
     const generation = ++loadGeneration;
@@ -804,6 +904,7 @@
     void refreshPlayers();
     progressPoll = setInterval(() => void refreshPreparation(), 1000);
     catalogPoll = setInterval(() => void refreshCatalog(), 2000);
+    preRenderPoll = setInterval(() => void refreshPreRenderStatus(), 2000);
     playerPoll = setInterval(() => void refreshPlayers(), 1000);
     frameId = requestAnimationFrame(updateToolbar);
     return () => {
@@ -816,6 +917,7 @@
       if (playerPoll) clearInterval(playerPoll);
       if (progressPoll) clearInterval(progressPoll);
       if (catalogPoll) clearInterval(catalogPoll);
+      if (preRenderPoll) clearInterval(preRenderPoll);
       window.removeEventListener('pointermove', onMove, true);
       window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('blur', releaseDesktopLook);
@@ -834,6 +936,20 @@
     </div>
     {#if dimensions.length > 0}
       <div class="map-actions">
+        {#if serverType === 'java'}
+          <button
+            type="button"
+            class="refresh"
+            aria-expanded={preRenderOpen}
+            onclick={() => {
+              preRenderOpen = !preRenderOpen;
+              if (preRenderOpen) {
+                preRenderError = '';
+                void readPreRenderEstimate();
+              }
+            }}>Pre-render map</button
+          >
+        {/if}
         <button
           type="button"
           class="refresh"
@@ -856,6 +972,62 @@
       </div>
     {/if}
   </header>
+
+  {#if preRenderOpen && serverType === 'java'}
+    <div class="pre-render-panel" aria-label="Java map pre-render">
+      {#if preRenderEstimate}
+        <span
+          >{preRenderEstimate.cachedTiles} / {preRenderEstimate.totalTiles} saved tiles cached</span
+        >
+        <span
+          >Estimated full cache: {(preRenderEstimate.estimatedTotalBytes / 1024 ** 3).toFixed(1)} GiB</span
+        >
+        {#if preRenderEstimate.maxBudgetMib < preRenderEstimate.suggestedBudgetMib}
+          <span>Free storage is below the estimated cache limit. Free space before starting.</span>
+        {/if}
+        {#if preRenderEstimate.operation?.state === 'running' || preRenderEstimate.operation?.state === 'queued'}
+          <span
+            >{preRenderEstimate.operation.statusLine ?? 'Pre-rendering…'}
+            {#if preRenderEstimate.operation.progress}
+              {preRenderEstimate.operation.progress.current} / {preRenderEstimate.operation.progress
+                .total}
+            {/if}
+          </span>
+          <button type="button" class="refresh" disabled={preRenderBusy} onclick={cancelPreRender}
+            >Stop</button
+          >
+        {:else}
+          <label
+            >Cache limit (MiB)
+            <input
+              type="number"
+              min={Math.max(4096, preRenderEstimate.suggestedBudgetMib)}
+              max={preRenderEstimate.maxBudgetMib}
+              step="1024"
+              bind:value={preRenderBudget}
+            />
+          </label>
+          <button
+            type="button"
+            class="refresh"
+            disabled={preRenderBusy ||
+              preRenderEstimate.cachedTiles >= preRenderEstimate.totalTiles ||
+              preRenderBudget < preRenderEstimate.suggestedBudgetMib ||
+              preRenderBudget > preRenderEstimate.maxBudgetMib}
+            onclick={startPreRender}
+            >{preRenderEstimate.cachedTiles >= preRenderEstimate.totalTiles
+              ? 'Complete'
+              : preRenderEstimate.cachedTiles > 0
+                ? 'Resume'
+                : 'Start'}</button
+          >
+        {/if}
+      {:else}
+        <span>Checking saved tiles and available storage…</span>
+      {/if}
+      {#if preRenderError}<span role="alert">{preRenderError}</span>{/if}
+    </div>
+  {/if}
 
   <div class="map-stage">
     <div
@@ -1184,6 +1356,31 @@
   .refresh:disabled {
     opacity: 0.45;
     cursor: default;
+  }
+  .pre-render-panel {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 18px;
+    padding: 10px 16px;
+    color: #bfc5cc;
+    background: #1b1b20;
+    border-top: 1px solid #34343a;
+    font-size: 11px;
+  }
+  .pre-render-panel label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .pre-render-panel input {
+    width: 88px;
+    color: #f1f1f2;
+    background: #141417;
+    border: 1px solid #48484e;
+    border-radius: 5px;
+    padding: 5px;
   }
   .map-stage {
     position: relative;

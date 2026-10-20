@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** Java-first saved-terrain performance plan (P18.70–P18.77). Cameron will review the plan before implementation. Bedrock must ultimately provide the same user experience through its own world-data pipeline.
+**Current priority:** Java-first saved-terrain performance plan (P18.70–P18.77). P18.75 is implemented and awaits Cameron's verification. Bedrock must ultimately provide the same user experience through its own world-data pipeline.
 
 ### P18.69 — Defer detailed Bedrock tile swaps during camera movement
 
@@ -70,11 +70,12 @@ The Java renderer currently launches with `--prebake off`, `--threads 2`, `--mem
 
 ### P18.75 — Add user-invoked Java map pre-render
 
-**Status:** Planned; awaiting Cameron's review.
-**Files:** Java map operation/API and renderer integration; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte` or the relevant Worlds map control; CLI command required by D-041; `docs/msc2/antiAIslop.md` as required design reading; `docs/msc2/rolling-plan.md`.
-**What:** Add an explicit Pre-render map action for the selected world/dimension. Estimate work and disk cost, show meaningful progress, allow cancellation and resume, retain completed tiles across app closure, and give visible-camera tiles priority. Use a larger bounded budget when the server is stopped and throttle when it runs. Inspect Vantage's `--prebake on` behavior and operation lifecycle; do not equate enabling the flag with complete, persistent pre-render until verified. Do not launch automatically on normal map open.
-**Verify:** Run `open -a 'MSC 2'`, invoke Pre-render map on a Java world, close and reopen the app during the job, then cancel and resume it. Progress and cached tile counts should remain truthful; browsing should continue, and starting the server should reduce background load without losing finished work. Confirm the corresponding CLI command works.
+**Status:** Implemented; awaiting Cameron's verification.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain/pre_render.rs`; `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/java_terrain_compat.rs`; `crates/msc-agent/src/backup_operations.rs`; `crates/msc-agent/src/cli/mod.rs`; `third_party/vantage/src/main.zig`; `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; API contract and generated types; `docs/msc2/rolling-plan.md`.
+**What:** The Java map has an explicit per-dimension Pre-render map control and matching CLI start/status/cancel commands. The estimate reports the saved tile count, existing cached count, approximate full-cache size, a suggested budget, and a storage ceiling that reserves room for a world snapshot. Cameron chooses a cache limit between 4 and 64 GiB; normal map viewing still uses the prior 4 GiB limit unless a pre-render budget was chosen. The operation uses a safe Java snapshot, requests uncached tiles through the same Vantage server used by visible camera tiles, reports retained progress, throttles its single background lane more heavily when the server runs, and can be cancelled. Vantage now identifies baked tiles, including empty ones, so an explicit restart skips valid cached work. Completed tiles and the chosen budget persist across app and agent restarts; the job itself does not auto-restart. A full-cache claim requires every listed tile to remain cached, and eviction fails the job with a useful message. Vantage's independent `--prebake on` loop was inspected but not used because its lifetime and cancellation would not follow MSC's operation. The desktop polls the operation without repeatedly fetching the full manifest. Pre-render never starts merely by opening the map. The estimate is approximate until actual tiles are baked; worlds exceeding the selected budget or the 64 GiB ceiling cannot honestly report complete pre-render.
+**Verify:** Build the optimized app with `cd clients/desktop-web && npx tauri build`. Open a Java map, expand Pre-render map, review its tile count and disk estimate, choose a budget, and start it. Navigate the map while it runs; close and reopen the desktop app and confirm the job and cached count remain visible. Stop and restart the job; previously cached tiles should be reused. While the job runs, start the server and confirm the background rate reduces without losing finished tiles. For CLI, run `msc world map-pre-render-status`, `msc world map-pre-render --cache-budget-mib <MiB> --no-wait`, and `msc world map-pre-render-cancel` against the same selected Java world. Cameron performs this verification; it has not been run by the implementing agent.
 **Batch:** P18.75 only.
+**Commit:** `P18.75: add user-invoked java map pre-render`
 
 ### P18.76 — Refresh only changed Java terrain
 

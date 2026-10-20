@@ -125,6 +125,14 @@ pub fn router(state: WorldsRoutesState) -> Router {
             get(map_terrain::preparation_progress),
         )
         .route("/worlds/map/refresh", post(refresh_map))
+        .route(
+            "/worlds/map/pre-render",
+            get(map_terrain::pre_render::status).post(map_terrain::pre_render::start),
+        )
+        .route(
+            "/worlds/map/pre-render/cancel",
+            post(map_terrain::pre_render::cancel),
+        )
         .route("/worlds/map/players", get(map_players))
         .route("/worlds/map-proof/snapshot", post(snapshot_map_proof))
         .route("/worlds/map-proof/players", get(map_proof_players))

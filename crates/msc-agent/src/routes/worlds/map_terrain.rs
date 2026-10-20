@@ -454,6 +454,7 @@ impl RendererStore {
                 *guard = Some(Renderer::launch(
                     server_id,
                     render_world,
+                    world,
                     dimension,
                     selected_version,
                     &reporter,
@@ -543,6 +544,7 @@ impl Renderer {
     fn launch(
         server_id: &str,
         world: &Path,
+        source_world: &Path,
         dimension: &str,
         selected_version: Option<&str>,
         progress: &PreparationReporter<'_>,
@@ -555,14 +557,14 @@ impl Renderer {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").map_err(|_| ())?;
         let port = listener.local_addr().map_err(|_| ())?.port();
         drop(listener);
-        let estimate = java_terrain_compat::staging_estimate(world, dimension)
-            .map_err(|error| TerrainError::new("terrain_preparation_failed", error.to_string()))?;
-        let staging = crate::map_staging::Staging::create("java-renderer", estimate)
+        let staging = crate::map_staging::Staging::create("java-renderer", 0)
             .map_err(|error| TerrainError::new("map_storage_failed", error.to_string()))?;
         let cache = staging.path().to_path_buf();
         let conversion_started = Instant::now();
         let render_world = match java_terrain_compat::prepare(
+            server_id,
             world,
+            source_world,
             dimension,
             &cache,
             &|completed, total| {

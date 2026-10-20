@@ -44,11 +44,12 @@ The Java renderer currently launches with `--prebake off`, `--threads 2`, `--mem
 
 ### P18.72 — Persist and reuse compatible Java region preparation
 
-**Status:** Planned; awaiting Cameron's review.
-**Files:** `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/java_terrain_compat.rs`; agent-owned map-cache/storage code; `docs/msc2/rolling-plan.md`.
-**What:** Move normalized regions out of disposable renderer staging into a safe, versioned, agent-owned cache. Validate source identity and snapshot generation, keep only successful atomic outputs, reuse unchanged regions after app/agent restart, and rebuild changed/invalidated regions. Preserve snapshot isolation, symlink/path checks, disk admission, and cleanup of obsolete generations. A first render can still take time; an unchanged reopen must not reconvert all regions.
-**Verify:** Run `open -a 'MSC 2'`, prepare the 1,600-region Java world, close the app and let the renderer exit, then reopen after an agent restart. Preparation should reuse the cache rather than repeat all 1,600 regions; changing one region in a disposable world should invalidate only that region.
+**Status:** Implemented; awaiting Cameron's verification. No tests added or run.
+**Files:** `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/java_terrain_compat.rs`; `docs/msc2/rolling-plan.md`.
+**What:** Java 26.x compatible regions now persist under the agent's versioned `map-cache/java-compatible-v1` directory, keyed by server, original world path, and dimension. Each prepared region is keyed by a SHA-256 fingerprint of its source bytes, written and synced before atomic publication, then hard-linked into private renderer staging. Reopening or restarting hashes the source regions but skips NBT conversion for cache hits. A refreshed snapshot uses the same original-world identity while its changed source bytes produce new entries; old cache entries are pruned only after a complete successful preparation, and an active renderer retains its own links. The cache rejects symlink/special-file paths, repairs incomplete regular entries, admits new writes against free space, and reports reused versus converted counts. The first render still converts every uncached region; renderer tiles remain disposable until P18.74.
+**Verify:** Build the optimized app with `cd clients/desktop-web && npx tauri build`, open the 1,600-region Java world, close the app and let the renderer exit, then reopen after an agent restart. In `rg 'Java map: prepared' "$HOME/Library/Application Support/MSC 2/logs/agent.log" | tail -n 3`, the second preparation should report all regions reused and none converted. Change one region in a disposable world and refresh terrain; the next line should report one conversion and the other regions reused.
 **Batch:** P18.72 only.
+**Commit:** `P18.72: persist compatible java regions`
 
 ### P18.73 — Use bounded parallel Java conversion when resources permit
 

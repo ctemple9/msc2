@@ -1,6 +1,6 @@
 //! Private, read-only compatibility copy for Java's 26.x dimension layout.
-use std::collections::HashMap;
-use std::fs;
+use std::collections::{HashMap, HashSet};
+use std::fs::{self, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
@@ -9,36 +9,18 @@ use std::time::Instant;
 
 use fastnbt::Value;
 use flate2::{Compression, read::GzDecoder, read::ZlibDecoder, write::ZlibEncoder};
+use fs2::FileExt;
+use sha2::{Digest, Sha256};
+use uuid::Uuid;
 
 const SECTOR: usize = 4096;
 const MAX_REGION_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_CHUNK_BYTES: usize = 32 * 1024 * 1024;
 
-pub(super) fn staging_estimate(world: &Path, dimension: &str) -> io::Result<u64> {
-    let relative = match dimension {
-        "minecraft:overworld" => "dimensions/minecraft/overworld/region",
-        "minecraft:the_nether" => "dimensions/minecraft/the_nether/region",
-        "minecraft:the_end" => "dimensions/minecraft/the_end/region",
-        _ => return Ok(0),
-    };
-    let mut source = world.to_path_buf();
-    for segment in Path::new(relative).components() {
-        source.push(segment);
-        match fs::symlink_metadata(&source) {
-            Ok(meta) if meta.file_type().is_dir() => {}
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(0),
-            Err(error) => return Err(error),
-            _ => return Err(invalid("Java dimension path is not a regular directory")),
-        }
-    }
-    // Reserve one working copy. Recompression growth is checked using the
-    // actual normalized size before every write, rather than doubling all
-    // regions and refusing worlds that already fit on disk.
-    crate::map_staging::estimate_tree(&source)
-}
-
 pub(super) fn prepare(
+    server_id: &str,
     world: &Path,
+    source_world: &Path,
     dimension: &str,
     cache: &Path,
     progress: &(impl Fn(usize, usize) + Sync),
@@ -66,8 +48,18 @@ pub(super) fn prepare(
     if !fs::symlink_metadata(&level)?.file_type().is_file() {
         return Err(invalid("Java level.dat is not a regular file"));
     }
-    let estimate = crate::map_staging::estimate_tree(&source)?;
-    crate::map_staging::ensure_space(cache, estimate.saturating_add(64 * 1024 * 1024))?;
+    let persistent = persistent_regions(server_id, source_world, dimension)?;
+    let lock_path = persistent.join("lock");
+    regular_or_missing(&lock_path)?;
+    let lock = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(lock_path)?;
+    lock.lock_exclusive()?;
+    let region_cache = persistent.join("regions");
+    safe_directory(&region_cache)?;
     let staged = cache.join("world");
     let target = staged.join(legacy);
     fs::create_dir_all(&target)?;
@@ -105,6 +97,8 @@ pub(super) fn prepare(
     let completed = AtomicUsize::new(0);
     let failed = AtomicBool::new(false);
     let output_bytes = AtomicU64::new(0);
+    let reused = AtomicUsize::new(0);
+    let retained = Mutex::new(HashSet::new());
     let first_error = Mutex::new(None);
     let active_workers = Mutex::new(0usize);
     let worker_changed = Condvar::new();
@@ -151,14 +145,16 @@ pub(super) fn prepare(
                 }
                 drop(active);
 
-                let result = convert_region(entry, target, cache, index);
+                let result = convert_region(entry, target, &region_cache, index);
                 let mut active = active_workers.lock().expect("worker gate poisoned");
                 *active -= 1;
                 worker_changed.notify_all();
                 drop(active);
                 match result {
-                    Ok(bytes) => {
+                    Ok((bytes, hit, name)) => {
                         output_bytes.fetch_add(bytes, Ordering::Relaxed);
+                        if hit { reused.fetch_add(1, Ordering::Relaxed); }
+                        retained.lock().expect("cache names poisoned").insert(name);
                         let done = completed.fetch_add(1, Ordering::AcqRel) + 1;
                         progress(done, total);
                     }
@@ -182,8 +178,20 @@ pub(super) fn prepare(
     {
         return Err(error);
     }
+    let retained = retained
+        .into_inner()
+        .map_err(|_| io::Error::other("Java cache names were poisoned"))?;
+    for entry in fs::read_dir(&region_cache)? {
+        let entry = entry?;
+        let name = entry.file_name();
+        if !retained.contains(&name) && entry.file_type()?.is_file() {
+            fs::remove_file(entry.path())?;
+        }
+    }
     eprintln!(
-        "Java map: converted {total} compatible region files ({source_bytes} source bytes; {} staged bytes) in {:.1}s",
+        "Java map: prepared {total} compatible region files ({} reused; {} converted; {source_bytes} source bytes; {} staged bytes) in {:.1}s",
+        reused.load(Ordering::Relaxed),
+        total.saturating_sub(reused.load(Ordering::Relaxed)),
         output_bytes.load(Ordering::Relaxed),
         conversion_started.elapsed().as_secs_f64()
     );
@@ -193,12 +201,12 @@ pub(super) fn prepare(
 fn convert_region(
     entry: &fs::DirEntry,
     target: &Path,
-    cache: &Path,
+    region_cache: &Path,
     index: usize,
-) -> io::Result<u64> {
+) -> io::Result<(u64, bool, std::ffi::OsString)> {
     let name = entry.file_name();
     if !name.to_string_lossy().ends_with(".mca") || !entry.file_type()?.is_file() {
-        return Ok(0);
+        return Err(invalid("Java region is not a regular file"));
     }
     if entry.metadata()?.len() > MAX_REGION_BYTES {
         return Err(io::Error::other(
@@ -206,19 +214,113 @@ fn convert_region(
         ));
     }
     let raw = fs::read(entry.path())?;
-    let normalized = normalize_region(&raw)?;
-    crate::map_staging::ensure_space(cache, normalized.len() as u64 + 64 * 1024 * 1024)?;
-    let output = target.join(name);
-    let temporary = target.join(format!(".region-{}-{index}.tmp", std::process::id()));
-    let result = (|| {
-        fs::write(&temporary, &normalized)?;
-        fs::rename(&temporary, output)?;
-        Ok(normalized.len() as u64)
-    })();
-    if result.is_err() {
-        let _ = fs::remove_file(temporary);
+    let digest = format!("{:x}", Sha256::digest(&raw));
+    let cached_name = std::ffi::OsString::from(format!("{}-{digest}.mca", name.to_string_lossy()));
+    let cached = region_cache.join(&cached_name);
+    let valid = fs::symlink_metadata(&cached)
+        .is_ok_and(|meta| meta.file_type().is_file() && meta.len() >= (2 * SECTOR) as u64);
+    let bytes = if valid {
+        fs::metadata(&cached)?.len()
+    } else {
+        if let Ok(meta) = fs::symlink_metadata(&cached) {
+            if !meta.file_type().is_file() {
+                return Err(invalid("Java region cache contains an unsafe entry"));
+            }
+            fs::remove_file(&cached)?;
+        }
+        let normalized = normalize_region(&raw)?;
+        crate::map_staging::ensure_space(region_cache, normalized.len() as u64 + 64 * 1024 * 1024)?;
+        let temporary = region_cache.join(format!(
+            ".region-{}-{index}-{}.tmp",
+            std::process::id(),
+            Uuid::new_v4()
+        ));
+        let result: io::Result<u64> = (|| {
+            let mut output = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&temporary)?;
+            output.write_all(&normalized)?;
+            output.sync_all()?;
+            fs::rename(&temporary, &cached)?;
+            Ok(normalized.len() as u64)
+        })();
+        if result.is_err() {
+            let _ = fs::remove_file(&temporary);
+        }
+        result?
+    };
+    // Renderer staging holds its own link, so later cache pruning cannot
+    // change the bytes under an active renderer.
+    fs::hard_link(&cached, target.join(name))?;
+    Ok((bytes, valid, cached_name))
+}
+
+fn persistent_regions(
+    server_id: &str,
+    source_world: &Path,
+    dimension: &str,
+) -> io::Result<PathBuf> {
+    let canonical = source_world.canonicalize()?;
+    let mut hasher = Sha256::new();
+    hasher.update(server_id.as_bytes());
+    hasher.update([0]);
+    hasher.update(canonical.to_string_lossy().as_bytes());
+    hasher.update([0]);
+    hasher.update(dimension.as_bytes());
+    let root = msc_infrastructure::config_repository::default_app_data_dir().join("map-cache");
+    safe_directory(&root)?;
+    let version = root.join("java-compatible-v1");
+    safe_directory(&version)?;
+    let world = version.join(format!("{:x}", hasher.finalize()));
+    safe_directory(&world)?;
+    let identity = world.join("identity");
+    regular_or_missing(&identity)?;
+    let expected = format!("{server_id}\n{}\n{dimension}\n", canonical.display());
+    match fs::read_to_string(&identity) {
+        Ok(actual) if actual == expected => {}
+        Ok(_) => {
+            return Err(invalid(
+                "Java region cache identity does not match this world",
+            ));
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            let mut file = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&identity)?;
+            file.write_all(expected.as_bytes())?;
+            file.sync_all()?;
+        }
+        Err(error) => return Err(error),
     }
-    result
+    Ok(world)
+}
+
+fn safe_directory(path: &Path) -> io::Result<()> {
+    match fs::symlink_metadata(path) {
+        Ok(meta) if meta.file_type().is_dir() => Ok(()),
+        Ok(_) => Err(invalid("Java region cache path is not a regular directory")),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            fs::create_dir(path)?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                fs::set_permissions(path, fs::Permissions::from_mode(0o700))?;
+            }
+            Ok(())
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn regular_or_missing(path: &Path) -> io::Result<()> {
+    match fs::symlink_metadata(path) {
+        Ok(meta) if meta.file_type().is_file() => Ok(()),
+        Ok(_) => Err(invalid("Java region cache contains an unsafe file")),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
 }
 
 fn invalid(message: &'static str) -> io::Error {

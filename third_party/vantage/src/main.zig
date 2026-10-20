@@ -2687,7 +2687,7 @@ fn createRegionSnapshot(
     for (tile_keys) |key| {
         const tx: i32 = @bitCast(@as(u32, @truncate(key >> 32)));
         const tz: i32 = @bitCast(@as(u32, @truncate(key)));
-        try tile_revisions.put(key, world.tileRevisionIndexed(&region_revisions, tx, tz, tile_chunks));
+        try tile_revisions.put(key, world.tileRevisionIndexed(&region_revisions, loaded, tx, tz, tile_chunks));
     }
     region_revisions.deinit();
     snapshot.* = .{
@@ -4424,7 +4424,7 @@ fn runLiveMode(init: std.process.Init, a: std.mem.Allocator, args: []const []con
     const tile_keys = try enumerateTilesSpawnOutward(a, wl.populated, radius, wl.centre_cx, wl.centre_cz, tile_chunks);
 
     if (cache_key) |key| {
-        const stamp = try std.fmt.allocPrint(a, "msc-vantage 1\nrenderer {s}\nkey {s}\nassets {s}\ndimension {s}\ntile {d}\nlight {s}\nblend {}\ncave {?d}\nceiling {?d}\n", .{ version, key, wl.assets, dim.slug, tile_chunks, @tagName(quality), blend_biomes, cave_y, dim.ceiling_cut });
+        const stamp = try std.fmt.allocPrint(a, "msc-vantage 2\nsource-revisions chunk-content-v1\nrenderer {s}\nkey {s}\nassets {s}\ndimension {s}\ntile {d}\nlight {s}\nblend {}\ncave {?d}\nceiling {?d}\n", .{ version, key, wl.assets, dim.slug, tile_chunks, @tagName(quality), blend_biomes, cave_y, dim.ceiling_cut });
         try openPersistentCache(init.io, a, out_dir, stamp);
     }
 

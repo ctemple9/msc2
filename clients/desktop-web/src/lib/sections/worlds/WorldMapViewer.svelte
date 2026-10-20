@@ -864,8 +864,10 @@
         say(operation?.error?.message ?? 'Terrain refresh failed.');
         return;
       }
-      await loadDimension(dimension);
-      if (alive) say('Current terrain loaded');
+      // Keep the viewer and camera alive while its progressive manifest poll
+      // reconciles the refreshed snapshot against the persistent tile cache.
+      viewer?.invalidate();
+      if (alive) say('Terrain refreshed; updating changed tiles');
     } catch (error) {
       if (alive) say(error instanceof Error ? error.message : 'Terrain refresh failed.');
     } finally {

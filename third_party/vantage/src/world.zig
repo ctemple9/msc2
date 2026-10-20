@@ -22,9 +22,11 @@ pub const LoadedRegion = struct {
     table: []const u8,
     path: []const u8,
     /// Changes whenever the region's location table or file metadata changes.
-    /// Live-server tile revisions fold the overlapping region revisions into a
-    /// stable cache key without hashing multi-megabyte chunk payloads.
     revision: u64,
+    /// Content revision for each region-local chunk (z*32+x). Zero means the
+    /// location table says that chunk is absent. Kept with the location table
+    /// so tile revisions can distinguish edits within one large region file.
+    chunk_revisions: []const u64 = &.{},
 };
 
 pub const ChunkBounds = struct {
@@ -41,6 +43,9 @@ pub const ChunkBounds = struct {
         return self.max_cz - self.min_cz + 1;
     }
 };
+
+const FINGERPRINT_READ_BYTES = 8 * 1024 * 1024;
+const ChunkLocation = struct { index: usize, start: usize, end: usize };
 
 /// Find the overworld region directory for a save path. Accepts a save dir
 /// (either layout) or a region dir handed in directly. Returns null if none has
@@ -74,6 +79,8 @@ fn dirHasMca(io: std.Io, path: []const u8) !bool {
 /// render, OOM-killing the process. Payloads stream in `assembleWindow`.
 pub fn loadRegions(arena: std.mem.Allocator, io: std.Io, region_dir: []const u8) ![]LoadedRegion {
     var out: std.ArrayList(LoadedRegion) = .empty;
+    const fingerprint_buffer = try std.heap.page_allocator.alloc(u8, FINGERPRINT_READ_BYTES);
+    defer std.heap.page_allocator.free(fingerprint_buffer);
     var dir = try std.Io.Dir.cwd().openDir(io, region_dir, .{ .iterate = true });
     defer dir.close(io);
     var it = dir.iterate();
@@ -81,14 +88,21 @@ pub fn loadRegions(arena: std.mem.Allocator, io: std.Io, region_dir: []const u8)
         if (e.kind != .file) continue;
         const xz = parseRegionName(e.name) orelse continue;
         const path = try std.fmt.allocPrint(arena, "{s}/{s}", .{ region_dir, e.name });
-        const snapshot = readStableLocationTable(arena, io, path) catch |err| switch (err) {
+        const snapshot = readStableLocationTable(arena, io, path, fingerprint_buffer) catch |err| switch (err) {
             // An unstable file is expected during a Minecraft save, but it must
             // fail the whole candidate epoch. Publishing a catalog with that
             // region silently missing would create a transient map deletion.
             error.RegionChangedDuringRead => return err,
             else => continue,
         };
-        try out.append(arena, .{ .x = xz[0], .z = xz[1], .table = snapshot.table, .path = path, .revision = snapshot.revision });
+        try out.append(arena, .{
+            .x = xz[0],
+            .z = xz[1],
+            .table = snapshot.table,
+            .path = path,
+            .revision = snapshot.revision,
+            .chunk_revisions = try arena.dupe(u64, &snapshot.chunk_revisions),
+        });
     }
     std.mem.sort(LoadedRegion, out.items, {}, struct {
         fn lessThan(_: void, lhs: LoadedRegion, rhs: LoadedRegion) bool {
@@ -144,17 +158,16 @@ pub fn catalogMetadataRevision(arena: std.mem.Allocator, io: std.Io, region_dir:
     return hasher.final();
 }
 
-pub const RegionRevisionIndex = std.AutoHashMap(u64, u64);
+pub const RegionRevisionIndex = std.AutoHashMap(u64, usize);
 
 pub fn indexRegionRevisions(arena: std.mem.Allocator, regions: []const LoadedRegion) !RegionRevisionIndex {
     var index = RegionRevisionIndex.init(arena);
-    for (regions) |r| try index.put(packChunk(r.x, r.z), r.revision);
+    for (regions, 0..) |r, i| try index.put(packChunk(r.x, r.z), i);
     return index;
 }
 
-/// Revision of one Vantage tile, including its one-chunk seam apron. Only
-/// region files whose chunk extents intersect the bake window participate, so
-/// a save elsewhere in a huge world does not invalidate the player's view.
+/// Revision of one Vantage tile, including its one-chunk seam apron. Chunk
+/// payload content, rather than the containing .mca file, controls invalidation.
 pub fn tileRevision(regions: []const LoadedRegion, tx: i32, tz: i32, tile_chunks: i32) u64 {
     const cx0 = tx * tile_chunks - 1;
     const cz0 = tz * tile_chunks - 1;
@@ -165,30 +178,48 @@ pub fn tileRevision(regions: []const LoadedRegion, tx: i32, tz: i32, tile_chunks
         const rcx0 = r.x * 32;
         const rcz0 = r.z * 32;
         if (rcx0 + 31 < cx0 or rcx0 > cx1 or rcz0 + 31 < cz0 or rcz0 > cz1) continue;
-        hasher.update(std.mem.asBytes(&r.x));
-        hasher.update(std.mem.asBytes(&r.z));
-        hasher.update(std.mem.asBytes(&r.revision));
+        const x0 = @max(cx0, rcx0);
+        const z0 = @max(cz0, rcz0);
+        const x1 = @min(cx1, rcx0 + 31);
+        const z1 = @min(cz1, rcz0 + 31);
+        for (z0..z1 + 1) |cz| for (x0..x1 + 1) |cx| {
+            const lx: usize = @intCast(cx - rcx0);
+            const lz: usize = @intCast(cz - rcz0);
+            const revision = r.chunk_revisions[lz * 32 + lx];
+            if (revision == 0) continue;
+            const chunk_x: i32 = @intCast(cx);
+            const chunk_z: i32 = @intCast(cz);
+            hasher.update(std.mem.asBytes(&chunk_x));
+            hasher.update(std.mem.asBytes(&chunk_z));
+            hasher.update(std.mem.asBytes(&revision));
+        };
     }
     // Zero is reserved for non-revising local live sessions.
     return hasher.final() | 1;
 }
 
-/// Indexed form used while building a live server epoch. A tile window touches
-/// only a handful of 32×32-chunk regions, so this is O(overlap) rather than
-/// O(total world regions).
-pub fn tileRevisionIndexed(index: *const RegionRevisionIndex, tx: i32, tz: i32, tile_chunks: i32) u64 {
+/// Indexed form used while building a live server epoch. The lookup is bounded
+/// by the tile footprint and its seam apron, independent of total world regions.
+pub fn tileRevisionIndexed(index: *const RegionRevisionIndex, regions: []const LoadedRegion, tx: i32, tz: i32, tile_chunks: i32) u64 {
     const cx0 = tx * tile_chunks - 1;
     const cz0 = tz * tile_chunks - 1;
     const cx1 = (tx + 1) * tile_chunks;
     const cz1 = (tz + 1) * tile_chunks;
     var hasher = std.hash.Wyhash.init(packChunk(tx, tz));
-    var rz = @divFloor(cz0, 32);
-    while (rz <= @divFloor(cz1, 32)) : (rz += 1) {
-        var rx = @divFloor(cx0, 32);
-        while (rx <= @divFloor(cx1, 32)) : (rx += 1) {
-            const revision = index.get(packChunk(rx, rz)) orelse continue;
-            hasher.update(std.mem.asBytes(&rx));
-            hasher.update(std.mem.asBytes(&rz));
+    var cz = cz0;
+    while (cz <= cz1) : (cz += 1) {
+        var cx = cx0;
+        while (cx <= cx1) : (cx += 1) {
+            const rx = @divFloor(cx, 32);
+            const rz = @divFloor(cz, 32);
+            const region_index = index.get(packChunk(rx, rz)) orelse continue;
+            const r = regions[region_index];
+            const lx: usize = @intCast(@mod(cx, 32));
+            const lz: usize = @intCast(@mod(cz, 32));
+            const revision = r.chunk_revisions[lz * 32 + lx];
+            if (revision == 0) continue;
+            hasher.update(std.mem.asBytes(&cx));
+            hasher.update(std.mem.asBytes(&cz));
             hasher.update(std.mem.asBytes(&revision));
         }
     }
@@ -202,27 +233,79 @@ fn readLocationTable(io: std.Io, path: []const u8, buf: *[region.SECTOR]u8) ![]c
     return buf[0..n];
 }
 
-const LocationSnapshot = struct { table: []const u8, revision: u64 };
+const LocationSnapshot = struct {
+    table: []const u8,
+    revision: u64,
+    chunk_revisions: [1024]u64,
+};
 
 /// Minecraft may be appending sectors while Vantage scans. Read metadata on
 /// both sides of the 4 KiB table and retry (with a short backoff, so a burst
 /// of writes to this file can finish) if it moved underneath us; after the
 /// last attempt the whole candidate epoch fails rather than publishing torn
 /// state — a later server scan retries, a one-shot render reports the error.
-/// Reads land in a stack buffer; the arena only holds the one stable copy, so
-/// retries during a noisy save can't leak dead tables into a snapshot arena.
-fn readStableLocationTable(arena: std.mem.Allocator, io: std.Io, path: []const u8) !LocationSnapshot {
+/// Region payloads stream through one bounded shared buffer; the arena retains
+/// only the location table and compact per-chunk revisions for this snapshot.
+fn readStableLocationTable(arena: std.mem.Allocator, io: std.Io, path: []const u8, payload_buf: []u8) !LocationSnapshot {
     var buf: [region.SECTOR]u8 = undefined;
     var attempt: usize = 0;
     while (attempt < 4) : (attempt += 1) {
         if (attempt > 0) std.Io.sleep(io, std.Io.Duration.fromMilliseconds(15), .awake) catch {};
         const before = try std.Io.Dir.cwd().statFile(io, path, .{});
+        @memset(buf[0..], 0);
         const table = try readLocationTable(io, path, &buf);
+        var chunk_revisions = [_]u64{0} ** 1024;
+        {
+            var file = try std.Io.Dir.cwd().openFile(io, path, .{});
+            defer file.close(io);
+            var locations: [1024]ChunkLocation = undefined;
+            var location_count: usize = 0;
+            for (0..1024) |i| {
+                const e = i * 4;
+                const off = (@as(u32, buf[e]) << 16) | (@as(u32, buf[e + 1]) << 8) | buf[e + 2];
+                const sectors = buf[e + 3];
+                if (off == 0 and sectors == 0) continue;
+                const start_u64 = @as(u64, off) * region.SECTOR;
+                const end_u64 = start_u64 + @as(u64, sectors) * region.SECTOR;
+                if (sectors == 0 or off < 2 or end_u64 > before.size) {
+                    chunk_revisions[i] = std.hash.Wyhash.hash(0x4348_554e_4b31, buf[e .. e + 4]) | 1;
+                    continue;
+                }
+                locations[location_count] = .{ .index = i, .start = @intCast(start_u64), .end = @intCast(end_u64) };
+                location_count += 1;
+            }
+            std.mem.sort(ChunkLocation, locations[0..location_count], {}, struct {
+                fn lessThan(_: void, lhs: ChunkLocation, rhs: ChunkLocation) bool {
+                    return lhs.start < rhs.start;
+                }
+            }.lessThan);
+            var first: usize = 0;
+            while (first < location_count) {
+                var last = first + 1;
+                var end = locations[first].end;
+                while (last < location_count and locations[last].end - locations[first].start <= payload_buf.len) : (last += 1) {
+                    end = @max(end, locations[last].end);
+                }
+                const start = locations[first].start;
+                const read_len = end - start;
+                const n = try file.readPositionalAll(io, payload_buf[0..read_len], start);
+                for (locations[first..last]) |location| {
+                    if (location.end - start > n) continue;
+                    const chunk_bytes = payload_buf[location.start - start .. location.end - start];
+                    chunk_revisions[location.index] = std.hash.Wyhash.hash(0x4348_554e_4b31, chunk_bytes) | 1;
+                }
+                first = last;
+            }
+        }
         const after = try std.Io.Dir.cwd().statFile(io, path, .{});
         if (before.size != after.size or before.mtime.nanoseconds != after.mtime.nanoseconds) continue;
         const timestamp_bits: u96 = @bitCast(after.mtime.nanoseconds);
         const seed = after.size ^ @as(u64, @truncate(timestamp_bits));
-        return .{ .table = try arena.dupe(u8, table), .revision = std.hash.Wyhash.hash(seed, table) };
+        return .{
+            .table = try arena.dupe(u8, table),
+            .revision = std.hash.Wyhash.hash(seed, table),
+            .chunk_revisions = chunk_revisions,
+        };
     }
     return error.RegionChangedDuringRead;
 }
@@ -416,33 +499,50 @@ test "parseRegionName" {
     try std.testing.expect(parseRegionName("r.0.0.mcc") == null);
 }
 
-test "tileRevision invalidates only overlapping region aprons" {
+test "tileRevision invalidates only changed chunks in its seam apron" {
     const table = [_]u8{0} ** region.SECTOR;
+    const empty_revisions = [_]u64{0} ** 1024;
     const base = [_]LoadedRegion{
-        .{ .x = 0, .z = 0, .table = &table, .path = "r.0.0.mca", .revision = 10 },
-        .{ .x = 1, .z = 0, .table = &table, .path = "r.1.0.mca", .revision = 20 },
+        .{ .x = 0, .z = 0, .table = &table, .path = "r.0.0.mca", .revision = 10, .chunk_revisions = &empty_revisions },
+        .{ .x = 1, .z = 0, .table = &table, .path = "r.1.0.mca", .revision = 20, .chunk_revisions = &empty_revisions },
     };
+    var revisions_0 = empty_revisions;
+    var revisions_1 = empty_revisions;
+    revisions_0[0] = 101;
+    revisions_1[0] = 202;
     var changed = base;
-    changed[1].revision = 21;
+    changed[0].chunk_revisions = &revisions_0;
+    changed[1].chunk_revisions = &revisions_1;
 
     // Tile 0 spans chunks 0..7 (+ apron -1..8), nowhere near region x=1.
     try std.testing.expectEqual(tileRevision(&base, 0, 0, 8), tileRevision(&changed, 0, 0, 8));
-    // Tile 4 spans chunks 32..39 (+ apron 31..40), touching both regions.
-    try std.testing.expect(tileRevision(&base, 4, 0, 8) != tileRevision(&changed, 4, 0, 8));
+    // A change to chunk (0,0) remains local to the tiles that overlap it.
+    var local_revisions = empty_revisions;
+    local_revisions[0] = 101;
+    var local_change = base;
+    local_change[0].chunk_revisions = &local_revisions;
+    try std.testing.expect(tileRevision(&base, 0, 0, 8) != tileRevision(&local_change, 0, 0, 8));
+    try std.testing.expectEqual(tileRevision(&base, 4, 0, 8), tileRevision(&local_change, 4, 0, 8));
 }
 
 test "indexed tile revisions match catalog scans" {
     const table = [_]u8{0} ** region.SECTOR;
+    var chunk_revisions_0 = [_]u64{0} ** 1024;
+    var chunk_revisions_1 = [_]u64{0} ** 1024;
+    var chunk_revisions_2 = [_]u64{0} ** 1024;
+    chunk_revisions_0[0] = 11;
+    chunk_revisions_1[31] = 12;
+    chunk_revisions_2[32 * 8 + 7] = 13;
     const regions = [_]LoadedRegion{
-        .{ .x = -1, .z = 0, .table = &table, .path = "r.-1.0.mca", .revision = 3 },
-        .{ .x = 0, .z = 0, .table = &table, .path = "r.0.0.mca", .revision = 5 },
-        .{ .x = 1, .z = 1, .table = &table, .path = "r.1.1.mca", .revision = 7 },
+        .{ .x = -1, .z = 0, .table = &table, .path = "r.-1.0.mca", .revision = 3, .chunk_revisions = &chunk_revisions_0 },
+        .{ .x = 0, .z = 0, .table = &table, .path = "r.0.0.mca", .revision = 5, .chunk_revisions = &chunk_revisions_1 },
+        .{ .x = 1, .z = 1, .table = &table, .path = "r.1.1.mca", .revision = 7, .chunk_revisions = &chunk_revisions_2 },
     };
     var index = try indexRegionRevisions(std.testing.allocator, &regions);
     defer index.deinit();
     for ([_]i32{ -4, -1, 0, 3, 4, 7 }) |tx| {
         for ([_]i32{ -1, 0, 3, 4, 8 }) |tz| {
-            try std.testing.expectEqual(tileRevision(&regions, tx, tz, 8), tileRevisionIndexed(&index, tx, tz, 8));
+            try std.testing.expectEqual(tileRevision(&regions, tx, tz, 8), tileRevisionIndexed(&index, &regions, tx, tz, 8));
         }
     }
 }

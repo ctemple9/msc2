@@ -2,7 +2,7 @@
   "upstream_version": "0.15.1",
   "upstream_commit": "953f0ac78d62",
   "zig_version": "0.16.0",
-  "cache_format": 1,
+  "cache_format": 2,
   "platforms": [
     "macos-x86_64",
     "macos-aarch64",

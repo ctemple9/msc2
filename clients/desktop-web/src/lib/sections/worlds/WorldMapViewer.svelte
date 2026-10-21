@@ -211,7 +211,7 @@
   }
 
   function updateDetailStatus(): void {
-    if (serverType !== 'java' || !viewer) {
+    if (!viewer) {
       detailStatus = '';
       return;
     }
@@ -420,7 +420,7 @@
             mapTiming.total = stats.total;
             if (stats.loaded > 0 && mapTiming.firstLoadedTileAt === undefined) {
               mapTiming.firstLoadedTileAt = performance.now();
-              console.info('Java map: first tile attached to viewer', {
+              console.info(`${mapTiming.edition} map: first tile attached to viewer`, {
                 seconds: Number(((mapTiming.firstLoadedTileAt - mapTiming.startedAt) / 1000).toFixed(1)),
                 loadedTiles: stats.loaded,
                 totalTiles: stats.total,
@@ -514,7 +514,7 @@
       mapTiming.worstFrame = Math.max(mapTiming.worstFrame, frameMs);
     }
     if (viewer) {
-      if (serverType === 'java' && now - lastDetailStatusAt >= 250) {
+      if (now - lastDetailStatusAt >= 250) {
         updateDetailStatus();
         lastDetailStatusAt = now;
       }

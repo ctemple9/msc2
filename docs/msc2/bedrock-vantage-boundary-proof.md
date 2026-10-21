@@ -93,3 +93,35 @@ If a registry is supplied, the converter refuses a version mismatch. It writes
 files. No full Bedtonic conversion or test suite was run for P18.83; Cameron's
 release-build conversion, fidelity review, and timing are still needed before
 marking it Done.
+
+### Bounded conversion measurement after P18.84c
+
+`anvil-convert` can select one to eight saved regions without converting the
+rest. It still indexes the immutable snapshot once, so the log separates that
+cost from conversion. Run the optimized helper on a private snapshot with
+separate new output directories for each comparison. The `--server-running`
+option forces one region worker for a controlled single-worker comparison; it
+does not start the Minecraft server. The production agent supplies that option
+when BDS is running and restarts the helper at one worker if BDS starts during
+conversion, retaining regions already published to its private staging area.
+
+```sh
+SNAPSHOT="$HOME/Library/Application Support/MSC 2/map-staging/<snapshot>/world"
+HELPER=tools/world-map-proof/target/release/msc-world-map-proof
+"$HELPER" anvil-convert "$SNAPSHOT" /private/tmp/msc-bedrock-sample-one \
+  --server-running \
+  --region=overworld:0:0 --region=overworld:0:-1 \
+  --region=overworld:-1:0 --region=overworld:-1:-1
+"$HELPER" anvil-convert "$SNAPSHOT" /private/tmp/msc-bedrock-sample-pool \
+  --region=overworld:0:0 --region=overworld:0:-1 \
+  --region=overworld:-1:0 --region=overworld:-1:-1
+```
+
+Use fresh output directory names for an uncached comparison. Repeat against
+the same output to observe verified region reuse. Logs report LevelDB open,
+indexing, worker capacity, aggregate worker time spent reading chunks,
+encoding NBT and compressing regions, and wall time spent publishing files and
+syncing the manifest. Aggregate worker times may exceed elapsed wall time when
+workers overlap. Progress reports each completed region; no time estimate is
+promised from a sparse or dense four-region sample. Check that selected regions
+exist before running; a missing selection fails without converting others.

@@ -15,6 +15,7 @@ fastnbt = "2.6"
 flate2 = "1"
 sha2 = "0.10"
 fs2 = "0.4"
+sysinfo = { version = "0.39", default-features = false, features = ["system"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = "0.2"

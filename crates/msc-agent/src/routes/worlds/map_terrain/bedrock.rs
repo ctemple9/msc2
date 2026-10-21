@@ -606,6 +606,8 @@ impl BedrockStore {
                     &source_snapshot,
                     stage.path(),
                     &self.1,
+                    lifecycle.status_snapshot().running,
+                    &|| lifecycle.status_snapshot().running,
                     &|done, total| {
                         renderer.preparation_update(
                             server_id,
@@ -1297,15 +1299,19 @@ fn run_anvil_conversion(
     snapshot: &Path,
     output: &Path,
     lifecycle: &ExporterLifecycle,
+    server_running: bool,
+    is_server_running: &(impl Fn() -> bool + Sync),
     progress: &(impl Fn(usize, usize) + Sync),
 ) -> Result<(), String> {
     if lifecycle.shutdown.load(Ordering::Acquire) {
         return Err("The local agent is shutting down.".into());
     }
-    let mut child = Command::new(binary)
-        .arg("anvil-convert")
-        .arg(snapshot)
-        .arg(output)
+    let mut command = Command::new(binary);
+    command.arg("anvil-convert").arg(snapshot).arg(output);
+    if server_running {
+        command.arg("--server-running");
+    }
+    let mut child = command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
@@ -1329,6 +1335,22 @@ fn run_anvil_conversion(
             lifecycle.stop(&mut child);
             let _ = reader.join();
             return Err("The local agent is shutting down.".into());
+        }
+        if !server_running && is_server_running() {
+            eprintln!(
+                "Bedrock prepare: server started during conversion; restarting with one region worker"
+            );
+            lifecycle.stop(&mut child);
+            let _ = reader.join();
+            return run_anvil_conversion(
+                binary,
+                snapshot,
+                output,
+                lifecycle,
+                true,
+                is_server_running,
+                progress,
+            );
         }
         match receiver.recv_timeout(Duration::from_millis(100)) {
             Ok(Ok(line)) => {

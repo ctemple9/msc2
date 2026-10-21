@@ -154,9 +154,16 @@ pub(super) async fn preparation_progress(
 
 struct SavedSnapshot {
     _staging: Option<Arc<crate::map_staging::Staging>>,
+    _cache_lock: Option<Arc<std::fs::File>>,
     server_id: String,
     source_world: PathBuf,
     path: PathBuf,
+    edition_cache_key: &'static str,
+}
+
+struct RendererIdentity<'a> {
+    selected_version: Option<&'a str>,
+    edition_cache_key: &'a str,
 }
 
 struct Renderer {
@@ -452,6 +459,8 @@ impl RendererStore {
             source_world,
             path: snapshot.path,
             _staging: snapshot.staging.map(Arc::new),
+            _cache_lock: None,
+            edition_cache_key: "java",
         };
         let mut renderer = self.0.current.lock().map_err(|_| ())?;
         if self.0.shutdown.load(Ordering::Acquire) {
@@ -476,6 +485,7 @@ impl RendererStore {
         source_world: PathBuf,
         prepared_world: PathBuf,
         staging: Arc<crate::map_staging::Staging>,
+        cache_lock: Arc<std::fs::File>,
     ) -> Result<(), ()> {
         let mut renderer = self.0.current.lock().map_err(|_| ())?;
         if self.0.shutdown.load(Ordering::Acquire) {
@@ -492,11 +502,24 @@ impl RendererStore {
         *renderer = None;
         *saved = Some(SavedSnapshot {
             _staging: Some(staging),
+            _cache_lock: Some(cache_lock),
             server_id,
             source_world,
             path: prepared_world,
+            edition_cache_key: "bedrock-anvil-v3",
         });
         Ok(())
+    }
+
+    pub(super) fn prepared_cache_lock(&self, path: &Path) -> Option<Arc<std::fs::File>> {
+        self.0
+            .snapshot
+            .lock()
+            .ok()?
+            .as_ref()
+            .filter(|saved| saved.path == path)?
+            ._cache_lock
+            .clone()
     }
 
     pub(super) fn preparation_update(
@@ -552,6 +575,9 @@ impl RendererStore {
             let render_world = saved
                 .as_ref()
                 .map_or(world, |snapshot| snapshot.path.as_path());
+            let edition_cache_key = saved
+                .as_ref()
+                .map_or("java", |snapshot| snapshot.edition_cache_key);
             let reuse = guard.as_mut().is_some_and(|renderer| {
                 renderer.server_id == server_id
                     && renderer.world == render_world
@@ -587,7 +613,10 @@ impl RendererStore {
                     render_world,
                     world,
                     dimension,
-                    selected_version,
+                    RendererIdentity {
+                        selected_version,
+                        edition_cache_key,
+                    },
                     &reporter,
                     server_running,
                 )?);
@@ -677,16 +706,21 @@ impl Renderer {
         world: &Path,
         source_world: &Path,
         dimension: &str,
-        selected_version: Option<&str>,
+        identity: RendererIdentity<'_>,
         progress: &PreparationReporter<'_>,
         server_running: &(impl Fn() -> bool + Sync),
     ) -> Result<Self, TerrainError> {
         let binary = dependencies::binary()?;
         progress.update("Checking and preparing Minecraft textures", None, None);
-        let assets = dependencies::assets(world, selected_version)?;
-        let (tile_cache, cache_key) =
-            java_terrain_compat::persistent_tiles(server_id, source_world, dimension, &assets)
-                .map_err(|error| TerrainError::new("map_storage_failed", error.to_string()))?;
+        let assets = dependencies::assets(world, identity.selected_version)?;
+        let (tile_cache, cache_key) = java_terrain_compat::persistent_tiles_for_edition(
+            server_id,
+            source_world,
+            dimension,
+            &assets,
+            identity.edition_cache_key,
+        )
+        .map_err(|error| TerrainError::new("map_storage_failed", error.to_string()))?;
         let lock_path = tile_cache.join("lock");
         if std::fs::symlink_metadata(&lock_path).is_ok_and(|meta| !meta.file_type().is_file()) {
             return Err(TerrainError::new(

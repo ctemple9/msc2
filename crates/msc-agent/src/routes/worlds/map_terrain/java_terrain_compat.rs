@@ -303,6 +303,16 @@ pub(super) fn persistent_tiles(
     dimension: &str,
     assets: &Path,
 ) -> io::Result<(PathBuf, String)> {
+    persistent_tiles_for_edition(server_id, source_world, dimension, assets, "java")
+}
+
+pub(super) fn persistent_tiles_for_edition(
+    server_id: &str,
+    source_world: &Path,
+    dimension: &str,
+    assets: &Path,
+    edition: &str,
+) -> io::Result<(PathBuf, String)> {
     let canonical = source_world.canonicalize()?;
     let mut hasher = Sha256::new();
     let canonical_text = canonical.to_string_lossy();
@@ -314,6 +324,10 @@ pub(super) fn persistent_tiles(
         assets_text.as_ref(),
     ] {
         hasher.update(part.as_bytes());
+        hasher.update([0]);
+    }
+    if edition != "java" {
+        hasher.update(edition.as_bytes());
         hasher.update([0]);
     }
     let key = format!("{:x}", hasher.finalize());

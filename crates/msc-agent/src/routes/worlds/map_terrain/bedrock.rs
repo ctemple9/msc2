@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 use axum::body::Body;
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
+use fs2::FileExt;
 use msc_domain::app_config_schema::ConfigServer;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
@@ -29,6 +30,250 @@ const MAX_NEARBY_CATALOG_TIME: Duration = Duration::from_secs(120);
 // A converted multi-gigabyte world can take longer than ten minutes just to
 // enumerate saved chunks and build its first overview.
 const MAX_CATALOG_EXPORT_TIME: Duration = Duration::from_secs(3_600);
+const CONVERTED_CACHE_FORMAT: &str = "bedrock-anvil-v3-vantage-0.15.1";
+
+fn ensure_cache_directory(path: &Path) -> Result<(), String> {
+    match fs::symlink_metadata(path) {
+        Ok(meta) if meta.file_type().is_dir() => Ok(()),
+        Ok(_) => Err("The Bedrock map cache contains a non-directory entry.".into()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            fs::create_dir(path).map_err(|error| error.to_string())
+        }
+        Err(error) => Err(error.to_string()),
+    }
+}
+
+fn hash_saved_bedrock(world: &Path) -> Result<String, String> {
+    let mut files = vec![world.join("level.dat")];
+    let db = world.join("db");
+    for entry in fs::read_dir(&db).map_err(|error| error.to_string())? {
+        let entry = entry.map_err(|error| error.to_string())?;
+        if !entry
+            .file_type()
+            .map_err(|error| error.to_string())?
+            .is_file()
+        {
+            return Err("The saved Bedrock database contains a non-file entry.".into());
+        }
+        files.push(entry.path());
+    }
+    files.sort();
+    let mut digest = Sha256::new();
+    let mut buffer = vec![0u8; 1024 * 1024];
+    for path in files {
+        let relative = path
+            .strip_prefix(world)
+            .map_err(|error| error.to_string())?;
+        let name = relative.to_string_lossy();
+        digest.update((name.len() as u64).to_le_bytes());
+        digest.update(name.as_bytes());
+        let metadata = fs::symlink_metadata(&path).map_err(|error| error.to_string())?;
+        if !metadata.file_type().is_file() {
+            return Err("The saved Bedrock database contains a non-file entry.".into());
+        }
+        digest.update(metadata.len().to_le_bytes());
+        let mut file = File::open(&path).map_err(|error| error.to_string())?;
+        loop {
+            let count = file.read(&mut buffer).map_err(|error| error.to_string())?;
+            if count == 0 {
+                break;
+            }
+            digest.update(&buffer[..count]);
+        }
+    }
+    Ok(format!("{:x}", digest.finalize()))
+}
+
+fn hash_file(path: &Path) -> Result<String, String> {
+    let mut digest = Sha256::new();
+    let mut file = File::open(path).map_err(|error| error.to_string())?;
+    let mut buffer = [0u8; 1024 * 1024];
+    loop {
+        let count = file.read(&mut buffer).map_err(|error| error.to_string())?;
+        if count == 0 {
+            break;
+        }
+        digest.update(&buffer[..count]);
+    }
+    Ok(format!("{:x}", digest.finalize()))
+}
+
+fn cache_directory(
+    server_id: &str,
+    world: &Path,
+    source_revision: &str,
+) -> Result<PathBuf, String> {
+    let canonical = world.canonicalize().map_err(|error| error.to_string())?;
+    let mut digest = Sha256::new();
+    for part in [
+        server_id,
+        &canonical.to_string_lossy(),
+        CONVERTED_CACHE_FORMAT,
+    ] {
+        digest.update(part.as_bytes());
+        digest.update([0]);
+    }
+    let cache_root =
+        msc_infrastructure::config_repository::default_app_data_dir().join("map-cache");
+    ensure_cache_directory(&cache_root)?;
+    let root = cache_root.join("bedrock-compatible-v1");
+    ensure_cache_directory(&root)?;
+    let world_path = root.join(format!("{:x}", digest.finalize()));
+    ensure_cache_directory(&world_path)?;
+    let path = world_path.join(source_revision);
+    ensure_cache_directory(&path)?;
+    Ok(path)
+}
+
+fn cache_lock_path(path: &Path) -> Result<PathBuf, String> {
+    let revision = path
+        .file_name()
+        .ok_or("The Bedrock cache revision is missing.")?;
+    let lock_path = path
+        .parent()
+        .ok_or("The Bedrock cache root is missing.")?
+        .join(format!(".lock-{}", revision.to_string_lossy()));
+    if fs::symlink_metadata(&lock_path).is_ok_and(|meta| !meta.file_type().is_file()) {
+        return Err("The Bedrock converted cache lock is not a regular file.".into());
+    }
+    Ok(lock_path)
+}
+
+fn cache_lock(path: &Path) -> Result<File, String> {
+    let lock_path = cache_lock_path(path)?;
+    let file = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(lock_path)
+        .map_err(|error| error.to_string())?;
+    file.lock_exclusive().map_err(|error| error.to_string())?;
+    Ok(file)
+}
+
+fn active_or_cache_lock(renderer: &super::RendererStore, path: &Path) -> Result<Arc<File>, String> {
+    if let Some(lock) = renderer.prepared_cache_lock(path) {
+        return Ok(lock);
+    }
+    cache_lock(path).map(Arc::new)
+}
+
+fn valid_converted_cache(path: &Path, source_revision: &str) -> Result<bool, String> {
+    let stamp = match fs::read_to_string(path.join("source-revision")) {
+        Ok(stamp) => stamp,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error.to_string()),
+    };
+    if stamp.trim() != source_revision {
+        return Ok(false);
+    }
+    let manifest: serde_json::Value = match fs::read(path.join("bedrock-conversion.json"))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+    {
+        Some(manifest) => manifest,
+        None => return Ok(false),
+    };
+    if manifest["format"] != 2 || manifest["converter"] != "bedrock-anvil-v3" {
+        return Ok(false);
+    }
+    let Some(regions) = manifest["regions"].as_object() else {
+        return Ok(false);
+    };
+    if regions.is_empty() {
+        return Ok(false);
+    }
+    for (key, entry) in regions {
+        let mut parts = key.split(':');
+        let subdir = match parts.next() {
+            Some("overworld") => "",
+            Some("nether") => "DIM-1/",
+            Some("end") => "DIM1/",
+            _ => return Ok(false),
+        };
+        let (Some(x), Some(z), None) = (parts.next(), parts.next(), parts.next()) else {
+            return Ok(false);
+        };
+        let (Ok(x), Ok(z)) = (x.parse::<i32>(), z.parse::<i32>()) else {
+            return Ok(false);
+        };
+        let region = path.join(format!("{subdir}region/r.{x}.{z}.mca"));
+        if !fs::symlink_metadata(&region).is_ok_and(|meta| meta.file_type().is_file()) {
+            return Ok(false);
+        }
+        let Some(expected) = entry["region_file_sha256"].as_str() else {
+            return Ok(false);
+        };
+        if hash_file(&region)? != expected {
+            return Ok(false);
+        }
+    }
+    Ok(path.join("level.dat").is_file())
+}
+
+fn publish_converted_cache(path: &Path, source_revision: &str) -> Result<(), String> {
+    let temporary = path.join("source-revision.tmp");
+    fs::write(&temporary, source_revision).map_err(|error| error.to_string())?;
+    File::open(&temporary)
+        .and_then(|file| file.sync_all())
+        .map_err(|error| error.to_string())?;
+    fs::rename(temporary, path.join("source-revision")).map_err(|error| error.to_string())
+}
+
+fn discard_incompatible_conversion(path: &Path) -> Result<(), String> {
+    let manifest = path.join("bedrock-conversion.json");
+    let compatible = fs::read(&manifest)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+        .is_some_and(|value| value["format"] == 2 && value["converter"] == "bedrock-anvil-v3");
+    if compatible || !manifest.exists() {
+        return Ok(());
+    }
+    for name in ["region", "DIM-1", "DIM1"] {
+        let directory = path.join(name);
+        if directory.exists() {
+            fs::remove_dir_all(directory).map_err(|error| error.to_string())?;
+        }
+    }
+    fs::remove_file(manifest).map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+fn prune_old_converted_generations(current: &Path) {
+    let Some(parent) = current.parent() else {
+        return;
+    };
+    let Ok(entries) = fs::read_dir(parent) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path == current || !entry.file_type().is_ok_and(|kind| kind.is_dir()) {
+            continue;
+        }
+        let Ok(lock_path) = cache_lock_path(&path) else {
+            continue;
+        };
+        let Ok(lock) = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(lock_path)
+        else {
+            continue;
+        };
+        if lock.try_lock_exclusive().is_err() {
+            continue;
+        }
+        // The lock file lives beside the directory so Windows can remove an
+        // unused generation while the revision lock is held.
+        if let Err(error) = fs::remove_dir_all(&path) {
+            eprintln!("Bedrock map: could not prune an old converted generation: {error}");
+        }
+    }
+}
 
 #[derive(Clone, Default)]
 pub(crate) struct BedrockStore(Arc<Mutex<BedrockState>>, Arc<ExporterLifecycle>);
@@ -58,8 +303,11 @@ struct BedrockState {
 }
 
 struct ConvertedWorld {
-    source_snapshot: PathBuf,
+    server_id: String,
+    world: PathBuf,
+    path: PathBuf,
     staging: Arc<crate::map_staging::Staging>,
+    lock: Arc<File>,
 }
 
 impl BedrockState {
@@ -551,6 +799,10 @@ impl BedrockStore {
             .snapshot
             .as_ref()
             .is_some_and(|saved| saved.server_id != server_id || saved.world != world)
+            || current
+                .converted
+                .as_ref()
+                .is_some_and(|saved| saved.server_id != server_id || saved.world != world)
         {
             current.sessions.clear();
             current.tiles.clear();
@@ -558,7 +810,54 @@ impl BedrockStore {
             current.snapshot = None;
             current.converted = None;
         }
-        if current.snapshot.is_none() {
+        if current.snapshot.is_none()
+            && current.converted.is_none()
+            && !lifecycle.status_snapshot().running
+        {
+            let run_generation = lifecycle.bedrock_run_generation();
+            renderer.preparation_update(
+                server_id,
+                dimension,
+                "Checking saved Bedrock content",
+                None,
+                None,
+            );
+            let revision_started = Instant::now();
+            let revision = hash_saved_bedrock(world)?;
+            let path = cache_directory(server_id, world, &revision)?;
+            let lock = active_or_cache_lock(renderer, &path)?;
+            if !lifecycle.bedrock_runtime_is_busy()
+                && lifecycle.bedrock_run_generation() == run_generation
+                && !lifecycle.status_snapshot().running
+                && valid_converted_cache(&path, &revision)?
+            {
+                eprintln!(
+                    "Bedrock map: reused {} converted regions after {:.1}s source check",
+                    serde_json::from_slice::<serde_json::Value>(
+                        &fs::read(path.join("bedrock-conversion.json"))
+                            .map_err(|error| error.to_string())?
+                    )
+                    .ok()
+                    .and_then(|manifest| manifest["regions"]
+                        .as_object()
+                        .map(|regions| regions.len()))
+                    .unwrap_or(0),
+                    revision_started.elapsed().as_secs_f64()
+                );
+                let staging = Arc::new(
+                    crate::map_staging::Staging::create("bedrock-anvil-lease", 0)
+                        .map_err(|error| error.to_string())?,
+                );
+                current.converted = Some(Arc::new(ConvertedWorld {
+                    server_id: server_id.to_owned(),
+                    world: world.to_owned(),
+                    path,
+                    staging,
+                    lock,
+                }));
+            }
+        }
+        if current.snapshot.is_none() && current.converted.is_none() {
             let copied = if lifecycle.status_snapshot().running {
                 crate::backup_operations::snapshot_bedrock_world(
                     lifecycle.clone(),
@@ -580,19 +879,30 @@ impl BedrockStore {
                 snapshot: Arc::new(copied),
             });
         }
-        let snapshot = current.snapshot.as_ref().expect("snapshot was installed");
-        let source_snapshot = snapshot.snapshot.path.clone();
-        let staging = match current
-            .converted
-            .as_ref()
-            .filter(|prepared| prepared.source_snapshot == source_snapshot)
-        {
-            Some(prepared) => prepared.staging.clone(),
-            None => {
-                let stage = Arc::new(
-                    crate::map_staging::Staging::create("bedrock-anvil", 0)
-                        .map_err(|error| error.to_string())?,
-                );
+        if current.converted.is_none() {
+            let source_snapshot = current
+                .snapshot
+                .as_ref()
+                .expect("snapshot was installed")
+                .snapshot
+                .path
+                .clone();
+            let revision_started = Instant::now();
+            let revision = hash_saved_bedrock(&source_snapshot)?;
+            eprintln!(
+                "Bedrock map: snapshot source fingerprinted in {:.1}s",
+                revision_started.elapsed().as_secs_f64()
+            );
+            let path = cache_directory(server_id, world, &revision)?;
+            let lock = active_or_cache_lock(renderer, &path)?;
+            prune_old_converted_generations(&path);
+            let stage = Arc::new(
+                crate::map_staging::Staging::create("bedrock-anvil-lease", 0)
+                    .map_err(|error| error.to_string())?,
+            );
+            if !valid_converted_cache(&path, &revision)? {
+                let _ = fs::remove_file(path.join("source-revision"));
+                discard_incompatible_conversion(&path)?;
                 renderer.preparation_update(
                     server_id,
                     dimension,
@@ -604,7 +914,7 @@ impl BedrockStore {
                 run_anvil_conversion(
                     &binary,
                     &source_snapshot,
-                    stage.path(),
+                    &path,
                     &self.1,
                     lifecycle.status_snapshot().running,
                     &|| lifecycle.status_snapshot().running,
@@ -618,23 +928,36 @@ impl BedrockStore {
                         );
                     },
                 )?;
-                current.converted = Some(Arc::new(ConvertedWorld {
-                    source_snapshot: source_snapshot.clone(),
-                    staging: stage.clone(),
-                }));
-                stage
+                publish_converted_cache(&path, &revision)?;
             }
-        };
+            current.converted = Some(Arc::new(ConvertedWorld {
+                server_id: server_id.to_owned(),
+                world: world.to_owned(),
+                path,
+                staging: stage,
+                lock,
+            }));
+            // The converted region generation is now independent of LevelDB.
+            current.snapshot = None;
+        }
+        let prepared = current
+            .converted
+            .as_ref()
+            .expect("converted world was installed");
+        let staging = prepared.staging.clone();
+        let prepared_world = prepared.path.clone();
+        let cache_lock = prepared.lock.clone();
         drop(current);
-        let prepared_world = staging.path().to_path_buf();
         renderer
             .use_prepared_world(
                 server_id.to_owned(),
                 world.to_owned(),
-                prepared_world,
+                prepared_world.clone(),
                 staging,
+                cache_lock,
             )
             .map_err(|_| "The shared terrain renderer is shutting down.".to_owned())?;
+        prune_old_converted_generations(&prepared_world);
         let result = renderer
             .fetch_visible(server_id, world, dimension, artifact, Some("26.3"), &|| {
                 lifecycle.status_snapshot().running

@@ -18119,3 +18119,14 @@ Bedrock currently routes to a separate `BedrockStore`: it snapshots LevelDB, ope
 **Verify:** `rg -n 'P18\.95|P18\.94|P18\.69' docs/msc2/rolling-plan-archive.md && cat docs/msc2/rolling-plan.md` — the archived steps should be present and the active plan should have no completed map implementation queue.
 **Batch:** P18.95 only.
 **Commit:** `P18.95: archive completed saved-terrain steps`
+
+## October 21, 2026 — v0.1.32 release preparation
+
+### P16.93 — Prepare the v0.1.32 saved-terrain release source
+
+**Status:** Done — source and release notes prepared at Cameron's direction; publication and exact-artifact acceptance are separate.
+**Files:** Agent and desktop version manifests and lockfiles; `README.md`; `docs/msc2/release/v0.1.32.md`; this archive.
+**What:** Align agent, desktop, bundle and lockfile versions at 0.1.32; describe the Java cache, shared Bedrock renderer, pre-render, refresh, block and biome corrections without claiming unmeasured parity. Keep the release workflow build-only and the Phase 16 physical gate open.
+**Verify:** `git show v0.1.32:clients/desktop-web/package.json` — the pushed tag should contain version 0.1.32. The release workflow must publish the nine installers/archives, `SHA256SUMS`, and signed update metadata before the release is considered published.
+**Batch:** P16.93 only.
+**Commit:** `P16.93: prepare v0.1.32 map parity release`

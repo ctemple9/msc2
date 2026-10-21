@@ -4,12 +4,14 @@ use bedrock_world::{
     BedrockWorld, BiomeDataRequirement, ChunkDataRequest, ChunkLoadOptions, Dimension, OpenOptions,
     WorldScanOptions,
 };
+use flate2::{Compression, write::GzEncoder};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, BTreeSet},
     error::Error,
     fs,
+    io::Write,
     path::{Path, PathBuf},
     sync::mpsc,
     time::{Duration, Instant},
@@ -48,6 +50,46 @@ struct RegionWork {
     read_time: Duration,
     nbt_time: Duration,
     encode_time: Duration,
+}
+
+#[derive(Serialize)]
+struct JavaSpawnLevel {
+    #[serde(rename = "Data")]
+    data: JavaSpawnData,
+}
+
+#[derive(Serialize)]
+struct JavaSpawnData {
+    #[serde(rename = "SpawnX")]
+    x: i32,
+    #[serde(rename = "SpawnY")]
+    y: i32,
+    #[serde(rename = "SpawnZ")]
+    z: i32,
+}
+
+fn write_private_spawn_level(
+    source: &Path,
+    output: &Path,
+    spawn: Option<(i32, i32, i32)>,
+) -> Result<(), Box<dyn Error>> {
+    let target = output.join("level.dat");
+    let temporary = output.join("level.dat.tmp");
+    if let Some((x, y, z)) = spawn {
+        // Vantage consumes Java NBT. Only the private converted input gets this
+        // small compatibility document; the Bedrock save remains untouched.
+        let nbt = fastnbt::to_bytes(&JavaSpawnLevel {
+            data: JavaSpawnData { x, y, z },
+        })?;
+        let mut gzip = GzEncoder::new(Vec::new(), Compression::default());
+        gzip.write_all(&nbt)?;
+        fs::write(&temporary, gzip.finish()?)?;
+    } else {
+        // An unreadable/missing spawn retains Vantage's populated-bounds fallback.
+        fs::copy(source.join("level.dat"), &temporary)?;
+    }
+    fs::rename(temporary, target)?;
+    Ok(())
 }
 
 fn selected_region(value: &str) -> Result<(Dimension, i32, i32), Box<dyn Error>> {
@@ -93,6 +135,14 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
     let level = world.read_level_dat_blocking()?;
     let NbtTag::Compound(root) = level.root else {
         return Err("level.dat root is not a compound".into());
+    };
+    let spawn = match (root.get("SpawnX"), root.get("SpawnY"), root.get("SpawnZ")) {
+        (Some(NbtTag::Int(x)), Some(NbtTag::Int(y)), Some(NbtTag::Int(z)))
+            if (-64..320).contains(y) =>
+        {
+            Some((*x, *y, *z))
+        }
+        _ => None,
     };
     let version = root
         .get("lastOpenedWithVersion")
@@ -364,7 +414,7 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
         manifest.regions.remove(&key);
     }
     write_manifest(&output, &manifest)?;
-    fs::copy(source.join("level.dat"), output.join("level.dat"))?;
+    write_private_spawn_level(&source, &output, spawn)?;
     println!(
         "{}",
         serde_json::json!({"totalRegions":total,"reusedRegions":reused,"convertedRegions":completed-reused,"output":output,"registrySha256":registry_sha256})

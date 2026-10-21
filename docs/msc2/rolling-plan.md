@@ -216,9 +216,9 @@ Bedrock currently routes to a separate `BedrockStore`: it snapshots LevelDB, ope
 
 ### P18.84d — Open Bedrock at its saved spawn
 
-**Status:** Planned.
-**Files:** `tools/world-map-proof/src/anvil_convert.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `third_party/vantage/src/world.zig` if the shared input contract needs it; `docs/msc2/rolling-plan.md`.
-**What:** Read Bedrock's saved spawn from its native `level.dat` and supply it to Vantage through the private converted input or a shared explicit spawn field. Verify coordinate and dimension mapping, keep the populated-bounds fallback only when saved spawn is unavailable, and avoid rewriting the playable world. Opening the map should center on the same intended starting area as Java rather than an arbitrary center of a large or asymmetric saved world.
+**Status:** Implemented; awaiting Cameron's optimized-build off-center Bedrock spawn check. No tests added or run.
+**Files:** `tools/world-map-proof/src/anvil_convert.rs`; `docs/msc2/rolling-plan.md`.
+**What:** The converter reads native Bedrock `SpawnX/Y/Z` integer coordinates from `level.dat` and, for a valid Overworld-height spawn, writes a minimal gzip Java-NBT `Data.SpawnX/Y/Z` document into the private converted input. Vantage's existing Java spawn reader and dimension mapping can therefore set the same initial camera and region-priority pivot for Bedrock. Missing or invalid saved coordinates leave the native metadata in the private input so Vantage falls back to populated bounds. Publication uses a temporary file and rename; the playable Bedrock save is never rewritten. Cameron's off-center-world opening remains the physical coordinate check.
 **Verify:** `cd clients/desktop-web && npx tauri build` — Cameron opens a small disposable Bedrock world with a known off-center spawn and confirms the first camera position matches it; Bedtonic's full conversion is not needed.
 **Batch:** P18.84d only.
 **Commit:** `P18.84d: use bedrock saved spawn for first view`

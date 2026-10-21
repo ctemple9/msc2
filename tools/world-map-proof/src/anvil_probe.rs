@@ -2,8 +2,9 @@
 //! This is deliberately a fidelity probe, not a production world converter.
 
 use bedrock_world::{
-    BedrockWorld, BiomeDataRequirement, ChunkData, ChunkDataRequest, ChunkLoadOptions, Dimension,
-    OpenOptions, SubChunkFormat, WorldChunkQueryRegion, WorldScanOptions,
+    BedrockWorld, BiomeDataRequirement, BlockPalette, ChunkData, ChunkDataRequest,
+    ChunkLoadOptions, Dimension, OpenOptions, SubChunkFormat, WorldChunkQueryRegion,
+    WorldScanOptions,
 };
 use fastnbt::LongArray;
 use flate2::{Compression, write::ZlibEncoder};
@@ -189,18 +190,183 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn block_name(name: &str, findings: &mut Findings) -> String {
-    let mapped = match name {
+fn mapped_block_name(name: &str) -> &str {
+    match name {
         "minecraft:grass" => "minecraft:grass_block",
         "minecraft:stonebrick" => "minecraft:stone_bricks",
         "minecraft:flowing_water" => "minecraft:water",
         "minecraft:flowing_lava" => "minecraft:lava",
         _ => name,
-    };
-    if mapped != name {
-        findings.renamed.insert(name.to_owned(), mapped.to_owned());
     }
-    mapped.to_owned()
+}
+
+fn is_palette_air(name: &str) -> bool {
+    // bedrock-world keeps this predicate private; mirror its visible-layer rule here so the
+    // optimized path can select layers from numeric palettes instead of resolving each voxel.
+    matches!(
+        name,
+        "air"
+            | "cave_air"
+            | "void_air"
+            | "minecraft:air"
+            | "minecraft:cave_air"
+            | "minecraft:void_air"
+            | "minecraft:structure_void"
+            | "minecraft:light_block"
+            | "minecraft:light"
+    )
+}
+
+fn state_signature(name: &str, properties: &BTreeMap<String, String>) -> String {
+    let mut signature = name.to_owned();
+    for (key, value) in properties {
+        signature.push('\0');
+        signature.push_str(key);
+        signature.push('=');
+        signature.push_str(value);
+    }
+    signature
+}
+
+fn intern_state(
+    name: String,
+    properties: BTreeMap<String, String>,
+    states: &mut Vec<(String, BTreeMap<String, String>)>,
+    lookup: &mut HashMap<String, usize>,
+) -> usize {
+    let signature = state_signature(&name, &properties);
+    if let Some(&index) = lookup.get(&signature) {
+        return index;
+    }
+    let index = states.len();
+    states.push((name, properties));
+    lookup.insert(signature, index);
+    index
+}
+
+fn encode_block_states(storages: &[BlockPalette], findings: &mut Findings) -> AnvilBlockStates {
+    let mut canonical_states = Vec::<(String, BTreeMap<String, String>)>::new();
+    let mut canonical_lookup = HashMap::<String, usize>::new();
+    let air_state = intern_state(
+        "minecraft:air".to_owned(),
+        BTreeMap::new(),
+        &mut canonical_states,
+        &mut canonical_lookup,
+    );
+    let mut source_state_names = Vec::<String>::new();
+    let mut source_state_is_air = Vec::<bool>::new();
+    let mut source_state_to_canonical = Vec::<Vec<usize>>::with_capacity(storages.len());
+    let mut source_state_offsets = Vec::<usize>::with_capacity(storages.len());
+
+    for storage in storages {
+        source_state_offsets.push(source_state_names.len());
+        let mut palette_map = Vec::with_capacity(storage.states.len());
+        for state in &storage.states {
+            source_state_names.push(state.name.clone());
+            source_state_is_air.push(is_palette_air(&state.name));
+            let properties = state
+                .states
+                .iter()
+                .map(|(key, value)| (key.clone(), property_string(key, value)))
+                .collect::<BTreeMap<_, _>>();
+            palette_map.push(intern_state(
+                mapped_block_name(&state.name).to_owned(),
+                properties,
+                &mut canonical_states,
+                &mut canonical_lookup,
+            ));
+        }
+        source_state_to_canonical.push(palette_map);
+    }
+
+    let mut output_palette_ids = Vec::<usize>::new();
+    let mut output_index_by_state = vec![None; canonical_states.len()];
+    let mut source_state_counts = vec![0u64; source_state_names.len()];
+    let mut fallback_air_count = 0u64;
+    let mut indices = Vec::with_capacity(4096);
+    for y in 0u8..16 {
+        for z in 0u8..16 {
+            for x in 0u8..16 {
+                // Bedrock stores Y as the innermost axis; Anvil's packed array is emitted
+                // with X innermost below, so the coordinate order stays explicit here.
+                let bedrock_index = usize::from(x) * 256 + usize::from(z) * 16 + usize::from(y);
+                let mut visible = None;
+                for storage_index in (0..storages.len()).rev() {
+                    let storage = &storages[storage_index];
+                    let palette_index = storage
+                        .indices
+                        .as_ref()
+                        .and_then(|values| values.get(bedrock_index).copied())
+                        .or_else(|| storage.palette_index_at(x, y, z));
+                    let Some(palette_index) = palette_index.map(usize::from) else {
+                        continue;
+                    };
+                    let Some(&canonical_index) =
+                        source_state_to_canonical[storage_index].get(palette_index)
+                    else {
+                        continue;
+                    };
+                    let source_state_index = source_state_offsets[storage_index] + palette_index;
+                    if !source_state_is_air[source_state_index] {
+                        visible = Some((source_state_index, canonical_index));
+                        break;
+                    }
+                }
+                let canonical_index = if let Some((source_index, canonical_index)) = visible {
+                    source_state_counts[source_index] += 1;
+                    canonical_index
+                } else {
+                    fallback_air_count += 1;
+                    air_state
+                };
+                let output_index = match output_index_by_state[canonical_index] {
+                    Some(index) => index,
+                    None => {
+                        let index = output_palette_ids.len();
+                        output_palette_ids.push(canonical_index);
+                        output_index_by_state[canonical_index] = Some(index);
+                        index
+                    }
+                };
+                indices.push(output_index);
+            }
+        }
+    }
+
+    for (source_index, count) in source_state_counts.into_iter().enumerate() {
+        if count == 0 {
+            continue;
+        }
+        let raw_name = &source_state_names[source_index];
+        *findings.blocks.entry(raw_name.clone()).or_default() += count;
+        let mapped_name = mapped_block_name(raw_name);
+        if mapped_name != raw_name {
+            findings
+                .renamed
+                .insert(raw_name.clone(), mapped_name.to_owned());
+        }
+    }
+    if fallback_air_count > 0 {
+        *findings
+            .blocks
+            .entry("minecraft:air".to_owned())
+            .or_default() += fallback_air_count;
+    }
+
+    let palette = output_palette_ids
+        .into_iter()
+        .map(|index| {
+            let (name, properties) = &canonical_states[index];
+            AnvilBlock {
+                name: name.clone(),
+                properties: properties.clone(),
+            }
+        })
+        .collect::<Vec<_>>();
+    AnvilBlockStates {
+        data: (palette.len() > 1).then(|| LongArray::new(pack(&indices, 4))),
+        palette,
+    }
 }
 
 pub(crate) fn encode_chunk(
@@ -222,48 +388,7 @@ pub(crate) fn encode_chunk(
         if storages.len() > 1 {
             findings.layered_sections += 1;
         }
-        let mut palette = Vec::<(String, BTreeMap<String, String>)>::new();
-        let mut lookup = HashMap::<String, usize>::new();
-        let mut indices = Vec::with_capacity(4096);
-        for y in 0..16 {
-            for z in 0..16 {
-                for x in 0..16 {
-                    let state = subchunk.visible_block_state_at(x, y, z);
-                    let raw_name = state.map_or("minecraft:air", |state| state.name.as_str());
-                    *findings.blocks.entry(raw_name.to_owned()).or_default() += 1;
-                    let name = block_name(raw_name, findings);
-                    let properties = state.map(|state| {
-                        state
-                            .states
-                            .iter()
-                            .map(|(key, value)| (key.clone(), property_string(key, value)))
-                            .collect::<BTreeMap<_, _>>()
-                    });
-                    let mut signature = name.clone();
-                    if let Some(properties) = &properties {
-                        for (key, value) in properties {
-                            signature.push('\0');
-                            signature.push_str(key);
-                            signature.push('=');
-                            signature.push_str(value);
-                        }
-                    }
-                    let index = *lookup.entry(signature).or_insert_with(|| {
-                        let index = palette.len();
-                        palette.push((name, properties.unwrap_or_default()));
-                        index
-                    });
-                    indices.push(index);
-                }
-            }
-        }
-        let block_states = AnvilBlockStates {
-            palette: palette
-                .into_iter()
-                .map(|(name, properties)| AnvilBlock { name, properties })
-                .collect(),
-            data: (lookup.len() > 1).then(|| LongArray::new(pack(&indices, 4))),
-        };
+        let block_states = encode_block_states(storages, findings);
         let biome = chunk.biome_data.get(&(i32::from(sy)));
         if let Some(biome) = biome {
             for (&id, &count) in biome.palette.iter().zip(&biome.counts) {
@@ -403,5 +528,63 @@ fn property_string(key: &str, value: &bedrock_world::NbtTag) -> String {
         | N::ShortArray(_)
         | N::List(_)
         | N::Compound(_) => format!("{value:?}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bedrock_world::{BlockState, NbtTag, block_storage_index};
+
+    #[test]
+    fn palette_transcode_preserves_layered_air_and_state_aliases() {
+        let mut top_indices = vec![0; 4096];
+        top_indices[block_storage_index(1, 0, 0)] = 1;
+        let bottom = BlockPalette::with_unpacked_indices(
+            vec![BlockState {
+                name: "minecraft:grass".to_owned(),
+                states: BTreeMap::from([("snowy".to_owned(), NbtTag::Byte(1))]),
+                version: None,
+            }],
+            vec![0; 4096],
+            None,
+        );
+        let top = BlockPalette::with_unpacked_indices(
+            vec![
+                BlockState {
+                    name: "minecraft:air".to_owned(),
+                    states: BTreeMap::new(),
+                    version: None,
+                },
+                BlockState {
+                    name: "minecraft:stone".to_owned(),
+                    states: BTreeMap::new(),
+                    version: None,
+                },
+            ],
+            top_indices,
+            None,
+        );
+        let mut findings = Findings::default();
+
+        let encoded = encode_block_states(&[bottom, top], &mut findings);
+
+        assert_eq!(encoded.palette.len(), 2);
+        assert_eq!(encoded.palette[0].name, "minecraft:grass_block");
+        assert_eq!(encoded.palette[0].properties.get("snowy").unwrap(), "true");
+        assert_eq!(encoded.palette[1].name, "minecraft:stone");
+        let mut expected_indices = vec![0; 4096];
+        expected_indices[1] = 1;
+        assert_eq!(
+            encoded.data,
+            Some(LongArray::new(pack(&expected_indices, 4)))
+        );
+        assert_eq!(findings.blocks.get("minecraft:grass"), Some(&4095));
+        assert_eq!(findings.blocks.get("minecraft:stone"), Some(&1));
+        assert!(!findings.blocks.contains_key("minecraft:air"));
+        assert_eq!(
+            findings.renamed.get("minecraft:grass"),
+            Some(&"minecraft:grass_block".to_owned())
+        );
     }
 }

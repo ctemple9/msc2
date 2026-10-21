@@ -198,9 +198,9 @@ Bedrock currently routes to a separate `BedrockStore`: it snapshots LevelDB, ope
 
 ### P18.84b — Make converted region revisions deterministic
 
-**Status:** Planned.
+**Status:** Implemented; awaiting Cameron's bounded optimized-build identical-snapshot reuse and changed-chunk verification. No tests added or run.
 **Files:** `tools/world-map-proof/src/anvil_probe.rs`; `tools/world-map-proof/src/anvil_convert.rs`; `docs/msc2/rolling-plan.md`.
-**What:** Serialize Bedrock-to-Anvil NBT compounds and chunks in a stable order, then define the converted-content fingerprint over that canonical order. Update the converter-format/version marker so earlier nondeterministic manifests cannot be mistaken for stable cache entries. Re-running conversion against the same immutable snapshot must produce matching region fingerprints and permit reuse; a changed saved chunk must still change the relevant revision. This prerequisite protects P18.85's retained regions and Vantage tile cache from needless rebuilding.
+**What:** Converted chunks now use fixed-order typed NBT fields and sorted block properties; sections and region chunks are sorted by saved coordinates before hashing and writing. The manifest uses format 2 / converter `bedrock-anvil-v3`, rejecting older nondeterministic entries rather than accepting them as cache hits. A matching immutable snapshot should now produce the same fingerprints and reuse its regions; changed saved chunks still alter the revision. Physical reuse and changed-chunk checks remain for Cameron.
 **Verify:** `cargo build --manifest-path tools/world-map-proof/Cargo.toml --release` — Cameron converts a bounded immutable sample twice into the same output, checks that the second pass reports region reuse and identical hashes, then changes one chunk in a disposable snapshot and confirms its region changes.
 **Batch:** P18.84b only.
 **Commit:** `P18.84b: stabilize bedrock converted region revisions`

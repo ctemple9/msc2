@@ -110,14 +110,14 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
         "neutral-unmapped-biomes-v1".to_owned()
     };
     let mut manifest = read_manifest(&output)?.unwrap_or(Manifest {
-        format: 1,
-        converter: "bedrock-anvil-v2".into(),
+        format: 2,
+        converter: "bedrock-anvil-v3".into(),
         source_version: version.clone(),
         biome_mapping: registry_sha256.clone(),
         regions: BTreeMap::new(),
     });
-    if manifest.format != 1
-        || manifest.converter != "bedrock-anvil-v2"
+    if manifest.format != 2
+        || manifest.converter != "bedrock-anvil-v3"
         || manifest.source_version != version
         || manifest.biome_mapping != registry_sha256
     {
@@ -138,6 +138,9 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
             .entry((pos.dimension, pos.x.div_euclid(32), pos.z.div_euclid(32)))
             .or_default()
             .push(pos);
+    }
+    for positions in regions.values_mut() {
+        positions.sort_unstable_by_key(|pos| (pos.z, pos.x));
     }
     eprintln!(
         "Bedrock prepare: indexed {} saved regions in {:.1}s",
@@ -163,7 +166,6 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
                 .map_or(1, usize::from)
                 .clamp(1, 4),
         );
-        let mut contents = Vec::new();
         let mut region_chunks = Vec::new();
         for batch in positions.chunks(32) {
             let chunks =
@@ -178,13 +180,17 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
                     exact_biome_registry.then_some(&biome_names),
                     true,
                 )?;
-                contents.extend_from_slice(&chunk.pos.x.to_le_bytes());
-                contents.extend_from_slice(&chunk.pos.z.to_le_bytes());
-                contents.extend_from_slice(&nbt);
                 region_chunks.push((chunk.pos.x, chunk.pos.z, nbt));
             }
         }
-        let digest = hex(&Sha256::digest(&contents));
+        region_chunks.sort_unstable_by_key(|(x, z, _)| (*z, *x));
+        let mut content_hash = Sha256::new();
+        for (x, z, nbt) in &region_chunks {
+            content_hash.update(x.to_le_bytes());
+            content_hash.update(z.to_le_bytes());
+            content_hash.update(nbt);
+        }
+        let digest = hex(&content_hash.finalize());
         let target = region_path(&output, dimension, rx, rz);
         let existing_region_hash = target
             .is_file()

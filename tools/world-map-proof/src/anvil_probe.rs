@@ -5,8 +5,9 @@ use bedrock_world::{
     BedrockWorld, BiomeDataRequirement, ChunkData, ChunkDataRequest, ChunkLoadOptions, Dimension,
     OpenOptions, SubChunkFormat, WorldChunkQueryRegion, WorldScanOptions,
 };
-use fastnbt::{LongArray, Value};
+use fastnbt::LongArray;
 use flate2::{Compression, write::ZlibEncoder};
+use serde::Serialize;
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::fs;
@@ -26,6 +27,47 @@ pub(crate) struct Findings {
 }
 
 type RegionChunks = BTreeMap<(i32, i32), Vec<(i32, i32, Vec<u8>)>>;
+
+#[derive(Serialize)]
+struct AnvilBlock {
+    #[serde(rename = "Name")]
+    name: String,
+    #[serde(rename = "Properties", skip_serializing_if = "BTreeMap::is_empty")]
+    properties: BTreeMap<String, String>,
+}
+
+#[derive(Serialize)]
+struct AnvilBlockStates {
+    palette: Vec<AnvilBlock>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<LongArray>,
+}
+
+#[derive(Serialize)]
+struct AnvilBiomes {
+    palette: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<LongArray>,
+}
+
+#[derive(Serialize)]
+struct AnvilSection {
+    #[serde(rename = "Y")]
+    y: i8,
+    block_states: AnvilBlockStates,
+    biomes: AnvilBiomes,
+}
+
+#[derive(Serialize)]
+struct AnvilChunk {
+    #[serde(rename = "DataVersion")]
+    data_version: i32,
+    #[serde(rename = "xPos")]
+    x: i32,
+    #[serde(rename = "zPos")]
+    z: i32,
+    sections: Vec<AnvilSection>,
+}
 
 pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
     let source = Path::new(
@@ -168,7 +210,9 @@ pub(crate) fn encode_chunk(
     allow_unmapped_biomes: bool,
 ) -> Result<Vec<u8>, Box<dyn Error>> {
     let mut sections = Vec::new();
-    for (&sy, subchunk) in &chunk.subchunks {
+    let mut subchunks = chunk.subchunks.iter().collect::<Vec<_>>();
+    subchunks.sort_unstable_by_key(|&(&sy, _)| sy);
+    for (&sy, subchunk) in subchunks {
         findings.min_section = Some(findings.min_section.map_or(sy, |value| value.min(sy)));
         findings.max_section = Some(findings.max_section.map_or(sy, |value| value.max(sy)));
         let SubChunkFormat::Paletted { storages, .. } = &subchunk.format else {
@@ -213,27 +257,13 @@ pub(crate) fn encode_chunk(
                 }
             }
         }
-        let block_palette = palette
-            .into_iter()
-            .map(|(name, properties)| {
-                let properties = properties
-                    .into_iter()
-                    .map(|(key, value)| (key, Value::String(value)))
-                    .collect::<HashMap<_, _>>();
-                let mut fields = HashMap::from([("Name".to_owned(), Value::String(name))]);
-                if !properties.is_empty() {
-                    fields.insert("Properties".to_owned(), Value::Compound(properties));
-                }
-                Ok(Value::Compound(fields))
-            })
-            .collect::<Result<Vec<_>, Box<dyn Error>>>()?;
-        let mut block_states = HashMap::from([("palette".to_owned(), Value::List(block_palette))]);
-        if lookup.len() > 1 {
-            block_states.insert(
-                "data".to_owned(),
-                Value::LongArray(LongArray::new(pack(&indices, 4))),
-            );
-        }
+        let block_states = AnvilBlockStates {
+            palette: palette
+                .into_iter()
+                .map(|(name, properties)| AnvilBlock { name, properties })
+                .collect(),
+            data: (lookup.len() > 1).then(|| LongArray::new(pack(&indices, 4))),
+        };
         let biome = chunk.biome_data.get(&(i32::from(sy)));
         if let Some(biome) = biome {
             for (&id, &count) in biome.palette.iter().zip(&biome.counts) {
@@ -269,38 +299,22 @@ pub(crate) fn encode_chunk(
                 }
             }
         }
-        let mut biome_tag = HashMap::from([(
-            "palette".to_owned(),
-            Value::List(biome_palette.into_iter().map(Value::String).collect()),
-        )]);
-        if biome_lookup.len() > 1 {
-            biome_tag.insert(
-                "data".to_owned(),
-                Value::LongArray(LongArray::new(pack(&biome_indices, 1))),
-            );
-        }
-        sections.push(compound([
-            ("Y", Value::Byte(sy)),
-            ("block_states", Value::Compound(block_states)),
-            ("biomes", Value::Compound(biome_tag)),
-        ]));
+        sections.push(AnvilSection {
+            y: sy,
+            block_states,
+            biomes: AnvilBiomes {
+                palette: biome_palette,
+                data: (biome_lookup.len() > 1).then(|| LongArray::new(pack(&biome_indices, 1))),
+            },
+        });
     }
-    fastnbt::to_bytes(&compound([
-        ("DataVersion", Value::Int(3700)),
-        ("xPos", Value::Int(chunk.pos.x)),
-        ("zPos", Value::Int(chunk.pos.z)),
-        ("sections", Value::List(sections)),
-    ]))
+    fastnbt::to_bytes(&AnvilChunk {
+        data_version: 3700,
+        x: chunk.pos.x,
+        z: chunk.pos.z,
+        sections,
+    })
     .map_err(Into::into)
-}
-
-fn compound<const N: usize>(entries: [(&str, Value); N]) -> Value {
-    Value::Compound(
-        entries
-            .into_iter()
-            .map(|(key, value)| (key.to_owned(), value))
-            .collect(),
-    )
 }
 
 fn pack(indices: &[usize], min_bits: usize) -> Vec<i64> {

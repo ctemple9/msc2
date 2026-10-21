@@ -189,9 +189,9 @@ Bedrock currently routes to a separate `BedrockStore`: it snapshots LevelDB, ope
 
 ### P18.84a — Cancel Bedrock preparation on every platform
 
-**Status:** Planned.
+**Status:** Implemented; awaiting Cameron's optimized-build cancellation and retry check on a small disposable Bedrock world. No tests added or run.
 **Files:** `crates/msc-agent/src/routes/worlds.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `docs/msc2/rolling-plan.md`.
-**What:** Signal the Bedrock conversion shutdown flag on macOS and Linux as well as Windows before agent cleanup waits for Bedrock state. Ensure a running `anvil-convert` child is stopped and reaped, the current incomplete region remains unpublished, and service stop/repair does not wait for the whole conversion. A fresh agent must accept a later retry. Do not weaken the safe immutable-snapshot boundary or source-world protection.
+**What:** Agent shutdown now signals Bedrock conversion on macOS and Linux as well as Windows before cache cleanup waits for Bedrock state. The existing conversion poll kills and reaps the child when that signal arrives. A shutdown check before launch avoids starting a new converter after stop begins; if the child lacks a progress pipe, it is also stopped and reaped before returning an error. Region publication remains atomic in the converter, and a fresh agent starts with a clear shutdown flag. Physical cancellation and retry remain for Cameron to verify.
 **Verify:** `cd clients/desktop-web && npx tauri build` — Cameron then starts conversion on a small disposable Bedrock world, stops the agent before completion, and confirms prompt exit, no leftover converter, and a successful later retry; no full Bedtonic run is needed.
 **Batch:** P18.84a only.
 **Commit:** `P18.84a: cancel bedrock map conversion on shutdown`

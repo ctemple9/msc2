@@ -390,9 +390,9 @@ pub struct WorldsRoutesState {
 impl WorldsRoutesState {
     pub(crate) fn begin_map_shutdown(&self) {
         self.map_shutdown.store(true, Ordering::Release);
+        self.bedrock_map.set_shutdown(true);
         #[cfg(target_os = "windows")]
         {
-            self.bedrock_map.set_shutdown(true);
             self.map_renderer.set_shutdown(true);
         }
     }

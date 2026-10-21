@@ -356,7 +356,6 @@ pub(super) async fn artifact(
 }
 
 impl BedrockStore {
-    #[cfg(target_os = "windows")]
     pub(crate) fn set_shutdown(&self, shutdown: bool) {
         self.1.shutdown.store(shutdown, Ordering::Release);
     }
@@ -1300,6 +1299,9 @@ fn run_anvil_conversion(
     lifecycle: &ExporterLifecycle,
     progress: &(impl Fn(usize, usize) + Sync),
 ) -> Result<(), String> {
+    if lifecycle.shutdown.load(Ordering::Acquire) {
+        return Err("The local agent is shutting down.".into());
+    }
     let mut child = Command::new(binary)
         .arg("anvil-convert")
         .arg(snapshot)
@@ -1309,10 +1311,10 @@ fn run_anvil_conversion(
         .stderr(Stdio::inherit())
         .spawn()
         .map_err(|error| format!("Could not start Bedrock region conversion: {error}"))?;
-    let stdout = child
-        .stdout
-        .take()
-        .ok_or("Bedrock converter has no progress output.")?;
+    let Some(stdout) = child.stdout.take() else {
+        lifecycle.stop(&mut child);
+        return Err("Bedrock converter has no progress output.".into());
+    };
     let (sender, receiver) = mpsc::channel();
     let reader = std::thread::spawn(move || {
         for line in BufReader::new(stdout).lines() {

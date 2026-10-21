@@ -129,10 +129,10 @@ pub fn decode(arena: std.mem.Allocator, root: []const nbt.Entry) Error!Chunk {
             st.* = "";
             if (p == .compound) {
                 if (nbt.get(p.compound, "Name")) |n| {
-                    if (n.* == .string) nm.* = n.string;
+                    if (n.* == .string) nm.* = javaModelName(n.string);
                 }
                 if (nbt.get(p.compound, "Properties")) |pr| {
-                    if (pr.* == .compound) st.* = try buildStateKey(arena, pr.compound);
+                    if (pr.* == .compound) st.* = try buildStateKey(arena, nm.*, pr.compound);
                 }
             }
         }
@@ -166,21 +166,114 @@ pub fn decode(arena: std.mem.Allocator, root: []const nbt.Entry) Error!Chunk {
     };
 }
 
-/// Build a normalized state key from a block's `Properties` compound: each
-/// string property as "k=v", sorted by key, joined with ",". Sorting makes the
-/// key canonical so it matches blockstate variant keys (which are sorted too).
-fn buildStateKey(arena: std.mem.Allocator, props: []const nbt.Entry) Error![]const u8 {
+fn javaModelName(name: []const u8) []const u8 {
+    // Private Bedrock Anvil regions retain source palette names. Resolve legacy
+    // Bedrock IDs here so an existing conversion does not need to run again.
+    const aliases = .{
+        .{ "minecraft:hardened_clay", "minecraft:terracotta" },
+        .{ "minecraft:grass_path", "minecraft:dirt_path" },
+        .{ "minecraft:reeds", "minecraft:sugar_cane" },
+        .{ "minecraft:wooden_door", "minecraft:oak_door" },
+        .{ "minecraft:trapdoor", "minecraft:oak_trapdoor" },
+        .{ "minecraft:snow_layer", "minecraft:snow" },
+        .{ "minecraft:waxed_copper", "minecraft:waxed_copper_block" },
+        .{ "minecraft:magma", "minecraft:magma_block" },
+        .{ "minecraft:web", "minecraft:cobweb" },
+        .{ "minecraft:dirt_with_roots", "minecraft:rooted_dirt" },
+        .{ "minecraft:deadbush", "minecraft:dead_bush" },
+        .{ "minecraft:wooden_button", "minecraft:oak_button" },
+        .{ "minecraft:brick_block", "minecraft:bricks" },
+        .{ "minecraft:azalea_leaves_flowered", "minecraft:flowering_azalea_leaves" },
+        .{ "minecraft:waterlily", "minecraft:lily_pad" },
+        .{ "minecraft:melon_block", "minecraft:melon" },
+        .{ "minecraft:mob_spawner", "minecraft:spawner" },
+        .{ "minecraft:small_dripleaf_block", "minecraft:small_dripleaf" },
+        .{ "minecraft:trip_wire", "minecraft:tripwire" },
+        .{ "minecraft:lit_redstone_lamp", "minecraft:redstone_lamp" },
+        .{ "minecraft:unlit_redstone_torch", "minecraft:redstone_torch" },
+        .{ "minecraft:quartz_ore", "minecraft:nether_quartz_ore" },
+        .{ "minecraft:noteblock", "minecraft:note_block" },
+        .{ "minecraft:beetroot", "minecraft:beetroots" },
+        .{ "minecraft:fence_gate", "minecraft:oak_fence_gate" },
+        .{ "minecraft:lit_pumpkin", "minecraft:jack_o_lantern" },
+    };
+    inline for (aliases) |alias| {
+        if (std.mem.eql(u8, name, alias[0])) return alias[1];
+    }
+    return name;
+}
+
+/// Keep Bedrock's saved orientation while selecting the matching Java variant.
+fn buildStateKey(arena: std.mem.Allocator, name: []const u8, props: []const nbt.Entry) Error![]const u8 {
     var pairs: std.ArrayList([]const u8) = .empty;
     for (props) |e| {
-        const v = switch (e.tag) {
+        var v = switch (e.tag) {
             .string => |s| s,
             else => continue,
         };
-        try pairs.append(arena, try std.fmt.allocPrint(arena, "{s}={s}", .{ e.name, v }));
+        var key = e.name;
+        if (std.mem.eql(u8, key, "pillar_axis")) {
+            key = "axis";
+        } else if (std.mem.startsWith(u8, key, "minecraft:connection_")) {
+            key = key["minecraft:connection_".len..];
+            v = bedrockBit(v);
+        } else if (std.mem.endsWith(u8, name, "_door") and !std.mem.endsWith(u8, name, "_trapdoor")) {
+            if (std.mem.eql(u8, key, "minecraft:cardinal_direction")) {
+                key = "facing";
+            } else if (std.mem.eql(u8, key, "door_hinge_bit")) {
+                key = "hinge";
+                v = if (std.mem.eql(u8, v, "1")) "right" else "left";
+            } else if (std.mem.eql(u8, key, "upper_block_bit")) {
+                key = "half";
+                v = if (std.mem.eql(u8, v, "1")) "upper" else "lower";
+            } else if (std.mem.eql(u8, key, "open_bit")) {
+                key = "open";
+                v = bedrockBit(v);
+            }
+        } else if (std.mem.eql(u8, name, "minecraft:snow") and std.mem.eql(u8, key, "height")) {
+            key = "layers";
+            const layers = [_][]const u8{ "1", "2", "3", "4", "5", "6", "7", "8" };
+            const index = std.fmt.parseInt(usize, v, 10) catch 0;
+            v = layers[@min(index, 7)];
+        }
+        try pairs.append(arena, try std.fmt.allocPrint(arena, "{s}={s}", .{ key, v }));
     }
     if (pairs.items.len == 0) return "";
     std.mem.sort([]const u8, pairs.items, {}, lessThanStr);
     return std.mem.join(arena, ",", pairs.items);
+}
+
+fn bedrockBit(value: []const u8) []const u8 {
+    if (std.mem.eql(u8, value, "1")) return "true";
+    if (std.mem.eql(u8, value, "0")) return "false";
+    return value;
+}
+
+test "Bedrock palettes select the intended Java block models" {
+    var scratch = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer scratch.deinit();
+    const arena = scratch.allocator();
+    try std.testing.expectEqualStrings("minecraft:terracotta", javaModelName("minecraft:hardened_clay"));
+    try std.testing.expectEqualStrings("minecraft:dirt_path", javaModelName("minecraft:grass_path"));
+    try std.testing.expectEqualStrings("minecraft:sugar_cane", javaModelName("minecraft:reeds"));
+    try std.testing.expectEqualStrings("minecraft:stone", javaModelName("minecraft:stone"));
+
+    const log = [_]nbt.Entry{.{ .name = "pillar_axis", .tag = .{ .string = "z" } }};
+    const log_key = try buildStateKey(arena, "minecraft:oak_log", &log);
+    try std.testing.expectEqualStrings("axis=z", log_key);
+
+    const pane = [_]nbt.Entry{.{ .name = "minecraft:connection_north", .tag = .{ .string = "1" } }};
+    const pane_key = try buildStateKey(arena, "minecraft:glass_pane", &pane);
+    try std.testing.expectEqualStrings("north=true", pane_key);
+
+    const door = [_]nbt.Entry{
+        .{ .name = "minecraft:cardinal_direction", .tag = .{ .string = "west" } },
+        .{ .name = "door_hinge_bit", .tag = .{ .string = "1" } },
+        .{ .name = "open_bit", .tag = .{ .string = "0" } },
+        .{ .name = "upper_block_bit", .tag = .{ .string = "1" } },
+    };
+    const door_key = try buildStateKey(arena, "minecraft:oak_door", &door);
+    try std.testing.expectEqualStrings("facing=west,half=upper,hinge=right,open=false", door_key);
 }
 
 fn lessThanStr(_: void, a: []const u8, b: []const u8) bool {

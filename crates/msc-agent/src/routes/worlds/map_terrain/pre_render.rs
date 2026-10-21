@@ -15,7 +15,7 @@ use msc_domain::operation::OperationId;
 use msc_infrastructure::fs::StdFileSystem;
 use serde::{Deserialize, Serialize};
 
-use super::{RendererStore, java_terrain_compat};
+use super::{BEDROCK_TILE_CACHE_KEY, RendererStore, java_terrain_compat};
 use crate::auth::AuthenticatedCredential;
 use crate::routes::lifecycle::require_permission;
 use crate::routes::worlds::{
@@ -342,7 +342,11 @@ fn estimate(
         world,
         dimension,
         &assets,
-        if bedrock { "bedrock-anvil-v3" } else { "java" },
+        if bedrock {
+            BEDROCK_TILE_CACHE_KEY
+        } else {
+            "java"
+        },
     )
     .map_err(|error| error.to_string())?;
     let used = crate::map_staging::estimate_tree(&cache).map_err(|error| error.to_string())?;
@@ -576,7 +580,7 @@ fn run(state: WorldsRoutesState, id: OperationId, task: RunRequest) {
                 &world,
                 &dimension,
                 &assets,
-                "bedrock-anvil-v3",
+                BEDROCK_TILE_CACHE_KEY,
             )
             .map_err(|error| error.to_string())?;
             java_terrain_compat::set_tile_cache_budget_mib(&cache, budget_mib)

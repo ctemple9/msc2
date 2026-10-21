@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** Bedrock saved-terrain parity plan (P18.82, P18.82a, P18.83–P18.89), with P18.84a–P18.84d addressing findings from the first full-size Bedtonic opening before persistent-cache work. P18.85b targets the remaining cold-conversion throughput gap. The Java map is the processing and user-experience standard. Bedrock-specific work is justified only where its world format requires it; after preparation, both editions should use the same renderer, cache, streaming, pre-render and refresh mechanisms wherever technically sound.
+**Current priority:** Bedrock saved-terrain parity plan (P18.82, P18.82a, P18.83–P18.90), with P18.84a–P18.84d addressing findings from the first full-size Bedtonic opening before persistent-cache work. P18.85b targets the remaining cold-conversion throughput gap; P18.90 corrects Bedrock block models found during the first optimized visual review. The Java map is the processing and user-experience standard. Bedrock-specific work is justified only where its world format requires it; after preparation, both editions should use the same renderer, cache, streaming, pre-render and refresh mechanisms wherever technically sound.
 
 ### P18.69 — Defer detailed Bedrock tile swaps during camera movement
 
@@ -285,6 +285,15 @@ Bedrock currently routes to a separate `BedrockStore`: it snapshots LevelDB, ope
 **Verify:** `cd clients/desktop-web && npx tauri build` — Cameron performs the documented Java/Bedtonic cold-open, warm-open, flight, pre-render and refresh comparisons and records whether Bedrock now provides the same experience, including any measured remaining gap.
 **Batch:** P18.89 only.
 **Commit:** `P18.89: record shared java bedrock map parity`
+
+### P18.90 — Render converted Bedrock blocks with the correct Java models
+
+**Status:** Implemented; awaiting Cameron's optimized-build visual check on Bedtonic. The focused regression test was added but not run.
+**Files:** `third_party/vantage/src/chunk.zig`; `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/pre_render.rs`; `docs/msc2/rolling-plan.md`.
+**What:** Bedtonic's converted regions correctly retain Bedrock palette names and state properties, but Vantage had looked them up as if they were Java names. This made legacy `hardened_clay`, `grass_path`, `reeds`, `wooden_door`, and other Bedrock blocks use fallback models or colors. Vantage now translates recognized Bedrock IDs and properties when decoding each palette: uncolored terracotta, dirt paths and sugar cane use their Java models; logs use `axis`, glass panes use boolean directional connections, doors use facing/half/hinge/open, and snow layers use their saved height. Additional unambiguous legacy IDs use their matching Java models. This is a renderer-side translation so existing private Anvil regions remain reusable; the 1,608-region Bedrock conversion is not repeated. Bedrock's baked-tile cache identity changes once so previously incorrect tiles rebake; Java's cache identity and rendering stay unchanged. The old Bedrock tile cache remains on disk for separate cleanup after visual verification, and its prior pre-render count is not carried into the corrected cache. One deterministic palette-level test covers representative aliases and log, pane and door states; it has no filesystem or timing dependency and should run in under a second. It was not run by the implementing agent.
+**Verify:** `cd clients/desktop-web && npx tauri build` — Cameron opens Bedtonic in the optimized app and revisits the pictured mesa, trees, sugar cane and village. Terracotta and paths have their expected textures, upright logs show bark on their sides, cane is crossed rather than a solid green column, and panes and doors use their saved shape and orientation. Confirm the agent reuses the prepared Bedrock regions rather than counting through all 1,608 again; corrected detailed tiles rebake as visited or pre-rendered.
+**Batch:** P18.90 only.
+**Commit:** `P18.90: resolve bedrock palettes to java block models`
 
 Cameron directed the implemented Add Server, Bedrock map, imported-JAR and Services follow-ups to Done and into [the rolling-plan archive](rolling-plan-archive.md#october-19-2026--v0131-follow-up-step-closure). Failed intermediate Bedrock attempts retain their supersession history there. Independent phase reviews and remaining physical checks stay in [pending acceptance](pending-acceptance.md).
 

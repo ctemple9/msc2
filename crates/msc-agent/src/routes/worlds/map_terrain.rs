@@ -31,6 +31,8 @@ use msc_infrastructure::fs::StdFileSystem;
 
 const IDLE: Duration = Duration::from_secs(90);
 const MAX_ARTIFACT: usize = 32 * 1024 * 1024;
+// Re-bake Bedrock tiles after block palettes gain Java model names and states.
+const BEDROCK_TILE_CACHE_KEY: &str = "bedrock-anvil-v3-models-v1";
 
 fn java_bake_capacity(running: bool) -> (u64, usize) {
     let cores = std::thread::available_parallelism().map_or(1, usize::from);
@@ -506,7 +508,7 @@ impl RendererStore {
             server_id,
             source_world,
             path: prepared_world,
-            edition_cache_key: "bedrock-anvil-v3",
+            edition_cache_key: BEDROCK_TILE_CACHE_KEY,
         });
         Ok(())
     }

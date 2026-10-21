@@ -30,7 +30,7 @@ const MAX_NEARBY_CATALOG_TIME: Duration = Duration::from_secs(120);
 // A converted multi-gigabyte world can take longer than ten minutes just to
 // enumerate saved chunks and build its first overview.
 const MAX_CATALOG_EXPORT_TIME: Duration = Duration::from_secs(3_600);
-const CONVERTED_CACHE_FORMAT: &str = "bedrock-anvil-v3-vantage-0.15.1";
+const CONVERTED_CACHE_FORMAT: &str = "bedrock-anvil-v3-biomes-v1-vantage-0.15.1";
 
 fn ensure_cache_directory(path: &Path) -> Result<(), String> {
     match fs::symlink_metadata(path) {

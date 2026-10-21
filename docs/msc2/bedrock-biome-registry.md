@@ -45,12 +45,34 @@ does not provide the save's numeric mapping.
    summary. Do not claim a Bedrock biome legend is accurate while any
    visible ID depends on a provisional name.
 
-The current ice mountain tint is a **bounded visual proof** using provisional
-IDs. It is not a general Bedrock registry. The next implementation proof is
-an exact-version registry artifact and resolver for one BDS version, followed
-by a mismatched-version rejection check. The Worlds-tab biome control should
-only use named legend entries after that gate passes. This keeps the agreed
-Bedrock UX honest while terrain rendering can continue independently.
+The earlier ice mountain tint was a **bounded visual proof** using provisional
+IDs, not a general Bedrock registry. The exact-version registry boundary and
+mismatched-version rejection were subsequently added to the converter. Named
+legend entries still require a map appropriate to the save version. This
+keeps the Bedrock UX honest while terrain rendering can continue independently.
+
+## Bedrock 1.26.60 mapping in the Anvil converter
+
+The converted-region path bundles a version-bound numeric biome map for saves
+whose `lastOpenedWithVersion` is exactly `[1, 26, 60, 0, 0]`. The pinned source
+is the MIT-licensed [Chunker Bedrock biome ID fixture](https://github.com/HiveGamesOSS/Chunker/blob/50aaf6d82e8b68929279161b790d95fdddfe0a40/cli/src/test/resources/bedrock/resolver/biome_ids.json),
+with SHA-256 `254bfef4d4ac95dd71c439e6340aa6b6fe881c462d59d1e492af652a3a9d4522`.
+Chunker's [resolver](https://github.com/HiveGamesOSS/Chunker/blob/50aaf6d82e8b68929279161b790d95fdddfe0a40/cli/src/main/java/com/hivemc/chunker/conversion/encoding/bedrock/base/resolver/biome/BedrockBiomeIDResolver.java)
+gates newer IDs by Bedrock version. The bundled file has 89 unique IDs and
+covers all 60 IDs in Bedtonic's existing conversion report. This evidence
+supports using it for Bedtonic; it is not an extraction of the exact BDS
+binary and does not prove that chunks carried through a world upgrade contain
+only IDs from that version. Any ID absent from the map stays explicitly
+unmapped, with a neutral tint, and appears in the conversion report.
+
+The converter uses the bundled map for any save reporting that exact version,
+so it is not tied to Bedtonic or Cameron's computer. Other versions need a
+separately sourced map. Without one, numeric IDs remain visibly unmapped;
+they are never silently renamed `plains`. A caller-supplied registry still
+requires an exact metadata-version match. The conversion and detailed-tile
+cache identities changed because older output flattened unknown biomes to
+`plains`; correcting them requires one new conversion and tile bake. Old
+private caches are left intact for later cleanup.
 
 ## P18.2k registry input boundary
 

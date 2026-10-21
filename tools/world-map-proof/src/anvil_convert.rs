@@ -224,9 +224,16 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
         return Err("index-only mode cannot be limited to selected regions".into());
     }
     let mut biome_names = BTreeMap::new();
-    let exact_biome_registry = registry_path.is_some();
-    let registry_sha256 = if let Some(registry_path) = registry_path {
-        let registry_bytes = fs::read(registry_path)?;
+    let registry_bytes = if let Some(registry_path) = registry_path {
+        Some(fs::read(registry_path)?)
+    } else if version == [1, 26, 60, 0, 0] {
+        // Keep this version-bound: numeric Bedrock IDs can change between saves.
+        Some(include_bytes!("../data/bedrock-biome-ids-1.26.60.json").to_vec())
+    } else {
+        None
+    };
+    let exact_biome_registry = registry_bytes.is_some();
+    let registry_sha256 = if let Some(registry_bytes) = registry_bytes {
         let registry: serde_json::Value = serde_json::from_slice(&registry_bytes)?;
         let registry_version = registry["version"]
             .as_array()
@@ -265,7 +272,7 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
         }
         hex(&Sha256::digest(&registry_bytes))
     } else {
-        "neutral-unmapped-biomes-v1".to_owned()
+        "neutral-unmapped-biomes-v2".to_owned()
     };
     let mut manifest = read_manifest(&output)?.unwrap_or(Manifest {
         format: 2,
@@ -303,9 +310,9 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
     let scan = Instant::now();
     let mut indexed_regions = BTreeMap::<(Dimension, i32, i32), RegionIndex>::new();
     let mut scanned_records = 0usize;
-    world.storage().for_each_entry(
-        StorageReadOptions::default(),
-        &mut |key, value| {
+    world
+        .storage()
+        .for_each_entry(StorageReadOptions::default(), &mut |key, value| {
             scanned_records = scanned_records.saturating_add(1);
             if let BedrockDbKey::Chunk(chunk_key) = BedrockDbKey::decode(key)
                 && chunk_key.tag.is_render_chunk_record()
@@ -327,8 +334,7 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
                 eprintln!("Bedrock prepare: indexed {scanned_records} saved database records");
             }
             Ok(StorageVisitorControl::Continue)
-        },
-    )?;
+        })?;
     let discovered = indexed_regions.len();
     let mut regions = indexed_regions
         .into_iter()
@@ -388,7 +394,9 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
             "{}",
             serde_json::json!({"totalRegions":total,"reusedRegions":total,"convertedRegions":0,"indexedOnly":true,"output":output,"registrySha256":registry_sha256})
         );
-        eprintln!("Bedrock prepare: populated per-region input fingerprints without rewriting regions");
+        eprintln!(
+            "Bedrock prepare: populated per-region input fingerprints without rewriting regions"
+        );
         return Ok(());
     }
     let mut reused = 0;

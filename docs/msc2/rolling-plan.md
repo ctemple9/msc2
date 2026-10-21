@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** Bedrock saved-terrain parity plan (P18.82, P18.82a, P18.83–P18.91), with P18.84a–P18.84d addressing findings from the first full-size Bedtonic opening before persistent-cache work. P18.85b targets the remaining cold-conversion throughput gap; P18.90 corrects Bedrock block models found during the first optimized visual review. P18.91 addresses the shared depth-camera jump. The Java map is the processing and user-experience standard. Bedrock-specific work is justified only where its world format requires it; after preparation, both editions should use the same renderer, cache, streaming, pre-render and refresh mechanisms wherever technically sound.
+**Current priority:** Bedrock saved-terrain parity plan (P18.82–P18.92). P18.90 corrects Bedrock block models found during the first optimized visual review, P18.91 addresses the shared depth-camera jump, and P18.92 resolves Bedrock numeric biome IDs. The Java map is the processing and user-experience standard. Bedrock-specific work is justified only where its world format requires it; after preparation, both editions should use the same renderer, cache, streaming, pre-render and refresh mechanisms wherever technically sound.
 
 ### P18.69 — Defer detailed Bedrock tile swaps during camera movement
 
@@ -303,6 +303,15 @@ Bedrock currently routes to a separate `BedrockStore`: it snapshots LevelDB, ope
 **Verify:** `cd clients/desktop-web && npx tauri build` — in both Java and Bedrock maps with the server stopped, open Depth and change Y by one using Option+Up/Down and by dragging. Repeat in 2D, 3D and Fly, then switch modes while Depth remains active. The camera Y should move toward the selected value without jumping to the surface on the next player-status poll; Home and focusing a player should restore normal terrain-following.
 **Batch:** P18.91 only.
 **Commit:** `P18.91: keep depth camera off terrain follow`
+
+### P18.92 — Name Bedrock biomes without flattening them to Plains
+
+**Status:** Implemented; awaiting Cameron's optimized-build verification on Bedtonic. No tests added or run.
+**Files:** `tools/world-map-proof/data/bedrock-biome-ids-1.26.60.json`; `tools/world-map-proof/data/LICENSE.chunker`; `tools/world-map-proof/src/anvil_convert.rs`; `tools/world-map-proof/src/anvil_probe.rs`; `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `docs/msc2/bedrock-biome-registry.md`; this plan.
+**What:** The Bedrock converter formerly wrote `minecraft:plains` for every numeric biome ID when no registry was supplied, making the legend report Plains everywhere. Bundle the pinned MIT-licensed Chunker ID map for saves reporting Bedrock `[1, 26, 60, 0, 0]` and use it for any matching world, not just Bedtonic. Its 89 entries cover all 60 IDs in Bedtonic's prior conversion report. Other save versions and unknown IDs retain explicit `unmapped` names and neutral tint rather than false Plains labels; an optional supplied registry still requires an exact metadata-version match. The source is a version-gated external converter map, not an exact BDS extraction, so worlds with mixed-version chunks remain a validation limit. Advance the converted-region and detailed-tile cache identities without overwriting old private caches; Bedtonic needs one fresh 1,608-region conversion and tile rebake before the indicator changes. Source and limits are documented in the registry proof.
+**Verify:** `cd clients/desktop-web && npx tauri build` — open Bedtonic in the optimized app and allow the new conversion to finish. Open Biomes in places known to differ (ocean, mesa/badlands, forest or savanna); the legend should show distinct Bedrock biome names rather than Plains 100%. After reopening, confirm the converted regions are reused. If another save reports `[1, 26, 60, 0, 0]`, its known IDs should use the same map; a save from a different version should report unmapped IDs, not Plains. Cameron performs this verification.
+**Batch:** P18.92 only.
+**Commit:** `P18.92: resolve versioned bedrock biome ids`
 
 Cameron directed the implemented Add Server, Bedrock map, imported-JAR and Services follow-ups to Done and into [the rolling-plan archive](rolling-plan-archive.md#october-19-2026--v0131-follow-up-step-closure). Failed intermediate Bedrock attempts retain their supersession history there. Independent phase reviews and remaining physical checks stay in [pending acceptance](pending-acceptance.md).
 

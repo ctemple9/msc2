@@ -412,8 +412,7 @@ pub(crate) fn encode_chunk(
                             )
                             .into());
                         }
-                        None if biome_names.is_some() => format!("msc:unmapped_bedrock_biome_{id}"),
-                        None => "minecraft:plains".to_owned(),
+                        None => format!("msc:unmapped_bedrock_biome_{id}"),
                     };
                     let index = *biome_lookup.entry(name.clone()).or_insert_with(|| {
                         let index = biome_palette.len();

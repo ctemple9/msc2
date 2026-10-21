@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** Bedrock saved-terrain parity plan (P18.82–P18.93). P18.90 corrects Bedrock block models found during the first optimized visual review, P18.91 addresses the shared depth-camera jump, and P18.92–P18.93 resolve Bedrock biome IDs and the section-height sampling bug found during physical verification. The Java map is the processing and user-experience standard. Bedrock-specific work is justified only where its world format requires it; after preparation, both editions should use the same renderer, cache, streaming, pre-render and refresh mechanisms wherever technically sound.
+**Current priority:** Bedrock saved-terrain parity plan (P18.82–P18.94). P18.90 corrects Bedrock block models found during the first optimized visual review, P18.91 addresses the shared depth-camera jump, P18.92–P18.93 resolve Bedrock biome IDs and the section-height sampling bug, and P18.94 addresses black detailed terrain when the progressive biome palette grows. The Java map is the processing and user-experience standard. Bedrock-specific work is justified only where its world format requires it; after preparation, both editions should use the same renderer, cache, streaming, pre-render and refresh mechanisms wherever technically sound.
 
 ### P18.69 — Defer detailed Bedrock tile swaps during camera movement
 
@@ -321,6 +321,15 @@ Bedrock currently routes to a separate `BedrockStore`: it snapshots LevelDB, ope
 **Verify:** `cd clients/desktop-web && npx tauri build` — open Bedtonic, let the corrected conversion finish, and inspect Biomes over ocean and a distinct land biome. The legend should show different names and percentages instead of `Unmapped Bedrock Biome 4294967295` at 100%. Reopen the unchanged map and confirm its corrected regions are reused. Cameron performs this verification.
 **Batch:** P18.93 only.
 **Commit:** `P18.93: align bedrock biome layers with block sections`
+
+### P18.94 — Keep biome colours current while terrain streams
+
+**Status:** Implemented; awaiting Cameron's optimized-build verification. No tests added or run.
+**Files:** `clients/desktop-web/src/lib/vantage/three/materials.ts`; `clients/desktop-web/src/lib/vantage/three/tiles.ts`; `clients/desktop-web/src/lib/vantage/three/viewer.ts`; this plan.
+**What:** After P18.93, Bedrock names and colours stream into the biome legend, but detailed terrain can turn pure black with Biomes on in 2D, 3D and Fly. The quantized terrain shader reads colours from a GPU palette sized only at map open, while the progressive renderer appends biome IDs as new tiles bake. Grow the shared GPU palette when a manifest adds IDs, recolour resident legend entries without reloading tiles, and use the neutral no-data colour when a tile arrives before its biome ID appears in the next manifest. This is shared Java/Bedrock viewer behavior; no world conversion or cache invalidation is needed.
+**Verify:** `cd clients/desktop-web && npx tauri build` — reopen Bedtonic, turn Biomes on and inspect the previously black area around X -557, Z -962 in 2D, 3D and Fly. Detailed terrain should remain coloured while tiles load, and newly discovered biomes should appear in the legend with matching colours. Turn Biomes off to confirm normal textures, then check a Java map's biome view for regression. Cameron performs this verification.
+**Batch:** P18.94 only.
+**Commit:** `P18.94: grow progressive biome palette`
 
 Cameron directed the implemented Add Server, Bedrock map, imported-JAR and Services follow-ups to Done and into [the rolling-plan archive](rolling-plan-archive.md#october-19-2026--v0131-follow-up-step-closure). Failed intermediate Bedrock attempts retain their supersession history there. Independent phase reviews and remaining physical checks stay in [pending acceptance](pending-acceptance.md).
 

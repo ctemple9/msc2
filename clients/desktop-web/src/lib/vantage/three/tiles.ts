@@ -12,6 +12,7 @@
 
 import * as THREE from 'three';
 import {
+  biomePalette,
   LOWRES_EMPTY,
   maybeInflate,
   parseLowresTile,
@@ -314,6 +315,20 @@ export class TileManager {
     const rec = this.records.get(key);
     return rec?.level === 0 && rec.state === 'ready' ? rec.surface : undefined;
   };
+
+  /** A progressive render can discover new biome IDs after resident tiles
+   *  have already been summarized. Keep their legend colours aligned with the
+   *  expanded GPU palette without reloading any geometry. */
+  extendBiomePalette(count: number): Rgb[] | null {
+    const palette = this.opts.palette;
+    if (count <= palette.length) return null;
+    palette.push(...biomePalette(count).slice(palette.length));
+    for (const rec of this.records.values()) {
+      for (const entry of rec.biomes ?? []) entry.color = palette[entry.id] ?? palette[0]!;
+    }
+    this.biomesCache = null;
+    return palette;
+  }
 
   /** The radius hires tiles are actually resident to: the view distance,
    *  capped by whichever budget ran out first — the tile-count disc, or the

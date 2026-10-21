@@ -60,7 +60,10 @@ const VERT = /* glsl */ `
     vec3 nrm = anrm.xyz;
     // The light byte was stored as the int8 normal's 4th lane; undo the sign.
     float light = anrm.w < 0.0 ? anrm.w + 256.0 : anrm.w;
-    vBcol = texelFetch(uPalette, ivec2(int(abiome + 0.5), 0), 0).rgb;
+    // A tile can arrive before the next progressive manifest names its biome.
+    // Keep that brief gap neutral instead of sampling outside the palette.
+    int biomeId = int(abiome + 0.5);
+    vBcol = texelFetch(uPalette, ivec2(biomeId >= 0 && biomeId < textureSize(uPalette, 0).x ? biomeId : 0, 0), 0).rgb;
 #else
     vUv = uv;
     vec3 pos = position;
@@ -351,6 +354,9 @@ function animLutTexture(layers: number, anims: readonly TextureAnimation[]): THR
 function paletteTexture(palette: readonly Rgb[]): THREE.DataTexture {
   const n = Math.max(1, palette.length);
   const data = new Uint8Array(4 * n);
+  if (palette.length === 0) {
+    data.set([140, 140, 153, 255]); // neutral no-data colour until the first biome arrives
+  }
   for (let i = 0; i < palette.length; i++) {
     const c = palette[i]!;
     data[i * 4 + 0] = Math.round(c[0] * 255);
@@ -401,6 +407,16 @@ export function updateTerrainTextures(material: THREE.ShaderMaterial, texData: D
     (animU.value as THREE.Texture | null)?.dispose();
     animU.value = animLutTexture(texData.layers, texData.anims ?? []);
   }
+}
+
+/** Progressive worlds append biome IDs after the viewer opens. The terrain,
+ * water, and lightmapped materials share this uniform object, so resident
+ * meshes pick up the expanded palette without being rebuilt. */
+export function updateTerrainBiomePalette(material: THREE.ShaderMaterial, palette: readonly Rgb[]): void {
+  const uniform = material.uniforms['uPalette'];
+  if (!uniform) return;
+  (uniform.value as THREE.Texture | null)?.dispose();
+  uniform.value = paletteTexture(palette);
 }
 
 /** Build the textured terrain material from a decoded texture array. */

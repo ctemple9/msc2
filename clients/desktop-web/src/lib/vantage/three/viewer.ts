@@ -28,7 +28,7 @@ import {
 } from '../core/index.js';
 import { NO_PLAYERS, parsePlayers, samePlayers, type PlayerSnapshot, type PlayerState } from '../core/players.js';
 import { Emitter } from './emitter.js';
-import { createLightmappedMaterial, createLowresMaterial, createSky, createTerrainMaterial, createWaterMaterial, setSkyColors, updateTerrainTextures, SKY_HORIZON, SKY_TOP } from './materials.js';
+import { createLightmappedMaterial, createLowresMaterial, createSky, createTerrainMaterial, createWaterMaterial, setSkyColors, updateTerrainBiomePalette, updateTerrainTextures, SKY_HORIZON, SKY_TOP } from './materials.js';
 import { pickBiome } from './pick.js';
 import { PlayerLayer, type PlayerSettings, type PlayerView } from './players.js';
 import { buildTerrain } from './terrain.js';
@@ -829,6 +829,17 @@ export class VantageViewer {
         if (this.tiles !== manager) return;
       }
 
+      // Biome IDs are append-only too. New detailed tiles may already be
+      // resident when a progressive manifest publishes their names; grow the
+      // shared GPU lookup and recolour the legend before adding more tiles.
+      const grownPalette = manager.extendBiomePalette(m.biomes.length);
+      if (grownPalette && this.shader) {
+        updateTerrainBiomePalette(this.shader, grownPalette);
+        this._biomes = manager.biomes;
+        this.emitter.emit('biomes', this._biomes);
+        this.needsRender = true;
+      }
+
       // Stream in new tiles. Continuous on-demand servers also revise and
       // remove existing coordinates as the multiplayer world is saved.
       const changed = m.dynamic ? manager.syncTiles(m.tiles) : manager.addTiles(m.tiles);
@@ -845,7 +856,7 @@ export class VantageViewer {
         this.needsRender = true;
       }
       const progressed = this.emitProgress(m);
-      delay = !m.dynamic || changed || lowresChanged || atlasGrew || progressed ? VantageViewer.POLL_MS : Math.min(delay * 2, VantageViewer.POLL_MAX_MS);
+      delay = !m.dynamic || changed || lowresChanged || atlasGrew || grownPalette || progressed ? VantageViewer.POLL_MS : Math.min(delay * 2, VantageViewer.POLL_MAX_MS);
 
       if (!m.rendering) {
         // Final manifest: install the lowres pyramid and open the zoom range to

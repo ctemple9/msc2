@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** Bedrock saved-terrain parity plan (P18.82, P18.82a, P18.83–P18.90), with P18.84a–P18.84d addressing findings from the first full-size Bedtonic opening before persistent-cache work. P18.85b targets the remaining cold-conversion throughput gap; P18.90 corrects Bedrock block models found during the first optimized visual review. The Java map is the processing and user-experience standard. Bedrock-specific work is justified only where its world format requires it; after preparation, both editions should use the same renderer, cache, streaming, pre-render and refresh mechanisms wherever technically sound.
+**Current priority:** Bedrock saved-terrain parity plan (P18.82, P18.82a, P18.83–P18.91), with P18.84a–P18.84d addressing findings from the first full-size Bedtonic opening before persistent-cache work. P18.85b targets the remaining cold-conversion throughput gap; P18.90 corrects Bedrock block models found during the first optimized visual review. P18.91 addresses the shared depth-camera jump. The Java map is the processing and user-experience standard. Bedrock-specific work is justified only where its world format requires it; after preparation, both editions should use the same renderer, cache, streaming, pre-render and refresh mechanisms wherever technically sound.
 
 ### P18.69 — Defer detailed Bedrock tile swaps during camera movement
 
@@ -294,6 +294,15 @@ Bedrock currently routes to a separate `BedrockStore`: it snapshots LevelDB, ope
 **Verify:** `cd clients/desktop-web && npx tauri build` — Cameron opens Bedtonic in the optimized app and revisits the pictured mesa, trees, sugar cane and village. Terracotta and paths have their expected textures, upright logs show bark on their sides, cane is crossed rather than a solid green column, and panes and doors use their saved shape and orientation. Confirm the agent reuses the prepared Bedrock regions rather than counting through all 1,608 again; corrected detailed tiles rebake as visited or pre-rendered.
 **Batch:** P18.90 only.
 **Commit:** `P18.90: resolve bedrock palettes to java block models`
+
+### P18.91 — Keep depth changes from jumping to the terrain surface
+
+**Status:** Implemented; awaiting Cameron's optimized-build verification in Java and Bedrock. No tests added or run.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldMapViewer.svelte`; `docs/msc2/rolling-plan.md`.
+**What:** The shared viewer's one-second player-status poll calls `stopFollowing()` when the server is stopped. That previously restored the normal terrain-height sampler even while a depth slice remained open. The next map frame could move the camera Y toward the terrain surface before another slider event disabled the sampler, producing the reported 63 → 120 → 63 jump. Keep terrain-follow disabled for the entire depth session, including while switching 2D, 3D, and Fly modes; restore it only after Home or a player focus clears the slice. Both Option+arrow and slider dragging use the same `setDepth` path. Reset the saved sampler when the viewer is disposed so changing worlds cannot reuse an old height source.
+**Verify:** `cd clients/desktop-web && npx tauri build` — in both Java and Bedrock maps with the server stopped, open Depth and change Y by one using Option+Up/Down and by dragging. Repeat in 2D, 3D and Fly, then switch modes while Depth remains active. The camera Y should move toward the selected value without jumping to the surface on the next player-status poll; Home and focusing a player should restore normal terrain-following.
+**Batch:** P18.91 only.
+**Commit:** `P18.91: keep depth camera off terrain follow`
 
 Cameron directed the implemented Add Server, Bedrock map, imported-JAR and Services follow-ups to Done and into [the rolling-plan archive](rolling-plan-archive.md#october-19-2026--v0131-follow-up-step-closure). Failed intermediate Bedrock attempts retain their supersession history there. Independent phase reviews and remaining physical checks stay in [pending acceptance](pending-acceptance.md).
 

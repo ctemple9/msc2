@@ -321,6 +321,7 @@
     playerLayer = undefined;
     viewer?.dispose();
     viewer = undefined;
+    savedHeightAt = undefined;
     biomes = [];
     highlightedBiome = null;
   }
@@ -542,8 +543,9 @@
   function setDepth(y: number, smooth = false): void {
     if (!viewer || !Number.isFinite(y)) return;
     stopFollowing();
-    // Surface-following would lift the focus back above the selected cave level.
-    if (!viewer.isFlying) holdFocusHeight();
+    // Player-status polling can stop following while the slice is open. Keep
+    // terrain-follow parked so its surface height cannot override this Y.
+    holdFocusHeight();
     depthY = Math.max(depthMin, Math.min(depthMax, smooth ? y : Math.round(y)));
     viewer.setSlice(depthY);
     if (!viewer.isFlying) {
@@ -563,19 +565,23 @@
     viewer?.setFlyMode(false);
   }
 
-  function stopFollowing(): void {
-    followedId = undefined;
-    playerLayer?.setFollowed(null);
+  function restoreFocusHeight(): void {
     if (viewer && savedHeightAt !== undefined) {
       viewer.controls.heightAt = savedHeightAt;
       savedHeightAt = undefined;
     }
+  }
+
+  function stopFollowing(): void {
+    followedId = undefined;
+    playerLayer?.setFollowed(null);
+    if (viewer?.slice === null) restoreFocusHeight();
     viewer?.invalidate();
   }
 
   function holdFocusHeight(): void {
-    if (!viewer || savedHeightAt !== undefined) return;
-    savedHeightAt = viewer.controls.heightAt;
+    if (!viewer) return;
+    if (savedHeightAt === undefined) savedHeightAt = viewer.controls.heightAt;
     viewer.controls.heightAt = null;
   }
 
@@ -671,6 +677,7 @@
     leaveFly();
     stopFollowing();
     viewer.setSlice(null);
+    restoreFocusHeight();
     const target =
       playerLayer.positionOf(player.id) ??
       viewer.controls.position.clone().set(player.x, player.y, player.z);
@@ -817,6 +824,7 @@
     stopFollowing();
     leaveFly();
     viewer.setSlice(null);
+    restoreFocusHeight();
     depthY = depthMax;
     viewer.controls.animateTo({
       position: viewer.controls.position.clone().set(spawn.x + 0.5, spawn.y, spawn.z + 0.5),

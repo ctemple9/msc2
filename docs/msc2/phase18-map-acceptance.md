@@ -37,6 +37,36 @@ Recorded measurements are local diagnostic evidence, not performance guarantees:
 - Bedrock detail configuration: one concurrent request, 512 MiB tile byte budget and maximum 120 resident tiles. Owner observed roughly 37–43 detailed tiles. These are residency limits, not measured total RSS, and do not load all 2,327 detailed tiles simultaneously. Overviews provide distant coverage where appropriate.
 - Snapshot copy is bounded at 2 GiB and 30 seconds. Full-world copying still occurs; reuse reduces tile regeneration. No exhaustive integrated CPU, RSS, server tick impact, or cross-platform performance acceptance is recorded.
 
+## P18.89 — Java and Bedrock map parity worksheet
+
+**Status:** Pending Cameron's optimized-build run. This is a recording sheet, not a pass claim. The Java map remains the experience standard; Bedrock format-specific preparation is acceptable only when it leads into the same responsive saved-terrain viewer.
+
+**Run details to record:** MSC version/commit: ___ · macOS version: ___ · Mac model/chip and memory: ___ · server state: ___ · Java world size: ___ · Bedtonic world size: 7.9 GB · map cache budgets: Java ___ / Bedrock ___ · free disk before run: ___ · date: ___. Use the same app build and machine for both worlds where possible.
+
+| User-visible stage | Java reference | Bedrock result to record | Status |
+|---|---|---|---|
+| Cold open progress | Show a visible progress bar and completed/total Java region files (for example, `x/1600`), followed by renderer startup. | Show a visible progress bar and completed/total saved Bedrock render regions (for example, `x/1608`), followed by renderer startup. Bedrock's count is logical 32×32 chunk regions grouped from LevelDB records, not physical `.mca` input files. Record each stage's label/count, total elapsed time, pauses, and whether the map stays blank until handoff. | Pending |
+| First useful terrain | Record time from opening the map to the first useful detailed terrain and to a fully useful nearby view. | Record the same times. Note whether the first visible view is detailed saved terrain or a long-lived simplified preview. | Pending |
+| Warm reopen | Close and reopen the app/map; record whether saved converted terrain and detailed tile cache are reused without repeating full conversion. | Repeat after the first Bedrock preparation. Record any hashing/indexing stage separately from conversion, and whether the detailed view returns without a blank reset. | Pending |
+| Camera-centered streaming | In 2D, 3D and Fly, move locally and then travel to a known saved area at least 5,000 blocks away. Record time until useful detail appears and whether the active detail radius follows the camera. | Repeat the same movements. Record newly requested and already cached areas separately, plus any periodic stutter or long gaps while moving. | Pending |
+| Detail quality | Record whether nearby terrain reaches the expected detailed appearance while farther saved terrain remains legible. | Compare the same quality at equivalent camera height/zoom. Record a persistent low-detail-only appearance, holes, wrong foliage or blank saved areas as defects. | Pending |
+| Pre-render | Start, stop, close/reopen, and resume. Record progress and cache size; visible camera work should remain responsive. | Repeat with Bedtonic. Record whether progress resumes and saved tiles remain, or whether the operation stops/evicts work unexpectedly. | Pending |
+| Unchanged Refresh | Record conversion/progress stages, elapsed time, whether the view resets, and whether unchanged detailed tiles remain cached. | Repeat without changing Bedtonic. Record snapshot hashing/indexing separately; an unchanged refresh should not decode/rewrite every converted region or reset the view. | Pending |
+| Changed Refresh | Change a small disposable area and refresh. Record how much terrain is revisited and whether unaffected detail remains. | Add, edit, then remove saved chunks in a disposable Bedrock world and refresh each time. Record changed/reused/removed regions, affected tile area, view continuity, and confirm the source world remains safe. | Pending |
+| Resource use and smoothness | Record CPU, memory, disk activity, and visible frame pauses during cold open, travel, pre-render and refresh. | Record the same measurements. Explain any sustained user-visible difference by a specific Bedrock-format operation; otherwise track it as an open parity defect. | Pending |
+
+**Evidence log:** Attach screenshots or concise timestamped observations here after the run. Keep cold preparation, conversion/indexing, renderer startup and tile refinement as separate timings; a progress bar reaching its total does not by itself prove the viewer is ready or smooth. Any remaining simple-first view, delayed radius fill, blank saved terrain, misleading progress, unnecessary full refresh or periodic stutter remains open for follow-up.
+
+Cold open notes: ___
+
+Warm reopen notes: ___
+
+Travel and stutter notes: ___
+
+Pre-render and refresh notes: ___
+
+Measured Java/Bedrock gaps and format-specific cause, if known: ___
+
 ## Deferred findings and limits
 
 1. **Nether saved-data gaps:** independent inspection found absent chunk records inside completed tiles. At camera X381/Z-137, chunk (23,-9) has no saved Nether records in the inspected current snapshot, and nearby chunks are also absent. Earlier chunk (9,-15) was absent even in an independent scan of all physical database tables; all 73 snapshot immutable tables matched the live source. This explains the inspected map holes but does not establish why source records are absent. Owner will visit/generate/save the area in Minecraft and refresh later. The holes are not claimed fixed.

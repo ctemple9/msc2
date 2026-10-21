@@ -232,6 +232,15 @@ Bedrock currently routes to a separate `BedrockStore`: it snapshots LevelDB, ope
 **Batch:** P18.85 only.
 **Commit:** `P18.85: reuse bedrock renderer input and tiles`
 
+### P18.85a — Keep Bedrock conversion workers fed and publish regions in parallel
+
+**Status:** Implemented; awaiting Cameron's optimized-build Bedtonic timing and resource check. No tests added or run. The current four-worker run reached only 40 of 1,608 regions after about twelve minutes; region sizes vary, so that is an early observation rather than a completion estimate.
+**Files:** `tools/world-map-proof/src/anvil_convert.rs`; `docs/msc2/rolling-plan.md`.
+**What:** Replace fixed groups of four with Java's continuous shared work queue so a finished worker immediately takes the next saved region. Size the stopped-server pool from logical cores, half of available memory at the existing 768 MiB per-region estimate, and free disk after the 512 MiB reserve, with an eight-worker ceiling; a running Bedrock server remains at one. Region compression, disk-space reservation, atomic file publication, and file hashing now happen in the worker, and the region hash is calculated from the exact output bytes without rereading the just-written file. Persist the resumable manifest every 16 completed regions and at successful completion; a crash may redo at most the uncheckpointed region records, while atomically published data remains safe. This targets the measured conversion queue and serial output path. Snapshot fingerprinting, LevelDB open, and region indexing remain separate cold-open stages and need their own timings before changing their correctness checks.
+**Verify:** `cd clients/desktop-web && npx tauri build` — Cameron checks the optimized Bedtonic run log for the selected worker count, steady progress beyond the earlier 40-region point, and final read/encode/publish/manifest timings; record elapsed time, peak memory and disk use against the prior run.
+**Batch:** P18.85a only.
+**Commit:** `P18.85a: pipeline bedrock region conversion`
+
 ### P18.86 — Match Java's camera-following detail and travel
 
 **Status:** Planned.

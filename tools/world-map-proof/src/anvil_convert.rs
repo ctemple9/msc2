@@ -8,12 +8,16 @@ use flate2::{Compression, write::GzEncoder};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     error::Error,
     fs,
     io::Write,
     path::{Path, PathBuf},
-    sync::mpsc,
+    sync::{
+        Mutex,
+        atomic::{AtomicBool, AtomicU64, Ordering},
+        mpsc,
+    },
     time::{Duration, Instant},
 };
 
@@ -44,13 +48,17 @@ struct RegionWork {
     dimension: Dimension,
     x: i32,
     z: i32,
-    digest: String,
-    bytes: Option<Vec<u8>>,
+    fingerprint: RegionFingerprint,
+    reused: bool,
     findings: Findings,
     read_time: Duration,
     nbt_time: Duration,
     encode_time: Duration,
+    publish_time: Duration,
 }
+
+const DISK_RESERVE_BYTES: u64 = 512 * 1024 * 1024;
+const MANIFEST_CHECKPOINT_REGIONS: usize = 16;
 
 #[derive(Serialize)]
 struct JavaSpawnLevel {
@@ -282,15 +290,20 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
     let available_disk = fs2::available_space(&output)?;
     let memory_workers = (available_memory / 2 / (768 * 1024 * 1024)).max(1) as usize;
     let disk_workers =
-        (available_disk.saturating_sub(512 * 1024 * 1024) / (512 * 1024 * 1024)).max(1) as usize;
+        (available_disk.saturating_sub(DISK_RESERVE_BYTES) / DISK_RESERVE_BYTES).max(1) as usize;
     let workers = if server_running {
         1
     } else {
-        cores.min(memory_workers).min(disk_workers).clamp(1, 4)
+        cores.min(memory_workers).min(disk_workers).clamp(1, 8)
     };
     eprintln!(
         "Bedrock prepare: {workers} region workers ({cores} logical cores, {available_memory} bytes available memory, {available_disk} bytes available disk, server running: {server_running})"
     );
+    let chunk_read_workers = if workers == 1 && !server_running {
+        cores.min(4)
+    } else {
+        1
+    };
     let tasks = regions
         .into_iter()
         .map(|((dimension, x, z), positions)| {
@@ -304,92 +317,114 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
             }
         })
         .collect::<Vec<_>>();
-    let mut tasks = tasks.into_iter();
+    let work_queue = Mutex::new(VecDeque::from(tasks));
+    let failed = AtomicBool::new(false);
+    let reserved_disk_bytes = AtomicU64::new(0);
+    let first_error = Mutex::new(None::<String>);
     let mut read_time = Duration::ZERO;
     let mut nbt_time = Duration::ZERO;
     let mut encode_time = Duration::ZERO;
     let mut publish_time = Duration::ZERO;
     let mut manifest_time = Duration::ZERO;
-    loop {
-        let batch = tasks.by_ref().take(workers).collect::<Vec<_>>();
-        if batch.is_empty() {
-            break;
-        }
-        let count = batch.len();
-        let (sender, receiver) = mpsc::channel();
-        std::thread::scope(|scope| -> Result<(), Box<dyn Error>> {
-            for task in batch {
-                let sender = sender.clone();
-                let world = &world;
-                let biome_names = &biome_names;
-                let output = &output;
-                scope.spawn(move || {
+    let (sender, receiver) = mpsc::channel();
+    let worker_count = workers.min(total);
+    std::thread::scope(|scope| {
+        for _ in 0..worker_count {
+            let sender = sender.clone();
+            let work_queue = &work_queue;
+            let failed = &failed;
+            let reserved_disk_bytes = &reserved_disk_bytes;
+            let world = &world;
+            let biome_names = &biome_names;
+            let output = &output;
+            scope.spawn(move || {
+                loop {
+                    if failed.load(Ordering::Acquire) {
+                        break;
+                    }
+                    let task = match work_queue.lock() {
+                        Ok(mut queue) => queue.pop_front(),
+                        Err(_) => {
+                            failed.store(true, Ordering::Release);
+                            let _ = sender.send(Err("Bedrock region queue was poisoned".into()));
+                            break;
+                        }
+                    };
+                    let Some(task) = task else {
+                        break;
+                    };
                     let result = prepare_region(
                         world,
                         output,
                         task,
                         exact_biome_registry.then_some(biome_names),
-                        if workers == 1 && !server_running {
-                            4
-                        } else {
-                            1
-                        },
+                        chunk_read_workers,
+                        reserved_disk_bytes,
                     );
-                    let _ = sender.send(result);
-                });
-            }
-            drop(sender);
-            for _ in 0..count {
-                let work = receiver.recv()?.map_err(std::io::Error::other)?;
-                let key = format!("{}:{}:{}", dim_name(work.dimension), work.x, work.z);
-                let target = region_path(&output, work.dimension, work.x, work.z);
-                read_time += work.read_time;
-                nbt_time += work.nbt_time;
-                encode_time += work.encode_time;
-                merge_findings(&mut findings, work.findings);
-                if let Some(bytes) = work.bytes {
-                    const DISK_RESERVE_BYTES: u64 = 512 * 1024 * 1024;
-                    let required_space = u64::try_from(bytes.len())?
-                        .checked_add(DISK_RESERVE_BYTES)
-                        .ok_or("Bedrock region size overflow")?;
-                    if fs2::available_space(&output)? < required_space {
-                        return Err(format!(
-                            "insufficient disk space to publish region {key} while preserving a 512 MiB reserve"
-                        ).into());
+                    if result.is_err() {
+                        failed.store(true, Ordering::Release);
                     }
-                    let published = Instant::now();
-                    fs::create_dir_all(target.parent().ok_or("region has no parent")?)?;
-                    let temp = target.with_extension(format!("mca.tmp-{}", std::process::id()));
-                    fs::write(&temp, bytes)?;
-                    fs::File::open(&temp)?.sync_all()?;
-                    fs::rename(&temp, &target)?;
-                    if let Some(parent) = target.parent() {
-                        fs::File::open(parent)?.sync_all()?;
+                    if sender.send(result).is_err() {
+                        break;
                     }
-                    let region_file_sha256 = hex(&Sha256::digest(fs::read(&target)?));
-                    publish_time += published.elapsed();
-                    manifest.regions.insert(
-                        key,
-                        RegionFingerprint {
-                            converted_content_sha256: work.digest,
-                            region_file_sha256,
-                        },
-                    );
-                    let saved = Instant::now();
-                    write_manifest(&output, &manifest)?;
-                    manifest_time += saved.elapsed();
-                } else {
-                    reused += 1;
                 }
-                completed += 1;
-                println!("MSC_PROGRESS {completed} {total}");
-                eprintln!(
-                    "Bedrock prepare: {completed}/{total} regions converted or reused ({reused} reused)"
-                );
+            });
+        }
+        drop(sender);
+        for result in receiver {
+            let work = match result {
+                Ok(work) => work,
+                Err(error) => {
+                    failed.store(true, Ordering::Release);
+                    if let Ok(mut first) = first_error.lock()
+                        && first.is_none()
+                    {
+                        *first = Some(error);
+                    }
+                    continue;
+                }
+            };
+            let key = format!("{}:{}:{}", dim_name(work.dimension), work.x, work.z);
+            read_time += work.read_time;
+            nbt_time += work.nbt_time;
+            encode_time += work.encode_time;
+            publish_time += work.publish_time;
+            merge_findings(&mut findings, work.findings);
+            if work.reused {
+                reused += 1;
             }
-            Ok(())
-        })?;
+            manifest.regions.insert(key, work.fingerprint);
+            completed += 1;
+            println!("MSC_PROGRESS {completed} {total}");
+            eprintln!(
+                "Bedrock prepare: {completed}/{total} regions converted or reused ({reused} reused)"
+            );
+            if completed % MANIFEST_CHECKPOINT_REGIONS == 0 {
+                let saved = Instant::now();
+                if let Err(error) = write_manifest(&output, &manifest) {
+                    failed.store(true, Ordering::Release);
+                    if let Ok(mut first) = first_error.lock()
+                        && first.is_none()
+                    {
+                        *first = Some(error.to_string());
+                    }
+                }
+                manifest_time += saved.elapsed();
+            }
+        }
+    });
+    if let Some(error) = first_error
+        .into_inner()
+        .map_err(|_| std::io::Error::other("Bedrock conversion error state was poisoned"))?
+    {
+        return Err(error.into());
     }
+    if failed.load(Ordering::Acquire) {
+        return Err("Bedrock region conversion stopped before completion".into());
+    }
+    let saved = Instant::now();
+    write_manifest(&output, &manifest)?;
+    manifest_time += saved.elapsed();
     eprintln!(
         "Bedrock prepare: worker-time chunk read {:.1}s, NBT encode {:.1}s, region compression {:.1}s; wall-time publish/hash {:.1}s, manifest sync {:.1}s",
         read_time.as_secs_f64(),
@@ -446,6 +481,7 @@ fn prepare_region(
     task: RegionTask,
     biome_names: Option<&BTreeMap<u32, String>>,
     read_workers: usize,
+    reserved_disk_bytes: &AtomicU64,
 ) -> Result<RegionWork, String> {
     let mut opts = ChunkLoadOptions::for_data_request(
         ChunkDataRequest::new()
@@ -486,29 +522,101 @@ fn prepare_region(
     }
     let digest = hex(&content_hash.finalize());
     let target = region_path(output, task.dimension, task.x, task.z);
-    let reused = task.fingerprint.as_ref().is_some_and(|fingerprint| {
+    let cached = task.fingerprint.filter(|fingerprint| {
         fingerprint.converted_content_sha256 == digest
             && fs::read(&target)
                 .map(|bytes| hex(&Sha256::digest(bytes)) == fingerprint.region_file_sha256)
                 .unwrap_or(false)
     });
-    let started = Instant::now();
-    let bytes = if reused {
-        None
+    let (fingerprint, reused, encode_time, publish_time) = if let Some(fingerprint) = cached {
+        (fingerprint, true, Duration::ZERO, Duration::ZERO)
     } else {
-        Some(encode_region(region_chunks).map_err(|error| error.to_string())?)
+        let started = Instant::now();
+        let bytes = encode_region(region_chunks).map_err(|error| error.to_string())?;
+        let encode_time = started.elapsed();
+        let started = Instant::now();
+        let region_file_sha256 = publish_region(output, &target, &bytes, reserved_disk_bytes)?;
+        let publish_time = started.elapsed();
+        (
+            RegionFingerprint {
+                converted_content_sha256: digest,
+                region_file_sha256,
+            },
+            false,
+            encode_time,
+            publish_time,
+        )
     };
     Ok(RegionWork {
         dimension: task.dimension,
         x: task.x,
         z: task.z,
-        digest,
-        bytes,
+        fingerprint,
+        reused,
         findings,
         read_time,
         nbt_time,
-        encode_time: started.elapsed(),
+        encode_time,
+        publish_time,
     })
+}
+
+fn publish_region(
+    output: &Path,
+    target: &Path,
+    bytes: &[u8],
+    reserved_disk_bytes: &AtomicU64,
+) -> Result<String, String> {
+    let length = u64::try_from(bytes.len()).map_err(|_| "Bedrock region size overflow")?;
+    let required = length
+        .checked_add(DISK_RESERVE_BYTES)
+        .ok_or("Bedrock region size overflow")?;
+    let reservation = loop {
+        let outstanding = reserved_disk_bytes.load(Ordering::Acquire);
+        let available = fs2::available_space(output).map_err(|error| error.to_string())?;
+        if available.saturating_sub(outstanding) < required {
+            return Err(format!(
+                "insufficient disk space to publish {} while preserving a 512 MiB reserve",
+                target.display()
+            ));
+        }
+        let next = outstanding
+            .checked_add(length)
+            .ok_or("Bedrock region reservation overflow")?;
+        if reserved_disk_bytes
+            .compare_exchange(outstanding, next, Ordering::AcqRel, Ordering::Acquire)
+            .is_ok()
+        {
+            break length;
+        }
+    };
+    let result = (|| {
+        let region_file_sha256 = hex(&Sha256::digest(bytes));
+        fs::create_dir_all(
+            target
+                .parent()
+                .ok_or("Bedrock region has no parent directory")?,
+        )
+        .map_err(|error| error.to_string())?;
+        let name = target
+            .file_name()
+            .ok_or("Bedrock region filename is missing")?
+            .to_string_lossy();
+        let temporary = target.with_file_name(format!(".{name}.tmp-{}", std::process::id()));
+        let mut file = fs::File::create(&temporary).map_err(|error| error.to_string())?;
+        file.write_all(bytes).map_err(|error| error.to_string())?;
+        file.sync_all().map_err(|error| error.to_string())?;
+        drop(file);
+        fs::rename(&temporary, target).map_err(|error| error.to_string())?;
+        if let Some(parent) = target.parent() {
+            fs::File::open(parent)
+                .and_then(|file| file.sync_all())
+                .map_err(|error| error.to_string())?;
+        }
+        Ok(region_file_sha256)
+    })();
+    reserved_disk_bytes.fetch_sub(reservation, Ordering::AcqRel);
+    result
 }
 
 fn merge_findings(total: &mut Findings, next: Findings) {

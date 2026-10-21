@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** Bedrock saved-terrain parity plan (P18.82, P18.82a, P18.83–P18.89), with P18.84a–P18.84d addressing findings from the first full-size Bedtonic opening before persistent-cache work. The Java map is the processing and user-experience standard. Bedrock-specific work is justified only where its world format requires it; after preparation, both editions should use the same renderer, cache, streaming, pre-render and refresh mechanisms wherever technically sound.
+**Current priority:** Bedrock saved-terrain parity plan (P18.82, P18.82a, P18.83–P18.89), with P18.84a–P18.84d addressing findings from the first full-size Bedtonic opening before persistent-cache work. P18.85b targets the remaining cold-conversion throughput gap. The Java map is the processing and user-experience standard. Bedrock-specific work is justified only where its world format requires it; after preparation, both editions should use the same renderer, cache, streaming, pre-render and refresh mechanisms wherever technically sound.
 
 ### P18.69 — Defer detailed Bedrock tile swaps during camera movement
 
@@ -240,6 +240,15 @@ Bedrock currently routes to a separate `BedrockStore`: it snapshots LevelDB, ope
 **Verify:** `cd clients/desktop-web && npx tauri build` — Cameron checks the optimized Bedtonic run log for the selected worker count, steady progress beyond the earlier 40-region point, and final read/encode/publish/manifest timings; record elapsed time, peak memory and disk use against the prior run.
 **Batch:** P18.85a only.
 **Commit:** `P18.85a: pipeline bedrock region conversion`
+
+### P18.85b — Transcode Bedrock block palettes without per-block reconstruction
+
+**Status:** Planned; requires Cameron's review before implementation.
+**Files:** `tools/world-map-proof/src/anvil_probe.rs`; `tools/world-map-proof/src/anvil_convert.rs`; `docs/msc2/rolling-plan.md`.
+**What:** The current converter visits every block, resolves its Bedrock state through each storage layer, rebuilds property maps and string signatures, then deduplicates those strings into an Anvil palette. Instead, lower each Bedrock palette state to its Anvil name/properties once per subchunk, map the numeric Bedrock palette indices into the output palette, and select the same topmost non-air state across layered storage while writing Java's expected index order. Aggregate conversion-report block counts by palette usage rather than allocating and hashing names for every voxel. Preserve exact block properties, name aliases, neutral biome handling and deterministic output; if serialized output changes, advance the converter/cache identity so old regions cannot be mistaken for new output. Add one small deterministic regression test for palette remapping and secondary-layer air fallback, since a fast-path mistake would silently alter terrain. The current per-region `reused` decision still reads and re-encodes each source chunk to verify its converted-content hash, so those entries skip compression/publication rather than the expensive translation; retain that correctness check in this step. The converter's existing `--region` selector permits a bounded one-to-eight-region release-build comparison instead of another full Bedtonic pass. P18.85a's aggregate read/NBT/compression timings should be recorded alongside that sample; this optimization is worthwhile only if the sample shows meaningful time in NBT lowering.
+**Verify:** `cd tools/world-map-proof && cargo build --release` — Cameron compares a release-build conversion of the same one-to-eight saved Bedtonic regions before and after this step, records the existing read/NBT/compression timings, and confirms the converted block/biome report and visible terrain are unchanged. No test command is run by the agent.
+**Batch:** P18.85b only.
+**Commit:** `P18.85b: transcode bedrock palettes directly`
 
 ### P18.86 — Match Java's camera-following detail and travel
 

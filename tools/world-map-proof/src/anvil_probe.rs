@@ -15,15 +15,14 @@ use std::path::Path;
 use std::time::Instant;
 
 #[derive(Default)]
-struct Findings {
-    blocks: BTreeMap<String, u64>,
-    renamed: BTreeMap<String, String>,
-    properties_dropped: BTreeMap<String, u64>,
-    biomes: BTreeMap<u32, u64>,
-    unsupported_sections: u64,
-    layered_sections: u64,
-    min_section: Option<i8>,
-    max_section: Option<i8>,
+pub(crate) struct Findings {
+    pub(crate) blocks: BTreeMap<String, u64>,
+    pub(crate) renamed: BTreeMap<String, String>,
+    pub(crate) biomes: BTreeMap<u32, u64>,
+    pub(crate) unsupported_sections: u64,
+    pub(crate) layered_sections: u64,
+    pub(crate) min_section: Option<i8>,
+    pub(crate) max_section: Option<i8>,
 }
 
 type RegionChunks = BTreeMap<(i32, i32), Vec<(i32, i32, Vec<u8>)>>;
@@ -102,7 +101,7 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
             continue;
         }
         loaded += 1;
-        let nbt = encode_chunk(chunk, &mut findings)?;
+        let nbt = encode_chunk(chunk, &mut findings, None)?;
         regions
             .entry((chunk.pos.x.div_euclid(32), chunk.pos.z.div_euclid(32)))
             .or_default()
@@ -133,13 +132,12 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
         "total_seconds": started.elapsed().as_secs_f64(),
         "block_names": findings.blocks,
         "renamed_blocks": findings.renamed,
-        "dropped_property_blocks": findings.properties_dropped,
         "biome_ids": findings.biomes,
         "unsupported_sections": findings.unsupported_sections,
         "layered_sections": findings.layered_sections,
         "min_section_y": findings.min_section,
         "max_section_y": findings.max_section,
-        "fidelity_limit": "Probe uses Java assets, omits Bedrock block properties and secondary layers, and assigns plains to all biomes. Do not use as a production map.",
+        "fidelity_limit": "The bounded probe assigns plains because it is only a renderer-boundary proof. The durable converter requires an exact-version biome registry and retains block state properties; it selects the visible Bedrock layer and reports layered sections.",
     });
     fs::write(
         output.join("probe.json"),
@@ -163,7 +161,11 @@ fn block_name(name: &str, findings: &mut Findings) -> String {
     mapped.to_owned()
 }
 
-fn encode_chunk(chunk: &ChunkData, findings: &mut Findings) -> Result<Vec<u8>, Box<dyn Error>> {
+pub(crate) fn encode_chunk(
+    chunk: &ChunkData,
+    findings: &mut Findings,
+    biome_names: Option<&BTreeMap<u32, String>>,
+) -> Result<Vec<u8>, Box<dyn Error>> {
     let mut sections = Vec::new();
     for (&sy, subchunk) in &chunk.subchunks {
         findings.min_section = Some(findings.min_section.map_or(sy, |value| value.min(sy)));
@@ -175,25 +177,35 @@ fn encode_chunk(chunk: &ChunkData, findings: &mut Findings) -> Result<Vec<u8>, B
         if storages.len() > 1 {
             findings.layered_sections += 1;
         }
-        let mut palette = Vec::<String>::new();
+        let mut palette = Vec::<(String, BTreeMap<String, String>)>::new();
         let mut lookup = HashMap::<String, usize>::new();
         let mut indices = Vec::with_capacity(4096);
         for y in 0..16 {
             for z in 0..16 {
                 for x in 0..16 {
-                    let state = subchunk.block_state_at(x, y, z);
+                    let state = subchunk.visible_block_state_at(x, y, z);
                     let raw_name = state.map_or("minecraft:air", |state| state.name.as_str());
                     *findings.blocks.entry(raw_name.to_owned()).or_default() += 1;
-                    if state.is_some_and(|state| !state.states.is_empty()) {
-                        *findings
-                            .properties_dropped
-                            .entry(raw_name.to_owned())
-                            .or_default() += 1;
-                    }
                     let name = block_name(raw_name, findings);
-                    let index = *lookup.entry(name.clone()).or_insert_with(|| {
+                    let properties = state.map(|state| {
+                        state
+                            .states
+                            .iter()
+                            .map(|(key, value)| (key.clone(), property_string(key, value)))
+                            .collect::<BTreeMap<_, _>>()
+                    });
+                    let mut signature = name.clone();
+                    if let Some(properties) = &properties {
+                        for (key, value) in properties {
+                            signature.push('\0');
+                            signature.push_str(key);
+                            signature.push('=');
+                            signature.push_str(value);
+                        }
+                    }
+                    let index = *lookup.entry(signature).or_insert_with(|| {
                         let index = palette.len();
-                        palette.push(name);
+                        palette.push((name, properties.unwrap_or_default()));
                         index
                     });
                     indices.push(index);
@@ -202,8 +214,18 @@ fn encode_chunk(chunk: &ChunkData, findings: &mut Findings) -> Result<Vec<u8>, B
         }
         let block_palette = palette
             .into_iter()
-            .map(|name| compound([("Name", Value::String(name))]))
-            .collect::<Vec<_>>();
+            .map(|(name, properties)| {
+                let properties = properties
+                    .into_iter()
+                    .map(|(key, value)| (key, Value::String(value)))
+                    .collect::<HashMap<_, _>>();
+                let mut fields = HashMap::from([("Name".to_owned(), Value::String(name))]);
+                if !properties.is_empty() {
+                    fields.insert("Properties".to_owned(), Value::Compound(properties));
+                }
+                Ok(Value::Compound(fields))
+            })
+            .collect::<Result<Vec<_>, Box<dyn Error>>>()?;
         let mut block_states = HashMap::from([("palette".to_owned(), Value::List(block_palette))]);
         if lookup.len() > 1 {
             block_states.insert(
@@ -217,16 +239,48 @@ fn encode_chunk(chunk: &ChunkData, findings: &mut Findings) -> Result<Vec<u8>, B
                 *findings.biomes.entry(id).or_default() += u64::from(count);
             }
         }
+        let mut biome_palette = Vec::<String>::new();
+        let mut biome_lookup = HashMap::<String, usize>::new();
+        let mut biome_indices = Vec::with_capacity(64);
+        for by in 0..4 {
+            for bz in 0..4 {
+                for bx in 0..4 {
+                    let id = biome
+                        .and_then(|data| data.biome_id_at(bx * 4, by * 4, bz * 4))
+                        .unwrap_or(u32::MAX);
+                    let name = match biome_names.and_then(|names| names.get(&id)) {
+                        Some(name) => name.clone(),
+                        None if biome_names.is_some() => {
+                            return Err(format!(
+                                "biome ID {id} has no entry in the exact-version registry"
+                            )
+                            .into());
+                        }
+                        None => "minecraft:plains".to_owned(),
+                    };
+                    let index = *biome_lookup.entry(name.clone()).or_insert_with(|| {
+                        let index = biome_palette.len();
+                        biome_palette.push(name);
+                        index
+                    });
+                    biome_indices.push(index);
+                }
+            }
+        }
+        let mut biome_tag = HashMap::from([(
+            "palette".to_owned(),
+            Value::List(biome_palette.into_iter().map(Value::String).collect()),
+        )]);
+        if biome_lookup.len() > 1 {
+            biome_tag.insert(
+                "data".to_owned(),
+                Value::LongArray(LongArray::new(pack(&biome_indices, 1))),
+            );
+        }
         sections.push(compound([
             ("Y", Value::Byte(sy)),
             ("block_states", Value::Compound(block_states)),
-            (
-                "biomes",
-                compound([(
-                    "palette",
-                    Value::List(vec![Value::String("minecraft:plains".to_owned())]),
-                )]),
-            ),
+            ("biomes", Value::Compound(biome_tag)),
         ]));
     }
     fastnbt::to_bytes(&compound([
@@ -258,7 +312,7 @@ fn pack(indices: &[usize], min_bits: usize) -> Vec<i64> {
     packed.into_iter().map(|value| value as i64).collect()
 }
 
-fn encode_region(chunks: Vec<(i32, i32, Vec<u8>)>) -> Result<Vec<u8>, Box<dyn Error>> {
+pub(crate) fn encode_region(chunks: Vec<(i32, i32, Vec<u8>)>) -> Result<Vec<u8>, Box<dyn Error>> {
     let mut bytes = vec![0u8; 8192];
     for (x, z, nbt) in chunks {
         let mut encoder = ZlibEncoder::new(Vec::new(), Compression::fast());
@@ -284,4 +338,54 @@ fn encode_region(chunks: Vec<(i32, i32, Vec<u8>)>) -> Result<Vec<u8>, Box<dyn Er
         bytes.resize(bytes.len().div_ceil(4096) * 4096, 0);
     }
     Ok(bytes)
+}
+
+fn property_string(key: &str, value: &bedrock_world::NbtTag) -> String {
+    use bedrock_world::NbtTag as N;
+    const BOOLEAN_STATES: &[&str] = &[
+        "attached",
+        "conditional",
+        "disarmed",
+        "down",
+        "east",
+        "enabled",
+        "eye",
+        "hanging",
+        "has_record",
+        "in_wall",
+        "inverted",
+        "lit",
+        "locked",
+        "north",
+        "occupied",
+        "open",
+        "persistent",
+        "powered",
+        "short",
+        "signal_fire",
+        "snowy",
+        "south",
+        "triggered",
+        "unstable",
+        "up",
+        "waterlogged",
+        "west",
+    ];
+    match value {
+        N::Byte(v) if BOOLEAN_STATES.contains(&key) => (*v != 0).to_string(),
+        N::Byte(v) => v.to_string(),
+        N::Short(v) => v.to_string(),
+        N::Int(v) => v.to_string(),
+        N::Long(v) => v.to_string(),
+        N::Float(v) => v.to_string(),
+        N::Double(v) => v.to_string(),
+        N::String(v) => v.clone(),
+        N::End => "0".to_owned(),
+        N::ByteArray(_)
+        | N::IntArray(_)
+        | N::LongArray(_)
+        | N::ShortArray(_)
+        | N::List(_)
+        | N::Compound(_) => format!("{value:?}"),
+    }
 }

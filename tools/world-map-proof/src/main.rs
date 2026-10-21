@@ -11,6 +11,7 @@ use std::path::Path;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
+mod anvil_convert;
 mod anvil_probe;
 mod render;
 
@@ -336,16 +337,20 @@ fn main() -> Result<(), Box<dyn Error>> {
     // A large converted world can span more LevelDB tables than launchd's
     // default 256-file soft limit. Only this short-lived exporter needs more.
     #[cfg(target_os = "macos")]
-    raise_open_file_limit(
-        args.get(1).is_some_and(|arg| {
-            arg == "catalog" || arg == "catalog-nearby" || arg == "tile-session"
-        }),
-    );
+    raise_open_file_limit(args.get(1).is_some_and(|arg| {
+        arg == "catalog"
+            || arg == "catalog-nearby"
+            || arg == "tile-session"
+            || arg == "anvil-convert"
+    }));
     if args.get(1).is_some_and(|arg| arg == "compare") {
         return compare_tiles(&args);
     }
     if args.get(1).is_some_and(|arg| arg == "anvil-probe") {
         return anvil_probe::run(&args);
+    }
+    if args.get(1).is_some_and(|arg| arg == "anvil-convert") {
+        return anvil_convert::run(&args);
     }
     if args.get(1).is_some_and(|arg| arg == "diff-catalogs") {
         return diff_catalogs(&args);

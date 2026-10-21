@@ -41,12 +41,20 @@ The Nether/End samples prove their section ranges and region encoding work;
 they do not cover the full dimensions or prove roof/cave presentation.
 
 **Selected boundary:** a private Bedrock-to-modern-Anvil adapter feeding
-Vantage's existing region reader. The proof validates the file/mesh boundary
-and avoids a second renderer. P18.83 must close the named fidelity gaps and
-measure full-region throughput before this route is eligible for the normal
-map. If those gates fail, reconsider native Bedrock input inside Vantage
-without changing the Java viewer or its downstream cache/streaming behavior.
-Do not route the production Bedrock map through this deliberately lossy probe.
+Vantage's existing region reader. P18.83 adds the full-region `anvil-convert`
+path, carries block state properties and 3D biome cells, preserves the three
+standard dimensions, and requires an exact-save-version biome registry. Its
+atomic region files and manifest resume safely after interruption. Resuming
+currently still scans and decodes source chunks to compute content digests;
+the manifest avoids recompressing and rewriting unchanged region files, not
+the LevelDB read. The conversion report exposes block aliases, biome coverage,
+vertical range, and sections with secondary layers. Those layered sections
+currently write the first visible Bedrock layer; their count remains a known
+fidelity limitation for later review. The existing 1.26.31.1 Bedtonic proof
+does not contain the required authoritative biome registry, so full conversion
+and practical first-open timing remain unverified. Do not route the production
+Bedrock map through the bounded `anvil-probe`; app routing and its progress
+panel are P18.84.
 
 Reproduce the bounded proof with an optimized helper and a **new** output
 directory separate from the saved world:
@@ -63,9 +71,21 @@ clients/desktop-web/src-tauri/target/x86_64-apple-darwin/release/agent/vantage m
   0 0 3 3
 ```
 
-The helper refuses an existing output directory and writes `probe.json` with
-timings, saved-chunk count, block names, biome IDs, section coverage and
-known fidelity omissions. It never writes to the source snapshot or server.
-No test suite was run for this step. Cameron's release-build visual comparison
-of matching Java/Bedrock terrain and full-region first-open timing is still
-needed before marking P18.82a Done.
+The bounded probe writes `probe.json`; it is only a renderer-boundary proof.
+For durable conversion, build the optimized helper and supply an exact-version
+registry JSON (`version`, `source`, `source_sha256`, and unique `ids` mapping
+names to numeric IDs):
+
+```sh
+cargo build --manifest-path tools/world-map-proof/Cargo.toml --release
+tools/world-map-proof/target/release/msc-world-map-proof anvil-convert \
+  "$HOME/Library/Application Support/MSC 2/map-staging/<snapshot>/world" \
+  "$HOME/Library/Application Support/MSC 2/map-cache/bedrock-anvil/<world-id>" \
+  /path/to/exact-bedrock-biome-registry.json
+```
+
+The converter refuses a registry-version mismatch or unmapped biome IDs and
+writes `conversion-report.json`, `bedrock-conversion.json`, and dimension
+region files. No full Bedtonic conversion or test suite was run for P18.83;
+Cameron's release-build conversion, fidelity review, and timing are still
+needed before marking it Done.

@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** Bedrock saved-terrain parity plan (P18.82, P18.82a, P18.83–P18.89), following Cameron's positive Java travel check. The Java map is the processing and user-experience standard. Bedrock-specific work is justified only where its world format requires it; after preparation, both editions should use the same renderer, cache, streaming, pre-render and refresh mechanisms wherever technically sound.
+**Current priority:** Bedrock saved-terrain parity plan (P18.82, P18.82a, P18.83–P18.89), with P18.84a–P18.84d addressing findings from the first full-size Bedtonic opening before persistent-cache work. The Java map is the processing and user-experience standard. Bedrock-specific work is justified only where its world format requires it; after preparation, both editions should use the same renderer, cache, streaming, pre-render and refresh mechanisms wherever technically sound.
 
 ### P18.69 — Defer detailed Bedrock tile swaps during camera movement
 
@@ -175,6 +175,53 @@ Bedrock currently routes to a separate `BedrockStore`: it snapshots LevelDB, ope
 **Verify:** `cd clients/desktop-web && npx tauri build` — Cameron opens Bedtonic and Java in the optimized app, compares their preparation stages and honest region counters, and confirms Bedrock reaches a detailed, usable first view through the same Vantage manifest/tile route instead of lingering in a simple preview. Repeat with BDS running to verify the safe snapshot boundary.
 **Batch:** P18.84 only.
 **Commit:** `P18.84: open bedrock through shared vantage renderer`
+
+**Bedtonic first-open observation and audit, October 20, 2026.** In Cameron's optimized app with BDS stopped, the new converter indexed 1,608 saved Bedrock regions in 56.9 seconds. It then entered the counted conversion stage; after about two further minutes it had published one region. One first region is not a valid whole-world time estimate, but the sequential conversion and delayed progress warrant a bounded throughput investigation before asking Cameron to wait for a full run. The helper was still active; the 0/1608 display was not a hang. The counter currently advances only every ten completed regions. Code review also found three correctness/parity issues: converted NBT compounds and region chunk ordering are not guaranteed deterministic even though their bytes feed cache fingerprints; macOS/Linux shutdown does not signal the converter's cancellation flag before cache cleanup waits for the conversion lock; and the adapter copies Bedrock `level.dat` unchanged while Vantage expects Java spawn metadata, so it falls back to the populated-bounds center. These are findings to fix, not proof of a completed or failed full-world render. Do not run another full Bedtonic conversion merely to diagnose them.
+
+### P18.84p — Plan Bedrock conversion corrections from the full-size opening
+
+**Status:** Implemented as a plan; awaiting Cameron's review. No product code or tests changed.
+**Files:** `docs/msc2/rolling-plan.md`.
+**What:** Record the first optimized Bedtonic indexing/conversion observation and the audited cancellation, deterministic-revision and spawn-location gaps. Insert narrowly scoped P18.84a–P18.84d before durable cache work, with bounded verification that does not require another 1,608-region wait. Keep P18.85–P18.89 as the subsequent warm-open, travel, pre-render, refresh and final parity work.
+**Verify:** `sed -n '170,275p' docs/msc2/rolling-plan.md` — confirm the observed facts, four follow-up steps, and later parity steps match Cameron's intended order.
+**Batch:** P18.84p only.
+**Commit:** `P18.84p: plan bedrock conversion corrections`
+
+### P18.84a — Cancel Bedrock preparation on every platform
+
+**Status:** Planned.
+**Files:** `crates/msc-agent/src/routes/worlds.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `docs/msc2/rolling-plan.md`.
+**What:** Signal the Bedrock conversion shutdown flag on macOS and Linux as well as Windows before agent cleanup waits for Bedrock state. Ensure a running `anvil-convert` child is stopped and reaped, the current incomplete region remains unpublished, and service stop/repair does not wait for the whole conversion. A fresh agent must accept a later retry. Do not weaken the safe immutable-snapshot boundary or source-world protection.
+**Verify:** `cd clients/desktop-web && npx tauri build` — Cameron then starts conversion on a small disposable Bedrock world, stops the agent before completion, and confirms prompt exit, no leftover converter, and a successful later retry; no full Bedtonic run is needed.
+**Batch:** P18.84a only.
+**Commit:** `P18.84a: cancel bedrock map conversion on shutdown`
+
+### P18.84b — Make converted region revisions deterministic
+
+**Status:** Planned.
+**Files:** `tools/world-map-proof/src/anvil_probe.rs`; `tools/world-map-proof/src/anvil_convert.rs`; `docs/msc2/rolling-plan.md`.
+**What:** Serialize Bedrock-to-Anvil NBT compounds and chunks in a stable order, then define the converted-content fingerprint over that canonical order. Update the converter-format/version marker so earlier nondeterministic manifests cannot be mistaken for stable cache entries. Re-running conversion against the same immutable snapshot must produce matching region fingerprints and permit reuse; a changed saved chunk must still change the relevant revision. This prerequisite protects P18.85's retained regions and Vantage tile cache from needless rebuilding.
+**Verify:** `cargo build --manifest-path tools/world-map-proof/Cargo.toml --release` — Cameron converts a bounded immutable sample twice into the same output, checks that the second pass reports region reuse and identical hashes, then changes one chunk in a disposable snapshot and confirms its region changes.
+**Batch:** P18.84b only.
+**Commit:** `P18.84b: stabilize bedrock converted region revisions`
+
+### P18.84c — Speed up and expose Bedrock region conversion
+
+**Status:** Planned.
+**Files:** `tools/world-map-proof/src/main.rs`; `tools/world-map-proof/src/anvil_convert.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `docs/msc2/bedrock-vantage-boundary-proof.md`; `docs/msc2/rolling-plan.md`.
+**What:** Measure LevelDB opening, full-world indexing, chunk decode, NBT conversion, region compression/write and manifest sync separately on bounded, representative sparse and dense Bedtonic regions. Provide a bounded region selection for this measurement so it cannot accidentally convert all 1,608 regions. Remove the measured hot path, using bounded region concurrency sized from available CPU, memory and disk only if profiling supports it. Keep memory/open files bounded and reduce background work while BDS runs, as Java preparation does. Publish each region atomically, count every completed region promptly rather than hiding the first nine, and report converted versus reused progress without implying an unmeasured ETA. Compare a bounded optimized-build sample before and after the change; require a material improvement without sacrificing fidelity or source-world safety before asking for another full-world opening.
+**Verify:** `cargo build --manifest-path tools/world-map-proof/Cargo.toml --release` — Cameron runs the documented bounded conversion on the same immutable sample before and after, compares stage timings and peak resources, and sees per-region progress; a full Bedtonic conversion is not required for this step.
+**Batch:** P18.84c only.
+**Commit:** `P18.84c: accelerate bedrock region preparation`
+
+### P18.84d — Open Bedrock at its saved spawn
+
+**Status:** Planned.
+**Files:** `tools/world-map-proof/src/anvil_convert.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `third_party/vantage/src/world.zig` if the shared input contract needs it; `docs/msc2/rolling-plan.md`.
+**What:** Read Bedrock's saved spawn from its native `level.dat` and supply it to Vantage through the private converted input or a shared explicit spawn field. Verify coordinate and dimension mapping, keep the populated-bounds fallback only when saved spawn is unavailable, and avoid rewriting the playable world. Opening the map should center on the same intended starting area as Java rather than an arbitrary center of a large or asymmetric saved world.
+**Verify:** `cd clients/desktop-web && npx tauri build` — Cameron opens a small disposable Bedrock world with a known off-center spawn and confirms the first camera position matches it; Bedtonic's full conversion is not needed.
+**Batch:** P18.84d only.
+**Commit:** `P18.84d: use bedrock saved spawn for first view`
 
 ### P18.85 — Reuse prepared regions and detailed tiles on warm open
 

@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: f2ef64919655989720a1dbf73229ddcbc4d767e6463ce4c63e7889d5d07b5758
+// Contract SHA-256: 67639e57dda8ea2ec286222defc9ec68e0bd04530e6e9e191a69950118e9de0d
 
 export interface paths {
   '/v1/active-server': {
@@ -7315,11 +7315,11 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Estimate saved Java tile work, disk budget and current pre-render operation */
-    get: operations['getJavaMapPreRender'];
+    /** Estimate saved tile work, disk budget and current pre-render operation */
+    get: operations['getWorldMapPreRender'];
     put?: never;
-    /** Start or resume explicit saved Java tile pre-render */
-    post: operations['startJavaMapPreRender'];
+    /** Start or resume explicit saved terrain tile pre-render */
+    post: operations['startWorldMapPreRender'];
     delete?: never;
     options?: never;
     head?: never;
@@ -7335,8 +7335,8 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Cancel a Java map pre-render while keeping completed tiles */
-    post: operations['cancelJavaMapPreRender'];
+    /** Cancel a map pre-render while keeping completed tiles */
+    post: operations['cancelWorldMapPreRender'];
     delete?: never;
     options?: never;
     head?: never;
@@ -8638,29 +8638,6 @@ export interface components {
       pack: components['schemas']['WorldPackRecordDTO'];
       /** @enum {string} */
       result: 'installed';
-    } & {
-      [key: string]: unknown;
-    };
-    JavaMapPreRenderCancelRequestDTO: {
-      dimension: string;
-    } & {
-      [key: string]: unknown;
-    };
-    JavaMapPreRenderEstimateDTO: {
-      cachedBytes: number;
-      cachedTiles: number;
-      estimatedTotalBytes: number;
-      maxBudgetMib: number;
-      operation: components['schemas']['OperationDTO'];
-      operationId: string | null;
-      suggestedBudgetMib: number;
-      totalTiles: number;
-    } & {
-      [key: string]: unknown;
-    };
-    JavaMapPreRenderStartRequestDTO: {
-      cacheBudgetMib: number;
-      dimension: string;
     } & {
       [key: string]: unknown;
     };
@@ -10436,6 +10413,29 @@ export interface components {
       serverId: string | null;
       source: string;
       status: string;
+    } & {
+      [key: string]: unknown;
+    };
+    WorldMapPreRenderCancelRequestDTO: {
+      dimension: string;
+    } & {
+      [key: string]: unknown;
+    };
+    WorldMapPreRenderEstimateDTO: {
+      cachedBytes: number;
+      cachedTiles: number;
+      estimatedTotalBytes: number;
+      maxBudgetMib: number;
+      operation: components['schemas']['OperationDTO'];
+      operationId: string | null;
+      suggestedBudgetMib: number;
+      totalTiles: number;
+    } & {
+      [key: string]: unknown;
+    };
+    WorldMapPreRenderStartRequestDTO: {
+      cacheBudgetMib: number;
+      dimension: string;
     } & {
       [key: string]: unknown;
     };
@@ -13077,7 +13077,7 @@ export interface operations {
       };
     };
   };
-  getJavaMapPreRender: {
+  getWorldMapPreRender: {
     parameters: {
       query: {
         dimension: string;
@@ -13094,7 +13094,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          'application/json': components['schemas']['JavaMapPreRenderEstimateDTO'];
+          'application/json': components['schemas']['WorldMapPreRenderEstimateDTO'];
         };
       };
       /** @description Worlds permission required */
@@ -13104,7 +13104,7 @@ export interface operations {
         };
         content?: never;
       };
-      /** @description No active Java saved terrain */
+      /** @description No active saved terrain */
       409: {
         headers: {
           [name: string]: unknown;
@@ -13120,7 +13120,7 @@ export interface operations {
       };
     };
   };
-  startJavaMapPreRender: {
+  startWorldMapPreRender: {
     parameters: {
       query?: never;
       header?: never;
@@ -13129,7 +13129,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        'application/json': components['schemas']['JavaMapPreRenderStartRequestDTO'];
+        'application/json': components['schemas']['WorldMapPreRenderStartRequestDTO'];
       };
     };
     responses: {
@@ -13162,7 +13162,7 @@ export interface operations {
       };
     };
   };
-  cancelJavaMapPreRender: {
+  cancelWorldMapPreRender: {
     parameters: {
       query?: never;
       header?: never;
@@ -13171,7 +13171,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        'application/json': components['schemas']['JavaMapPreRenderCancelRequestDTO'];
+        'application/json': components['schemas']['WorldMapPreRenderCancelRequestDTO'];
       };
     };
     responses: {

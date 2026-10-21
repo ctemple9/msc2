@@ -511,6 +511,15 @@ impl RendererStore {
         Ok(())
     }
 
+    pub(super) fn restart_for_cache_settings(&self) -> Result<(), ()> {
+        let mut renderer = self.0.current.lock().map_err(|_| ())?;
+        if self.0.shutdown.load(Ordering::Acquire) {
+            return Err(());
+        }
+        *renderer = None;
+        Ok(())
+    }
+
     pub(super) fn prepared_cache_lock(&self, path: &Path) -> Option<Arc<std::fs::File>> {
         self.0
             .snapshot

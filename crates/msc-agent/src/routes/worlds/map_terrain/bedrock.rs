@@ -278,6 +278,15 @@ fn prune_old_converted_generations(current: &Path) {
 #[derive(Clone, Default)]
 pub(crate) struct BedrockStore(Arc<Mutex<BedrockState>>, Arc<ExporterLifecycle>);
 
+pub(super) struct SharedRead<'a> {
+    pub lifecycle: &'a crate::routes::lifecycle::LifecycleRoutesState,
+    pub renderer: &'a super::RendererStore,
+    pub server_dir: &'a Path,
+    pub server_id: &'a str,
+    pub world: &'a Path,
+    pub dimension: &'a str,
+}
+
 #[derive(Default)]
 struct ExporterLifecycle {
     shutdown: AtomicBool,
@@ -562,12 +571,14 @@ pub(super) async fn artifact(
     let dimension = query.dimension.clone();
     match tokio::task::spawn_blocking(move || {
         store.read_shared(
-            &lifecycle,
-            &renderer,
-            &server_dir,
-            &server_id,
-            &world,
-            &dimension,
+            SharedRead {
+                lifecycle: &lifecycle,
+                renderer: &renderer,
+                server_dir: &server_dir,
+                server_id: &server_id,
+                world: &world,
+                dimension: &dimension,
+            },
             &artifact,
         )
     })
@@ -778,16 +789,19 @@ impl BedrockStore {
         Ok(stats)
     }
 
-    fn read_shared(
+    pub(super) fn read_shared(
         &self,
-        lifecycle: &crate::routes::lifecycle::LifecycleRoutesState,
-        renderer: &super::RendererStore,
-        server_dir: &Path,
-        server_id: &str,
-        world: &Path,
-        dimension: &str,
+        request: SharedRead<'_>,
         artifact: &str,
     ) -> Result<(u16, Vec<u8>), String> {
+        let SharedRead {
+            lifecycle,
+            renderer,
+            server_dir,
+            server_id,
+            world,
+            dimension,
+        } = request;
         let mut current = self
             .0
             .lock()

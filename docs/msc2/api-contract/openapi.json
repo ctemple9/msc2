@@ -988,8 +988,8 @@
     },
     "/v1/worlds/map/pre-render": {
       "get": {
-        "summary": "Estimate saved Java tile work, disk budget and current pre-render operation",
-        "operationId": "getJavaMapPreRender",
+        "summary": "Estimate saved tile work, disk budget and current pre-render operation",
+        "operationId": "getWorldMapPreRender",
         "x-permission-category": "worlds",
         "parameters": [
           {
@@ -1007,7 +1007,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JavaMapPreRenderEstimateDTO"
+                  "$ref": "#/components/schemas/WorldMapPreRenderEstimateDTO"
                 }
               }
             }
@@ -1016,7 +1016,7 @@
             "description": "Worlds permission required"
           },
           "409": {
-            "description": "No active Java saved terrain"
+            "description": "No active saved terrain"
           },
           "502": {
             "description": "Renderer unavailable"
@@ -1024,16 +1024,16 @@
         }
       },
       "post": {
-        "summary": "Start or resume explicit saved Java tile pre-render",
-        "operationId": "startJavaMapPreRender",
+        "summary": "Start or resume explicit saved terrain tile pre-render",
+        "operationId": "startWorldMapPreRender",
         "x-permission-category": "worlds",
-        "x-notes": "Completed tiles persist across app and agent restarts; the user selects a disk budget based on the estimate. One background lane yields to visible tile requests. Normal map opening never starts this job.",
+        "x-notes": "Completed tiles persist across app and agent restarts; the user selects a disk budget based on the estimate. Background tile workers yield to visible tile requests and throttle when the server runs. Normal map opening never starts this job. Bedrock prepares its private converted input before using the same Vantage tile route and persistent detailed-tile cache.",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JavaMapPreRenderStartRequestDTO"
+                "$ref": "#/components/schemas/WorldMapPreRenderStartRequestDTO"
               }
             }
           }
@@ -1068,15 +1068,15 @@
     },
     "/v1/worlds/map/pre-render/cancel": {
       "post": {
-        "summary": "Cancel a Java map pre-render while keeping completed tiles",
-        "operationId": "cancelJavaMapPreRender",
+        "summary": "Cancel a map pre-render while keeping completed tiles",
+        "operationId": "cancelWorldMapPreRender",
         "x-permission-category": "worlds",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/JavaMapPreRenderCancelRequestDTO"
+                "$ref": "#/components/schemas/WorldMapPreRenderCancelRequestDTO"
               }
             }
           }
@@ -10500,7 +10500,7 @@
         },
         "required": ["serverId", "source", "fresh", "status", "sampledAtMs", "sequence", "players"]
       },
-      "JavaMapPreRenderEstimateDTO": {
+      "WorldMapPreRenderEstimateDTO": {
         "type": "object",
         "required": [
           "totalTiles",
@@ -10541,7 +10541,7 @@
           }
         }
       },
-      "JavaMapPreRenderStartRequestDTO": {
+      "WorldMapPreRenderStartRequestDTO": {
         "type": "object",
         "required": [
           "dimension",
@@ -10558,7 +10558,7 @@
           }
         }
       },
-      "JavaMapPreRenderCancelRequestDTO": {
+      "WorldMapPreRenderCancelRequestDTO": {
         "type": "object",
         "required": [
           "dimension"

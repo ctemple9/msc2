@@ -1,4 +1,4 @@
-//! Explicit, cancellable Java map warming over Vantage's ordinary tile route.
+//! Explicit, cancellable saved-terrain warming over Vantage's ordinary tile route.
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -89,13 +89,22 @@ struct RunRequest {
     world: PathBuf,
     dimension: String,
     version: Option<String>,
+    bedrock: bool,
     budget_mib: u64,
+}
+
+struct SelectedWorld {
+    server_id: String,
+    server_dir: PathBuf,
+    world: PathBuf,
+    version: Option<String>,
+    bedrock: bool,
 }
 
 fn selected_world(
     state: &WorldsRoutesState,
     dimension: &str,
-) -> Result<(String, PathBuf, PathBuf, Option<String>), Box<Response>> {
+) -> Result<SelectedWorld, Box<Response>> {
     if state.map_shutdown.load(Ordering::Acquire) {
         return Err(Box::new(error_response(
             StatusCode::SERVICE_UNAVAILABLE,
@@ -104,53 +113,121 @@ fn selected_world(
         )));
     }
     let server = active_server_or_response(&state.lifecycle).map_err(Box::new)?;
-    if server.server_type == ServerType::Bedrock {
-        return Err(Box::new(error_response(
-            StatusCode::CONFLICT,
-            "java_only",
-            "Pre-render map currently supports Java worlds. Bedrock parity follows the Java map work.",
-        )));
-    }
     let server_dir = PathBuf::from(&server.server_dir);
-    let name = msc_application::worlds::read_java_level_name(&StdFileSystem, &server_dir)
-        .filter(|name| is_safe_level_folder(name))
-        .ok_or_else(|| {
-            Box::new(error_response(
+    let bedrock = server.server_type == ServerType::Bedrock;
+    let (world, selected_version) = if bedrock {
+        let name = msc_application::worlds::read_configured_level_name(&StdFileSystem, &server_dir)
+            .filter(|name| is_safe_level_folder(name))
+            .ok_or_else(|| {
+                Box::new(error_response(
+                    StatusCode::CONFLICT,
+                    "map_unavailable",
+                    "The active Bedrock world folder is unavailable.",
+                ))
+            })?;
+        let worlds = server_dir.join("worlds");
+        let world = worlds.join(name);
+        if !super::is_direct_child(&server_dir, &worlds)
+            || !super::is_direct_child(&worlds, &world)
+            || !world.join("level.dat").is_file()
+            || !world.join("db").is_dir()
+        {
+            return Err(Box::new(error_response(
+                StatusCode::CONFLICT,
+                "map_unavailable",
+                "The active Bedrock world has no safely accessible saved terrain.",
+            )));
+        }
+        if !matches!(
+            dimension,
+            "minecraft:overworld" | "minecraft:the_nether" | "minecraft:the_end"
+        ) {
+            return Err(Box::new(error_response(
+                StatusCode::CONFLICT,
+                "dimension_empty",
+                "The selected Bedrock dimension is unavailable.",
+            )));
+        }
+        (world, Some("26.3".to_string()))
+    } else {
+        let name = msc_application::worlds::read_java_level_name(&StdFileSystem, &server_dir)
+            .filter(|name| is_safe_level_folder(name))
+            .ok_or_else(|| {
+                Box::new(error_response(
+                    StatusCode::CONFLICT,
+                    "map_unavailable",
+                    "The active Java world folder is unavailable.",
+                ))
+            })?;
+        let world = server_dir.join(name);
+        if !super::is_direct_child(&server_dir, &world) {
+            return Err(Box::new(error_response(
                 StatusCode::CONFLICT,
                 "map_unavailable",
                 "The active Java world folder is unavailable.",
+            )));
+        }
+        let dimensions = java_map_dimensions(&world, true).map_err(|_| {
+            Box::new(error_response(
+                StatusCode::CONFLICT,
+                "map_unavailable",
+                "Saved dimensions could not be inspected.",
             ))
         })?;
-    let world = server_dir.join(name);
-    if !super::is_direct_child(&server_dir, &world) {
-        return Err(Box::new(error_response(
-            StatusCode::CONFLICT,
-            "map_unavailable",
-            "The active Java world folder is unavailable.",
-        )));
+        if !dimensions
+            .iter()
+            .any(|item| item.id == dimension && item.state == "ready")
+        {
+            return Err(Box::new(error_response(
+                StatusCode::CONFLICT,
+                "dimension_empty",
+                "The selected dimension has no saved terrain.",
+            )));
+        }
+        let version = crate::routes::versions::minecraft_version_from_selection(
+            Some(server.java_flavor),
+            server.minecraft_version.clone(),
+        );
+        (world, version)
+    };
+    Ok(SelectedWorld {
+        server_id: server.id,
+        server_dir,
+        world,
+        version: selected_version,
+        bedrock,
+    })
+}
+
+fn prepare_bedrock_renderer(
+    state: &WorldsRoutesState,
+    server_id: &str,
+    server_dir: &Path,
+    world: &Path,
+    dimension: &str,
+    fresh: bool,
+) -> Result<(), String> {
+    let artifact = if fresh {
+        "manifest-fresh.json"
+    } else {
+        "manifest.json"
+    };
+    let (status, _) = state.bedrock_map.read_shared(
+        super::bedrock::SharedRead {
+            lifecycle: &state.lifecycle,
+            renderer: &state.map_renderer,
+            server_dir,
+            server_id,
+            world,
+            dimension,
+        },
+        artifact,
+    )?;
+    if status == 200 {
+        Ok(())
+    } else {
+        Err(format!("renderer returned HTTP {status}"))
     }
-    let dimensions = java_map_dimensions(&world, true).map_err(|_| {
-        Box::new(error_response(
-            StatusCode::CONFLICT,
-            "map_unavailable",
-            "Saved dimensions could not be inspected.",
-        ))
-    })?;
-    if !dimensions
-        .iter()
-        .any(|item| item.id == dimension && item.state == "ready")
-    {
-        return Err(Box::new(error_response(
-            StatusCode::CONFLICT,
-            "dimension_empty",
-            "The selected dimension has no saved terrain.",
-        )));
-    }
-    let selected_version = crate::routes::versions::minecraft_version_from_selection(
-        Some(server.java_flavor),
-        server.minecraft_version.clone(),
-    );
-    Ok((server.id, server_dir, world, selected_version))
 }
 
 fn manifest(
@@ -196,7 +273,7 @@ fn fetch_tile(state: &WorldsRoutesState, task: &RunRequest, tile: &Tile) -> Resu
     let elapsed = started.elapsed();
     if elapsed >= Duration::from_secs(5) {
         eprintln!(
-            "Java map: pre-render tile ({},{}) request took {:.1}s",
+            "Map pre-render: tile ({},{}) request took {:.1}s",
             tile.x,
             tile.z,
             elapsed.as_secs_f64()
@@ -225,10 +302,15 @@ fn fetch_tile(state: &WorldsRoutesState, task: &RunRequest, tile: &Tile) -> Resu
 fn estimate(
     state: &WorldsRoutesState,
     server_id: &str,
+    server_dir: &Path,
     world: &Path,
     dimension: &str,
     version: Option<&str>,
+    bedrock: bool,
 ) -> Result<Estimate, String> {
+    if bedrock {
+        prepare_bedrock_renderer(state, server_id, server_dir, world, dimension, false)?;
+    }
     let current = manifest(
         &state.map_renderer,
         state,
@@ -254,19 +336,24 @@ fn estimate(
     let suggested_budget_mib = (estimated_total_bytes.saturating_mul(5) / 4)
         .div_ceil(MIB)
         .clamp(4096, 65536);
-    let (cache, _) = java_terrain_compat::persistent_tiles(
+    let assets = super::dependencies::assets(world, version).map_err(|error| error.message)?;
+    let (cache, _) = java_terrain_compat::persistent_tiles_for_edition(
         server_id,
         world,
         dimension,
-        &super::dependencies::assets(world, version).map_err(|error| error.message)?,
+        &assets,
+        if bedrock { "bedrock-anvil-v3" } else { "java" },
     )
     .map_err(|error| error.to_string())?;
     let used = crate::map_staging::estimate_tree(&cache).map_err(|error| error.to_string())?;
     let free = fs2::available_space(&cache).map_err(|error| error.to_string())?;
     // Snapshot copying can consume this much space on filesystems without
     // copy-on-write clones; do not advertise that space as tile capacity.
-    let snapshot_reserve =
-        crate::map_staging::estimate_tree(world).map_err(|error| error.to_string())?;
+    let snapshot_reserve = if bedrock {
+        0
+    } else {
+        crate::map_staging::estimate_tree(world).map_err(|error| error.to_string())?
+    };
     let max_budget_mib = ((used.saturating_add(
         free.saturating_sub(msc_infrastructure::conversion_resources::DISK_RESERVE)
             .saturating_sub(snapshot_reserve),
@@ -303,13 +390,27 @@ pub(crate) async fn status(
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
         return response;
     }
-    let (server_id, _, world, version) = match selected_world(&state, &query.dimension) {
+    let SelectedWorld {
+        server_id,
+        server_dir,
+        world,
+        version,
+        bedrock,
+    } = match selected_world(&state, &query.dimension) {
         Ok(value) => value,
         Err(response) => return *response,
     };
     let dimension = query.dimension;
     let result = tokio::task::spawn_blocking(move || {
-        estimate(&state, &server_id, &world, &dimension, version.as_deref())
+        estimate(
+            &state,
+            &server_id,
+            &server_dir,
+            &world,
+            &dimension,
+            version.as_deref(),
+            bedrock,
+        )
     })
     .await;
     match result {
@@ -333,7 +434,13 @@ pub(crate) async fn start(
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
         return response;
     }
-    let (server_id, server_dir, world, version) = match selected_world(&state, &request.dimension) {
+    let SelectedWorld {
+        server_id,
+        server_dir,
+        world,
+        version,
+        bedrock,
+    } = match selected_world(&state, &request.dimension) {
         Ok(value) => value,
         Err(response) => return *response,
     };
@@ -346,16 +453,20 @@ pub(crate) async fn start(
     }
     let estimate_state = state.clone();
     let estimate_server_id = server_id.clone();
+    let estimate_server_dir = server_dir.clone();
     let estimate_world = world.clone();
     let estimate_dimension = request.dimension.clone();
     let estimate_version = version.clone();
+    let estimate_bedrock = bedrock;
     let current = match tokio::task::spawn_blocking(move || {
         estimate(
             &estimate_state,
             &estimate_server_id,
+            &estimate_server_dir,
             &estimate_world,
             &estimate_dimension,
             estimate_version.as_deref(),
+            estimate_bedrock,
         )
     })
     .await
@@ -398,7 +509,7 @@ pub(crate) async fn start(
         return error_response(
             StatusCode::CONFLICT,
             "pre_render_running",
-            "A Java map pre-render is already running on this agent.",
+            "A map pre-render is already running on this agent.",
         );
     }
     // A long background bake must not hold the server's mutation lock: the
@@ -406,7 +517,7 @@ pub(crate) async fn start(
     let id = match state.lifecycle.operations().begin_lifecycle(
         "world-map-pre-render",
         None,
-        "Capturing saved Java terrain for pre-render.",
+        "Preparing saved terrain for pre-render.",
     ) {
         Ok(id) => id,
         Err(error) => return crate::routes::operations::operation_error_response(error),
@@ -425,6 +536,7 @@ pub(crate) async fn start(
         world,
         dimension: request.dimension,
         version,
+        bedrock,
         budget_mib: request.cache_budget_mib,
     };
     tokio::task::spawn_blocking(move || run(task_state, id, task));
@@ -450,36 +562,59 @@ fn run(state: WorldsRoutesState, id: OperationId, task: RunRequest) {
         world,
         dimension,
         version,
+        bedrock,
         budget_mib,
     } = task;
     let operations = state.lifecycle.operations();
     let cancel = operations.cancellation_check(&id);
     let result = (|| -> Result<(u64, u64), String> {
-        let snapshot = if state.lifecycle.status_snapshot().running {
-            crate::backup_operations::snapshot_java_world(
-                state.lifecycle.clone(),
-                &server_dir,
-                &cancel,
-            )?
-        } else {
-            crate::backup_operations::snapshot_stopped_java_world(&server_dir, || {
-                cancel() || state.lifecycle.status_snapshot().running
-            })?
-        };
-        if cancel() {
-            return Err("cancelled".into());
-        }
-        let assets = super::dependencies::assets(&snapshot.path, version.as_deref())
-            .map_err(|error| error.message)?;
-        let (cache, _) =
-            java_terrain_compat::persistent_tiles(&server_id, &world, &dimension, &assets)
-                .map_err(|error| error.to_string())?;
-        java_terrain_compat::set_tile_cache_budget_mib(&cache, budget_mib)
+        if bedrock {
+            let assets = super::dependencies::assets(&world, version.as_deref())
+                .map_err(|error| error.message)?;
+            let (cache, _) = java_terrain_compat::persistent_tiles_for_edition(
+                &server_id,
+                &world,
+                &dimension,
+                &assets,
+                "bedrock-anvil-v3",
+            )
             .map_err(|error| error.to_string())?;
-        state
-            .map_renderer
-            .use_snapshot(server_id.clone(), world.clone(), snapshot)
-            .map_err(|_| "The terrain snapshot could not be selected".to_string())?;
+            java_terrain_compat::set_tile_cache_budget_mib(&cache, budget_mib)
+                .map_err(|error| error.to_string())?;
+            state
+                .map_renderer
+                .restart_for_cache_settings()
+                .map_err(|_| {
+                    "The terrain renderer could not be restarted for the cache budget.".to_string()
+                })?;
+            prepare_bedrock_renderer(&state, &server_id, &server_dir, &world, &dimension, true)?;
+        } else {
+            let snapshot = if state.lifecycle.status_snapshot().running {
+                crate::backup_operations::snapshot_java_world(
+                    state.lifecycle.clone(),
+                    &server_dir,
+                    &cancel,
+                )?
+            } else {
+                crate::backup_operations::snapshot_stopped_java_world(&server_dir, || {
+                    cancel() || state.lifecycle.status_snapshot().running
+                })?
+            };
+            if cancel() {
+                return Err("cancelled".into());
+            }
+            let assets = super::dependencies::assets(&snapshot.path, version.as_deref())
+                .map_err(|error| error.message)?;
+            let (cache, _) =
+                java_terrain_compat::persistent_tiles(&server_id, &world, &dimension, &assets)
+                    .map_err(|error| error.to_string())?;
+            java_terrain_compat::set_tile_cache_budget_mib(&cache, budget_mib)
+                .map_err(|error| error.to_string())?;
+            state
+                .map_renderer
+                .use_snapshot(server_id.clone(), world.clone(), snapshot)
+                .map_err(|_| "The terrain snapshot could not be selected".to_string())?;
+        }
         let initial = manifest(
             &state.map_renderer,
             &state,
@@ -495,7 +630,7 @@ fn run(state: WorldsRoutesState, id: OperationId, task: RunRequest) {
             .map_or(initial.tiles.len() as u64, |p| p.total);
         let mut completed = initial.progress.as_ref().map_or(0, |p| p.done);
         operations
-            .progress(&id, completed, total, "Pre-rendering saved Java terrain.")
+            .progress(&id, completed, total, "Pre-rendering saved terrain.")
             .map_err(|error| error.to_string())?;
         let tiles: Vec<_> = initial
             .tiles
@@ -508,7 +643,7 @@ fn run(state: WorldsRoutesState, id: OperationId, task: RunRequest) {
             .saturating_sub(1)
             .max(1)
             .min(tiles.len().max(1));
-        eprintln!("Java map: pre-render using {workers} background tile worker(s)");
+        eprintln!("Map pre-render: using {workers} background tile worker(s)");
         let next = AtomicUsize::new(0);
         let stop = Arc::new(AtomicBool::new(false));
         let (send, receive) = mpsc::channel::<Result<(), String>>();
@@ -518,6 +653,7 @@ fn run(state: WorldsRoutesState, id: OperationId, task: RunRequest) {
             world: world.clone(),
             dimension: dimension.clone(),
             version: version.clone(),
+            bedrock,
             budget_mib,
         };
         std::thread::scope(|scope| -> Result<(), String> {
@@ -607,7 +743,7 @@ fn run(state: WorldsRoutesState, id: OperationId, task: RunRequest) {
                         return Err("The detailed-tile cache filled and started evicting pre-rendered tiles. Increase its budget or free storage, then resume.".into());
                     }
                     operations
-                        .progress(&id, retained, total, "Pre-rendering saved Java terrain.")
+                        .progress(&id, retained, total, "Pre-rendering saved terrain.")
                         .map_err(|error| {
                             stop.store(true, Ordering::Release);
                             error.to_string()
@@ -643,7 +779,7 @@ fn run(state: WorldsRoutesState, id: OperationId, task: RunRequest) {
             details.insert("cachedTiles".into(), done.to_string());
             details.insert("totalTiles".into(), total.to_string());
             details.insert("cacheBudgetMiB".into(), budget_mib.to_string());
-            let _ = operations.succeed(&id, "Saved Java terrain pre-rendered.", details);
+            let _ = operations.succeed(&id, "Saved terrain pre-rendered.", details);
         }
         Err(_) if cancel() => {
             let _ = operations.cancel(&id, "Pre-render cancelled; completed tiles remain cached.");
@@ -662,7 +798,7 @@ pub(crate) async fn cancel(
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
         return response;
     }
-    let (server_id, _, _, _) = match selected_world(&state, &request.dimension) {
+    let SelectedWorld { server_id, .. } = match selected_world(&state, &request.dimension) {
         Ok(value) => value,
         Err(response) => return *response,
     };
@@ -678,7 +814,7 @@ pub(crate) async fn cancel(
     };
     match state.lifecycle.operations().request_cancel_authorized(
         &job.id,
-        "Stopping Java map pre-render.",
+        "Stopping map pre-render.",
         &credential,
     ) {
         Ok(operation) => {

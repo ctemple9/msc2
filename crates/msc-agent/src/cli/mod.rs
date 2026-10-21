@@ -1174,12 +1174,12 @@ pub enum WorldCommand {
     },
     /// List dimension IDs and saved-terrain availability for the active world.
     MapDimensions,
-    /// Estimate and show saved Java map pre-render progress.
+    /// Estimate and show saved terrain map pre-render progress.
     MapPreRenderStatus {
         #[arg(long, default_value = "minecraft:overworld")]
         dimension: String,
     },
-    /// Pre-render the saved Java dimension into the persistent tile cache.
+    /// Pre-render the saved dimension into the persistent tile cache.
     MapPreRender {
         #[arg(long, default_value = "minecraft:overworld")]
         dimension: String,
@@ -1189,7 +1189,7 @@ pub enum WorldCommand {
         #[arg(long)]
         no_wait: bool,
     },
-    /// Stop a Java map pre-render while retaining completed tiles.
+    /// Stop a map pre-render while retaining completed tiles.
     MapPreRenderCancel {
         #[arg(long, default_value = "minecraft:overworld")]
         dimension: String,
@@ -4141,7 +4141,7 @@ async fn run_world(common: CommonArgs, command: WorldCommand) -> Result<(), CliE
                 common.json,
                 no_wait,
                 result["operationId"].as_str().map(str::to_owned),
-                "Java map pre-render",
+                "Map pre-render",
             )
             .await
         }

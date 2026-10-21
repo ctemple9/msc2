@@ -86,7 +86,6 @@
       !api ||
       !alive ||
       !preRenderOpen ||
-      serverType !== 'java' ||
       !selectedDimension ||
       (preRenderRequest && !force)
     )
@@ -911,20 +910,18 @@
     </div>
     {#if dimensions.length > 0}
       <div class="map-actions">
-        {#if serverType === 'java'}
-          <button
-            type="button"
-            class="refresh"
-            aria-expanded={preRenderOpen}
-            onclick={() => {
-              preRenderOpen = !preRenderOpen;
-              if (preRenderOpen) {
-                preRenderError = '';
-                void readPreRenderEstimate();
-              }
-            }}>Pre-render map</button
-          >
-        {/if}
+        <button
+          type="button"
+          class="refresh"
+          aria-expanded={preRenderOpen}
+          onclick={() => {
+            preRenderOpen = !preRenderOpen;
+            if (preRenderOpen) {
+              preRenderError = '';
+              void readPreRenderEstimate();
+            }
+          }}>Pre-render map</button
+        >
         <button
           type="button"
           class="refresh"
@@ -948,8 +945,8 @@
     {/if}
   </header>
 
-  {#if preRenderOpen && serverType === 'java'}
-    <div class="pre-render-panel" aria-label="Java map pre-render">
+  {#if preRenderOpen}
+    <div class="pre-render-panel" aria-label="Terrain map pre-render">
       {#if preRenderEstimate}
         <span
           >{preRenderEstimate.cachedTiles} / {preRenderEstimate.totalTiles} saved tiles cached</span

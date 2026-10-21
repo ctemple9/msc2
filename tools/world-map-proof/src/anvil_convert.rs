@@ -276,12 +276,12 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
     };
     let mut manifest = read_manifest(&output)?.unwrap_or(Manifest {
         format: 2,
-        converter: "bedrock-anvil-v3".into(),
+        converter: "bedrock-anvil-v4".into(),
         source_version: version.clone(),
         biome_mapping: registry_sha256.clone(),
         regions: BTreeMap::new(),
     });
-    if manifest.format != 2 || manifest.converter != "bedrock-anvil-v3" {
+    if manifest.format != 2 || manifest.converter != "bedrock-anvil-v4" {
         return Err("prepared cache format differs; use a new output directory".into());
     }
     if index_only
@@ -301,7 +301,7 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
         }
         manifest = Manifest {
             format: 2,
-            converter: "bedrock-anvil-v3".into(),
+            converter: "bedrock-anvil-v4".into(),
             source_version: version.clone(),
             biome_mapping: registry_sha256.clone(),
             regions: BTreeMap::new(),

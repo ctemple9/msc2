@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** Bedrock saved-terrain parity plan (P18.82–P18.92). P18.90 corrects Bedrock block models found during the first optimized visual review, P18.91 addresses the shared depth-camera jump, and P18.92 resolves Bedrock numeric biome IDs. The Java map is the processing and user-experience standard. Bedrock-specific work is justified only where its world format requires it; after preparation, both editions should use the same renderer, cache, streaming, pre-render and refresh mechanisms wherever technically sound.
+**Current priority:** Bedrock saved-terrain parity plan (P18.82–P18.93). P18.90 corrects Bedrock block models found during the first optimized visual review, P18.91 addresses the shared depth-camera jump, and P18.92–P18.93 resolve Bedrock biome IDs and the section-height sampling bug found during physical verification. The Java map is the processing and user-experience standard. Bedrock-specific work is justified only where its world format requires it; after preparation, both editions should use the same renderer, cache, streaming, pre-render and refresh mechanisms wherever technically sound.
 
 ### P18.69 — Defer detailed Bedrock tile swaps during camera movement
 
@@ -306,12 +306,21 @@ Bedrock currently routes to a separate `BedrockStore`: it snapshots LevelDB, ope
 
 ### P18.92 — Name Bedrock biomes without flattening them to Plains
 
-**Status:** Implemented; awaiting Cameron's optimized-build verification on Bedtonic. No tests added or run.
+**Status:** Implemented; Cameron's optimized-build check found the biome legend still showed `Unmapped Bedrock Biome 4294967295` everywhere. P18.93 corrects the section-height lookup missed in this step. No tests added or run in P18.92.
 **Files:** `tools/world-map-proof/data/bedrock-biome-ids-1.26.60.json`; `tools/world-map-proof/data/LICENSE.chunker`; `tools/world-map-proof/src/anvil_convert.rs`; `tools/world-map-proof/src/anvil_probe.rs`; `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `docs/msc2/bedrock-biome-registry.md`; this plan.
 **What:** The Bedrock converter formerly wrote `minecraft:plains` for every numeric biome ID when no registry was supplied, making the legend report Plains everywhere. Bundle the pinned MIT-licensed Chunker ID map for saves reporting Bedrock `[1, 26, 60, 0, 0]` and use it for any matching world, not just Bedtonic. Its 89 entries cover all 60 IDs in Bedtonic's prior conversion report. Other save versions and unknown IDs retain explicit `unmapped` names and neutral tint rather than false Plains labels; an optional supplied registry still requires an exact metadata-version match. The source is a version-gated external converter map, not an exact BDS extraction, so worlds with mixed-version chunks remain a validation limit. Advance the converted-region and detailed-tile cache identities without overwriting old private caches; Bedtonic needs one fresh 1,608-region conversion and tile rebake before the indicator changes. Source and limits are documented in the registry proof.
 **Verify:** `cd clients/desktop-web && npx tauri build` — open Bedtonic in the optimized app and allow the new conversion to finish. Open Biomes in places known to differ (ocean, mesa/badlands, forest or savanna); the legend should show distinct Bedrock biome names rather than Plains 100%. After reopening, confirm the converted regions are reused. If another save reports `[1, 26, 60, 0, 0]`, its known IDs should use the same map; a save from a different version should report unmapped IDs, not Plains. Cameron performs this verification.
 **Batch:** P18.92 only.
 **Commit:** `P18.92: resolve versioned bedrock biome ids`
+
+### P18.93 — Read biome data at the matching block height
+
+**Status:** Implemented; awaiting Cameron's optimized-build verification on Bedtonic. A focused deterministic test was added but not run.
+**Files:** `tools/world-map-proof/src/anvil_probe.rs`; `tools/world-map-proof/src/anvil_convert.rs`; `crates/msc-agent/src/routes/worlds/map_terrain.rs`; `crates/msc-agent/src/routes/worlds/map_terrain/bedrock.rs`; `docs/msc2/bedrock-biome-registry.md`; this plan.
+**What:** Bedtonic's P18.92 converted regions had a valid 1.26.60 numeric registry and reported real biome IDs, but every rendered sample became `4294967295`, the converter's missing-value sentinel. Bedrock block subchunks are indexed by section number (`4` means Y 64), while parsed Data3D biome storages are keyed by absolute block height (`64`). The converter had looked for key `4` instead of `64`. Multiply the section index by 16 before selecting its biome layer, retaining the legacy 2D-column fallback. Reject a chunk with saved biome layers but no sampleable biome value, so a key mismatch cannot silently produce a wholly unmapped chunk again. Advance the converter and both persistent-cache identities: old regions and detailed tiles contain wrong biome palettes and cannot be reused. Add one in-memory test for section-to-height lookup and 2D fallback; it protects this observed failure without timing, filesystem, or world-size dependencies and should run in under a second. Cameron has not authorized running it.
+**Verify:** `cd clients/desktop-web && npx tauri build` — open Bedtonic, let the corrected conversion finish, and inspect Biomes over ocean and a distinct land biome. The legend should show different names and percentages instead of `Unmapped Bedrock Biome 4294967295` at 100%. Reopen the unchanged map and confirm its corrected regions are reused. Cameron performs this verification.
+**Batch:** P18.93 only.
+**Commit:** `P18.93: align bedrock biome layers with block sections`
 
 Cameron directed the implemented Add Server, Bedrock map, imported-JAR and Services follow-ups to Done and into [the rolling-plan archive](rolling-plan-archive.md#october-19-2026--v0131-follow-up-step-closure). Failed intermediate Bedrock attempts retain their supersession history there. Independent phase reviews and remaining physical checks stay in [pending acceptance](pending-acceptance.md).
 

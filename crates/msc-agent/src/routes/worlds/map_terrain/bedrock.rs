@@ -30,7 +30,7 @@ const MAX_NEARBY_CATALOG_TIME: Duration = Duration::from_secs(120);
 // A converted multi-gigabyte world can take longer than ten minutes just to
 // enumerate saved chunks and build its first overview.
 const MAX_CATALOG_EXPORT_TIME: Duration = Duration::from_secs(3_600);
-const CONVERTED_CACHE_FORMAT: &str = "bedrock-anvil-v3-biomes-v1-vantage-0.15.1";
+const CONVERTED_CACHE_FORMAT: &str = "bedrock-anvil-v4-biomes-v2-vantage-0.15.1";
 
 fn ensure_cache_directory(path: &Path) -> Result<(), String> {
     match fs::symlink_metadata(path) {
@@ -175,7 +175,7 @@ fn valid_converted_cache(path: &Path, source_revision: &str) -> Result<bool, Str
         Some(manifest) => manifest,
         None => return Ok(false),
     };
-    if manifest["format"] != 2 || manifest["converter"] != "bedrock-anvil-v3" {
+    if manifest["format"] != 2 || manifest["converter"] != "bedrock-anvil-v4" {
         return Ok(false);
     }
     let Some(regions) = manifest["regions"].as_object() else {
@@ -234,7 +234,7 @@ fn converted_region_fingerprints(path: &Path) -> Result<BTreeMap<String, String>
         &fs::read(path.join("bedrock-conversion.json")).map_err(|error| error.to_string())?,
     )
     .map_err(|error| format!("The Bedrock conversion manifest is invalid: {error}"))?;
-    if manifest["format"] != 2 || manifest["converter"] != "bedrock-anvil-v3" {
+    if manifest["format"] != 2 || manifest["converter"] != "bedrock-anvil-v4" {
         return Err("The Bedrock conversion manifest uses an unsupported format.".into());
     }
     manifest["regions"]
@@ -281,7 +281,7 @@ fn seed_converted_generation(source: &Path, destination: &Path) -> Result<bool, 
     let manifest_bytes = fs::read(&manifest_path).map_err(|error| error.to_string())?;
     let manifest: serde_json::Value = serde_json::from_slice(&manifest_bytes)
         .map_err(|error| format!("The previous Bedrock conversion manifest is invalid: {error}"))?;
-    if manifest["format"] != 2 || manifest["converter"] != "bedrock-anvil-v3" {
+    if manifest["format"] != 2 || manifest["converter"] != "bedrock-anvil-v4" {
         return Ok(false);
     }
     let regions = manifest["regions"]
@@ -345,7 +345,7 @@ fn discard_incompatible_conversion(path: &Path) -> Result<(), String> {
     let compatible = fs::read(&manifest)
         .ok()
         .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
-        .is_some_and(|value| value["format"] == 2 && value["converter"] == "bedrock-anvil-v3");
+        .is_some_and(|value| value["format"] == 2 && value["converter"] == "bedrock-anvil-v4");
     if compatible || !manifest.exists() {
         return Ok(());
     }

@@ -74,6 +74,14 @@ cache identities changed because older output flattened unknown biomes to
 `plains`; correcting them requires one new conversion and tile bake. Old
 private caches are left intact for later cleanup.
 
+P18.92's physical check exposed a separate converter bug: the numeric ID map
+was present, but block subchunk key `4` was used to look up a Data3D biome
+storage keyed by block Y `64`. Every sample became the missing sentinel
+`4294967295`. P18.93 aligns those coordinate systems, preserves the legacy
+2D fallback, and advances the conversion and tile cache identities again.
+The corrected output requires a fresh conversion; the P18.92 cache cannot be
+reused because its Anvil biome palettes contain the sentinel.
+
 ## P18.2k registry input boundary
 
 The exporter accepts an optional fifth positional argument after the chunk

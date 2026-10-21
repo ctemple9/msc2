@@ -3,8 +3,8 @@
 
 use bedrock_world::{
     BedrockWorld, BiomeDataRequirement, BlockPalette, ChunkData, ChunkDataRequest,
-    ChunkLoadOptions, Dimension, OpenOptions, SubChunkFormat, WorldChunkQueryRegion,
-    WorldScanOptions,
+    ChunkLoadOptions, Dimension, OpenOptions, ParsedBiomeStorage, SubChunkFormat,
+    WorldChunkQueryRegion, WorldScanOptions,
 };
 use fastnbt::LongArray;
 use flate2::{Compression, write::ZlibEncoder};
@@ -376,6 +376,7 @@ pub(crate) fn encode_chunk(
     allow_unmapped_biomes: bool,
 ) -> Result<Vec<u8>, Box<dyn Error>> {
     let mut sections = Vec::new();
+    let mut has_biome_sample = false;
     let mut subchunks = chunk.subchunks.iter().collect::<Vec<_>>();
     subchunks.sort_unstable_by_key(|&(&sy, _)| sy);
     for (&sy, subchunk) in subchunks {
@@ -389,7 +390,7 @@ pub(crate) fn encode_chunk(
             findings.layered_sections += 1;
         }
         let block_states = encode_block_states(storages, findings);
-        let biome = chunk.biome_data.get(&(i32::from(sy)));
+        let biome = biome_storage_for_section(&chunk.biome_data, sy);
         if let Some(biome) = biome {
             for (&id, &count) in biome.palette.iter().zip(&biome.counts) {
                 *findings.biomes.entry(id).or_default() += u64::from(count);
@@ -404,6 +405,7 @@ pub(crate) fn encode_chunk(
                     let id = biome
                         .and_then(|data| data.biome_id_at(bx * 4, by * 4, bz * 4))
                         .unwrap_or(u32::MAX);
+                    has_biome_sample |= id != u32::MAX;
                     let name = match biome_names.and_then(|names| names.get(&id)) {
                         Some(name) => name.clone(),
                         None if biome_names.is_some() && !allow_unmapped_biomes => {
@@ -432,6 +434,13 @@ pub(crate) fn encode_chunk(
             },
         });
     }
+    if !chunk.biome_data.is_empty() && !sections.is_empty() && !has_biome_sample {
+        return Err(format!(
+            "chunk {},{} has saved biome data, but none matches its block sections",
+            chunk.pos.x, chunk.pos.z
+        )
+        .into());
+    }
     fastnbt::to_bytes(&AnvilChunk {
         data_version: 3700,
         x: chunk.pos.x,
@@ -439,6 +448,39 @@ pub(crate) fn encode_chunk(
         sections,
     })
     .map_err(Into::into)
+}
+
+fn biome_storage_for_section(
+    storages: &BTreeMap<i32, ParsedBiomeStorage>,
+    section_y: i8,
+) -> Option<&ParsedBiomeStorage> {
+    // Block sections use 16-block indexes; Data3D biome layers use block Y.
+    storages
+        .get(&(i32::from(section_y) * 16))
+        .or_else(|| storages.get(&i32::MIN))
+}
+
+#[cfg(test)]
+mod biome_section_tests {
+    use super::*;
+
+    #[test]
+    fn section_indexes_select_absolute_biome_layers_or_legacy_columns() {
+        let storage = |y| ParsedBiomeStorage {
+            y,
+            palette: vec![4],
+            indices: Some(vec![0; if y.is_some() { 4096 } else { 256 }]),
+            counts: vec![1],
+        };
+        let mut storages = BTreeMap::from([(64, storage(Some(64))), (i32::MIN, storage(None))]);
+        assert_eq!(
+            biome_storage_for_section(&storages, 4).and_then(|s| s.y),
+            Some(64)
+        );
+        assert!(biome_storage_for_section(&storages, 5).is_some_and(|s| s.y.is_none()));
+        storages.remove(&i32::MIN);
+        assert!(biome_storage_for_section(&storages, 5).is_none());
+    }
 }
 
 fn pack(indices: &[usize], min_bits: usize) -> Vec<i64> {

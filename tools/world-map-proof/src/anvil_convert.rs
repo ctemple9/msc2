@@ -1,8 +1,8 @@
 //! Durable Bedrock-to-Anvil preparation for the shared Vantage renderer.
 use crate::anvil_probe::{Findings, encode_chunk, encode_region};
 use bedrock_world::{
-    BedrockWorld, BiomeDataRequirement, ChunkDataRequest, ChunkLoadOptions, Dimension, OpenOptions,
-    WorldScanOptions,
+    BedrockDbKey, BedrockWorld, BiomeDataRequirement, ChunkDataRequest, ChunkLoadOptions,
+    Dimension, OpenOptions, StorageReadOptions, StorageVisitorControl,
 };
 use flate2::{Compression, write::GzEncoder};
 use serde::{Deserialize, Serialize};
@@ -32,6 +32,8 @@ struct Manifest {
 
 #[derive(Clone, Serialize, Deserialize)]
 struct RegionFingerprint {
+    #[serde(default)]
+    source_sha256: Option<String>,
     converted_content_sha256: String,
     region_file_sha256: String,
 }
@@ -41,7 +43,43 @@ struct RegionTask {
     x: i32,
     z: i32,
     positions: Vec<bedrock_world::ChunkPos>,
+    source_sha256: String,
     fingerprint: Option<RegionFingerprint>,
+}
+
+#[derive(Default)]
+struct RegionIndex {
+    positions: BTreeSet<bedrock_world::ChunkPos>,
+    record_hashes: [u64; 4],
+    record_count: u64,
+}
+
+impl RegionIndex {
+    fn add(&mut self, key: &[u8], value: &[u8]) {
+        let mut record = Sha256::new();
+        record.update((key.len() as u64).to_le_bytes());
+        record.update(key);
+        record.update((value.len() as u64).to_le_bytes());
+        record.update(value);
+        for (lane, bytes) in self
+            .record_hashes
+            .iter_mut()
+            .zip(record.finalize().chunks_exact(8))
+        {
+            *lane = lane.wrapping_add(u64::from_le_bytes(bytes.try_into().unwrap()));
+        }
+        self.record_count = self.record_count.saturating_add(1);
+    }
+
+    fn source_sha256(&self) -> String {
+        let mut digest = Sha256::new();
+        digest.update(b"bedrock-render-records-v1");
+        digest.update(self.record_count.to_le_bytes());
+        for lane in self.record_hashes {
+            digest.update(lane.to_le_bytes());
+        }
+        hex(&digest.finalize())
+    }
 }
 
 struct RegionWork {
@@ -168,6 +206,7 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
     let mut selected = BTreeSet::new();
     let mut registry_path = None;
     let mut server_running = false;
+    let mut index_only = false;
     for arg in args.iter().skip(4) {
         if let Some(value) = arg.strip_prefix("--region=") {
             if !selected.insert(selected_region(value)?) || selected.len() > 8 {
@@ -175,9 +214,14 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
             }
         } else if arg == "--server-running" {
             server_running = true;
+        } else if arg == "--index-only" {
+            index_only = true;
         } else if arg.starts_with('-') || registry_path.replace(arg).is_some() {
             return Err("unexpected converter argument".into());
         }
+    }
+    if index_only && !selected.is_empty() {
+        return Err("index-only mode cannot be limited to selected regions".into());
     }
     let mut biome_names = BTreeMap::new();
     let exact_biome_registry = registry_path.is_some();
@@ -230,38 +274,76 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
         biome_mapping: registry_sha256.clone(),
         regions: BTreeMap::new(),
     });
-    if manifest.format != 2
-        || manifest.converter != "bedrock-anvil-v3"
-        || manifest.source_version != version
-        || manifest.biome_mapping != registry_sha256
+    if manifest.format != 2 || manifest.converter != "bedrock-anvil-v3" {
+        return Err("prepared cache format differs; use a new output directory".into());
+    }
+    if index_only
+        && (manifest.source_version != version || manifest.biome_mapping != registry_sha256)
     {
-        return Err("prepared cache metadata differs; use a new output directory".into());
+        return Err("cannot index a cache with a different save or biome format".into());
+    }
+    if manifest.source_version != version || manifest.biome_mapping != registry_sha256 {
+        // This output is a private, unpublished generation. A global format or
+        // biome change invalidates every region and must not leave seeded MCA
+        // files for Vantage to mistake for current terrain.
+        for name in ["region", "DIM-1", "DIM1"] {
+            let directory = output.join(name);
+            if directory.exists() {
+                fs::remove_dir_all(directory)?;
+            }
+        }
+        manifest = Manifest {
+            format: 2,
+            converter: "bedrock-anvil-v3".into(),
+            source_version: version.clone(),
+            biome_mapping: registry_sha256.clone(),
+            regions: BTreeMap::new(),
+        };
     }
     let scan = Instant::now();
-    let positions = world.list_render_chunk_positions_blocking(WorldScanOptions::default())?;
-    let mut regions = BTreeMap::<(Dimension, i32, i32), Vec<_>>::new();
-    for pos in positions {
-        if matches!(pos.dimension, Dimension::Unknown(_)) {
-            return Err(format!(
-                "unsupported saved dimension {:?}; refusing to omit its terrain",
-                pos.dimension
-            )
-            .into());
-        }
-        regions
-            .entry((pos.dimension, pos.x.div_euclid(32), pos.z.div_euclid(32)))
-            .or_default()
-            .push(pos);
-    }
-    let discovered = regions.len();
+    let mut indexed_regions = BTreeMap::<(Dimension, i32, i32), RegionIndex>::new();
+    let mut scanned_records = 0usize;
+    world.storage().for_each_entry(
+        StorageReadOptions::default(),
+        &mut |key, value| {
+            scanned_records = scanned_records.saturating_add(1);
+            if let BedrockDbKey::Chunk(chunk_key) = BedrockDbKey::decode(key)
+                && chunk_key.tag.is_render_chunk_record()
+            {
+                let pos = chunk_key.pos;
+                if matches!(pos.dimension, Dimension::Unknown(_)) {
+                    return Err(bedrock_world::BedrockWorldError::Validation(format!(
+                        "unsupported saved dimension {:?}; refusing to omit its terrain",
+                        pos.dimension
+                    )));
+                }
+                let index = indexed_regions
+                    .entry((pos.dimension, pos.x.div_euclid(32), pos.z.div_euclid(32)))
+                    .or_default();
+                index.positions.insert(pos);
+                index.add(key, value);
+            }
+            if scanned_records.is_multiple_of(8192) {
+                eprintln!("Bedrock prepare: indexed {scanned_records} saved database records");
+            }
+            Ok(StorageVisitorControl::Continue)
+        },
+    )?;
+    let discovered = indexed_regions.len();
+    let mut regions = indexed_regions
+        .into_iter()
+        .map(|(key, index)| {
+            let source_sha256 = index.source_sha256();
+            let mut positions = index.positions.into_iter().collect::<Vec<_>>();
+            positions.sort_unstable_by_key(|pos| (pos.z, pos.x));
+            (key, (positions, source_sha256))
+        })
+        .collect::<BTreeMap<_, _>>();
     if !selected.is_empty() {
         regions.retain(|key, _| selected.contains(key));
         if regions.len() != selected.len() {
             return Err("one or more selected regions have no saved chunks".into());
         }
-    }
-    for positions in regions.values_mut() {
-        positions.sort_unstable_by_key(|pos| (pos.z, pos.x));
     }
     eprintln!(
         "Bedrock prepare: indexed {} saved regions in {:.1}s",
@@ -277,6 +359,38 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
     let total = regions.len();
     let mut completed = 0;
     println!("MSC_PROGRESS {completed} {total}");
+    if index_only {
+        if manifest.regions.len() != regions.len() {
+            return Err("the saved region set differs from the converted cache".into());
+        }
+        for ((dimension, x, z), (positions, source_sha256)) in regions {
+            let key = format!("{}:{x}:{z}", dim_name(dimension));
+            let fingerprint = manifest
+                .regions
+                .get_mut(&key)
+                .ok_or("a saved region is missing from the converted cache")?;
+            if positions.is_empty() {
+                return Err("the saved region index unexpectedly contains no chunks".into());
+            }
+            let path = region_path(&output, dimension, x, z);
+            if !fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.file_type().is_file()) {
+                return Err("a converted region is missing from the active cache".into());
+            }
+            fingerprint.source_sha256 = Some(source_sha256);
+            completed += 1;
+            if completed % MANIFEST_CHECKPOINT_REGIONS == 0 || completed == total {
+                write_manifest(&output, &manifest)?;
+            }
+            println!("MSC_PROGRESS {completed} {total}");
+        }
+        write_manifest(&output, &manifest)?;
+        println!(
+            "{}",
+            serde_json::json!({"totalRegions":total,"reusedRegions":total,"convertedRegions":0,"indexedOnly":true,"output":output,"registrySha256":registry_sha256})
+        );
+        eprintln!("Bedrock prepare: populated per-region input fingerprints without rewriting regions");
+        return Ok(());
+    }
     let mut reused = 0;
     let mut findings = Findings::default();
     let current_regions = regions
@@ -306,13 +420,14 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
     };
     let tasks = regions
         .into_iter()
-        .map(|((dimension, x, z), positions)| {
+        .map(|((dimension, x, z), (positions, source_sha256))| {
             let key = format!("{}:{x}:{z}", dim_name(dimension));
             RegionTask {
                 dimension,
                 x,
                 z,
                 positions,
+                source_sha256,
                 fingerprint: manifest.regions.get(&key).cloned(),
             }
         })
@@ -483,6 +598,28 @@ fn prepare_region(
     read_workers: usize,
     reserved_disk_bytes: &AtomicU64,
 ) -> Result<RegionWork, String> {
+    let target = region_path(output, task.dimension, task.x, task.z);
+    if let Some(mut fingerprint) = task.fingerprint.clone()
+        && fingerprint.source_sha256.as_deref() == Some(task.source_sha256.as_str())
+        && fs::read(&target)
+            .map(|bytes| hex(&Sha256::digest(bytes)) == fingerprint.region_file_sha256)
+            .unwrap_or(false)
+    {
+        fingerprint.source_sha256 = Some(task.source_sha256.clone());
+        return Ok(RegionWork {
+            dimension: task.dimension,
+            x: task.x,
+            z: task.z,
+            fingerprint,
+            reused: true,
+            findings: Findings::default(),
+            read_time: Duration::ZERO,
+            nbt_time: Duration::ZERO,
+            encode_time: Duration::ZERO,
+            publish_time: Duration::ZERO,
+        });
+    }
+
     let mut opts = ChunkLoadOptions::for_data_request(
         ChunkDataRequest::new()
             .full_3d_indices()
@@ -528,7 +665,8 @@ fn prepare_region(
                 .map(|bytes| hex(&Sha256::digest(bytes)) == fingerprint.region_file_sha256)
                 .unwrap_or(false)
     });
-    let (fingerprint, reused, encode_time, publish_time) = if let Some(fingerprint) = cached {
+    let (fingerprint, reused, encode_time, publish_time) = if let Some(mut fingerprint) = cached {
+        fingerprint.source_sha256 = Some(task.source_sha256.clone());
         (fingerprint, true, Duration::ZERO, Duration::ZERO)
     } else {
         let started = Instant::now();
@@ -539,6 +677,7 @@ fn prepare_region(
         let publish_time = started.elapsed();
         (
             RegionFingerprint {
+                source_sha256: Some(task.source_sha256.clone()),
                 converted_content_sha256: digest,
                 region_file_sha256,
             },

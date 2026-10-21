@@ -2890,6 +2890,7 @@ pub async fn refresh_map(
         let task_lifecycle = lifecycle.clone();
         let task_operation_id = operation_id.clone();
         let store = state.bedrock_map.clone();
+        let renderer = state.map_renderer.clone();
         tokio::spawn(async move {
             let snapshot_lifecycle = task_lifecycle.clone();
             let result = tokio::task::spawn_blocking(move || {
@@ -2905,25 +2906,42 @@ pub async fn refresh_map(
                     let mut details = BTreeMap::new();
                     details.insert("bytesCopied".to_string(), snapshot.bytes.to_string());
                     details.insert("holdMillis".to_string(), snapshot.hold_millis.to_string());
+                    let refresh_lifecycle = task_lifecycle.clone();
                     match tokio::task::spawn_blocking(move || {
-                        store.use_snapshot(server.id, source_world, snapshot)
+                        store.refresh_shared_snapshot(
+                            &refresh_lifecycle,
+                            &renderer,
+                            server.id,
+                            source_world,
+                            "minecraft:overworld",
+                            snapshot,
+                        )
                     })
                     .await
                     {
                         Ok(Ok(stats)) => {
+                            details.insert(
+                                "regionsReused".to_string(),
+                                stats.reused_regions.to_string(),
+                            );
+                            details.insert(
+                                "regionsChanged".to_string(),
+                                stats.changed_regions.to_string(),
+                            );
+                            details.insert(
+                                "regionsRemoved".to_string(),
+                                stats.removed_regions.to_string(),
+                            );
                             details
-                                .insert("tilesReused".to_string(), stats.reused_tiles.to_string());
-                            details.insert(
-                                "tilesChanged".to_string(),
-                                stats.changed_tiles.to_string(),
-                            );
-                            details.insert(
-                                "tilesRemoved".to_string(),
-                                stats.removed_tiles.to_string(),
-                            );
+                                .insert("sourceUnchanged".to_string(), stats.unchanged.to_string());
+                            let message = if stats.unchanged {
+                                "No Bedrock terrain changes were found; existing map caches remain in use."
+                            } else {
+                                "Changed Bedrock regions are ready; unchanged regions remain cached."
+                            };
                             let _ = task_lifecycle.operations().succeed(
                                 &task_operation_id,
-                                "Current Bedrock terrain is ready.",
+                                message,
                                 details,
                             );
                         }
@@ -2938,7 +2956,7 @@ pub async fn refresh_map(
                             let _ = task_lifecycle.operations().fail(
                                 &task_operation_id,
                                 "renderer_unavailable",
-                                "The Bedrock tile comparison stopped unexpectedly.".to_string(),
+                                "Bedrock region refresh stopped unexpectedly.".to_string(),
                             );
                         }
                     }

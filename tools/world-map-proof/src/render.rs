@@ -1058,7 +1058,9 @@ pub fn render_catalog_tile(
     fs::rename(working.join("terrain.vtile"), tile)?;
     fs::remove_dir_all(working)?;
     if restore_seconds + atlas_seconds >= 0.25 {
-        eprintln!("Bedrock map: detail texture restore {restore_seconds:.2}s, atlas write {atlas_seconds:.2}s");
+        eprintln!(
+            "Bedrock map: detail texture restore {restore_seconds:.2}s, atlas write {atlas_seconds:.2}s"
+        );
     }
     Ok(())
 }

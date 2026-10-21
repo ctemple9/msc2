@@ -19,7 +19,7 @@ struct Manifest {
     format: u32,
     converter: String,
     source_version: Vec<u64>,
-    registry_sha256: String,
+    biome_mapping: String,
     regions: BTreeMap<String, RegionFingerprint>,
 }
 
@@ -38,10 +38,6 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
         args.get(3)
             .ok_or("anvil-convert requires a private output directory")?,
     );
-    let registry_path = Path::new(
-        args.get(4)
-            .ok_or("anvil-convert requires an exact-version biome registry JSON")?,
-    );
     if !source.join("db").is_dir() || !source.join("level.dat").is_file() {
         return Err("source must be an offline Bedrock world snapshot".into());
     }
@@ -51,9 +47,6 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
     if source.starts_with(&output) || output.starts_with(&source) {
         return Err("converted output must be separate from the source snapshot".into());
     }
-    let registry_bytes = fs::read(registry_path)?;
-    let registry_sha256 = hex(&Sha256::digest(&registry_bytes));
-    let registry: serde_json::Value = serde_json::from_slice(&registry_bytes)?;
     let world = BedrockWorld::open_blocking(&source, OpenOptions::default())?;
     let level = world.read_level_dat_blocking()?;
     let NbtTag::Compound(root) = level.root else {
@@ -72,57 +65,61 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
             _ => Err("invalid save version"),
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let registry_version = registry["version"]
-        .as_array()
-        .ok_or("registry version must be an integer array")?
-        .iter()
-        .map(|v| v.as_u64().ok_or("invalid registry version component"))
-        .collect::<Result<Vec<_>, _>>()?;
-    if version != registry_version {
-        return Err(format!(
-            "biome registry version {registry_version:?} does not match save version {version:?}"
-        )
-        .into());
-    }
-    let registry_source = registry["source"]
-        .as_str()
-        .filter(|source| !source.trim().is_empty())
-        .ok_or("registry source must identify its authoritative source")?;
-    let declared_source_hash = registry["source_sha256"]
-        .as_str()
-        .ok_or("registry source_sha256 is required")?;
-    if declared_source_hash.len() != 64
-        || !declared_source_hash
-            .bytes()
-            .all(|byte| byte.is_ascii_hexdigit())
-    {
-        return Err("registry source_sha256 must be a 64-character hex digest".into());
-    }
-    let ids = registry["ids"]
-        .as_object()
-        .ok_or("registry ids must map names to numeric IDs")?;
     let mut biome_names = BTreeMap::new();
-    for (name, id) in ids {
-        let id = u32::try_from(id.as_u64().ok_or("invalid biome ID")?)?;
-        let normalized_name = format!(
-            "minecraft:{}",
-            name.strip_prefix("minecraft:").unwrap_or(name)
-        );
-        if name.trim().is_empty() || biome_names.insert(id, normalized_name).is_some() {
-            return Err("registry contains an empty name or duplicate numeric biome ID".into());
+    let exact_biome_registry = args.get(4).is_some();
+    let registry_sha256 = if let Some(registry_path) = args.get(4) {
+        let registry_bytes = fs::read(registry_path)?;
+        let registry: serde_json::Value = serde_json::from_slice(&registry_bytes)?;
+        let registry_version = registry["version"]
+            .as_array()
+            .ok_or("registry version must be an integer array")?
+            .iter()
+            .map(|v| v.as_u64().ok_or("invalid registry version component"))
+            .collect::<Result<Vec<_>, _>>()?;
+        if version != registry_version {
+            return Err(format!(
+                "biome registry version {registry_version:?} does not match save version {version:?}"
+            )
+            .into());
         }
-    }
+        let declared_source_hash = registry["source_sha256"]
+            .as_str()
+            .ok_or("registry source_sha256 is required")?;
+        if declared_source_hash.len() != 64
+            || !declared_source_hash
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit())
+        {
+            return Err("registry source_sha256 must be a 64-character hex digest".into());
+        }
+        let ids = registry["ids"]
+            .as_object()
+            .ok_or("registry ids must map names to numeric IDs")?;
+        for (name, id) in ids {
+            let id = u32::try_from(id.as_u64().ok_or("invalid biome ID")?)?;
+            let normalized_name = format!(
+                "minecraft:{}",
+                name.strip_prefix("minecraft:").unwrap_or(name)
+            );
+            if name.trim().is_empty() || biome_names.insert(id, normalized_name).is_some() {
+                return Err("registry contains an empty name or duplicate numeric biome ID".into());
+            }
+        }
+        hex(&Sha256::digest(&registry_bytes))
+    } else {
+        "neutral-unmapped-biomes-v1".to_owned()
+    };
     let mut manifest = read_manifest(&output)?.unwrap_or(Manifest {
         format: 1,
-        converter: "bedrock-anvil-v1".into(),
+        converter: "bedrock-anvil-v2".into(),
         source_version: version.clone(),
-        registry_sha256: registry_sha256.clone(),
+        biome_mapping: registry_sha256.clone(),
         regions: BTreeMap::new(),
     });
     if manifest.format != 1
-        || manifest.converter != "bedrock-anvil-v1"
+        || manifest.converter != "bedrock-anvil-v2"
         || manifest.source_version != version
-        || manifest.registry_sha256 != registry_sha256
+        || manifest.biome_mapping != registry_sha256
     {
         return Err("prepared cache metadata differs; use a new output directory".into());
     }
@@ -149,6 +146,7 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
     );
     let total = regions.len();
     let mut completed = 0;
+    println!("MSC_PROGRESS {completed} {total}");
     let mut reused = 0;
     let mut findings = Findings::default();
     let mut current_regions = std::collections::BTreeSet::new();
@@ -174,7 +172,12 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
                 if !chunk.is_loaded {
                     return Err(format!("saved chunk {},{} in {:?} has no supported render data; refusing to publish an incomplete region", chunk.pos.x, chunk.pos.z, chunk.pos.dimension).into());
                 }
-                let nbt = encode_chunk(&chunk, &mut findings, Some(&biome_names))?;
+                let nbt = encode_chunk(
+                    &chunk,
+                    &mut findings,
+                    exact_biome_registry.then_some(&biome_names),
+                    true,
+                )?;
                 contents.extend_from_slice(&chunk.pos.x.to_le_bytes());
                 contents.extend_from_slice(&chunk.pos.z.to_le_bytes());
                 contents.extend_from_slice(&nbt);
@@ -224,6 +227,7 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
         }
         completed += 1;
         if completed % 10 == 0 || completed == total {
+            println!("MSC_PROGRESS {completed} {total}");
             eprintln!(
                 "Bedrock prepare: {completed}/{total} regions converted or reused ({reused} reused)"
             );
@@ -245,17 +249,17 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
         manifest.regions.remove(&key);
     }
     write_manifest(&output, &manifest)?;
+    fs::copy(source.join("level.dat"), output.join("level.dat"))?;
     println!(
         "{}",
         serde_json::json!({"totalRegions":total,"reusedRegions":reused,"convertedRegions":completed-reused,"output":output,"registrySha256":registry_sha256})
     );
-    eprintln!("Bedrock prepare: exact-version biome registry source: {registry_source}");
+    eprintln!("Bedrock prepare: biome mapping mode: {registry_sha256}");
     fs::write(
         output.join("conversion-report.json"),
         serde_json::to_vec_pretty(&serde_json::json!({
             "sourceVersion": version,
-            "biomeRegistrySource": registry_source,
-            "biomeRegistrySha256": registry_sha256,
+            "biomeMapping": registry_sha256,
             "blockNamesAndPositionCounts": findings.blocks,
             "renamedBlockNames": findings.renamed,
             "biomeIdsAndPositionCounts": findings.biomes,
@@ -263,7 +267,9 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
             "sectionsWithSecondaryBlockLayers": findings.layered_sections,
             "sectionYRange": [findings.min_section, findings.max_section],
             "secondaryLayerPolicy": "The Anvil bridge writes the first visible Bedrock layer; sections with more than one layer are counted here.",
-            "unmappedBiomes": []
+            "unmappedBiomes": findings.biomes.iter().filter_map(|(&id, &count)| {
+                (!biome_names.contains_key(&id)).then_some(serde_json::json!({"id": id, "blockPositions": count}))
+            }).collect::<Vec<_>>()
         }))?,
     )?;
     Ok(())

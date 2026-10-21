@@ -10,7 +10,6 @@
     VantageViewer,
   } from '../../vantage/three/index.js';
   import type { Schema, ScreenApi } from '../shared/types';
-  import { ApiError } from '../../api/client';
   import { pollOperation } from './model';
 
   export let api: ScreenApi | undefined;
@@ -29,11 +28,6 @@
   type PreparationProgress = { dimension: string; stage: string; completed: number | null; total: number | null };
   let preparation: PreparationProgress | undefined;
   let progressPoll: ReturnType<typeof setInterval> | undefined;
-  let catalogPoll: ReturnType<typeof setInterval> | undefined;
-  let catalogRequest = false;
-  let nearbyCatalog = false;
-  let cameraStatusSupported = true;
-  let lastCameraPose: number[] | undefined;
   let mapTiming: {
     edition: string;
     startedAt: number;
@@ -47,40 +41,6 @@
     longFrames: number;
     worstFrame: number;
   } | undefined;
-  async function refreshCatalog(): Promise<void> {
-    if (!alive || !nearbyCatalog || !viewer || catalogRequest || !api?.getBytes || busy) return;
-    catalogRequest = true;
-    const dimension = selectedDimension;
-    try {
-      const camera = viewer.controls.mode === 'fly' ? viewer.camera.position : viewer.controls.position;
-      const position = viewer.camera.position;
-      const rotation = viewer.camera.quaternion;
-      const target = viewer.controls.position;
-      const pose = [position.x, position.y, position.z, target.x, target.y, target.z,
-        rotation.x, rotation.y, rotation.z, rotation.w, viewer.camera.zoom];
-      const moving = !lastCameraPose || pose.some((value, index) =>
-        Math.abs(value - lastCameraPose![index]) > (index < 6 ? 0.01 : 0.0005));
-      lastCameraPose = pose;
-      const cameraPath = `${artifactPath(dimension, 'camera.json')}&center_x=${Math.floor(camera.x)}&center_z=${Math.floor(camera.z)}&moving=${moving}`;
-      const legacyPath = `${artifactPath(dimension, 'manifest.json')}&center_x=${Math.floor(camera.x)}&center_z=${Math.floor(camera.z)}`;
-      let bytes: Uint8Array;
-      try {
-        bytes = await api.getBytes(cameraStatusSupported ? cameraPath : legacyPath);
-      } catch (error) {
-        if (!cameraStatusSupported || !(error instanceof ApiError) || error.status !== 400) throw error;
-        // An older agent still expects the camera position on a manifest request.
-        cameraStatusSupported = false;
-        bytes = await api.getBytes(legacyPath);
-      }
-      const manifest = JSON.parse(new TextDecoder().decode(bytes)) as { catalogPhase?: string };
-      if (alive && selectedDimension === dimension && manifest.catalogPhase === 'full') {
-        // Vantage follows dynamic manifests itself; replacing the viewer here
-        // would interrupt flight just as the wider catalog becomes available.
-        nearbyCatalog = false;
-      }
-    } catch { /* Keep the nearby view if the full catalog is unavailable. */ }
-    finally { catalogRequest = false; }
-  }
   let progressRequest = false;
   async function refreshPreparation(): Promise<void> {
     if (!alive || !busy || progressRequest || !api?.getBytes) return;
@@ -329,16 +289,6 @@
   let playerRequestsInFlight = 0;
   let savedHeightAt: VantageViewer['controls']['heightAt'] | undefined;
 
-  function bedrockTileStatus(
-    displayName: string,
-    stats: { loaded: number; loading: number; total: number; lowres?: number },
-  ): string {
-    if (stats.total === 0) return `No saved terrain in ${displayName}`;
-    const loading = stats.loading > 0 ? ` · ${stats.loading} loading` : '';
-    const overview = stats.lowres ? ` · ${stats.lowres} overview tiles` : '';
-    return `Saved ${displayName} terrain · ${stats.loaded} shown / ${stats.total} saved tiles${overview}${loading}`;
-  }
-
   $: selected = dimensions.find((dimension) => dimension.id === selectedDimension);
 
   function say(value: string): void {
@@ -391,8 +341,6 @@
     selectedDimension = dimension;
     preRenderEstimate = undefined;
     if (preRenderOpen) void readPreRenderEstimate();
-    nearbyCatalog = false;
-    lastCameraPose = undefined;
     detailStatus = '';
     visibleTileStats = { loaded: 0, loading: 0 };
     const generation = ++loadGeneration;
@@ -421,11 +369,8 @@
     }
     busy = true;
     preparation = undefined;
-    status = serverType === 'bedrock'
-      ? 'Preparing saved Bedrock terrain and verified textures…'
-      : `Preparing ${entry.displayName} terrain and Minecraft textures…`;
+    status = `Preparing ${entry.displayName} terrain and Minecraft textures…`;
     let opening: VantageViewer | undefined;
-    let bedrockStats: { loaded: number; loading: number; total: number; lowres?: number } | undefined;
     try {
       const read = async (path: string, signal?: AbortSignal): Promise<ArrayBuffer> => {
         if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
@@ -447,10 +392,8 @@
       };
       const manifest = JSON.parse(new TextDecoder().decode(await read('manifest.json'))) as {
         spawn?: { x: number; y: number; z: number };
-        catalogPhase?: string;
       };
       if (mapTiming) mapTiming.manifestAt = performance.now();
-      nearbyCatalog = serverType === 'bedrock' && manifest.catalogPhase === 'nearby';
       if (!alive || generation !== loadGeneration) return;
       const { VantageViewer: Viewer, PlayerLayer: Layer } =
         await import('../../vantage/three/index.js');
@@ -458,19 +401,7 @@
       opening = new Viewer(canvas, {
         players: { enabled: false },
         urlState: false,
-        // The Bedrock agent serializes tile exports while extending its shared
-        // texture atlas. Match that limit instead of queueing six blocked HTTP
-        // requests that all appear to be rendering at once.
-        ...(serverType === 'bedrock'
-          ? {
-              streaming: {
-                concurrency: 1,
-                maxBytes: 512 * 1024 * 1024,
-                maxTiles: 120,
-                mapMemory: quality.mapMemory,
-              },
-            }
-          : { streaming: { concurrency: 4 } }),
+        streaming: { concurrency: 4 },
       });
       opening.on('biomes', (entries) => {
         if (alive && generation === loadGeneration) biomes = entries;
@@ -483,22 +414,7 @@
       });
       opening.on('stats', (stats) => {
           if (!alive || generation !== loadGeneration) return;
-          if (serverType === 'bedrock') {
-            bedrockStats = stats;
-            status = bedrockTileStatus(entry.displayName, stats);
-            if (mapTiming) {
-              mapTiming.loaded = stats.loaded;
-              mapTiming.total = stats.total;
-              if (stats.loaded > 0 && mapTiming.firstLoadedTileAt === undefined) {
-                mapTiming.firstLoadedTileAt = performance.now();
-                console.info('Bedrock map: first tile attached to viewer', {
-                  seconds: Number(((mapTiming.firstLoadedTileAt - mapTiming.startedAt) / 1000).toFixed(1)),
-                  afterFirstTileResponseMs: mapTiming.firstTileResponseAt === undefined ? null
-                    : Number((mapTiming.firstLoadedTileAt - mapTiming.firstTileResponseAt).toFixed(1)),
-                });
-              }
-            }
-          } else if (mapTiming) {
+          if (mapTiming) {
             visibleTileStats = { loaded: stats.loaded, loading: stats.loading };
             mapTiming.loaded = stats.loaded;
             mapTiming.total = stats.total;
@@ -540,11 +456,7 @@
       const worldSpawn = manifest.spawn;
       spawn = worldSpawn && [worldSpawn.x, worldSpawn.y, worldSpawn.z].every(Number.isFinite)
         ? worldSpawn : undefined;
-      status = serverType === 'bedrock'
-        ? bedrockStats
-          ? bedrockTileStatus(entry.displayName, bedrockStats)
-          : `Rendering saved ${entry.displayName} terrain tiles…${nearbyCatalog ? ' Building wider map.' : ''}`
-        : `Saved ${entry.displayName} terrain`;
+      status = `Saved ${entry.displayName} terrain`;
     } catch (error) {
       if (alive && generation === loadGeneration) {
         status = error instanceof Error ? error.message : 'Saved terrain could not be loaded.';
@@ -968,7 +880,6 @@
     void loadDimensions();
     void refreshPlayers();
     progressPoll = setInterval(() => void refreshPreparation(), 1000);
-    catalogPoll = setInterval(() => void refreshCatalog(), 2000);
     preRenderPoll = setInterval(() => void refreshPreRenderStatus(), 2000);
     playerPoll = setInterval(() => void refreshPlayers(), 1000);
     frameId = requestAnimationFrame(updateToolbar);
@@ -981,7 +892,6 @@
       if (depthStepTimer) clearTimeout(depthStepTimer);
       if (playerPoll) clearInterval(playerPoll);
       if (progressPoll) clearInterval(progressPoll);
-      if (catalogPoll) clearInterval(catalogPoll);
       if (preRenderPoll) clearInterval(preRenderPoll);
       window.removeEventListener('pointermove', onMove, true);
       window.removeEventListener('keydown', onKey, true);

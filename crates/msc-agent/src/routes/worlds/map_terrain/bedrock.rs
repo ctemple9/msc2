@@ -53,7 +53,13 @@ struct BedrockState {
     tiles: BTreeMap<String, BedrockTile>,
     regions: BTreeMap<String, BTreeSet<(i32, i32)>>,
     snapshot: Option<BedrockSnapshot>,
+    converted: Option<Arc<ConvertedWorld>>,
     sessions: BTreeMap<String, TileSession>,
+}
+
+struct ConvertedWorld {
+    source_snapshot: PathBuf,
+    staging: Arc<crate::map_staging::Staging>,
 }
 
 impl BedrockState {
@@ -301,26 +307,25 @@ pub(super) async fn artifact(
         );
     }
     let store = state.bedrock_map.clone();
+    let renderer = state.map_renderer.clone();
     let lifecycle = state.lifecycle.clone();
     let server_id = server.id.clone();
     let artifact = query.path.clone();
     let dimension = query.dimension.clone();
-    let center = query.center_x.zip(query.center_z);
-    let moving = query.moving.unwrap_or(false);
-    let queued_at = Instant::now();
     match tokio::task::spawn_blocking(move || {
-        store.read(
+        store.read_shared(
             &lifecycle,
+            &renderer,
             &server_dir,
             &server_id,
             &world,
             &dimension,
-            (&artifact, center, moving, queued_at),
+            &artifact,
         )
     })
     .await
     {
-        Ok(Ok(bytes)) => (
+        Ok(Ok((200, bytes))) => (
             StatusCode::OK,
             [
                 (header::CONTENT_TYPE, content_type),
@@ -329,6 +334,16 @@ pub(super) async fn artifact(
             Body::from(bytes),
         )
             .into_response(),
+        Ok(Ok((404, _))) => error_response(
+            StatusCode::NOT_FOUND,
+            "artifact_pending",
+            "The terrain artifact is not available yet.",
+        ),
+        Ok(Ok(_)) => error_response(
+            StatusCode::BAD_GATEWAY,
+            "renderer_unavailable",
+            "The Bedrock Vantage renderer could not supply this artifact.",
+        ),
         Ok(Err(error)) => {
             error_response(StatusCode::BAD_GATEWAY, "bedrock_map_unavailable", &error)
         }
@@ -363,6 +378,7 @@ impl BedrockStore {
         state.tiles.clear();
         state.regions.clear();
         state.snapshot = None;
+        state.converted = None;
     }
 
     pub(crate) fn use_snapshot(
@@ -385,6 +401,7 @@ impl BedrockStore {
         }
         current.sessions.clear();
         current.regions.clear();
+        current.converted = None;
         let mut next_tiles = BTreeMap::new();
         let mut stats = RefreshStats {
             reused_tiles: 0,
@@ -512,6 +529,118 @@ impl BedrockStore {
         current.regions.clear();
         current.snapshot = Some(pending);
         Ok(stats)
+    }
+
+    fn read_shared(
+        &self,
+        lifecycle: &crate::routes::lifecycle::LifecycleRoutesState,
+        renderer: &super::RendererStore,
+        server_dir: &Path,
+        server_id: &str,
+        world: &Path,
+        dimension: &str,
+        artifact: &str,
+    ) -> Result<(u16, Vec<u8>), String> {
+        let mut current = self
+            .0
+            .lock()
+            .map_err(|_| "The Bedrock map cache is unavailable.")?;
+        if self.1.shutdown.load(Ordering::Acquire) {
+            return Err("The local agent is shutting down.".into());
+        }
+        if current
+            .snapshot
+            .as_ref()
+            .is_some_and(|saved| saved.server_id != server_id || saved.world != world)
+        {
+            current.sessions.clear();
+            current.tiles.clear();
+            current.regions.clear();
+            current.snapshot = None;
+            current.converted = None;
+        }
+        if current.snapshot.is_none() {
+            let copied = if lifecycle.status_snapshot().running {
+                crate::backup_operations::snapshot_bedrock_world(
+                    lifecycle.clone(),
+                    server_dir,
+                    || self.1.shutdown.load(Ordering::Acquire),
+                )
+            } else {
+                let generation = lifecycle.bedrock_run_generation();
+                crate::backup_operations::snapshot_stopped_bedrock_world(server_dir, || {
+                    self.1.shutdown.load(Ordering::Acquire)
+                        || lifecycle.bedrock_runtime_is_busy()
+                        || lifecycle.bedrock_run_generation() != generation
+                        || lifecycle.active_server_id().as_deref() != Some(server_id)
+                })
+            }?;
+            current.snapshot = Some(BedrockSnapshot {
+                server_id: server_id.to_owned(),
+                world: world.to_owned(),
+                snapshot: Arc::new(copied),
+            });
+        }
+        let snapshot = current.snapshot.as_ref().expect("snapshot was installed");
+        let source_snapshot = snapshot.snapshot.path.clone();
+        let staging = match current
+            .converted
+            .as_ref()
+            .filter(|prepared| prepared.source_snapshot == source_snapshot)
+        {
+            Some(prepared) => prepared.staging.clone(),
+            None => {
+                let stage = Arc::new(
+                    crate::map_staging::Staging::create("bedrock-anvil", 0)
+                        .map_err(|error| error.to_string())?,
+                );
+                renderer.preparation_update(
+                    server_id,
+                    dimension,
+                    "Indexing saved Bedrock regions",
+                    None,
+                    None,
+                );
+                let binary = exporter_binary()?;
+                run_anvil_conversion(
+                    &binary,
+                    &source_snapshot,
+                    stage.path(),
+                    &self.1,
+                    &|done, total| {
+                        renderer.preparation_update(
+                            server_id,
+                            dimension,
+                            "Converting saved terrain regions",
+                            Some(done),
+                            Some(total),
+                        );
+                    },
+                )?;
+                current.converted = Some(Arc::new(ConvertedWorld {
+                    source_snapshot: source_snapshot.clone(),
+                    staging: stage.clone(),
+                }));
+                stage
+            }
+        };
+        drop(current);
+        let prepared_world = staging.path().to_path_buf();
+        renderer
+            .use_prepared_world(
+                server_id.to_owned(),
+                world.to_owned(),
+                prepared_world,
+                staging,
+            )
+            .map_err(|_| "The shared terrain renderer is shutting down.".to_owned())?;
+        let result = renderer
+            .fetch_visible(server_id, world, dimension, artifact, Some("26.3"), &|| {
+                lifecycle.status_snapshot().running
+            })
+            .map_err(|error| format!("{}: {}", error.code, error.message));
+        renderer.preparation_finished(server_id);
+        result
     }
 
     fn read(
@@ -1162,6 +1291,77 @@ fn exporter_binary() -> Result<PathBuf, String> {
         return Err("The Bedrock terrain exporter is missing beside the MSC agent.".into());
     }
     Ok(binary)
+}
+
+fn run_anvil_conversion(
+    binary: &Path,
+    snapshot: &Path,
+    output: &Path,
+    lifecycle: &ExporterLifecycle,
+    progress: &(impl Fn(usize, usize) + Sync),
+) -> Result<(), String> {
+    let mut child = Command::new(binary)
+        .arg("anvil-convert")
+        .arg(snapshot)
+        .arg(output)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .map_err(|error| format!("Could not start Bedrock region conversion: {error}"))?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or("Bedrock converter has no progress output.")?;
+    let (sender, receiver) = mpsc::channel();
+    let reader = std::thread::spawn(move || {
+        for line in BufReader::new(stdout).lines() {
+            if sender.send(line).is_err() {
+                break;
+            }
+        }
+    });
+    let mut exit = None;
+    loop {
+        if lifecycle.shutdown.load(Ordering::Acquire) {
+            lifecycle.stop(&mut child);
+            let _ = reader.join();
+            return Err("The local agent is shutting down.".into());
+        }
+        match receiver.recv_timeout(Duration::from_millis(100)) {
+            Ok(Ok(line)) => {
+                if let Some((done, total)) = line.strip_prefix("MSC_PROGRESS ").and_then(|value| {
+                    let mut fields = value.split_whitespace();
+                    Some((fields.next()?.parse().ok()?, fields.next()?.parse().ok()?))
+                }) {
+                    progress(done, total);
+                }
+            }
+            Ok(Err(error)) => {
+                lifecycle.stop(&mut child);
+                let _ = reader.join();
+                return Err(format!(
+                    "Could not read Bedrock conversion progress: {error}"
+                ));
+            }
+            Err(RecvTimeoutError::Disconnected) => {
+                exit = Some(child.wait().map_err(|error| error.to_string())?);
+                break;
+            }
+            Err(RecvTimeoutError::Timeout) => {
+                if let Some(status) = child.try_wait().map_err(|error| error.to_string())? {
+                    exit = Some(status);
+                    break;
+                }
+            }
+        }
+    }
+    let _ = reader.join();
+    if exit.is_some_and(|status| status.success()) {
+        Ok(())
+    } else {
+        Err("Bedrock region conversion failed. See the agent log for details.".into())
+    }
 }
 
 fn run_exporter(command: &mut Command, lifecycle: &ExporterLifecycle, timeout: Duration) -> bool {

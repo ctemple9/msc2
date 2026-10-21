@@ -43,7 +43,9 @@ they do not cover the full dimensions or prove roof/cave presentation.
 **Selected boundary:** a private Bedrock-to-modern-Anvil adapter feeding
 Vantage's existing region reader. P18.83 adds the full-region `anvil-convert`
 path, carries block state properties and 3D biome cells, preserves the three
-standard dimensions, and requires an exact-save-version biome registry. Its
+standard dimensions, and accepts an exact-save-version biome registry when
+available. Without one, unknown Bedrock biome IDs use Vantage's neutral Plains
+fallback. Its
 atomic region files and manifest resume safely after interruption. Resuming
 currently still scans and decodes source chunks to compute content digests;
 the manifest avoids recompressing and rewriting unchanged region files, not
@@ -51,7 +53,7 @@ the LevelDB read. The conversion report exposes block aliases, biome coverage,
 vertical range, and sections with secondary layers. Those layered sections
 currently write the first visible Bedrock layer; their count remains a known
 fidelity limitation for later review. The existing 1.26.31.1 Bedtonic proof
-does not contain the required authoritative biome registry, so full conversion
+does not contain an authoritative biome registry, so named biome tint fidelity
 and practical first-open timing remain unverified. Do not route the production
 Bedrock map through the bounded `anvil-probe`; app routing and its progress
 panel are P18.84.
@@ -72,20 +74,22 @@ clients/desktop-web/src-tauri/target/x86_64-apple-darwin/release/agent/vantage m
 ```
 
 The bounded probe writes `probe.json`; it is only a renderer-boundary proof.
-For durable conversion, build the optimized helper and supply an exact-version
-registry JSON (`version`, `source`, `source_sha256`, and unique `ids` mapping
-names to numeric IDs):
+For durable conversion, build the optimized helper. An exact-version registry
+JSON (`version`, `source`, `source_sha256`, and unique `ids` mapping names to
+numeric IDs) gives named biome tints. Without it, unknown numeric IDs use the
+Vantage neutral Plains fallback; the report still lists each unmapped ID and
+its block-position count.
 
 ```sh
 cargo build --manifest-path tools/world-map-proof/Cargo.toml --release
 tools/world-map-proof/target/release/msc-world-map-proof anvil-convert \
   "$HOME/Library/Application Support/MSC 2/map-staging/<snapshot>/world" \
   "$HOME/Library/Application Support/MSC 2/map-cache/bedrock-anvil/<world-id>" \
-  /path/to/exact-bedrock-biome-registry.json
+  [/path/to/exact-bedrock-biome-registry.json]
 ```
 
-The converter refuses a registry-version mismatch or unmapped biome IDs and
-writes `conversion-report.json`, `bedrock-conversion.json`, and dimension
-region files. No full Bedtonic conversion or test suite was run for P18.83;
-Cameron's release-build conversion, fidelity review, and timing are still
-needed before marking it Done.
+If a registry is supplied, the converter refuses a version mismatch. It writes
+`conversion-report.json`, `bedrock-conversion.json`, and dimension region
+files. No full Bedtonic conversion or test suite was run for P18.83; Cameron's
+release-build conversion, fidelity review, and timing are still needed before
+marking it Done.

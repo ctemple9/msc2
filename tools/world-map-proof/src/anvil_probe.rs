@@ -101,7 +101,7 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
             continue;
         }
         loaded += 1;
-        let nbt = encode_chunk(chunk, &mut findings, None)?;
+        let nbt = encode_chunk(chunk, &mut findings, None, false)?;
         regions
             .entry((chunk.pos.x.div_euclid(32), chunk.pos.z.div_euclid(32)))
             .or_default()
@@ -165,6 +165,7 @@ pub(crate) fn encode_chunk(
     chunk: &ChunkData,
     findings: &mut Findings,
     biome_names: Option<&BTreeMap<u32, String>>,
+    allow_unmapped_biomes: bool,
 ) -> Result<Vec<u8>, Box<dyn Error>> {
     let mut sections = Vec::new();
     for (&sy, subchunk) in &chunk.subchunks {
@@ -250,12 +251,13 @@ pub(crate) fn encode_chunk(
                         .unwrap_or(u32::MAX);
                     let name = match biome_names.and_then(|names| names.get(&id)) {
                         Some(name) => name.clone(),
-                        None if biome_names.is_some() => {
+                        None if biome_names.is_some() && !allow_unmapped_biomes => {
                             return Err(format!(
                                 "biome ID {id} has no entry in the exact-version registry"
                             )
                             .into());
                         }
+                        None if biome_names.is_some() => format!("msc:unmapped_bedrock_biome_{id}"),
                         None => "minecraft:plains".to_owned(),
                     };
                     let index = *biome_lookup.entry(name.clone()).or_insert_with(|| {

@@ -153,7 +153,7 @@ pub(super) async fn preparation_progress(
 }
 
 struct SavedSnapshot {
-    _staging: Option<crate::map_staging::Staging>,
+    _staging: Option<Arc<crate::map_staging::Staging>>,
     server_id: String,
     source_world: PathBuf,
     path: PathBuf,
@@ -373,7 +373,7 @@ fn artifact_type(path: &str) -> Option<&'static str> {
 }
 
 impl RendererStore {
-    fn fetch_visible(
+    pub(super) fn fetch_visible(
         &self,
         server_id: &str,
         world: &Path,
@@ -451,7 +451,7 @@ impl RendererStore {
             server_id,
             source_world,
             path: snapshot.path,
-            _staging: snapshot.staging,
+            _staging: snapshot.staging.map(Arc::new),
         };
         let mut renderer = self.0.current.lock().map_err(|_| ())?;
         if self.0.shutdown.load(Ordering::Acquire) {
@@ -468,6 +468,64 @@ impl RendererStore {
             hold_millis
         );
         Ok(())
+    }
+
+    pub(super) fn use_prepared_world(
+        &self,
+        server_id: String,
+        source_world: PathBuf,
+        prepared_world: PathBuf,
+        staging: Arc<crate::map_staging::Staging>,
+    ) -> Result<(), ()> {
+        let mut renderer = self.0.current.lock().map_err(|_| ())?;
+        if self.0.shutdown.load(Ordering::Acquire) {
+            return Err(());
+        }
+        let mut saved = self.0.snapshot.lock().map_err(|_| ())?;
+        if saved.as_ref().is_some_and(|current| {
+            current.server_id == server_id
+                && current.source_world == source_world
+                && current.path == prepared_world
+        }) {
+            return Ok(());
+        }
+        *renderer = None;
+        *saved = Some(SavedSnapshot {
+            _staging: Some(staging),
+            server_id,
+            source_world,
+            path: prepared_world,
+        });
+        Ok(())
+    }
+
+    pub(super) fn preparation_update(
+        &self,
+        server_id: &str,
+        dimension: &str,
+        stage: &str,
+        completed: Option<usize>,
+        total: Option<usize>,
+    ) {
+        if let Ok(mut progress) = self.0.progress.lock() {
+            *progress = Some(PreparationProgress {
+                server_id: server_id.to_owned(),
+                dimension: dimension.to_owned(),
+                stage: stage.to_owned(),
+                completed,
+                total,
+            });
+        }
+    }
+
+    pub(super) fn preparation_finished(&self, server_id: &str) {
+        if let Ok(mut progress) = self.0.progress.lock()
+            && progress
+                .as_ref()
+                .is_some_and(|item| item.server_id == server_id)
+        {
+            *progress = None;
+        }
     }
 
     fn fetch(

@@ -177,6 +177,7 @@
             canGoBack={topicHistory.length > 0}
             onBack={() => void goBack()}
             onSelect={(id) => void selectTopic(id)}
+            onOpenRouter={() => selectView('router')}
           />
         {:else if activeView === 'router'}
           <RouterGuidePanel {api} catalog={routerGuides} />

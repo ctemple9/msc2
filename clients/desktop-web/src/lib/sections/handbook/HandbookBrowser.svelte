@@ -17,6 +17,7 @@
   export let topic: HelpTopic | null = null;
   export let topicId = '';
   export let onSelect: (id: string) => void = () => {};
+  export let onOpenRouter: () => void = () => {};
   export let onBack: () => void = () => {};
   export let canGoBack = false;
 
@@ -82,7 +83,13 @@
   function openArticleLink(event: MouseEvent): void {
     const target = event.target;
     if (!(target instanceof Element)) return;
-    const id = target.closest('a[data-help-topic]')?.getAttribute('data-help-topic');
+    const link = target.closest('a[data-help-topic], a[data-help-view]');
+    if (link?.getAttribute('data-help-view') === 'router') {
+      event.preventDefault();
+      onOpenRouter();
+      return;
+    }
+    const id = link?.getAttribute('data-help-topic');
     if (!id) return;
     event.preventDefault();
     if (catalog.topics.some((item) => item.helpId === id)) onSelect(id);

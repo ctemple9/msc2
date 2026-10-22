@@ -9,6 +9,8 @@ relatedIds: [handbook.networking-basics, handbook.playit]
 source: {path: "MSCmacOS/MSCmacOS Swift/ServerHandbookTopics.swift", symbol: portsForwardingDuckDNSContent}
 ---
 
+Need help configuring your router? [Open the Router Guide](help:router-guide) for steps matched to your router or internet provider.
+
 ### Callout: note
 
 There are two ways to let external players connect. Port forwarding (this topic) configures your router directly. Playit.gg tunneling (next topic) routes traffic through a relay service — no router access needed. See the "How Servers Connect" topic for a side-by-side comparison. If you’re unsure which to use, read that topic first.

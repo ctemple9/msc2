@@ -456,3 +456,19 @@ The warning also overstates the consequence. [Minecraft's Java 26.3 notes](https
 - **What:** Remove the redundant provider or device subtitle from Router Guide picker rows while keeping the distinct generic-guide explanation.
 - **Verify:** In the next desktop build, open Router Guide and confirm entries such as ASUS Router and Linksys / Velop show one name each. Search for a router and confirm result rows also show one name and still open the correct guide.
 - **Batch:** P16.116 only.
+
+### Finding 25 — Port forwarding advice does not lead to the Router Guide
+
+**What Cameron experienced and wants:** While reading **Port Forwarding & DuckDNS** in the Handbook, Cameron sees an explanation of ports and why router settings matter, but there is no direct way from that page to the guided router instructions. He wants a short statement near the top telling readers that help configuring their router is available, with a link they can click to open MSC 2's Router Guide. The reader should stay in the app instead of having to find the separate Guide switcher themselves.
+
+**Investigation:** The article text lives in `content/help/handbook/port-forwarding-duckdns.md` and is served by the agent. The desktop Handbook renders that text with a limited Markdown renderer; it already recognizes in-app links to other Handbook topics, but not the Router Guide view. `HelpSection.svelte` already switches between Handbook and Router Guide without a reload. A dedicated internal link can reuse that view switch while keeping the article's guidance in the agent-owned content file.
+
+**Implementation work (2026-10-22):** Added a brief question and **Open the Router Guide** link at the start of the port forwarding article. The Markdown renderer recognizes this exact internal destination, and the Handbook passes its click to the existing Router Guide view. The link opens the router picker in the same desktop screen; ordinary web links and other Handbook topic links keep their existing behavior.
+
+**P16.117 — Link port forwarding advice to Router Guide**
+
+- **Status:** Implemented; awaiting owner verification in the next desktop and agent build.
+- **Files:** `content/help/handbook/port-forwarding-duckdns.md`; `clients/desktop-web/src/lib/help/markdown.ts`; `clients/desktop-web/src/lib/sections/handbook/HandbookBrowser.svelte`; `clients/desktop-web/src/lib/sections/handbook/HelpSection.svelte`; `docs/msc2/rolling-plan.md`.
+- **What:** Put a Router Guide link near the top of the Port Forwarding & DuckDNS article and route it to MSC 2's existing Router Guide picker without reloading the app.
+- **Verify:** In a build with the updated desktop and agent content, open Handbook → Port Forwarding & DuckDNS. Click **Open the Router Guide** near the top and confirm Router Guide opens in the same window at its router picker. Switch back to Handbook and confirm the article is still available.
+- **Batch:** P16.117 only.

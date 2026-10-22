@@ -2499,7 +2499,13 @@ pub async fn update_profile(
         }
     }
     if active && running && server.server_type == ServerType::Java {
-        match state.lifecycle.apply_active_java_world_gameplay() {
+        let switch_online_players = changes
+            .iter()
+            .any(|(key, _)| key == "gameplay.default-game-mode");
+        match state
+            .lifecycle
+            .apply_active_java_world_gameplay(switch_online_players)
+        {
             Ok(()) => {
                 for change in &mut report.changes {
                     if matches!(
@@ -2517,8 +2523,10 @@ pub async fn update_profile(
                         change.key.as_str(),
                         "gameplay.gamerules" | "gameplay.difficulty" | "gameplay.default-game-mode"
                     ) {
-                        change.status = worlds::WorldProfileApplyStatus::PendingRestart;
-                        change.reason = Some(format!("runtime_command_failed: {error}"));
+                        change.status = worlds::WorldProfileApplyStatus::Blocked;
+                        change.reason = Some(format!(
+                            "Saved, but the server did not accept every live gameplay command: {error}"
+                        ));
                     }
                 }
             }

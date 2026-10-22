@@ -321,6 +321,16 @@ The current private converted cache was inspected read-only. Its five Overworld 
 - **Verify:** On a running Paper server with two players online, change the active world's game mode in MSC; both players should switch immediately without restarting or reconnecting, and the world default should persist for future joins. Repeat with Enforce Gamemode on and off.
 - **Batch:** P16.98 only.
 
+**Implementation work (2026-10-22):** When the active Java world's game mode is changed while the server is running, MSC now sends `defaultgamemode` to retain the world default and then `gamemode <mode> @a` to switch players already online. The second command is sent only for a deliberate game mode change, not when gameplay settings are restored at startup, so starting a server does not override returning players' modes when Enforce Gamemode is off. The profile response reports the live change only if both commands are accepted by the server process; otherwise it reports that the saved choice could not be fully applied live, with the command error. Enforce Gamemode remains a separate join policy.
+
+**P16.110 — Apply Java game mode changes to online players**
+
+- **Status:** Implemented; awaiting owner verification on a running Java server.
+- **Files:** `crates/msc-agent/src/routes/lifecycle.rs`; `crates/msc-agent/src/routes/worlds.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Send the live all-player Java game mode command after updating the world default, only when the active world's mode is explicitly changed.
+- **Verify:** On a running Paper server with two players online, change the active world's game mode in MSC; both players should switch immediately without restarting or reconnecting. Repeat with Enforce Gamemode on and off, then restart and check that the world default persists. The same flow should work on another supported Java flavor.
+- **Batch:** P16.110 only.
+
 ### Finding 17 — Messages beneath the console cannot be dismissed
 
 **What Cameron experienced:** After an attempted console action failed, MSC showed red text beneath the console input saying “server is not running.” That message stayed visible while Cameron continued using the app. In the screenshot, the Paper server now appears to be running and the console has startup output, yet the old red message is still pinned under the input. It looks like a current server problem even though it describes an earlier attempt. Cameron wants every transient message shown in that under-console position to disappear when he clicks it, so he can clear outdated notices without sending another command or closing the console.

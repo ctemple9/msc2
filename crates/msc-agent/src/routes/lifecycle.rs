@@ -3195,7 +3195,7 @@ impl LifecycleRoutesState {
                 if output_events.iter().any(|event| {
                     matches!(event, msc_application::output_reducer::OutputEvent::Ready)
                 }) {
-                    if let Err(error) = self.apply_active_java_world_gameplay() {
+                    if let Err(error) = self.apply_active_java_world_gameplay(false) {
                         self.inner.console.push(ConsoleLine::with_origin(
                             "msc",
                             None,
@@ -3223,7 +3223,10 @@ impl LifecycleRoutesState {
         }
     }
 
-    pub fn apply_active_java_world_gameplay(&self) -> Result<(), String> {
+    pub fn apply_active_java_world_gameplay(
+        &self,
+        switch_online_players: bool,
+    ) -> Result<(), String> {
         let Some(server_id) = self.active_server_id() else {
             return Ok(());
         };
@@ -3241,13 +3244,18 @@ impl LifecycleRoutesState {
                 .ok()
                 .and_then(|raw| msc_domain::nbt::java_runtime_metadata(&raw).0)
         });
-        let commands = msc_application::java_world_settings::runtime_commands(
+        let mut commands = msc_application::java_world_settings::runtime_commands(
             &profile,
             detected_version
                 .as_deref()
                 .or(server.minecraft_version.as_deref()),
         )
         .map_err(|error| error.to_string())?;
+        if switch_online_players && let Some(mode) = &profile.gameplay.default_game_mode {
+            // Keep restart-time defaults separate from a deliberate live
+            // change, which should also reach players already online.
+            commands.push(format!("gamemode {mode} @a"));
+        }
         for command in commands {
             self.inner
                 .lifecycle

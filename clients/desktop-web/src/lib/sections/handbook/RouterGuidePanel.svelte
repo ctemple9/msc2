@@ -75,18 +75,11 @@
     query = '';
     searchResult = null;
   }
-
-  function summaryLabel(guide: RouterGuideSummary): string {
-    return guide.providerDisplayName ?? guide.deviceDisplayName ?? guide.category;
-  }
 </script>
 
 {#snippet guideRow(guide: RouterGuideSummary, last: boolean, onSelect: () => void)}
   <button type="button" class="guide-row" class:last onclick={onSelect}>
-    <span class="text">
-      <span class="msc2-type-card">{guide.displayName}</span>
-      <span class="msc2-type-meta">{summaryLabel(guide)}</span>
-    </span>
+    <span class="msc2-type-card">{guide.displayName}</span>
     <span class="chevron" aria-hidden="true">›</span>
   </button>
 {/snippet}
@@ -254,12 +247,6 @@
   }
   .guide-row:hover {
     background: var(--msc2-hairline-subtle);
-  }
-  .guide-row .text {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
   }
   .guide-row .chevron {
     flex: none;

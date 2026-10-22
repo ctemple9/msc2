@@ -440,3 +440,19 @@ The warning also overstates the consequence. [Minecraft's Java 26.3 notes](https
 - **What:** Remove repeated Save and Remove buttons and use the existing action menu on a Handbook title's secondary click or keyboard context-menu shortcut.
 - **Verify:** In the next desktop build, open Handbook and confirm titles have no adjacent Save or Remove buttons. Right-click or two-finger click an unsaved topic, choose **Save to Favorites**, and confirm it appears at the top while remaining in its category. Secondary-click it again, choose **Remove from Favorites**, and confirm it remains in the category. Repeat the menu with Shift+F10 while a title has keyboard focus.
 - **Batch:** P16.115 only.
+
+### Finding 24 — Router Guide entries repeat their names
+
+**What Cameron experienced and wants:** In Router Guide's picker, each router row shows a main name and a second line with the brand or provider. For example, the list shows **ASUS Router** with **ASUS Router** again beneath it, and **Linksys / Velop** repeats the same words on both lines. Even when the wording differs slightly, such as **AT&T Gateway** followed by **AT&T**, the category and main name already give the reader enough context. Cameron wants each router listed once so the inventory is easier to scan.
+
+**Investigation:** `RouterGuidePanel.svelte` renders `guide.displayName` on the first line, then chooses `providerDisplayName`, `deviceDisplayName`, or category for a second line. Some catalog records put the same product name in both fields; others put a provider name already present in the main label. The router guides are already grouped by device category, and search still uses the catalog data, so the secondary display line is unnecessary in the picker. The generic **I don't know my router** card has a distinct explanatory line and is not affected.
+
+**Implementation work (2026-10-22):** Removed the secondary line from the shared router-row renderer, which covers browse entries and search results. Each row now shows its guide name once with its navigation chevron. The underlying catalog, search behavior, and guide content are unchanged.
+
+**P16.116 — Show each router guide name once**
+
+- **Status:** Implemented; awaiting owner verification in the next desktop build.
+- **Files:** `clients/desktop-web/src/lib/sections/handbook/RouterGuidePanel.svelte`; `docs/msc2/rolling-plan.md`.
+- **What:** Remove the redundant provider or device subtitle from Router Guide picker rows while keeping the distinct generic-guide explanation.
+- **Verify:** In the next desktop build, open Router Guide and confirm entries such as ASUS Router and Linksys / Velop show one name each. Search for a router and confirm result rows also show one name and still open the correct guide.
+- **Batch:** P16.116 only.

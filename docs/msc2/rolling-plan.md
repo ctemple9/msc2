@@ -221,6 +221,16 @@ The installed macOS helper is the expected universal x86_64/arm64 binary, and it
 
 **User outcome required:** Make the Java server card select and highlight on activation, then show an anchored action menu containing **Change Version**. Keep the existing version picker and running-server restriction. Apply the same interaction to the Bedrock runtime card for consistency, unless a platform-specific reason makes that behavior inappropriate.
 
+**Implementation work (2026-10-21):** The Java, modded-loader, and Bedrock server cards now open the shared anchored action menu when activated. The selected card gets the same restrained blue perimeter used by the add-on rows, and **Change Version** opens the existing picker. The action remains disabled while the server is running. Keyboard activation places the menu below the focused card; mouse activation anchors it at the click.
+
+**P16.106 — Move server version changes into the card menu**
+
+- **Status:** Implementation recorded; awaiting owner visual and keyboard verification on the next macOS build.
+- **Files:** `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`; `docs/msc2/rolling-plan.md`.
+- **What:** Make Java/loader and Bedrock server cards selectable, show the blue perimeter while their action menu is open, and move **Change Version** into that menu. Reuse the current picker and keep version changes unavailable while the server runs.
+- **Verify:** On the next macOS build, open **Components** for a Java server and for a Bedrock server. Click each server card and confirm it highlights and opens a menu with **Change Version**; choose it and confirm the existing picker opens. Repeat by focusing the card and pressing Enter or Space. Start a server and confirm **Change Version** is disabled in the menu.
+- **Batch:** P16.106 only.
+
 ### Finding 12 — Show “chunks” beside Simulation Distance on Java and Bedrock
 
 **What Cameron experienced and wants:** In the Paper Settings screen, **View Distance** shows its unit, “chunks,” while **Simulation Distance** is only a number. The missing unit leaves users to infer what the value measures and makes two related distance settings look inconsistent. Cameron wants the “chunks” unit shown for Simulation Distance anywhere MSC exposes that setting, across all server types.

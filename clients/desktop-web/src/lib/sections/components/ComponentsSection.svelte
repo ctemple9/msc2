@@ -154,6 +154,7 @@
   let showVersionPicker = false;
   let showBrowser = false;
   let componentActionMenu: { x: number; y: number } | undefined;
+  let serverCardMenu: { x: number; y: number } | undefined;
 
   function flash(message: string): void {
     notice = message;
@@ -377,6 +378,14 @@
     addonMenu = { addon, x: event.clientX, y: event.clientY };
   }
 
+  function openServerCardMenu(event: MouseEvent): void {
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    serverCardMenu = {
+      x: event.detail === 0 ? rect.left : event.clientX,
+      y: event.detail === 0 ? rect.bottom : event.clientY,
+    };
+  }
+
   function managedHelper(addon: Schema['AddonItemDTO']): 'geyser' | 'floodgate' | undefined {
     if (kind !== 'plugin') return undefined;
     const stem = addon.jarStem.toLowerCase();
@@ -501,6 +510,7 @@
   let mounted = false;
   $: if (serverId && serverId !== loadedForServerId) {
     loadedForServerId = serverId;
+    serverCardMenu = undefined;
     coreLoaded = false;
     addonsLoaded = false;
     void loadAll();
@@ -572,32 +582,43 @@
       <section class="zone">
         <p class="msc2-type-overline">Bedrock Server</p>
         <Card padding="0">
-          <div class="row">
+          <button
+            type="button"
+            class="row server-card-row"
+            class:selected={serverCardMenu !== undefined}
+            aria-label="Actions for Bedrock Dedicated Server"
+            aria-haspopup="menu"
+            aria-expanded={serverCardMenu !== undefined}
+            onclick={openServerCardMenu}
+          >
             <div class="info">
-              <span class="name">Bedrock Dedicated Server</span>
+              <div class="title-row">
+                <span class="name">Bedrock Dedicated Server</span>
+                <span class="row-affordance"><Icon name="chevron" size={10} /></span>
+              </div>
               <span class="subtitle">{primaryComponent?.installedLabel ?? 'Not installed'}</span>
             </div>
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={serverRunning}
-              title={serverRunning ? 'Stop the server before changing its version' : undefined}
-              onclick={() => (showVersionPicker = true)}
-            >
-              Change Version
-            </Button>
-          </div>
+          </button>
         </Card>
       </section>
     {:else}
       <section class="zone">
         <p class="msc2-type-overline">Server</p>
         <Card padding="0">
-          <div class="row">
+          <button
+            type="button"
+            class="row server-card-row"
+            class:selected={serverCardMenu !== undefined}
+            aria-label={`Actions for ${flavorDisplayName(activeServer?.javaFlavor)} server`}
+            aria-haspopup="menu"
+            aria-expanded={serverCardMenu !== undefined}
+            onclick={openServerCardMenu}
+          >
             <div class="info">
               <div class="title-row">
                 <span class="name">{flavorDisplayName(activeServer?.javaFlavor)}</span>
                 <Badge variant="category">{isModded ? 'Loader' : 'Server JAR'}</Badge>
+                <span class="row-affordance"><Icon name="chevron" size={10} /></span>
               </div>
               <span class="subtitle" class:error={!primaryComponent}>
                 {primaryComponent?.installedLabel ?? 'Not installed'}
@@ -609,16 +630,7 @@
                 label={componentStatusLabel(primaryComponent)}
               />
             {/if}
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={serverRunning}
-              title={serverRunning ? 'Stop the server before changing its version' : undefined}
-              onclick={() => (showVersionPicker = true)}
-            >
-              Change Version
-            </Button>
-          </div>
+          </button>
         </Card>
       </section>
 
@@ -849,6 +861,21 @@
   />
 {/if}
 
+{#if serverCardMenu}
+  <Menu
+    x={serverCardMenu.x}
+    y={serverCardMenu.y}
+    onClose={() => (serverCardMenu = undefined)}
+    items={[
+      {
+        label: 'Change Version',
+        disabled: serverRunning,
+        onSelect: () => (showVersionPicker = true),
+      },
+    ]}
+  />
+{/if}
+
 {#if showVersionPicker}
   <VersionPickerSheet
     {api}
@@ -1039,6 +1066,27 @@
     align-items: center;
     gap: 12px;
     padding: 12px 14px;
+  }
+  .server-card-row {
+    width: 100%;
+    border: 0;
+    border-radius: var(--msc2-radius-2);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .server-card-row:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .server-card-row:focus-visible {
+    outline: 2px solid var(--msc2-selection);
+    outline-offset: -2px;
+  }
+  .server-card-row.selected {
+    background: rgba(59, 130, 246, 0.06);
+    box-shadow: inset 0 0 0 1.5px var(--msc2-selection);
   }
   .addon-heading {
     display: flex;

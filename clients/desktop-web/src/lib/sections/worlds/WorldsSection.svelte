@@ -153,6 +153,11 @@
   $: activeServer = servers.find((server) => server.id === serverId);
   $: isBedrock = activeServer?.serverType === 'bedrock';
   $: currentWorldsKey = `${hostId}:${serverId}`;
+  $: if (worldsLoadedKey && worldsLoadedKey !== currentWorldsKey) {
+    worldsLoadedKey = '';
+    selectedSlotId = undefined;
+    mapOpen = false;
+  }
   $: selectedSlot = worlds.slots.find((slot) => slot.id === selectedSlotId);
   $: if ($worldNavigationRequest && active && worldsLoadedKey === currentWorldsKey) {
     handleOverviewWorldNavigation($worldNavigationRequest);
@@ -174,10 +179,33 @@
     message: string;
   };
 
+  function applyWorlds(
+    updated: Schema['WorldSlotsResponseDTO'],
+    scopeKey = `${hostId}:${serverId}`,
+  ): void {
+    const sameScope = worldsLoadedKey === scopeKey;
+    const selectionStillExists =
+      selectedSlotId !== undefined && updated.slots.some((slot) => slot.id === selectedSlotId);
+    const selectionWasFollowingActiveWorld = selectedSlotId === worlds.activeSlotId;
+    const activeWorldChanged = updated.activeSlotId !== worlds.activeSlotId;
+
+    worlds = updated;
+    if (
+      !sameScope ||
+      !selectionStillExists ||
+      selectionWasFollowingActiveWorld ||
+      activeWorldChanged
+    ) {
+      selectedSlotId = updated.activeSlotId ?? undefined;
+    }
+    worldsLoadedKey = scopeKey;
+  }
+
   async function loadWorlds(): Promise<void> {
     const loadKey = `${hostId}:${serverId}`;
-    worlds = await call(api, worlds, worldPaths.list);
-    if (loadKey === `${hostId}:${serverId}`) worldsLoadedKey = loadKey;
+    const updated = await call(api, worlds, worldPaths.list);
+    if (loadKey !== `${hostId}:${serverId}`) return;
+    applyWorlds(updated, loadKey);
   }
 
   function handleOverviewWorldNavigation(request: WorldNavigationRequest): void {
@@ -307,7 +335,7 @@
   }
 
   function onWorldsCreatedOrRenamed(updated: Schema['WorldSlotsResponseDTO']): void {
-    worlds = updated;
+    applyWorlds(updated);
     void loadProfiles();
   }
 
@@ -556,8 +584,9 @@
       const result = await mutate<Schema['WorldMutationResultDTO']>(api, worldPaths.delete, {
         slotId,
       });
-      if (result.updated) worlds = result.updated;
-      if (selectedSlotId === slotId) selectedSlotId = undefined;
+      const selectedSlotWasDeleted = selectedSlotId === slotId;
+      if (result.updated) applyWorlds(result.updated);
+      else if (selectedSlotWasDeleted) selectedSlotId = worlds.activeSlotId ?? undefined;
     } catch (error) {
       flash(error instanceof Error ? error.message : 'Failed to delete this slot.');
     } finally {
@@ -574,7 +603,7 @@
       const result = await mutate<Schema['WorldMutationResultDTO']>(api, worldPaths.duplicate, {
         slotId,
       });
-      if (result.updated) worlds = result.updated;
+      if (result.updated) applyWorlds(result.updated);
       flash('World slot duplicated.');
     } catch (error) {
       flash(error instanceof Error ? error.message : 'Failed to duplicate this slot.');
@@ -587,7 +616,7 @@
     busy = true;
     try {
       const result = await mutate<Schema['WorldMutationResultDTO']>(api, worldPaths.saveCurrent);
-      if (result.updated) worlds = result.updated;
+      if (result.updated) applyWorlds(result.updated);
       flash('Active world saved.');
     } catch (error) {
       flash(error instanceof Error ? error.message : 'Failed to save the current world.');
@@ -667,7 +696,7 @@
         name: legacyImportName(backup),
         backupId: backup.id,
       });
-      if (result.updated) worlds = result.updated;
+      if (result.updated) applyWorlds(result.updated);
       flash(`Imported "${legacyImportName(backup)}" as a new slot.`);
     } catch (error) {
       flash(error instanceof Error ? error.message : 'Failed to import this backup as a slot.');
@@ -808,7 +837,11 @@
             selected={selectedSlotId === slot.id}
             {busy}
             confirming={confirming?.slotId === slot.id ? confirming.kind : undefined}
-            onSelect={() => { datapackMenu = undefined; confirmingPackDeleteId = undefined; selectedSlotId = selectedSlotId === slot.id ? undefined : slot.id; }}
+            onSelect={() => {
+              datapackMenu = undefined;
+              confirmingPackDeleteId = undefined;
+              selectedSlotId = slot.id;
+            }}
             onOpenMenu={(event) => openActionMenu(event, slot)}
             onConfirmActivate={() => void confirmActivate()}
             onConfirmDuplicate={() => void confirmDuplicate()}
@@ -1118,7 +1151,7 @@
     {api}
     onClose={() => (importZipOpen = false)}
     onImported={(updated) => {
-      worlds = updated;
+      applyWorlds(updated);
       flash('Imported ZIP as a new world slot.');
     }}
   />

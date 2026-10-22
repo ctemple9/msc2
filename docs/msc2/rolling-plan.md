@@ -257,6 +257,16 @@ The installed macOS helper is the expected universal x86_64/arm64 binary, and it
 
 **User outcome required:** Make the Active World thumbnail a clear, keyboard-accessible action target. Activating it should show the blue selected perimeter and an anchored menu with **Change Thumbnail** and **View Map**. Choosing either action should navigate to Worlds and target the active world. **Change Thumbnail** should open the same native file picker and upload flow as that world card’s **Set Thumbnail** action. **View Map** should select the active slot and open its existing map viewer. Preserve the existing map behavior and thumbnail upload safeguards.
 
+**Implementation work (2026-10-21):** Made the Overview thumbnail a keyboard-accessible button with the blue selection perimeter while its action menu is open. The menu offers **Change Thumbnail** and **View Map**. A small navigation request carries the host, server, and active world across the lazy-loaded tab switch; Worlds selects that same active slot, then starts the existing native thumbnail picker/upload path or opens the existing map viewer. The thumbnail flow still uses the per-world staged upload and cleanup safeguards.
+
+**P16.108 — Add Active World thumbnail actions**
+
+- **Status:** Implementation recorded; awaiting owner verification on the next macOS build.
+- **Files:** `clients/desktop-web/src/lib/sections/home/ActiveWorldCard.svelte`; `clients/desktop-web/src/lib/sections/home/HomeSection.svelte`; `clients/desktop-web/src/lib/sections/worlds/WorldSlotCard.svelte`; `clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte`; `clients/desktop-web/src/lib/sections/worlds/world-navigation.ts`; `docs/msc2/rolling-plan.md`.
+- **What:** Add an accessible action menu to the Overview Active World thumbnail and route its thumbnail and map actions to the matching active world in Worlds, reusing the existing workflows.
+- **Verify:** On the next macOS build, open Overview for Java and Bedrock servers. Activate the Active World thumbnail by mouse and keyboard; confirm its blue perimeter and the **Change Thumbnail** / **View Map** menu. Choose **Change Thumbnail** and confirm Worlds selects that world and opens the existing image picker; cancel the picker. Return to Overview, choose **View Map**, and confirm Worlds opens that world’s existing map viewer.
+- **Batch:** P16.108 only.
+
 ### Finding 14 — Select the active world automatically when opening Worlds
 
 **What Cameron experienced and wants:** When he opens the **Worlds** tab, the active world card should already be selected. That way the related **Datapacks** section and **Backups** panel are immediately showing the active world’s information, without requiring an extra click on the card first. This should happen for every server type, including Java and Bedrock.

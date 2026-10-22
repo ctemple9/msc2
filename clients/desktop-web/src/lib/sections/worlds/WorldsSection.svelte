@@ -50,6 +50,11 @@
   import type { Schema, ScreenProps } from '../shared/types';
   import { bytesLabel, call, mutate } from '../shared/types';
   import {
+    clearWorldNavigationRequest,
+    worldNavigationRequest,
+    type WorldNavigationRequest,
+  } from './world-navigation';
+  import {
     backupPaths,
     demoBackups,
     demoSlots,
@@ -73,6 +78,8 @@
   export let active = true;
 
   let worlds: Schema['WorldSlotsResponseDTO'] = { slots: demoSlots, serverRunning: false };
+  let worldsLoadedKey = '';
+  let thumbnailRequest: { id: number; slotId: string } | undefined;
   let backups: Schema['BackupItemDTO'][] = demoBackups;
   let servers: Schema['ServerDTO'][] = [];
   let backupConfig: Schema['BackupConfigResponseDTO'] | undefined;
@@ -145,7 +152,11 @@
 
   $: activeServer = servers.find((server) => server.id === serverId);
   $: isBedrock = activeServer?.serverType === 'bedrock';
+  $: currentWorldsKey = `${hostId}:${serverId}`;
   $: selectedSlot = worlds.slots.find((slot) => slot.id === selectedSlotId);
+  $: if ($worldNavigationRequest && active && worldsLoadedKey === currentWorldsKey) {
+    handleOverviewWorldNavigation($worldNavigationRequest);
+  }
   $: selectedBedrockPacks = selectedSlot
     ? (profiles[selectedSlot.id]?.profile.packs ?? []).filter((pack) => pack.edition === 'bedrock')
     : [];
@@ -164,7 +175,32 @@
   };
 
   async function loadWorlds(): Promise<void> {
+    const loadKey = `${hostId}:${serverId}`;
     worlds = await call(api, worlds, worldPaths.list);
+    if (loadKey === `${hostId}:${serverId}`) worldsLoadedKey = loadKey;
+  }
+
+  function handleOverviewWorldNavigation(request: WorldNavigationRequest): void {
+    clearWorldNavigationRequest(request.id);
+    if (request.hostId !== hostId || request.serverId !== serverId) return;
+
+    const target = worlds.slots.find((slot) => slot.id === request.slotId);
+    if (!target?.isActive) {
+      flash('The active world changed before this action could open. Refresh and try again.');
+      return;
+    }
+
+    selectedSlotId = target.id;
+    if (request.action === 'view-map') {
+      mapOpen = true;
+    } else {
+      mapOpen = false;
+      thumbnailRequest = { id: request.id, slotId: target.id };
+    }
+  }
+
+  function onThumbnailPickerStarted(requestId: number): void {
+    if (thumbnailRequest?.id === requestId) thumbnailRequest = undefined;
   }
   async function loadBackups(): Promise<void> {
     const response = await call<Schema['BackupsResponseDTO']>(api, { backups }, backupPaths.list);
@@ -779,6 +815,10 @@
             onConfirmDelete={() => void confirmDelete()}
             onCancelConfirm={cancelConfirm}
             onThumbnailUpdated={() => void loadWorlds()}
+            thumbnailRequestId={
+              thumbnailRequest?.slotId === slot.id ? thumbnailRequest.id : undefined
+            }
+            onThumbnailPickerStarted={onThumbnailPickerStarted}
           />
         {/each}
       </div>

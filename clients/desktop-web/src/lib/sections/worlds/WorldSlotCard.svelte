@@ -54,12 +54,15 @@
   export let onConfirmDelete: () => void;
   export let onCancelConfirm: () => void;
   export let onThumbnailUpdated: () => void;
+  export let thumbnailRequestId: number | undefined = undefined;
+  export let onThumbnailPickerStarted: (requestId: number) => void = () => {};
 
   let thumbnailBusy = false;
   let thumbnailError: string | undefined;
   let thumbnailRevision = 0;
   let thumbnailObjectUrl: string | undefined;
   let thumbnailLoadToken = 0;
+  let handledThumbnailRequestId: number | undefined;
 
   $: thumbnailPath = slotThumbnailUrl(slot);
   $: thumbnailUrl = thumbnailPath
@@ -124,6 +127,11 @@
     } catch (error) {
       thumbnailError = error instanceof Error ? error.message : 'Could not choose the image.';
     }
+  }
+  $: if (thumbnailRequestId !== undefined && thumbnailRequestId !== handledThumbnailRequestId) {
+    handledThumbnailRequestId = thumbnailRequestId;
+    onThumbnailPickerStarted(thumbnailRequestId);
+    void setThumbnail();
   }
   async function installThumbnail(
     upload: Schema['StagedUploadCompleteResultDTO'],

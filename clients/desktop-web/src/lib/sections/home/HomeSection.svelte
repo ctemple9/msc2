@@ -16,6 +16,7 @@
   import { clearLegacyNotes, mergeLegacyNotes, readLegacyNotes } from './notes';
   import type { Schema, ScreenProps } from '../shared/types';
   import { call, mutate } from '../shared/types';
+  import { requestWorldNavigation, type OverviewWorldAction } from '../worlds/world-navigation';
 
   export let api: ScreenProps['api'] = undefined;
   export let hostId = 'local-agent';
@@ -46,6 +47,12 @@
   $: activeSlot = worlds.slots.find((s) => s.id === worlds.activeSlotId);
   $: settingField = (key: string): string | undefined =>
     settings?.sections.flatMap((s) => s.fields).find((f) => f.key === key)?.value;
+
+  function openActiveWorldAction(action: OverviewWorldAction): void {
+    if (!activeServer || !activeSlot || !onWorlds) return;
+    requestWorldNavigation({ hostId, serverId: activeServer.id, slotId: activeSlot.id, action });
+    onWorlds();
+  }
 
   async function loadStatus(): Promise<void> {
     runStatus = await call(api, runStatus, '/v1/status');
@@ -217,6 +224,8 @@
           gamemode={settingField('gamemode')}
           onSwitch={() => onWorlds?.()}
           onBackup={() => void createBackup()}
+          onChangeThumbnail={() => openActiveWorldAction('change-thumbnail')}
+          onViewMap={() => openActiveWorldAction('view-map')}
         />
       </div>
       <ChatCard messages={chatMessages} serverRunning={runStatus.running} />

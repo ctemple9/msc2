@@ -1,6 +1,20 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** P16.94 adds Developer ID signing and notarization to the macOS desktop release. Apple credentials are configured; clean-Mac verification remains pending. No phase gate or exact-release artifact acceptance is implied. Cameron closed and archived the Java-first and Bedrock saved-terrain work through P18.95 on October 21, 2026. His Bedtonic check confirmed the latest biome-colour fix works. The [archived step records](rolling-plan-archive.md#october-21-2026--java-and-bedrock-saved-terrain-map-work) preserve the implementation history; [pending acceptance](pending-acceptance.md) and the [Phase 18 parity worksheet](phase18-map-acceptance.md#p1889--java-and-bedrock-map-parity-worksheet) retain checks that have not been recorded as passed.
+**Current priority:** P16.118 prepares the v0.1.33 release candidate from Cameron's macOS testing work. Developer ID credentials are configured; the release workflow and clean-Mac verification are still pending. No phase gate or exact-release artifact acceptance is implied. Cameron closed and archived the Java-first and Bedrock saved-terrain work through P18.95 on October 21, 2026. His Bedtonic check confirmed the latest biome-colour fix works. The [archived step records](rolling-plan-archive.md#october-21-2026--java-and-bedrock-saved-terrain-map-work) preserve the implementation history; [pending acceptance](pending-acceptance.md) and the [Phase 18 parity worksheet](phase18-map-acceptance.md#p1889--java-and-bedrock-map-parity-worksheet) retain checks that have not been recorded as passed.
+
+## v0.1.33 release candidate
+
+**Owner request (2026-10-22):** Increment the next tag and start the release workflow so Cameron can test the macOS changes in a downloaded build. The previous published tag is `v0.1.32`; `v0.1.33` is the next patch version. This release includes the changes recorded below through P16.117.
+
+**Release preparation:** Bump the agent, desktop, Tauri, bundle identity, and lockfile versions together because the release workflow compares them and requires the tag to match. Add candidate release notes and update the download links and signing description. The tag push will start the build-only workflow for macOS Intel and Apple Silicon, Windows, and Linux, then publish the prerelease only after all nine desktop and headless artifacts are assembled with checksums and signed update metadata. This is the first release using the newly configured Apple notarization path, so successful workflow publication and Cameron's clean-Mac first-open check are still separate outcomes.
+
+**P16.118 — Prepare and launch v0.1.33 release**
+
+- **Status:** Release source prepared; workflow completion and owner verification pending.
+- **Files:** `crates/msc-agent/Cargo.toml`; `Cargo.lock`; `clients/desktop-web/package.json`; `clients/desktop-web/package-lock.json`; `clients/desktop-web/src-tauri/Cargo.toml`; `clients/desktop-web/src-tauri/Cargo.lock`; `clients/desktop-web/src-tauri/tauri.conf.json`; `clients/desktop-web/src/lib/bundle-identity.ts`; `clients/desktop-web/static/bundle-identity.json`; `docs/msc2/release/v0.1.33.md`; `README.md`; `docs/msc2/rolling-plan.md`.
+- **What:** Align all release identities at 0.1.33, document the candidate, push its source and exact tag, and start the existing build-only release workflow without changing its checks or moving an old tag.
+- **Verify:** Run `gh run list --workflow release.yml --limit 1 --repo ctemple9/msc2` to inspect the `v0.1.33` run. After it completes successfully, open the v0.1.33 release page and confirm all nine platform artifacts, `SHA256SUMS`, and both signed update metadata files are present. Cameron then installs the exact Intel macOS DMG on a clean Mac and checks Finder first-open behavior.
+- **Batch:** P16.118 only.
 
 ## macOS owner testing — 0.1.32
 

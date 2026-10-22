@@ -44,6 +44,23 @@
     "resources": {
       "target/package/agent": "agent"
     },
+    "macOS": {
+      "dmg": {
+        "background": "dmg-background.png",
+        "windowSize": {
+          "width": 640,
+          "height": 360
+        },
+        "appPosition": {
+          "x": 160,
+          "y": 180
+        },
+        "applicationFolderPosition": {
+          "x": 480,
+          "y": 180
+        }
+      }
+    },
     "linux": {
       "deb": {
         "preInstallScript": "../../../packaging/linux/desktop-cli-preinstall.sh",

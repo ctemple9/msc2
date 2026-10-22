@@ -201,6 +201,7 @@ jobs:
           APPLE_API_KEY: ${{ vars.APPLE_API_KEY }}
           APPLE_API_ISSUER: ${{ vars.APPLE_API_ISSUER }}
           APPLE_API_KEY_PATH: ${{ runner.temp }}/AuthKey_${{ vars.APPLE_API_KEY }}.p8
+          TAURI_BUNDLER_DMG_IGNORE_CI: 'true'
         run: npm exec tauri build -- --bundles "${{ matrix.tauri-bundles }}" --config '{"build":{"beforeBuildCommand":""}}'
 
       - name: Verify macOS app signature and notarization

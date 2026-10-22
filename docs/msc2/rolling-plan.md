@@ -165,6 +165,16 @@ The focused new test protects the concrete 0.1.32-to-next-build case Cameron enc
 
 **User outcome required:** Keep **Show tip** and **Skip tour** reachable while the tour card is hidden, but place them in a deliberate region that does not cover the native title bar or MSC’s top-right controls. Check the layout at typical and narrower window widths so the tour controls do not collide with either the header actions or page content.
 
+**Implementation work (2026-10-21):** The hidden-tour actions now appear in the TopBar’s action layout beside MSC’s existing controls, so they take up real header space instead of floating over those controls. At widths of 600 pixels or less, the tour actions move to a separate row beneath the icon controls. The tour state publishes the two actions to the header only while its card is hidden and clears them when the tour advances or closes.
+
+**P16.104 — Keep hidden-tour actions out of the header controls**
+
+- **Status:** Implementation recorded; awaiting owner visual verification on the next macOS build.
+- **Files:** `clients/desktop-web/src/lib/help/onboarding.ts`; `clients/desktop-web/src/lib/help/TourOverlay.svelte`; `clients/desktop-web/src/lib/components/shell/TopBar.svelte`; `docs/msc2/rolling-plan.md`.
+- **What:** Put **Show tip** and **Skip tour** in the TopBar’s normal layout, with a separate row at narrow widths, and clear those controls when the tour card returns or the tour closes.
+- **Verify:** On the next macOS build, hide a tour card at the normal window width and at 600 pixels or less; confirm both actions remain reachable, sit within the header layout, and never cover MSC’s icon controls or page content. Use **Show tip** and **Skip tour** to confirm each action still works.
+- **Batch:** P16.104 only.
+
 ### Finding 8 — Choosing Java can sit on “Detecting installed Java runtimes” for too long
 
 **What Cameron experienced:** While creating a Java server, the **Choose Java for this server** dialog can remain on “Detecting installed Java runtimes…” for a noticeable time. Cameron described it as the app taking a long time to discover which Minecraft version he is using and wants the wait shortened so server setup does not stall on this step. The screenshot already shows that the selected Minecraft version requires Java 25, while the runtime list is still loading, so the user is left waiting after that key information is known.

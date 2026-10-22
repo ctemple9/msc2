@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** P16.123 addresses the Intel macOS ticket placement found in v0.1.35. The earlier v0.1.33, v0.1.34, and v0.1.35 tags remain fixed and none of those candidates was published. No phase gate or exact-release artifact acceptance is implied. Cameron closed and archived the Java-first and Bedrock saved-terrain work through P18.95 on October 21, 2026. His Bedtonic check confirmed the latest biome-colour fix works. The [archived step records](rolling-plan-archive.md#october-21-2026--java-and-bedrock-saved-terrain-map-work) preserve the implementation history; [pending acceptance](pending-acceptance.md) and the [Phase 18 parity worksheet](phase18-map-acceptance.md#p1889--java-and-bedrock-map-parity-worksheet) retain checks that have not been recorded as passed.
+**Current priority:** P16.124 prepares v0.1.36 with notarization and stapling on the finished macOS DMGs. The earlier v0.1.33, v0.1.34, and v0.1.35 tags remain fixed and none of those candidates was published. No phase gate or exact-release artifact acceptance is implied. Cameron closed and archived the Java-first and Bedrock saved-terrain work through P18.95 on October 21, 2026. His Bedtonic check confirmed the latest biome-colour fix works. The [archived step records](rolling-plan-archive.md#october-21-2026--java-and-bedrock-saved-terrain-map-work) preserve the implementation history; [pending acceptance](pending-acceptance.md) and the [Phase 18 parity worksheet](phase18-map-acceptance.md#p1889--java-and-bedrock-map-parity-worksheet) retain checks that have not been recorded as passed.
 
 ## v0.1.33 release candidate
 
@@ -61,6 +61,14 @@
 - **What:** After Tauri signs and packages the macOS app, submit the final signed DMG to Apple, require an Accepted result, and staple its ticket. Keep signature and Gatekeeper checks on the app inside the mounted image, but validate the stapled ticket on the distributable DMG. This applies to both macOS architectures and does not add a test or lint release gate.
 - **Verify:** On the next tagged release, both macOS jobs must log Accepted for the final DMG, pass `xcrun stapler validate` on the DMG, and pass the mounted app's `codesign` and `spctl` checks. Publication must include nine artifacts, checksums, and signed update metadata; Cameron checks Finder first open on the downloaded Intel DMG.
 - **Batch:** P16.123 only.
+
+**P16.124 — Prepare and launch v0.1.36 release**
+
+- **Status:** Release preparation in progress; workflow publication and owner verification pending.
+- **Files:** `crates/msc-agent/Cargo.toml`; `Cargo.lock`; `clients/desktop-web/package.json`; `clients/desktop-web/package-lock.json`; `clients/desktop-web/src-tauri/Cargo.toml`; `clients/desktop-web/src-tauri/Cargo.lock`; `clients/desktop-web/src-tauri/tauri.conf.json`; `clients/desktop-web/src/lib/bundle-identity.ts`; `clients/desktop-web/static/bundle-identity.json`; `docs/msc2/release/v0.1.36.md`; `docs/msc2/rolling-plan.md`.
+- **What:** Align release identities at 0.1.36, document the final-DMG notarization change, and launch a new immutable tag through the existing build-only workflow. Keep all three failed candidate tags fixed.
+- **Verify:** Inspect the v0.1.36 release workflow and, after publication, check the release page for all nine platform artifacts, `SHA256SUMS`, and both signed update metadata files. Cameron then installs the exact Intel macOS DMG on a clean Mac and opens it through Finder.
+- **Batch:** P16.124 only.
 
 ## macOS owner testing — 0.1.32
 

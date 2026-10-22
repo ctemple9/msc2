@@ -36,7 +36,6 @@
   import Sheet from '../../components/base/Sheet.svelte';
   import Button from '../../components/base/Button.svelte';
   import Card from '../../components/base/Card.svelte';
-  import Toggle from '../../components/base/Toggle.svelte';
   import Badge from '../../components/base/Badge.svelte';
   import StatusDot from '../../components/base/StatusDot.svelte';
   import EmptyState from '../../components/base/EmptyState.svelte';
@@ -63,7 +62,6 @@
     addonFilename,
     addonState,
     filterAddons,
-    demoBroadcastAutostart,
     demoBroadcastStatus,
     demoJarStatus,
     flavorDisplayName,
@@ -92,7 +90,6 @@
   let servers: Schema['ServerDTO'][] = [];
   let runStatus: Schema['RemoteAPIStatus'] = { running: false };
   let broadcastStatus: Schema['BroadcastStatusDTO'] = demoBroadcastStatus;
-  let broadcastAutostart: Schema['BroadcastAutoStartDTO'] = demoBroadcastAutostart;
   let jarStatus: Schema['BroadcastJarStatusDTO'] = demoJarStatus;
   let playit: Schema['PlayitStatusResponseDTO'] | undefined;
   let coreLoaded = false;
@@ -104,6 +101,7 @@
   $: kind = addOnKind(activeServer?.javaFlavor);
   $: isModded = kind === 'mod';
   $: crossplayEligible = supportsCrossplay(activeServer);
+  $: broadcastEnabled = activeServer?.xboxBroadcastEnabled === true;
   $: serverRunning = runStatus.running;
   $: primaryComponent = components.components.find(
     (component) => component.name === (isBedrock ? 'bedrock' : activeServer?.javaFlavor),
@@ -155,6 +153,8 @@
   let showBrowser = false;
   let componentActionMenu: { x: number; y: number } | undefined;
   let serverCardMenu: { x: number; y: number } | undefined;
+  let broadcastMenu: { x: number; y: number } | undefined;
+  let changingBroadcast = false;
 
   function flash(message: string): void {
     notice = message;
@@ -218,14 +218,13 @@
     runStatus = await call(api, runStatus, statusPath);
   }
   async function loadBroadcast(): Promise<void> {
-    // Always fetched (cheap: three small GETs) rather than gated on
+    // Always fetched (cheap: two small GETs) rather than gated on
     // crossplayEligible/isBedrock -- those are reactive values derived from
     // `servers`, which this same loadAll() pass may not have flushed yet.
     // The template's own {#if crossplayEligible}/{#if isBedrock} blocks
     // decide whether this data ever renders.
-    [broadcastStatus, broadcastAutostart, jarStatus] = await Promise.all([
+    [broadcastStatus, jarStatus] = await Promise.all([
       call(api, broadcastStatus, broadcastPaths.status),
-      call(api, broadcastAutostart, broadcastPaths.autostart),
       call(api, jarStatus, broadcastPaths.jarStatus),
     ]);
   }
@@ -386,6 +385,14 @@
     };
   }
 
+  function openBroadcastMenu(event: MouseEvent): void {
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    broadcastMenu = {
+      x: event.detail === 0 ? rect.left : event.clientX,
+      y: event.detail === 0 ? rect.bottom : event.clientY,
+    };
+  }
+
   function managedHelper(addon: Schema['AddonItemDTO']): 'geyser' | 'floodgate' | undefined {
     if (kind !== 'plugin') return undefined;
     const stem = addon.jarStem.toLowerCase();
@@ -458,15 +465,28 @@
     void Promise.all([loadComponents(), loadServers()]);
   }
 
-  async function toggleAutostart(): Promise<void> {
+  async function toggleBroadcastEnabled(): Promise<void> {
+    if (!activeServer || changingBroadcast) return;
+    const targetServerId = activeServer.id;
+    const enabled = !broadcastEnabled;
+    changingBroadcast = true;
     try {
-      broadcastAutostart = await mutate<Schema['BroadcastAutoStartDTO']>(
+      const result = await mutate<Schema['ServerXboxBroadcastResultDTO']>(
         api,
-        broadcastPaths.autostart,
-        { enabled: !broadcastAutostart.enabled },
+        '/v1/servers/xbox-broadcast',
+        { serverId: targetServerId, enabled },
       );
+      servers = servers.map((server) =>
+        server.id === targetServerId ? { ...server, xboxBroadcastEnabled: enabled } : server,
+      );
+      flash(result.message);
+      await loadBroadcast();
     } catch (error) {
-      flash(error instanceof Error ? error.message : 'Failed to change the broadcast setting.');
+      flash(
+        error instanceof Error ? error.message : 'Failed to change Xbox Broadcast for this server.',
+      );
+    } finally {
+      changingBroadcast = false;
     }
   }
 
@@ -511,6 +531,7 @@
   $: if (serverId && serverId !== loadedForServerId) {
     loadedForServerId = serverId;
     serverCardMenu = undefined;
+    broadcastMenu = undefined;
     coreLoaded = false;
     addonsLoaded = false;
     void loadAll();
@@ -765,16 +786,20 @@
         <section class="zone">
           <p class="msc2-type-overline">Crossplay</p>
           <Card padding="0">
-            <div class="row">
-              <Toggle
-                checked={broadcastAutostart.enabled}
-                label="Enable MCXboxBroadcast"
-                onchange={() => void toggleAutostart()}
-              />
+            <button
+              type="button"
+              class="row server-card-row"
+              class:selected={broadcastMenu !== undefined}
+              aria-label="Actions for MCXboxBroadcast"
+              aria-haspopup="menu"
+              aria-expanded={broadcastMenu !== undefined}
+              onclick={openBroadcastMenu}
+            >
               <div class="info">
                 <div class="title-row">
                   <span class="name">MCXboxBroadcast</span>
                   <Badge variant="category">Broadcast</Badge>
+                  <span class="row-affordance"><Icon name="chevron" size={10} /></span>
                 </div>
                 <span class="subtitle"
                   >{jarStatus.version
@@ -783,15 +808,7 @@
                 >
               </div>
               <span class="status-label">{jarStatus.installed ? 'Installed' : 'Missing'}</span>
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={downloadingBroadcastJar || jarStatus.downloading}
-                onclick={() => void downloadBroadcastJar()}
-              >
-                {downloadingBroadcastJar || jarStatus.downloading ? 'Downloading…' : 'Download'}
-              </Button>
-            </div>
+            </button>
           </Card>
         </section>
       {/if}
@@ -801,11 +818,20 @@
       <section class="zone">
         <p class="msc2-type-overline">Crossplay</p>
         <Card padding="0">
-          <div class="row">
+          <button
+            type="button"
+            class="row server-card-row"
+            class:selected={broadcastMenu !== undefined}
+            aria-label="Actions for MCXboxBroadcast"
+            aria-haspopup="menu"
+            aria-expanded={broadcastMenu !== undefined}
+            onclick={openBroadcastMenu}
+          >
             <div class="info">
               <div class="title-row">
                 <span class="name">MCXboxBroadcast</span>
                 <Badge variant="category">Broadcast</Badge>
+                <span class="row-affordance"><Icon name="chevron" size={10} /></span>
               </div>
               <span class="subtitle"
                 >{jarStatus.version
@@ -817,15 +843,7 @@
               tone={broadcastStatus.bedrockBroadcastRunning ? 'ok' : 'error'}
               label={broadcastStatus.bedrockBroadcastRunning ? 'Running' : 'Stopped'}
             />
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={downloadingBroadcastJar || jarStatus.downloading}
-              onclick={() => void downloadBroadcastJar()}
-            >
-              {downloadingBroadcastJar || jarStatus.downloading ? 'Downloading…' : 'Download JAR'}
-            </Button>
-          </div>
+          </button>
         </Card>
       </section>
     {/if}
@@ -871,6 +889,31 @@
         label: 'Change Version',
         disabled: serverRunning,
         onSelect: () => (showVersionPicker = true),
+      },
+    ]}
+  />
+{/if}
+
+{#if broadcastMenu}
+  <Menu
+    x={broadcastMenu.x}
+    y={broadcastMenu.y}
+    onClose={() => (broadcastMenu = undefined)}
+    items={[
+      {
+        label: broadcastEnabled ? 'Disable' : 'Enable',
+        disabled: changingBroadcast,
+        onSelect: () => void toggleBroadcastEnabled(),
+      },
+      {
+        label:
+          downloadingBroadcastJar || jarStatus.downloading
+            ? 'Downloading…'
+            : jarStatus.installed
+              ? 'Download latest JAR'
+              : 'Download JAR',
+        disabled: downloadingBroadcastJar || jarStatus.downloading,
+        onSelect: () => void downloadBroadcastJar(),
       },
     ]}
   />

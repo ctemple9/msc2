@@ -134,7 +134,7 @@
   {#if !loaded}
     <p class="msc2-type-meta" role="status">Loading guide content…</p>
   {:else}
-    <section class="zone">
+    <section class="zone" class:handbook-view={activeView === 'handbook'}>
       <div class="section-header">
         <div class="overline">
           <Icon name="note" size={13} />
@@ -205,11 +205,32 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
+    height: 100%;
+    min-height: 0;
   }
   .zone {
     display: flex;
     flex-direction: column;
     gap: 8px;
+  }
+  .zone.handbook-view {
+    flex: 1;
+    min-height: 0;
+  }
+  .zone.handbook-view :global(.card) {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+  @media (max-width: 720px) {
+    .help-screen {
+      height: auto;
+    }
+    .zone.handbook-view,
+    .zone.handbook-view :global(.card) {
+      flex: none;
+    }
   }
   .section-header {
     display: flex;

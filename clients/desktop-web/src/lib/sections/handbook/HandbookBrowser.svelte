@@ -179,18 +179,22 @@
     display: grid;
     grid-template-columns: minmax(11rem, 0.32fr) minmax(0, 1fr);
     gap: 20px;
+    flex: 1;
+    min-height: 0;
   }
   .topics {
     display: flex;
     flex-direction: column;
     gap: 10px;
     min-width: 0;
+    min-height: 0;
   }
   .topic-list {
     display: flex;
     flex-direction: column;
     gap: 1px;
-    max-height: 26rem;
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
   }
   .group-label {
@@ -224,9 +228,11 @@
   }
   .reader {
     min-width: 0;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     gap: 10px;
+    overflow-y: auto;
   }
   .reader h3 {
     margin: 2px 0 0;
@@ -380,9 +386,17 @@
   @media (max-width: 720px) {
     .browser {
       grid-template-columns: 1fr;
+      flex: none;
+    }
+    .topics {
+      min-height: auto;
     }
     .topic-list {
       max-height: 13rem;
+      flex: none;
+    }
+    .reader {
+      overflow-y: visible;
     }
   }
 </style>

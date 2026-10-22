@@ -376,3 +376,27 @@ The warning also overstates the consequence. [Minecraft's Java 26.3 notes](https
 - **What:** Let targeted Java player-mode commands run directly, reject a missing player clearly, correct the world-default warning, and make required dock confirmations actionable with dismissible send feedback.
 - **Verify:** On a running Paper server, enter `gamemode creative <online-player>` in the dock and confirm the player switches without a warning. Enter `gamemode creative` and confirm MSC explains that a player is required. Enter `defaultgamemode creative`, use **Send command** in the confirmation, and confirm the command is sent; cancel a second attempt and confirm it is not sent. Click or keyboard-dismiss the resulting notice. Repeat the Creative command on a Bedrock server and confirm its achievement warning still appears.
 - **Batch:** P16.112 only.
+
+### Finding 19 — Xbox Broadcast actions should match the Components menu pattern
+
+**What Cameron experienced and wants:** On a server’s Components tab, MCXboxBroadcast has an always-visible Download button while plugins and the server JAR open an action menu when their row is clicked. The Java row also has a toggle beside the broadcast name. Cameron wants to click the broadcast row, see the same blue selection outline as other component rows, and use its menu to download the JAR or enable or disable Xbox Broadcast. The action should read **Disable** when that server has broadcast enabled and **Enable** when it is disabled. Cameron withdrew a later suggestion to replace the row’s Installed status with Enabled or Disabled or to hide the row when the JAR is absent; retain its existing status display and visibility.
+
+**Investigation:** The old Java toggle called `/v1/broadcast/autostart`, which controls automatic start at the agent level. It did not change whether the selected server uses Xbox Broadcast. The server setting is `xboxBroadcastEnabled` and is changed through `/v1/servers/xbox-broadcast`; the separate agent-wide automatic-start setting remains in Broadcast settings. The JAR download endpoint already stores the helper in the shared agent cache, so moving its action into a menu does not change download or launch behavior.
+
+**Implementation work (2026-10-22):** Both Java and Bedrock broadcast rows now open a Components-style action menu and receive the blue perimeter while selected. The menu contains a per-server Enable or Disable action and the existing shared-JAR download action. The Java row keeps Installed or Missing, and the Bedrock row keeps its Running or Stopped indicator. The obsolete agent-wide toggle and its extra status request were removed from this tab.
+
+### Finding 20 — Handbook topic list stops halfway down the page
+
+**What Cameron experienced and wants:** In the Server Handbook, the topic list on the left stops around the middle of the available page even while the article on the right continues below it. Cameron likes being able to scroll the topics and wants the list to reach down through the usable Handbook area. The scroll indicator should stay hidden.
+
+**Investigation:** `HandbookBrowser.svelte` capped the topic list at `26rem`, regardless of window height or the article’s space. The desktop shell already hides scrollbars globally, so no scrollbar styling is needed. The Handbook can fill the available content panel and let its topic list and article scroll within that panel; the narrow single-column layout still needs its compact topic list and ordinary page scrolling.
+
+**Implementation work (2026-10-22):** The Handbook panel now fills the available tab height. The fixed desktop list cap is gone; its list grows to the bottom of the panel and remains scrollable. The article scrolls alongside it, while the narrow layout keeps its short list and page flow. No scroll indicator was added.
+
+**P16.113 — Align broadcast component actions and extend Handbook navigation**
+
+- **Status:** Implemented; awaiting owner verification in the next desktop build.
+- **Files:** `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`; `clients/desktop-web/src/lib/sections/handbook/HandbookBrowser.svelte`; `clients/desktop-web/src/lib/sections/handbook/HelpSection.svelte`; `docs/msc2/rolling-plan.md`.
+- **What:** Move Xbox Broadcast download and per-server enable/disable into the selected-row menu while preserving the row’s status text, and make the Handbook topic list use the full available panel height without showing a scrollbar.
+- **Verify:** In the next desktop build, select a Java server and a Bedrock server in turn. Open Components, click MCXboxBroadcast, and confirm the blue outline and Download plus Enable or Disable menu actions; confirm the row’s Installed/Missing or Running/Stopped status remains. Toggle broadcast, reopen the menu, and confirm the opposite action appears. Open Handbook, scroll the left topics to the last entry, and confirm the list reaches the panel bottom without a visible scrollbar; confirm the article still scrolls and a narrow window remains usable.
+- **Batch:** P16.113 only.

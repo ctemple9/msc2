@@ -211,6 +211,29 @@ jobs:
           TAURI_BUNDLER_DMG_IGNORE_CI: 'true'
         run: npm exec tauri build -- --bundles "${{ matrix.tauri-bundles }}" --config '{"build":{"beforeBuildCommand":""}}'
 
+      - name: Notarize and staple macOS disk image
+        if: startsWith(matrix.platform, 'macos-')
+        shell: bash
+        env:
+          APPLE_API_KEY: ${{ vars.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ vars.APPLE_API_ISSUER }}
+        run: |
+          set -Eeuo pipefail
+          bundle_dir="clients/desktop-web/src-tauri/target/release/bundle/dmg"
+          dmg="$(find "$bundle_dir" -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+          test -n "$dmg" || { echo "Tauri disk image is missing" >&2; exit 1; }
+          result="$(xcrun notarytool submit "$dmg" \
+            --key "$APPLE_API_KEY_PATH" --key-id "$APPLE_API_KEY" \
+            --issuer "$APPLE_API_ISSUER" --wait --output-format json)"
+          printf '%s\n' "$result" | python3 -c '
+          import json, sys
+          result = json.load(sys.stdin)
+          print("Disk image notarization:", result.get("status"), result.get("id"))
+          if result.get("status") != "Accepted":
+              sys.exit(1)
+          '
+          xcrun stapler staple "$dmg"
+
       - name: Verify macOS app signature and notarization
         if: startsWith(matrix.platform, 'macos-')
         shell: bash
@@ -227,7 +250,7 @@ jobs:
           test -n "$app_bundle" || { echo "Tauri disk image contains no app" >&2; exit 1; }
           codesign --verify --deep --strict --verbose=2 "$app_bundle"
           spctl --assess --type execute --verbose=4 "$app_bundle"
-          xcrun stapler validate "$app_bundle"
+          xcrun stapler validate "$dmg"
 
       - name: Build unsigned non-macOS Tauri installer
         if: matrix.platform == 'linux-x86_64'

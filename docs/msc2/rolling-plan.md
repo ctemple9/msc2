@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** P16.121 corrects the post-notarization app verification path after Apple accepted both v0.1.34 macOS builds but the release workflow failed. The v0.1.33 and v0.1.34 tags remain fixed and neither candidate was published. No phase gate or exact-release artifact acceptance is implied. Cameron closed and archived the Java-first and Bedrock saved-terrain work through P18.95 on October 21, 2026. His Bedtonic check confirmed the latest biome-colour fix works. The [archived step records](rolling-plan-archive.md#october-21-2026--java-and-bedrock-saved-terrain-map-work) preserve the implementation history; [pending acceptance](pending-acceptance.md) and the [Phase 18 parity worksheet](phase18-map-acceptance.md#p1889--java-and-bedrock-map-parity-worksheet) retain checks that have not been recorded as passed.
+**Current priority:** P16.122 prepares v0.1.35 with the verified macOS helper signatures and a corrected check of the finished DMG. The v0.1.33 and v0.1.34 tags remain fixed and neither candidate was published. No phase gate or exact-release artifact acceptance is implied. Cameron closed and archived the Java-first and Bedrock saved-terrain work through P18.95 on October 21, 2026. His Bedtonic check confirmed the latest biome-colour fix works. The [archived step records](rolling-plan-archive.md#october-21-2026--java-and-bedrock-saved-terrain-map-work) preserve the implementation history; [pending acceptance](pending-acceptance.md) and the [Phase 18 parity worksheet](phase18-map-acceptance.md#p1889--java-and-bedrock-map-parity-worksheet) retain checks that have not been recorded as passed.
 
 ## v0.1.33 release candidate
 
@@ -43,6 +43,14 @@
 - **What:** Mount the finished macOS DMG read-only and run the existing signature, Gatekeeper, and stapled-ticket checks against its actual app. Detach the image after verification. Preserve the build-only release workflow and its complete artifact requirements.
 - **Verify:** On macOS, mount a finished release DMG with `hdiutil attach -readonly -nobrowse`, confirm `MSC 2.app` is present at its top level, then run `codesign --verify --deep --strict`, `spctl --assess --type execute`, and `xcrun stapler validate` on that mounted app. The next new-tag workflow must pass both macOS jobs and publish all nine artifacts.
 - **Batch:** P16.121 only.
+
+**P16.122 — Prepare and launch v0.1.35 release**
+
+- **Status:** Release preparation in progress; workflow publication and owner verification pending.
+- **Files:** `crates/msc-agent/Cargo.toml`; `Cargo.lock`; `clients/desktop-web/package.json`; `clients/desktop-web/package-lock.json`; `clients/desktop-web/src-tauri/Cargo.toml`; `clients/desktop-web/src-tauri/Cargo.lock`; `clients/desktop-web/src-tauri/tauri.conf.json`; `clients/desktop-web/src/lib/bundle-identity.ts`; `clients/desktop-web/static/bundle-identity.json`; `docs/msc2/release/v0.1.35.md`; `docs/msc2/rolling-plan.md`.
+- **What:** Align release identities at 0.1.35, document the macOS post-notarization correction, and launch a new immutable tag through the existing build-only workflow. Keep the failed v0.1.33 and v0.1.34 tags fixed.
+- **Verify:** Inspect the v0.1.35 release workflow and, after publication, check the release page for all nine platform artifacts, `SHA256SUMS`, and both signed update metadata files. Cameron then installs the exact Intel macOS DMG on a clean Mac and opens it through Finder.
+- **Batch:** P16.122 only.
 
 ## macOS owner testing — 0.1.32
 

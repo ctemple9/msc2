@@ -134,6 +134,50 @@ jobs:
       - name: Build release agent and CLI
         run: cargo --locked build --release --target "${{ matrix.rust-target }}" -p msc-agent
 
+      - name: Prepare macOS signing and notarization credentials
+        if: startsWith(matrix.platform, 'macos-')
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY: ${{ vars.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ vars.APPLE_API_ISSUER }}
+          APPLE_API_KEY_P8_BASE64: ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
+            APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_P8_BASE64 MACOS_KEYCHAIN_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "$name must be configured before building macOS releases" >&2
+              exit 1
+            fi
+          done
+
+          keychain_path="$RUNNER_TEMP/msc2-signing.keychain-db"
+          certificate_path="$RUNNER_TEMP/msc2-signing-certificate.p12"
+          api_key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY}.p8"
+          printf '%s' "$APPLE_CERTIFICATE" | /usr/bin/base64 -D > "$certificate_path"
+          printf '%s' "$APPLE_API_KEY_P8_BASE64" | /usr/bin/base64 -D > "$api_key_path"
+          chmod 600 "$certificate_path" "$api_key_path"
+
+          security create-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$MACOS_KEYCHAIN_PASSWORD" "$keychain_path"
+          security default-keychain -d user -s "$keychain_path"
+          security import "$certificate_path" -k "$keychain_path" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: -s -k "$MACOS_KEYCHAIN_PASSWORD" "$keychain_path"
+          security find-identity -v -p codesigning "$keychain_path" |
+            grep -Fq "$APPLE_SIGNING_IDENTITY" || {
+              echo "configured Developer ID identity is not in the imported certificate" >&2
+              exit 1
+            }
+
+          echo "APPLE_API_KEY_PATH=$api_key_path" >> "$GITHUB_ENV"
+
       - name: Stage the matching Tauri agent payload
         if: matrix.platform != 'windows-x86_64'
         working-directory: clients/desktop-web
@@ -149,8 +193,30 @@ jobs:
         shell: pwsh
         run: python tools/release/prepare-windows-icon.py $env:GITHUB_WORKSPACE
 
-      - name: Build unsigned Tauri installer
-        if: matrix.platform != 'windows-x86_64'
+      - name: Build and notarize macOS Tauri installer
+        if: startsWith(matrix.platform, 'macos-')
+        working-directory: clients/desktop-web
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY: ${{ vars.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ vars.APPLE_API_ISSUER }}
+          APPLE_API_KEY_PATH: ${{ runner.temp }}/AuthKey_${{ vars.APPLE_API_KEY }}.p8
+        run: npm exec tauri build -- --bundles "${{ matrix.tauri-bundles }}" --config '{"build":{"beforeBuildCommand":""}}'
+
+      - name: Verify macOS app signature and notarization
+        if: startsWith(matrix.platform, 'macos-')
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          app_bundle="$(find clients/desktop-web/src-tauri/target/release/bundle/macos \
+            -maxdepth 1 -type d -name '*.app' -print -quit)"
+          test -n "$app_bundle" || { echo "Tauri app bundle is missing" >&2; exit 1; }
+          codesign --verify --deep --strict --verbose=2 "$app_bundle"
+          spctl --assess --type execute --verbose=4 "$app_bundle"
+          xcrun stapler validate "$app_bundle"
+
+      - name: Build unsigned non-macOS Tauri installer
+        if: matrix.platform == 'linux-x86_64'
         working-directory: clients/desktop-web
         run: npm exec tauri build -- --bundles "${{ matrix.tauri-bundles }}" --no-sign --config '{"build":{"beforeBuildCommand":""}}'
 
@@ -193,7 +259,22 @@ jobs:
             cp "$installer" "target/release-artifacts/msc2-${RELEASE_VERSION}-${{ matrix.platform }}.${{ matrix.installer-extension }}"
           fi
 
+      - name: Record macOS signing evidence
+        if: startsWith(matrix.platform, 'macos-')
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cat > target/release-artifacts/MACOS-SIGNING-NOTICE.txt <<EOF
+          MSC 2 beta candidate ${RELEASE_VERSION}
+          Platform: ${{ matrix.platform }}
+
+          The macOS desktop app is Developer ID signed and notarized by Apple.
+          The separate headless archive is not signed or notarized. Verify the
+          published checksum before use.
+          EOF
+
       - name: Record unsigned beta evidence
+        if: matrix.platform == 'windows-x86_64' || matrix.platform == 'linux-x86_64'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -201,10 +282,8 @@ jobs:
           MSC 2 beta candidate ${RELEASE_VERSION}
           Platform: ${{ matrix.platform }}
 
-          This candidate has no release code signing, notarization, or publisher
-          identity. The Tauri build used --no-sign. Any macOS ad-hoc signature
-          on the Bedrock sidecar only satisfies Virtualization.framework's
-          entitlement requirement; it is not Developer ID signing or notarization.
+          This candidate has no release code signing or publisher identity.
+          The Tauri build used --no-sign.
           Obtain this candidate from the intended release source and verify its
           checksum before opening or installing it.
           EOF

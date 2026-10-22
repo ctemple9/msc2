@@ -157,7 +157,7 @@ impl<'a> XboxBroadcastService<'a> {
         acquisition: &XboxBroadcastJarAcquisition<'_>,
     ) -> Result<String, XboxBroadcastError> {
         let operation_id = self.begin_start()?;
-        match acquisition.acquire() {
+        match acquisition.acquire_cached_or_latest() {
             Ok(acquired) => {
                 self.finish_start(&operation_id, launch, &acquired)?;
                 Ok(operation_id)

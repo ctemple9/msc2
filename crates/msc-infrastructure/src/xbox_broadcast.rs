@@ -4,11 +4,12 @@
 //! directory.  MSC still treats credentials as secrets: this module exposes
 //! stable SecretStore keys and never puts their values in a launch request.
 
-use crate::download_staging::CachedFile;
+use crate::atomic_write::atomic_write;
+use crate::download_staging::{CachedFile, sha256_hex};
 use crate::fs::FileSystem;
 use crate::helper_acquisition::{
-    AcquiredHelper, ChecksumSource, HelperAcquisitionError, HelperPlatform, ResolvedHelperRelease,
-    acquire_resolved_helper,
+    AcquiredHelper, ChecksumSource, HelperAcquisitionError, HelperArtifactMetadata, HelperPlatform,
+    ResolvedHelperRelease, acquire_resolved_helper, metadata_path_for,
 };
 use crate::jar_provider::{JarProviderError, Transport};
 use crate::process::ProcessSpawnRequest;
@@ -22,6 +23,7 @@ pub const XBOX_BROADCAST_RELEASES_URL: &str =
     "https://api.github.com/repos/MCXboxBroadcast/Broadcaster/releases/latest";
 pub const XBOX_BROADCAST_HELPER_NAME: &str = "xbox-broadcast";
 pub const XBOX_BROADCAST_ASSET_NAME: &str = "MCXboxBroadcastStandalone.jar";
+const CURRENT_JAR_MARKER: &str = "current-version";
 
 pub fn alt_password_secret_key(server_id: &str) -> String {
     format!("{XBOX_BROADCAST_ALT_PASSWORD_KEY_PREFIX}{server_id}")
@@ -157,8 +159,91 @@ impl<'a> XboxBroadcastJarAcquisition<'a> {
             sha256: sha256.into(),
             checksum_source: ChecksumSource::UpstreamPublished,
         };
-        acquire_resolved_helper(self.transport, self.fs, self.cache_directory, &resolved)
-            .map_err(XboxBroadcastDownloadError::Acquisition)
+        let acquired =
+            acquire_resolved_helper(self.transport, self.fs, self.cache_directory, &resolved)
+                .map_err(XboxBroadcastDownloadError::Acquisition)?;
+        let marker = self.helper_directory().join(CURRENT_JAR_MARKER);
+        atomic_write(self.fs, &marker, acquired.metadata.version.as_bytes())
+            .map_err(|error| XboxBroadcastDownloadError::Selection(error.to_string()))?;
+        Ok(acquired)
+    }
+
+    /// Use the agent's selected JAR without contacting GitHub. Older installs
+    /// have no selection marker, so discover their most recently written valid
+    /// cache entry before falling back to a fresh download.
+    pub fn cached_current(&self) -> Option<AcquiredHelper> {
+        let directory = self.helper_directory();
+        if let Ok(version) = self.fs.read(&directory.join(CURRENT_JAR_MARKER)) {
+            return std::str::from_utf8(&version)
+                .ok()
+                .and_then(|version| self.cached_version(version));
+        }
+        let mut versions = self
+            .fs
+            .list(&directory)
+            .ok()?
+            .into_iter()
+            .filter_map(|path| {
+                let metadata = self.fs.stat(&path).ok()?;
+                metadata.is_dir.then_some((metadata.modified, path))
+            })
+            .collect::<Vec<_>>();
+        versions.sort_by_key(|entry| std::cmp::Reverse(entry.0));
+        versions.into_iter().find_map(|(_, path)| {
+            path.file_name()
+                .and_then(|version| version.to_str())
+                .and_then(|version| self.cached_version(version))
+        })
+    }
+
+    pub fn acquire_cached_or_latest(&self) -> Result<AcquiredHelper, XboxBroadcastDownloadError> {
+        self.cached_current().map_or_else(|| self.acquire(), Ok)
+    }
+
+    fn helper_directory(&self) -> std::path::PathBuf {
+        self.cache_directory.join(XBOX_BROADCAST_HELPER_NAME)
+    }
+
+    fn cached_version(&self, version: &str) -> Option<AcquiredHelper> {
+        if version.is_empty()
+            || version == "."
+            || version == ".."
+            || version.contains(['/', '\\', '\0'])
+        {
+            return None;
+        }
+        let path = self
+            .helper_directory()
+            .join(version)
+            .join(XBOX_BROADCAST_ASSET_NAME);
+        let metadata_path = metadata_path_for(&path);
+        let metadata: HelperArtifactMetadata =
+            serde_json::from_slice(&self.fs.read_bounded(&metadata_path, 16 * 1024).ok()?).ok()?;
+        if metadata.helper != XBOX_BROADCAST_HELPER_NAME
+            || metadata.version != version
+            || metadata.platform != self.platform
+            || metadata.asset_name != XBOX_BROADCAST_ASSET_NAME
+            || metadata.sha256.len() != 64
+        {
+            return None;
+        }
+        let file = self.fs.stat(&path).ok()?;
+        if !file.is_file || file.size > crate::helper_acquisition::HELPER_ASSET_MAX_BYTES {
+            return None;
+        }
+        let bytes = self.fs.read(&path).ok()?;
+        if !sha256_hex(&bytes).eq_ignore_ascii_case(&metadata.sha256) {
+            return None;
+        }
+        Some(AcquiredHelper {
+            artifact: CachedFile {
+                path,
+                origin_url: metadata.asset_url.clone(),
+                version: version.to_owned(),
+            },
+            metadata_path,
+            metadata,
+        })
     }
 }
 
@@ -343,6 +428,8 @@ pub enum XboxBroadcastDownloadError {
     Provider(JarProviderError),
     InvalidMetadata(String),
     Acquisition(HelperAcquisitionError),
+    Selection(String),
+    Busy,
 }
 
 impl std::fmt::Display for XboxBroadcastDownloadError {
@@ -353,6 +440,11 @@ impl std::fmt::Display for XboxBroadcastDownloadError {
                 write!(f, "invalid MCXboxBroadcast release metadata: {error}")
             }
             Self::Acquisition(error) => write!(f, "{error}"),
+            Self::Selection(error) => write!(f, "could not select Xbox Broadcast JAR: {error}"),
+            Self::Busy => write!(
+                f,
+                "Stop Xbox Broadcast on this agent before downloading or updating its JAR."
+            ),
         }
     }
 }

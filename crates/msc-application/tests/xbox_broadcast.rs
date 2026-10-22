@@ -260,6 +260,31 @@ fn broadcast_acquisition_records_upstream_digest_provenance() {
 }
 
 #[test]
+fn broadcast_reuses_verified_setup_download_without_network_and_recognizes_legacy_cache() {
+    let fs = FakeFileSystem::new().with_dir(Path::new("/cache").to_path_buf());
+    let downloaded = acquisition(&fs).acquire().unwrap();
+    let offline = XboxBroadcastJarAcquisition::new(
+        &NoNetworkTransport,
+        &fs,
+        Path::new("/cache"),
+        HelperPlatform::LinuxX86_64,
+    );
+
+    assert_eq!(
+        offline.acquire_cached_or_latest().unwrap().artifact.path,
+        downloaded.artifact.path
+    );
+    fs.remove(Path::new("/cache/xbox-broadcast/current-version"))
+        .unwrap();
+    assert_eq!(
+        offline.acquire_cached_or_latest().unwrap().artifact.path,
+        downloaded.artifact.path
+    );
+    fs.write(&downloaded.artifact.path, b"damaged jar").unwrap();
+    assert!(offline.cached_current().is_none());
+}
+
+#[test]
 fn broadcast_acquisition_refuses_missing_digest_before_downloading() {
     let fs = FakeFileSystem::new().with_dir(Path::new("/cache").to_path_buf());
     let transport = MissingDigestTransport;
@@ -308,6 +333,14 @@ impl Transport for FakeTransport {
 }
 
 struct MissingDigestTransport;
+
+struct NoNetworkTransport;
+
+impl Transport for NoNetworkTransport {
+    fn get(&self, _url: &str, _what: &str, _max_bytes: u64) -> Result<Vec<u8>, JarProviderError> {
+        panic!("a verified cached Xbox Broadcast JAR must not need the network")
+    }
+}
 
 impl Transport for MissingDigestTransport {
     fn get(&self, url: &str, _what: &str, _max_bytes: u64) -> Result<Vec<u8>, JarProviderError> {

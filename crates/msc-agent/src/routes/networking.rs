@@ -775,12 +775,24 @@ fn spawn_broadcast_start_worker(
     acquisition: xbox_broadcast::XboxBroadcastJarAcquisition<'static>,
 ) {
     tokio::task::spawn_blocking(move || {
-        let acquired = {
-            let _download = BROADCAST_ACQUISITION_LOCK
-                .lock()
-                .expect("Broadcast acquisition lock poisoned");
-            acquisition.acquire()
-        };
+        let _download = BROADCAST_ACQUISITION_LOCK
+            .lock()
+            .expect("Broadcast acquisition lock poisoned");
+        let acquired = acquisition.cached_current().map_or_else(
+            || {
+                let active = services
+                    .lock()
+                    .expect("Broadcast service lock poisoned")
+                    .values()
+                    .any(|service| service.process_is_running());
+                if active {
+                    Err(xbox_broadcast::XboxBroadcastDownloadError::Busy)
+                } else {
+                    acquisition.acquire()
+                }
+            },
+            Ok,
+        );
         let mut services = services.lock().expect("Broadcast service lock poisoned");
         let Some(service) = services.get_mut(&server_id) else {
             return;
@@ -1892,33 +1904,24 @@ pub async fn clear_broadcast_credentials(
 pub async fn broadcast_jar_status(
     State(state): State<NetworkingState>,
 ) -> Json<BroadcastJarStatusDto> {
-    let directory = state.helper_cache.join("xbox-broadcast");
-    let artifact = std::fs::read_dir(directory)
-        .ok()
-        .into_iter()
-        .flatten()
-        .find_map(|version| {
-            let version = version.ok()?.path();
-            std::fs::read_dir(&version)
-                .ok()?
-                .flatten()
-                .find_map(|entry| {
-                    let path = entry.path();
-                    if path.extension().and_then(|ext| ext.to_str()) == Some("jar") {
-                        Some((
-                            path.file_name()?.to_string_lossy().into_owned(),
-                            version.file_name()?.to_string_lossy().into_owned(),
-                        ))
-                    } else {
-                        None
-                    }
-                })
-        });
+    let artifact = match state.broadcast_acquisition() {
+        Ok(acquisition) => tokio::task::spawn_blocking(move || acquisition.cached_current())
+            .await
+            .ok()
+            .flatten(),
+        Err(_) => None,
+    };
     Json(BroadcastJarStatusDto {
         installed: artifact.is_some(),
         downloading: false,
-        filename: artifact.as_ref().map(|(filename, _)| filename.clone()),
-        version: artifact.map(|(_, version)| version),
+        filename: artifact.as_ref().and_then(|acquired| {
+            acquired
+                .artifact
+                .path
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+        }),
+        version: artifact.map(|acquired| acquired.artifact.version),
     })
 }
 
@@ -1941,10 +1944,27 @@ pub async fn download_broadcast_jar(
         Ok(acquisition) => acquisition,
         Err(response) => return response,
     };
+    let services = Arc::clone(&state.broadcast);
     let acquired = tokio::task::spawn_blocking(move || {
         let _download = BROADCAST_ACQUISITION_LOCK
             .lock()
             .expect("Broadcast acquisition lock poisoned");
+        let active = services
+            .lock()
+            .expect("Broadcast service lock poisoned")
+            .values()
+            .any(|service| {
+                service.process_is_running()
+                    || service.status().is_ok_and(|status| {
+                        matches!(
+                            status.snapshot.status,
+                            HelperStatus::Starting | HelperStatus::Running
+                        )
+                    })
+            });
+        if active {
+            return Err(xbox_broadcast::XboxBroadcastDownloadError::Busy);
+        }
         acquisition.acquire()
     })
     .await;

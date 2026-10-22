@@ -119,6 +119,18 @@ The JAR is stored in the shared agent cache, not copied into each server directo
 
 **Implementation order:** First establish the agent-owned JAR and safe reuse/update path. Then move helper authentication to agent scope with migration from existing server folders while preserving per-server targets and processes. Finally, align setup, server creation, settings, and Components UI with the shared state. Cameron will verify both a clean setup and an existing signed-in installation, including a server enabled later and more than one running broadcaster. No release or test suite run is authorized by this design record.
 
+**Shared-JAR implementation work (2026-10-21):** First-time Setup and the explicit download action still fetch and verify the current upstream JAR, but now record which release is current for the agent. Starting Xbox Broadcast reuses that verified cache entry without contacting GitHub again. Existing 0.1.32 caches have no selection record, so the agent discovers the most recent valid cached release rather than requiring a fresh download. The JAR status endpoint reports the selected, checksum-verified release. An explicit download updates that agent selection for all servers; it refuses the update while a broadcaster is starting or running, avoiding replacement of an in-use JAR, especially on Windows. A failed download leaves the previous selection in place. The agent still stores JARs in its shared helper cache rather than in server folders. Older cached release directories may remain on disk, but only one release is selected for starts. Agent-wide sign-in, existing-sign-in migration, and conditional Components visibility remain separate work under this finding.
+
+The focused new test protects the concrete 0.1.32-to-next-build case Cameron encountered: after a setup download, starting while offline must reuse the verified file; the same must work for a legacy cache without a selection record, and damaged bytes must be rejected. It uses an in-memory filesystem and transport with no network or sleeps, and should run in milliseconds. It was added but not run, in keeping with the test policy.
+
+**P16.102 — Reuse the agent's selected Xbox Broadcast JAR**
+
+- **Status:** Implementation recorded; awaiting owner verification on the next macOS build. Finding 5 remains open for shared sign-in and Components behavior.
+- **Files:** `crates/msc-infrastructure/src/xbox_broadcast.rs`; `crates/msc-application/src/xbox_broadcast.rs`; `crates/msc-application/tests/xbox_broadcast.rs`; `crates/msc-agent/src/routes/networking.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Reuse a verified setup download across server starts, recognize an existing valid cache, report one current JAR, and prevent an explicit update from replacing a JAR while any broadcaster uses it.
+- **Verify:** Run `open -a "MSC 2"` on the next macOS build; download Xbox Broadcast in First-time Setup, create an enabled server, disconnect the network, and start its broadcaster. It should use the installed JAR without another download. Reconnect, stop all broadcasters, explicitly download from Components, and confirm the reported version is the same from each enabled server. An update attempted while a broadcaster is running should explain why it cannot proceed.
+- **Batch:** P16.102 only.
+
 **P16.101 — Define shared Xbox Broadcast behavior**
 
 - **Status:** Design recorded; awaiting owner review before implementation.

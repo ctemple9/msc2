@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** P16.119 addresses the macOS signing failure in the unpublished v0.1.33 candidate. The fix is prepared for owner verification and a new release candidate; the v0.1.33 tag will not be moved or rerun. No phase gate or exact-release artifact acceptance is implied. Cameron closed and archived the Java-first and Bedrock saved-terrain work through P18.95 on October 21, 2026. His Bedtonic check confirmed the latest biome-colour fix works. The [archived step records](rolling-plan-archive.md#october-21-2026--java-and-bedrock-saved-terrain-map-work) preserve the implementation history; [pending acceptance](pending-acceptance.md) and the [Phase 18 parity worksheet](phase18-map-acceptance.md#p1889--java-and-bedrock-map-parity-worksheet) retain checks that have not been recorded as passed.
+**Current priority:** P16.120 prepares the new v0.1.34 release after the unpublished v0.1.33 candidate failed macOS notarization. The v0.1.33 tag remains fixed. No phase gate or exact-release artifact acceptance is implied. Cameron closed and archived the Java-first and Bedrock saved-terrain work through P18.95 on October 21, 2026. His Bedtonic check confirmed the latest biome-colour fix works. The [archived step records](rolling-plan-archive.md#october-21-2026--java-and-bedrock-saved-terrain-map-work) preserve the implementation history; [pending acceptance](pending-acceptance.md) and the [Phase 18 parity worksheet](phase18-map-acceptance.md#p1889--java-and-bedrock-map-parity-worksheet) retain checks that have not been recorded as passed.
 
 ## v0.1.33 release candidate
 
@@ -25,6 +25,14 @@
 - **What:** After staging, sign each macOS helper with the configured Developer ID identity, hardened runtime, and secure timestamp. Apply the existing virtualization entitlement explicitly to the Intel Bedrock sidecar. Fail before the Tauri build if any helper lacks a valid signature, timestamp, hardened runtime, or sidecar entitlement. Correct the README to point to the actual latest published release, v0.1.32. Preserve the existing build-only artifact set and release gates; do not move or rerun v0.1.33.
 - **Verify:** On a macOS runner with the configured Developer ID identity, run `APPLE_SIGNING_IDENTITY='Developer ID Application: Cameron Temple (6898622Y3Y)' bash tools/release/sign-macos-agent-resources.sh macos-x86_64` after staging the matching release payload. Confirm all four helpers report `signed and verified`; on Apple Silicon use `macos-aarch64` and confirm the three supported helpers. The next new-tag workflow must then pass notarization and publish all nine artifacts; Cameron checks the exact downloaded DMG on a clean Mac.
 - **Batch:** P16.119 only.
+
+**P16.120 — Prepare and launch v0.1.34 release**
+
+- **Status:** Release preparation in progress; workflow publication and owner verification pending.
+- **Files:** `crates/msc-agent/Cargo.toml`; `Cargo.lock`; `clients/desktop-web/package.json`; `clients/desktop-web/package-lock.json`; `clients/desktop-web/src-tauri/Cargo.toml`; `clients/desktop-web/src-tauri/Cargo.lock`; `clients/desktop-web/src-tauri/tauri.conf.json`; `clients/desktop-web/src/lib/bundle-identity.ts`; `clients/desktop-web/static/bundle-identity.json`; `docs/msc2/release/v0.1.34.md`; `docs/msc2/rolling-plan.md`.
+- **What:** Give the signing correction its own immutable release tag, align the agent and desktop versions at 0.1.34, document the candidate, and launch the unchanged build-only publishing workflow. Do not move or rerun v0.1.33.
+- **Verify:** Run `gh run list --workflow release.yml --limit 1 --repo ctemple9/msc2` and inspect the v0.1.34 run. After publication, check the release page for nine platform artifacts, `SHA256SUMS`, and both signed update metadata files; then install the exact Intel DMG on a clean Mac and open it through Finder.
+- **Batch:** P16.120 only.
 
 ## macOS owner testing — 0.1.32
 

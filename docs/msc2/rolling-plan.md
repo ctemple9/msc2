@@ -239,6 +239,16 @@ The installed macOS helper is the expected universal x86_64/arm64 binary, and it
 
 **User outcome required:** Show **chunks** beside Simulation Distance for Java (`simulation-distance`) and Bedrock (`tick-distance`), matching the existing View Distance unit treatment. Apply it consistently wherever these server settings are rendered.
 
+**Implementation work (2026-10-21):** Added the existing `chunks` unit to the Java `simulation-distance` and Bedrock `tick-distance` field descriptions. Their numeric values, bounds, and setting behavior are unchanged. The Settings screen already displays a field’s unit when supplied, so no separate UI change was needed.
+
+**P16.107 — Show chunks for Simulation Distance**
+
+- **Status:** Implementation recorded; awaiting owner verification on the next macOS build.
+- **Files:** `crates/msc-agent/src/routes/settings.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Add the `chunks` unit to Java Simulation Distance and Bedrock Simulation Distance while preserving the numeric settings and limits.
+- **Verify:** On the next macOS build, open Settings for Java and Bedrock servers and confirm both Simulation Distance fields show **chunks**, matching View Distance.
+- **Batch:** P16.107 only.
+
 ### Finding 13 — Add thumbnail and map actions to the Overview’s Active World card
 
 **What Cameron wants:** On Overview, clicking the Active World thumbnail should select the thumbnail area with the same blue perimeter used for selected cards elsewhere in MSC, then open a small action menu with **Change Thumbnail** and **View Map**. Choosing **Change Thumbnail** should take the user to the Worlds tab and open the same image-selection flow as **Set Thumbnail** on the world card. Choosing **View Map** should take the user to the Worlds tab and start the existing map-view flow for that world. This gives users a direct route from the Overview card while keeping the actual world actions in the Worlds area.

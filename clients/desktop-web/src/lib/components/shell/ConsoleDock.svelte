@@ -36,6 +36,7 @@
   // header-only row size itself naturally.
   export let height: number | undefined = undefined;
   export let api: ScreenApi | undefined = undefined;
+  export let hostId = '';
   // Threaded from ApplicationShell's own `servers`/`activeServerId` (P12.10b)
   // -- both were already props there for DetailsHeader; the selected runtime
   // capability is threaded alongside them for command-picker degradation.
@@ -53,6 +54,7 @@
   let command = '';
   let history: string[] = [];
   let sendError = '';
+  let sendGeneration = 0;
   let logEl: HTMLDivElement | undefined;
   let followTail = true;
   let fallbackPollTimer: ReturnType<typeof setInterval> | undefined;
@@ -60,6 +62,7 @@
   let consoleStream: ReconnectingStream<ConsoleLine> | undefined;
   let streamState: StreamState = 'idle';
   let connectedApi: ScreenApi | undefined;
+  let connectedHostId = hostId;
   let componentMounted = false;
   let stoppingStream = false;
   let feedGeneration = 0;
@@ -84,11 +87,12 @@
   // The shell keeps this dock mounted while the selected host changes. Rebuild
   // the stream at that boundary so one host's console history cannot bleed into
   // another host's view.
-  $: if (componentMounted && api !== connectedApi) {
+  $: if (componentMounted && (api !== connectedApi || hostId !== connectedHostId)) {
     stopConsoleFeed();
     connectedApi = api;
+    connectedHostId = hostId;
+    resetConsoleBoundary();
     if (api) {
-      resetConsoleBoundary();
       startConsoleFeed();
       void refreshPlayers();
     }
@@ -217,6 +221,8 @@
   }
 
   function resetConsoleBoundary(): void {
+    sendGeneration += 1;
+    sendError = '';
     clearVersion += 1;
     clearedAt = undefined;
     clearedLineKeys.clear();
@@ -227,6 +233,7 @@
   onMount(() => {
     componentMounted = true;
     connectedApi = api;
+    connectedHostId = hostId;
     if (api) {
       startConsoleFeed();
       void refreshPlayers();
@@ -285,27 +292,38 @@
   async function send(value = command): Promise<void> {
     const trimmed = value.trim();
     if (!trimmed || !api) return;
+    const currentApi = api;
+    const generation = ++sendGeneration;
     history = rememberCommand(history, trimmed);
     command = '';
     sendError = '';
     followTail = true;
     try {
-      await api.post(livePaths.command, { command: trimmed });
+      await currentApi.post(livePaths.command, { command: trimmed });
+      if (generation !== sendGeneration || api !== currentApi) return;
+      sendError = '';
       if (streamState !== 'live') void pollTail();
       void refreshPlayers();
     } catch (error) {
-      sendError = error instanceof Error ? error.message : 'The agent did not run that command.';
+      if (generation === sendGeneration && api === currentApi) {
+        sendError = error instanceof Error ? error.message : 'The agent did not run that command.';
+      }
     }
   }
 
   async function sendRelativeTime(preset: Schema['RelativeTimeRequest']['preset']): Promise<void> {
     if (!api || !relativeTimeAvailable || relativeTime?.presets.includes(preset) !== true) return;
+    const currentApi = api;
+    const generation = ++sendGeneration;
     sendError = '';
     try {
-      await api.post('/v1/time/relative', { preset });
+      await currentApi.post('/v1/time/relative', { preset });
+      if (generation === sendGeneration && api === currentApi) sendError = '';
     } catch (error) {
-      sendError =
-        error instanceof Error ? error.message : 'The agent did not run that time action.';
+      if (generation === sendGeneration && api === currentApi) {
+        sendError =
+          error instanceof Error ? error.message : 'The agent did not run that time action.';
+      }
     }
   }
 
@@ -600,7 +618,13 @@
         >Send</Button
       >
     </div>
-    {#if sendError}<p class="send-error" role="status">{sendError}</p>{/if}
+    {#if sendError}
+      <div class="send-error" role="status">
+        <button type="button" title="Dismiss message" onclick={() => (sendError = '')}>
+          {sendError}
+        </button>
+      </div>
+    {/if}
   {/if}
 </div>
 
@@ -923,7 +947,21 @@
   }
   .send-error {
     margin: 6px 0 0;
+  }
+  .send-error button {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    font-family: inherit;
     font-size: 11px;
     color: var(--msc2-status-error);
+    text-align: left;
+    cursor: pointer;
+  }
+  .send-error button:focus-visible {
+    outline: 2px solid var(--msc2-status-error);
+    outline-offset: 2px;
   }
 </style>

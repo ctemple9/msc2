@@ -339,6 +339,16 @@ The current private converted cache was inspected read-only. Its five Overworld 
 
 **User outcome required:** Let the user dismiss any transient message rendered beneath the docked console by activating the message itself with a mouse or keyboard. Use a semantic, accessible control styled to retain the current low-profile text treatment; clearing it should not remove actual console history. Ensure stale command errors do not carry into a different host's console or continue to imply a current failure after a successful later action. Check command failures and relative-time failures, including the case where the server state changes after the error appears.
 
+**Implementation work (2026-10-22):** The under-console error is now a text-styled button inside a status region. Clicking it, or focusing it and pressing Enter or Space, clears the notice without clearing console lines. Changing hosts clears the notice and resets the dock's pending send generation. Command and relative-time requests now ignore late results from an older action or host, so an old failure cannot reappear after a later success. A new successful action also clears the previous notice.
+
+**P16.111 — Dismiss transient console notices**
+
+- **Status:** Implemented; awaiting owner verification in the next desktop build.
+- **Files:** `clients/desktop-web/src/lib/components/ApplicationShell.svelte`; `clients/desktop-web/src/lib/components/shell/ConsoleDock.svelte`; `docs/msc2/rolling-plan.md`.
+- **What:** Make the error beneath the console input accessible and dismissible, and prevent stale async errors from carrying across actions or hosts.
+- **Verify:** In the next desktop build, cause a command or relative-time action to fail, then click its red notice to dismiss it; repeat with keyboard focus and Enter or Space. Confirm console history remains. Cause another failure, then complete a later action or switch hosts, and confirm the old notice does not return.
+- **Batch:** P16.111 only.
+
 ### Finding 18 — Java Creative console warning is misleading and blocks the command
 
 **What Cameron experienced:** After entering a Java `/gamemode` command for Creative on his Paper server, the dock showed a long red message beneath the input: “Java Creative mode changes the world's advancement and command semantics. Java does not have Bedrock's permanent Xbox-achievement consequence.” Cameron questions whether this is true and wants to click the message to dismiss it. Presented as an error with no visible Continue or Confirm action, it does not tell him whether his command ran, what changed for his player, or what he should do next. The same message position is affected by Finding 17's persistent, non-dismissible notice behavior.

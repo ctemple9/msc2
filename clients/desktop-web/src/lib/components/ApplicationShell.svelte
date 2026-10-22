@@ -199,6 +199,7 @@
         onToggle={toggleConsole}
         height={consoleCollapsed ? undefined : consoleHeight}
         {api}
+        hostId={activeHostId}
         serverType={activeServer?.serverType}
         {capabilities}
       />

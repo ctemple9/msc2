@@ -179,9 +179,19 @@ The focused new test protects the concrete 0.1.32-to-next-build case Cameron enc
 
 **What Cameron experienced:** While creating a Java server, the **Choose Java for this server** dialog can remain on “Detecting installed Java runtimes…” for a noticeable time. Cameron described it as the app taking a long time to discover which Minecraft version he is using and wants the wait shortened so server setup does not stall on this step. The screenshot already shows that the selected Minecraft version requires Java 25, while the runtime list is still loading, so the user is left waiting after that key information is known.
 
-**Investigation:** `AddServerWizard.svelte` first resolves the Minecraft release and required Java major, then waits for the `/v1/java-runtimes` response before it can show the runtime choices. That route scans the machine’s Java locations and probes every discovered Java executable by running `java -version`. Those probes run one after another, and each has a timeout of up to ten seconds. The long visible wait is therefore in detecting/checking installed Java runtimes, after the Minecraft version requirement has been determined. The code makes a slow or unresponsive Java executable a plausible cause; the screenshot alone does not identify which executable or scan path caused this particular delay.
+**Investigation:** `AddServerWizard.svelte` first resolves the Minecraft release and required Java major, then waits for the `/v1/java-runtimes` response before it can show the runtime choices. That route scans the machine’s Java locations and probes every discovered Java executable by running `java -version`. Those probes ran one after another, and each has a timeout of up to ten seconds. This source tracing localizes the wait to Java runtime detection after the Minecraft version requirement is known. I did not measure timings on Cameron’s Mac, so I cannot say whether filesystem scanning also adds noticeable time or identify a specific slow Java executable from the screenshot.
 
 **User outcome required:** Reduce the time the Java picker blocks on runtime detection while preserving the correct compatibility check for the selected Minecraft version. A focused investigation should measure the stages separately (version lookup, filesystem scan, Java probes); then avoid making the whole picker wait on slow probes, for example by reusing valid recent probe results or checking candidates with a bounded amount of parallel work. Keep slow or failed runtimes from holding up usable choices unnecessarily, and show an honest state if the results are still being completed.
+
+**Implementation work (2026-10-21):** The `/v1/java-runtimes` route was checking discovered Java executables one at a time, and each `java -version` probe can wait up to ten seconds. The route now checks up to four runtimes concurrently and restores the original discovery order before responding. This keeps the same real version probes and compatibility results while preventing the delay from every installed runtime from accumulating in sequence. A single slow runtime can still take up to ten seconds; the next macOS build needs owner verification to confirm the picker feels faster on the test machine.
+
+**P16.105 — Check installed Java runtimes concurrently**
+
+- **Status:** Implementation recorded; awaiting owner verification on the next macOS build.
+- **Files:** `crates/msc-agent/src/routes/versions.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Probe up to four installed Java runtimes at once instead of waiting for each ten-second `java -version` timeout in sequence. Preserve each runtime's existing verification and the endpoint's stable response order.
+- **Verify:** On the next macOS build, open **Add Server**, choose a Java server, and select Java for that server. Confirm the detected runtime list appears sooner when multiple Java runtimes are installed, and that the listed Java versions and compatibility choices remain correct.
+- **Batch:** P16.105 only.
 
 ### Finding 9 — The Add Server success page is blank after creating a Paper server
 

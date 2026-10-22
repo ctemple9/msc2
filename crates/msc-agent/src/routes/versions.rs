@@ -7,6 +7,8 @@
 //! java_runtime_detection, java_runtime_install}`.
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc;
 use std::time::Duration;
 
 use axum::extract::rejection::JsonRejection;
@@ -831,19 +833,73 @@ pub async fn java_runtimes(State(state): State<LifecycleRoutesState>) -> Respons
     // mechanism the required-major guard itself runs against the
     // *configured* runtime, applied here to every *discovered* one.
     let supervisor = state.process_supervisor();
-    let runtimes = tokio::task::spawn_blocking(move || {
-        detected
-            .into_iter()
-            .map(|runtime| with_probed_major_version(supervisor, runtime))
-            .collect::<Vec<_>>()
-    })
-    .await
-    .unwrap_or_default();
+    let runtimes =
+        tokio::task::spawn_blocking(move || probe_java_runtime_versions(supervisor, detected))
+            .await
+            .unwrap_or_default();
 
     axum::Json(JavaRuntimesResponseDto {
         runtimes: runtimes.into_iter().map(detected_runtime_to_dto).collect(),
     })
     .into_response()
+}
+
+/// Check a small number of installed runtimes at once. Each Java check can
+/// take up to ten seconds, so doing them serially makes their worst-case
+/// delays add together. Four workers reduce that wait without launching an
+/// unbounded number of Java processes on the host.
+fn probe_java_runtime_versions(
+    supervisor: &'static (dyn msc_infrastructure::process::ProcessSupervisor + Send + Sync),
+    detected: Vec<DetectedJavaRuntime>,
+) -> Vec<DetectedJavaRuntime> {
+    const MAX_PARALLEL_PROBES: usize = 4;
+
+    if detected.len() <= 1 {
+        return detected
+            .into_iter()
+            .map(|runtime| with_probed_major_version(supervisor, runtime))
+            .collect();
+    }
+
+    let next = AtomicUsize::new(0);
+    let (sender, receiver) = mpsc::channel();
+    let worker_count = detected.len().min(MAX_PARALLEL_PROBES);
+
+    std::thread::scope(|scope| {
+        for _ in 0..worker_count {
+            let sender = sender.clone();
+            let detected = &detected;
+            let next = &next;
+            scope.spawn(move || {
+                loop {
+                    let index = next.fetch_add(1, Ordering::Relaxed);
+                    let Some(runtime) = detected.get(index) else {
+                        break;
+                    };
+                    let probed = with_probed_major_version(supervisor, runtime.clone());
+                    if sender.send((index, probed)).is_err() {
+                        break;
+                    }
+                }
+            });
+        }
+    });
+    drop(sender);
+
+    // Put results back in discovery order so the endpoint keeps its stable
+    // response ordering even when probes finish at different times.
+    let mut probed: Vec<Option<DetectedJavaRuntime>> = std::iter::repeat_with(|| None)
+        .take(detected.len())
+        .collect();
+    for (index, runtime) in receiver {
+        probed[index] = Some(runtime);
+    }
+
+    probed
+        .into_iter()
+        .enumerate()
+        .map(|(index, runtime)| runtime.unwrap_or_else(|| detected[index].clone()))
+        .collect()
 }
 
 /// A probe failure (spawn error, unparseable banner) leaves the path-

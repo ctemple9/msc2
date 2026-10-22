@@ -200,6 +200,7 @@
         height={consoleCollapsed ? undefined : consoleHeight}
         {api}
         hostId={activeHostId}
+        {activeServerId}
         serverType={activeServer?.serverType}
         {capabilities}
       />

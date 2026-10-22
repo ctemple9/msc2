@@ -89,6 +89,19 @@ fn dispatch_command(
         };
     }
 
+    let mut tokens = command.trim_start_matches('/').split_whitespace();
+    if tokens
+        .next()
+        .is_some_and(|name| name.eq_ignore_ascii_case("gamemode"))
+        && tokens.next().is_some()
+        && tokens.next().is_none()
+    {
+        return invalid_body(
+            "player_required",
+            "Choose a player for gamemode, for example: gamemode creative <player>. To change the world default, use defaultgamemode creative.",
+        );
+    }
+
     if let Some(required) =
         world_safety::confirmation_for_command(msc_domain::identity::ServerType::Java, &command)
         && !world_safety::is_confirmed(required, confirmation)

@@ -3,6 +3,7 @@
   // buffered stream, command input + Send, copy/clear. docs/msc2/renderings/shell.html,
   // MSC 1 ConsoleView/ConsoleManager, ~/Documents/MSCSS/Main View.
   import { onDestroy, onMount } from 'svelte';
+  import { ApiError } from '../../api/client';
   import Button from '../base/Button.svelte';
   import Toggle from '../base/Toggle.svelte';
   import CommandPaletteSheet from '../../sections/console/CommandPaletteSheet.svelte';
@@ -37,6 +38,7 @@
   export let height: number | undefined = undefined;
   export let api: ScreenApi | undefined = undefined;
   export let hostId = '';
+  export let activeServerId: string | undefined = undefined;
   // Threaded from ApplicationShell's own `servers`/`activeServerId` (P12.10b)
   // -- both were already props there for DetailsHeader; the selected runtime
   // capability is threaded alongside them for command-picker degradation.
@@ -53,7 +55,16 @@
   let search = '';
   let command = '';
   let history: string[] = [];
-  let sendError = '';
+  let sendFeedback: { text: string; tone: 'error' | 'sent' } | undefined;
+  let commandConfirmation:
+    | {
+        command: string;
+        serverId: string | undefined;
+        token: string;
+        title: string;
+        message: string;
+      }
+    | undefined;
   let sendGeneration = 0;
   let logEl: HTMLDivElement | undefined;
   let followTail = true;
@@ -63,6 +74,7 @@
   let streamState: StreamState = 'idle';
   let connectedApi: ScreenApi | undefined;
   let connectedHostId = hostId;
+  let connectedServerId = activeServerId;
   let componentMounted = false;
   let stoppingStream = false;
   let feedGeneration = 0;
@@ -96,6 +108,13 @@
       startConsoleFeed();
       void refreshPlayers();
     }
+  }
+
+  $: if (componentMounted && activeServerId !== connectedServerId) {
+    connectedServerId = activeServerId;
+    sendGeneration += 1;
+    sendFeedback = undefined;
+    commandConfirmation = undefined;
   }
 
   $: if (logEl && visible.length && followTail) {
@@ -222,7 +241,8 @@
 
   function resetConsoleBoundary(): void {
     sendGeneration += 1;
-    sendError = '';
+    sendFeedback = undefined;
+    commandConfirmation = undefined;
     clearVersion += 1;
     clearedAt = undefined;
     clearedLineKeys.clear();
@@ -234,6 +254,7 @@
     componentMounted = true;
     connectedApi = api;
     connectedHostId = hostId;
+    connectedServerId = activeServerId;
     if (api) {
       startConsoleFeed();
       void refreshPlayers();
@@ -289,24 +310,58 @@
     showCustomPanel = false;
   }
 
-  async function send(value = command): Promise<void> {
+  function safetyPrompt(
+    error: unknown,
+  ): Omit<NonNullable<typeof commandConfirmation>, 'command' | 'serverId'> | undefined {
+    if (!(error instanceof ApiError) || error.error.code !== 'confirmation_required') return;
+    const raw = (error.error.details as Record<string, unknown> | null | undefined)?.confirmation;
+    if (!raw || typeof raw !== 'object') return;
+    const prompt = raw as Record<string, unknown>;
+    if (
+      typeof prompt.acknowledgement !== 'string' ||
+      typeof prompt.title !== 'string' ||
+      typeof prompt.message !== 'string'
+    )
+      return;
+    return { token: prompt.acknowledgement, title: prompt.title, message: prompt.message };
+  }
+
+  async function send(
+    value = command,
+    confirmationToken?: string,
+    expectedServerId = activeServerId,
+  ): Promise<void> {
     const trimmed = value.trim();
     if (!trimmed || !api) return;
     const currentApi = api;
     const generation = ++sendGeneration;
-    history = rememberCommand(history, trimmed);
-    command = '';
-    sendError = '';
+    if (!confirmationToken) {
+      history = rememberCommand(history, trimmed);
+      command = '';
+    }
+    sendFeedback = undefined;
+    commandConfirmation = undefined;
     followTail = true;
     try {
-      await currentApi.post(livePaths.command, { command: trimmed });
+      await currentApi.post(livePaths.command, {
+        command: trimmed,
+        ...(confirmationToken ? { confirmation: confirmationToken } : {}),
+        ...(expectedServerId ? { expectedActiveServerId: expectedServerId } : {}),
+      });
       if (generation !== sendGeneration || api !== currentApi) return;
-      sendError = '';
+      sendFeedback = { text: 'Command sent to the server.', tone: 'sent' };
       if (streamState !== 'live') void pollTail();
       void refreshPlayers();
     } catch (error) {
       if (generation === sendGeneration && api === currentApi) {
-        sendError = error instanceof Error ? error.message : 'The agent did not run that command.';
+        const prompt = safetyPrompt(error);
+        if (prompt)
+          commandConfirmation = { command: trimmed, serverId: expectedServerId, ...prompt };
+        else
+          sendFeedback = {
+            text: error instanceof Error ? error.message : 'The agent did not run that command.',
+            tone: 'error',
+          };
       }
     }
   }
@@ -315,14 +370,19 @@
     if (!api || !relativeTimeAvailable || relativeTime?.presets.includes(preset) !== true) return;
     const currentApi = api;
     const generation = ++sendGeneration;
-    sendError = '';
+    sendFeedback = undefined;
+    commandConfirmation = undefined;
     try {
       await currentApi.post('/v1/time/relative', { preset });
-      if (generation === sendGeneration && api === currentApi) sendError = '';
+      if (generation === sendGeneration && api === currentApi) {
+        sendFeedback = { text: 'Time action sent to the server.', tone: 'sent' };
+      }
     } catch (error) {
       if (generation === sendGeneration && api === currentApi) {
-        sendError =
-          error instanceof Error ? error.message : 'The agent did not run that time action.';
+        sendFeedback = {
+          text: error instanceof Error ? error.message : 'The agent did not run that time action.',
+          tone: 'error',
+        };
       }
     }
   }
@@ -618,10 +678,38 @@
         >Send</Button
       >
     </div>
-    {#if sendError}
-      <div class="send-error" role="status">
-        <button type="button" title="Dismiss message" onclick={() => (sendError = '')}>
-          {sendError}
+    {#if commandConfirmation}
+      <div class="command-confirmation" role="alert">
+        <p class="confirmation-title">{commandConfirmation.title}</p>
+        <p>{commandConfirmation.message}</p>
+        <div class="confirmation-actions">
+          <Button variant="secondary" size="sm" onclick={() => (commandConfirmation = undefined)}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onclick={() =>
+              void send(
+                commandConfirmation?.command,
+                commandConfirmation?.token,
+                commandConfirmation?.serverId,
+              )}
+          >
+            Send command
+          </Button>
+        </div>
+      </div>
+    {/if}
+    {#if sendFeedback}
+      <div class="send-feedback" role="status">
+        <button
+          type="button"
+          class:error={sendFeedback.tone === 'error'}
+          title="Dismiss message"
+          onclick={() => (sendFeedback = undefined)}
+        >
+          {sendFeedback.text}
         </button>
       </div>
     {/if}
@@ -945,10 +1033,10 @@
     color: rgba(255, 255, 255, 0.9);
     background: rgba(255, 255, 255, 0.06);
   }
-  .send-error {
+  .send-feedback {
     margin: 6px 0 0;
   }
-  .send-error button {
+  .send-feedback button {
     display: block;
     width: 100%;
     padding: 0;
@@ -956,12 +1044,36 @@
     background: none;
     font-family: inherit;
     font-size: 11px;
-    color: var(--msc2-status-error);
+    color: var(--msc2-text-secondary);
     text-align: left;
     cursor: pointer;
   }
-  .send-error button:focus-visible {
-    outline: 2px solid var(--msc2-status-error);
+  .send-feedback button.error {
+    color: var(--msc2-status-error);
+  }
+  .send-feedback button:focus-visible {
+    outline: 2px solid currentColor;
     outline-offset: 2px;
+  }
+  .command-confirmation {
+    min-height: 0;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--msc2-hairline-subtle);
+    color: var(--msc2-text-secondary);
+    font-size: 12px;
+    overflow-y: auto;
+  }
+  .command-confirmation p {
+    margin: 0 0 5px;
+  }
+  .confirmation-title {
+    color: var(--msc2-text-primary);
+    font-weight: 500;
+  }
+  .confirmation-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
   }
 </style>

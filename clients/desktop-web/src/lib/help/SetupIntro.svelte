@@ -417,16 +417,25 @@
           <p class="msc2-type-overline">What you’ll do</p>
           <ol class="preview-steps">
             <li>
-              <strong>Choose a platform</strong>
-              <span>Pick Java or Bedrock for your servers.</span>
+              <strong>Choose what to host</strong>
+              <span>
+                Select Java, Bedrock, or both. Bedrock is available when the selected host can run
+                it.
+              </span>
             </li>
             <li>
-              <strong>Set up the host</strong>
-              <span>Choose where servers live and how they run.</span>
+              <strong>Set up your host</strong>
+              <span>
+                Choose where your server files live. For Java, select an installed runtime or install
+                one. Bedrock uses MSC’s built-in runtime.
+              </span>
             </li>
             <li>
-              <strong>Review access</strong>
-              <span>Look over optional playit.gg and Xbox Broadcast setup.</span>
+              <strong>Review ways for players to join</strong>
+              <span>
+                playit.gg can let friends join without port forwarding. Xbox Broadcast helps console
+                players find your server. Both are optional and can be set up later.
+              </span>
             </li>
           </ol>
           <p class="hint">You can change these choices later.</p>
@@ -909,17 +918,17 @@
     margin: 0;
   }
   .preview-steps {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 16px;
     margin: 0;
-    padding: 0 0 0 18px;
+    padding: 0 0 0 23px;
     color: var(--msc2-text-secondary);
-    font-size: 12px;
-    line-height: 1.45;
+    font-size: 13px;
+    line-height: 1.5;
   }
   .preview-steps li {
-    padding-left: 2px;
+    padding-left: 7px;
+  }
+  .preview-steps li + li {
+    margin-top: 22px;
   }
   .preview-steps li::marker {
     color: var(--msc2-text-tertiary);
@@ -933,7 +942,7 @@
     font-weight: 500;
   }
   .preview-steps span {
-    margin-top: 3px;
+    margin-top: 4px;
     color: var(--msc2-text-tertiary);
   }
   .type-grid {
@@ -1213,9 +1222,8 @@
     .type-grid {
       grid-template-columns: 1fr;
     }
-    .preview-steps {
-      grid-template-columns: 1fr;
-      gap: 8px;
+    .preview-steps li + li {
+      margin-top: 16px;
     }
     .field-row {
       flex-wrap: wrap;

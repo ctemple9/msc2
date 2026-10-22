@@ -52,13 +52,23 @@
 
 **What Cameron experienced:** On the first page of First-time Setup, the “What You’ll Do” section puts three steps in a horizontal row: choosing a server platform, setting up the host, and reviewing access. The row ends well above the bottom of the sheet, leaving a large unused area. Cameron suggests stacking the three steps vertically and adding useful explanation so the page uses that area to help new users understand what they will choose, without merely stretching the layout or creating a different empty area.
 
-**Investigation and design proposal:** `SetupIntro.svelte` currently renders this as a three-column ordered list. The later pages show what each step entails: selecting Java and/or Bedrock, choosing a servers folder and (for Java) selecting or installing a Java runtime, then reviewing optional playit.gg and Xbox Broadcast setup. Replace the horizontal summaries with three vertically stacked numbered entries and concise, plain-language descriptions drawn from those actual screens:
+**Investigation and design:** `SetupIntro.svelte` rendered this as a three-column ordered list. The later pages show what each step entails: selecting Java and/or Bedrock, choosing a servers folder and (for Java) selecting or installing a Java runtime, then reviewing optional playit.gg and Xbox Broadcast setup. The list can stay numbered while stacking its entries vertically and describing the choices shown on those pages:
 
-1. **Choose what to host** — Select Java, Bedrock, or both. The available choices depend on the selected host.
-2. **Prepare this computer** — Choose where servers will be stored. If you choose Java, select an installed Java runtime or install one; Bedrock uses MSC’s built-in runtime where supported.
-3. **Review ways for players to join** — See the optional playit.gg and Xbox Broadcast setup. You can skip either and configure it later.
+1. **Choose what to host** — Select Java, Bedrock, or both. Bedrock is available when the selected host can run it.
+2. **Set up your host** — Choose where server files live. For Java, select an installed runtime or install one; Bedrock uses MSC’s built-in runtime.
+3. **Review ways for players to join** — playit.gg can let friends join without port forwarding, and Xbox Broadcast helps console players find the server. Both are optional and can be configured later.
 
-Keep this as one simple numbered list with a clear title and readable secondary descriptions; do not wrap each row in another card. This fills the current blank area with information that prepares users for the next pages, while keeping optional network setup clearly optional. The screenshot establishes the layout problem; this proposal is based on the current setup-page behavior in `SetupIntro.svelte` and is ready for Cameron’s review before implementation.
+Keep this as one simple numbered list with a clear title and readable secondary descriptions; do not wrap each row in another card. This fills the current blank area with information that prepares users for the next pages, while keeping optional network setup clearly optional. The screenshot establishes the layout problem; the descriptions follow the current setup-page behavior in `SetupIntro.svelte`.
+
+**Implementation work (2026-10-21):** The three summaries now stack vertically, with more specific descriptions of the actual server type, host, and optional connection choices. The existing numbered-list structure remains, without new cards or decorative accents. Spacing and text size give the entries room to read while using the previously empty part of the fixed-height sheet. Compact and narrow layouts use the same vertical order, with tighter spacing on narrow windows.
+
+**P16.96 — Explain the first-time setup steps vertically**
+
+- **Status:** Implementation recorded; awaiting owner verification on the next macOS build.
+- **Files:** `clients/desktop-web/src/lib/help/SetupIntro.svelte`; `docs/msc2/rolling-plan.md`.
+- **What:** Replace the horizontal three-column setup preview with a single vertical numbered list and accurate descriptions of Java/Bedrock selection, server storage and runtime, and optional player access.
+- **Verify:** On a clean install of the next macOS build, run `open -a "MSC 2"`; on the first First-time Setup page, confirm the three steps read vertically, explain the upcoming choices, and fit comfortably above the footer without clipping.
+- **Batch:** P16.96 only.
 
 ### Finding 4 — Optional Playit setup needs a clearer label and account-capacity warning
 

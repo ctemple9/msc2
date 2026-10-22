@@ -3,11 +3,12 @@
   // (docs/msc2/antiAIslop.md). The oracle's per-category colored icon tiles
   // and hero banner image are dropped -- category is a neutral Badge, and
   // navigation is a plain grouped list, matching rule #6/#9's fix.
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import Badge from '../../components/base/Badge.svelte';
   import Button from '../../components/base/Button.svelte';
   import EmptyState from '../../components/base/EmptyState.svelte';
   import Field from '../../components/base/Field.svelte';
+  import Menu from '../../components/base/Menu.svelte';
   import { renderMarkdown } from '../../help/markdown';
   import type { HelpCatalog, HelpTopic } from '../../help/types';
   import { HANDBOOK_CATEGORY_ORDER, HANDBOOK_TOPIC_ORDER, topicOrderIndex } from './catalogOrder';
@@ -29,6 +30,8 @@
   let favorites = [...defaultFavorites];
   let readerElement: HTMLElement;
   let scrolledTopicId = '';
+  let menuTopicId: string | null = null;
+  let menuPosition = { x: 0, y: 0 };
 
   onMount(() => {
     try {
@@ -55,6 +58,24 @@
       localStorage.setItem(favoritesKey, JSON.stringify(favorites));
     } catch {
       // Favorites remain usable for this session when storage is unavailable.
+    }
+  }
+
+  async function openFavoriteMenu(id: string, event: MouseEvent | KeyboardEvent): Promise<void> {
+    event.preventDefault();
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    menuPosition =
+      event instanceof MouseEvent && event.clientX !== 0
+        ? { x: event.clientX, y: event.clientY }
+        : { x: rect.left, y: rect.bottom };
+    menuTopicId = id;
+    await tick();
+    document.querySelector<HTMLButtonElement>('[role="menu"] [role="menuitem"]')?.focus();
+  }
+
+  function handleTopicKeydown(id: string, event: KeyboardEvent): void {
+    if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+      openFavoriteMenu(id, event);
     }
   }
 
@@ -113,20 +134,15 @@
         <p class="group-label msc2-type-overline">Favorites</p>
         {#if favoriteTopics.length > 0}
           {#each favoriteTopics as item (item.helpId)}
-            <div class="topic-entry">
-              <button
-                type="button"
-                class="topic-row"
-                class:selected={item.helpId === topicId}
-                onclick={() => onSelect(item.helpId)}>{item.title}</button
-              >
-              <button
-                type="button"
-                class="favorite-action"
-                aria-label={`Remove ${item.title} from Favorites`}
-                onclick={() => toggleFavorite(item.helpId)}>Remove</button
-              >
-            </div>
+            <button
+              type="button"
+              class="topic-row"
+              class:selected={item.helpId === topicId}
+              aria-keyshortcuts="Shift+F10 ContextMenu"
+              onclick={() => onSelect(item.helpId)}
+              oncontextmenu={(event) => openFavoriteMenu(item.helpId, event)}
+              onkeydown={(event) => handleTopicKeydown(item.helpId, event)}>{item.title}</button
+            >
           {/each}
         {:else if !search.trim()}
           <p class="no-results msc2-type-meta">Save topics you use often.</p>
@@ -134,21 +150,15 @@
         {#each groups as group (group.slug)}
           <p class="group-label msc2-type-overline">{group.label}</p>
           {#each group.topics as item (item.helpId)}
-            <div class="topic-entry">
-              <button
-                type="button"
-                class="topic-row"
-                class:selected={item.helpId === topicId}
-                onclick={() => onSelect(item.helpId)}>{item.title}</button
-              >
-              <button
-                type="button"
-                class="favorite-action"
-                aria-label={`${favorites.includes(item.helpId) ? 'Remove' : 'Add'} ${item.title} ${favorites.includes(item.helpId) ? 'from' : 'to'} Favorites`}
-                onclick={() => toggleFavorite(item.helpId)}
-                >{favorites.includes(item.helpId) ? 'Remove' : 'Save'}</button
-              >
-            </div>
+            <button
+              type="button"
+              class="topic-row"
+              class:selected={item.helpId === topicId}
+              aria-keyshortcuts="Shift+F10 ContextMenu"
+              onclick={() => onSelect(item.helpId)}
+              oncontextmenu={(event) => openFavoriteMenu(item.helpId, event)}
+              onkeydown={(event) => handleTopicKeydown(item.helpId, event)}>{item.title}</button
+            >
           {/each}
         {/each}
         {#if groups.length === 0}
@@ -276,6 +286,19 @@
     </article>
   </div>
 </div>
+{#if menuTopicId}
+  <Menu
+    x={menuPosition.x}
+    y={menuPosition.y}
+    onClose={() => (menuTopicId = null)}
+    items={[
+      {
+        label: favorites.includes(menuTopicId) ? 'Remove from Favorites' : 'Save to Favorites',
+        onSelect: () => menuTopicId && toggleFavorite(menuTopicId),
+      },
+    ]}
+  />
+{/if}
 
 <style>
   .browser {
@@ -327,24 +350,6 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-  }
-  .topic-entry {
-    display: flex;
-    align-items: center;
-    min-width: 0;
-  }
-  .favorite-action {
-    border: 0;
-    background: transparent;
-    color: var(--msc2-text-tertiary);
-    font: inherit;
-    font-size: 11px;
-    cursor: pointer;
-    padding: 6px;
-  }
-  .favorite-action:hover,
-  .favorite-action:focus-visible {
-    color: var(--msc2-text-primary);
   }
   .group-label {
     margin: 10px 0 2px;

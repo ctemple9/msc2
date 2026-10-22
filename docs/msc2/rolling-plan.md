@@ -424,3 +424,19 @@ The warning also overstates the consequence. [Minecraft's Java 26.3 notes](https
 - **What:** Add the opening message, persistent favorites, in-app related-topic links and Back navigation; rewrite the three first-server guides around MSC 2; restore the contents column beside the article at Cameron's desktop window size.
 - **Verify:** In the next desktop build, open Handbook at Cameron's usual window size and confirm the contents list is on the left of the article, scrolls to its end, and shows no scroll indicator. Confirm the opening message and three default favorites; save and remove a topic and reopen Handbook to check persistence while the topic remains in its original category. Open each first-server guide, follow a related-topic link, then use Back to return without an app reload. Narrow the window enough to check the compact layout remains usable.
 - **Batch:** P16.114 only.
+
+### Finding 23 — Favorites controls crowd every Handbook title
+
+**What Cameron experienced and wants:** With Favorites added to the Handbook, every entry in the left table of contents has a visible Save or Remove button. The same action repeats beside each title, taking space from topic names and making the contents list feel busy. Cameron wants the list to show just the titles. On a Mac, right-clicking or two-finger clicking a title should open the relevant Save or Remove action for that topic.
+
+**Investigation:** `HandbookBrowser.svelte` rendered a second button in each favorite and category row. Both buttons called the same existing favorites toggle, which already saves the choice locally; changing how the action is opened does not require a new storage path. MSC 2 already has a compact, viewport-clamped `Menu` component for row actions. The browser's `contextmenu` event covers a mouse right-click and a trackpad secondary click, and the title button can also expose the action to keyboard users with Shift+F10 or the Menu key.
+
+**Implementation work (2026-10-22):** Removed the repeated visible Save and Remove controls. A secondary click on any title opens a single action menu, labeled **Save to Favorites** or **Remove from Favorites** according to its current state. The same menu opens from the keyboard, with focus moved to its action. Normal clicking still opens the article, and topics stay in their original category after being saved.
+
+**P16.115 — Put Handbook favorite actions in a title context menu**
+
+- **Status:** Implemented; awaiting owner verification in the next desktop build.
+- **Files:** `clients/desktop-web/src/lib/sections/handbook/HandbookBrowser.svelte`; `docs/msc2/rolling-plan.md`.
+- **What:** Remove repeated Save and Remove buttons and use the existing action menu on a Handbook title's secondary click or keyboard context-menu shortcut.
+- **Verify:** In the next desktop build, open Handbook and confirm titles have no adjacent Save or Remove buttons. Right-click or two-finger click an unsaved topic, choose **Save to Favorites**, and confirm it appears at the top while remaining in its category. Secondary-click it again, choose **Remove from Favorites**, and confirm it remains in the category. Repeat the menu with Shift+F10 while a title has keyboard focus.
+- **Batch:** P16.115 only.

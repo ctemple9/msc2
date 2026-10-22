@@ -147,6 +147,16 @@ The focused new test protects the concrete 0.1.32-to-next-build case Cameron enc
 
 **User outcome required:** Remove the em dash from the body of the first tour card. Keep the welcome concise and natural; use a period between the time estimate and the guidance rather than another decorative dash.
 
+**Implementation work (2026-10-21):** Replaced the em dash in the welcome card with a period and changed the second clause to a direct first-person promise: “I'll guide you through each step.” The tour duration remains unchanged.
+
+**P16.103 — Rewrite the first tour card without an em dash**
+
+- **Status:** Implementation recorded; awaiting owner verification on the next macOS build.
+- **Files:** `content/guides/onboarding.json`; `docs/msc2/rolling-plan.md`.
+- **What:** Remove the em dash from the first Welcome to MSC tour card and make the guidance concise and personal.
+- **Verify:** On the next macOS build, open the first tour card and confirm it reads, “Let's get your first Minecraft server online. This tour takes about two minutes. I'll guide you through each step.”
+- **Batch:** P16.103 only.
+
 ### Finding 7 — Hidden-tour controls overlap MSC’s top-right controls
 
 **What Cameron experienced:** After hiding the tour tip, the **Show tip** and **Skip tour** buttons appear in the upper-right corner of the app. In the screenshot they sit on top of MSC’s own header controls, so the controls visually collide and are harder to distinguish. Cameron wants this area cleaned up so the tour actions remain available without covering MSC buttons.

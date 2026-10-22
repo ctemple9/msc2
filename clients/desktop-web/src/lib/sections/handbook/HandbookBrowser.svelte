@@ -3,6 +3,7 @@
   // (docs/msc2/antiAIslop.md). The oracle's per-category colored icon tiles
   // and hero banner image are dropped -- category is a neutral Badge, and
   // navigation is a plain grouped list, matching rule #6/#9's fix.
+  import { onMount } from 'svelte';
   import Badge from '../../components/base/Badge.svelte';
   import Button from '../../components/base/Button.svelte';
   import EmptyState from '../../components/base/EmptyState.svelte';
@@ -15,8 +16,61 @@
   export let topic: HelpTopic | null = null;
   export let topicId = '';
   export let onSelect: (id: string) => void = () => {};
+  export let onBack: () => void = () => {};
+  export let canGoBack = false;
 
   let search = '';
+  const favoritesKey = 'msc2.handbook.favorites.v1';
+  const defaultFavorites = [
+    'handbook.first-server',
+    'handbook.first-modded-server',
+    'handbook.first-bedrock-server',
+  ];
+  let favorites = [...defaultFavorites];
+  let readerElement: HTMLElement;
+  let scrolledTopicId = '';
+
+  onMount(() => {
+    try {
+      const saved = localStorage.getItem(favoritesKey);
+      if (saved !== null) {
+        const parsed: unknown = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          favorites = parsed.filter(
+            (id): id is string =>
+              typeof id === 'string' && catalog.topics.some((item) => item.helpId === id),
+          );
+        }
+      }
+    } catch {
+      // An unavailable or malformed local store should not hide the default guides.
+    }
+  });
+
+  function toggleFavorite(id: string): void {
+    favorites = favorites.includes(id)
+      ? favorites.filter((item) => item !== id)
+      : [...favorites, id];
+    try {
+      localStorage.setItem(favoritesKey, JSON.stringify(favorites));
+    } catch {
+      // Favorites remain usable for this session when storage is unavailable.
+    }
+  }
+
+  function openArticleLink(event: MouseEvent): void {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const id = target.closest('a[data-help-topic]')?.getAttribute('data-help-topic');
+    if (!id) return;
+    event.preventDefault();
+    if (catalog.topics.some((item) => item.helpId === id)) onSelect(id);
+  }
+
+  function bindArticleLinks(node: HTMLElement): { destroy(): void } {
+    node.addEventListener('click', openArticleLink);
+    return { destroy: () => node.removeEventListener('click', openArticleLink) };
+  }
 
   $: orderedTopics = [...catalog.topics].sort(
     (a, b) => topicOrderIndex(a.helpId) - topicOrderIndex(b.helpId),
@@ -28,6 +82,9 @@
     ...category,
     topics: filtered.filter((item) => item.category === category.slug),
   })).filter((group) => group.topics.length > 0);
+  $: favoriteTopics = favorites
+    .map((id) => filtered.find((item) => item.helpId === id))
+    .filter((item): item is (typeof filtered)[number] => item !== undefined);
   $: currentIndex = HANDBOOK_TOPIC_ORDER.indexOf(topicId);
   $: previousId = currentIndex > 0 ? HANDBOOK_TOPIC_ORDER[currentIndex - 1] : null;
   $: nextId =
@@ -35,156 +92,230 @@
       ? HANDBOOK_TOPIC_ORDER[currentIndex + 1]
       : null;
   $: categoryLabel = HANDBOOK_CATEGORY_ORDER.find((c) => c.slug === topic?.category)?.label ?? '';
+  $: if (topicId && topicId !== scrolledTopicId) {
+    scrolledTopicId = topicId;
+    if (readerElement) readerElement.scrollTop = 0;
+  }
 </script>
 
 <div class="browser">
-  <aside class="topics">
-    <Field placeholder="Search topics…" bind:value={search} />
-    <div class="topic-list" role="tree" aria-label="Handbook topics">
-      {#each groups as group (group.slug)}
-        <p class="group-label msc2-type-overline">{group.label}</p>
-        {#each group.topics as item (item.helpId)}
-          <button
-            type="button"
-            class="topic-row"
-            class:selected={item.helpId === topicId}
-            onclick={() => onSelect(item.helpId)}
-          >
-            {item.title}
-          </button>
-        {/each}
-      {/each}
-      {#if groups.length === 0}
-        <p class="no-results msc2-type-meta">No topics match “{search}”.</p>
-      {/if}
-    </div>
-  </aside>
-
-  <article class="reader">
-    {#if topic}
-      {#if categoryLabel}<Badge>{categoryLabel}</Badge>{/if}
-      <h3 class="msc2-type-page">{topic.title}</h3>
-      {#if topic.subtitle}
-        <p
-          class="subtitle msc2-type-body"
-          class:overview-subtitle={topic.helpId === 'handbook.overview'}
-        >
-          {topic.subtitle}
-        </p>
-      {/if}
-      {#if topic.analogy}<p class="analogy msc2-type-body">{topic.analogy}</p>{/if}
-      <div class="markdown msc2-type-body" data-safe-markdown="true">
-        {@html renderMarkdown(topic.body)}
-      </div>
-      {#each topic.sections ?? [] as block, blockIndex (blockIndex)}
-        {#if block.type === 'body'}
-          <div class="markdown msc2-type-body" data-safe-markdown="true">
-            {@html renderMarkdown(block.markdown)}
-          </div>
-        {:else if block.type === 'bulletList'}
-          <div class="markdown msc2-type-body" data-safe-markdown="true">
-            {@html renderMarkdown(block.items.map((item) => `- ${item}`).join('\n'))}
-          </div>
-        {:else if block.type === 'callout'}
-          <div class="callout">
-            <p class="callout-label msc2-type-overline">{block.style}</p>
-            <p class="callout-text msc2-type-body">{block.text}</p>
-          </div>
-        {:else if block.type === 'inApp'}
-          <div class="callout">
-            <p class="callout-label msc2-type-overline">In this app</p>
-            <div class="markdown msc2-type-body" data-safe-markdown="true">
-              {@html renderMarkdown(block.items.map((item) => `- ${item}`).join('\n'))}
+  <div class="welcome-banner">
+    <h2>You don’t need to read all of this right now.</h2>
+    <p>
+      Come back when you want to learn how something works in MSC 2. Start with a guide in
+      Favorites, or find a topic when you need it.
+    </p>
+  </div>
+  <div class="browser-columns">
+    <aside class="topics">
+      <Field placeholder="Search topics…" bind:value={search} />
+      <div class="topic-list" role="tree" aria-label="Handbook topics">
+        <p class="group-label msc2-type-overline">Favorites</p>
+        {#if favoriteTopics.length > 0}
+          {#each favoriteTopics as item (item.helpId)}
+            <div class="topic-entry">
+              <button
+                type="button"
+                class="topic-row"
+                class:selected={item.helpId === topicId}
+                onclick={() => onSelect(item.helpId)}>{item.title}</button
+              >
+              <button
+                type="button"
+                class="favorite-action"
+                aria-label={`Remove ${item.title} from Favorites`}
+                onclick={() => toggleFavorite(item.helpId)}>Remove</button
+              >
             </div>
-          </div>
-        {:else if block.type === 'advanced'}
-          <details class="advanced">
-            <summary class="msc2-type-overline">Advanced details</summary>
+          {/each}
+        {:else if !search.trim()}
+          <p class="no-results msc2-type-meta">Save topics you use often.</p>
+        {/if}
+        {#each groups as group (group.slug)}
+          <p class="group-label msc2-type-overline">{group.label}</p>
+          {#each group.topics as item (item.helpId)}
+            <div class="topic-entry">
+              <button
+                type="button"
+                class="topic-row"
+                class:selected={item.helpId === topicId}
+                onclick={() => onSelect(item.helpId)}>{item.title}</button
+              >
+              <button
+                type="button"
+                class="favorite-action"
+                aria-label={`${favorites.includes(item.helpId) ? 'Remove' : 'Add'} ${item.title} ${favorites.includes(item.helpId) ? 'from' : 'to'} Favorites`}
+                onclick={() => toggleFavorite(item.helpId)}
+                >{favorites.includes(item.helpId) ? 'Remove' : 'Save'}</button
+              >
+            </div>
+          {/each}
+        {/each}
+        {#if groups.length === 0}
+          <p class="no-results msc2-type-meta">No topics match “{search}”.</p>
+        {/if}
+      </div>
+    </aside>
+
+    <article class="reader" bind:this={readerElement} use:bindArticleLinks>
+      {#if topic}
+        {#if categoryLabel}<Badge>{categoryLabel}</Badge>{/if}
+        <div class="reader-heading">
+          <h3 class="msc2-type-page">{topic.title}</h3>
+          <Button size="sm" variant="secondary" disabled={!canGoBack} onclick={onBack}>Back</Button>
+        </div>
+        {#if topic.subtitle}
+          <p
+            class="subtitle msc2-type-body"
+            class:overview-subtitle={topic.helpId === 'handbook.overview'}
+          >
+            {topic.subtitle}
+          </p>
+        {/if}
+        {#if topic.analogy}<p class="analogy msc2-type-body">{topic.analogy}</p>{/if}
+        <div class="markdown msc2-type-body" data-safe-markdown="true">
+          {@html renderMarkdown(topic.body)}
+        </div>
+        {#each topic.sections ?? [] as block, blockIndex (blockIndex)}
+          {#if block.type === 'body'}
             <div class="markdown msc2-type-body" data-safe-markdown="true">
               {@html renderMarkdown(block.markdown)}
             </div>
-          </details>
-        {:else if block.type === 'checklist'}
-          <div class="checklist">
-            <p class="checklist-phase msc2-type-section">{block.phase}</p>
-            <ol class="checklist-steps msc2-type-body" start={block.steps[0]?.number}>
-              {#each block.steps as step (step.number)}
-                <li><strong>{step.title}</strong> — {step.detail}</li>
-              {/each}
-            </ol>
-          </div>
-        {:else if block.type === 'table'}
-          <div class="table-wrap">
-            <table class="guide-table msc2-type-body">
-              <thead>
-                <tr>
-                  {#each block.headers as header (header)}<th>{header}</th>{/each}
-                </tr>
-              </thead>
-              <tbody>
-                {#each block.rows as row, rowIndex (rowIndex)}
-                  <tr>
-                    {#each row as cell, cellIndex (cellIndex)}<td>{cell}</td>{/each}
-                  </tr>
+          {:else if block.type === 'bulletList'}
+            <div class="markdown msc2-type-body" data-safe-markdown="true">
+              {@html renderMarkdown(block.items.map((item) => `- ${item}`).join('\n'))}
+            </div>
+          {:else if block.type === 'callout'}
+            <div class="callout">
+              <p class="callout-label msc2-type-overline">{block.style}</p>
+              <p class="callout-text msc2-type-body">{block.text}</p>
+            </div>
+          {:else if block.type === 'inApp'}
+            <div class="callout">
+              <p class="callout-label msc2-type-overline">In this app</p>
+              <div class="markdown msc2-type-body" data-safe-markdown="true">
+                {@html renderMarkdown(block.items.map((item) => `- ${item}`).join('\n'))}
+              </div>
+            </div>
+          {:else if block.type === 'advanced'}
+            <details class="advanced">
+              <summary class="msc2-type-overline">Advanced details</summary>
+              <div class="markdown msc2-type-body" data-safe-markdown="true">
+                {@html renderMarkdown(block.markdown)}
+              </div>
+            </details>
+          {:else if block.type === 'checklist'}
+            <div class="checklist">
+              <p class="checklist-phase msc2-type-section">{block.phase}</p>
+              <ol class="checklist-steps msc2-type-body" start={block.steps[0]?.number}>
+                {#each block.steps as step (step.number)}
+                  <li data-safe-markdown="true">
+                    <strong>{step.title}</strong> — {@html renderMarkdown(step.detail)}
+                  </li>
                 {/each}
-              </tbody>
-            </table>
+              </ol>
+            </div>
+          {:else if block.type === 'table'}
+            <div class="table-wrap">
+              <table class="guide-table msc2-type-body">
+                <thead>
+                  <tr>
+                    {#each block.headers as header (header)}<th>{header}</th>{/each}
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each block.rows as row, rowIndex (rowIndex)}
+                    <tr>
+                      {#each row as cell, cellIndex (cellIndex)}<td>{cell}</td>{/each}
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+          {/if}
+        {/each}
+        {#if topic.relatedIds.length}
+          <p class="msc2-type-overline related-label">Related topics</p>
+          <div class="related-topics">
+            {#each topic.relatedIds as relatedId (relatedId)}
+              {@const relatedTitle =
+                catalog.topics.find((t) => t.helpId === relatedId)?.title ?? relatedId}
+              <button type="button" class="related-pill" onclick={() => onSelect(relatedId)}>
+                {relatedTitle}
+              </button>
+            {/each}
           </div>
         {/if}
-      {/each}
-      {#if topic.relatedIds.length}
-        <p class="msc2-type-overline related-label">Related topics</p>
-        <div class="related-topics">
-          {#each topic.relatedIds as relatedId (relatedId)}
-            {@const relatedTitle =
-              catalog.topics.find((t) => t.helpId === relatedId)?.title ?? relatedId}
-            <button type="button" class="related-pill" onclick={() => onSelect(relatedId)}>
-              {relatedTitle}
-            </button>
-          {/each}
+        <div class="reader-footer">
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={!previousId}
+            onclick={() => previousId && onSelect(previousId)}
+          >
+            Previous topic
+          </Button>
+          <span class="progress msc2-type-meta">
+            {currentIndex >= 0 ? currentIndex + 1 : 1} / {HANDBOOK_TOPIC_ORDER.length}
+          </span>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={!nextId}
+            onclick={() => nextId && onSelect(nextId)}
+          >
+            Next
+          </Button>
         </div>
+      {:else}
+        <EmptyState
+          title="That topic is not available on this agent"
+          message={`The link is preserved so a newer agent can provide it later. (${topicId})`}
+        />
       {/if}
-      <div class="reader-footer">
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={!previousId}
-          onclick={() => previousId && onSelect(previousId)}
-        >
-          Back
-        </Button>
-        <span class="progress msc2-type-meta">
-          {currentIndex >= 0 ? currentIndex + 1 : 1} / {HANDBOOK_TOPIC_ORDER.length}
-        </span>
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={!nextId}
-          onclick={() => nextId && onSelect(nextId)}
-        >
-          Next
-        </Button>
-      </div>
-    {:else}
-      <EmptyState
-        title="That topic is not available on this agent"
-        message={`The link is preserved so a newer agent can provide it later. (${topicId})`}
-      />
-    {/if}
-  </article>
+    </article>
+  </div>
 </div>
 
 <style>
   .browser {
-    display: grid;
-    grid-template-columns: minmax(11rem, 0.32fr) minmax(0, 1fr);
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+  }
+  .welcome-banner {
+    padding: 1px 0 16px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--msc2-hairline-subtle);
+  }
+  .welcome-banner h2 {
+    margin: 0 0 5px;
+    color: var(--msc2-text-primary);
+    font-size: 18px;
+    font-weight: 600;
+  }
+  .welcome-banner p {
+    margin: 0;
+    color: var(--msc2-text-secondary);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .browser-columns {
+    display: flex;
+    align-items: stretch;
     gap: 20px;
     flex: 1;
+    width: 100%;
+    min-width: 0;
     min-height: 0;
   }
   .topics {
     display: flex;
     flex-direction: column;
+    flex: 0 0 clamp(12rem, 26%, 22rem);
     gap: 10px;
     min-width: 0;
     min-height: 0;
@@ -197,6 +328,24 @@
     min-height: 0;
     overflow-y: auto;
   }
+  .topic-entry {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+  .favorite-action {
+    border: 0;
+    background: transparent;
+    color: var(--msc2-text-tertiary);
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    padding: 6px;
+  }
+  .favorite-action:hover,
+  .favorite-action:focus-visible {
+    color: var(--msc2-text-primary);
+  }
   .group-label {
     margin: 10px 0 2px;
   }
@@ -204,6 +353,8 @@
     margin-top: 0;
   }
   .topic-row {
+    flex: 1;
+    min-width: 0;
     text-align: left;
     padding: 6px 8px;
     border-radius: 6px;
@@ -227,12 +378,23 @@
     padding: 6px 8px;
   }
   .reader {
+    flex: 1;
     min-width: 0;
     min-height: 0;
     display: flex;
     flex-direction: column;
     gap: 10px;
     overflow-y: auto;
+  }
+  .reader-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .checklist-steps li :global(p) {
+    display: inline;
+    margin: 0;
   }
   .reader h3 {
     margin: 2px 0 0;
@@ -383,12 +545,16 @@
     padding-top: 10px;
     border-top: 1px solid var(--msc2-hairline-subtle);
   }
-  @media (max-width: 720px) {
+  @media (max-width: 560px) {
+    .browser-columns {
+      flex-direction: column;
+      flex: none;
+    }
     .browser {
-      grid-template-columns: 1fr;
       flex: none;
     }
     .topics {
+      flex: none;
       min-height: auto;
     }
     .topic-list {

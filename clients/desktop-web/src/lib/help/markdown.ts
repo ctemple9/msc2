@@ -23,6 +23,10 @@ function safeUrl(value: string): string | null {
 function inline(value: string): string {
   const escaped = escapeHtml(value);
   const linked = escaped.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, label, rawUrl) => {
+    const handbook = /^help:(handbook\.[a-z0-9-]+)$/.exec(rawUrl);
+    if (handbook) {
+      return `<a href="#${handbook[1]}" data-help-topic="${handbook[1]}">${label}</a>`;
+    }
     const url = safeUrl(rawUrl);
     return url ? `<a href="${escapeHtml(url)}" rel="noopener noreferrer">${label}</a>` : label;
   });

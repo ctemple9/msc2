@@ -188,6 +188,13 @@ jobs:
         shell: pwsh
         run: ./tools/release/stage-windows-agent.ps1 -WorkspaceRoot $env:GITHUB_WORKSPACE -TargetTriple "${{ matrix.rust-target }}"
 
+      - name: Sign bundled macOS helpers
+        if: startsWith(matrix.platform, 'macos-')
+        shell: bash
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY }}
+        run: bash tools/release/sign-macos-agent-resources.sh "${{ matrix.platform }}"
+
       - name: Prepare the Windows bundle icon
         if: matrix.platform == 'windows-x86_64'
         shell: pwsh

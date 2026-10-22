@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** P16.118 prepares the v0.1.33 release candidate from Cameron's macOS testing work. Developer ID credentials are configured; the release workflow and clean-Mac verification are still pending. No phase gate or exact-release artifact acceptance is implied. Cameron closed and archived the Java-first and Bedrock saved-terrain work through P18.95 on October 21, 2026. His Bedtonic check confirmed the latest biome-colour fix works. The [archived step records](rolling-plan-archive.md#october-21-2026--java-and-bedrock-saved-terrain-map-work) preserve the implementation history; [pending acceptance](pending-acceptance.md) and the [Phase 18 parity worksheet](phase18-map-acceptance.md#p1889--java-and-bedrock-map-parity-worksheet) retain checks that have not been recorded as passed.
+**Current priority:** P16.119 addresses the macOS signing failure in the unpublished v0.1.33 candidate. The fix is prepared for owner verification and a new release candidate; the v0.1.33 tag will not be moved or rerun. No phase gate or exact-release artifact acceptance is implied. Cameron closed and archived the Java-first and Bedrock saved-terrain work through P18.95 on October 21, 2026. His Bedtonic check confirmed the latest biome-colour fix works. The [archived step records](rolling-plan-archive.md#october-21-2026--java-and-bedrock-saved-terrain-map-work) preserve the implementation history; [pending acceptance](pending-acceptance.md) and the [Phase 18 parity worksheet](phase18-map-acceptance.md#p1889--java-and-bedrock-map-parity-worksheet) retain checks that have not been recorded as passed.
 
 ## v0.1.33 release candidate
 
@@ -15,6 +15,16 @@
 - **What:** Align all release identities at 0.1.33, document the candidate, push its source and exact tag, and start the existing build-only release workflow without changing its checks or moving an old tag.
 - **Verify:** Run `gh run list --workflow release.yml --limit 1 --repo ctemple9/msc2` to inspect the `v0.1.33` run. After it completes successfully, open the v0.1.33 release page and confirm all nine platform artifacts, `SHA256SUMS`, and both signed update metadata files are present. Cameron then installs the exact Intel macOS DMG on a clean Mac and checks Finder first-open behavior.
 - **Batch:** P16.118 only.
+
+**Release failure (2026-10-22):** The v0.1.33 workflow run failed both macOS jobs at Apple notarization; Windows and Linux builds succeeded, but the publish job was skipped. Apple's log named `msc`, `bedrock-map`, `vantage`, and the Intel-only `BedrockSidecar` inside `MSC 2.app/Contents/Resources/agent`. Each lacked a valid Developer ID signature, secure timestamp, and hardened runtime. Tauri copied these as resources and signed the outer app, which did not sign the embedded executables. The release was not published. The next attempt must use a new version and tag.
+
+**P16.119 — Sign bundled macOS helpers before notarization**
+
+- **Status:** Implementation prepared; owner verification and a new release candidate pending.
+- **Files:** `.github/workflows/release.yml`; `tools/release/sign-macos-agent-resources.sh`; `README.md`; `docs/msc2/rolling-plan.md`.
+- **What:** After staging, sign each macOS helper with the configured Developer ID identity, hardened runtime, and secure timestamp. Apply the existing virtualization entitlement explicitly to the Intel Bedrock sidecar. Fail before the Tauri build if any helper lacks a valid signature, timestamp, hardened runtime, or sidecar entitlement. Correct the README to point to the actual latest published release, v0.1.32. Preserve the existing build-only artifact set and release gates; do not move or rerun v0.1.33.
+- **Verify:** On a macOS runner with the configured Developer ID identity, run `APPLE_SIGNING_IDENTITY='Developer ID Application: Cameron Temple (6898622Y3Y)' bash tools/release/sign-macos-agent-resources.sh macos-x86_64` after staging the matching release payload. Confirm all four helpers report `signed and verified`; on Apple Silicon use `macos-aarch64` and confirm the three supported helpers. The next new-tag workflow must then pass notarization and publish all nine artifacts; Cameron checks the exact downloaded DMG on a clean Mac.
+- **Batch:** P16.119 only.
 
 ## macOS owner testing — 0.1.32
 

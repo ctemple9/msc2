@@ -86,6 +86,16 @@ The MSC setup code claims a Playit agent for a new account setup, or reuses the 
 
 Keep the first-person account tied to Cameron’s reported experience. Do not imply that MSC can inspect or clean up the user’s Playit account, and avoid fixed quota numbers until verified.
 
+**Implementation work (2026-10-21):** Both optional setup pages now render “Optional” as a separate orange label before the page description. The Playit page removes the unverified fixed quota claim, adds Cameron’s first-person report about the failed second-agent setup, tells users to review their free-account capacity and remove only unused resources if needed, and explains that Java servers share one Playit address while Bedrock servers share another.
+
+**P16.100 — Clarify optional Playit setup and account capacity**
+
+- **Status:** Implementation recorded; awaiting owner verification on the next macOS build.
+- **Files:** `clients/desktop-web/src/lib/help/SetupIntro.svelte`; `docs/msc2/rolling-plan.md`.
+- **What:** Emphasize the optional label on both optional setup pages and replace fixed Playit quota text with the observed account-capacity warning and shared Java/Bedrock tunnel explanation.
+- **Verify:** On a clean install of the next macOS build, open First-time Setup and confirm “Optional” is orange on the playit.gg and Xbox Broadcast pages; confirm the Playit page describes the prior second-agent failure, advises reviewing account capacity without fixed quota numbers, explains shared Java and Bedrock addresses, and still allows the page to be skipped.
+- **Batch:** P16.100 only.
+
 ### Finding 5 — Xbox Broadcast does not explain where its JAR goes or what “shared” means
 
 **What Cameron asked/experienced:** On the Xbox Broadcast page, the “Broadcast Helper” section says the tool is downloaded once and shared across all servers, and offers a **Download Now** button. It does not say where the file is stored, who publishes it, or whether “shared” means one copy is used by every server or each server gets its own JAR. Cameron wants to know what happens in a setup with three Java servers and one Bedrock server, all using Xbox Broadcast, and where the downloaded JAR comes from.

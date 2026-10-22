@@ -28,15 +28,36 @@
   const minimumSupportedJavaMajor = 8;
 
   const pageMeta = [
-    { title: 'First-time Setup', subtitle: 'Let’s get Minecraft Server Controller configured.' },
-    { title: 'Server Type', subtitle: 'Choose which platform you’ll host servers on.' },
-    { title: 'Server Setup', subtitle: 'Where your servers live and how to run them.' },
-    { title: 'playit.gg', subtitle: 'Optional · Let friends join without port forwarding.' },
+    {
+      title: 'First-time Setup',
+      subtitle: 'Let’s get Minecraft Server Controller configured.',
+      optional: false,
+    },
+    {
+      title: 'Server Type',
+      subtitle: 'Choose which platform you’ll host servers on.',
+      optional: false,
+    },
+    {
+      title: 'Server Setup',
+      subtitle: 'Where your servers live and how to run them.',
+      optional: false,
+    },
+    {
+      title: 'playit.gg',
+      subtitle: 'Let friends join without port forwarding.',
+      optional: true,
+    },
     {
       title: 'Xbox Broadcast',
-      subtitle: 'Optional · Console players see your server in Friends.',
+      subtitle: 'Console players see your server in Friends.',
+      optional: true,
     },
-    { title: 'You’re All Set', subtitle: 'Create your first server to get started.' },
+    {
+      title: 'You’re All Set',
+      subtitle: 'Create your first server to get started.',
+      optional: false,
+    },
   ] as const;
 
   let setupPage = 0;
@@ -391,7 +412,11 @@
         {setupPage === 5 ? 'Setup complete' : `Step ${setupPage + 1} of 6`}
       </p>
       <h2 id={headingId} class="setup-title">{pageMeta[setupPage].title}</h2>
-      <p class="setup-subtitle">{pageMeta[setupPage].subtitle}</p>
+      <p class="setup-subtitle">
+        {#if pageMeta[setupPage].optional}
+          <span class="optional-label">Optional</span><span aria-hidden="true"> · </span>
+        {/if}{pageMeta[setupPage].subtitle}
+      </p>
     </header>
   {:else}
     <h3 id={headingId} class="setup-title compact-title">
@@ -665,9 +690,15 @@
             onclick={(event) => openExternalLink(event, 'https://playit.gg/login')}
             >Sign up at playit.gg →</a
           >
+          <p class="hint warn">
+            I ran into this while testing MSC: adding another MSC agent to a Playit account that
+            already had one failed. If your free account is already at its agent or tunnel limit,
+            review it before continuing; you may need to remove unused resources to make room for
+            MSC.
+          </p>
           <p class="hint">
-            Free accounts include 1 agent and up to 3 tunnels. You can sign in after your first
-            server is created.
+            MSC shares one Java tunnel across your Java servers and one Bedrock tunnel across your
+            Bedrock servers. Servers of the same type use the same Playit address.
           </p>
         </Card>
         <p class="setup-note">You can skip this step and set it up later.</p>
@@ -850,6 +881,10 @@
   .setup-subtitle {
     color: var(--msc2-text-secondary);
     font-size: 13px;
+  }
+  .optional-label {
+    color: var(--msc2-status-warn);
+    font-weight: 500;
   }
   .setup-page {
     display: flex;

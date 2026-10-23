@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** v0.1.38 is published. The open work from Cameron’s macOS owner testing is listed below. The P18.99 Intel Bedrock decoder change is implemented but still awaits his same-world pre-render check. Completed implementation records and release history are in [the archive](rolling-plan-archive.md#october-23-2026--implemented-owner-testing-findings-and-release-work). Owner checks are not implied by a DONE implementation status.
+**Current priority:** v0.1.38 is published. P16.132 prepares a local Intel candidate for Cameron's repeatable Paper initiation failure. The P18.99 Intel Bedrock decoder change is implemented but still awaits his same-world pre-render check. The other open work from Cameron’s macOS owner testing is listed below. Completed implementation records and release history are in [the archive](rolling-plan-archive.md#october-23-2026--implemented-owner-testing-findings-and-release-work). Owner checks are not implied by a DONE implementation status.
 
 ## macOS owner testing — 0.1.32
 
@@ -105,3 +105,14 @@ The current private converted cache was inspected read-only. Its five Overworld 
 - **Verify:** Install `target/release-artifacts/MSC-2-intel-initiate-candidate.dmg` on the Intel Mac, repair the agent, then initiate the same Paper server whose world folder already exists. Confirm the first pass stops before the connection stage, the second pass does not report `running -> starting`, and the sheet reaches completion or reports a specific connection failure. Check the server is stopped at completion.
 - **Batch:** P16.131 only.
 - **Commit:** `P16.131: stop ordinary first pass before connection setup`
+
+**Retest (2026-10-23):** Cameron installed the P16.131 Intel candidate and reproduced initiation failure on a brand new Paper server. The message changed to `illegal lifecycle transition: stopping -> stopping`; the server had begun loading Floodgate and Geyser. This disproves the earlier explanation as a complete diagnosis. The last 400 lines of `agent.log` contain map-renderer reuse and service startup messages but no lifecycle request sequence for the attempt. Code inspection identifies a separate duplicate-Stop path: first-start can request an automatic stop, while the desktop can request Stop before the first process exits. The Java stop route drains process events, then unconditionally calls `request_stop`; that method rejects a second transition to Stopping. The Bedrock stop path already treats Stopping as an in-progress success.
+
+**P16.132 — Accept an in-progress Java server stop**
+
+- **Status:** Fix prepared; unsigned Intel candidate packaged; owner verification pending.
+- **Files:** `crates/msc-agent/src/routes/lifecycle.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Make the Java stop route accept a process that is already Stopping or Stopped after draining pending events. Keep the original graceful stop for Starting or Running, and let the first-start coordinator finish its existing operation. Add one assertion to the existing lifecycle route test for the repeated-stop case; it uses the same fake process and adds no timing or network dependency, with negligible added runtime. Do not run the test without owner instruction.
+- **Verify:** Install `target/release-artifacts/MSC-2-intel-initiate-stop-candidate.dmg` on the other Mac, repair the agent, and initiate the Paper server again. Confirm the first run stops, the connection stage opens, and no `stopping -> stopping` or `running -> starting` error appears. Complete or defer Broadcast and confirm the second run stops with the setup sheet complete.
+- **Batch:** P16.132 only.
+- **Commit:** `P16.132: accept an in-progress java stop`

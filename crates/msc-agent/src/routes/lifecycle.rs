@@ -2352,7 +2352,15 @@ impl LifecycleRoutesState {
         if let Some(server_id) = active_server_id.as_deref() {
             self.stop_helpers_for_server(server_id);
         }
-        self.inner.lifecycle.lock().unwrap().request_stop()?;
+        let mut lifecycle = self.inner.lifecycle.lock().unwrap();
+        // First-start can request its own stop while a desktop stop request is
+        // in flight. Let the existing shutdown finish without sending it twice.
+        if !matches!(
+            lifecycle.state(),
+            LifecycleState::Stopping | LifecycleState::Stopped
+        ) {
+            lifecycle.request_stop()?;
+        }
         Ok(active_server_id)
     }
 
@@ -4638,6 +4646,15 @@ mod tests {
 
         let active = state.stop_active_server().unwrap();
         assert_eq!(active.as_deref(), Some("paper-1"));
+        assert_eq!(
+            state.inner.lifecycle.lock().unwrap().state(),
+            LifecycleState::Stopping
+        );
+        // A second caller may arrive after first-start has already stopped it.
+        assert_eq!(
+            state.stop_active_server().unwrap().as_deref(),
+            Some("paper-1")
+        );
 
         std::fs::remove_dir_all(server_dir).unwrap();
     }

@@ -36,19 +36,26 @@ pub fn build(b: *std.Build) void {
     // gzip decode, ~2-3× faster than system zlib. Decompression-only subset.
     exe.root_module.addIncludePath(b.path("vendor/libdeflate"));
     // Intel Bedrock map startup crashed in libdeflate's Adler-32 checksum
-    // after zlib inflation. Keep this path on the portable implementation while
-    // the Intel SIMD dispatch failure is isolated against the prepared world.
-    if (target.result.os.tag == .macos and target.result.cpu.arch == .x86_64) {
-        exe.root_module.addCSourceFile(.{
-            .file = b.path("vendor/libdeflate/lib/adler32.c"),
-            .flags = &.{ "-std=c99", "-DLIBDEFLATE_FORCE_GENERIC_ADLER32" },
-        });
-    } else {
-        exe.root_module.addCSourceFile(.{
-            .file = b.path("vendor/libdeflate/lib/adler32.c"),
-            .flags = &.{"-std=c99"},
-        });
-    }
+    // after zlib inflation. Keep this path on the portable implementation there.
+    // This file also needs the same Zig 0.16 AVX-512 exclusions as libdeflate's
+    // other C files, even though it has platform-specific extra flags.
+    const adler32_flags: []const []const u8 = if (target.result.os.tag == .macos and target.result.cpu.arch == .x86_64)
+        &.{
+            "-std=c99",
+            "-DLIBDEFLATE_ASSEMBLER_DOES_NOT_SUPPORT_AVX512VNNI",
+            "-DLIBDEFLATE_ASSEMBLER_DOES_NOT_SUPPORT_VPCLMULQDQ",
+            "-DLIBDEFLATE_FORCE_GENERIC_ADLER32",
+        }
+    else
+        &.{
+            "-std=c99",
+            "-DLIBDEFLATE_ASSEMBLER_DOES_NOT_SUPPORT_AVX512VNNI",
+            "-DLIBDEFLATE_ASSEMBLER_DOES_NOT_SUPPORT_VPCLMULQDQ",
+        };
+    exe.root_module.addCSourceFile(.{
+        .file = b.path("vendor/libdeflate/lib/adler32.c"),
+        .flags = adler32_flags,
+    });
     exe.root_module.addCSourceFiles(.{
         .files = &.{
             "vendor/libdeflate/lib/crc32.c",

@@ -1,6 +1,14 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** v0.1.37 carries the Intel Bedrock renderer fix. Cameron confirmed the local Intel candidate opens the same world on the second Intel Mac. The release uses the unchanged build-only workflow; v0.1.36 remains the latest published release until v0.1.37 finishes publishing. P18.96's portable Adler-32 change isolates an Intel-specific libdeflate checksum crash during Vantage startup; the converted Bedrock data and renderer input are otherwise unchanged. Earlier v0.1.33, v0.1.34, and v0.1.35 tags remain fixed and unpublished. Cameron closed and archived the Java-first and Bedrock saved-terrain work through P18.95 on October 21, 2026. The [archived step records](rolling-plan-archive.md#october-21-2026--java-and-bedrock-saved-terrain-map-work) preserve the implementation history; [pending acceptance](pending-acceptance.md) and the [Phase 18 parity worksheet](phase18-map-acceptance.md#p1889--java-and-bedrock-map-parity-worksheet) retain checks that have not been recorded as passed.
+**Current priority:** v0.1.36 remains the latest published release. Cameron confirmed the P18.96 Intel Bedrock renderer candidate opens the same world on the second Intel Mac. The v0.1.37 release attempt exposed a build regression: isolating `adler32.c` dropped Zig 0.16 AVX-512 exclusion flags required by Linux and Windows; its Intel build later hit a transient CloudKit network failure while validating the stapled DMG. The v0.1.37 tag remains fixed and unpublished. P18.97 restores those flags, and v0.1.38 is the next release candidate. Earlier v0.1.33, v0.1.34, and v0.1.35 tags remain fixed and unpublished. Cameron closed and archived the Java-first and Bedrock saved-terrain work through P18.95 on October 21, 2026. The [archived step records](rolling-plan-archive.md#october-21-2026--java-and-bedrock-saved-terrain-map-work) preserve the implementation history; [pending acceptance](pending-acceptance.md) and the [Phase 18 parity worksheet](phase18-map-acceptance.md#p1889--java-and-bedrock-map-parity-worksheet) retain checks that have not been recorded as passed.
+
+### P18.97 — Preserve libdeflate compiler flags on every target
+
+**Status:** Fix prepared; release build verification pending.
+**Files:** `third_party/vantage/build.zig`; `docs/msc2/rolling-plan.md`.
+**What:** The v0.1.37 Linux and Windows renderer builds failed because moving `adler32.c` into its own compile entry omitted the two AVX-512 exclusion flags used for libdeflate's other C files. Keep those flags on `adler32.c` for every target and add the portable Adler-32 define only for Intel macOS. The Intel v0.1.37 app built and notarized, but Apple's stapled-ticket validation then failed after its CloudKit connection dropped (error 68); Apple Silicon passed.
+**Verify:** In the next tagged release workflow, confirm the Linux and Windows staging steps compile Vantage successfully and both macOS jobs complete stapled-DMG validation.
+**Batch:** P18.97 only.
 
 ### P18.96 — Use portable Adler-32 for Intel Bedrock map rendering
 
@@ -117,6 +125,9 @@
 - **What:** Align release identities at 0.1.37, document the Intel renderer fix confirmed on the second Mac, and launch the unchanged build-only release workflow using a new immutable tag.
 - **Verify:** Run `gh run list --workflow release.yml --limit 1 --repo ctemple9/msc2`; after the run completes, confirm the v0.1.37 release has all nine desktop and headless artifacts, `SHA256SUMS`, `msc2-update-manifest.json`, and `msc2-update-manifest.sig`.
 - **Batch:** P16.128 only.
+
+**Release failure (2026-10-23):** The Apple Silicon job passed. Linux and Windows failed while compiling Vantage's `adler32.c`: its new standalone compile entry omitted the AVX-512 exclusion flags passed to the other libdeflate C sources. Intel macOS built, signed, and notarized the app, then `xcrun stapler validate` failed with error 68 after a lost connection to Apple's CloudKit ticket service. Publication was skipped. The v0.1.37 tag remains fixed. P18.97 restores the missing compile flags; the next attempt must use a new tag.
+
 
 ## macOS owner testing — 0.1.32
 

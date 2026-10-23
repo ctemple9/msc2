@@ -35,9 +35,22 @@ pub fn build(b: *std.Build) void {
     // Vendored libdeflate (chunk/level.dat decompression): whole-buffer zlib +
     // gzip decode, ~2-3× faster than system zlib. Decompression-only subset.
     exe.root_module.addIncludePath(b.path("vendor/libdeflate"));
+    // Intel Bedrock map startup crashed in libdeflate's Adler-32 checksum
+    // after zlib inflation. Keep this path on the portable implementation while
+    // the Intel SIMD dispatch failure is isolated against the prepared world.
+    if (target.result.os.tag == .macos and target.result.cpu.arch == .x86_64) {
+        exe.root_module.addCSourceFile(.{
+            .file = b.path("vendor/libdeflate/lib/adler32.c"),
+            .flags = &.{ "-std=c99", "-DLIBDEFLATE_FORCE_GENERIC_ADLER32" },
+        });
+    } else {
+        exe.root_module.addCSourceFile(.{
+            .file = b.path("vendor/libdeflate/lib/adler32.c"),
+            .flags = &.{"-std=c99"},
+        });
+    }
     exe.root_module.addCSourceFiles(.{
         .files = &.{
-            "vendor/libdeflate/lib/adler32.c",
             "vendor/libdeflate/lib/crc32.c",
             "vendor/libdeflate/lib/deflate_compress.c",
             "vendor/libdeflate/lib/deflate_decompress.c",

@@ -90,6 +90,15 @@ fn read_broadcast_auth(path: &Path) -> Result<Option<Vec<u8>>, String> {
     Ok(Some(bytes))
 }
 
+fn broadcast_auth_identity(bytes: &[u8]) -> Option<String> {
+    let json: serde_json::Value = serde_json::from_slice(bytes).ok()?;
+    json.get("xboxUserProfile")?
+        .get("id")?
+        .as_str()
+        .filter(|id| !id.is_empty())
+        .map(str::to_owned)
+}
+
 fn write_broadcast_auth(path: &Path, bytes: &[u8]) -> Result<(), String> {
     let parent = path
         .parent()
@@ -122,16 +131,27 @@ fn prepare_broadcast_auth(servers: &[ConfigServer], server: &ConfigServer) -> Re
     if read_broadcast_auth(&host)?.is_none() {
         let mut candidates = Vec::new();
         for existing in servers {
-            if let Some(bytes) = read_broadcast_auth(&server_broadcast_auth_file(existing))?
-                && !candidates.contains(&bytes)
-            {
-                candidates.push(bytes);
+            let path = server_broadcast_auth_file(existing);
+            if let Some(bytes) = read_broadcast_auth(&path)? {
+                let modified = std::fs::metadata(&path)
+                    .and_then(|metadata| metadata.modified())
+                    .ok();
+                candidates.push((bytes, modified));
             }
         }
-        match candidates.len() {
-            0 => {}
-            1 => write_broadcast_auth(&host, &candidates[0])?,
-            _ => return Err("Several existing Xbox Broadcast sign-ins differ. Their files are preserved; choose one account before enabling host-wide sign-in.".into()),
+        if let Some((first, _)) = candidates.first() {
+            let identity = broadcast_auth_identity(first);
+            let same_account = candidates.iter().all(|(bytes, _)| {
+                bytes == first || (identity.is_some() && broadcast_auth_identity(bytes) == identity)
+            });
+            if !same_account {
+                return Err("Several existing Xbox Broadcast sign-ins belong to different or unidentified accounts. Their files are preserved; choose one account before enabling host-wide sign-in.".into());
+            }
+            let newest = candidates
+                .iter()
+                .max_by_key(|(_, modified)| *modified)
+                .expect("at least one broadcast sign-in exists");
+            write_broadcast_auth(&host, &newest.0)?;
         }
     }
     let target = server_broadcast_auth_file(server);

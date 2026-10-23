@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** v0.1.38 is published. P16.132 prepares a local Intel candidate for Cameron's repeatable Paper initiation failure. The P18.99 Intel Bedrock decoder change is implemented but still awaits his same-world pre-render check. The other open work from Cameron’s macOS owner testing is listed below. Completed implementation records and release history are in [the archive](rolling-plan-archive.md#october-23-2026--implemented-owner-testing-findings-and-release-work). Owner checks are not implied by a DONE implementation status.
+**Current priority:** v0.1.38 is published. P16.134 prepares a local Intel candidate for Cameron's Xbox Broadcast sign-in migration retest. The P18.99 Intel Bedrock decoder change is implemented but still awaits his same-world pre-render check. The other open work from Cameron’s macOS owner testing is listed below. Completed implementation records and release history are in [the archive](rolling-plan-archive.md#october-23-2026--implemented-owner-testing-findings-and-release-work). Owner checks are not implied by a DONE implementation status.
 
 ## macOS owner testing — 0.1.32
 
@@ -125,3 +125,14 @@ The current private converted cache was inspected read-only. Its five Overworld 
 - **Verify:** Install `target/release-artifacts/MSC-2-intel-broadcast-auth-candidate.dmg`, repair the agent, start Broadcast on the existing signed-in server, then initiate the second Broadcast-enabled server. Run `test -s "$HOME/Library/Application Support/MSC 2/helpers/xbox-broadcast/auth/cache.json"` on that Mac; it should exit successfully. Confirm the second server starts without another Microsoft device code and its target still points to itself. On a host that skipped the setup download, enabling Broadcast later should acquire the shared JAR before sign-in. Keep the original server's `.msc2-broadcast/cache` during this check.
 - **Batch:** P16.133 only.
 - **Commit:** `P16.133: reuse xbox broadcast sign-in across servers`
+
+**Retest (2026-10-23):** Cameron installed the P16.133 candidate on the Intel Mac. Starting Broadcast for Test 2 reported that several existing sign-ins differ. This is a false conflict when the same Xbox account has separate refreshed token files: P16.133 compared entire cache files rather than account identity. No existing cache was deleted.
+
+**P16.134 — Recognize the same Xbox account across refreshed caches**
+
+- **Status:** Implementation prepared; unsigned Intel candidate packaged; owner verification pending.
+- **Files:** `crates/msc-agent/src/routes/networking.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Read the stable `xboxUserProfile.id` saved by the broadcaster's MinecraftAuth library. During upgrade migration, accept multiple cache files for that account even when their tokens differ, and promote the newest file to agent storage. Keep rejecting a genuine account conflict or caches without enough identity evidence. Preserve every original per-server file.
+- **Verify:** Install `target/release-artifacts/MSC-2-intel-broadcast-auth-migration-candidate.dmg`, repair the agent, then start Broadcast on Test 2. Confirm the differing-sign-ins error is gone and no Microsoft device code is requested. Run `test -s "$HOME/Library/Application Support/MSC 2/helpers/xbox-broadcast/auth/cache.json"` to confirm the host copy exists.
+- **Batch:** P16.134 only.
+- **Commit:** `P16.134: recognize matching xbox broadcast accounts`

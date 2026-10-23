@@ -66,6 +66,102 @@ const PLAYIT_CONTROL_SESSION_MAX_RESTARTS: u8 = 3;
 // Cancelled preparations can overlap a replacement download. Serialize only
 // artifact promotion, without holding the live helper's state lock.
 static BROADCAST_ACQUISITION_LOCK: Mutex<()> = Mutex::new(());
+static BROADCAST_AUTH_LOCK: Mutex<()> = Mutex::new(());
+
+fn broadcast_auth_file() -> PathBuf {
+    config_repository::default_app_data_dir().join("helpers/xbox-broadcast/auth/cache.json")
+}
+
+fn server_broadcast_auth_file(server: &ConfigServer) -> PathBuf {
+    Path::new(&server.server_dir).join(".msc2-broadcast/cache/cache.json")
+}
+
+fn read_broadcast_auth(path: &Path) -> Result<Option<Vec<u8>>, String> {
+    let bytes = match std::fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(format!("Cannot read Xbox Broadcast sign-in: {error}")),
+    };
+    if bytes.is_empty() {
+        return Ok(None);
+    }
+    serde_json::from_slice::<serde_json::Value>(&bytes)
+        .map_err(|_| "Xbox Broadcast sign-in cache is incomplete or invalid".to_string())?;
+    Ok(Some(bytes))
+}
+
+fn write_broadcast_auth(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    let parent = path
+        .parent()
+        .ok_or("Xbox Broadcast sign-in path has no parent")?;
+    std::fs::create_dir_all(parent)
+        .map_err(|error| format!("Cannot create Xbox Broadcast sign-in directory: {error}"))?;
+    let temporary = path.with_extension("json.tmp");
+    std::fs::write(&temporary, bytes)
+        .map_err(|error| format!("Cannot stage Xbox Broadcast sign-in: {error}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&temporary, std::fs::Permissions::from_mode(0o600))
+            .map_err(|error| format!("Cannot protect Xbox Broadcast sign-in: {error}"))?;
+    }
+    #[cfg(windows)]
+    if path.exists() {
+        std::fs::remove_file(path)
+            .map_err(|error| format!("Cannot replace Xbox Broadcast sign-in: {error}"))?;
+    }
+    std::fs::rename(&temporary, path)
+        .map_err(|error| format!("Cannot save Xbox Broadcast sign-in: {error}"))
+}
+
+fn prepare_broadcast_auth(servers: &[ConfigServer], server: &ConfigServer) -> Result<(), String> {
+    let _guard = BROADCAST_AUTH_LOCK
+        .lock()
+        .expect("Broadcast auth lock poisoned");
+    let host = broadcast_auth_file();
+    if read_broadcast_auth(&host)?.is_none() {
+        let mut candidates = Vec::new();
+        for existing in servers {
+            if let Some(bytes) = read_broadcast_auth(&server_broadcast_auth_file(existing))?
+                && !candidates.contains(&bytes)
+            {
+                candidates.push(bytes);
+            }
+        }
+        match candidates.len() {
+            0 => {}
+            1 => write_broadcast_auth(&host, &candidates[0])?,
+            _ => return Err("Several existing Xbox Broadcast sign-ins differ. Their files are preserved; choose one account before enabling host-wide sign-in.".into()),
+        }
+    }
+    let target = server_broadcast_auth_file(server);
+    if let Some(bytes) = read_broadcast_auth(&host)? {
+        // A live helper owns its working file. This runs only before launch.
+        write_broadcast_auth(&target, &bytes)?;
+    }
+    Ok(())
+}
+
+fn capture_broadcast_auth(server: &ConfigServer) -> Result<(), String> {
+    let _guard = BROADCAST_AUTH_LOCK
+        .lock()
+        .expect("Broadcast auth lock poisoned");
+    let source = server_broadcast_auth_file(server);
+    let Some(bytes) = read_broadcast_auth(&source)? else {
+        return Ok(());
+    };
+    let host = broadcast_auth_file();
+    let source_time = std::fs::metadata(&source)
+        .and_then(|meta| meta.modified())
+        .ok();
+    let host_time = std::fs::metadata(&host)
+        .and_then(|meta| meta.modified())
+        .ok();
+    if host_time.is_none_or(|host_time| source_time.is_some_and(|time| time > host_time)) {
+        write_broadcast_auth(&host, &bytes)?;
+    }
+    Ok(())
+}
 
 #[derive(Debug, Clone, Copy)]
 struct PendingPlayitStart {
@@ -247,6 +343,12 @@ impl PlayitLifecycleController {
             return;
         }
         if let Err(error) = prepare_broadcast_config(&self.lifecycle, server, &working_directory) {
+            self.lifecycle.append_console_line("xbox-broadcast", &error);
+            return;
+        }
+        if let Err(error) =
+            prepare_broadcast_auth(&self.lifecycle.app_config_snapshot().servers, server)
+        {
             self.lifecycle.append_console_line("xbox-broadcast", &error);
             return;
         }
@@ -828,11 +930,15 @@ fn spawn_broadcast_output_pump(
         loop {
             interval.tick().await;
             let mut transport_updates = Vec::new();
+            let mut running_servers = Vec::new();
             {
                 let Ok(mut services) = services.lock() else {
                     continue;
                 };
                 for (server_id, service) in services.iter_mut() {
+                    if service.process_is_running() {
+                        running_servers.push(server_id.clone());
+                    }
                     match service.poll() {
                         Ok(lines) => {
                             for line in lines {
@@ -863,6 +969,16 @@ fn spawn_broadcast_output_pump(
                     FirstRunTransport::Broadcast,
                     status,
                 );
+            }
+            let config = lifecycle.app_config_snapshot();
+            for server in config
+                .servers
+                .iter()
+                .filter(|server| running_servers.contains(&server.id))
+            {
+                if let Err(error) = capture_broadcast_auth(server) {
+                    lifecycle.append_console_line("xbox-broadcast", &error);
+                }
             }
         }
     });
@@ -1869,6 +1985,29 @@ pub async fn clear_broadcast_credentials(
         return response;
     }
     let config = state.lifecycle.app_config_snapshot();
+    {
+        let mut services = state
+            .broadcast
+            .lock()
+            .expect("Broadcast service lock poisoned");
+        for service in services.values_mut() {
+            if let Err(error) = service.stop() {
+                return helper_error_response(error.to_string(), "broadcast_stop_failed");
+            }
+        }
+    }
+    let _auth_guard = BROADCAST_AUTH_LOCK
+        .lock()
+        .expect("Broadcast auth lock poisoned");
+    for path in std::iter::once(broadcast_auth_file())
+        .chain(config.servers.iter().map(server_broadcast_auth_file))
+    {
+        if let Err(error) = std::fs::remove_file(path)
+            && error.kind() != std::io::ErrorKind::NotFound
+        {
+            return helper_error_response(error.to_string(), "broadcast_auth_clear_failed");
+        }
+    }
     let secret_keys = std::iter::once(
         msc_infrastructure::xbox_broadcast::global_alt_password_secret_key().to_string(),
     )
@@ -2045,6 +2184,11 @@ fn request_broadcast_start(
     let _ = std::fs::create_dir_all(&workdir);
     if let Err(error) = prepare_broadcast_config(&state.lifecycle, &server, &workdir) {
         return helper_error_response(error, "broadcast_config_failed");
+    }
+    if let Err(error) =
+        prepare_broadcast_auth(&state.lifecycle.app_config_snapshot().servers, &server)
+    {
+        return helper_error_response(error, "broadcast_auth_failed");
     }
     let launch = xbox_broadcast::XboxBroadcastLaunch {
         java_path: PathBuf::from(state.lifecycle.app_config_snapshot().java_path),

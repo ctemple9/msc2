@@ -116,3 +116,12 @@ The current private converted cache was inspected read-only. Its five Overworld 
 - **Verify:** Install `target/release-artifacts/MSC-2-intel-initiate-stop-candidate.dmg` on the other Mac, repair the agent, and initiate the Paper server again. Confirm the first run stops, the connection stage opens, and no `stopping -> stopping` or `running -> starting` error appears. Complete or defer Broadcast and confirm the second run stops with the setup sheet complete.
 - **Batch:** P16.132 only.
 - **Commit:** `P16.132: accept an in-progress java stop`
+
+**P16.133 — Reuse Xbox Broadcast sign-in across servers on one agent**
+
+- **Status:** Implementation prepared; unsigned Intel candidate packaged; owner verification pending.
+- **Files:** `crates/msc-agent/src/routes/networking.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** On the first Broadcast start after upgrading, copy a single existing server sign-in into agent-owned storage, then seed each later server's standalone helper from it. Keep each server's target configuration and non-auth cache separate. Capture refreshed sign-in data while a helper runs. Clear the host and server copies when credentials are cleared. If multiple existing sign-in files differ, preserve them and report the conflict instead of selecting an account silently. The shared JAR acquisition path remains independent of when setup first downloaded it. Concurrent standalone processes may refresh the same Microsoft account independently; this build does not establish a single refresh owner.
+- **Verify:** Install `target/release-artifacts/MSC-2-intel-broadcast-auth-candidate.dmg`, repair the agent, start Broadcast on the existing signed-in server, then initiate the second Broadcast-enabled server. Run `test -s "$HOME/Library/Application Support/MSC 2/helpers/xbox-broadcast/auth/cache.json"` on that Mac; it should exit successfully. Confirm the second server starts without another Microsoft device code and its target still points to itself. On a host that skipped the setup download, enabling Broadcast later should acquire the shared JAR before sign-in. Keep the original server's `.msc2-broadcast/cache` during this check.
+- **Batch:** P16.133 only.
+- **Commit:** `P16.133: reuse xbox broadcast sign-in across servers`

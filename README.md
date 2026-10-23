@@ -17,7 +17,7 @@ everything first.
 
 ## Download and install
 
-Download [MSC 2 v0.1.37](https://github.com/ctemple9/msc2/releases/tag/v0.1.37)
+Download [MSC 2 v0.1.38](https://github.com/ctemple9/msc2/releases/tag/v0.1.38)
 and choose the file for your computer. The desktop app includes the agent.
 
 - **Mac:** Open the `.dmg` and drag MSC 2 to Applications.
@@ -28,7 +28,7 @@ and choose the file for your computer. The desktop app includes the agent.
 
 Update the macOS or Windows desktop app from its built-in updater. Update Linux
 packages with `apt` or `dnf`. For a headless install, run `msc update check`,
-then `msc update install --release-id 0.1.37`.
+then `msc update install --release-id 0.1.38`.
 
 ## What MSC 2 does
 
@@ -279,17 +279,18 @@ Swift is used for the macOS Bedrock runtime.
 
 ## Current release and support
 
-The latest published build is [MSC 2 v0.1.37](https://github.com/ctemple9/msc2/releases/tag/v0.1.37),
+The latest published build is [MSC 2 v0.1.38](https://github.com/ctemple9/msc2/releases/tag/v0.1.38),
 a prerelease. There is no stable release yet. Download the
 platform-specific installer or archive from that release page and verify its
 entry in `SHA256SUMS` before installing. The Phase 16 acceptance record
 (P16.29) is still open; this prerelease has not passed the full physical
 release acceptance gate.
 
-v0.1.37 includes the Intel Bedrock renderer checksum fix. It also signs the bundled
-macOS tools and notarizes and staples the disk images for both architectures. See
-[release notes](docs/msc2/release/v0.1.37.md).
-The earlier v0.1.33 through v0.1.35 release candidates were not published.
+v0.1.38 includes the Intel Bedrock renderer checksum fix and the libdeflate
+compiler flag correction. It signs the bundled macOS tools and notarizes and
+staples the disk images for both architectures. See its
+[release notes](docs/msc2/release/v0.1.38.md).
+The v0.1.33 through v0.1.35 and v0.1.37 release candidates were not published.
 
 v0.1.32 gives Java and Bedrock saved-terrain maps the same persistent renderer,
 camera-led detail, optional pre-render, and incremental refresh path. It also
@@ -319,7 +320,7 @@ of these fixes remains open. Existing root-owned Bedrock data still requires
 the one-time ownership repair described in the release history.
 
 **macOS 0.1.25/0.1.26:** stop the Minecraft server, quit MSC 2, manually install
-v0.1.37 from its disk image, and repair the agent once. The older updater's helper
+v0.1.38 from its disk image, and repair the agent once. The older updater's helper
 contains the rollback bug; subsequent updates can use the corrected updater.
 
 | Installation | Published platform and architecture | Supported control surface |

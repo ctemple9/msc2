@@ -137,6 +137,19 @@
 **Release failure (2026-10-23):** The Apple Silicon job passed. Linux and Windows failed while compiling Vantage's `adler32.c`: its new standalone compile entry omitted the AVX-512 exclusion flags passed to the other libdeflate C sources. Intel macOS built, signed, and notarized the app, then `xcrun stapler validate` failed with error 68 after a lost connection to Apple's CloudKit ticket service. Publication was skipped. The v0.1.37 tag remains fixed. P18.97 restores the missing compile flags; the next attempt must use a new tag.
 
 
+
+## v0.1.38 release candidate
+
+**Owner request (2026-10-22, continued):** Publish the Intel Bedrock renderer fix after Cameron confirmed the local candidate on the second Intel Mac. Preserve the failed v0.1.37 tag; use v0.1.38.
+
+**P16.129 — Prepare and launch v0.1.38 release**
+
+- **Status:** Source prepared; immutable tag launch pending; workflow publication pending.
+- **Files:** `crates/msc-agent/Cargo.toml`; `Cargo.lock`; `clients/desktop-web/package.json`; `clients/desktop-web/package-lock.json`; `clients/desktop-web/src-tauri/Cargo.toml`; `clients/desktop-web/src-tauri/Cargo.lock`; `clients/desktop-web/src-tauri/tauri.conf.json`; `clients/desktop-web/src/lib/bundle-identity.ts`; `clients/desktop-web/static/bundle-identity.json`; `docs/msc2/release/v0.1.38.md`; `README.md`; `docs/msc2/rolling-plan.md`.
+- **What:** Align all release identities at 0.1.38, include the Intel Bedrock fix and corrected Vantage compiler flags, document v0.1.37's failures, and launch a new immutable tag through the unchanged build-only workflow.
+- **Verify:** Run `gh run list --workflow release.yml --limit 1 --repo ctemple9/msc2`; after completion, confirm all four platform jobs pass and the release has all nine desktop and headless artifacts, `SHA256SUMS`, `msc2-update-manifest.json`, and `msc2-update-manifest.sig`.
+- **Batch:** P16.129 only.
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

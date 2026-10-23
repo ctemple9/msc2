@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** v0.1.38 is published. P16.134 prepares a local Intel candidate for Cameron's Xbox Broadcast sign-in migration retest. The P18.99 Intel Bedrock decoder change is implemented but still awaits his same-world pre-render check. The other open work from Cameron’s macOS owner testing is listed below. Completed implementation records and release history are in [the archive](rolling-plan-archive.md#october-23-2026--implemented-owner-testing-findings-and-release-work). Owner checks are not implied by a DONE implementation status.
+**Current priority:** v0.1.38 is published. P16.135 implements the World Packs and Datapacks card layout; owner verification is pending. The P18.99 Intel Bedrock decoder change is implemented but still awaits his same-world pre-render check. The other open work from Cameron’s macOS owner testing is listed below. Completed implementation records and release history are in [the archive](rolling-plan-archive.md#october-23-2026--implemented-owner-testing-findings-and-release-work). Owner checks are not implied by a DONE implementation status.
 
 ## macOS owner testing — 0.1.32
 
@@ -136,3 +136,14 @@ The current private converted cache was inspected read-only. Its five Overworld 
 - **Verify:** Install `target/release-artifacts/MSC-2-intel-broadcast-auth-migration-candidate.dmg`, repair the agent, then start Broadcast on Test 2. Confirm the differing-sign-ins error is gone and no Microsoft device code is requested. Run `test -s "$HOME/Library/Application Support/MSC 2/helpers/xbox-broadcast/auth/cache.json"` to confirm the host copy exists.
 - **Batch:** P16.134 only.
 - **Commit:** `P16.134: recognize matching xbox broadcast accounts`
+
+**Owner check (2026-10-23):** Cameron reported that the P16.134 Intel candidate reused the Xbox Broadcast sign-in successfully on Test 2.
+
+**P16.135 — Give each world pack and datapack its own action card**
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte`; `docs/msc2/rolling-plan.md`.
+- **What:** Render each Bedrock world pack and Java datapack in its own card. Make the whole row open an action menu, put a chevron at the far end, and offer Enable/Disable and Delete for both editions. Keep Java's View action and the existing delete confirmation. Preserve the Bedrock pack summary and Required control above the cards.
+- **Verify:** Open a Bedrock world with no packs and confirm the count, Browse Packs control, and empty state share one card. Open a Bedrock world with packs and a Java world with datapacks; confirm each pack has its own clickable card and trailing arrow. Open each menu and confirm Enable/Disable and Delete are present. Run `cd clients/desktop-web && npm run check`.
+- **Batch:** P16.135 only.
+- **Commit:** `P16.135: show world packs as action cards`

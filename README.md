@@ -17,15 +17,16 @@ everything first.
 
 ## Current release and support
 
-The latest published build is [MSC 2 v0.1.32](https://github.com/ctemple9/msc2/releases/tag/v0.1.32),
+The latest published build is [MSC 2 v0.1.36](https://github.com/ctemple9/msc2/releases/tag/v0.1.36),
 a prerelease. There is no stable release yet. Download the
 platform-specific installer or archive from that release page and verify its
 entry in `SHA256SUMS` before installing. The Phase 16 acceptance record
 (P16.29) is still open; this prerelease has not passed the full physical
 release acceptance gate.
 
-The v0.1.33 build failed Apple notarization and was not published. Its macOS
-packaging fix is awaiting a new release candidate.
+v0.1.36 signs the bundled macOS tools and notarizes and staples the disk images
+for both Intel and Apple Silicon Macs. See its [release notes](docs/msc2/release/v0.1.36.md).
+The earlier v0.1.33 through v0.1.35 release candidates were not published.
 
 v0.1.32 gives Java and Bedrock saved-terrain maps the same persistent renderer,
 camera-led detail, optional pre-render, and incremental refresh path. It also
@@ -55,7 +56,7 @@ of these fixes remains open. Existing root-owned Bedrock data still requires
 the one-time ownership repair described in the release history.
 
 **macOS 0.1.25/0.1.26:** stop the Minecraft server, quit MSC 2, manually install
-v0.1.32 from its disk image, and repair the agent once. The older updater's helper
+v0.1.36 from its disk image, and repair the agent once. The older updater's helper
 contains the rollback bug; subsequent updates can use the corrected updater.
 
 | Installation | Published platform and architecture | Supported control surface |
@@ -71,8 +72,8 @@ macOS and Windows operating-system version minimums are not stated in the
 current release contract. Apple Silicon Macs can manage Java servers locally
 and remote hosts, but local Bedrock requires an Intel Mac.
 
-The planned next macOS desktop release will be Developer ID signed and
-notarized. The current v0.1.32 app is unsigned. Windows has no Authenticode
+The macOS desktop apps are Developer ID signed, and the distributed disk images
+are notarized and stapled. Windows has no Authenticode
 signature, and Linux packages are not distributed through a signed
 MSC package repository. Standalone headless archives are unsigned. The signed update
 manifest verifies update metadata and is not a publisher signature on the
@@ -247,26 +248,26 @@ app already includes the MSC 2 agent; you do not need to download both.
   environment. Manage it from another computer with the desktop app or CLI.
 ### macOS desktop — Intel and Apple Silicon Macs
 
-Download the matching macOS disk image from the [v0.1.32 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.32), open it, and drag MSC 2 into your Applications folder. Intel Macs include the local Bedrock runtime. Apple Silicon Macs include the app and Java runtime support, but no local Bedrock VM; Bedrock servers can still be managed on a compatible remote host.
+Download the matching macOS disk image from the [v0.1.36 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.36), open it, and drag MSC 2 into your Applications folder. Intel Macs include the local Bedrock runtime. Apple Silicon Macs include the app and Java runtime support, but no local Bedrock VM; Bedrock servers can still be managed on a compatible remote host.
 
 ### Windows desktop — 64-bit Windows
 
-Download the Windows `.msi` installer from the [v0.1.32 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.32) and follow the installation prompts.
+Download the Windows `.msi` installer from the [v0.1.36 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.36) and follow the installation prompts.
 
 ### Debian or Ubuntu desktop
 
-Download the Linux `.deb` package from the [v0.1.32 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.32), then install it with:
+Download the Linux `.deb` package from the [v0.1.36 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.36), then install it with:
 
 ~~~sh
-sudo apt install ./msc2-0.1.32-linux-x86_64.deb
+sudo apt install ./msc2-0.1.36-linux-x86_64.deb
 ~~~
 
 ### Fedora or other RPM-based Linux
 
-Download the Linux `.rpm` package from the [v0.1.32 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.32), then install it with:
+Download the Linux `.rpm` package from the [v0.1.36 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.36), then install it with:
 
 ~~~sh
-sudo dnf install ./msc2-0.1.32-linux-x86_64.rpm
+sudo dnf install ./msc2-0.1.36-linux-x86_64.rpm
 ~~~
 
 ### Headless agent — macOS, Windows, and Linux

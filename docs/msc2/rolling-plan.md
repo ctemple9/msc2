@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** P16.124 prepares v0.1.36 with notarization and stapling on the finished macOS DMGs. The earlier v0.1.33, v0.1.34, and v0.1.35 tags remain fixed and none of those candidates was published. No phase gate or exact-release artifact acceptance is implied. Cameron closed and archived the Java-first and Bedrock saved-terrain work through P18.95 on October 21, 2026. His Bedtonic check confirmed the latest biome-colour fix works. The [archived step records](rolling-plan-archive.md#october-21-2026--java-and-bedrock-saved-terrain-map-work) preserve the implementation history; [pending acceptance](pending-acceptance.md) and the [Phase 18 parity worksheet](phase18-map-acceptance.md#p1889--java-and-bedrock-map-parity-worksheet) retain checks that have not been recorded as passed.
+**Current priority:** v0.1.36 is published with signed macOS apps and notarized, stapled disk images. Cameron's first-open check using the downloaded Intel DMG remains pending. The earlier v0.1.33, v0.1.34, and v0.1.35 tags remain fixed and none of those candidates was published. No phase gate or exact-release artifact acceptance is implied. Cameron closed and archived the Java-first and Bedrock saved-terrain work through P18.95 on October 21, 2026. His Bedtonic check confirmed the latest biome-colour fix works. The [archived step records](rolling-plan-archive.md#october-21-2026--java-and-bedrock-saved-terrain-map-work) preserve the implementation history; [pending acceptance](pending-acceptance.md) and the [Phase 18 parity worksheet](phase18-map-acceptance.md#p1889--java-and-bedrock-map-parity-worksheet) retain checks that have not been recorded as passed.
 
 ## v0.1.33 release candidate
 
@@ -69,6 +69,16 @@
 - **What:** Align release identities at 0.1.36, document the final-DMG notarization change, and launch a new immutable tag through the existing build-only workflow. Keep all three failed candidate tags fixed.
 - **Verify:** Inspect the v0.1.36 release workflow and, after publication, check the release page for all nine platform artifacts, `SHA256SUMS`, and both signed update metadata files. Cameron then installs the exact Intel macOS DMG on a clean Mac and opens it through Finder.
 - **Batch:** P16.124 only.
+
+**Release outcome (2026-10-22):** [v0.1.36](https://github.com/ctemple9/msc2/releases/tag/v0.1.36) published as a prerelease. In the first workflow attempt, the Apple Silicon runner could not resolve `static.crates.io` while downloading a Rust dependency; the Intel macOS, Windows, and Linux jobs succeeded. A selective retry of the failed job on the same immutable tag succeeded. Both macOS jobs reported accepted notarization for their final DMGs, stapled and validated those DMGs, and passed signature and Gatekeeper checks on the apps inside. The completed release has all nine desktop and headless artifacts, `SHA256SUMS`, and both signed update metadata files. Cameron's Finder first-open check of the downloaded Intel DMG is still pending.
+
+**P16.125 — Point public install instructions to v0.1.36**
+
+- **Status:** Documentation updated; owner verification of the published download remains pending.
+- **Files:** `README.md`; `docs/msc2/rolling-plan.md`.
+- **What:** Point the current-release and install instructions to the published v0.1.36 artifacts, describe the macOS signing state, and record the release outcome without treating Cameron's first-open check as passed.
+- **Verify:** Open `https://github.com/ctemple9/msc2/releases/tag/v0.1.36` and confirm the nine platform artifacts, `SHA256SUMS`, `msc2-update-manifest.json`, and `msc2-update-manifest.sig`; then inspect the README install links. Cameron opens the downloaded Intel DMG through Finder to close Finding 1.
+- **Batch:** P16.125 only.
 
 ## macOS owner testing — 0.1.32
 

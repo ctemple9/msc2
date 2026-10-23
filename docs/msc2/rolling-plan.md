@@ -90,3 +90,18 @@ The current private converted cache was inspected read-only. Its five Overworld 
 **Verify:** Run `rg -n "^### Finding|^### P16\.130" docs/msc2/rolling-plan.md` and confirm only Findings 5, 9, 10, and 15 remain, alongside this cleanup step. Check the archive for Findings 1–4, 6–8, 11–14, and 16–25 and their original Verify lines.
 **Batch:** P16.130 only.
 **Commit:** `P16.130: archive implemented owner-testing work`
+
+### Finding 26 — Initiate tries to start Paper while it is already running
+
+**What Cameron experienced:** On the Intel Mac, initiating a Paper server with Geyser, Floodgate, and Xbox Broadcast repeatedly ends with `illegal lifecycle transition: running -> starting`. Restarting the agent and trying three times did not clear it. The console shows Paper reached `Done` and Geyser started its UDP listener, so the diagnosis incorrectly says the server could not start. The JNA hardware-report warnings and Geyser's NetherNet warning are separate from this lifecycle error.
+
+**Investigation:** The agent enters its coordinated first-start flow only while no world has been generated and the first-start popup has not been completed. An earlier attempt can leave a generated world while the popup remains incomplete. On the next attempt the agent treats Paper's start as ordinary and marks the operation successful at `Ready`, while the process remains running. The desktop sheet assumes every successful first pass stopped the process, moves to connection setup, then sends a second Start. The agent correctly rejects that transition from Running to Starting. This is independent of port forwarding; Xbox Broadcast may still need a reachable Bedrock target for outside players.
+
+**P16.131 — Stop an ordinary first pass before connection setup**
+
+- **Status:** Fix prepared; unsigned Intel candidate packaged; owner verification pending.
+- **Files:** `clients/desktop-web/src/lib/sections/server-editor/FirstStartSheet.svelte`; `docs/msc2/rolling-plan.md`.
+- **What:** When the agent's first Start succeeds without a coordinated first-pass completion marker, stop that running process and confirm it is stopped before connection setup and the second Start. Preserve the existing coordinated first-start path.
+- **Verify:** Install `target/release-artifacts/MSC-2-intel-initiate-candidate.dmg` on the Intel Mac, repair the agent, then initiate the same Paper server whose world folder already exists. Confirm the first pass stops before the connection stage, the second pass does not report `running -> starting`, and the sheet reaches completion or reports a specific connection failure. Check the server is stopped at completion.
+- **Batch:** P16.131 only.
+- **Commit:** `P16.131: stop ordinary first pass before connection setup`

@@ -2,9 +2,17 @@
 
 **Current priority:** v0.1.36 remains the latest published release. Cameron confirmed the P18.96 Intel Bedrock renderer candidate opens the same world on the second Intel Mac. The v0.1.37 release attempt exposed a build regression: isolating `adler32.c` dropped Zig 0.16 AVX-512 exclusion flags required by Linux and Windows; its Intel build later hit a transient CloudKit network failure while validating the stapled DMG. The v0.1.37 tag remains fixed and unpublished. P18.97 restores those flags, and v0.1.38 is the next release candidate. Earlier v0.1.33, v0.1.34, and v0.1.35 tags remain fixed and unpublished. Cameron closed and archived the Java-first and Bedrock saved-terrain work through P18.95 on October 21, 2026. The [archived step records](rolling-plan-archive.md#october-21-2026--java-and-bedrock-saved-terrain-map-work) preserve the implementation history; [pending acceptance](pending-acceptance.md) and the [Phase 18 parity worksheet](phase18-map-acceptance.md#p1889--java-and-bedrock-map-parity-worksheet) retain checks that have not been recorded as passed.
 
+### P18.98 — Retry transient Apple ticket lookup failures
+
+**Status:** Workflow correction prepared; release verification pending.
+**Files:** `.github/workflows/release.yml`; `docs/msc2/rolling-plan.md`.
+**What:** The v0.1.37 Intel DMG was signed, notarized, and accepted by Gatekeeper, but `stapler validate` failed when Apple's CloudKit ticket lookup lost its network connection (`NSURLErrorDomain` -1005, error 68). Retry only that explicit connection-loss failure up to three times. Invalid or missing tickets and all other errors still fail immediately.
+**Verify:** In the next release run, confirm a transient CloudKit connection loss retries and later validates, while the step still rejects a DMG without a valid stapled ticket.
+**Batch:** P18.98 only.
+
 ### P18.97 — Preserve libdeflate compiler flags on every target
 
-**Status:** Fix prepared; release build verification pending.
+**Status:** Fix prepared; Linux and Windows GNU cross-builds pass; tagged workflow verification pending.
 **Files:** `third_party/vantage/build.zig`; `docs/msc2/rolling-plan.md`.
 **What:** The v0.1.37 Linux and Windows renderer builds failed because moving `adler32.c` into its own compile entry omitted the two AVX-512 exclusion flags used for libdeflate's other C files. Keep those flags on `adler32.c` for every target and add the portable Adler-32 define only for Intel macOS. The Intel v0.1.37 app built and notarized, but Apple's stapled-ticket validation then failed after its CloudKit connection dropped (error 68); Apple Silicon passed.
 **Verify:** In the next tagged release workflow, confirm the Linux and Windows staging steps compile Vantage successfully and both macOS jobs complete stapled-DMG validation.

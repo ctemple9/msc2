@@ -250,7 +250,22 @@ jobs:
           test -n "$app_bundle" || { echo "Tauri disk image contains no app" >&2; exit 1; }
           codesign --verify --deep --strict --verbose=2 "$app_bundle"
           spctl --assess --type execute --verbose=4 "$app_bundle"
-          xcrun stapler validate "$dmg"
+          stapler_attempt=1
+          while true; do
+            if stapler_output="$(xcrun stapler validate "$dmg" 2>&1)"; then
+              printf '%s\n' "$stapler_output"
+              break
+            else
+              stapler_status=$?
+              printf '%s\n' "$stapler_output" >&2
+              if (( stapler_attempt >= 3 )) || ! grep -Eqi 'Code=-1005|network connection was lost' <<< "$stapler_output"; then
+                exit "$stapler_status"
+              fi
+              echo "Apple ticket lookup lost its network connection; retrying stapler validation ($((stapler_attempt + 1))/3)." >&2
+              stapler_attempt=$((stapler_attempt + 1))
+              sleep 10
+            fi
+          done
 
       - name: Build unsigned non-macOS Tauri installer
         if: matrix.platform == 'linux-x86_64'

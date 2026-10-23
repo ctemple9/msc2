@@ -23,6 +23,11 @@ pub fn build(b: *std.Build) void {
         }),
     });
     exe.root_module.addOptions("build_options", options);
+    // Intel macOS has crashed inside libdeflate's Adler-32 check while
+    // inflating converted Bedrock regions. Use the system zlib decoder there.
+    if (target.result.os.tag == .macos and target.result.cpu.arch == .x86_64) {
+        exe.root_module.linkSystemLibrary("z", .{});
+    }
     // Embed the public protocol contract from docs/ into the binary so
     // `GET /v1/openapi.json`, repository docs, and launcher generation all use
     // one exact source of truth.

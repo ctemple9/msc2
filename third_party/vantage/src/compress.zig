@@ -7,13 +7,43 @@
 //! chunks (compression type 2); gzip covers type 1 and `level.dat`.
 
 const std = @import("std");
+const builtin = @import("builtin");
 const c = @cImport({
     @cInclude("libdeflate.h");
 });
+const system_zlib = if (builtin.os.tag == .macos and builtin.cpu.arch == .x86_64)
+    @cImport({
+        @cInclude("zlib.h");
+    })
+else
+    struct {};
 
 /// Inflate a zlib-wrapped (RFC 1950) buffer into a freshly allocated slice.
 pub fn inflateZlib(allocator: std.mem.Allocator, src: []const u8) ![]u8 {
+    if (builtin.os.tag == .macos and builtin.cpu.arch == .x86_64)
+        return inflateSystemZlib(allocator, src);
     return inflate(allocator, src, .zlib);
+}
+
+fn inflateSystemZlib(allocator: std.mem.Allocator, src: []const u8) ![]u8 {
+    var cap: usize = @max(src.len *| 4, 128 * 1024);
+    while (true) {
+        const dst = try allocator.alloc(u8, cap);
+        var actual: system_zlib.uLongf = @intCast(cap);
+        const rc = system_zlib.uncompress(dst.ptr, &actual, src.ptr, @intCast(src.len));
+        switch (rc) {
+            system_zlib.Z_OK => return try allocator.realloc(dst, @intCast(actual)),
+            system_zlib.Z_BUF_ERROR => {
+                allocator.free(dst);
+                if (cap > std.math.maxInt(usize) / 2) return error.OutOfMemory;
+                cap *= 2;
+            },
+            else => {
+                allocator.free(dst);
+                return error.InflateFailed;
+            },
+        }
+    }
 }
 
 /// Inflate a gzip-wrapped (RFC 1952) buffer into a freshly allocated slice.

@@ -1,6 +1,14 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** v0.1.36 remains the latest published release. Cameron confirmed the P18.96 Intel Bedrock renderer candidate opens the same world on the second Intel Mac. The v0.1.37 release attempt exposed a build regression: isolating `adler32.c` dropped Zig 0.16 AVX-512 exclusion flags required by Linux and Windows; its Intel build later hit a transient CloudKit network failure while validating the stapled DMG. The v0.1.37 tag remains fixed and unpublished. P18.97 restores those flags, and v0.1.38 is the next release candidate. Earlier v0.1.33, v0.1.34, and v0.1.35 tags remain fixed and unpublished. Cameron closed and archived the Java-first and Bedrock saved-terrain work through P18.95 on October 21, 2026. The [archived step records](rolling-plan-archive.md#october-21-2026--java-and-bedrock-saved-terrain-map-work) preserve the implementation history; [pending acceptance](pending-acceptance.md) and the [Phase 18 parity worksheet](phase18-map-acceptance.md#p1889--java-and-bedrock-map-parity-worksheet) retain checks that have not been recorded as passed.
+**Current priority:** v0.1.38 is published. Cameron confirmed the Intel Bedrock map opens on the second Mac, but pre-render crashes Vantage in `libdeflate_adler32` while inflating another converted region chunk. P18.99 prepares an Intel-only decoder change for his same-world pre-render check. The v0.1.37 tag remains fixed and unpublished. Earlier v0.1.33, v0.1.34, and v0.1.35 tags remain fixed and unpublished. Cameron closed and archived the Java-first and Bedrock saved-terrain work through P18.95 on October 21, 2026. The [archived step records](rolling-plan-archive.md#october-21-2026--java-and-bedrock-saved-terrain-map-work) preserve the implementation history; [pending acceptance](pending-acceptance.md) and the [Phase 18 parity worksheet](phase18-map-acceptance.md#p1889--java-and-bedrock-map-parity-worksheet) retain checks that have not been recorded as passed.
+
+### P18.99 — Decode Intel macOS region zlib with the system library
+
+**Status:** Fix prepared; owner verification pending.
+**Files:** `third_party/vantage/build.zig`; `third_party/vantage/src/compress.zig`; `docs/msc2/rolling-plan.md`.
+**What:** The v0.1.38 Intel renderer serves visible map tiles, then pre-render crashes while inflating region chunks. The October 23 crash report again stops at `libdeflate_adler32`, this time on a pre-render connection thread, despite the portable Adler-32 build flag. Use macOS's zlib decoder for Intel region zlib chunks, leaving libdeflate and all other platforms' paths intact. The local Intel Vantage build links `/usr/lib/libz.1.dylib` and imports `uncompress`. The crash's exact low-level cause remains unknown; this change bypasses its observed path.
+**Verify:** Install the local Intel candidate on the second Mac, reopen the same Bedrock world, start pre-render, and run `tail -n 60 -f "$HOME/Library/Application Support/MSC 2/logs/agent.log"` to confirm cached tile count advances without a new `vantage` crash report or `Peer disconnected` lines.
+**Batch:** P18.99 only.
 
 ### P18.98 — Retry transient Apple ticket lookup failures
 

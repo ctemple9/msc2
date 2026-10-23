@@ -15,6 +15,21 @@ MSC 2 puts as much of that as possible into guided controls and explains the
 rest as you go, so you can learn what you need without having to master
 everything first.
 
+## Download and install
+
+Download [MSC 2 v0.1.36](https://github.com/ctemple9/msc2/releases/tag/v0.1.36)
+and choose the file for your computer. The desktop app includes the agent.
+
+- **Mac:** Open the `.dmg` and drag MSC 2 to Applications.
+- **Windows:** Open the `.msi` and follow the installer.
+- **Linux:** Install the `.deb` or `.rpm` with your package manager.
+- **Headless host:** Download its archive and follow the included
+  `HEADLESS-INSTALL.md`.
+
+Update the macOS or Windows desktop app from its built-in updater. Update Linux
+packages with `apt` or `dnf`. For a headless install, run `msc update check`,
+then `msc update install --release-id 0.1.36`.
+
 ## Current release and support
 
 The latest published build is [MSC 2 v0.1.36](https://github.com/ctemple9/msc2/releases/tag/v0.1.36),
@@ -236,72 +251,6 @@ If you are new to servers, there are two computers to think about:
 They can be the same computer. They can also be different computers. The
 players' consoles, phones, and gaming PCs are separate again: they connect to
 the Minecraft server but do not need MSC 2 installed.
-
-## Download and install
-
-Choose the installation that matches how you want to use MSC 2. The desktop
-app already includes the MSC 2 agent; you do not need to download both.
-
-- Use the **desktop app** when you want a graphical interface on the server
-  computer.
-- Use the **headless agent** when the server computer has no monitor or desktop
-  environment. Manage it from another computer with the desktop app or CLI.
-### macOS desktop — Intel and Apple Silicon Macs
-
-Download the matching macOS disk image from the [v0.1.36 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.36), open it, and drag MSC 2 into your Applications folder. Intel Macs include the local Bedrock runtime. Apple Silicon Macs include the app and Java runtime support, but no local Bedrock VM; Bedrock servers can still be managed on a compatible remote host.
-
-### Windows desktop — 64-bit Windows
-
-Download the Windows `.msi` installer from the [v0.1.36 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.36) and follow the installation prompts.
-
-### Debian or Ubuntu desktop
-
-Download the Linux `.deb` package from the [v0.1.36 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.36), then install it with:
-
-~~~sh
-sudo apt install ./msc2-0.1.36-linux-x86_64.deb
-~~~
-
-### Fedora or other RPM-based Linux
-
-Download the Linux `.rpm` package from the [v0.1.36 release](https://github.com/ctemple9/msc2/releases/tag/v0.1.36), then install it with:
-
-~~~sh
-sudo dnf install ./msc2-0.1.36-linux-x86_64.rpm
-~~~
-
-### Headless agent — macOS, Windows, and Linux
-
-Standalone headless archives are published for all three supported desktop
-platforms. They contain the same `msc` agent/CLI binary, with `msc.exe` on
-Windows. The archive's `HEADLESS-INSTALL.md` describes the platform-specific
-command location, PATH ownership, upgrade/uninstall boundary, and the separate
-operating-system service installation.
-
-The headless agent exposes its authenticated API and local CLI. Use `msc`
-from a terminal on that host or from an SSH login as the account that
-installed the agent. A Tauri desktop app can manage the host remotely through
-desktop pairing; the CLI does not select another host.
-
-Each standalone headless archive includes a platform command installer and
-uninstaller. macOS archives contain `install.sh` and `uninstall.sh`, Windows
-archives contain `install.ps1` and `uninstall.ps1`, and Linux archives contain
-`install.sh` and `uninstall.sh` plus the systemd definitions they need. These
-installers put the `msc` command on PATH; service registration remains a
-separate operating-system action. The release artifact contract is recorded in
-[`headless-installation.md`](docs/msc2/clients/headless-installation.md).
-
-### Updating a headless installation
-
-Signed releases can be checked and staged locally from the agent binary:
-
-~~~sh
-msc update check
-msc update install --release-id 0.1.29
-~~~
-
-The install command asks for a second confirmation. Pass `--yes` for
-automation, and add `--json` when a script needs machine-readable output.
 
 ## Start your first server
 

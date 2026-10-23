@@ -80,6 +80,14 @@
 - **Verify:** Open `https://github.com/ctemple9/msc2/releases/tag/v0.1.36` and confirm the nine platform artifacts, `SHA256SUMS`, `msc2-update-manifest.json`, and `msc2-update-manifest.sig`; then inspect the README install links. Cameron opens the downloaded Intel DMG through Finder to close Finding 1.
 - **Batch:** P16.125 only.
 
+**P16.126 — Move download instructions to the top of the README**
+
+- **Status:** Updated; awaiting Cameron's review.
+- **Files:** `README.md`; `docs/msc2/rolling-plan.md`.
+- **What:** Put a short v0.1.36 download and install guide immediately after the introduction, with one quick action per platform and the update path. Keep readers from having to scan detailed release history to find the right installer.
+- **Verify:** Confirm `## Download and install` appears before `## Current release and support`, and that the release link and headless update command point to v0.1.36.
+- **Batch:** P16.126 only.
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

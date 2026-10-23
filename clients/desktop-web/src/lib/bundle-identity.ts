@@ -1,6 +1,6 @@
 export const bundleIdentity = Object.freeze({
   id: 'msc2-shared-client',
-  version: '0.1.36',
+  version: '0.1.37',
 });
 
 export function bundleLabel(): string {

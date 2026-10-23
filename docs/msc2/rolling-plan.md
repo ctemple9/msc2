@@ -1,12 +1,12 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** v0.1.36 is published with signed macOS apps and notarized, stapled disk images. Cameron's October 21 Bedtonic check passed after P18.93 corrected the converted biome samples and P18.94 fixed progressive biome colours. The subsequent v0.1.36 release preparation changed version and release metadata only. On the other Intel agent host, the same world required a separate 1,608-region conversion (zero reused) and Vantage then crashed in libdeflate while checksumming a zlib chunk. P18.96 provides an Intel-only renderer candidate using portable Adler-32 to isolate that host-side crash. Release publication waits for Cameron's AirDrop test. The earlier v0.1.33, v0.1.34, and v0.1.35 tags remain fixed and none of those candidates was published. Cameron closed and archived the Java-first and Bedrock saved-terrain work through P18.95 on October 21, 2026. The [archived step records](rolling-plan-archive.md#october-21-2026--java-and-bedrock-saved-terrain-map-work) preserve the implementation history; [pending acceptance](pending-acceptance.md) and the [Phase 18 parity worksheet](phase18-map-acceptance.md#p1889--java-and-bedrock-map-parity-worksheet) retain checks that have not been recorded as passed.
+**Current priority:** v0.1.37 carries the Intel Bedrock renderer fix. Cameron confirmed the local Intel candidate opens the same world on the second Intel Mac. The release uses the unchanged build-only workflow; v0.1.36 remains the latest published release until v0.1.37 finishes publishing. P18.96's portable Adler-32 change isolates an Intel-specific libdeflate checksum crash during Vantage startup; the converted Bedrock data and renderer input are otherwise unchanged. Earlier v0.1.33, v0.1.34, and v0.1.35 tags remain fixed and unpublished. Cameron closed and archived the Java-first and Bedrock saved-terrain work through P18.95 on October 21, 2026. The [archived step records](rolling-plan-archive.md#october-21-2026--java-and-bedrock-saved-terrain-map-work) preserve the implementation history; [pending acceptance](pending-acceptance.md) and the [Phase 18 parity worksheet](phase18-map-acceptance.md#p1889--java-and-bedrock-map-parity-worksheet) retain checks that have not been recorded as passed.
 
 ### P18.96 — Use portable Adler-32 for Intel Bedrock map rendering
 
-**Status:** Awaiting Cameron's AirDrop verification of the local Intel DMG.
+**Status:** Candidate verified by Cameron on the second Intel Mac; release source prepared.
 **Files:** `third_party/vantage/build.zig`; `third_party/vantage/vendor/libdeflate/lib/adler32.c`; `docs/msc2/rolling-plan.md`.
-**What:** The Intel Vantage crash report stops in `libdeflate_adler32` while checking a zlib chunk during `bakeTileFromRegions`. Cameron had already confirmed the P18.93 converted biome data and P18.94 viewer fix worked on October 21; no map renderer or converter code changed between that check and v0.1.36. The failing host has its own converted-region cache and rebuilt all 1,608 regions, so its input path reached the crashing checksum under a separate host runtime. Compile only Intel macOS with libdeflate's portable Adler-32 routine, leaving other architectures and Bedrock conversion unchanged. Build a local Intel DMG for Cameron to test against the existing converted-region cache; publish no release until he confirms the map opens.
+**What:** The Intel Vantage crash report stops in `libdeflate_adler32` while checking a zlib chunk during `bakeTileFromRegions`. Cameron had already confirmed the P18.93 converted biome data and P18.94 viewer fix worked on October 21; no map renderer or converter code changed between that check and v0.1.36. The failing host has its own converted-region cache and rebuilt all 1,608 regions, so its input path reached the crashing checksum under a separate host runtime. Compile only Intel macOS with libdeflate's portable Adler-32 routine, leaving other architectures and Bedrock conversion unchanged. Build a local Intel DMG for Cameron to test on the second Intel Mac against the same world. Cameron confirmed the map opens with the fix.
 **Verify:** Install `target/release-artifacts/MSC-2-intel-map-candidate.dmg` on the Mac that hosts the agent, open the same Bedrock map, and confirm the log reports the converted regions reused, Vantage ready, and no renderer crash.
 **Batch:** P18.96 only.
 **Commit:** `P18.96: use portable adler32 on intel macOS`
@@ -104,6 +104,19 @@
 - **What:** Move the technical release history, platform support details, signing notes, update policy, and prerelease acceptance status to the end of the README so most users reach them only if they want those details.
 - **Verify:** Confirm `## Current release and support` is the final README section and that the top still links to v0.1.36 for quick downloads and updates.
 - **Batch:** P16.127 only.
+
+
+## v0.1.37 release candidate
+
+**Owner request (2026-10-22):** Publish the tested Intel Bedrock renderer fix as the next GitHub prerelease. The previous published release is `v0.1.36`; keep all earlier failed candidate tags fixed.
+
+**P16.128 — Prepare and launch v0.1.37 release**
+
+- **Status:** Source prepared; exact tag pushed; workflow publication pending.
+- **Files:** `crates/msc-agent/Cargo.toml`; `Cargo.lock`; `clients/desktop-web/package.json`; `clients/desktop-web/package-lock.json`; `clients/desktop-web/src-tauri/Cargo.toml`; `clients/desktop-web/src-tauri/Cargo.lock`; `clients/desktop-web/src-tauri/tauri.conf.json`; `clients/desktop-web/src/lib/bundle-identity.ts`; `clients/desktop-web/static/bundle-identity.json`; `docs/msc2/release/v0.1.37.md`; `README.md`; `docs/msc2/rolling-plan.md`.
+- **What:** Align release identities at 0.1.37, document the Intel renderer fix confirmed on the second Mac, and launch the unchanged build-only release workflow using a new immutable tag.
+- **Verify:** Run `gh run list --workflow release.yml --limit 1 --repo ctemple9/msc2`; after the run completes, confirm the v0.1.37 release has all nine desktop and headless artifacts, `SHA256SUMS`, `msc2-update-manifest.json`, and `msc2-update-manifest.sig`.
+- **Batch:** P16.128 only.
 
 ## macOS owner testing — 0.1.32
 

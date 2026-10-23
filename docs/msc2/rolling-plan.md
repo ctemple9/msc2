@@ -88,6 +88,14 @@
 - **Verify:** Confirm `## Download and install` appears before `## Current release and support`, and that the release link and headless update command point to v0.1.36.
 - **Batch:** P16.126 only.
 
+**P16.127 — Move release and support details to the README bottom**
+
+- **Status:** Updated; awaiting Cameron's review.
+- **Files:** `README.md`; `docs/msc2/rolling-plan.md`.
+- **What:** Move the technical release history, platform support details, signing notes, update policy, and prerelease acceptance status to the end of the README so most users reach them only if they want those details.
+- **Verify:** Confirm `## Current release and support` is the final README section and that the top still links to v0.1.36 for quick downloads and updates.
+- **Batch:** P16.127 only.
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

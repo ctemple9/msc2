@@ -30,84 +30,6 @@ Update the macOS or Windows desktop app from its built-in updater. Update Linux
 packages with `apt` or `dnf`. For a headless install, run `msc update check`,
 then `msc update install --release-id 0.1.36`.
 
-## Current release and support
-
-The latest published build is [MSC 2 v0.1.36](https://github.com/ctemple9/msc2/releases/tag/v0.1.36),
-a prerelease. There is no stable release yet. Download the
-platform-specific installer or archive from that release page and verify its
-entry in `SHA256SUMS` before installing. The Phase 16 acceptance record
-(P16.29) is still open; this prerelease has not passed the full physical
-release acceptance gate.
-
-v0.1.36 signs the bundled macOS tools and notarizes and staples the disk images
-for both Intel and Apple Silicon Macs. See its [release notes](docs/msc2/release/v0.1.36.md).
-The earlier v0.1.33 through v0.1.35 release candidates were not published.
-
-v0.1.32 gives Java and Bedrock saved-terrain maps the same persistent renderer,
-camera-led detail, optional pre-render, and incremental refresh path. It also
-corrects Bedrock block models, biome names and colours, and Depth camera jumps.
-See its [release notes](docs/msc2/release/v0.1.32.md).
-
-v0.1.31 added native file imports, storage management and service-setting
-improvements. See its [release notes](docs/msc2/release/v0.1.31.md).
-
-v0.1.30 corrects XboxBroadcast cancellation during Bedrock status polling and
-keeps helper downloads outside the broadcast state lock. See its
-[release notes](docs/msc2/release/v0.1.30.md).
-
-v0.1.29 fixes automatic remote SSH pairing on Macs whose SSH search path or
-pairing-storage settings differ from the desktop-installed agent. Pairing stays
-automatic without manual codes or shell-profile workarounds.
-
-Overview, Performance and Components now use lightweight running status instead
-of repeatedly scanning mod JARs for hidden health cards. The desktop continues
-watching long shutdowns and returns from Stopping to Start automatically. Intel
-Mac Bedrock VM workers exit after cleanup so stopped status and first-start
-completion can advance. See the [release notes](docs/msc2/release/v0.1.29.md).
-
-On Intel macOS, install the updated app and use **Repair agent** to register its
-matching agent and Bedrock helper before the next Bedrock start. Live acceptance
-of these fixes remains open. Existing root-owned Bedrock data still requires
-the one-time ownership repair described in the release history.
-
-**macOS 0.1.25/0.1.26:** stop the Minecraft server, quit MSC 2, manually install
-v0.1.36 from its disk image, and repair the agent once. The older updater's helper
-contains the rollback bug; subsequent updates can use the corrected updater.
-
-| Installation | Published platform and architecture | Supported control surface |
-|---|---|---|
-| Desktop app | macOS Intel (`x86_64`) and Apple Silicon (`aarch64`); Windows 64-bit (`x86_64`); Linux 64-bit (`x86_64`) as `.deb` and `.rpm` | Tauri desktop app |
-| Headless agent | macOS Intel (`x86_64`) and Apple Silicon (`aarch64`); Windows 64-bit (`x86_64`); Linux 64-bit (`x86_64`) | CLI in a local terminal or SSH shell on the host; remote Tauri desktop app |
-
-The Linux minimum is Debian 12 (Bookworm), or another distribution with
-`systemd` 250 or newer. Linux `.deb` and `.rpm` desktop packages are built for
-x86_64; the `.deb` is for Debian/Ubuntu systems and the `.rpm` is for Fedora
-and other RPM-based systems. No Linux arm64 artifact is published. The
-macOS and Windows operating-system version minimums are not stated in the
-current release contract. Apple Silicon Macs can manage Java servers locally
-and remote hosts, but local Bedrock requires an Intel Mac.
-
-The macOS desktop apps are Developer ID signed, and the distributed disk images
-are notarized and stapled. Windows has no Authenticode
-signature, and Linux packages are not distributed through a signed
-MSC package repository. Standalone headless archives are unsigned. The signed update
-manifest verifies update metadata and is not a publisher signature on the
-installers. The release page publishes checksums; a checksum confirms the
-download matches those published bytes, not who published them.
-
-Desktop app updates use the signed in-app update flow on macOS and Windows;
-Linux desktop packages remain managed by `apt` or `dnf`. Standalone headless
-archives use `msc update check` and `msc update install`; package-managed Linux
-installations remain with their package manager. The client/agent compatibility
-mechanism refuses clients below the agent's minimum supported version, but
-the project has not set a numeric version window such as N-3. Keep clients and
-agents current.
-
-Security fixes are currently promised only for the latest stable release, as
-described in [SECURITY.md](SECURITY.md). Since the published builds are prereleases and no
-stable release has been published, no release currently qualifies for that
-security-support policy.
-
 ## What MSC 2 does
 
 ### Manages Java and Bedrock servers
@@ -354,3 +276,81 @@ If I forgot to credit your project, that's on me. Let me know and I'll address t
 **Rust** · **Tauri** · **Svelte** · **Swift**
 
 Swift is used for the macOS Bedrock runtime.
+
+## Current release and support
+
+The latest published build is [MSC 2 v0.1.36](https://github.com/ctemple9/msc2/releases/tag/v0.1.36),
+a prerelease. There is no stable release yet. Download the
+platform-specific installer or archive from that release page and verify its
+entry in `SHA256SUMS` before installing. The Phase 16 acceptance record
+(P16.29) is still open; this prerelease has not passed the full physical
+release acceptance gate.
+
+v0.1.36 signs the bundled macOS tools and notarizes and staples the disk images
+for both Intel and Apple Silicon Macs. See its [release notes](docs/msc2/release/v0.1.36.md).
+The earlier v0.1.33 through v0.1.35 release candidates were not published.
+
+v0.1.32 gives Java and Bedrock saved-terrain maps the same persistent renderer,
+camera-led detail, optional pre-render, and incremental refresh path. It also
+corrects Bedrock block models, biome names and colours, and Depth camera jumps.
+See its [release notes](docs/msc2/release/v0.1.32.md).
+
+v0.1.31 added native file imports, storage management and service-setting
+improvements. See its [release notes](docs/msc2/release/v0.1.31.md).
+
+v0.1.30 corrects XboxBroadcast cancellation during Bedrock status polling and
+keeps helper downloads outside the broadcast state lock. See its
+[release notes](docs/msc2/release/v0.1.30.md).
+
+v0.1.29 fixes automatic remote SSH pairing on Macs whose SSH search path or
+pairing-storage settings differ from the desktop-installed agent. Pairing stays
+automatic without manual codes or shell-profile workarounds.
+
+Overview, Performance and Components now use lightweight running status instead
+of repeatedly scanning mod JARs for hidden health cards. The desktop continues
+watching long shutdowns and returns from Stopping to Start automatically. Intel
+Mac Bedrock VM workers exit after cleanup so stopped status and first-start
+completion can advance. See the [release notes](docs/msc2/release/v0.1.29.md).
+
+On Intel macOS, install the updated app and use **Repair agent** to register its
+matching agent and Bedrock helper before the next Bedrock start. Live acceptance
+of these fixes remains open. Existing root-owned Bedrock data still requires
+the one-time ownership repair described in the release history.
+
+**macOS 0.1.25/0.1.26:** stop the Minecraft server, quit MSC 2, manually install
+v0.1.36 from its disk image, and repair the agent once. The older updater's helper
+contains the rollback bug; subsequent updates can use the corrected updater.
+
+| Installation | Published platform and architecture | Supported control surface |
+|---|---|---|
+| Desktop app | macOS Intel (`x86_64`) and Apple Silicon (`aarch64`); Windows 64-bit (`x86_64`); Linux 64-bit (`x86_64`) as `.deb` and `.rpm` | Tauri desktop app |
+| Headless agent | macOS Intel (`x86_64`) and Apple Silicon (`aarch64`); Windows 64-bit (`x86_64`); Linux 64-bit (`x86_64`) | CLI in a local terminal or SSH shell on the host; remote Tauri desktop app |
+
+The Linux minimum is Debian 12 (Bookworm), or another distribution with
+`systemd` 250 or newer. Linux `.deb` and `.rpm` desktop packages are built for
+x86_64; the `.deb` is for Debian/Ubuntu systems and the `.rpm` is for Fedora
+and other RPM-based systems. No Linux arm64 artifact is published. The
+macOS and Windows operating-system version minimums are not stated in the
+current release contract. Apple Silicon Macs can manage Java servers locally
+and remote hosts, but local Bedrock requires an Intel Mac.
+
+The macOS desktop apps are Developer ID signed, and the distributed disk images
+are notarized and stapled. Windows has no Authenticode
+signature, and Linux packages are not distributed through a signed
+MSC package repository. Standalone headless archives are unsigned. The signed update
+manifest verifies update metadata and is not a publisher signature on the
+installers. The release page publishes checksums; a checksum confirms the
+download matches those published bytes, not who published them.
+
+Desktop app updates use the signed in-app update flow on macOS and Windows;
+Linux desktop packages remain managed by `apt` or `dnf`. Standalone headless
+archives use `msc update check` and `msc update install`; package-managed Linux
+installations remain with their package manager. The client/agent compatibility
+mechanism refuses clients below the agent's minimum supported version, but
+the project has not set a numeric version window such as N-3. Keep clients and
+agents current.
+
+Security fixes are currently promised only for the latest stable release, as
+described in [SECURITY.md](SECURITY.md). Since the published builds are prereleases and no
+stable release has been published, no release currently qualifies for that
+security-support policy.

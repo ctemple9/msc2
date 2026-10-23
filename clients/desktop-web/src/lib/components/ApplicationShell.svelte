@@ -43,6 +43,8 @@
   export let initiationHidden = false;
   export let initiationServerId: string | undefined = undefined;
   export let onResumeInitiation: () => void = () => undefined;
+  export let onDiscardInitiation: () => void = () => undefined;
+  export let discardingInitiation = false;
   export let onOpenAgentSetup: () => void;
   export let onManage: () => void;
   export let onHelp: (() => void) | undefined = undefined;
@@ -154,6 +156,8 @@
         {initiationHidden}
         {initiationServerId}
         {onResumeInitiation}
+        {onDiscardInitiation}
+        {discardingInitiation}
         {onOpenAgentSetup}
         {onManage}
         {addressesVisible}

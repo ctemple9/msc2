@@ -435,6 +435,10 @@ fn build_app_with_auth_and_worlds(
         .route("/active-server", post(routes::lifecycle::active_server))
         .route("/start", post(routes::lifecycle::start))
         .route("/stop", post(routes::lifecycle::stop))
+        .route(
+            "/first-start/discard",
+            post(routes::lifecycle::discard_first_start),
+        )
         .route("/command", post(routes::commands::command))
         .route("/time/relative", post(routes::commands::relative_time))
         .route("/status", get(routes::status::status))

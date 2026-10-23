@@ -3446,6 +3446,47 @@ impl LifecycleRoutesState {
         *self.inner.first_start_pass_two_started_at.lock().unwrap() = None;
     }
 
+    pub fn discard_first_start(&self, server_id: &str) -> Result<(), String> {
+        if !self
+            .inner
+            .app_config
+            .servers()
+            .iter()
+            .any(|server| server.id == server_id)
+        {
+            return Err("server no longer exists".into());
+        }
+        if self.status_snapshot().running {
+            return Err("stop the server before discarding first-start setup".into());
+        }
+        let mut first_start = self.inner.first_start.lock().unwrap();
+        if first_start
+            .as_ref()
+            .is_some_and(|run| run.server_id != server_id)
+        {
+            return Err("another server has an active first-start setup".into());
+        }
+        self.try_mutate_config(|config| {
+            let Some(server) = config
+                .servers
+                .iter_mut()
+                .find(|server| server.id == server_id)
+            else {
+                return Err("server no longer exists".to_string());
+            };
+            server.has_shown_first_start_popup = false;
+            Ok::<_, String>(())
+        })
+        .map_err(|error| match error {
+            TryMutateError::Domain(message) => message,
+            TryMutateError::Save(error) => error.to_string(),
+        })?;
+        self.stop_helpers_for_server(server_id);
+        *first_start = None;
+        *self.inner.first_start_pass_two_started_at.lock().unwrap() = None;
+        Ok(())
+    }
+
     fn finish_active_lifecycle_operation_success(&self, status_line: &str) {
         self.finish_active_lifecycle_operation_success_with_result(status_line, BTreeMap::new());
     }
@@ -3760,6 +3801,35 @@ pub async fn stop(
         })
         .into_response(),
         Err(error) => lifecycle_error_response(error),
+    }
+}
+
+pub async fn discard_first_start(
+    State(state): State<LifecycleRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    body: Result<Json<ActiveServerRequestDto>, JsonRejection>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::ServerControl) {
+        return response;
+    }
+    let Json(body) = match body {
+        Ok(body) => body,
+        Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
+    };
+    let Some(server_id) = body.server_id.filter(|id| !id.trim().is_empty()) else {
+        return invalid_body("missing_server_id", "serverId is required.");
+    };
+    match state.discard_first_start(&server_id) {
+        Ok(()) => Json(SimpleResultDto {
+            result: "first_start_discarded".into(),
+            active_server_id: Some(server_id),
+            operation_id: None,
+            runtime: None,
+        })
+        .into_response(),
+        Err(message) => {
+            error_response(StatusCode::CONFLICT, "first_start_discard_failed", &message)
+        }
     }
 }
 

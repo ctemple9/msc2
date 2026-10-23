@@ -60,6 +60,8 @@
   export let initiationHidden = false;
   export let initiationServerId: string | undefined = undefined;
   export let onResumeInitiation: () => void = () => undefined;
+  export let onDiscardInitiation: () => void = () => undefined;
+  export let discardingInitiation = false;
   export let onOpenAgentSetup: () => void;
   export let onManage: () => void;
   export let addressesVisible = false;
@@ -188,7 +190,7 @@
   }
 
   function startOrInitiate(): void {
-    if (stopping || lifecycleBusy) return;
+    if (stopping || lifecycleBusy || discardingInitiation) return;
     if (running) {
       onLifecycle('stop');
     } else if (activeServer?.firstStartRequired) {
@@ -229,7 +231,11 @@
         <Button
           variant={running ? 'stop' : 'start'}
           size="sm"
-          disabled={!canControl || !activeServer || stopping || lifecycleBusy}
+          disabled={!canControl ||
+            !activeServer ||
+            stopping ||
+            lifecycleBusy ||
+            discardingInitiation}
           onclick={startOrInitiate}
           anchorId="ob_start_button"
         >
@@ -243,8 +249,27 @@
       {/if}
       {#if canResumeInitiation}
         <div class="initiation-notice" role="status">
-          <span>First-start setup is hidden. Resume it when you’re ready.</span>
-          <Button variant="secondary" size="sm" onclick={onResumeInitiation}>Resume setup</Button>
+          <span
+            >First-start setup is hidden. Resume it or discard its progress; your world stays.</span
+          >
+          <div class="initiation-actions">
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={discardingInitiation}
+              onclick={onResumeInitiation}
+            >
+              Resume setup
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={discardingInitiation}
+              onclick={onDiscardInitiation}
+            >
+              {discardingInitiation ? 'Stopping…' : 'Discard setup'}
+            </Button>
+          </div>
         </div>
       {/if}
     </div>
@@ -448,6 +473,10 @@
     background: var(--msc2-tier-surface);
     font-size: 11px;
     line-height: 1.4;
+  }
+  .initiation-actions {
+    display: flex;
+    gap: 8px;
   }
   .disclosure {
     border-top: 1px solid var(--msc2-hairline-subtle);

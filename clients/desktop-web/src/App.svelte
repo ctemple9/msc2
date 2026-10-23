@@ -14,6 +14,7 @@
   import { createClientRouter } from './routes/router';
   import UnknownSection from './routes/UnknownSection.svelte';
   import FirstStartSheet from './lib/sections/server-editor/FirstStartSheet.svelte';
+  import { serverEditorPaths } from './lib/sections/server-editor/model';
   import StartupFailureSheet from './lib/sections/server-editor/StartupFailureSheet.svelte';
   import BroadcastAuthSheet from './lib/sections/server-editor/BroadcastAuthSheet.svelte';
   import ServerEditorSheet from './lib/sections/server-editor/ServerEditorSheet.svelte';
@@ -524,6 +525,7 @@
   let initiationServer: Schema['ServerDTO'] | undefined;
   let initiationVisible = false;
   let initiationComplete = false;
+  let discardingInitiation = false;
   let broadcastAuth: Schema['BroadcastAuthPromptDTO'] | undefined;
   let broadcastAuthTimer: ReturnType<typeof setInterval> | undefined;
   let broadcastAuthRequest = 0;
@@ -1027,6 +1029,35 @@
     }
   }
 
+  async function discardInitiation(): Promise<void> {
+    const server = initiationServer;
+    if (!server || discardingInitiation) return;
+    discardingInitiation = true;
+    statusPollError = '';
+    try {
+      const current = await screenApi.get<Schema['RemoteAPIStatus']>('/v1/status');
+      if (current.running) {
+        if (current.activeServerId !== server.id) {
+          throw new Error('Select the server with the hidden setup before discarding it.');
+        }
+        await lifecycle('stop');
+        const stopped = await screenApi.get<Schema['RemoteAPIStatus']>('/v1/status');
+        if (stopped.running)
+          throw new Error('The server is still stopping. Try again when it stops.');
+      }
+      await screenApi.post(serverEditorPaths.discardFirstStart, { serverId: server.id });
+      initiationServer = undefined;
+      initiationVisible = false;
+      initiationComplete = false;
+      await refreshServerSnapshot();
+      statusPollError = 'Setup progress discarded. The existing world was kept.';
+    } catch (error) {
+      statusPollError = `Could not discard setup: ${error instanceof Error ? error.message : String(error)}`;
+    } finally {
+      discardingInitiation = false;
+    }
+  }
+
   async function refreshServerSnapshot(): Promise<void> {
     if (!clientReady) return;
     try {
@@ -1273,6 +1304,8 @@
   )}
   initiationServerId={initiationServer?.id}
   onResumeInitiation={resumeInitiation}
+  onDiscardInitiation={() => void discardInitiation()}
+  {discardingInitiation}
   onOpenAgentSetup={openAgentSetup}
   onManage={() => (manageOpen = true)}
   {addressesVisible}

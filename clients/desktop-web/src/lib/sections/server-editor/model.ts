@@ -33,6 +33,7 @@ export const serverEditorPaths = {
   geyser: '/v1/config/geyser',
   active: '/v1/active-server',
   status: '/v1/status',
+  discardFirstStart: '/v1/first-start/discard',
   ram: '/v1/config/ram',
   broadcastStatus: '/v1/broadcast/status',
   broadcastAutostart: '/v1/broadcast/autostart',

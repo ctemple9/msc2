@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** v0.1.38 is published. P16.135 implements the World Packs and Datapacks card layout; owner verification is pending. The P18.99 Intel Bedrock decoder change is implemented but still awaits his same-world pre-render check. The other open work from Cameron’s macOS owner testing is listed below. Completed implementation records and release history are in [the archive](rolling-plan-archive.md#october-23-2026--implemented-owner-testing-findings-and-release-work). Owner checks are not implied by a DONE implementation status.
+**Current priority:** v0.1.38 is published. P16.136 adds a way to discard hidden first-start progress while keeping the generated world; owner verification is pending. P16.135 implements the World Packs and Datapacks card layout; owner verification is pending. The P18.99 Intel Bedrock decoder change is implemented but still awaits his same-world pre-render check. The other open work from Cameron’s macOS owner testing is listed below. Completed implementation records and release history are in [the archive](rolling-plan-archive.md#october-23-2026--implemented-owner-testing-findings-and-release-work). Owner checks are not implied by a DONE implementation status.
 
 ## macOS owner testing — 0.1.32
 
@@ -147,3 +147,12 @@ The current private converted cache was inspected read-only. Its five Overworld 
 - **Verify:** Open a Bedrock world with no packs and confirm the count, Browse Packs control, and empty state share one card. Open a Bedrock world with packs and a Java world with datapacks; confirm each pack has its own clickable card and trailing arrow. Open each menu and confirm Enable/Disable and Delete are present. Run `cd clients/desktop-web && npm run check`.
 - **Batch:** P16.135 only.
 - **Commit:** `P16.135: show world packs as action cards`
+
+**P16.136 — Discard hidden first-start progress**
+
+- **Status:** Implementation prepared; owner verification pending.
+- **Files:** `clients/desktop-web/src/App.svelte`; `clients/desktop-web/src/lib/components/ApplicationShell.svelte`; `clients/desktop-web/src/lib/components/shell/ControlSidebar.svelte`; `clients/desktop-web/src/lib/sections/server-editor/model.ts`; `crates/msc-agent/src/main.rs`; `crates/msc-agent/src/routes/lifecycle.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Add a **Discard setup** action beside **Resume setup**. It stops the server when needed, clears the matching agent-owned first-start coordinator and networking helpers, and drops the desktop's saved sheet state. Keep generated world data. A later start cannot continue the discarded coordinator; if no world exists, Initiate opens a new sheet from its first screen.
+- **Verify:** Hide first-start setup on a server that has completed pass one, choose **Discard setup**, and confirm the server stops, the Resume setup notice disappears, the existing world remains, and the sidebar shows Start. Click Start and confirm it performs an ordinary start. On a server with no world yet, confirm discarding leaves Initiate available and reopening it starts at the EULA screen. Do not run tests without a specific owner request.
+- **Batch:** P16.136 only.
+- **Commit:** `P16.136: discard hidden first-start progress`

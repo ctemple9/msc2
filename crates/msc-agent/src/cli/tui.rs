@@ -2,6 +2,7 @@
 //! reads to the existing CLI paths.
 
 mod create;
+mod worlds;
 
 use std::io::{self, IsTerminal, Stdout, Write};
 use std::time::{Duration, Instant};
@@ -12,8 +13,8 @@ use crossterm::style::{Color, Print, ResetColor, SetBackgroundColor, SetForegrou
 use crossterm::terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{execute, queue};
 use msc_api::dto::{
-    ActiveServerRequestDto, PerformanceSnapshotDto, RemoteApiStatus, ServerDto, SimpleResultDto,
-    WorldSlotsResponseDto,
+    ActiveServerRequestDto, BackupConfigResponseDto, BackupsResponseDto, PerformanceSnapshotDto,
+    RemoteApiStatus, ServerDto, SimpleResultDto, WorldSlotsResponseDto,
 };
 use msc_infrastructure::service::ServiceState;
 
@@ -67,6 +68,9 @@ struct Snapshot {
     online_names: Option<Vec<String>>,
     known_players: Option<Vec<String>>,
     active_world: Option<String>,
+    worlds: Option<WorldSlotsResponseDto>,
+    backups: Option<BackupsResponseDto>,
+    backup_config: Option<BackupConfigResponseDto>,
 }
 
 struct ViewState<'a> {
@@ -77,6 +81,7 @@ struct ViewState<'a> {
     manage_selected: usize,
     workspace_open: bool,
     tab_index: usize,
+    worlds: &'a worlds::WorldsUi,
     wizard: Option<&'a create::Wizard>,
 }
 
@@ -99,55 +104,69 @@ async fn load() -> Result<Snapshot, CliError> {
         } else {
             (None, None, false, None)
         };
-    let (performance, online_players, online_names, known_players, active_world) =
-        if active_server_id.is_some() {
-            match SharedClient::connect_local().await {
-                Ok(client) => {
-                    let (performance, players, profiles, worlds) = tokio::join!(
-                        client.get_json("/v1/performance"),
-                        client.get_json::<serde_json::Value>("/v1/players"),
-                        client.get_json::<serde_json::Value>("/v1/players/profiles"),
-                        client.get_json::<WorldSlotsResponseDto>("/v1/worlds"),
-                    );
-                    let players = players.ok();
-                    let online_players = players.as_ref().and_then(|value| value["count"].as_u64());
-                    let online_names = players
-                        .as_ref()
-                        .and_then(|value| value["players"].as_array())
-                        .map(|entries| {
-                            entries
-                                .iter()
-                                .filter_map(|entry| entry["name"].as_str().map(str::to_owned))
-                                .collect()
-                        });
-                    let known_players = profiles.ok().and_then(|value| {
-                        value["profiles"].as_array().map(|entries| {
-                            entries
-                                .iter()
-                                .filter_map(|entry| entry["username"].as_str().map(str::to_owned))
-                                .collect()
-                        })
+    let (
+        performance,
+        online_players,
+        online_names,
+        known_players,
+        active_world,
+        worlds,
+        backups,
+        backup_config,
+    ) = if active_server_id.is_some() {
+        match SharedClient::connect_local().await {
+            Ok(client) => {
+                let (performance, players, profiles, worlds, backups, backup_config) = tokio::join!(
+                    client.get_json("/v1/performance"),
+                    client.get_json::<serde_json::Value>("/v1/players"),
+                    client.get_json::<serde_json::Value>("/v1/players/profiles"),
+                    client.get_json::<WorldSlotsResponseDto>("/v1/worlds"),
+                    client.get_json::<BackupsResponseDto>("/v1/backups"),
+                    client.get_json::<BackupConfigResponseDto>("/v1/backups/config"),
+                );
+                let players = players.ok();
+                let online_players = players.as_ref().and_then(|value| value["count"].as_u64());
+                let online_names = players
+                    .as_ref()
+                    .and_then(|value| value["players"].as_array())
+                    .map(|entries| {
+                        entries
+                            .iter()
+                            .filter_map(|entry| entry["name"].as_str().map(str::to_owned))
+                            .collect()
                     });
-                    let active_world = worlds.ok().and_then(|worlds| {
-                        worlds
-                            .slots
-                            .into_iter()
-                            .find(|slot| slot.is_active)
-                            .map(|slot| slot.name)
-                    });
-                    (
-                        performance.ok(),
-                        online_players,
-                        online_names,
-                        known_players,
-                        active_world,
-                    )
-                }
-                Err(_) => (None, None, None, None, None),
+                let known_players = profiles.ok().and_then(|value| {
+                    value["profiles"].as_array().map(|entries| {
+                        entries
+                            .iter()
+                            .filter_map(|entry| entry["username"].as_str().map(str::to_owned))
+                            .collect()
+                    })
+                });
+                let worlds = worlds.ok();
+                let active_world = worlds.as_ref().and_then(|worlds| {
+                    worlds
+                        .slots
+                        .iter()
+                        .find(|slot| slot.is_active)
+                        .map(|slot| slot.name.clone())
+                });
+                (
+                    performance.ok(),
+                    online_players,
+                    online_names,
+                    known_players,
+                    active_world,
+                    worlds,
+                    backups.ok(),
+                    backup_config.ok(),
+                )
             }
-        } else {
-            (None, None, None, None, None)
-        };
+            Err(_) => (None, None, None, None, None, None, None, None),
+        }
+    } else {
+        (None, None, None, None, None, None, None, None)
+    };
     Ok(Snapshot {
         service,
         servers,
@@ -159,6 +178,9 @@ async fn load() -> Result<Snapshot, CliError> {
         online_names,
         known_players,
         active_world,
+        worlds,
+        backups,
+        backup_config,
     })
 }
 
@@ -196,6 +218,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     let mut manage_selected = 0usize;
     let mut workspace_open = false;
     let mut tab_index = 0usize;
+    let mut worlds_ui = worlds::WorldsUi::default();
     let mut wizard: Option<create::Wizard> = None;
     let mut message = String::new();
     let mut confirm_stop = false;
@@ -214,13 +237,16 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 manage_selected,
                 workspace_open,
                 tab_index,
+                worlds: &worlds_ui,
                 wizard: wizard.as_ref(),
             },
         )
         .map_err(terminal_error)?;
         if !event::poll(Duration::from_millis(250)).map_err(terminal_error)? {
             if !manage_open && wizard.is_none() && last_refresh.elapsed() >= REFRESH_INTERVAL {
+                worlds_ui.poll_operation(&mut message).await;
                 refresh(&mut snapshot, &mut message).await;
+                worlds_ui.refreshed();
                 last_refresh = Instant::now();
             }
             continue;
@@ -317,6 +343,13 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             continue;
         }
         if workspace_open {
+            if tab_index == 2 && worlds_ui.handle(key.code, &snapshot, &mut message).await {
+                if worlds_ui.needs_refresh() {
+                    refresh(&mut snapshot, &mut message).await;
+                    worlds_ui.refreshed();
+                }
+                continue;
+            }
             match key.code {
                 KeyCode::Char('1'..='7') => {
                     if let KeyCode::Char(digit) = key.code {
@@ -473,7 +506,15 @@ fn draw(
         Color::Grey,
     )?;
     if view.workspace_open {
-        draw_workspace(out, snapshot, view.tab_index, view.message, width, height)?;
+        draw_workspace(
+            out,
+            snapshot,
+            view.tab_index,
+            view.worlds,
+            view.message,
+            width,
+            height,
+        )?;
         if view.manage_open {
             draw_manage(
                 out,
@@ -784,6 +825,7 @@ fn draw_workspace(
     out: &mut Stdout,
     snapshot: &Snapshot,
     tab_index: usize,
+    worlds_ui: &worlds::WorldsUi,
     message: &str,
     width: u16,
     height: u16,
@@ -1269,6 +1311,8 @@ fn draw_workspace(
                 )?,
             }
         }
+    } else if tab_index == 2 {
+        worlds_ui.draw(out, snapshot, main_x, main_w, height)?;
     } else {
         paint(
             out,

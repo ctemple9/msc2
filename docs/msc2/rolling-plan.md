@@ -131,6 +131,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.12 only.
 - **Commit:** `P22.12: show live players in tui`
 
+### P22.13 — Manage worlds and backups in the Worlds tab
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/worlds.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Show the selected server's saved world slots and active world, plus backups for that world. Enter opens world actions for rename, duplicate, and confirmed delete; Convert World and World Settings are visible placeholders for later pages. Use Tab to move to backups, Enter to restore or delete with confirmation, `b` to back up now, and `r` to toggle recurring backups. Show operation progress from the agent.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a server, and press `3`. Confirm the world slot list and active label match MSC 2. Select a world with Enter and inspect all five actions; confirm Convert World and World Settings say their pages are coming later. Press Tab to see backups, use `b` for a manual backup, and confirm it appears after the operation finishes. Inspect the restore and delete confirmation prompts without accepting them. Check `r` changes the recurring backup state. No test command is part of this step.
+- **Batch:** P22.13 only.
+- **Commit:** `P22.13: add worlds and backups workspace`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

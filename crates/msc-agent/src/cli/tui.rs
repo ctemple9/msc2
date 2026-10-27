@@ -1,6 +1,7 @@
 //! Host-local terminal client. Screens delegate service changes and server
 //! reads to the existing CLI paths.
 
+mod components;
 mod create;
 mod performance;
 mod worlds;
@@ -14,8 +15,9 @@ use crossterm::style::{Color, Print, ResetColor, SetBackgroundColor, SetForegrou
 use crossterm::terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{execute, queue};
 use msc_api::dto::{
-    ActiveServerRequestDto, BackupConfigResponseDto, BackupsResponseDto, PerformanceSnapshotDto,
-    RemoteApiStatus, ServerDto, SimpleResultDto, WorldSlotsResponseDto,
+    ActiveServerRequestDto, AddonsResponseDto, BackupConfigResponseDto, BackupsResponseDto,
+    BroadcastJarStatusDto, ComponentsStatusDto, PerformanceSnapshotDto, RemoteApiStatus, ServerDto,
+    SimpleResultDto, WorldSlotsResponseDto,
 };
 use msc_infrastructure::service::ServiceState;
 
@@ -72,6 +74,9 @@ struct Snapshot {
     worlds: Option<WorldSlotsResponseDto>,
     backups: Option<BackupsResponseDto>,
     backup_config: Option<BackupConfigResponseDto>,
+    components: Option<ComponentsStatusDto>,
+    addons: Option<AddonsResponseDto>,
+    broadcast_jar: Option<BroadcastJarStatusDto>,
 }
 
 struct ViewState<'a> {
@@ -84,6 +89,7 @@ struct ViewState<'a> {
     tab_index: usize,
     worlds: &'a worlds::WorldsUi,
     performance: &'a performance::PerformanceUi,
+    components: &'a components::ComponentsUi,
     wizard: Option<&'a create::Wizard>,
 }
 
@@ -115,16 +121,32 @@ async fn load() -> Result<Snapshot, CliError> {
         worlds,
         backups,
         backup_config,
+        components,
+        addons,
+        broadcast_jar,
     ) = if active_server_id.is_some() {
         match SharedClient::connect_local().await {
             Ok(client) => {
-                let (performance, players, profiles, worlds, backups, backup_config) = tokio::join!(
+                let (
+                    performance,
+                    players,
+                    profiles,
+                    worlds,
+                    backups,
+                    backup_config,
+                    components,
+                    addons,
+                    broadcast_jar,
+                ) = tokio::join!(
                     client.get_json("/v1/performance"),
                     client.get_json::<serde_json::Value>("/v1/players"),
                     client.get_json::<serde_json::Value>("/v1/players/profiles"),
                     client.get_json::<WorldSlotsResponseDto>("/v1/worlds"),
                     client.get_json::<BackupsResponseDto>("/v1/backups"),
                     client.get_json::<BackupConfigResponseDto>("/v1/backups/config"),
+                    client.get_json::<ComponentsStatusDto>("/v1/components"),
+                    client.get_json::<AddonsResponseDto>("/v1/addons?local=true"),
+                    client.get_json::<BroadcastJarStatusDto>("/v1/broadcast/jar-status"),
                 );
                 let players = players.ok();
                 let online_players = players.as_ref().and_then(|value| value["count"].as_u64());
@@ -162,12 +184,19 @@ async fn load() -> Result<Snapshot, CliError> {
                     worlds,
                     backups.ok(),
                     backup_config.ok(),
+                    components.ok(),
+                    addons.ok(),
+                    broadcast_jar.ok(),
                 )
             }
-            Err(_) => (None, None, None, None, None, None, None, None),
+            Err(_) => (
+                None, None, None, None, None, None, None, None, None, None, None,
+            ),
         }
     } else {
-        (None, None, None, None, None, None, None, None)
+        (
+            None, None, None, None, None, None, None, None, None, None, None,
+        )
     };
     Ok(Snapshot {
         service,
@@ -183,6 +212,9 @@ async fn load() -> Result<Snapshot, CliError> {
         worlds,
         backups,
         backup_config,
+        components,
+        addons,
+        broadcast_jar,
     })
 }
 
@@ -222,6 +254,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     let mut tab_index = 0usize;
     let mut worlds_ui = worlds::WorldsUi::default();
     let mut performance_ui = performance::PerformanceUi::default();
+    let mut components_ui = components::ComponentsUi::default();
     let mut wizard: Option<create::Wizard> = None;
     let mut message = String::new();
     let mut confirm_stop = false;
@@ -243,6 +276,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 tab_index,
                 worlds: &worlds_ui,
                 performance: &performance_ui,
+                components: &components_ui,
                 wizard: wizard.as_ref(),
             },
         )
@@ -250,8 +284,10 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
         if !event::poll(Duration::from_millis(250)).map_err(terminal_error)? {
             if !manage_open && wizard.is_none() && last_refresh.elapsed() >= REFRESH_INTERVAL {
                 worlds_ui.poll_operation(&mut message).await;
+                components_ui.poll_operation(&mut message).await;
                 refresh(&mut snapshot, &mut message).await;
                 worlds_ui.refreshed();
+                components_ui.refreshed();
                 last_refresh = Instant::now();
             }
             continue;
@@ -348,6 +384,17 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             continue;
         }
         if workspace_open {
+            if tab_index == 4
+                && components_ui
+                    .handle(key.code, &snapshot, &mut message)
+                    .await
+            {
+                if components_ui.needs_refresh() {
+                    refresh(&mut snapshot, &mut message).await;
+                    components_ui.refreshed();
+                }
+                continue;
+            }
             if tab_index == 2 && worlds_ui.handle(key.code, &snapshot, &mut message).await {
                 if worlds_ui.needs_refresh() {
                     refresh(&mut snapshot, &mut message).await;
@@ -517,6 +564,7 @@ fn draw(
             view.tab_index,
             view.worlds,
             view.performance,
+            view.components,
             view.message,
             width,
             height,
@@ -833,6 +881,7 @@ fn draw_workspace(
     tab_index: usize,
     worlds_ui: &worlds::WorldsUi,
     performance_ui: &performance::PerformanceUi,
+    components_ui: &components::ComponentsUi,
     message: &str,
     width: u16,
     height: u16,
@@ -1322,6 +1371,8 @@ fn draw_workspace(
         worlds_ui.draw(out, snapshot, main_x, main_w, height)?;
     } else if tab_index == 3 {
         performance_ui.draw(out, snapshot, main_x, main_w, height)?;
+    } else if tab_index == 4 {
+        components_ui.draw(out, snapshot, main_x, main_w, height)?;
     } else {
         paint(
             out,

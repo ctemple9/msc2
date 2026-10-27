@@ -167,6 +167,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.16 only.
 - **Commit:** `P22.16: graph memory history in tui`
 
+### P22.17 — Manage server components in the TUI
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/components.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Show the selected server's software, applicable mods or plugins, and Xbox Broadcast in the Components tab. Read the agent's local inventories and shared broadcast JAR status. Enter opens contextual actions: select and change a supported server version while stopped; enable, disable, update, or confirm uninstall for an add-on; update Geyser/Floodgate through their managed helper route; and toggle Broadcast or download its JAR. Show agent errors when an add-on has no update source or a version change is unsupported, and follow durable operations to completion.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a Java server, and press `5`. Confirm the software and installed plugins or mods match MSC 2, then press Enter on each category to inspect its actions. For a stopped server, inspect the software version list; use Esc without changing it. Toggle a suitable test add-on off and on and confirm its state refreshes. Inspect Uninstall's confirmation and cancel with Esc. Confirm Xbox Broadcast shows whether its shared JAR is installed and offers the matching download/update action. Switch to a Bedrock server and confirm only applicable categories appear. No test command is part of this step.
+- **Batch:** P22.17 only.
+- **Commit:** `P22.17: manage components in tui`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

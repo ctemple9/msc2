@@ -176,6 +176,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.17 only.
 - **Commit:** `P22.17: manage components in tui`
 
+### P22.18 — Fill the Performance view with responsive charts
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/performance.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Divide the space below the live readings and above Console evenly among TPS, CPU, and memory history. Draw multi-row terminal plots with scale labels when the terminal is tall, and collapse each to a one-line graph at the 100-by-24 minimum. Clear graph history when the server stops and show an explicit stopped message instead of rows of missing-sample dots.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a running server, and press `4`. At a tall terminal size, confirm three evenly spaced panels fill the Performance area and gain points on refresh. Resize to 100 columns by 24 rows and confirm all three compact plots remain above Console. Stop the server and confirm the graphs are replaced by a stopped message. No test command is part of this step.
+- **Batch:** P22.18 only.
+- **Commit:** `P22.18: fill performance view with responsive charts`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

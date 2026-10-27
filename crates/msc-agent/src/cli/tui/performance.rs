@@ -5,7 +5,7 @@ use std::io::{self, Stdout};
 
 use crossterm::style::Color;
 
-use super::{Snapshot, paint};
+use super::{Snapshot, box_outline, paint};
 
 const MAX_SAMPLES: usize = 120;
 const LEVELS: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
@@ -17,6 +17,7 @@ pub(super) struct PerformanceUi {
     tps: VecDeque<Option<f64>>,
     cpu: VecDeque<Option<f64>>,
     memory_used_mb: VecDeque<Option<f64>>,
+    was_running: bool,
 }
 
 impl PerformanceUi {
@@ -28,6 +29,16 @@ impl PerformanceUi {
             self.cpu.clear();
             self.memory_used_mb.clear();
         }
+        if !snapshot.active_server_running {
+            if self.was_running {
+                self.tps.clear();
+                self.cpu.clear();
+                self.memory_used_mb.clear();
+            }
+            self.was_running = false;
+            return;
+        }
+        self.was_running = true;
         let Some(metric) = snapshot.performance.as_ref() else {
             return;
         };
@@ -107,39 +118,17 @@ impl PerformanceUi {
                 Color::White,
             )?;
         }
-        let chart_width = width;
-        paint(
-            out,
-            x,
-            11,
-            chart_width,
-            "TPS HISTORY · 20 is healthy",
-            Color::DarkGrey,
-        )?;
-        paint(
-            out,
-            x,
-            12,
-            chart_width,
-            &sparkline(&self.tps, chart_width as usize, 20.0),
-            Color::Green,
-        )?;
-        paint(
-            out,
-            x,
-            14,
-            chart_width,
-            "CPU HISTORY · percent",
-            Color::DarkGrey,
-        )?;
-        paint(
-            out,
-            x,
-            15,
-            chart_width,
-            &sparkline(&self.cpu, chart_width as usize, 100.0),
-            Color::Cyan,
-        )?;
+        if !snapshot.active_server_running {
+            paint(
+                out,
+                x,
+                12,
+                width,
+                "No live data · server stopped. Graphs resume when it starts.",
+                Color::DarkGrey,
+            )?;
+            return Ok(());
+        }
         let memory_scale = limit.filter(|limit| *limit > 0.0).or_else(|| {
             self.memory_used_mb
                 .iter()
@@ -147,39 +136,58 @@ impl PerformanceUi {
                 .copied()
                 .reduce(f64::max)
         });
-        paint(
-            out,
-            x,
-            16,
-            chart_width,
-            if limit.is_some() {
-                "MEMORY HISTORY · used / limit"
-            } else {
-                "MEMORY HISTORY · used (relative scale)"
-            },
-            Color::DarkGrey,
-        )?;
-        paint(
-            out,
-            x,
-            17,
-            chart_width,
-            &sparkline(
-                &self.memory_used_mb,
-                chart_width as usize,
-                memory_scale.unwrap_or(1.0).max(1.0),
+        let top = 11;
+        let bottom = height.saturating_sub(7);
+        let available = bottom.saturating_sub(top);
+        let gap = if available >= 10 { 1 } else { 0 };
+        let panel_space = available.saturating_sub(2 * gap);
+        let base = panel_space / 3;
+        let extra = panel_space % 3;
+        let memory_scale_label =
+            memory_scale.map_or_else(|| "—".into(), |value| format!("{:.1}G", value / 1024.0));
+        let charts = [
+            (
+                "TPS HISTORY · 20 is healthy",
+                &self.tps,
+                20.0,
+                Color::Green,
+                "20",
             ),
-            Color::Magenta,
-        )?;
-        if height >= 30 {
-            paint(
+            (
+                "CPU HISTORY · percent",
+                &self.cpu,
+                100.0,
+                Color::Cyan,
+                "100",
+            ),
+            (
+                if limit.is_some() {
+                    "MEMORY HISTORY · used / limit"
+                } else {
+                    "MEMORY HISTORY · relative scale"
+                },
+                &self.memory_used_mb,
+                memory_scale.unwrap_or(1.0).max(1.0),
+                Color::Magenta,
+                memory_scale_label.as_str(),
+            ),
+        ];
+        let mut y = top;
+        for (index, (title, samples, scale, color, scale_label)) in charts.into_iter().enumerate() {
+            let panel_height = base + u16::from(index < extra as usize);
+            draw_chart(
                 out,
                 x,
-                20,
+                y,
                 width,
-                "Recent samples are kept only while this TUI is open.",
-                Color::DarkGrey,
+                panel_height,
+                title,
+                samples,
+                scale,
+                scale_label,
+                color,
             )?;
+            y += panel_height + gap;
         }
         Ok(())
     }
@@ -192,7 +200,83 @@ fn push(history: &mut VecDeque<Option<f64>>, value: Option<f64>) {
     history.push_back(value.filter(|value| value.is_finite()));
 }
 
+#[allow(clippy::too_many_arguments)]
+fn draw_chart(
+    out: &mut Stdout,
+    x: u16,
+    y: u16,
+    width: u16,
+    height: u16,
+    title: &str,
+    history: &VecDeque<Option<f64>>,
+    scale: f64,
+    scale_label: &str,
+    color: Color,
+) -> io::Result<()> {
+    if height < 5 {
+        paint(out, x, y, width, title, Color::DarkGrey)?;
+        if height > 1 {
+            paint(
+                out,
+                x,
+                y + 1,
+                width,
+                &sparkline(history, width as usize, scale),
+                color,
+            )?;
+        }
+        return Ok(());
+    }
+    box_outline(out, x, y, width, height)?;
+    paint(out, x + 2, y + 1, width - 4, title, Color::DarkGrey)?;
+    let plot_top = y + 2;
+    let plot_height = height - 3;
+    let plot_width = width.saturating_sub(10) as usize;
+    paint(out, x + 2, plot_top, 5, scale_label, Color::DarkGrey)?;
+    paint(
+        out,
+        x + 2,
+        plot_top + plot_height - 1,
+        5,
+        "0",
+        Color::DarkGrey,
+    )?;
+    if history.iter().all(Option::is_none) {
+        paint(
+            out,
+            x + 8,
+            plot_top + plot_height / 2,
+            width - 10,
+            "No samples available yet",
+            Color::DarkGrey,
+        )?;
+        return Ok(());
+    }
+    let mut points = vec![vec![' '; plot_width]; plot_height as usize];
+    for (column, sample) in history.iter().rev().take(plot_width).enumerate() {
+        if let Some(value) = sample {
+            let level = (value / scale).clamp(0.0, 1.0);
+            let row = ((1.0 - level) * f64::from(plot_height - 1)).round() as usize;
+            points[row][plot_width - 1 - column] = '●';
+        }
+    }
+    for (row, chars) in points.into_iter().enumerate() {
+        paint(
+            out,
+            x + 8,
+            plot_top + row as u16,
+            plot_width as u16,
+            &chars.into_iter().collect::<String>(),
+            color,
+        )?;
+    }
+    Ok(())
+}
+
 fn sparkline(history: &VecDeque<Option<f64>>, width: usize, max: f64) -> String {
+    if history.iter().all(Option::is_none) {
+        return "No samples available yet".into();
+    }
     let mut line = String::new();
     for sample in history
         .iter()

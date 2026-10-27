@@ -1,6 +1,8 @@
 //! Host-local terminal client. The first screen owns only presentation and
 //! delegates service changes and server reads to the existing CLI paths.
 
+mod create;
+
 use std::io::{self, IsTerminal, Stdout, Write};
 use std::time::{Duration, Instant};
 
@@ -56,6 +58,7 @@ struct ViewState<'a> {
     confirm_stop: bool,
     manage_open: bool,
     manage_selected: usize,
+    wizard: Option<&'a create::Wizard>,
 }
 
 async fn load() -> Result<Snapshot, CliError> {
@@ -118,6 +121,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     let mut selected = 0usize;
     let mut manage_open = false;
     let mut manage_selected = 0usize;
+    let mut wizard: Option<create::Wizard> = None;
     let mut message = String::new();
     let mut confirm_stop = false;
     let mut last_refresh = Instant::now();
@@ -133,11 +137,12 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 confirm_stop,
                 manage_open,
                 manage_selected,
+                wizard: wizard.as_ref(),
             },
         )
         .map_err(terminal_error)?;
         if !event::poll(Duration::from_millis(250)).map_err(terminal_error)? {
-            if !manage_open && last_refresh.elapsed() >= REFRESH_INTERVAL {
+            if !manage_open && wizard.is_none() && last_refresh.elapsed() >= REFRESH_INTERVAL {
                 refresh(&mut snapshot, &mut message).await;
                 last_refresh = Instant::now();
             }
@@ -166,6 +171,22 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             }
             continue;
         }
+        if let Some(active) = wizard.as_mut() {
+            match active.handle(key, &mut stdout).await {
+                create::Outcome::Stay => {}
+                create::Outcome::Close => {
+                    wizard = None;
+                    manage_open = true;
+                }
+                create::Outcome::Created(note) => {
+                    wizard = None;
+                    message = note;
+                    refresh(&mut snapshot, &mut message).await;
+                    manage_open = false;
+                }
+            }
+            continue;
+        }
         if manage_open {
             let server_count = snapshot.servers.as_ref().map_or(0, Vec::len);
             match key.code {
@@ -178,7 +199,8 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                     message = "Transfer is not connected yet; no server was changed.".into()
                 }
                 KeyCode::Char('c') => {
-                    message = "Create Server is not connected yet; no server was created.".into()
+                    wizard = Some(create::Wizard::new());
+                    manage_open = false;
                 }
                 KeyCode::Char('R') => {
                     refresh(&mut snapshot, &mut message).await;
@@ -631,6 +653,9 @@ fn draw(
             height,
         )?;
     }
+    if let Some(wizard) = view.wizard {
+        wizard.draw(out, width, height)?;
+    }
     out.flush()
 }
 
@@ -694,7 +719,7 @@ fn draw_manage(
             x + 3,
             y + 7,
             dialog_w - 6,
-            "No servers yet · Create Server is coming next",
+            "No servers yet · press c to create one",
             Color::DarkGrey,
         )?;
     } else {
@@ -780,7 +805,7 @@ fn draw_manage(
         x + 2,
         y + dialog_h - 2,
         dialog_w - 4,
-        "t Transfer soon   c Create soon   ↑↓ Move   Enter Select   Esc Close",
+        "t Transfer soon   c Create server   ↑↓ Move   Enter Select   Esc Close",
         Color::DarkGrey,
     )
 }

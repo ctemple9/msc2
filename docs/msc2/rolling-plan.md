@@ -50,6 +50,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.3 only.
 - **Commit:** `P22.3: complete agents tui layout`
 
+### P22.4 — Manage the local agent's server selection
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Open a Manage Servers dialog from the Agents action or `m`, using the authenticated local `/v1/servers` list. Show the real active server from `/v1/status`, its known running state, and its name in the sidebar. Arrow keys move through the list without mouse scrolling; the visible window follows the selection. Enter selects that server through the same `/v1/active-server` route as `msc server use`, then refreshes the page. Esc closes the dialog. An empty agent gets an honest empty state; Transfer (`t`) and Create (`c`) remain visible but report that they are not connected yet. Do not invent a state for non-active servers.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, press `m`, and confirm the dialog reflects this host's actual server list or its empty state. Use Esc to close it; press `t` or `c` to confirm no operation occurs. If servers are configured, use Up/Down and Enter to select one, then check that the sidebar names it and `cargo run -p msc-agent -- server list` marks it active. No test command is part of this step.
+- **Batch:** P22.4 only.
+- **Commit:** `P22.4: add manage servers tui dialog`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

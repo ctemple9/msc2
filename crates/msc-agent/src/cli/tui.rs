@@ -9,7 +9,7 @@ use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use crossterm::style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor};
 use crossterm::terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{execute, queue};
-use msc_api::dto::ServerDto;
+use msc_api::dto::{ActiveServerRequestDto, RemoteApiStatus, ServerDto, SimpleResultDto};
 use msc_infrastructure::service::ServiceState;
 
 use super::service::{self, AgentAction, LocalAgentStatus};
@@ -45,27 +45,54 @@ fn terminal_error(error: io::Error) -> CliError {
 struct Snapshot {
     service: LocalAgentStatus,
     servers: Option<Vec<ServerDto>>,
+    active_server_id: Option<String>,
+    active_server_running: bool,
     connection_error: Option<String>,
+}
+
+struct ViewState<'a> {
+    selected: usize,
+    message: &'a str,
+    confirm_stop: bool,
+    manage_open: bool,
+    manage_selected: usize,
 }
 
 async fn load() -> Result<Snapshot, CliError> {
     let service = service::local_agent_status()?;
-    let (servers, connection_error) = if service.report.state == ServiceState::Running {
-        match SharedClient::connect_local().await {
-            Ok(client) => match client.get_json::<Vec<ServerDto>>("/v1/servers").await {
-                Ok(servers) => (Some(servers), None),
-                Err(error) => (None, Some(error.to_string())),
-            },
-            Err(error) => (None, Some(error.to_string())),
-        }
-    } else {
-        (None, None)
-    };
+    let (servers, active_server_id, active_server_running, connection_error) =
+        if service.report.state == ServiceState::Running {
+            match SharedClient::connect_local().await {
+                Ok(client) => match client.get_json::<Vec<ServerDto>>("/v1/servers").await {
+                    Ok(servers) => match client.get_json::<RemoteApiStatus>("/v1/status").await {
+                        Ok(status) => {
+                            (Some(servers), status.active_server_id, status.running, None)
+                        }
+                        Err(error) => (Some(servers), None, false, Some(error.to_string())),
+                    },
+                    Err(error) => (None, None, false, Some(error.to_string())),
+                },
+                Err(error) => (None, None, false, Some(error.to_string())),
+            }
+        } else {
+            (None, None, false, None)
+        };
     Ok(Snapshot {
         service,
         servers,
+        active_server_id,
+        active_server_running,
         connection_error,
     })
+}
+
+async fn select_server(server_id: &str) -> Result<(), CliError> {
+    let client = SharedClient::connect_local().await?;
+    let body = ActiveServerRequestDto {
+        server_id: Some(server_id.to_string()),
+    };
+    let _: SimpleResultDto = client.post_json("/v1/active-server", &body).await?;
+    Ok(())
 }
 
 pub async fn run(common: CommonArgs) -> Result<(), CliError> {
@@ -89,6 +116,8 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     let _terminal = TerminalGuard::enter()?;
     let mut stdout = io::stdout();
     let mut selected = 0usize;
+    let mut manage_open = false;
+    let mut manage_selected = 0usize;
     let mut message = String::new();
     let mut confirm_stop = false;
     let mut last_refresh = Instant::now();
@@ -98,13 +127,17 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             &mut stdout,
             &snapshot,
             &host_name,
-            selected,
-            &message,
-            confirm_stop,
+            &ViewState {
+                selected,
+                message: &message,
+                confirm_stop,
+                manage_open,
+                manage_selected,
+            },
         )
         .map_err(terminal_error)?;
         if !event::poll(Duration::from_millis(250)).map_err(terminal_error)? {
-            if last_refresh.elapsed() >= REFRESH_INTERVAL {
+            if !manage_open && last_refresh.elapsed() >= REFRESH_INTERVAL {
                 refresh(&mut snapshot, &mut message).await;
                 last_refresh = Instant::now();
             }
@@ -133,12 +166,68 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             }
             continue;
         }
+        if manage_open {
+            let server_count = snapshot.servers.as_ref().map_or(0, Vec::len);
+            match key.code {
+                KeyCode::Esc | KeyCode::Char('q') => manage_open = false,
+                KeyCode::Up => manage_selected = manage_selected.saturating_sub(1),
+                KeyCode::Down => {
+                    manage_selected = (manage_selected + 1).min(server_count.saturating_sub(1));
+                }
+                KeyCode::Char('t') => {
+                    message = "Transfer is not connected yet; no server was changed.".into()
+                }
+                KeyCode::Char('c') => {
+                    message = "Create Server is not connected yet; no server was created.".into()
+                }
+                KeyCode::Char('R') => {
+                    refresh(&mut snapshot, &mut message).await;
+                    manage_selected = manage_selected.min(
+                        snapshot
+                            .servers
+                            .as_ref()
+                            .map_or(0, |list| list.len().saturating_sub(1)),
+                    );
+                }
+                KeyCode::Enter => {
+                    if let Some(server) = snapshot
+                        .servers
+                        .as_ref()
+                        .and_then(|list| list.get(manage_selected))
+                    {
+                        let id = server.id.clone();
+                        let name = server.name.clone();
+                        match select_server(&id).await {
+                            Ok(()) => {
+                                manage_open = false;
+                                refresh(&mut snapshot, &mut message).await;
+                                message = format!("Selected server: {name}");
+                            }
+                            Err(error) => message = error.to_string(),
+                        }
+                    } else {
+                        message = "No server to select. Create Server is coming next.".into();
+                    }
+                }
+                _ => {}
+            }
+            continue;
+        }
         match key.code {
             KeyCode::Esc | KeyCode::Char('q') => break,
             KeyCode::Up => selected = selected.saturating_sub(1),
             KeyCode::Down => selected = (selected + 1).min(4),
             KeyCode::Char('a') => selected = 0,
-            KeyCode::Char('m') => selected = 1,
+            KeyCode::Char('m') => {
+                selected = 1;
+                if snapshot.servers.is_some() {
+                    manage_open = true;
+                    manage_selected = 0;
+                } else {
+                    message = "Agent API unavailable; start the service or refresh its connection."
+                        .into();
+                }
+            }
             KeyCode::Char('s') => selected = 2,
             KeyCode::Char('e') => selected = 3,
             KeyCode::Char('r') => selected = 4,
@@ -155,8 +244,12 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                             .into();
                     }
                     1 => {
-                        message =
-                            "Manage Servers is the next TUI step; no server was changed.".into();
+                        if snapshot.servers.is_some() {
+                            manage_open = true;
+                            manage_selected = 0;
+                        } else {
+                            message = "Agent API unavailable; start the service or refresh its connection.".into();
+                        }
                     }
                     2 => {
                         if snapshot.service.report.state == ServiceState::NotInstalled {
@@ -216,9 +309,7 @@ fn draw(
     out: &mut Stdout,
     snapshot: &Snapshot,
     host_name: &str,
-    selected: usize,
-    message: &str,
-    confirm_stop: bool,
+    view: &ViewState<'_>,
 ) -> io::Result<()> {
     let (width, height) = terminal::size()?;
     queue!(out, Clear(ClearType::All))?;
@@ -261,8 +352,22 @@ fn draw(
     paint(out, 2, 3, 18, "CURRENT HOST", Color::DarkGrey)?;
     paint(out, 2, 5, 18, host_name, Color::White)?;
     paint(out, 2, 8, 18, "Start       soon", Color::DarkGrey)?;
-    paint(out, 2, 10, 18, "Manage      soon", Color::DarkGrey)?;
+    paint(out, 2, 10, 18, "Manage         m", Color::White)?;
     paint(out, 2, 12, 18, "Agents         a", Color::Green)?;
+    paint(out, 2, 16, 18, "SELECTED SERVER", Color::DarkGrey)?;
+    let selected_server = snapshot
+        .active_server_id
+        .as_deref()
+        .and_then(|id| {
+            snapshot
+                .servers
+                .as_ref()?
+                .iter()
+                .find(|server| server.id == id)
+        })
+        .map(|server| server.name.as_str())
+        .unwrap_or("No server selected");
+    paint(out, 2, 18, 18, selected_server, Color::White)?;
 
     let main_x = 24;
     let main_w = width - main_x - 2;
@@ -346,7 +451,7 @@ fn draw(
     )?;
     let actions = [
         ("Use this agent", "Enter", false),
-        ("Manage servers", "m", false),
+        ("Manage servers", "m", snapshot.servers.is_some()),
         (
             if snapshot.service.report.state == ServiceState::Running {
                 "Stop agent service"
@@ -369,7 +474,7 @@ fn draw(
     ];
     for (index, (label, shortcut, ready)) in actions.iter().enumerate() {
         let y = top_y + 2 + index as u16;
-        let color = if selected == index {
+        let color = if view.selected == index {
             Color::Green
         } else if *ready {
             Color::White
@@ -381,7 +486,7 @@ fn draw(
             right_x + 2,
             y,
             2,
-            if selected == index { ">" } else { " " },
+            if view.selected == index { ">" } else { " " },
             color,
         )?;
         paint(out, right_x + 4, y, right_w - 16, label, color)?;
@@ -497,10 +602,10 @@ fn draw(
         Color::White,
     )?;
 
-    let notice = if confirm_stop {
+    let notice = if view.confirm_stop {
         "Stop the agent service? Enter confirms · Esc cancels"
-    } else if !message.is_empty() {
-        message
+    } else if !view.message.is_empty() {
+        view.message
     } else {
         snapshot
             .connection_error
@@ -516,7 +621,168 @@ fn draw(
         "↑↓ Move   Enter Select   s/e/r Action   m Servers   Esc/q Quit",
         Color::DarkGrey,
     )?;
+    if view.manage_open {
+        draw_manage(
+            out,
+            snapshot,
+            host_name,
+            view.manage_selected,
+            width,
+            height,
+        )?;
+    }
     out.flush()
+}
+
+fn draw_manage(
+    out: &mut Stdout,
+    snapshot: &Snapshot,
+    host_name: &str,
+    selected: usize,
+    width: u16,
+    height: u16,
+) -> io::Result<()> {
+    let dialog_w = (width - 20).min(100);
+    let dialog_h = (height - 6).min(20);
+    let x = (width - dialog_w) / 2;
+    let y = (height - dialog_h) / 2;
+    for row in y..y + dialog_h {
+        queue!(
+            out,
+            MoveTo(x, row),
+            SetBackgroundColor(Color::Black),
+            Print(" ".repeat(dialog_w as usize)),
+            ResetColor
+        )?;
+    }
+    box_outline(out, x, y, dialog_w, dialog_h)?;
+    paint(
+        out,
+        x + 2,
+        y + 1,
+        dialog_w - 20,
+        "Manage Servers",
+        Color::White,
+    )?;
+    paint(
+        out,
+        x + dialog_w - 13,
+        y + 1,
+        11,
+        "Esc Close",
+        Color::DarkGrey,
+    )?;
+    let servers = snapshot.servers.as_deref().unwrap_or(&[]);
+    paint(
+        out,
+        x + 2,
+        y + 3,
+        dialog_w - 4,
+        &format!(
+            "{} server{} configured",
+            servers.len(),
+            if servers.len() == 1 { "" } else { "s" }
+        ),
+        Color::DarkGrey,
+    )?;
+    paint(out, x + 2, y + 5, 20, "LOCAL AGENT", Color::DarkGrey)?;
+    paint(out, x + 24, y + 5, dialog_w - 28, host_name, Color::White)?;
+    let visible = (dialog_h - 10) as usize;
+    if servers.is_empty() {
+        paint(
+            out,
+            x + 3,
+            y + 7,
+            dialog_w - 6,
+            "No servers yet · Create Server is coming next",
+            Color::DarkGrey,
+        )?;
+    } else {
+        let start = selected.saturating_sub(visible - 1);
+        for (row, server) in servers.iter().skip(start).take(visible).enumerate() {
+            let index = start + row;
+            let line_y = y + 7 + row as u16;
+            let active = snapshot.active_server_id.as_deref() == Some(server.id.as_str());
+            let kind = if server.server_type.eq_ignore_ascii_case("java") {
+                format!(
+                    "Java · {}",
+                    server.java_flavor.as_deref().unwrap_or("Server")
+                )
+            } else {
+                "Bedrock".into()
+            };
+            let status = if active && snapshot.active_server_running {
+                " · Running"
+            } else if active {
+                " · Active"
+            } else {
+                ""
+            };
+            paint(
+                out,
+                x + 3,
+                line_y,
+                2,
+                if index == selected { ">" } else { " " },
+                if index == selected {
+                    Color::Green
+                } else {
+                    Color::DarkGrey
+                },
+            )?;
+            paint(
+                out,
+                x + 5,
+                line_y,
+                2,
+                if active { "*" } else { " " },
+                Color::Green,
+            )?;
+            paint(
+                out,
+                x + 7,
+                line_y,
+                25,
+                &server.name,
+                if index == selected {
+                    Color::White
+                } else {
+                    Color::DarkGrey
+                },
+            )?;
+            paint(
+                out,
+                x + 33,
+                line_y,
+                dialog_w - 36,
+                &format!("{kind}{status}"),
+                Color::DarkGrey,
+            )?;
+        }
+        if servers.len() > visible {
+            paint(
+                out,
+                x + dialog_w - 18,
+                y + 5,
+                15,
+                &format!(
+                    "{}–{} of {}",
+                    start + 1,
+                    (start + visible).min(servers.len()),
+                    servers.len()
+                ),
+                Color::DarkGrey,
+            )?;
+        }
+    }
+    paint(
+        out,
+        x + 2,
+        y + dialog_h - 2,
+        dialog_w - 4,
+        "t Transfer soon   c Create soon   ↑↓ Move   Enter Select   Esc Close",
+        Color::DarkGrey,
+    )
 }
 
 fn box_outline(out: &mut Stdout, x: u16, y: u16, width: u16, height: u16) -> io::Result<()> {

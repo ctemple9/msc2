@@ -104,6 +104,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.9 only.
 - **Commit:** `P22.9: allow cold version lookup to finish`
 
+### P22.10 — Add the seven server workspace tabs
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Open the server workspace from Use this agent or a selected server. Add the seven approved tabs—Overview, Players, Worlds, Performance, Components, Settings, and Files—with 1–7 keyboard navigation, Agents and Manage navigation, and a real server summary on Overview. The remaining tab bodies and server controls identify their sections but are not connected yet.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, press Enter on Use this agent, and confirm all seven tab names are visible. Press 1–7 and confirm the active tab and heading change. Check that Overview shows the selected server's software, local port, running state, and notes. Press `a` to return to Agents, then `m` to open Manage Servers and select a server; confirm the workspace opens on Overview. No test command is part of this step.
+- **Batch:** P22.10 only.
+- **Commit:** `P22.10: add seven server workspace tabs`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

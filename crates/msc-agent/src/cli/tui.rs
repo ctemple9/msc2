@@ -1,5 +1,5 @@
-//! Host-local terminal client. The first screen owns only presentation and
-//! delegates service changes and server reads to the existing CLI paths.
+//! Host-local terminal client. Screens delegate service changes and server
+//! reads to the existing CLI paths.
 
 mod create;
 
@@ -19,6 +19,15 @@ use super::transport::SharedClient;
 use super::{CliError, CommonArgs};
 
 const REFRESH_INTERVAL: Duration = Duration::from_secs(5);
+const SERVER_TABS: [&str; 7] = [
+    "Overview",
+    "Players",
+    "Worlds",
+    "Performance",
+    "Components",
+    "Settings",
+    "Files",
+];
 
 struct TerminalGuard;
 
@@ -58,6 +67,8 @@ struct ViewState<'a> {
     confirm_stop: bool,
     manage_open: bool,
     manage_selected: usize,
+    workspace_open: bool,
+    tab_index: usize,
     wizard: Option<&'a create::Wizard>,
 }
 
@@ -121,6 +132,8 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     let mut selected = 0usize;
     let mut manage_open = false;
     let mut manage_selected = 0usize;
+    let mut workspace_open = false;
+    let mut tab_index = 0usize;
     let mut wizard: Option<create::Wizard> = None;
     let mut message = String::new();
     let mut confirm_stop = false;
@@ -137,6 +150,8 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 confirm_stop,
                 manage_open,
                 manage_selected,
+                workspace_open,
+                tab_index,
                 wizard: wizard.as_ref(),
             },
         )
@@ -183,6 +198,8 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                     message = note;
                     refresh(&mut snapshot, &mut message).await;
                     manage_open = false;
+                    workspace_open = true;
+                    tab_index = 0;
                 }
             }
             continue;
@@ -222,6 +239,8 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                         match select_server(&id).await {
                             Ok(()) => {
                                 manage_open = false;
+                                workspace_open = true;
+                                tab_index = 0;
                                 refresh(&mut snapshot, &mut message).await;
                                 message = format!("Selected server: {name}");
                             }
@@ -230,6 +249,29 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                     } else {
                         message = "No server to select. Create Server is coming next.".into();
                     }
+                }
+                _ => {}
+            }
+            continue;
+        }
+        if workspace_open {
+            match key.code {
+                KeyCode::Char('1'..='7') => {
+                    if let KeyCode::Char(digit) = key.code {
+                        tab_index = digit as usize - '1' as usize;
+                    }
+                }
+                KeyCode::Char('a') | KeyCode::Esc => workspace_open = false,
+                KeyCode::Char('m') => {
+                    if snapshot.servers.is_some() {
+                        manage_open = true;
+                    } else {
+                        message = "Agent API unavailable; refresh its connection.".into();
+                    }
+                }
+                KeyCode::Char('R') => {
+                    refresh(&mut snapshot, &mut message).await;
+                    last_refresh = Instant::now();
                 }
                 _ => {}
             }
@@ -262,8 +304,8 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             KeyCode::Enter => {
                 match selected {
                     0 => {
-                        message = "Server workspace is not connected yet. Use Manage Servers next."
-                            .into();
+                        workspace_open = true;
+                        tab_index = 0;
                     }
                     1 => {
                         if snapshot.servers.is_some() {
@@ -368,6 +410,23 @@ fn draw(
         Color::Black,
         Color::Grey,
     )?;
+    if view.workspace_open {
+        draw_workspace(out, snapshot, view.tab_index, view.message, width, height)?;
+        if view.manage_open {
+            draw_manage(
+                out,
+                snapshot,
+                host_name,
+                view.manage_selected,
+                width,
+                height,
+            )?;
+        }
+        if let Some(wizard) = view.wizard {
+            wizard.draw(out, width, height)?;
+        }
+        return out.flush();
+    }
     for y in 2..height - 1 {
         paint(out, 22, y, 1, "│", Color::DarkGrey)?;
     }
@@ -472,7 +531,7 @@ fn draw(
         Color::DarkGrey,
     )?;
     let actions = [
-        ("Use this agent", "Enter", false),
+        ("Use this agent", "Enter", true),
         ("Manage servers", "m", snapshot.servers.is_some()),
         (
             if snapshot.service.report.state == ServiceState::Running {
@@ -657,6 +716,245 @@ fn draw(
         wizard.draw(out, width, height)?;
     }
     out.flush()
+}
+
+fn draw_workspace(
+    out: &mut Stdout,
+    snapshot: &Snapshot,
+    tab_index: usize,
+    message: &str,
+    width: u16,
+    height: u16,
+) -> io::Result<()> {
+    let server = snapshot.active_server_id.as_deref().and_then(|id| {
+        snapshot
+            .servers
+            .as_ref()?
+            .iter()
+            .find(|server| server.id == id)
+    });
+    for y in 2..height - 1 {
+        paint(out, 22, y, 1, "│", Color::DarkGrey)?;
+    }
+    paint(out, 2, 3, 18, "SELECTED SERVER", Color::DarkGrey)?;
+    paint(
+        out,
+        2,
+        5,
+        18,
+        server.map_or("No server selected", |server| server.name.as_str()),
+        Color::White,
+    )?;
+    paint(out, 2, 8, 18, "Start       soon", Color::DarkGrey)?;
+    paint(out, 2, 10, 18, "Manage         m", Color::White)?;
+    paint(out, 2, 12, 18, "Agents         a", Color::White)?;
+
+    let main_x = 24;
+    let main_w = width - main_x - 2;
+    let mut tab_x = main_x;
+    for (index, label) in SERVER_TABS.iter().enumerate() {
+        let label = if width < 120 {
+            match index {
+                3 => "Perf",
+                4 => "Comps",
+                _ => label,
+            }
+        } else {
+            label
+        };
+        let tab = format!("{} {}", index + 1, label);
+        let tab_w = tab.chars().count() as u16 + 2;
+        if tab_x + tab_w > width - 2 {
+            break;
+        }
+        paint(
+            out,
+            tab_x,
+            3,
+            tab_w,
+            &tab,
+            if index == tab_index {
+                Color::Green
+            } else {
+                Color::DarkGrey
+            },
+        )?;
+        tab_x += tab_w;
+    }
+    paint(
+        out,
+        main_x,
+        4,
+        main_w,
+        &"─".repeat(main_w as usize),
+        Color::DarkGrey,
+    )?;
+
+    if tab_index == 0 {
+        paint(out, main_x, 6, main_w, "STATUS", Color::White)?;
+        let gap = 2;
+        let left_w = (main_w - gap) / 2;
+        let right_x = main_x + left_w + gap;
+        let right_w = main_w - left_w - gap;
+        box_outline(out, main_x, 8, left_w, 8)?;
+        box_outline(out, right_x, 8, right_w, 8)?;
+        paint(
+            out,
+            main_x + 2,
+            9,
+            left_w - 4,
+            "CONNECTION INFO",
+            Color::DarkGrey,
+        )?;
+        paint(
+            out,
+            right_x + 2,
+            9,
+            right_w - 4,
+            "LIVE STATS",
+            Color::DarkGrey,
+        )?;
+        if let Some(server) = server {
+            let software = if server.server_type.eq_ignore_ascii_case("java") {
+                format!(
+                    "Java · {}",
+                    server.java_flavor.as_deref().unwrap_or("Server")
+                )
+            } else {
+                "Bedrock".into()
+            };
+            let port = server.game_port.or(server.bedrock_port);
+            paint(
+                out,
+                main_x + 2,
+                11,
+                left_w - 4,
+                &format!("Software  {software}"),
+                Color::White,
+            )?;
+            paint(
+                out,
+                main_x + 2,
+                12,
+                left_w - 4,
+                &format!(
+                    "Local     localhost:{}",
+                    port.map_or_else(|| "—".into(), |p| p.to_string())
+                ),
+                Color::White,
+            )?;
+            paint(
+                out,
+                right_x + 2,
+                11,
+                right_w - 4,
+                &format!(
+                    "State     {}",
+                    if snapshot.active_server_running {
+                        "Running"
+                    } else {
+                        "Stopped"
+                    }
+                ),
+                Color::White,
+            )?;
+            paint(
+                out,
+                right_x + 2,
+                12,
+                right_w - 4,
+                "Players   —",
+                Color::DarkGrey,
+            )?;
+        } else {
+            paint(
+                out,
+                main_x + 2,
+                11,
+                left_w - 4,
+                "No server selected",
+                Color::DarkGrey,
+            )?;
+            paint(
+                out,
+                right_x + 2,
+                11,
+                right_w - 4,
+                "Waiting for server",
+                Color::DarkGrey,
+            )?;
+        }
+        paint(out, main_x, 18, main_w, "ACTIVITY", Color::White)?;
+        paint(
+            out,
+            main_x + 2,
+            20,
+            main_w - 2,
+            "Players       Active World       Chat",
+            Color::DarkGrey,
+        )?;
+        paint(out, main_x, 23, main_w, "NOTES", Color::White)?;
+        paint(
+            out,
+            main_x + 2,
+            25,
+            main_w - 2,
+            server.map_or("Select a server to view its notes.", |server| {
+                if server.notes.is_empty() {
+                    "No notes yet"
+                } else {
+                    server.notes.as_str()
+                }
+            }),
+            Color::DarkGrey,
+        )?;
+    } else {
+        paint(
+            out,
+            main_x,
+            7,
+            main_w,
+            &SERVER_TABS[tab_index].to_ascii_uppercase(),
+            Color::White,
+        )?;
+        paint(
+            out,
+            main_x,
+            9,
+            main_w,
+            if server.is_some() {
+                "This section is ready for the next TUI step."
+            } else {
+                "Select or create a server to view this section."
+            },
+            Color::DarkGrey,
+        )?;
+    }
+    paint(
+        out,
+        main_x,
+        height - 5,
+        main_w,
+        &format!(
+            "Console  {}  ·  coming next",
+            if snapshot.active_server_running {
+                "Running"
+            } else {
+                "Stopped"
+            }
+        ),
+        Color::DarkGrey,
+    )?;
+    paint(out, main_x, height - 3, main_w, message, Color::DarkGrey)?;
+    paint(
+        out,
+        main_x,
+        height - 2,
+        main_w,
+        "1–7 Switch tab   a Agents   m Manage   Esc Back",
+        Color::DarkGrey,
+    )?;
+    Ok(())
 }
 
 fn draw_manage(

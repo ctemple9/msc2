@@ -70,6 +70,7 @@ enum FieldKind {
     Text,
     Toggle,
     Choice(&'static [&'static str]),
+    Action,
 }
 struct Field {
     key: &'static str,
@@ -543,7 +544,7 @@ impl Wizard {
     }
 
     fn fields(&self) -> Vec<Field> {
-        use FieldKind::{Choice, Text, Toggle};
+        use FieldKind::{Action, Choice, Text, Toggle};
         match self.page() {
             Page::Choose => vec![field(
                 "path",
@@ -789,24 +790,40 @@ impl Wizard {
             }
             Page::Gameplay if !self.java() => {
                 if self.world_page_index == 5 {
-                    return vec![field(
-                        "gamerules",
-                        if self.gamerules_text_saved || self.editing.is_some() {
-                            "Game rules"
-                        } else {
-                            "Edit rules as text"
-                        },
-                        Text,
-                        "Comma-separated rule=value pairs.",
-                    )];
+                    return vec![
+                        field(
+                            "gamerules",
+                            if self.gamerules_text_saved || self.editing.is_some() {
+                                "Game rules"
+                            } else {
+                                "Edit rules as text"
+                            },
+                            Text,
+                            "Comma-separated rule=value pairs.",
+                        ),
+                        field(
+                            "skip_rule_editor",
+                            "Skip rule editor",
+                            Action,
+                            "Continue without changing game rules.",
+                        ),
+                    ];
                 }
                 if self.world_page_index == 6 {
-                    return vec![field(
-                        "world_pack",
-                        "Behavior pack path",
-                        Text,
-                        "Optional local .mcpack or .zip installed in the first world.",
-                    )];
+                    return vec![
+                        field(
+                            "world_pack",
+                            "Behavior pack path",
+                            Text,
+                            "Optional local .mcpack or .zip installed in the first world.",
+                        ),
+                        field(
+                            "skip_world_pack",
+                            "Skip behavior pack",
+                            Action,
+                            "Continue without importing a behavior pack.",
+                        ),
+                    ];
                 }
                 let mut rows = Vec::new();
                 for (key, label, hint, capability) in [
@@ -858,32 +875,40 @@ impl Wizard {
             }
             Page::Gameplay => {
                 if self.world_page_index == 5 {
-                    return vec![field(
-                        "gamerules",
-                        if self.gamerules_text_saved || self.editing.is_some() {
-                            "Game rules"
-                        } else {
-                            "Edit rules as text"
-                        },
-                        Text,
-                        "Comma-separated rule=value pairs.",
-                    )];
+                    return vec![
+                        field(
+                            "gamerules",
+                            if self.gamerules_text_saved || self.editing.is_some() {
+                                "Game rules"
+                            } else {
+                                "Edit rules as text"
+                            },
+                            Text,
+                            "Comma-separated rule=value pairs.",
+                        ),
+                        field(
+                            "skip_rule_editor",
+                            "Skip rule editor",
+                            Action,
+                            "Continue without changing game rules.",
+                        ),
+                    ];
                 }
                 if self.world_page_index == 6 {
-                    return vec![field(
-                        "world_pack",
-                        if self.java() {
-                            "Datapack ZIP path"
-                        } else {
-                            "Behavior pack path"
-                        },
-                        Text,
-                        if self.java() {
-                            "Optional local .zip installed in the first world."
-                        } else {
-                            "Optional local .mcpack or .zip installed in the first world."
-                        },
-                    )];
+                    return vec![
+                        field(
+                            "world_pack",
+                            "Datapack ZIP path",
+                            Text,
+                            "Optional local .zip installed in the first world.",
+                        ),
+                        field(
+                            "skip_world_pack",
+                            "Skip datapack",
+                            Action,
+                            "Continue without importing a datapack.",
+                        ),
+                    ];
                 }
                 let mut rows = Vec::new();
                 for (key, label, hint, capability) in [
@@ -917,12 +942,20 @@ impl Wizard {
                 }
                 rows
             }
-            Page::Addons => vec![field(
-                "addon",
-                "Local plugin or mod path",
-                Text,
-                "Optional .jar path on this computer. Modrinth browsing is left out of this terminal flow.",
-            )],
+            Page::Addons => vec![
+                field(
+                    "addon",
+                    "Local plugin or mod path",
+                    Text,
+                    "Optional .jar path on this computer. Modrinth browsing is left out of this terminal flow.",
+                ),
+                field(
+                    "skip_addon",
+                    "Skip plugins",
+                    Action,
+                    "Continue without adding a plugin or mod.",
+                ),
+            ],
             Page::Confirm => Vec::new(),
         }
     }
@@ -1128,7 +1161,7 @@ impl Wizard {
                                 self.set(field.key, if self.yes(field.key) { "No" } else { "Yes" })
                             }
                         }
-                        FieldKind::Text => {}
+                        FieldKind::Text | FieldKind::Action => {}
                     }
                 }
             }
@@ -1176,6 +1209,28 @@ impl Wizard {
                 self.message.clear();
             }
             KeyCode::Enter => {
+                if let Some(field) = fields.get(self.cursor) {
+                    match field.key {
+                        "skip_rule_editor" => {
+                            self.world_page_index = 6;
+                            self.cursor = 0;
+                            self.message.clear();
+                            return Outcome::Stay;
+                        }
+                        "skip_world_pack" | "skip_addon" => {
+                            if field.key == "skip_world_pack" {
+                                self.set("world_pack", "");
+                            } else {
+                                self.set("addon", "");
+                            }
+                            if let Err(error) = self.advance(out).await {
+                                self.message = error.to_string();
+                            }
+                            return Outcome::Stay;
+                        }
+                        _ => {}
+                    }
+                }
                 if self.java_install_page {
                     match self.install_java(out, self.java_install_major).await {
                         Ok(path) => {
@@ -1241,6 +1296,9 @@ impl Wizard {
                     && self.world_page_index == 5
                     && self.editing.is_none()
                     && !self.gamerules_text_saved
+                    && fields
+                        .get(self.cursor)
+                        .is_some_and(|field| field.key == "gamerules")
                 {
                     self.editing = Some(self.get("gamerules").to_string());
                     self.message.clear();
@@ -1878,7 +1936,7 @@ impl Wizard {
                         } else if self.gamerules_text_saved {
                             "Press Enter to continue to datapacks, or e to change these rules."
                         } else {
-                            "Press Enter to open the rule editor, then save to continue."
+                            "Press Enter to edit rules, or choose Skip rule editor."
                         },
                     ),
                     _ if !self.java() => (
@@ -2379,12 +2437,12 @@ impl Wizard {
             "↑↓ Move   Space Toggle   a Add Rule   e Edit as Text   Enter Continue   Esc Back"
         } else if page == Page::Gameplay && self.world_page_index == 5 {
             if self.gamerules_text_saved {
-                "Enter Continue to Datapacks   e Edit rules   Esc Back"
+                "↑↓ Choose   Enter Continue or Skip   e Edit selected rules   Esc Back"
             } else {
-                "Enter Edit rules   e Edit rules   Esc Back"
+                "↑↓ Choose   Enter Edit or Skip   Esc Back"
             }
-        } else if page == Page::Addons {
-            "e Edit path   Enter Continue   Esc Back"
+        } else if (page == Page::Gameplay && self.world_page_index == 6) || page == Page::Addons {
+            "↑↓ Choose   e Edit selected path   Enter Continue or Skip   Esc Back"
         } else if matches!(page, Page::World | Page::Generation | Page::Gameplay) {
             "↑↓ Move   ←→ Choose   Space Toggle   e Edit   Enter Continue   Esc Back"
         } else if page == Page::Configure && self.java() && self.configure_page_index == 4 {

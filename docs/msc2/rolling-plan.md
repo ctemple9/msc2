@@ -86,6 +86,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.7 only.
 - **Commit:** `P22.7: fix rules editor navigation`
 
+### P22.8 — Add Skip actions to optional create pages
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/create.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Give World page 6/7, World page 7/7, and Add-ons a selectable Skip row. Up/Down moves between the edit/path row and Skip; Enter on Skip advances without opening an editor. Skipping the rule editor leaves any rules already chosen on the preceding gameplay page. Skipping a datapack/behavior pack or plugin clears a previously entered path so that file is not installed. Update the footer to describe the keyboard action.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, navigate to World page 6/7, press Down and Enter, and confirm page 7/7 opens without editing rules. On page 7/7, press Down and Enter to reach Add-ons. On Add-ons, press Down and Enter to reach Confirm. Go back and enter a pack path, choose Skip, then return to page 7/7 and confirm the path is empty. Enter a plugin path, choose Skip, and confirm the Confirm page says “Local add-on: None.” No test command is part of this step.
+- **Batch:** P22.8 only.
+- **Commit:** `P22.8: add skip actions to optional create pages`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

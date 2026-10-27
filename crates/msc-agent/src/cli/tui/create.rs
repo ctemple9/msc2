@@ -145,6 +145,7 @@ pub(super) struct Wizard {
     configure_page_index: usize,
     network_page_index: usize,
     world_page_index: usize,
+    gamerules_text_saved: bool,
     version_picker_active: bool,
     java_install_page: bool,
     java_install_major: i64,
@@ -205,6 +206,7 @@ impl Wizard {
             configure_page_index: 0,
             network_page_index: 0,
             world_page_index: 0,
+            gamerules_text_saved: false,
             version_picker_active: false,
             java_install_page: false,
             java_install_major: 25,
@@ -789,9 +791,13 @@ impl Wizard {
                 if self.world_page_index == 5 {
                     return vec![field(
                         "gamerules",
-                        "Edit rules as text",
+                        if self.gamerules_text_saved || self.editing.is_some() {
+                            "Game rules"
+                        } else {
+                            "Edit rules as text"
+                        },
                         Text,
-                        "One rule=value pair per line or comma-separated.",
+                        "Comma-separated rule=value pairs.",
                     )];
                 }
                 if self.world_page_index == 6 {
@@ -854,9 +860,13 @@ impl Wizard {
                 if self.world_page_index == 5 {
                     return vec![field(
                         "gamerules",
-                        "Edit rules as text",
+                        if self.gamerules_text_saved || self.editing.is_some() {
+                            "Game rules"
+                        } else {
+                            "Edit rules as text"
+                        },
                         Text,
-                        "One rule=value pair per line or comma-separated.",
+                        "Comma-separated rule=value pairs.",
                     )];
                 }
                 if self.world_page_index == 6 {
@@ -929,6 +939,10 @@ impl Wizard {
                     if let Some(field) = self.fields().get(self.cursor) {
                         self.set(field.key, value);
                     }
+                    if self.page() == Page::Gameplay && self.world_page_index == 5 {
+                        self.gamerules_text_saved = true;
+                        self.message = "Rules saved. Press Enter to continue to datapacks.".into();
+                    }
                 }
                 KeyCode::Backspace => {
                     buffer.pop();
@@ -971,6 +985,9 @@ impl Wizard {
                         2 => self.page_index = self.page_index.saturating_sub(1),
                         4 => self.page_index = self.page_index.saturating_sub(1),
                         _ => {}
+                    }
+                    if self.world_page_index == 5 {
+                        self.gamerules_text_saved = false;
                     }
                     self.world_page_index -= 1;
                     self.cursor = 0;
@@ -1123,6 +1140,7 @@ impl Wizard {
                         .is_some_and(|field| field.key == "gamerules")
                 {
                     self.world_page_index = 5;
+                    self.gamerules_text_saved = false;
                     self.cursor = 0;
                     self.message.clear();
                     return Outcome::Stay;
@@ -1131,6 +1149,10 @@ impl Wizard {
                     && !matches!(field.key, "version" | "bedrock_version")
                     && matches!(field.kind, FieldKind::Text)
                 {
+                    if self.page() == Page::Gameplay && self.world_page_index == 5 {
+                        self.gamerules_text_saved = false;
+                        self.message.clear();
+                    }
                     self.editing = Some(self.get(field.key).to_string());
                 }
             }
@@ -1218,6 +1240,7 @@ impl Wizard {
                 if self.page() == Page::Gameplay
                     && self.world_page_index == 5
                     && self.editing.is_none()
+                    && !self.gamerules_text_saved
                 {
                     self.editing = Some(self.get("gamerules").to_string());
                     self.message.clear();
@@ -1843,8 +1866,20 @@ impl Wizard {
                         "Commands, gamerules, cheats, and edition-specific options.",
                     ),
                     5 => (
-                        "Edit game rules",
-                        "Add or change rule=value entries for this world.",
+                        if self.editing.is_some() {
+                            "Editing game rules"
+                        } else if self.gamerules_text_saved {
+                            "Game rules saved"
+                        } else {
+                            "Edit game rules"
+                        },
+                        if self.editing.is_some() {
+                            "Enter saves the rule list. Esc cancels editing."
+                        } else if self.gamerules_text_saved {
+                            "Press Enter to continue to datapacks, or e to change these rules."
+                        } else {
+                            "Press Enter to open the rule editor, then save to continue."
+                        },
                     ),
                     _ if !self.java() => (
                         "Behavior pack",
@@ -2150,7 +2185,11 @@ impl Wizard {
                     0 => "WORLD SOURCE",
                     1 => "ESSENTIALS",
                     2 | 3 => "WORLD GENERATION · TERRAIN, FOLDER, AND FIRST-CREATION OPTIONS",
-                    4 | 5 => "GAMEPLAY RULES · COMMANDS, GAMERULES, AND EDITION-SPECIFIC OPTIONS",
+                    4 => "GAMEPLAY RULES · COMMANDS, GAMERULES, AND EDITION-SPECIFIC OPTIONS",
+                    5 if self.editing.is_some() => {
+                        "EDIT RULES AS TEXT · COMMA-SEPARATED RULE=VALUE PAIRS"
+                    }
+                    5 => "EDIT RULES AS TEXT",
                     _ => "DATAPACKS",
                 };
                 paint(out, x + 2, y + 9, w - 4, section, Color::DarkGrey)?;
@@ -2307,6 +2346,8 @@ impl Wizard {
         }
         let footer = if self.pending_operation_id.is_some() {
             "Enter Check submitted operation   Please wait"
+        } else if self.editing.is_some() && page == Page::Gameplay && self.world_page_index == 5 {
+            "Type rule=value pairs   Enter Save   Esc Cancel"
         } else if self.editing.is_some() {
             "Type value   Backspace Delete   Enter Save   Esc Cancel"
         } else if page == Page::Confirm {
@@ -2337,7 +2378,11 @@ impl Wizard {
         } else if page == Page::Gameplay && self.world_page_index == 4 {
             "↑↓ Move   Space Toggle   a Add Rule   e Edit as Text   Enter Continue   Esc Back"
         } else if page == Page::Gameplay && self.world_page_index == 5 {
-            "e Edit rules   Enter Continue   Esc Back"
+            if self.gamerules_text_saved {
+                "Enter Continue to Datapacks   e Edit rules   Esc Back"
+            } else {
+                "Enter Edit rules   e Edit rules   Esc Back"
+            }
         } else if page == Page::Addons {
             "e Edit path   Enter Continue   Esc Back"
         } else if matches!(page, Page::World | Page::Generation | Page::Gameplay) {

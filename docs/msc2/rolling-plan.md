@@ -77,6 +77,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.6 only.
 - **Commit:** `P22.6: align create wizard world pages`
 
+### P22.7 — Let the rules editor continue to Datapacks
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/create.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Fix the World page 6/7 action so Enter clearly opens the game-rule editor, Enter saves the rule list, and the next Enter continues to Datapacks instead of reopening the editor. Change the heading, field label, and footer while editing or after saving so each state is visible. Pressing `e` after saving reopens the editor.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, navigate to World page 6/7, and press Enter. Confirm the heading and footer indicate rule editing; type a `rule=value` pair and press Enter to save. Confirm the saved state says Enter continues to Datapacks, then press Enter and verify page 7/7 appears. Press `e` to reopen editing and Esc to cancel. No test command is part of this step.
+- **Batch:** P22.7 only.
+- **Commit:** `P22.7: fix rules editor navigation`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

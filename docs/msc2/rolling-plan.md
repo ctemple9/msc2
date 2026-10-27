@@ -95,6 +95,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.8 only.
 - **Commit:** `P22.8: add skip actions to optional create pages`
 
+### P22.9 — Let the first version lookup finish
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/transport.rs`; `crates/msc-agent/src/cli/tui/create.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Give the create wizard's Minecraft version lookup a 30-second response window so a cold provider request can finish on the first attempt. Keep ordinary CLI requests at their existing timeout and preserve the explicit timeout environment override.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, start a fresh Java Paper server, and advance from Configure page 4/7 to the Source page 5/7. Confirm the versions load on the first visit and Choose version can cycle through them without returning to page 4/7. No test command is part of this step.
+- **Batch:** P22.9 only.
+- **Commit:** `P22.9: allow cold version lookup to finish`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

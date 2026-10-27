@@ -1738,7 +1738,11 @@ impl Wizard {
                 return;
             }
         };
-        let response = match client.get_json::<VersionsResponseDto>(&path).await {
+        // A cold provider lookup can take longer than the local CLI's default read window.
+        let response = match client
+            .get_json_with_timeout::<VersionsResponseDto>(&path, Duration::from_secs(30))
+            .await
+        {
             Ok(response) => response,
             Err(error) => {
                 self.message = format!("Could not load Minecraft versions: {error}");

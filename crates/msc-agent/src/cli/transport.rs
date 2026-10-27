@@ -47,7 +47,20 @@ impl SharedClient {
     }
 
     pub(crate) async fn get_json<T: DeserializeOwned>(&self, path: &str) -> Result<T, CliError> {
-        let response = self.request_raw(Method::GET, path, None, None).await?;
+        let response = self
+            .request_raw(Method::GET, path, None, None, None)
+            .await?;
+        decode_json(&response.body)
+    }
+
+    pub(crate) async fn get_json_with_timeout<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        response_timeout: Duration,
+    ) -> Result<T, CliError> {
+        let response = self
+            .request_raw(Method::GET, path, None, None, Some(response_timeout))
+            .await?;
         decode_json(&response.body)
     }
 
@@ -59,7 +72,13 @@ impl SharedClient {
         let payload = serde_json::to_vec(body)
             .map_err(|err| CliError::internal(format!("failed to encode request body: {err}")))?;
         let response = self
-            .request_raw(Method::POST, path, Some("application/json"), Some(payload))
+            .request_raw(
+                Method::POST,
+                path,
+                Some("application/json"),
+                Some(payload),
+                None,
+            )
             .await?;
         decode_json(&response.body)
     }
@@ -90,6 +109,7 @@ impl SharedClient {
         path: &str,
         content_type: Option<&str>,
         body: Option<Vec<u8>>,
+        response_timeout: Option<Duration>,
     ) -> Result<RawHttpResponse, CliError> {
         let uri: Uri = format!("{}{}", self.base_url, path)
             .parse()
@@ -120,8 +140,8 @@ impl SharedClient {
             authority.as_str(),
             &target,
             &self.token,
-            content_type,
-            body,
+            body.map(|body| (content_type, body)),
+            response_timeout,
         )
         .await
         .map_err(CliError::internal)?;
@@ -342,8 +362,8 @@ async fn send_http_request(
     authority: &str,
     target: &str,
     token: &str,
-    content_type: Option<&str>,
-    body: Option<Vec<u8>>,
+    body: Option<(Option<&str>, Vec<u8>)>,
+    requested_timeout: Option<Duration>,
 ) -> Result<RawHttpResponse, String> {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -354,7 +374,7 @@ async fn send_http_request(
         authority,
         token
     );
-    if let Some(body) = &body {
+    if let Some((content_type, body)) = &body {
         if let Some(content_type) = content_type {
             header.push_str(&format!("Content-Type: {content_type}\r\n"));
         }
@@ -363,7 +383,7 @@ async fn send_http_request(
     header.push_str("\r\n");
 
     let mut request = header.into_bytes();
-    if let Some(body) = body {
+    if let Some((_, body)) = body {
         request.extend_from_slice(&body);
     }
 
@@ -380,7 +400,8 @@ async fn send_http_request(
         .and_then(|value| value.parse::<u64>().ok())
         .filter(|seconds| *seconds > 0)
         .map(tokio::time::Duration::from_secs)
-        .unwrap_or_else(|| tokio::time::Duration::from_secs(5));
+        .or(requested_timeout)
+        .unwrap_or_else(|| Duration::from_secs(5));
 
     loop {
         let read = tokio::time::timeout(response_timeout, stream.read(&mut chunk))
@@ -456,6 +477,7 @@ impl SharedClient {
         self.request_raw(
             Method::DELETE,
             &format!("/v1/staged-uploads/{id}"),
+            None,
             None,
             None,
         )

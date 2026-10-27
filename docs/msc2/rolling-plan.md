@@ -41,6 +41,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.2 only.
 - **Commit:** `P22.2: add functional agents tui page`
 
+### P22.3 — Match the Manage Agents terminal layout to the approved preview
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Replace the simplified single-column Agents screen with the preview's two-line banner, current-host sidebar, two-column Current Agent and Actions panels, and lower On This Agent and Another Computer panels. Keep real service, boot, connection, and server data. Show the actual server names and software without inventing a running state or version. Use this agent, Manage servers, sidebar Start/Manage, Help, and Settings are visible but report that their destination is not connected; no server action is performed. Service controls and refresh remain functional. The full layout needs at least a 100-by-24 terminal and tells the user when the window is smaller.
+- **Verify:** Run `cargo run -p msc-agent -- tui` in a terminal at least 100 columns by 24 rows. Compare the banner, sidebar, four bordered sections, and five action rows with the approved preview. Confirm the host/server values are real, select Use this agent or Manage servers and press Enter to see the unavailable message, then use Refresh and Esc. No test command is part of this step.
+- **Batch:** P22.3 only.
+- **Commit:** `P22.3: complete agents tui layout`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

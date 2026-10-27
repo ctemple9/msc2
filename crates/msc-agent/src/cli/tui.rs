@@ -136,13 +136,29 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
         match key.code {
             KeyCode::Esc | KeyCode::Char('q') => break,
             KeyCode::Up => selected = selected.saturating_sub(1),
-            KeyCode::Down => selected = (selected + 1).min(2),
-            KeyCode::Char('s') => selected = 0,
-            KeyCode::Char('e') => selected = 1,
-            KeyCode::Char('r') | KeyCode::Char('R') => selected = 2,
+            KeyCode::Down => selected = (selected + 1).min(4),
+            KeyCode::Char('a') => selected = 0,
+            KeyCode::Char('m') => selected = 1,
+            KeyCode::Char('s') => selected = 2,
+            KeyCode::Char('e') => selected = 3,
+            KeyCode::Char('r') => selected = 4,
+            KeyCode::Char('R') => {
+                refresh(&mut snapshot, &mut message).await;
+                last_refresh = Instant::now();
+            }
+            KeyCode::Char('?') => message = "Help screen is not connected yet.".into(),
+            KeyCode::Char('S') => message = "Settings screen is not connected yet.".into(),
             KeyCode::Enter => {
                 match selected {
                     0 => {
+                        message = "Server workspace is not connected yet. Use Manage Servers next."
+                            .into();
+                    }
+                    1 => {
+                        message =
+                            "Manage Servers is the next TUI step; no server was changed.".into();
+                    }
+                    2 => {
                         if snapshot.service.report.state == ServiceState::NotInstalled {
                             message = "Install the agent service before starting it.".into();
                         } else if snapshot.service.report.state == ServiceState::Running {
@@ -156,7 +172,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                             refresh(&mut snapshot, &mut message).await;
                         }
                     }
-                    1 => {
+                    3 => {
                         if let Some(enabled) = snapshot.service.boot_enabled {
                             let action = if enabled {
                                 AgentAction::Disable
@@ -206,39 +222,85 @@ fn draw(
 ) -> io::Result<()> {
     let (width, height) = terminal::size()?;
     queue!(out, Clear(ClearType::All))?;
-    if width < 45 || height < 22 {
-        line(
+    if width < 100 || height < 24 {
+        paint(
             out,
             0,
             0,
             width,
-            "MSC 2 · terminal too small (need 45 × 22)",
+            "MSC 2 · enlarge terminal to at least 100 × 24",
             Color::White,
         )?;
         return out.flush();
     }
-    queue!(
+
+    // The banner and left rail match the shell in the owner's design preview.
+    for y in 0..2 {
+        queue!(
+            out,
+            MoveTo(0, y),
+            SetBackgroundColor(Color::Grey),
+            Print(" ".repeat(width as usize)),
+            ResetColor
+        )?;
+    }
+    paint_on(out, 1, 0, 22, "MSC 2", Color::Black, Color::Grey)?;
+    paint_on(out, 1, 1, 22, "by ctemple9", Color::Black, Color::Grey)?;
+    paint_on(
         out,
-        MoveTo(0, 0),
-        SetBackgroundColor(Color::Grey),
-        SetForegroundColor(Color::Black),
-        Print(format!(
-            "{:<width$}",
-            " MSC 2  by ctemple9",
-            width = width as usize
-        )),
-        ResetColor
+        width - 53,
+        0,
+        51,
+        "Help [?]   Settings [Shift+S]   Refresh [Shift+R]",
+        Color::Black,
+        Color::Grey,
     )?;
-    line(out, 2, 2, width - 4, "MANAGE AGENTS", Color::White)?;
-    line(
+    for y in 2..height - 1 {
+        paint(out, 22, y, 1, "│", Color::DarkGrey)?;
+    }
+    paint(out, 2, 3, 18, "CURRENT HOST", Color::DarkGrey)?;
+    paint(out, 2, 5, 18, host_name, Color::White)?;
+    paint(out, 2, 8, 18, "Start       soon", Color::DarkGrey)?;
+    paint(out, 2, 10, 18, "Manage      soon", Color::DarkGrey)?;
+    paint(out, 2, 12, 18, "Agents         a", Color::Green)?;
+
+    let main_x = 24;
+    let main_w = width - main_x - 2;
+    let gap = 2;
+    let left_w = (main_w - gap) / 2;
+    let right_x = main_x + left_w + gap;
+    let right_w = main_w - left_w - gap;
+    paint(out, main_x, 2, main_w, "Manage Agents", Color::White)?;
+    paint(
         out,
-        2,
+        main_x,
         3,
-        width - 4,
-        &format!("{host_name} · this computer"),
+        main_w,
+        "Manage this computer's agent. Servers and files stay here.",
         Color::DarkGrey,
     )?;
-    section(out, 2, 5, width - 4, "CURRENT AGENT")?;
+
+    let top_y = 5;
+    let top_h = 9;
+    box_outline(out, main_x, top_y, left_w, top_h)?;
+    box_outline(out, right_x, top_y, right_w, top_h)?;
+    paint(
+        out,
+        main_x + 2,
+        top_y + 1,
+        left_w - 4,
+        "CURRENT AGENT",
+        Color::DarkGrey,
+    )?;
+    paint(
+        out,
+        main_x + 2,
+        top_y + 2,
+        left_w - 4,
+        &format!("{host_name} · This computer"),
+        Color::White,
+    )?;
+
     let state = match snapshot.service.report.state {
         ServiceState::NotInstalled => "Not installed",
         ServiceState::Stopped => "Stopped",
@@ -261,114 +323,182 @@ fn draw(
         .as_ref()
         .map(|list| format!("{} configured", list.len()))
         .unwrap_or_else(|| "Unavailable".into());
-    line(
-        out,
-        4,
-        7,
-        width - 8,
-        &format!("Service          {state}"),
-        Color::White,
-    )?;
-    line(
-        out,
-        4,
-        8,
-        width - 8,
-        &format!("Starts at boot   {boot}"),
-        Color::White,
-    )?;
-    line(
-        out,
-        4,
-        9,
-        width - 8,
-        &format!("Connection       {connection}"),
-        Color::White,
-    )?;
-    line(
-        out,
-        4,
-        10,
-        width - 8,
-        "Address          127.0.0.1:48001",
-        Color::White,
-    )?;
-    line(
-        out,
-        4,
-        11,
-        width - 8,
-        &format!("Servers          {count}"),
-        Color::White,
-    )?;
-    section(out, 2, 13, width - 4, "ACTIONS")?;
-    let actions = [
-        if snapshot.service.report.state == ServiceState::Running {
-            "Stop agent service"
-        } else {
-            "Start agent service"
-        },
-        if snapshot.service.boot_enabled == Some(true) {
-            "Disable start at boot"
-        } else {
-            "Enable start at boot"
-        },
-        "Refresh agent status",
+    let facts = [
+        ("Service", state.to_string()),
+        ("Starts at boot", boot.to_string()),
+        ("Connection", connection.to_string()),
+        ("Address", "127.0.0.1:48001".into()),
+        ("Servers", count),
     ];
-    for (index, action) in actions.iter().enumerate() {
-        line(
-            out,
-            4,
-            15 + index as u16,
-            width - 8,
-            &format!(
-                "{} {action}  [{}]",
-                if selected == index { '>' } else { ' ' },
-                ["s", "e", "r"][index]
-            ),
-            if selected == index {
-                Color::Green
+    for (index, (label, value)) in facts.iter().enumerate() {
+        let y = top_y + 3 + index as u16;
+        paint(out, main_x + 2, y, 16, label, Color::DarkGrey)?;
+        paint(out, main_x + 18, y, left_w - 20, value, Color::White)?;
+    }
+
+    paint(
+        out,
+        right_x + 2,
+        top_y + 1,
+        right_w - 4,
+        "ACTIONS",
+        Color::DarkGrey,
+    )?;
+    let actions = [
+        ("Use this agent", "Enter", false),
+        ("Manage servers", "m", false),
+        (
+            if snapshot.service.report.state == ServiceState::Running {
+                "Stop agent service"
             } else {
-                Color::White
+                "Start agent service"
             },
+            "s",
+            true,
+        ),
+        (
+            if snapshot.service.boot_enabled == Some(true) {
+                "Disable start at boot"
+            } else {
+                "Enable start at boot"
+            },
+            "e",
+            true,
+        ),
+        ("Refresh agent status", "r", true),
+    ];
+    for (index, (label, shortcut, ready)) in actions.iter().enumerate() {
+        let y = top_y + 2 + index as u16;
+        let color = if selected == index {
+            Color::Green
+        } else if *ready {
+            Color::White
+        } else {
+            Color::DarkGrey
+        };
+        paint(
+            out,
+            right_x + 2,
+            y,
+            2,
+            if selected == index { ">" } else { " " },
+            color,
+        )?;
+        paint(out, right_x + 4, y, right_w - 16, label, color)?;
+        paint(
+            out,
+            right_x + right_w - 11,
+            y,
+            9,
+            if *ready { shortcut } else { "soon" },
+            Color::DarkGrey,
         )?;
     }
-    if height >= 27 {
-        section(out, 2, 19, width - 4, "ON THIS AGENT")?;
-        if let Some(servers) = &snapshot.servers {
-            if servers.is_empty() {
-                line(
+
+    let bottom_y = 15;
+    let bottom_h = height - bottom_y - 3;
+    box_outline(out, main_x, bottom_y, left_w, bottom_h)?;
+    box_outline(out, right_x, bottom_y, right_w, bottom_h)?;
+    paint(
+        out,
+        main_x + 2,
+        bottom_y + 1,
+        left_w - 4,
+        "ON THIS AGENT",
+        Color::DarkGrey,
+    )?;
+    let visible = (bottom_h - 3) as usize;
+    if let Some(servers) = &snapshot.servers {
+        if servers.is_empty() {
+            paint(
+                out,
+                main_x + 2,
+                bottom_y + 2,
+                left_w - 4,
+                "No servers configured",
+                Color::DarkGrey,
+            )?;
+        } else {
+            let shown = if servers.len() > visible {
+                visible - 1
+            } else {
+                servers.len()
+            };
+            for (index, server) in servers.iter().take(shown).enumerate() {
+                let y = bottom_y + 2 + index as u16;
+                let kind = if server.server_type.eq_ignore_ascii_case("java") {
+                    format!(
+                        "Java · {}",
+                        server.java_flavor.as_deref().unwrap_or("Server")
+                    )
+                } else {
+                    "Bedrock".into()
+                };
+                paint(
                     out,
-                    4,
-                    21,
-                    width - 8,
-                    "No servers configured",
+                    main_x + 2,
+                    y,
+                    left_w / 2 - 2,
+                    &server.name,
+                    Color::White,
+                )?;
+                paint(
+                    out,
+                    main_x + left_w / 2,
+                    y,
+                    left_w / 2 - 2,
+                    &kind,
                     Color::DarkGrey,
                 )?;
             }
-            for (index, server) in servers.iter().take((height - 26) as usize).enumerate() {
-                line(
+            if servers.len() > shown {
+                paint(
                     out,
-                    4,
-                    21 + index as u16,
-                    width - 8,
-                    &format!("{}  ·  {}", server.name, server.server_type),
-                    Color::White,
+                    main_x + 2,
+                    bottom_y + 2 + shown as u16,
+                    left_w - 4,
+                    &format!("+{} more servers", servers.len() - shown),
+                    Color::DarkGrey,
                 )?;
             }
-        } else {
-            line(
-                out,
-                4,
-                21,
-                width - 8,
-                "Server list unavailable until the agent API is connected",
-                Color::DarkGrey,
-            )?;
         }
+    } else {
+        paint(
+            out,
+            main_x + 2,
+            bottom_y + 2,
+            left_w - 4,
+            "Server list unavailable",
+            Color::DarkGrey,
+        )?;
     }
+    paint(
+        out,
+        right_x + 2,
+        bottom_y + 1,
+        right_w - 4,
+        "ANOTHER COMPUTER",
+        Color::DarkGrey,
+    )?;
+    paint(
+        out,
+        right_x + 2,
+        bottom_y + 2,
+        right_w - 4,
+        "SSH in as the account that installed MSC.",
+        Color::White,
+    )?;
+    paint(
+        out,
+        right_x + 2,
+        bottom_y + 3,
+        right_w - 4,
+        "Run msc tui there to control its agent.",
+        Color::White,
+    )?;
+
     let notice = if confirm_stop {
-        "Stop the agent service? Enter confirm · Esc cancel"
+        "Stop the agent service? Enter confirms · Esc cancels"
     } else if !message.is_empty() {
         message
     } else {
@@ -377,39 +507,69 @@ fn draw(
             .as_deref()
             .unwrap_or("Closing this screen leaves the agent and servers running.")
     };
-    line(out, 2, height - 3, width - 4, notice, Color::DarkGrey)?;
-    line(
+    paint(out, main_x, height - 2, main_w, notice, Color::DarkGrey)?;
+    paint(
         out,
-        2,
+        main_x,
         height - 1,
-        width - 4,
-        "↑↓ Move   Enter Select   s/e/r Choose action   Esc/q Quit",
+        main_w,
+        "↑↓ Move   Enter Select   s/e/r Action   m Servers   Esc/q Quit",
         Color::DarkGrey,
     )?;
     out.flush()
 }
 
-fn section(out: &mut Stdout, x: u16, y: u16, width: u16, title: &str) -> io::Result<()> {
-    line(
+fn box_outline(out: &mut Stdout, x: u16, y: u16, width: u16, height: u16) -> io::Result<()> {
+    let rule = "─".repeat((width - 2) as usize);
+    paint(out, x, y, width, &format!("┌{rule}┐"), Color::DarkGrey)?;
+    for row in y + 1..y + height - 1 {
+        paint(out, x, row, 1, "│", Color::DarkGrey)?;
+        paint(out, x + width - 1, row, 1, "│", Color::DarkGrey)?;
+    }
+    paint(
         out,
         x,
-        y,
+        y + height - 1,
         width,
-        &format!(
-            "{title} {}",
-            "─".repeat(width.saturating_sub(title.len() as u16 + 2) as usize)
-        ),
+        &format!("└{rule}┘"),
         Color::DarkGrey,
     )
 }
 
-fn line(out: &mut Stdout, x: u16, y: u16, width: u16, value: &str, color: Color) -> io::Result<()> {
-    let text: String = value.chars().take(width as usize).collect();
+fn paint(
+    out: &mut Stdout,
+    x: u16,
+    y: u16,
+    width: u16,
+    value: &str,
+    color: Color,
+) -> io::Result<()> {
+    let clipped: String = value.chars().take(width as usize).collect();
     queue!(
         out,
         MoveTo(x, y),
         SetForegroundColor(color),
-        Print(text),
+        Print(clipped),
+        ResetColor
+    )
+}
+
+fn paint_on(
+    out: &mut Stdout,
+    x: u16,
+    y: u16,
+    width: u16,
+    value: &str,
+    foreground: Color,
+    background: Color,
+) -> io::Result<()> {
+    let clipped: String = value.chars().take(width as usize).collect();
+    queue!(
+        out,
+        MoveTo(x, y),
+        SetForegroundColor(foreground),
+        SetBackgroundColor(background),
+        Print(clipped),
         ResetColor
     )
 }

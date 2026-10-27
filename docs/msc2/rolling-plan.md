@@ -32,6 +32,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.1 only.
 - **Commit:** `P22.1: record restored tui direction`
 
+### P22.2 — Open the functional Manage Agents terminal screen
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/Cargo.toml`; `Cargo.lock`; `crates/msc-agent/src/cli/mod.rs`; `crates/msc-agent/src/cli/service.rs`; `crates/msc-agent/src/cli/tui.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Add `msc tui` with a full-screen, keyboard-controlled Manage Agents page. Read the installed service and boot state through the existing platform service adapter; read configured servers through the same host-local authorized API as the one-shot CLI. Arrow keys choose an action, Enter executes it, letter keys choose an action, and Esc/q exits. Service start/stop and boot enable/disable reuse the existing platform behavior; stopping asks for confirmation. Show API unavailability honestly and keep the page usable when the service is stopped. Restore the terminal on exit. This first slice does not yet include server navigation.
+- **Verify:** Run `cargo run -p msc-agent -- tui` in an interactive terminal. Confirm the service, boot, connection, and server information reflects this host; use Up/Down and Enter on Refresh; press Esc and confirm the shell returns normally. Service-changing actions are available for deliberate manual checking. No test command is part of this step.
+- **Batch:** P22.2 only.
+- **Commit:** `P22.2: add functional agents tui page`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

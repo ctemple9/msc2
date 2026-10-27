@@ -9,6 +9,71 @@ use super::{CliError, CommonArgs};
 
 const AGENT_SERVICE_NAME: &str = "com.ctemple.msc2.agent";
 
+pub(crate) struct LocalAgentStatus {
+    pub report: ServiceStatusReport,
+    pub boot_enabled: Option<bool>,
+}
+
+pub(crate) fn local_agent_status() -> Result<LocalAgentStatus, CliError> {
+    let report = service_manager()?
+        .execute(ServiceManagerCommand::Status {
+            service_name: ServiceName::new(AGENT_SERVICE_NAME),
+        })
+        .map_err(service_error)?;
+    let boot_enabled = if report.state == ServiceState::NotInstalled {
+        None
+    } else {
+        Some(local_agent_boot_enabled().map_err(service_error)?)
+    };
+    Ok(LocalAgentStatus {
+        report,
+        boot_enabled,
+    })
+}
+
+pub(crate) fn change_local_agent(action: AgentAction) -> Result<(), CliError> {
+    #[cfg(not(target_os = "macos"))]
+    let manager = service_manager()?;
+    #[cfg(not(target_os = "macos"))]
+    let service_name = ServiceName::new(AGENT_SERVICE_NAME);
+    let current = local_agent_status()?;
+    if current.report.state == ServiceState::NotInstalled {
+        return Err(CliError::usage(
+            "the local MSC agent service is not installed",
+        ));
+    }
+    match action {
+        AgentAction::Enable | AgentAction::Disable => {
+            set_local_agent_boot_enabled(matches!(action, AgentAction::Enable))
+                .map_err(service_error)?;
+        }
+        AgentAction::Start if current.report.state == ServiceState::Running => {}
+        AgentAction::Stop if current.report.state == ServiceState::Stopped => {}
+        #[cfg(target_os = "macos")]
+        AgentAction::Start => {
+            msc_platform_macos::service::start_local_agent().map_err(service_error)?;
+        }
+        #[cfg(target_os = "macos")]
+        AgentAction::Stop => {
+            msc_platform_macos::service::stop_local_agent().map_err(service_error)?;
+        }
+        #[cfg(not(target_os = "macos"))]
+        AgentAction::Start => {
+            manager
+                .execute(ServiceManagerCommand::Start { service_name })
+                .map_err(service_error)?;
+        }
+        #[cfg(not(target_os = "macos"))]
+        AgentAction::Stop => {
+            manager
+                .execute(ServiceManagerCommand::Stop { service_name })
+                .map_err(service_error)?;
+        }
+        AgentAction::Status => {}
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum AgentTarget {
     Agent,
@@ -28,50 +93,13 @@ pub fn run_agent(
     _target: AgentTarget,
     action: AgentAction,
 ) -> Result<(), CliError> {
-    let manager = service_manager()?;
-    let service_name = ServiceName::new(AGENT_SERVICE_NAME);
-    let current = manager
-        .execute(ServiceManagerCommand::Status {
-            service_name: service_name.clone(),
-        })
-        .map_err(service_error)?;
-    if current.state == ServiceState::NotInstalled && !matches!(action, AgentAction::Status) {
-        return Err(CliError::usage(
-            "the local MSC agent service is not installed",
-        ));
+    if !matches!(action, AgentAction::Status) {
+        change_local_agent(action)?;
     }
-
-    let report = match action {
-        AgentAction::Status => current,
-        AgentAction::Enable | AgentAction::Disable => {
-            set_local_agent_boot_enabled(matches!(action, AgentAction::Enable))
-                .map_err(service_error)?;
-            current
-        }
-        AgentAction::Start if current.state == ServiceState::Running => current,
-        AgentAction::Stop if current.state == ServiceState::Stopped => current,
-        #[cfg(target_os = "macos")]
-        AgentAction::Start => {
-            msc_platform_macos::service::start_local_agent().map_err(service_error)?
-        }
-        #[cfg(target_os = "macos")]
-        AgentAction::Stop => {
-            msc_platform_macos::service::stop_local_agent().map_err(service_error)?
-        }
-        #[cfg(not(target_os = "macos"))]
-        AgentAction::Start => manager
-            .execute(ServiceManagerCommand::Start { service_name })
-            .map_err(service_error)?,
-        #[cfg(not(target_os = "macos"))]
-        AgentAction::Stop => manager
-            .execute(ServiceManagerCommand::Stop { service_name })
-            .map_err(service_error)?,
-    };
-    let boot_enabled = if report.state == ServiceState::NotInstalled {
-        None
-    } else {
-        Some(local_agent_boot_enabled().map_err(service_error)?)
-    };
+    let LocalAgentStatus {
+        report,
+        boot_enabled,
+    } = local_agent_status()?;
     let action_name = match action {
         AgentAction::Start => "start",
         AgentAction::Stop => "stop",

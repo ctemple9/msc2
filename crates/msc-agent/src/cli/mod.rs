@@ -5,6 +5,7 @@ pub mod pairing;
 pub mod service;
 pub(crate) mod session;
 pub(crate) mod transport;
+pub mod tui;
 pub mod uninstall;
 pub mod update;
 
@@ -78,6 +79,8 @@ pub struct CommonArgs {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum Command {
+    /// Open the local full-screen terminal client.
+    Tui,
     /// Permanently uninstall MSC 2 and its managed data on this computer.
     Uninstall(uninstall::UninstallArgs),
     /// Fixed, installed Linux cleanup helper; called through one OS authorization.
@@ -1513,6 +1516,7 @@ impl CliError {
 
 pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
     match command {
+        Command::Tui => tui::run(common).await,
         Command::Uninstall(args) => uninstall::run(common, args).await,
         #[cfg(target_os = "linux")]
         Command::UninstallPrivileged => {

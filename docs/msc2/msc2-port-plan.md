@@ -2,7 +2,7 @@
 
 > Owner amendment (2026-10-06, D-042): modded map repair/import and private Minecraft client capture are retired. The standard Java and Bedrock saved-terrain maps remain supported. Earlier repair-plan or capture acceptance requirements are withdrawn rather than satisfied.
 
-**Revision:** 1.7 · **Date:** 2026-09-28
+**Revision:** 1.8 · **Date:** 2026-10-26
 **Status:** **Execution document — Proposed, not owner-approved.**
 
 **This document is deliberately separate from the vision.** `msc2-product.md` and `msc2-engineering.md` describe the destination, its guarantees, and its architecture. This document describes a *route*, and routes change. Nothing here constrains the vision; if a phase order proves wrong, this file changes and the vision does not.
@@ -178,13 +178,12 @@ first-class client, and optional Tailscale may provide remote access for the
 desktop app or desktop browser without becoming a requirement for ordinary MSC
 use. Historical phase records and MSC 1 audit evidence remain unchanged.
 
-### Phase 13 — Full-screen terminal client (retired)
+### Phase 13 — Original full-screen terminal client (retired)
 
-The planned full-screen terminal client is retired by D-034. There is no Phase
-13 implementation gate and no later full-screen client release promise. The retained terminal
-surface is the scriptable CLI, including interactive command confirmations;
-the agent API, WebSocket channels, and headless installation story remain in
-scope for the supported desktop, browser, and CLI clients.
+The original Phase 13 terminal client was retired by D-034; that phase's
+implementation and gate remain historical. D-043 later restored a redesigned,
+host-local terminal client as Phase 22. The agent API, WebSocket channels, and
+headless installation story remain shared with desktop and CLI.
 
 ### Phase 14 — Operational refinements
 
@@ -378,3 +377,24 @@ active-operation and destructive acceptance using disposable data before the
 other agent reviews this gate. Static specification or step statuses do not
 close it. No automatic deletion, continuous deep scan, new CI/release gate or
 automatically authorized tests.
+
+## Phase 22 — Restored full-screen terminal client
+
+**State:** Opened at Cameron's October 26 direction under D-043. Work begins
+with the host-local Agents page and proceeds one owner-requested screen or
+bounded behavior at a time. The current record is in `rolling-plan.md`.
+
+**Workflow exception:** Phase 22 has no separate Plan/Read stage and no
+prewritten step list. Each implementation conversation records only the step
+actually performed, including its files, behavior, owner-run verification,
+batch limit, and commit. Cameron verifies each step; an agent other than the
+implementer reviews the completed phase when he asks for that review. This
+exception changes neither the ban on agent-run tests without a specific owner
+request nor the build-only beta publication policy.
+
+**Product boundary:** `msc tui` runs on macOS, Windows, or Linux on the agent
+host, including through SSH. It shares the agent API, local authorization, and
+service controls with the existing `msc` CLI; one-shot commands remain
+scriptable. The restored TUI does not serve a browser page or directly pair
+with a remote host. Its exact screens and completion criteria are refined with
+Cameron during the incremental work rather than prescribed here.

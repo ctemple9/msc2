@@ -2,7 +2,7 @@
 
 > Owner amendment (2026-10-06, D-042): modded map repair/import and private Minecraft client capture are retired. The standard Java and Bedrock saved-terrain maps remain supported. Earlier repair-plan or capture acceptance requirements are withdrawn rather than satisfied.
 
-**Revision:** 1.9 · **Date:** 2026-09-28 · **Owner:** Cameron Temple
+**Revision:** 1.10 · **Date:** 2026-10-26 · **Owner:** Cameron Temple
 **Baseline:** MSC 1 at commit `fccd61f0ed743086f1f5db6bef58e228a36010f3`
 
 **Companion documents:**
@@ -21,7 +21,7 @@
 
 MSC 2 is the control plane for self-hosted Minecraft servers: creation, runtime management, worlds, backups, mods, players, diagnostics, networking, and updates.
 
-Architecturally it is **one engine with two supported interfaces**. All server-management behavior lives in a Rust service. The Tauri desktop app and command-line client use that service's API. No client implements server-management logic; the agent does not serve a browser UI (D-038).
+Architecturally it is **one engine shared by the desktop app, CLI, and restored TUI**. All server-management behavior lives in a Rust service. The Tauri desktop app and command-line client already use that service's API; the planned terminal client uses the same host-local access path. No client implements server-management logic; the agent does not serve a browser UI (D-038, D-043).
 
 The defining constraint:
 
@@ -44,6 +44,7 @@ flowchart TB
     subgraph clients["Supported clients"]
         Desktop["MSC Desktop<br/>Tauri shell"]
         CLI["msc CLI<br/>host-local or SSH shell"]
+        TUI["msc tui<br/>host-local or SSH shell"]
     end
 
     Svelte["Svelte frontend<br/>(desktop app)"]
@@ -51,6 +52,7 @@ flowchart TB
     Desktop --> Svelte
     Svelte --> API
     CLI --> API
+    TUI --> API
 
     API["MSC API<br/>HTTP + WebSocket, versioned"]
     API --> Agent["MSC Agent<br/>service, scheduler, operation journal"]
@@ -87,14 +89,14 @@ Clients display and request. They never become co-owners. This is what keeps rec
 
 | Layer | Choice | Notes |
 |---|---|---|
-| Engine, service, API, CLI | **Rust** | Single binary per platform. See D-002. |
+| Engine, service, API, CLI, TUI | **Rust** | One installed command per platform. See D-002 and D-043. |
 | HTTP / WebSocket | `axum` + `tokio` | Replaces MSC 1's hand-written socket server. |
 | CLI parsing | `clap` | Generates shell completions. |
 | Interactive prompts | `inquire` | Fuzzy select, confirm. Phase: after core CLI. |
-| Full-screen terminal client | — | Retired from MSC 2; the supported terminal surface is the scriptable CLI (D-034). |
+| Full-screen terminal client | Rust terminal rendering and input | Restored under D-043; the specific presentation library is chosen during Phase 22 implementation. |
 | Progress | `indicatif` | Downloads, installs. |
 | Desktop shell | **Tauri** | Thin. Loads the Svelte bundle. |
-| Frontend | **Svelte + TypeScript** | One bundle, served by the agent and loaded by Tauri. |
+| Desktop frontend | **Svelte + TypeScript** | Bundled in and loaded by Tauri; the agent does not serve it to browsers (D-038). |
 | Secret storage | `keyring` crate **+ headless fallback** | Keychain / DPAPI behind one trait. **The crate is not sufficient on headless Linux** — see §8. |
 | Hashing | Rust-native | Replaces CryptoKit usage. |
 | Images | `image` crate | Replaces AppKit `NSImage` skin handling. |
@@ -102,7 +104,7 @@ Clients display and request. They never become co-owners. This is what keeps rec
 
 ---
 
-## 4. The three run modes
+## 4. The four run modes
 
 **Desktop mode.** The Tauri application opens. If a local agent is running it attaches; otherwise it offers to install and start the service. The desktop experience feels immediate because the agent is local, but it uses the same API contract as any remote client.
 
@@ -132,9 +134,16 @@ or bearer-token option.
 
 Human-readable by default; `--json` on everything; meaningful exit codes; colors and spinners disabled automatically when stdout is not a TTY.
 
-The CLI is the retained terminal interface: named one-shot commands,
+The CLI remains the scriptable terminal interface: named one-shot commands,
 automation-friendly output, and interactive confirmations where an action is
-destructive. MSC does not ship a persistent full-screen terminal client.
+destructive.
+
+**TUI mode (being restored).** `msc tui` opens a full-screen, keyboard-driven
+client on the agent host in a local terminal or SSH login shell. It uses the
+CLI's host-local authorization boundary and existing API/WebSocket contracts;
+agent service controls still use the local operating system when the API is
+down. The TUI is intended for macOS, Windows, and Linux. It does not acquire
+a direct-remote host, URL, port, or bearer-token mode (D-040, D-043).
 
 ---
 
@@ -685,14 +694,15 @@ Given that MSC 1's remote-client parity gap was itself a months-long project, th
 One row per capability, maintained continuously from the first vertical slice:
 
 ```
-MSC 1 capability → MSC 2 agent operation → Desktop → CLI
+MSC 1 capability → MSC 2 agent operation → Desktop → CLI → TUI
 ```
 
 Every cell is **Implemented**, **Planned**, or **Intentional exception**.
 
-The matrix covers the supported Tauri desktop and CLI clients. Browser and
-mobile management are not supported v1 clients and do not receive capability
-columns (D-033, D-038).
+The matrix covers Tauri desktop and CLI, plus the restored TUI as its
+capabilities are implemented in Phase 22. Planned TUI cells must not be
+reported as shipped. Browser and mobile management do not receive capability
+columns (D-033, D-038, D-043).
 
 Accordingly:
 
@@ -725,7 +735,7 @@ Every megabyte the agent holds on an 8 GB host is a megabyte Java cannot have. T
 
 ## 18. Educational content (D-026)
 
-MSC 1's teaching material is among its largest assets: a 31-topic Server Handbook across 6 categories, a concept guide, an onboarding tour over the live UI, ~18 files of router port-forwarding guides with brand matching and a troubleshooting decision tree, and contextual help throughout. It is also the clearest example of the duplication MSC 2 removes — all of it is Swift compiled into the macOS app, so the former remote client required a second, separately-written educational surface (`QuickGuideView`, 706 lines). MSC 2's supported teaching surfaces are the Tauri desktop app and CLI; the browser presentation is retired by D-038.
+MSC 1's teaching material is among its largest assets: a 31-topic Server Handbook across 6 categories, a concept guide, an onboarding tour over the live UI, ~18 files of router port-forwarding guides with brand matching and a troubleshooting decision tree, and contextual help throughout. It is also the clearest example of the duplication MSC 2 removes — all of it is Swift compiled into the macOS app, so the former remote client required a second, separately-written educational surface (`QuickGuideView`, 706 lines). MSC 2 currently teaches through the Tauri desktop app and CLI; the restored TUI will render the same agent-owned content as its screens are built. The browser presentation is retired by D-038.
 
 **Content is data the agent serves. Clients render it; they never author it.**
 

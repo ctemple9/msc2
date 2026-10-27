@@ -42,9 +42,17 @@ Work proceeds one phase at a time. Each phase runs through six moves, and **each
 
 Two agents work on this repo: **Claude Code** and **Codex**. Whoever implements a phase does not review it.
 
+**Phase 22 exception (owner-approved 2026-10-26):** The restored TUI has no
+separate Plan/Read stage or prewritten step list. Cameron requests one screen
+or bounded behavior at a time. Treat that request as a single EXECUTE step
+even without an explicit mode label: implement only that slice, record the P22
+step in `rolling-plan.md`, make one commit, and stop for Cameron's verification.
+The other agent reviews the phase when Cameron requests it. The test and
+release-workflow restrictions below still apply.
+
 ## Modes
 
-Every prompt names one of these. Do only the named mode.
+Outside the Phase 22 exception above, every prompt names one of these. Do only the named mode.
 
 | Mode | You do |
 |---|---|

@@ -1,6 +1,36 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** v0.1.38 is published. P16.136 adds a way to discard hidden first-start progress while keeping the generated world; owner verification is pending. P16.135 implements the World Packs and Datapacks card layout; owner verification is pending. The P18.99 Intel Bedrock decoder change is implemented but still awaits his same-world pre-render check. The other open work from Cameron’s macOS owner testing is listed below. Completed implementation records and release history are in [the archive](rolling-plan-archive.md#october-23-2026--implemented-owner-testing-findings-and-release-work). Owner checks are not implied by a DONE implementation status.
+**Current priority:** Phase 22 restores a host-local, full-screen TUI one owner-requested step at a time; its decision and phase record are P22.1 below. v0.1.38 is published. P16.136 adds a way to discard hidden first-start progress while keeping the generated world; owner verification is pending. P16.135 implements the World Packs and Datapacks card layout; owner verification is pending. The P18.99 Intel Bedrock decoder change is implemented but still awaits his same-world pre-render check. The other open work from Cameron’s macOS owner testing is listed below. Completed implementation records and release history are in [the archive](rolling-plan-archive.md#october-23-2026--implemented-owner-testing-findings-and-release-work). Owner checks are not implied by a DONE implementation status.
+
+## Phase 22 — Restored full-screen terminal client
+
+**Owner direction (2026-10-26):** Restore the redesigned TUI as a functional
+client on macOS, Windows, and Linux. Begin with Manage Agents. Build it one
+screen or bounded behavior at a time; there is no separate plan stage. Record
+each completed slice as the next P22 step in this section during the same
+conversation. Do not prewrite steps for later screens. The one-shot CLI remains
+scriptable, and the TUI runs on the agent host in a local or SSH terminal.
+
+**Starting point:** Cameron reviewed an interactive HTML design preview for
+the terminal shell, server views, create-server flow, and Manage Agents. That
+preview uses sample host data and is not production TUI code. Phase 22 turns
+approved slices into a real Rust terminal client against the existing agent
+API and local service controls. The first production slice is the Agents page.
+
+**Phase-specific loop:** Cameron names the next screen or behavior. The agent
+implements only that slice, adds its P22 record with Status, Files, What,
+Verify, Batch, and Commit, makes one commit, and stops for Cameron's manual
+verification. When Cameron asks for phase review, a different agent checks the
+result. No up-front Plan/Read move, test run, or release gate is implied.
+
+### P22.1 — Record the restored TUI direction and phase workflow
+
+- **Status:** Documentation recorded; owner verification pending.
+- **Files:** `docs/msc2/msc2-decisions.md`; `docs/msc2/MSC2-VISION.md`; `docs/msc2/msc2-product.md`; `docs/msc2/msc2-engineering.md`; `docs/msc2/msc2-port-plan.md`; `docs/msc2/rolling-plan.md`; `AGENTS.md`; `CLAUDE.md`.
+- **What:** Add owner-approved D-043 to supersede the retired TUI decision, align the controlled vision set with the restored host-local client, and establish Phase 22's one-slice-at-a-time record without a plan stage. Preserve the existing one-shot CLI, local authorization boundary, and browser retirement.
+- **Verify:** Run `rg -n 'D-043|Phase 22|P22\.1' docs/msc2/{msc2-decisions.md,MSC2-VISION.md,msc2-product.md,msc2-engineering.md,msc2-port-plan.md,rolling-plan.md} AGENTS.md CLAUDE.md` and confirm the restored TUI and no-plan-stage workflow are described consistently. No test command is part of this step.
+- **Batch:** P22.1 only.
+- **Commit:** `P22.1: record restored tui direction`
 
 ## macOS owner testing — 0.1.32
 

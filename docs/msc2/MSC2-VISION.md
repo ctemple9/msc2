@@ -2,7 +2,7 @@
 
 > Owner amendment (2026-10-06, D-042): modded map repair/import and private Minecraft client capture are retired. The standard Java and Bedrock saved-terrain maps remain supported. Earlier repair-plan or capture acceptance requirements are withdrawn rather than satisfied.
 
-**Set revision:** 1.8 · **Date:** 2026-09-28
+**Set revision:** 1.9 · **Date:** 2026-10-26
 **Owner:** Cameron Temple
 **Baseline:** MSC 1 at commit `fccd61f0ed743086f1f5db6bef58e228a36010f3` (246 production Swift files, 97,357 lines)
 
@@ -14,11 +14,11 @@ This is the entry point. The five documents below are **one controlled set** and
 
 | Document | Revision | Contains | Changes |
 |---|---|---|---|
-| **`MSC2-VISION.md`** (this file) | 1.7 | Index, revision state, owner-confirmed requirements, precedence rules | Rarely |
-| **`msc2-product.md`** | 1.6 | What MSC 2 is in plain language: purpose, audience, experience, guarantees, non-goals | Rarely |
-| **`msc2-engineering.md`** | 1.7 | Architecture, API contract, module boundaries, platform matrices, security, verification guarantees, resource requirements | Occasionally |
-| **`msc2-decisions.md`** | 1.13 | Numbered decision register with origin, approval, rationale, rejected alternatives | Append-only |
-| **`msc2-port-plan.md`** | 1.5 | Execution sequencing and the fixture inventory | **Often — deliberately separated** |
+| **`MSC2-VISION.md`** (this file) | 1.9 | Index, revision state, owner-confirmed requirements, precedence rules | Rarely |
+| **`msc2-product.md`** | 1.8 | What MSC 2 is in plain language: purpose, audience, experience, guarantees, non-goals | Rarely |
+| **`msc2-engineering.md`** | 1.10 | Architecture, API contract, module boundaries, platform matrices, security, verification guarantees, resource requirements | Occasionally |
+| **`msc2-decisions.md`** | 1.26 | Numbered decision register with origin, approval, rationale, rejected alternatives | Append-only |
+| **`msc2-port-plan.md`** | 1.8 | Execution sequencing and the fixture inventory | **Often — deliberately separated** |
 
 **Why the port plan is separate.** The vision defines the destination and its guarantees; the port plan defines a route. Routes change. Keeping them apart means a rescheduled phase never forces an edit to the vision.
 
@@ -55,19 +55,19 @@ Everything below was decided by the owner directly, not inferred.
 |---|---|---|
 | 1 | MSC 2 runs on macOS, Windows, and Linux, including **native Windows**. This is the requirement that determines the engine language. | D-002 |
 | 2 | The engine is **Rust**; the desktop interface is one Svelte frontend shipped in a Tauri shell. The agent exposes an API and does not serve a browser UI. | D-002, D-003, D-038 |
-| 3 | MSC 2 v1 has **no supported mobile or browser management client**. The supported control surfaces are Tauri desktop and headless CLI; optional Tailscale enables remote desktop access. | D-033, D-038 |
+| 3 | MSC 2 has **no supported mobile or browser management client**. Tauri desktop and the headless CLI are retained; a host-local full-screen TUI is restored as a planned third interface. Optional Tailscale enables remote desktop access. | D-033, D-038, D-043 |
 | 4 | MSC 2 is a **completely separate app and project**. It never touches MSC 1. Migration is by **import only**. | D-001, D-009 |
 | 5 | Version skew is handled by a **supported-version floor with capability degradation**, and a clear refusal below it. *(The specific N-3 value is proposed, not approved.)* | D-010 |
 | 6 | On desktop, the **app installs and manages the agent**; headless installs separately. | D-011 |
 | 7 | Browser sessions use an **httpOnly cookie**; the desktop shell injects a **local token**. *(The rest of the auth design is proposed.)* | D-012 |
 | 8 | The client is **multi-host from day one** — state keyed by host, minimal switcher in v1. | D-013 |
 | 9 | **Minecraft 1.20** is the version floor. | D-014 |
-| 10 | The **v1 non-goals** are approved as written: no full-screen terminal client; no third-party plugin API; no per-person identity yet; no TempleTech-hosted backend, ever; no proxy/network orchestration; no Android. The scriptable CLI and interactive command confirmations remain supported. | D-015, D-034 |
+| 10 | The remaining **v1 non-goals** are no third-party plugin API, no per-person identity yet, no TempleTech-hosted backend, no proxy/network orchestration, and no Android. D-043 removes the former full-screen terminal non-goal; the scriptable CLI remains supported. | D-015, D-043 |
 | 11 | **Complete headless mode on every platform** — macOS, Windows, and Linux — with the GUI optional everywhere. *(From `msc2.md`.)* | D-011 |
 | 12 | **Resource efficiency is a requirement**, not an aspiration. *(Founding motivation, from `msc2.md`. Specific benchmark values remain proposed.)* | D-021 |
-| 13 | **Supported-client capability is tracked explicitly** across desktop and CLI; mobile and browser management are not v1 targets. *(The matrix as tracking mechanism remains proposed.)* | D-023, D-033, D-038 |
-| 14 | **MSC 2 teaches, in every supported interface.** The Server Handbook and contextual help reach desktop and CLI. *(From `msc2.md`. Serving it as data rather than client code is the proposed mechanism.)* | D-026, D-038 |
-| 15 | The served browser client is retired. MSC 2 supports the Tauri desktop app and headless CLI; the agent does not serve a browser UI or accept browser sessions. | D-038 |
+| 13 | **Supported-client capability is tracked explicitly** across desktop, CLI, and the restored TUI as it is implemented; mobile and browser management are not targets. *(The matrix as tracking mechanism remains proposed.)* | D-023, D-033, D-038, D-043 |
+| 14 | **MSC 2 teaches in every supported interface.** The Server Handbook and contextual help reach desktop and CLI; the TUI gains them as its screens are built. *(From `msc2.md`. Serving content as data rather than client code is the proposed mechanism.)* | D-026, D-038, D-043 |
+| 15 | The served browser client is retired. The agent does not serve a browser UI or accept browser sessions; D-043 restores a host-local TUI alongside desktop and CLI. | D-038, D-043 |
 
 ### Awaiting approval
 
@@ -94,7 +94,7 @@ These are load-bearing but not yet owner-confirmed. Review them before they cons
 
 ## The shortest possible summary
 
-MSC 2 extracts MSC's engine into a cross-platform Rust service that runs with or without a screen, with a Tauri desktop app and a headless CLI as its supported control surfaces. The agent exposes an authenticated API and does not serve a browser interface. Optional Tailscale can provide remote desktop access; ordinary local use does not require it.
+MSC 2 extracts MSC's engine into a cross-platform Rust service that runs with or without a screen. The Tauri desktop app and headless CLI remain supported, and a host-local TUI is being restored as a third interface. The agent exposes an authenticated API and does not serve a browser interface. Optional Tailscale can provide remote desktop access; ordinary local use does not require it.
 
 **It is not a blank-slate rewrite.** MSC 1 is the executable specification. Two independent audits agreed at file level on **88.6%** of 246 files, and identified roughly **33,000–36,000 lines** of engine behavior to translate — about one third of the tree. That figure measures preserved behavior only; the genuinely new work (cross-platform services, operation journaling, secret stores, native Bedrock runtimes, client state) may exceed it.
 
@@ -139,6 +139,7 @@ The two CSVs join on `file`. They are **file-level inputs to the future symbol l
 
 | Rev | Date | Change |
 |---|---|---|
+| 1.9 | 2026-10-26 | Added D-043: restored the host-local full-screen TUI as an incremental Phase 22 client. |
 | 1.8 | 2026-09-28 | Added D-038: retired the served browser client; current supported clients are Tauri desktop and CLI. |
 | 1.7 | 2026-09-07 | Added D-034: the full-screen terminal client is retired; the retained terminal surface is the scriptable headless CLI. |
 | 1.6 | 2026-09-07 | Amended D-033: native mobile and supported mobile management are both out of v1; retained clients are Tauri desktop, desktop browser, and headless CLI, with optional Tailscale remote access. |

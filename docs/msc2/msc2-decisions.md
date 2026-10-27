@@ -1,6 +1,6 @@
 # MSC 2 — Decision Register
 
-**Revision:** 1.25 · **Date:** 2026-09-29
+**Revision:** 1.26 · **Date:** 2026-10-26
 **Owner:** Cameron Temple
 
 **Purpose:** the authoritative record of *what was decided, by whom, and why*. The product and engineering documents describe the destination; this document explains how it was chosen, what was rejected, and when a decision should be reopened.
@@ -61,7 +61,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 | D-030 | World-local settings travel with slots; runtime policy stays server-owned | **Approved** | 2026-09-21 |
 | D-032 | Signed application manifests gate local MSC updates | **Approved** | 2026-09-07 |
 | D-033 | Native iOS and supported mobile access retired from v1 | **Approved** | 2026-09-07 |
-| D-034 | Full-screen terminal UI retired from MSC 2 | **Approved** | 2026-09-07 |
+| D-034 | Full-screen terminal UI retired from MSC 2 | **Superseded by D-043** | 2026-09-07 |
 | D-035 | Server-owned jars replace global template storage | **Approved** | 2026-09-07 |
 | D-036 | Operational refinement contracts | Proposed | — |
 | D-037 | License for MSC 2 original code | **Approved** | 2026-09-28 |
@@ -70,6 +70,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 | D-040 | Host-local CLI access and service control | **Approved** | 2026-09-29 |
 | D-041 | CLI task coverage and two intentional API-only tasks | **Approved** | 2026-09-29 |
 | D-042 | Retire modded map repair and private client capture | **Approved** | 2026-10-06 |
+| D-043 | Restore a host-local full-screen terminal client | **Approved** | 2026-10-26 |
 
 ---
 
@@ -445,7 +446,7 @@ not a retroactive owner approval of the previously Proposed D-012 details.
 
 | Non-goal | Kind | Reasoning |
 |---|---|---|
-| **Terminal TUI** | **Superseded by D-034** | The full-screen terminal client is retired. The scriptable CLI and interactive command confirmations still ship in v1. |
+| **Terminal TUI** | **Superseded by D-043** | The owner reopened a full-screen, host-local terminal client. The scriptable CLI remains available for commands and automation. |
 | **Third-party plugin / extension API** | Deferred indefinitely | No third party exists yet. A stable extension surface with no consumer is pure cost and freezes internals prematurely. |
 | **Per-person user accounts with identity** | Deferred | MSC 1's existing named-token model with permission categories carries forward unchanged — see D-019, which corrects an earlier misdescription of this baseline. What is deferred is *human identity*: invitations, per-person login, account recovery. |
 | **Any TempleTech-hosted account, relay, telemetry, subscription, or cloud backend** | **Permanent** | MSC is local-first. Recorded as permanent so it is never casually revisited. **This does not exclude optional third-party integrations** — Tailscale, Playit.gg, DuckDNS, Modrinth, CurseForge, Adoptium, and Xbox services remain supported. |
@@ -454,8 +455,8 @@ not a retroactive owner approval of the previously Proposed D-012 details.
 
 **Explicitly NOT a non-goal: the Windows GUI.** Windows is a firm requirement and the reason the engine is Rust (D-002). Only its *sequencing* is later (D-017, port plan).
 
-D-034 supersedes only the Terminal TUI row above. The other D-015 non-goals
-remain unchanged.
+D-034 first retired the Terminal TUI row above; D-043 restores it as a planned
+client. The other D-015 non-goals remain unchanged.
 
 ---
 
@@ -1088,6 +1089,10 @@ historical planning records and git history remain factual.
 **Revisit if:** the owner explicitly reopens a full-screen terminal client as
 a new product decision.
 
+**Superseded (2026-10-26, D-043).** Cameron reopened the full-screen terminal
+client after reviewing a new keyboard-driven design. This entry remains the
+record of why the earlier design was retired; D-043 is the current direction.
+
 ---
 
 ## D-035 — Server-owned jars replace global template storage
@@ -1326,6 +1331,48 @@ remains as a record of earlier attempts.
 
 ---
 
+## D-043 — Restore a host-local full-screen terminal client
+
+**Status:** **Approved** · **Origin:** Owner request after iterative TUI design review · **Approved by:** Cameron Temple · **Date:** 2026-10-26
+
+**Owner direction:** Cameron wants to build the redesigned terminal interface one
+screen at a time, starting with Manage Agents. He approved restoring a functional
+TUI after reviewing the keyboard-driven preview and asked for each completed
+slice to be recorded as a step in a new rolling-plan phase, without a separate
+up-front plan stage.
+
+**Decision.** Restore the full-screen terminal client as a planned MSC 2
+interface on macOS, Windows, and Linux. Launch it explicitly with `msc tui` on
+the agent host, either in a local terminal or an SSH login shell. It uses the
+same host-local authorization, management API, and service controls as the
+existing CLI. Server-management behavior stays in the agent; the TUI owns only
+presentation, navigation, and request initiation. The one-shot `msc` commands
+and their scriptable output remain supported. The TUI does not add a direct
+remote-host or token mode; use an SSH shell on the other host or the separately
+paired desktop app.
+
+The terminal design uses keyboard controls that terminals can actually receive:
+arrow keys for movement, Enter for the primary action, and context-specific
+single-key shortcuts. It must adapt to terminal size and make unavailable
+actions clear. Detailed screens remain owner-reviewed as they are built; the
+HTML preview is a design reference, not the shipped implementation.
+
+**Execution.** Phase 22 is incremental. Cameron requests one screen or bounded
+behavior at a time. The implementer records that work as the next P22 step in
+`rolling-plan.md` during the same conversation, includes one owner-run `Verify:`
+instruction, and commits the step. There is no separate Plan/Read stage or
+prewritten phase step list. Owner verification and independent review remain
+separate from implementation; no test or release gate is added here.
+
+**Supersedes.** D-034's retirement of the terminal UI and the Terminal TUI
+non-goal in D-015. D-040's host-local CLI boundary, D-038's browser retirement,
+and the existing API and permission contracts remain in force.
+
+**Revisit if:** Cameron changes the TUI's host boundary or decides its upkeep
+outweighs its value after using the functional client.
+
+---
+
 ## Appendix A — corrections made during planning
 
 Recorded because each produced a confident wrong answer, and each is the kind of mistake likely to recur.
@@ -1352,6 +1399,7 @@ Recorded because each produced a confident wrong answer, and each is the kind of
 
 | Rev | Date | Change |
 |---|---|---|
+| 1.26 | 2026-10-26 | Added D-043: restored a host-local full-screen TUI as an incremental Phase 22 client, superseding D-034. |
 | 1.25 | 2026-09-29 | Added D-041: recorded CLI task coverage and the two approved API-only exceptions. |
 | 1.24 | 2026-09-28 | Added D-039: archived CI and narrowed beta publication to builds, asset completeness, checksums, and signed metadata. |
 | 1.23 | 2026-09-28 | Added D-038: retired the served browser client; narrowed D-003, D-010, D-012, D-023, and D-026 to the supported desktop and CLI clients. |

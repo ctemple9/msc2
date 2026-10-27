@@ -16,6 +16,7 @@ pub(super) struct PerformanceUi {
     last_timestamp: Option<String>,
     tps: VecDeque<Option<f64>>,
     cpu: VecDeque<Option<f64>>,
+    memory_used_mb: VecDeque<Option<f64>>,
 }
 
 impl PerformanceUi {
@@ -25,6 +26,7 @@ impl PerformanceUi {
             self.last_timestamp = None;
             self.tps.clear();
             self.cpu.clear();
+            self.memory_used_mb.clear();
         }
         let Some(metric) = snapshot.performance.as_ref() else {
             return;
@@ -40,6 +42,10 @@ impl PerformanceUi {
         push(
             &mut self.cpu,
             metric.cpu_percent.as_ref().map(|value| value.value),
+        );
+        push(
+            &mut self.memory_used_mb,
+            metric.ram_used_mb.as_ref().map(|value| value.value),
         );
     }
 
@@ -101,7 +107,7 @@ impl PerformanceUi {
                 Color::White,
             )?;
         }
-        let chart_width = if width >= 65 { width - 24 } else { width };
+        let chart_width = width;
         paint(
             out,
             x,
@@ -134,14 +140,42 @@ impl PerformanceUi {
             &sparkline(&self.cpu, chart_width as usize, 100.0),
             Color::Cyan,
         )?;
-        if width >= 65 {
-            draw_memory_ring(out, x + width - 22, used, limit)?;
-        }
-        if height >= 28 {
+        let memory_scale = limit.filter(|limit| *limit > 0.0).or_else(|| {
+            self.memory_used_mb
+                .iter()
+                .flatten()
+                .copied()
+                .reduce(f64::max)
+        });
+        paint(
+            out,
+            x,
+            16,
+            chart_width,
+            if limit.is_some() {
+                "MEMORY HISTORY · used / limit"
+            } else {
+                "MEMORY HISTORY · used (relative scale)"
+            },
+            Color::DarkGrey,
+        )?;
+        paint(
+            out,
+            x,
+            17,
+            chart_width,
+            &sparkline(
+                &self.memory_used_mb,
+                chart_width as usize,
+                memory_scale.unwrap_or(1.0).max(1.0),
+            ),
+            Color::Magenta,
+        )?;
+        if height >= 30 {
             paint(
                 out,
                 x,
-                18,
+                20,
                 width,
                 "Recent samples are kept only while this TUI is open.",
                 Color::DarkGrey,
@@ -177,51 +211,4 @@ fn sparkline(history: &VecDeque<Option<f64>>, width: usize, max: f64) -> String 
     } else {
         line
     }
-}
-
-fn draw_memory_ring(
-    out: &mut Stdout,
-    x: u16,
-    used: Option<f64>,
-    limit: Option<f64>,
-) -> io::Result<()> {
-    paint(out, x, 11, 20, "MEMORY", Color::DarkGrey)?;
-    let percent = used
-        .zip(limit)
-        .filter(|(_, limit)| *limit > 0.0)
-        .map(|(used, limit)| (used / limit * 100.0).clamp(0.0, 100.0));
-    let active = percent.map_or(0, |percent| (percent / 12.5).round() as usize);
-    let positions = [
-        (4, 0),
-        (7, 1),
-        (8, 2),
-        (7, 3),
-        (4, 4),
-        (1, 3),
-        (0, 2),
-        (1, 1),
-    ];
-    for (index, (dx, dy)) in positions.into_iter().enumerate() {
-        paint(
-            out,
-            x + dx,
-            12 + dy,
-            1,
-            "●",
-            if index < active {
-                Color::Green
-            } else {
-                Color::DarkGrey
-            },
-        )?;
-    }
-    paint(
-        out,
-        x + 2,
-        14,
-        6,
-        &percent.map_or_else(|| "—".into(), |percent| format!("{percent:.0}%")),
-        Color::White,
-    )?;
-    Ok(())
 }

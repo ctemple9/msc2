@@ -158,6 +158,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.15 only.
 - **Commit:** `P22.15: add live terminal performance graphs`
 
+### P22.16 — Graph memory history instead of a ring
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/performance.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Replace the memory circle with a third scrolling graph that spans the Performance content width. Plot the agent's recent used-memory samples against its reported limit, or against the highest observed value when no limit is available; label that relative scale explicitly. Preserve the numeric memory reading and keep the graph visible in a 100-by-24 terminal.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a server, and press `4`. Confirm TPS, CPU, and Memory each have a full-width history graph, the memory circle is gone, and the memory graph gains samples as the agent refreshes. Resize to 100 columns by 24 rows and confirm all three graphs remain above the Console line. No test command is part of this step.
+- **Batch:** P22.16 only.
+- **Commit:** `P22.16: graph memory history in tui`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

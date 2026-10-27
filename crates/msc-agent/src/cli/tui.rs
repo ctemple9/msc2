@@ -64,6 +64,8 @@ struct Snapshot {
     connection_error: Option<String>,
     performance: Option<PerformanceSnapshotDto>,
     online_players: Option<u64>,
+    online_names: Option<Vec<String>>,
+    known_players: Option<Vec<String>>,
     active_world: Option<String>,
 }
 
@@ -97,29 +99,55 @@ async fn load() -> Result<Snapshot, CliError> {
         } else {
             (None, None, false, None)
         };
-    let (performance, online_players, active_world) = if active_server_id.is_some() {
-        match SharedClient::connect_local().await {
-            Ok(client) => {
-                let (performance, players, worlds) = tokio::join!(
-                    client.get_json("/v1/performance"),
-                    client.get_json::<serde_json::Value>("/v1/players"),
-                    client.get_json::<WorldSlotsResponseDto>("/v1/worlds"),
-                );
-                let online_players = players.ok().and_then(|value| value["count"].as_u64());
-                let active_world = worlds.ok().and_then(|worlds| {
-                    worlds
-                        .slots
-                        .into_iter()
-                        .find(|slot| slot.is_active)
-                        .map(|slot| slot.name)
-                });
-                (performance.ok(), online_players, active_world)
+    let (performance, online_players, online_names, known_players, active_world) =
+        if active_server_id.is_some() {
+            match SharedClient::connect_local().await {
+                Ok(client) => {
+                    let (performance, players, profiles, worlds) = tokio::join!(
+                        client.get_json("/v1/performance"),
+                        client.get_json::<serde_json::Value>("/v1/players"),
+                        client.get_json::<serde_json::Value>("/v1/players/profiles"),
+                        client.get_json::<WorldSlotsResponseDto>("/v1/worlds"),
+                    );
+                    let players = players.ok();
+                    let online_players = players.as_ref().and_then(|value| value["count"].as_u64());
+                    let online_names = players
+                        .as_ref()
+                        .and_then(|value| value["players"].as_array())
+                        .map(|entries| {
+                            entries
+                                .iter()
+                                .filter_map(|entry| entry["name"].as_str().map(str::to_owned))
+                                .collect()
+                        });
+                    let known_players = profiles.ok().and_then(|value| {
+                        value["profiles"].as_array().map(|entries| {
+                            entries
+                                .iter()
+                                .filter_map(|entry| entry["username"].as_str().map(str::to_owned))
+                                .collect()
+                        })
+                    });
+                    let active_world = worlds.ok().and_then(|worlds| {
+                        worlds
+                            .slots
+                            .into_iter()
+                            .find(|slot| slot.is_active)
+                            .map(|slot| slot.name)
+                    });
+                    (
+                        performance.ok(),
+                        online_players,
+                        online_names,
+                        known_players,
+                        active_world,
+                    )
+                }
+                Err(_) => (None, None, None, None, None),
             }
-            Err(_) => (None, None, None),
-        }
-    } else {
-        (None, None, None)
-    };
+        } else {
+            (None, None, None, None, None)
+        };
     Ok(Snapshot {
         service,
         servers,
@@ -128,6 +156,8 @@ async fn load() -> Result<Snapshot, CliError> {
         connection_error,
         performance,
         online_players,
+        online_names,
+        known_players,
         active_world,
     })
 }
@@ -1150,6 +1180,95 @@ fn draw_workspace(
             }),
             Color::White,
         )?;
+    } else if tab_index == 1 {
+        if server.is_none() {
+            paint(
+                out,
+                main_x,
+                7,
+                main_w,
+                "Select or create a server to view players.",
+                Color::DarkGrey,
+            )?;
+        } else {
+            let count = snapshot
+                .online_players
+                .map_or_else(|| "—".into(), |count| count.to_string());
+            paint(
+                out,
+                main_x,
+                6,
+                main_w,
+                &format!("ONLINE  {count}"),
+                Color::White,
+            )?;
+            match snapshot.online_names.as_deref() {
+                Some([]) => paint(out, main_x, 8, main_w, "No players online.", Color::White)?,
+                Some(names) => {
+                    for (index, name) in names
+                        .iter()
+                        .take(height.saturating_sub(20).min(8) as usize)
+                        .enumerate()
+                    {
+                        paint(out, main_x, 8 + index as u16, main_w, name, Color::White)?;
+                    }
+                }
+                None => paint(
+                    out,
+                    main_x,
+                    8,
+                    main_w,
+                    "Online players unavailable.",
+                    Color::DarkGrey,
+                )?,
+            }
+            let history_y = 11
+                + snapshot.online_names.as_ref().map_or(0, |names| {
+                    names.len().min(height.saturating_sub(20).min(8) as usize) as u16
+                });
+            match snapshot.known_players.as_deref() {
+                Some([]) => paint(
+                    out,
+                    main_x,
+                    history_y,
+                    main_w,
+                    "Session history is empty.",
+                    Color::White,
+                )?,
+                Some(names) => {
+                    paint(
+                        out,
+                        main_x,
+                        history_y,
+                        main_w,
+                        "KNOWN PLAYERS",
+                        Color::DarkGrey,
+                    )?;
+                    for (index, name) in names
+                        .iter()
+                        .take(height.saturating_sub(history_y + 8) as usize)
+                        .enumerate()
+                    {
+                        paint(
+                            out,
+                            main_x,
+                            history_y + 2 + index as u16,
+                            main_w,
+                            name,
+                            Color::White,
+                        )?;
+                    }
+                }
+                None => paint(
+                    out,
+                    main_x,
+                    history_y,
+                    main_w,
+                    "Player history unavailable.",
+                    Color::DarkGrey,
+                )?,
+            }
+        }
     } else {
         paint(
             out,

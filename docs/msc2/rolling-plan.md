@@ -122,6 +122,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.11 only.
 - **Commit:** `P22.11: match overview tab layout`
 
+### P22.12 — Show live players in the Players tab
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Match the approved Players tab's sparse layout with an online count and roster. Read live names from the agent's players endpoint and saved profiles from its profiles endpoint. Show the preview's empty state when both are empty; identify known players separately when profiles exist because the API does not provide a session-by-session history. Keep the no-server and unavailable states honest.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a server, and press `2`. Confirm the online count and player names match the agent's current roster; when no one is connected, confirm the empty message. If saved player profiles exist, confirm they appear under Known Players. Press `a`, return to a workspace without an active server, and confirm the no-server message. No test command is part of this step.
+- **Batch:** P22.12 only.
+- **Commit:** `P22.12: show live players in tui`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

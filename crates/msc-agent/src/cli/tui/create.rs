@@ -144,6 +144,7 @@ pub(super) struct Wizard {
     page_index: usize,
     configure_page_index: usize,
     network_page_index: usize,
+    world_page_index: usize,
     version_picker_active: bool,
     java_install_page: bool,
     java_install_major: i64,
@@ -203,6 +204,7 @@ impl Wizard {
             page_index: 0,
             configure_page_index: 0,
             network_page_index: 0,
+            world_page_index: 0,
             version_picker_active: false,
             java_install_page: false,
             java_install_major: 25,
@@ -310,6 +312,13 @@ impl Wizard {
             6
         };
         if self.java() { base + 1 } else { base }
+    }
+    fn world_page_count(&self) -> usize {
+        if self.get("world_source") == "Backup .zip" {
+            2
+        } else {
+            7
+        }
     }
     fn java_runtime_page_index(&self) -> usize {
         if self.yes("crossplay") && self.crossplay_available() {
@@ -649,55 +658,46 @@ impl Wizard {
                     rows
                 }
             }
-            Page::World => {
-                let mut rows = vec![
-                    field(
-                        "world_source",
-                        "World source",
-                        Choice(&["New world", "Backup .zip"]),
-                        "A backup is imported after the server is created.",
-                    ),
+            Page::World => match self.world_page_index {
+                0 => vec![field(
+                    "world_source",
+                    "World source",
+                    Choice(&["New world", "Backup .zip"]),
+                    "Start with a new world or bring one in from a backup.",
+                )],
+                _ if self.get("world_source") == "Backup .zip" => vec![field(
+                    "backup",
+                    "Backup .zip path",
+                    Text,
+                    "Choose an existing .zip backup on this computer.",
+                )],
+                _ => vec![
                     field(
                         "world_name",
                         "World name",
                         Text,
-                        "Display name for the first world; blank uses the server name.",
+                        "Display name for this world slot.",
                     ),
-                ];
-                if self.get("world_source") == "Backup .zip" {
-                    rows.push(field(
-                        "backup",
-                        "Backup .zip path",
-                        Text,
-                        "Absolute path to a world backup on this computer.",
-                    ));
-                } else {
-                    rows.extend([
-                        field(
-                            "seed",
-                            "Seed",
-                            Text,
-                            "Optional; blank makes a random world.",
-                        ),
-                        field(
-                            "difficulty",
-                            "Difficulty",
-                            Choice(&["Peaceful", "Easy", "Normal", "Hard"]),
-                            "First world difficulty.",
-                        ),
-                        field(
-                            "gamemode",
-                            "Game mode",
-                            Choice(&["Survival", "Creative", "Adventure"]),
-                            "Default mode for new players.",
-                        ),
-                    ]);
-                }
-                rows
-            }
+                    field("seed", "Seed", Text, "Optional; random if blank."),
+                    field(
+                        "difficulty",
+                        "Difficulty",
+                        Choice(&["Peaceful", "Easy", "Normal", "Hard"]),
+                        "First world difficulty.",
+                    ),
+                    field(
+                        "gamemode",
+                        "Default game mode",
+                        Choice(&["Survival", "Creative", "Adventure", "Spectator"]),
+                        "Default mode for new players.",
+                    ),
+                ],
+            },
             Page::Generation => {
                 let mut rows = Vec::new();
-                if self.world_field_available("identity.level-name", true) {
+                if self.world_page_index == 2
+                    && self.world_field_available("identity.level-name", true)
+                {
                     rows.push(field(
                         "level_name",
                         "Minecraft folder name",
@@ -705,7 +705,9 @@ impl Wizard {
                         "Blank uses the default folder name.",
                     ));
                 }
-                if self.world_field_available("generation.world-type", true) {
+                if self.world_page_index == 2
+                    && self.world_field_available("generation.world-type", true)
+                {
                     rows.push(field(
                         "world_type",
                         "World type",
@@ -745,19 +747,20 @@ impl Wizard {
                         "Generator options JSON",
                         "Optional advanced generation settings.",
                     ),
-                    (
-                        "starting_map",
-                        "Starting map",
-                        "Give Bedrock players a map when they spawn.",
-                    ),
                 ] {
+                    if (self.world_page_index == 2
+                        && !matches!(key, "flat_preset" | "biome_source"))
+                        || (self.world_page_index == 3
+                            && matches!(key, "flat_preset" | "biome_source"))
+                    {
+                        continue;
+                    }
                     let (capability, fallback) = match key {
                         "flat_preset" => ("generation.flat-preset", self.java()),
                         "biome_source" => ("generation.biome-source", self.java()),
                         "structures" => ("generation.structures", self.java()),
                         "bonus_chest" => ("generation.bonus-chest", true),
                         "generator_options" => ("generation.generator-options", self.java()),
-                        "starting_map" => ("gameplay.starting-map", !self.java()),
                         _ => unreachable!(),
                     };
                     if self.world_field_available(capability, fallback) {
@@ -769,7 +772,10 @@ impl Wizard {
                         rows.push(field(key, label, kind, hint));
                     }
                 }
-                if self.java() && self.world_field_available("generation.data-packs", true) {
+                if self.world_page_index == 3
+                    && self.java()
+                    && self.world_field_available("generation.data-packs", true)
+                {
                     rows.push(field(
                         "datapacks",
                         "Data pack IDs",
@@ -780,6 +786,22 @@ impl Wizard {
                 rows
             }
             Page::Gameplay if !self.java() => {
+                if self.world_page_index == 5 {
+                    return vec![field(
+                        "gamerules",
+                        "Edit rules as text",
+                        Text,
+                        "One rule=value pair per line or comma-separated.",
+                    )];
+                }
+                if self.world_page_index == 6 {
+                    return vec![field(
+                        "world_pack",
+                        "Behavior pack path",
+                        Text,
+                        "Optional local .mcpack or .zip installed in the first world.",
+                    )];
+                }
                 let mut rows = Vec::new();
                 for (key, label, hint, capability) in [
                     (
@@ -806,6 +828,12 @@ impl Wizard {
                         "Optional comma-separated name=value pairs.",
                         "gameplay.gamerules",
                     ),
+                    (
+                        "starting_map",
+                        "Starting map",
+                        "Give Bedrock players a map when they spawn.",
+                        "gameplay.starting-map",
+                    ),
                 ] {
                     if self.world_field_available(capability, true) {
                         rows.push(field(
@@ -820,15 +848,33 @@ impl Wizard {
                         ));
                     }
                 }
-                rows.push(field(
-                    "world_pack",
-                    "Local behavior pack",
-                    Text,
-                    "Optional .mcpack or .zip path for this world.",
-                ));
                 rows
             }
             Page::Gameplay => {
+                if self.world_page_index == 5 {
+                    return vec![field(
+                        "gamerules",
+                        "Edit rules as text",
+                        Text,
+                        "One rule=value pair per line or comma-separated.",
+                    )];
+                }
+                if self.world_page_index == 6 {
+                    return vec![field(
+                        "world_pack",
+                        if self.java() {
+                            "Datapack ZIP path"
+                        } else {
+                            "Behavior pack path"
+                        },
+                        Text,
+                        if self.java() {
+                            "Optional local .zip installed in the first world."
+                        } else {
+                            "Optional local .mcpack or .zip installed in the first world."
+                        },
+                    )];
+                }
                 let mut rows = Vec::new();
                 for (key, label, hint, capability) in [
                     (
@@ -859,12 +905,6 @@ impl Wizard {
                         ));
                     }
                 }
-                rows.push(field(
-                    "world_pack",
-                    "Local world pack",
-                    Text,
-                    "Optional .zip path; installs into the first world after creation.",
-                ));
                 rows
             }
             Page::Addons => vec![field(
@@ -922,6 +962,19 @@ impl Wizard {
                     self.cursor = 0;
                     self.message.clear();
                     self.confirmation = None;
+                    return Outcome::Stay;
+                }
+                if matches!(self.page(), Page::World | Page::Generation | Page::Gameplay)
+                    && self.world_page_index > 0
+                {
+                    match self.world_page_index {
+                        2 => self.page_index = self.page_index.saturating_sub(1),
+                        4 => self.page_index = self.page_index.saturating_sub(1),
+                        _ => {}
+                    }
+                    self.world_page_index -= 1;
+                    self.cursor = 0;
+                    self.message.clear();
                     return Outcome::Stay;
                 }
                 if self.page_index == 0 {
@@ -1063,12 +1116,37 @@ impl Wizard {
                 }
             }
             KeyCode::Char('e') => {
+                if self.page() == Page::Gameplay
+                    && self.world_page_index == 4
+                    && fields
+                        .get(self.cursor)
+                        .is_some_and(|field| field.key == "gamerules")
+                {
+                    self.world_page_index = 5;
+                    self.cursor = 0;
+                    self.message.clear();
+                    return Outcome::Stay;
+                }
                 if let Some(field) = fields.get(self.cursor)
                     && !matches!(field.key, "version" | "bedrock_version")
                     && matches!(field.kind, FieldKind::Text)
                 {
                     self.editing = Some(self.get(field.key).to_string());
                 }
+            }
+            KeyCode::Char('a')
+                if self.page() == Page::Gameplay
+                    && self.world_page_index == 4
+                    && fields
+                        .get(self.cursor)
+                        .is_some_and(|field| field.key == "gamerules") =>
+            {
+                let rules = self.get("gamerules");
+                self.editing = Some(if rules.is_empty() {
+                    String::new()
+                } else {
+                    format!("{rules},")
+                });
             }
             KeyCode::Char('i') if self.page() == Page::Configure && self.is_java_runtime_page() => {
                 self.java_install_major = self.required_java_major();
@@ -1134,6 +1212,14 @@ impl Wizard {
                         PathKind::Import
                     };
                     self.cursor = 0;
+                    self.message.clear();
+                    return Outcome::Stay;
+                }
+                if self.page() == Page::Gameplay
+                    && self.world_page_index == 5
+                    && self.editing.is_none()
+                {
+                    self.editing = Some(self.get("gamerules").to_string());
                     self.message.clear();
                     return Outcome::Stay;
                 }
@@ -1439,6 +1525,11 @@ impl Wizard {
                 }
             }
             Page::World => {
+                if self.world_page_index == 0 {
+                    self.world_page_index = 1;
+                    self.cursor = 0;
+                    return Ok(());
+                }
                 if self.get("world_source") == "Backup .zip" {
                     let path = Path::new(self.get("backup"));
                     let is_zip = path
@@ -1451,23 +1542,52 @@ impl Wizard {
                         ));
                     }
                 }
+                if self.get("world_source") != "Backup .zip" {
+                    self.page_index += 1;
+                    self.world_page_index = 2;
+                    self.cursor = 0;
+                    return Ok(());
+                }
+            }
+            Page::Generation => {
+                if self.world_page_index == 2 {
+                    self.world_page_index = 3;
+                    self.cursor = 0;
+                    return Ok(());
+                }
+                self.page_index += 1;
+                self.world_page_index = 4;
+                self.cursor = 0;
+                return Ok(());
             }
             Page::Gameplay => {
-                let pack_path = Path::new(self.get("world_pack"));
-                let pack_extension = pack_path
-                    .extension()
-                    .and_then(|extension| extension.to_str())
-                    .unwrap_or_default();
-                let valid_pack = if self.java() {
-                    pack_extension.eq_ignore_ascii_case("zip")
-                } else {
-                    pack_extension.eq_ignore_ascii_case("mcpack")
-                        || pack_extension.eq_ignore_ascii_case("zip")
-                };
-                if !self.get("world_pack").is_empty() && (!pack_path.is_file() || !valid_pack) {
-                    return Err(CliError::usage(
-                        "Use a .zip world pack for Java, or a .mcpack/.zip behavior pack for Bedrock.",
-                    ));
+                if self.world_page_index == 4 {
+                    self.world_page_index = 5;
+                    self.cursor = 0;
+                    return Ok(());
+                }
+                if self.world_page_index == 5 {
+                    self.world_page_index = 6;
+                    self.cursor = 0;
+                    return Ok(());
+                }
+                if self.world_page_index == 6 {
+                    let pack_path = Path::new(self.get("world_pack"));
+                    let pack_extension = pack_path
+                        .extension()
+                        .and_then(|extension| extension.to_str())
+                        .unwrap_or_default();
+                    let valid_pack = if self.java() {
+                        pack_extension.eq_ignore_ascii_case("zip")
+                    } else {
+                        pack_extension.eq_ignore_ascii_case("mcpack")
+                            || pack_extension.eq_ignore_ascii_case("zip")
+                    };
+                    if !self.get("world_pack").is_empty() && (!pack_path.is_file() || !valid_pack) {
+                        return Err(CliError::usage(
+                            "Use a .zip world pack for Java, or a .mcpack/.zip behavior pack for Bedrock.",
+                        ));
+                    }
                 }
                 for (key, label, boolean) in [
                     ("gamerules", "Game rules", false),
@@ -1496,6 +1616,9 @@ impl Wizard {
                         }
                     }
                 }
+                self.page_index += 1;
+                self.cursor = 0;
+                return Ok(());
             }
             Page::Addons
                 if !self.get("addon").is_empty()
@@ -1661,10 +1784,11 @@ impl Wizard {
             Color::DarkGrey,
         )?;
         if page != Page::Configure && page != Page::Network {
+            let world_page = matches!(page, Page::World | Page::Generation | Page::Gameplay);
             let title = self
                 .world_capabilities
                 .as_ref()
-                .filter(|_| matches!(page, Page::World | Page::Generation | Page::Gameplay))
+                .filter(|_| world_page)
                 .map(|capabilities| {
                     let context = &capabilities.context;
                     let mut detail = context
@@ -1679,9 +1803,77 @@ impl Wizard {
                     format!("{} · {}", page.title(), detail)
                 })
                 .unwrap_or_else(|| page.title().to_string());
-            paint(out, x + 2, y + 5, w - 4, &title, Color::White)?;
+            if page == Page::Addons {
+                paint(out, x + 2, y + 5, w - 4, "Page 1 / 1", Color::DarkGrey)?;
+                paint(out, x + 2, y + 6, w - 4, "Add plugins?", Color::White)?;
+                paint(
+                    out,
+                    x + 2,
+                    y + 7,
+                    w - 4,
+                    "Add local files now, or skip and add them after the server is created. Modrinth browsing is omitted from this TUI flow.",
+                    Color::DarkGrey,
+                )?;
+            } else if world_page {
+                let page_number = self.world_page_index + 1;
+                let page_count = self.world_page_count();
+                let (heading, subtitle) = match self.world_page_index {
+                    0 => (
+                        "What should the first world be?",
+                        "Start with a new world or bring one in from a backup.",
+                    ),
+                    1 => (
+                        if self.get("world_source") == "Backup .zip" {
+                            "Choose a world backup"
+                        } else {
+                            "What should the first world be?"
+                        },
+                        if self.get("world_source") == "Backup .zip" {
+                            "Enter the absolute path to an existing .zip backup."
+                        } else {
+                            "Choose its name, seed, difficulty, and default game mode."
+                        },
+                    ),
+                    2 | 3 => (
+                        "What should the first world be?",
+                        "Terrain, folder, and first-creation options.",
+                    ),
+                    4 => (
+                        "What should the first world be?",
+                        "Commands, gamerules, cheats, and edition-specific options.",
+                    ),
+                    5 => (
+                        "Edit game rules",
+                        "Add or change rule=value entries for this world.",
+                    ),
+                    _ if !self.java() => (
+                        "Behavior pack",
+                        "This installs in the first world after the server is created.",
+                    ),
+                    _ => (
+                        "Datapacks",
+                        "These install in the first world after the server is created.",
+                    ),
+                };
+                paint(
+                    out,
+                    x + 2,
+                    y + 5,
+                    w - 4,
+                    &format!("Page {page_number} / {page_count}"),
+                    Color::DarkGrey,
+                )?;
+                paint(out, x + 2, y + 6, w - 4, heading, Color::White)?;
+                paint(out, x + 2, y + 7, w - 4, subtitle, Color::DarkGrey)?;
+            } else {
+                paint(out, x + 2, y + 5, w - 4, &title, Color::White)?;
+            }
         }
         let mut row = if page == Page::Configure {
+            y + 10
+        } else if page == Page::Addons {
+            y + 9
+        } else if matches!(page, Page::World | Page::Generation | Page::Gameplay) {
             y + 10
         } else {
             y + 7
@@ -1738,6 +1930,40 @@ impl Wizard {
             self.draw_configure_page(out, x, y, w, h)?;
         } else if page == Page::Network {
             self.draw_network_page(out, x, y, w, h)?;
+        } else if page == Page::World && self.world_page_index == 0 {
+            let choices = [
+                ("New World", "Generate a new world\nfor this server."),
+                (
+                    "From Backup (.zip)",
+                    "Use an existing\nworld backup (.zip).",
+                ),
+            ];
+            let selected = usize::from(self.get("world_source") == "Backup .zip");
+            let card_width = (w.saturating_sub(12)) / 2;
+            draw_choice_card(
+                out,
+                x + 2,
+                y + 10,
+                card_width,
+                6,
+                ChoiceCard {
+                    title: choices[0].0,
+                    description: choices[0].1,
+                },
+                selected == 0,
+            )?;
+            draw_choice_card(
+                out,
+                x + 8 + card_width,
+                y + 10,
+                card_width,
+                6,
+                ChoiceCard {
+                    title: choices[1].0,
+                    description: choices[1].1,
+                },
+                selected == 1,
+            )?;
         } else if matches!(page, Page::Choose | Page::ChooseSource) {
             let choices = if page == Page::Choose {
                 [
@@ -1919,6 +2145,18 @@ impl Wizard {
                 Color::Green,
             )?;
         } else {
+            if matches!(page, Page::World | Page::Generation | Page::Gameplay) {
+                let section = match self.world_page_index {
+                    0 => "WORLD SOURCE",
+                    1 => "ESSENTIALS",
+                    2 | 3 => "WORLD GENERATION · TERRAIN, FOLDER, AND FIRST-CREATION OPTIONS",
+                    4 | 5 => "GAMEPLAY RULES · COMMANDS, GAMERULES, AND EDITION-SPECIFIC OPTIONS",
+                    _ => "DATAPACKS",
+                };
+                paint(out, x + 2, y + 9, w - 4, section, Color::DarkGrey)?;
+            } else if page == Page::Addons {
+                paint(out, x + 2, y + 8, w - 4, "LOCAL FILES", Color::DarkGrey)?;
+            }
             for (index, field) in self.fields().iter().enumerate() {
                 if row >= y + h - 5 {
                     break;
@@ -1998,6 +2236,57 @@ impl Wizard {
                 )?;
                 row += 1;
             }
+            if page == Page::Gameplay && self.world_page_index == 4 {
+                paint(
+                    out,
+                    x + 3,
+                    row + 1,
+                    w - 6,
+                    "Add Rule [a]    Edit as Text [e]",
+                    Color::White,
+                )?;
+            }
+            if page == Page::Addons {
+                paint(
+                    out,
+                    x + 3,
+                    row + 1,
+                    w - 6,
+                    "Add your own .jar",
+                    Color::White,
+                )?;
+                paint(
+                    out,
+                    x + 3,
+                    row + 2,
+                    w - 6,
+                    "Enter the local path with e. File chooser and multi-file staging are not connected.",
+                    Color::DarkGrey,
+                )?;
+            } else if matches!(page, Page::World | Page::Generation | Page::Gameplay)
+                && self.world_page_index == 6
+            {
+                paint(
+                    out,
+                    x + 3,
+                    row + 1,
+                    w - 6,
+                    if self.java() {
+                        "Import local datapack ZIP"
+                    } else {
+                        "Import local behavior pack"
+                    },
+                    Color::White,
+                )?;
+                paint(
+                    out,
+                    x + 3,
+                    row + 2,
+                    w - 6,
+                    "Enter the local path with e. File chooser is not connected.",
+                    Color::DarkGrey,
+                )?;
+            }
         }
         let configure_source_page =
             page == Page::Configure && self.java() && self.configure_page_index == 4;
@@ -2043,6 +2332,16 @@ impl Wizard {
             "←→ Choose connection   Enter Continue   Esc Back"
         } else if page == Page::Network {
             "↑↓ Move   e Edit field   Enter Continue   Esc Back"
+        } else if page == Page::World && self.world_page_index == 0 {
+            "←→ Choose source   Enter Continue   Esc Back"
+        } else if page == Page::Gameplay && self.world_page_index == 4 {
+            "↑↓ Move   Space Toggle   a Add Rule   e Edit as Text   Enter Continue   Esc Back"
+        } else if page == Page::Gameplay && self.world_page_index == 5 {
+            "e Edit rules   Enter Continue   Esc Back"
+        } else if page == Page::Addons {
+            "e Edit path   Enter Continue   Esc Back"
+        } else if matches!(page, Page::World | Page::Generation | Page::Gameplay) {
+            "↑↓ Move   ←→ Choose   Space Toggle   e Edit   Enter Continue   Esc Back"
         } else if page == Page::Configure && self.java() && self.configure_page_index == 4 {
             "←→ Choose source   Enter Continue   Esc Back"
         } else if page == Page::Configure && self.configure_page_index == 1 {

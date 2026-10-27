@@ -68,6 +68,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.5 only.
 - **Commit:** `P22.5: complete create server tui flow`
 
+### P22.6 — Match the create-server World and Add-ons pages
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/create.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Split the first-world setup into the renderer's seven keyboard pages: world source, essentials, world generation basics, advanced generation, gameplay rules, rule text, and local datapacks/behavior packs. Keep the World step in the six-step breadcrumb while its page counter advances independently. New-world options use the agent's edition/version capabilities, Bedrock rules include cheats, coordinates, experiments, and starting map, and world packs are checked and installed after creation. The Java Gameplay Rules page exposes Add Rule and Edit as Text actions. Match the Add-ons page with a local `.jar` path and explain that Modrinth browsing is omitted. Preserve arrow-key field/choice controls, Enter to continue, and Esc to go back; no scrolling is introduced. Local pack and plugin paths can be typed and submitted; a file chooser and adding multiple plugin files are not connected. The imported-backup route remains a shorter source/path path.
+- **Verify:** Run `cargo run -p msc-agent -- tui` in a terminal at least 100 columns by 24 rows. Open Manage Servers, start the Create flow, choose Start Fresh, then walk the World pages and Add-ons page. Confirm the World breadcrumb remains step 4, the inner counter reaches 7/7 for a new world, Java and Bedrock show their applicable settings, left/right changes choices, `e` edits text, `a` adds a Java rule, Enter advances, and Esc returns to the previous inner page. Confirm the datapack/behavior-pack path and local plugin `.jar` path appear on their own pages and Modrinth browsing is identified as omitted. No test command is part of this step.
+- **Batch:** P22.6 only.
+- **Commit:** `P22.6: align create wizard world pages`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

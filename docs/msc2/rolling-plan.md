@@ -149,6 +149,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.14 only.
 - **Commit:** `P22.14: show live performance in tui`
 
+### P22.15 — Add live terminal graphs to Performance
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/performance.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Keep the four numeric performance readings and add scrolling TPS and CPU history plus a terminal-character memory ring. Record bounded samples only while the TUI is open, reset history when the selected server changes, and show missing values honestly. Use the existing five-second agent snapshot refresh; no new agent metrics or history storage are introduced.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a server, and press `4`. Confirm TPS and CPU graphs gain one sample about every five seconds and the memory ring percentage agrees with the used/limit numbers. Stop the server and confirm unavailable metrics show gaps or dashes. Select another server and confirm the graphs start fresh. Reopen the TUI and confirm history starts fresh. No test command is part of this step.
+- **Batch:** P22.15 only.
+- **Commit:** `P22.15: add live terminal performance graphs`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

@@ -113,6 +113,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.10 only.
 - **Commit:** `P22.10: add seven server workspace tabs`
 
+### P22.11 — Match the Overview tab layout
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Arrange Overview like the approved renderer: Status with Connection Info and Live Stats cards, Activity with Players, Active World, and Chat cards, Notes, and a separate Console bar. Show a distinct empty state when no server is selected. Read available player count, active world, and performance values from the agent; show unavailable values honestly. Keep Chat and Console controls marked as upcoming work.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Overview with the created server, and compare its card layout to the renderer. Confirm the server name, software, local port, running state, notes, and any available live values reflect this host. Open the workspace without an active server and confirm its empty state. Resize the terminal below 40 rows and confirm Overview stays readable. No test command is part of this step.
+- **Batch:** P22.11 only.
+- **Commit:** `P22.11: match overview tab layout`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

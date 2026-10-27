@@ -11,7 +11,10 @@ use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use crossterm::style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor};
 use crossterm::terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{execute, queue};
-use msc_api::dto::{ActiveServerRequestDto, RemoteApiStatus, ServerDto, SimpleResultDto};
+use msc_api::dto::{
+    ActiveServerRequestDto, PerformanceSnapshotDto, RemoteApiStatus, ServerDto, SimpleResultDto,
+    WorldSlotsResponseDto,
+};
 use msc_infrastructure::service::ServiceState;
 
 use super::service::{self, AgentAction, LocalAgentStatus};
@@ -59,6 +62,9 @@ struct Snapshot {
     active_server_id: Option<String>,
     active_server_running: bool,
     connection_error: Option<String>,
+    performance: Option<PerformanceSnapshotDto>,
+    online_players: Option<u64>,
+    active_world: Option<String>,
 }
 
 struct ViewState<'a> {
@@ -91,12 +97,38 @@ async fn load() -> Result<Snapshot, CliError> {
         } else {
             (None, None, false, None)
         };
+    let (performance, online_players, active_world) = if active_server_id.is_some() {
+        match SharedClient::connect_local().await {
+            Ok(client) => {
+                let (performance, players, worlds) = tokio::join!(
+                    client.get_json("/v1/performance"),
+                    client.get_json::<serde_json::Value>("/v1/players"),
+                    client.get_json::<WorldSlotsResponseDto>("/v1/worlds"),
+                );
+                let online_players = players.ok().and_then(|value| value["count"].as_u64());
+                let active_world = worlds.ok().and_then(|worlds| {
+                    worlds
+                        .slots
+                        .into_iter()
+                        .find(|slot| slot.is_active)
+                        .map(|slot| slot.name)
+                });
+                (performance.ok(), online_players, active_world)
+            }
+            Err(_) => (None, None, None),
+        }
+    } else {
+        (None, None, None)
+    };
     Ok(Snapshot {
         service,
         servers,
         active_server_id,
         active_server_running,
         connection_error,
+        performance,
+        online_players,
+        active_world,
     })
 }
 
@@ -790,30 +822,29 @@ fn draw_workspace(
         Color::DarkGrey,
     )?;
 
-    if tab_index == 0 {
-        paint(out, main_x, 6, main_w, "STATUS", Color::White)?;
+    if tab_index == 0 && height >= 40 {
+        paint(out, main_x, 6, main_w, "STATUS", Color::DarkGrey)?;
         let gap = 2;
         let left_w = (main_w - gap) / 2;
         let right_x = main_x + left_w + gap;
         let right_w = main_w - left_w - gap;
-        box_outline(out, main_x, 8, left_w, 8)?;
-        box_outline(out, right_x, 8, right_w, 8)?;
+        box_outline(out, main_x, 8, left_w, if server.is_some() { 9 } else { 6 })?;
+        box_outline(
+            out,
+            right_x,
+            8,
+            right_w,
+            if server.is_some() { 9 } else { 6 },
+        )?;
         paint(
             out,
             main_x + 2,
             9,
             left_w - 4,
-            "CONNECTION INFO",
-            Color::DarkGrey,
+            "Connection Info",
+            Color::White,
         )?;
-        paint(
-            out,
-            right_x + 2,
-            9,
-            right_w - 4,
-            "LIVE STATS",
-            Color::DarkGrey,
-        )?;
+        paint(out, right_x + 2, 9, right_w - 4, "Live Stats", Color::White)?;
         if let Some(server) = server {
             let software = if server.server_type.eq_ignore_ascii_case("java") {
                 format!(
@@ -845,6 +876,17 @@ fn draw_workspace(
             )?;
             paint(
                 out,
+                main_x + 2,
+                13,
+                left_w - 4,
+                &format!(
+                    "Remote    {}",
+                    server.host_address.as_deref().unwrap_or("Not configured")
+                ),
+                Color::White,
+            )?;
+            paint(
+                out,
                 right_x + 2,
                 11,
                 right_w - 4,
@@ -858,13 +900,42 @@ fn draw_workspace(
                 ),
                 Color::White,
             )?;
+            let metric = snapshot.performance.as_ref();
+            let tps = metric
+                .and_then(|value| value.tps_1m.as_ref())
+                .map(|value| format!("{:.1}", value.value))
+                .unwrap_or_else(|| "—".into());
+            let cpu = metric
+                .and_then(|value| value.cpu_percent.as_ref())
+                .map(|value| format!("{:.0}%", value.value))
+                .unwrap_or_else(|| "—".into());
+            let memory = metric
+                .and_then(|value| value.ram_used_mb.as_ref())
+                .map(|value| format!("{:.0} MB", value.value))
+                .unwrap_or_else(|| "—".into());
             paint(
                 out,
                 right_x + 2,
                 12,
                 right_w - 4,
-                "Players   —",
-                Color::DarkGrey,
+                &format!("TPS       {tps}"),
+                Color::White,
+            )?;
+            paint(
+                out,
+                right_x + 2,
+                13,
+                right_w - 4,
+                &format!("CPU       {cpu}"),
+                Color::White,
+            )?;
+            paint(
+                out,
+                right_x + 2,
+                14,
+                right_w - 4,
+                &format!("Memory    {memory}"),
+                Color::White,
             )?;
         } else {
             paint(
@@ -872,41 +943,212 @@ fn draw_workspace(
                 main_x + 2,
                 11,
                 left_w - 4,
-                "No server selected",
-                Color::DarkGrey,
+                "Server   No server selected",
+                Color::White,
             )?;
+            paint(out, main_x + 2, 12, left_w - 4, "Address  —", Color::White)?;
             paint(
                 out,
                 right_x + 2,
                 11,
                 right_w - 4,
-                "Waiting for server",
-                Color::DarkGrey,
+                "State    Waiting for server",
+                Color::White,
+            )?;
+            paint(
+                out,
+                right_x + 2,
+                12,
+                right_w - 4,
+                "Players  —",
+                Color::White,
             )?;
         }
-        paint(out, main_x, 18, main_w, "ACTIVITY", Color::White)?;
+        let activity_y = if server.is_some() { 19 } else { 16 };
         paint(
             out,
-            main_x + 2,
-            20,
-            main_w - 2,
-            "Players       Active World       Chat",
+            main_x,
+            activity_y - 1,
+            main_w,
+            &"─".repeat(main_w as usize),
             Color::DarkGrey,
         )?;
-        paint(out, main_x, 23, main_w, "NOTES", Color::White)?;
+        paint(out, main_x, activity_y, main_w, "ACTIVITY", Color::DarkGrey)?;
+        let card_y = activity_y + 2;
+        let card_gap = 2;
+        let card_w = (main_w - 2 * card_gap) / 3;
+        let third_x = main_x + 2 * (card_w + card_gap);
+        let third_w = main_w - 2 * (card_w + card_gap);
+        box_outline(
+            out,
+            main_x,
+            card_y,
+            card_w,
+            if server.is_some() { 6 } else { 5 },
+        )?;
+        box_outline(
+            out,
+            main_x + card_w + card_gap,
+            card_y,
+            card_w,
+            if server.is_some() { 6 } else { 5 },
+        )?;
+        box_outline(
+            out,
+            third_x,
+            card_y,
+            third_w,
+            if server.is_some() { 6 } else { 5 },
+        )?;
         paint(
             out,
             main_x + 2,
-            25,
+            card_y + 1,
+            card_w - 4,
+            "Players",
+            Color::White,
+        )?;
+        paint(
+            out,
+            main_x + card_w + card_gap + 2,
+            card_y + 1,
+            card_w - 4,
+            "Active World",
+            Color::White,
+        )?;
+        paint(
+            out,
+            third_x + 2,
+            card_y + 1,
+            third_w - 4,
+            "Chat",
+            Color::White,
+        )?;
+        if server.is_some() {
+            let players = snapshot
+                .online_players
+                .map_or_else(|| "— online".into(), |count| format!("{count} online"));
+            paint(
+                out,
+                main_x + 2,
+                card_y + 3,
+                card_w - 4,
+                &players,
+                Color::White,
+            )?;
+            paint(
+                out,
+                main_x + card_w + card_gap + 2,
+                card_y + 3,
+                card_w - 4,
+                snapshot
+                    .active_world
+                    .as_deref()
+                    .unwrap_or("World unavailable"),
+                Color::White,
+            )?;
+        } else {
+            paint(
+                out,
+                main_x + 2,
+                card_y + 3,
+                card_w - 4,
+                "No server selected",
+                Color::White,
+            )?;
+            paint(
+                out,
+                main_x + card_w + card_gap + 2,
+                card_y + 3,
+                card_w - 4,
+                "—",
+                Color::White,
+            )?;
+        }
+        paint(
+            out,
+            third_x + 2,
+            card_y + 3,
+            third_w - 4,
+            "Chat feed coming next",
+            Color::DarkGrey,
+        )?;
+        let notes_y = card_y + if server.is_some() { 8 } else { 7 };
+        paint(
+            out,
+            main_x,
+            notes_y - 1,
+            main_w,
+            &"─".repeat(main_w as usize),
+            Color::DarkGrey,
+        )?;
+        paint(out, main_x, notes_y, main_w, "NOTES", Color::DarkGrey)?;
+        paint(
+            out,
+            main_x + 2,
+            notes_y + 2,
             main_w - 2,
             server.map_or("Select a server to view its notes.", |server| {
                 if server.notes.is_empty() {
-                    "No notes yet"
+                    "For this server · No notes yet"
                 } else {
                     server.notes.as_str()
                 }
             }),
-            Color::DarkGrey,
+            Color::White,
+        )?;
+    } else if tab_index == 0 {
+        paint(out, main_x, 6, main_w, "STATUS", Color::DarkGrey)?;
+        paint(
+            out,
+            main_x + 2,
+            8,
+            main_w - 2,
+            server.map_or("Server   No server selected", |server| server.name.as_str()),
+            Color::White,
+        )?;
+        paint(
+            out,
+            main_x + 2,
+            9,
+            main_w - 2,
+            if server.is_some() {
+                if snapshot.active_server_running {
+                    "State    Running"
+                } else {
+                    "State    Stopped"
+                }
+            } else {
+                "State    Waiting for server"
+            },
+            Color::White,
+        )?;
+        paint(out, main_x, 12, main_w, "ACTIVITY", Color::DarkGrey)?;
+        paint(
+            out,
+            main_x + 2,
+            14,
+            main_w - 2,
+            snapshot
+                .active_world
+                .as_deref()
+                .unwrap_or("No active world"),
+            Color::White,
+        )?;
+        paint(out, main_x, 17, main_w, "NOTES", Color::DarkGrey)?;
+        paint(
+            out,
+            main_x + 2,
+            18,
+            main_w - 2,
+            server.map_or("Select a server to view its notes.", |server| {
+                if server.notes.is_empty() {
+                    "For this server · No notes yet"
+                } else {
+                    server.notes.as_str()
+                }
+            }),
+            Color::White,
         )?;
     } else {
         paint(
@@ -933,16 +1175,34 @@ fn draw_workspace(
     paint(
         out,
         main_x,
+        height - 6,
+        main_w,
+        &"─".repeat(main_w as usize),
+        Color::DarkGrey,
+    )?;
+    paint(
+        out,
+        main_x,
         height - 5,
         main_w,
         &format!(
-            "Console  {}  ·  coming next",
-            if snapshot.active_server_running {
+            "Console  {}  ·  controls coming next",
+            if server.is_none() {
+                "No server"
+            } else if snapshot.active_server_running {
                 "Running"
             } else {
                 "Stopped"
             }
         ),
+        Color::DarkGrey,
+    )?;
+    paint(
+        out,
+        main_x,
+        height - 4,
+        main_w,
+        &"─".repeat(main_w as usize),
         Color::DarkGrey,
     )?;
     paint(out, main_x, height - 3, main_w, message, Color::DarkGrey)?;

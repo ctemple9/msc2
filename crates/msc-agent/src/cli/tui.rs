@@ -1313,6 +1313,55 @@ fn draw_workspace(
         }
     } else if tab_index == 2 {
         worlds_ui.draw(out, snapshot, main_x, main_w, height)?;
+    } else if tab_index == 3 {
+        if server.is_none() {
+            paint(
+                out,
+                main_x,
+                7,
+                main_w,
+                "Select or create a server to view performance.",
+                Color::DarkGrey,
+            )?;
+        } else {
+            let metric = snapshot.performance.as_ref();
+            let tps = metric
+                .and_then(|value| value.tps_1m.as_ref())
+                .map_or_else(|| "—".into(), |value| format!("{:.1}", value.value));
+            let cpu = metric
+                .and_then(|value| value.cpu_percent.as_ref())
+                .map_or_else(|| "—".into(), |value| format!("{:.0}%", value.value));
+            let memory = metric
+                .and_then(|value| value.ram_used_mb.as_ref())
+                .map(|used| {
+                    let used = used.value / 1024.0;
+                    metric
+                        .and_then(|value| value.ram_max_mb.as_ref())
+                        .map_or_else(
+                            || format!("{used:.1} GB"),
+                            |max| format!("{used:.1} / {:.1} GB", max.value / 1024.0),
+                        )
+                })
+                .unwrap_or_else(|| "—".into());
+            let players = metric
+                .and_then(|value| value.players_online)
+                .map_or_else(|| "—".into(), |count| count.to_string());
+            for (row, label, value) in [
+                (7, "TPS", tps),
+                (8, "CPU", cpu),
+                (9, "Memory", memory),
+                (10, "Players", players),
+            ] {
+                paint(
+                    out,
+                    main_x,
+                    row,
+                    main_w,
+                    &format!("{label:<8}{value}"),
+                    Color::White,
+                )?;
+            }
+        }
     } else {
         paint(
             out,

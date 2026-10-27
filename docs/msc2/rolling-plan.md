@@ -140,6 +140,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.13 only.
 - **Commit:** `P22.13: add worlds and backups workspace`
 
+### P22.14 — Show live performance in the Performance tab
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/worlds.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Match the renderer's sparse Performance tab with live TPS, CPU, memory, and online-player values from the selected server's performance endpoint. Show an em dash for unavailable metrics and a clear no-server state. Remove the View Map shortcut from Worlds because a terminal map is not part of the current world screen.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a server, and press `4`. Confirm the four metric rows match available live values, and stopped or unavailable metrics show an em dash. Open the workspace without a server and confirm the no-server message. Press `3` and confirm Worlds no longer offers View Map. No test command is part of this step.
+- **Batch:** P22.14 only.
+- **Commit:** `P22.14: show live performance in tui`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

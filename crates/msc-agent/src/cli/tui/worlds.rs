@@ -326,10 +326,6 @@ impl WorldsUi {
                 *message = "Create New World page is coming later.".into();
                 true
             }
-            KeyCode::Char('v') => {
-                *message = "View Map page is coming later.".into();
-                true
-            }
             _ => false,
         }
     }
@@ -395,7 +391,7 @@ impl WorldsUi {
             9,
             width,
             &format!(
-                "{} saved world{}   n New world   v View map",
+                "{} saved world{}   n New world",
                 worlds.slots.len(),
                 if worlds.slots.len() == 1 { "" } else { "s" }
             ),

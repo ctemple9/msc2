@@ -185,6 +185,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.18 only.
 - **Commit:** `P22.18: fill performance view with responsive charts`
 
+### P22.19 — Edit server settings in the TUI
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/mod.rs`; `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/settings.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Populate Settings from the selected server's agent-provided schema so Java and Bedrock show their own sections and fields. Support boolean, choice, number, and text edits with local bounds checks, report save and restart results, and honor the API's world-safety confirmation token.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a Java server, press `6`, and confirm the Runtime, Server, and Network sections and their current values. Toggle a safe setting and check it updates; edit a number and cancel with Esc. Switch to a Bedrock server and confirm its own sections and choices appear. No test command is part of this step.
+- **Batch:** P22.19 only.
+- **Commit:** `P22.19: edit server settings in tui`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

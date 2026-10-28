@@ -4,6 +4,7 @@
 mod components;
 mod create;
 mod performance;
+mod settings;
 mod worlds;
 
 use std::io::{self, IsTerminal, Stdout, Write};
@@ -17,7 +18,7 @@ use crossterm::{execute, queue};
 use msc_api::dto::{
     ActiveServerRequestDto, AddonsResponseDto, BackupConfigResponseDto, BackupsResponseDto,
     BroadcastJarStatusDto, ComponentsStatusDto, PerformanceSnapshotDto, RemoteApiStatus, ServerDto,
-    SimpleResultDto, WorldSlotsResponseDto,
+    SettingsResponseDto, SimpleResultDto, WorldSlotsResponseDto,
 };
 use msc_infrastructure::service::ServiceState;
 
@@ -77,6 +78,7 @@ struct Snapshot {
     components: Option<ComponentsStatusDto>,
     addons: Option<AddonsResponseDto>,
     broadcast_jar: Option<BroadcastJarStatusDto>,
+    settings: Option<SettingsResponseDto>,
 }
 
 struct ViewState<'a> {
@@ -90,6 +92,7 @@ struct ViewState<'a> {
     worlds: &'a worlds::WorldsUi,
     performance: &'a performance::PerformanceUi,
     components: &'a components::ComponentsUi,
+    settings: &'a settings::SettingsUi,
     wizard: Option<&'a create::Wizard>,
 }
 
@@ -124,6 +127,7 @@ async fn load() -> Result<Snapshot, CliError> {
         components,
         addons,
         broadcast_jar,
+        settings,
     ) = if active_server_id.is_some() {
         match SharedClient::connect_local().await {
             Ok(client) => {
@@ -137,6 +141,7 @@ async fn load() -> Result<Snapshot, CliError> {
                     components,
                     addons,
                     broadcast_jar,
+                    settings,
                 ) = tokio::join!(
                     client.get_json("/v1/performance"),
                     client.get_json::<serde_json::Value>("/v1/players"),
@@ -147,6 +152,7 @@ async fn load() -> Result<Snapshot, CliError> {
                     client.get_json::<ComponentsStatusDto>("/v1/components"),
                     client.get_json::<AddonsResponseDto>("/v1/addons?local=true"),
                     client.get_json::<BroadcastJarStatusDto>("/v1/broadcast/jar-status"),
+                    client.get_json::<SettingsResponseDto>("/v1/settings"),
                 );
                 let players = players.ok();
                 let online_players = players.as_ref().and_then(|value| value["count"].as_u64());
@@ -187,15 +193,16 @@ async fn load() -> Result<Snapshot, CliError> {
                     components.ok(),
                     addons.ok(),
                     broadcast_jar.ok(),
+                    settings.ok(),
                 )
             }
             Err(_) => (
-                None, None, None, None, None, None, None, None, None, None, None,
+                None, None, None, None, None, None, None, None, None, None, None, None,
             ),
         }
     } else {
         (
-            None, None, None, None, None, None, None, None, None, None, None,
+            None, None, None, None, None, None, None, None, None, None, None, None,
         )
     };
     Ok(Snapshot {
@@ -215,6 +222,7 @@ async fn load() -> Result<Snapshot, CliError> {
         components,
         addons,
         broadcast_jar,
+        settings,
     })
 }
 
@@ -255,6 +263,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     let mut worlds_ui = worlds::WorldsUi::default();
     let mut performance_ui = performance::PerformanceUi::default();
     let mut components_ui = components::ComponentsUi::default();
+    let mut settings_ui = settings::SettingsUi::default();
     let mut wizard: Option<create::Wizard> = None;
     let mut message = String::new();
     let mut confirm_stop = false;
@@ -277,6 +286,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 worlds: &worlds_ui,
                 performance: &performance_ui,
                 components: &components_ui,
+                settings: &settings_ui,
                 wizard: wizard.as_ref(),
             },
         )
@@ -384,6 +394,13 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             continue;
         }
         if workspace_open {
+            if tab_index == 5 && settings_ui.handle(key.code, &snapshot, &mut message).await {
+                if settings_ui.needs_refresh() {
+                    refresh(&mut snapshot, &mut message).await;
+                    settings_ui.refreshed();
+                }
+                continue;
+            }
             if tab_index == 4
                 && components_ui
                     .handle(key.code, &snapshot, &mut message)
@@ -565,6 +582,7 @@ fn draw(
             view.worlds,
             view.performance,
             view.components,
+            view.settings,
             view.message,
             width,
             height,
@@ -882,6 +900,7 @@ fn draw_workspace(
     worlds_ui: &worlds::WorldsUi,
     performance_ui: &performance::PerformanceUi,
     components_ui: &components::ComponentsUi,
+    settings_ui: &settings::SettingsUi,
     message: &str,
     width: u16,
     height: u16,
@@ -1373,6 +1392,8 @@ fn draw_workspace(
         performance_ui.draw(out, snapshot, main_x, main_w, height)?;
     } else if tab_index == 4 {
         components_ui.draw(out, snapshot, main_x, main_w, height)?;
+    } else if tab_index == 5 {
+        settings_ui.draw(out, snapshot, main_x, main_w, height)?;
     } else {
         paint(
             out,

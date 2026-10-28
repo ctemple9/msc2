@@ -1428,6 +1428,19 @@ pub struct CliError {
 }
 
 impl CliError {
+    fn settings_confirmation(&self) -> Option<(String, String)> {
+        let error: ErrorDto = serde_json::from_str(self.json_message.as_deref()?).ok()?;
+        if error.code != "confirmation_required" {
+            return None;
+        }
+        let token = error
+            .details
+            .as_ref()?
+            .get("confirmation")?
+            .get("acknowledgement")?
+            .as_str()?;
+        Some((token.to_string(), error.message))
+    }
     pub(crate) fn usage(message: impl Into<String>) -> Self {
         Self {
             exit_code: 2,

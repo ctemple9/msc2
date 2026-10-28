@@ -10,7 +10,7 @@ use msc_api::dto::{
 };
 use serde_json::json;
 
-use super::{Snapshot, paint};
+use super::{Snapshot, paint, world_settings::WorldSettingsUi};
 use crate::cli::transport::SharedClient;
 
 const WORLD_ACTIONS: [&str; 5] = [
@@ -31,6 +31,7 @@ pub(super) struct WorldsUi {
     action_index: usize,
     refresh_needed: bool,
     pending_operation: Option<String>,
+    settings: Option<WorldSettingsUi>,
 }
 
 #[derive(Default)]
@@ -93,6 +94,15 @@ impl WorldsUi {
         snapshot: &Snapshot,
         message: &mut String,
     ) -> bool {
+        if let Some(settings) = &mut self.settings {
+            if settings.handle(key, message).await {
+                self.settings = None;
+            }
+            if message.starts_with("World settings saved") {
+                self.refresh_needed = true;
+            }
+            return true;
+        }
         let worlds = snapshot
             .worlds
             .as_ref()
@@ -210,7 +220,17 @@ impl WorldsUi {
                         if is_world {
                             match self.action_index {
                                 0 => *message = "Convert World page is coming later.".into(),
-                                1 => *message = "World Settings page is coming later.".into(),
+                                1 => {
+                                    if let Some(world) = worlds.get(self.world_index) {
+                                        match WorldSettingsUi::load(&world.id, snapshot).await {
+                                            Ok(settings) => {
+                                                self.settings = Some(settings);
+                                                self.mode = Mode::List;
+                                            }
+                                            Err(error) => *message = error,
+                                        }
+                                    }
+                                }
                                 2 => {
                                     if let Some(world) = worlds.get(self.world_index) {
                                         self.mode = Mode::Rename(world.name.clone());
@@ -361,6 +381,9 @@ impl WorldsUi {
         width: u16,
         height: u16,
     ) -> io::Result<()> {
+        if let Some(settings) = &self.settings {
+            return settings.draw(out, x, width, height);
+        }
         let Some(worlds) = &snapshot.worlds else {
             paint(
                 out,

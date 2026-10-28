@@ -6,6 +6,7 @@ mod create;
 mod files;
 mod performance;
 mod settings;
+mod world_settings;
 mod worlds;
 
 use std::io::{self, IsTerminal, Stdout, Write};

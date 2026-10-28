@@ -203,6 +203,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.20 only.
 - **Commit:** `P22.20: browse and edit server files in tui`
 
+### P22.21 — Edit world settings from the Worlds tab
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/worlds.rs`; `crates/msc-agent/src/cli/tui/world_settings.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Replace the World Settings placeholder with a slot-local TUI editor. Load the selected world's saved profile and edition/version capabilities, show applicable Essentials, World Generation, and Gameplay Rules fields, stage keyboard edits, and save them through the world profile route. Report the agent's apply status and request its world-safety acknowledgement when required.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a server, press `3`, choose a world, then World Settings. Confirm its saved name, seed, difficulty, and game mode appear; move with Up/Down, change a safe value with Left/Right or Enter, and press `s` to save. Reopen the view to confirm readback. Check a Bedrock world to confirm Java-only fields are absent and Bedrock fields appear. Esc closes the view. No test command is part of this step.
+- **Batch:** P22.21 only.
+- **Commit:** `P22.21: edit world settings in tui`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

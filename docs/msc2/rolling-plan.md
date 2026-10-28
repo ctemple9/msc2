@@ -194,6 +194,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.19 only.
 - **Commit:** `P22.19: edit server settings in tui`
 
+### P22.20 — Browse and edit server files in the TUI
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/transport.rs`; `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/files.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Populate Files from the active server's authorized file-browse route, navigate folders with the keyboard, and launch local nano for previewable text files. Resolve each target and require it to remain inside the selected server directory before opening it; restore the full-screen terminal after nano exits. Show binary files as non-editable and report when nano cannot be launched.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a server, and press `7`. Confirm its folders and files appear; open a folder with Enter and return with Backspace. Open a safe text file such as `server.properties` with Enter, make a small edit in nano, save and exit, and confirm the TUI returns and the file contains the edit. Confirm a `.jar` is shown but does not open in nano. No test command is part of this step.
+- **Batch:** P22.20 only.
+- **Commit:** `P22.20: browse and edit server files in tui`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

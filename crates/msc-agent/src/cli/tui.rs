@@ -3,6 +3,7 @@
 
 mod components;
 mod create;
+mod files;
 mod performance;
 mod settings;
 mod worlds;
@@ -93,6 +94,7 @@ struct ViewState<'a> {
     performance: &'a performance::PerformanceUi,
     components: &'a components::ComponentsUi,
     settings: &'a settings::SettingsUi,
+    files: &'a files::FilesUi,
     wizard: Option<&'a create::Wizard>,
 }
 
@@ -264,6 +266,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     let mut performance_ui = performance::PerformanceUi::default();
     let mut components_ui = components::ComponentsUi::default();
     let mut settings_ui = settings::SettingsUi::default();
+    let mut files_ui = files::FilesUi::default();
     let mut wizard: Option<create::Wizard> = None;
     let mut message = String::new();
     let mut confirm_stop = false;
@@ -287,6 +290,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 performance: &performance_ui,
                 components: &components_ui,
                 settings: &settings_ui,
+                files: &files_ui,
                 wizard: wizard.as_ref(),
             },
         )
@@ -394,6 +398,13 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             continue;
         }
         if workspace_open {
+            if tab_index == 6
+                && files_ui
+                    .handle(key.code, &snapshot, &mut stdout, &mut message)
+                    .await
+            {
+                continue;
+            }
             if tab_index == 5 && settings_ui.handle(key.code, &snapshot, &mut message).await {
                 if settings_ui.needs_refresh() {
                     refresh(&mut snapshot, &mut message).await;
@@ -423,6 +434,9 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 KeyCode::Char('1'..='7') => {
                     if let KeyCode::Char(digit) = key.code {
                         tab_index = digit as usize - '1' as usize;
+                        if tab_index == 6 {
+                            files_ui.open(&snapshot, &mut message).await;
+                        }
                     }
                 }
                 KeyCode::Char('a') | KeyCode::Esc => workspace_open = false,
@@ -583,6 +597,7 @@ fn draw(
             view.performance,
             view.components,
             view.settings,
+            view.files,
             view.message,
             width,
             height,
@@ -901,6 +916,7 @@ fn draw_workspace(
     performance_ui: &performance::PerformanceUi,
     components_ui: &components::ComponentsUi,
     settings_ui: &settings::SettingsUi,
+    files_ui: &files::FilesUi,
     message: &str,
     width: u16,
     height: u16,
@@ -1394,6 +1410,8 @@ fn draw_workspace(
         components_ui.draw(out, snapshot, main_x, main_w, height)?;
     } else if tab_index == 5 {
         settings_ui.draw(out, snapshot, main_x, main_w, height)?;
+    } else if tab_index == 6 {
+        files_ui.draw(out, snapshot, main_x, main_w, height)?;
     } else {
         paint(
             out,

@@ -239,6 +239,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.24 only.
 - **Commit:** `P22.24: control services and broadcast sign-in in tui`
 
+### P22.25 — Stop Xbox Broadcast when TUI setup is cancelled
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/server_editor.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Make Esc in the Xbox Broadcast device sign-in view stop the helper through the existing agent route, which also cancels an in-progress start. Restore the previous per-server enable setting when setup enabled Broadcast temporarily. Keep the sign-in view open if the stop request fails, and restore the previous setting when startup fails before sign-in. Label Esc as Stop setup.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a server in Manage Servers, and open Services with `2`. Start Xbox Broadcast setup while sign-in is absent, then press Esc in the device-code view. Confirm the view closes with a stopped message and `cargo run -p msc-agent -- broadcast status` reports it is not running. If Broadcast was disabled before setup, confirm it is disabled again on reopening Services. Repeat with Broadcast previously enabled and confirm the setting remains enabled but the helper is stopped. No test command is part of this step.
+- **Batch:** P22.25 only.
+- **Commit:** `P22.25: stop broadcast on tui setup cancellation`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

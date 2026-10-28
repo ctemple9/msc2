@@ -34,6 +34,7 @@ pub(super) struct ServerEditor {
     broadcast_prompt: Option<BroadcastAuthPromptDto>,
     broadcast_setup_open: bool,
     broadcast_operation_id: Option<String>,
+    broadcast_enabled_before_setup: bool,
     confirm_clear_broadcast: bool,
 }
 
@@ -90,6 +91,7 @@ impl ServerEditor {
             broadcast_prompt: None,
             broadcast_setup_open: false,
             broadcast_operation_id: None,
+            broadcast_enabled_before_setup: false,
             confirm_clear_broadcast: false,
         };
         editor.reload().await;
@@ -162,6 +164,11 @@ impl ServerEditor {
                         || "Xbox Broadcast setup failed.".into(),
                         |error| error.message,
                     );
+                    if !self.broadcast_enabled_before_setup {
+                        let failure = message.clone();
+                        self.toggle_service(true, message).await;
+                        *message = failure;
+                    }
                     return;
                 }
                 OperationStateDto::Succeeded => self.broadcast_operation_id = None,
@@ -219,7 +226,8 @@ impl ServerEditor {
     }
 
     async fn setup_broadcast(&mut self, message: &mut String) {
-        if self.server.xbox_broadcast_enabled != Some(true) {
+        let enabled_before_setup = self.server.xbox_broadcast_enabled == Some(true);
+        if !enabled_before_setup {
             self.toggle_service(true, message).await;
             if self.server.xbox_broadcast_enabled != Some(true) {
                 return;
@@ -232,14 +240,56 @@ impl ServerEditor {
             {
                 Ok(result) => {
                     self.broadcast_setup_open = true;
+                    self.broadcast_enabled_before_setup = enabled_before_setup;
                     self.broadcast_operation_id = result.operation_id;
                     self.broadcast_prompt = None;
                     *message = "Starting Xbox Broadcast sign-in…".into();
                     self.poll_services(message).await;
                 }
-                Err(error) => *message = error.to_string(),
+                Err(error) => {
+                    *message = error.to_string();
+                    if !enabled_before_setup {
+                        let failure = message.clone();
+                        self.toggle_service(true, message).await;
+                        *message = failure;
+                    }
+                }
             },
-            Err(error) => *message = error.to_string(),
+            Err(error) => {
+                *message = error.to_string();
+                if !enabled_before_setup {
+                    let failure = message.clone();
+                    self.toggle_service(true, message).await;
+                    *message = failure;
+                }
+            }
+        }
+    }
+
+    async fn cancel_broadcast_setup(&mut self, message: &mut String) {
+        match SharedClient::connect_local().await {
+            Ok(client) => {
+                match client
+                    .post_json::<_, BroadcastSimpleResultDto>("/v1/broadcast/stop", &json!({}))
+                    .await
+                {
+                    Ok(_) => {
+                        self.broadcast_setup_open = false;
+                        self.broadcast_operation_id = None;
+                        self.broadcast_prompt = None;
+                        *message = "Xbox Broadcast setup stopped.".into();
+                        if !self.broadcast_enabled_before_setup {
+                            self.toggle_service(true, message).await;
+                            if self.server.xbox_broadcast_enabled == Some(false) {
+                                *message = "Xbox Broadcast setup stopped; previous disabled setting restored.".into();
+                            }
+                        }
+                        self.refresh_broadcast().await;
+                    }
+                    Err(error) => *message = format!("Could not stop Xbox Broadcast: {error}"),
+                }
+            }
+            Err(error) => *message = format!("Could not stop Xbox Broadcast: {error}"),
         }
     }
 
@@ -501,11 +551,7 @@ impl ServerEditor {
     pub(super) async fn handle(&mut self, key: KeyCode, message: &mut String) -> bool {
         if self.broadcast_setup_open {
             match key {
-                KeyCode::Esc => {
-                    self.broadcast_setup_open = false;
-                    self.broadcast_prompt = None;
-                    *message = "Sign-in view closed; Xbox Broadcast continues running.".into();
-                }
+                KeyCode::Esc => self.cancel_broadcast_setup(message).await,
                 KeyCode::Char('r') => self.poll_services(message).await,
                 _ => {}
             }
@@ -1102,7 +1148,7 @@ impl ServerEditor {
                 modal_x + 2,
                 modal_y + 11,
                 modal_width - 4,
-                "Closes automatically after sign-in. r Refresh  Esc Close",
+                "Closes after sign-in. r Refresh  Esc Stop setup",
                 Color::DarkGrey,
             )?;
         }

@@ -5,6 +5,7 @@ mod components;
 mod create;
 mod files;
 mod performance;
+mod server_editor;
 mod settings;
 mod world_settings;
 mod worlds;
@@ -97,6 +98,7 @@ struct ViewState<'a> {
     settings: &'a settings::SettingsUi,
     files: &'a files::FilesUi,
     wizard: Option<&'a create::Wizard>,
+    server_editor: Option<&'a server_editor::ServerEditor>,
 }
 
 async fn load() -> Result<Snapshot, CliError> {
@@ -269,6 +271,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     let mut settings_ui = settings::SettingsUi::default();
     let mut files_ui = files::FilesUi::default();
     let mut wizard: Option<create::Wizard> = None;
+    let mut server_editor: Option<server_editor::ServerEditor> = None;
     let mut message = String::new();
     let mut confirm_stop = false;
     let mut last_refresh = Instant::now();
@@ -293,6 +296,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 settings: &settings_ui,
                 files: &files_ui,
                 wizard: wizard.as_ref(),
+                server_editor: server_editor.as_ref(),
             },
         )
         .map_err(terminal_error)?;
@@ -348,6 +352,15 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             }
             continue;
         }
+        if let Some(editor) = &mut server_editor {
+            if editor.handle(key.code, &mut message).await {
+                server_editor = None;
+            } else if editor.needs_refresh() {
+                refresh(&mut snapshot, &mut message).await;
+                editor.refreshed();
+            }
+            continue;
+        }
         if manage_open {
             let server_count = snapshot.servers.as_ref().map_or(0, Vec::len);
             match key.code {
@@ -387,6 +400,15 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                                 tab_index = 0;
                                 refresh(&mut snapshot, &mut message).await;
                                 message = format!("Selected server: {name}");
+                                if let Some(server) =
+                                    snapshot.servers.as_ref().and_then(|servers| {
+                                        servers.iter().find(|server| server.id == id)
+                                    })
+                                {
+                                    server_editor = Some(
+                                        server_editor::ServerEditor::open(server.clone()).await,
+                                    );
+                                }
                             }
                             Err(error) => message = error.to_string(),
                         }
@@ -615,6 +637,9 @@ fn draw(
         }
         if let Some(wizard) = view.wizard {
             wizard.draw(out, width, height)?;
+        }
+        if let Some(editor) = view.server_editor {
+            editor.draw(out, width, height)?;
         }
         return out.flush();
     }

@@ -212,6 +212,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.21 only.
 - **Commit:** `P22.21: edit world settings in tui`
 
+### P22.22 — Edit selected server configuration in the TUI
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/server_editor.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Open a server editor after selecting a server from Manage Servers. General shows and edits display name, directory, RAM for Java, edition-appropriate local ports, and Java EULA acceptance; it also shows folder size. Services shows the selected server's Xbox Broadcast and Playit enablement for the upcoming service setup step. Java exposes executable and JVM flags using the existing host-wide Java configuration route and labels that scope explicitly. Bedrock omits Java-only controls. Validate numeric inputs and use the agent's existing routes for saves; keep the deeper service setup and initiation flow for later owner-requested steps.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Manage Servers with `m`, and select a Java server. Confirm the editor opens with General, Services, and Java tabs. Check name, directory, RAM, Java port, optional Geyser port, folder size, and EULA status; edit a safe field and confirm its value on reopen. Check that Services reports current Broadcast and Playit enablement and that Java labels its executable and flags as host-wide. Select a Bedrock server and confirm General omits RAM, Java port, and EULA, showing its Bedrock port instead, and that no Java tab appears. No test command is part of this step.
+- **Batch:** P22.22 only.
+- **Commit:** `P22.22: edit server configuration in tui`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

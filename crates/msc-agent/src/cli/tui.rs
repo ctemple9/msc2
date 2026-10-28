@@ -306,6 +306,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 components_ui.poll_operation(&mut message).await;
                 if let Some(editor) = &mut server_editor {
                     editor.poll_operation(&mut message).await;
+                    editor.poll_services(&mut message).await;
                 }
                 refresh(&mut snapshot, &mut message).await;
                 worlds_ui.refreshed();

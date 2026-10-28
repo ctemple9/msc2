@@ -5,9 +5,10 @@ use std::io::{self, Stdout};
 use crossterm::event::KeyCode;
 use crossterm::style::Color;
 use msc_api::dto::{
-    GeyserConfigResponseDto, JavaConfigResponseDto, JavaRuntimeDto, JavaRuntimeInstallResultDto,
-    JavaRuntimesResponseDto, OperationDto, OperationStateDto, RamConfigResponseDto,
-    ServerDirectorySizeResponseDto, ServerDto, ServerEulaResultDto, SettingsResponseDto,
+    BroadcastAuthPromptDto, BroadcastSimpleResultDto, BroadcastStatusDto, GeyserConfigResponseDto,
+    JavaConfigResponseDto, JavaRuntimeDto, JavaRuntimeInstallResultDto, JavaRuntimesResponseDto,
+    OperationDto, OperationStateDto, RamConfigResponseDto, ServerDirectorySizeResponseDto,
+    ServerDto, ServerEulaResultDto, SettingsResponseDto,
 };
 use serde_json::{Value, json};
 
@@ -29,6 +30,11 @@ pub(super) struct ServerEditor {
     eula: Option<bool>,
     refresh_needed: bool,
     java_view: JavaView,
+    broadcast: Option<BroadcastStatusDto>,
+    broadcast_prompt: Option<BroadcastAuthPromptDto>,
+    broadcast_setup_open: bool,
+    broadcast_operation_id: Option<String>,
+    confirm_clear_broadcast: bool,
 }
 
 #[derive(Default)]
@@ -80,6 +86,11 @@ impl ServerEditor {
             eula: None,
             refresh_needed: false,
             java_view: JavaView::None,
+            broadcast: None,
+            broadcast_prompt: None,
+            broadcast_setup_open: false,
+            broadcast_operation_id: None,
+            confirm_clear_broadcast: false,
         };
         editor.reload().await;
         editor
@@ -110,7 +121,149 @@ impl ServerEditor {
         self.geyser = geyser.ok();
         self.size = size.ok().and_then(|size| size.size_bytes);
         self.eula = eula.ok().and_then(|eula| eula.accepted);
+        self.refresh_broadcast().await;
     }
+    async fn refresh_broadcast(&mut self) {
+        let Ok(client) = SharedClient::connect_local().await else {
+            return;
+        };
+        if let Ok(status) = client
+            .get_json::<BroadcastStatusDto>("/v1/broadcast/status")
+            .await
+        {
+            self.broadcast = Some(status);
+        }
+        if self.broadcast_setup_open
+            && let Ok(prompt) = client
+                .get_json::<BroadcastAuthPromptDto>("/v1/broadcast/auth-prompt")
+                .await
+        {
+            self.broadcast_prompt = Some(prompt);
+        }
+    }
+
+    pub(super) async fn poll_services(&mut self, message: &mut String) {
+        if self.tab != 1 && !self.broadcast_setup_open {
+            return;
+        }
+        self.refresh_broadcast().await;
+        if self.broadcast_setup_open
+            && let Some(id) = self.broadcast_operation_id.clone()
+            && let Ok(client) = SharedClient::connect_local().await
+            && let Ok(operation) = client
+                .get_json::<OperationDto>(&format!("/v1/operations/{id}"))
+                .await
+        {
+            match operation.state {
+                OperationStateDto::Failed | OperationStateDto::Cancelled => {
+                    self.broadcast_setup_open = false;
+                    self.broadcast_operation_id = None;
+                    *message = operation.error.map_or_else(
+                        || "Xbox Broadcast setup failed.".into(),
+                        |error| error.message,
+                    );
+                    return;
+                }
+                OperationStateDto::Succeeded => self.broadcast_operation_id = None,
+                _ => {}
+            }
+        }
+        if self.broadcast_setup_open
+            && self
+                .broadcast
+                .as_ref()
+                .is_some_and(|status| status.authenticated)
+        {
+            self.broadcast_setup_open = false;
+            self.broadcast_operation_id = None;
+            self.broadcast_prompt = None;
+            *message = "Xbox Broadcast signed in.".into();
+        }
+    }
+
+    async fn toggle_service(&mut self, broadcast: bool, message: &mut String) {
+        let enabled = if broadcast {
+            !self.server.xbox_broadcast_enabled.unwrap_or(false)
+        } else {
+            !self.server.playit_enabled.unwrap_or(false)
+        };
+        let route = if broadcast {
+            "/v1/servers/xbox-broadcast"
+        } else {
+            "/v1/servers/playit"
+        };
+        match SharedClient::connect_local().await {
+            Ok(client) => match client
+                .post_json::<_, Value>(route, &json!({"serverId":self.server.id,"enabled":enabled}))
+                .await
+            {
+                Ok(result) if result["success"] == true => {
+                    if broadcast {
+                        self.server.xbox_broadcast_enabled = Some(enabled);
+                    } else {
+                        self.server.playit_enabled = Some(enabled);
+                    }
+                    *message = result["message"].as_str().unwrap_or("Saved.").into();
+                    self.refresh_needed = true;
+                }
+                Ok(result) => {
+                    *message = result["message"]
+                        .as_str()
+                        .unwrap_or("Could not save.")
+                        .into()
+                }
+                Err(error) => *message = error.to_string(),
+            },
+            Err(error) => *message = error.to_string(),
+        }
+    }
+
+    async fn setup_broadcast(&mut self, message: &mut String) {
+        if self.server.xbox_broadcast_enabled != Some(true) {
+            self.toggle_service(true, message).await;
+            if self.server.xbox_broadcast_enabled != Some(true) {
+                return;
+            }
+        }
+        match SharedClient::connect_local().await {
+            Ok(client) => match client
+                .post_json::<_, BroadcastSimpleResultDto>("/v1/broadcast/start", &json!({}))
+                .await
+            {
+                Ok(result) => {
+                    self.broadcast_setup_open = true;
+                    self.broadcast_operation_id = result.operation_id;
+                    self.broadcast_prompt = None;
+                    *message = "Starting Xbox Broadcast sign-in…".into();
+                    self.poll_services(message).await;
+                }
+                Err(error) => *message = error.to_string(),
+            },
+            Err(error) => *message = error.to_string(),
+        }
+    }
+
+    async fn clear_broadcast(&mut self, message: &mut String) {
+        match SharedClient::connect_local().await {
+            Ok(client) => match client
+                .post_json::<_, BroadcastSimpleResultDto>(
+                    "/v1/broadcast/credentials/clear",
+                    &json!({}),
+                )
+                .await
+            {
+                Ok(_) => {
+                    self.broadcast_setup_open = false;
+                    self.broadcast_prompt = None;
+                    *message = "Xbox Broadcast sign-in cleared for this host.".into();
+                    self.refresh_broadcast().await;
+                }
+                Err(error) => *message = error.to_string(),
+            },
+            Err(error) => *message = error.to_string(),
+        }
+    }
+
     fn fields(&self) -> Vec<Field> {
         if self.tab == 2 {
             return vec![Field::JavaPath, Field::JvmFlags];
@@ -346,6 +499,27 @@ impl ServerEditor {
         self.refresh_needed = false;
     }
     pub(super) async fn handle(&mut self, key: KeyCode, message: &mut String) -> bool {
+        if self.broadcast_setup_open {
+            match key {
+                KeyCode::Esc => {
+                    self.broadcast_setup_open = false;
+                    self.broadcast_prompt = None;
+                    *message = "Sign-in view closed; Xbox Broadcast continues running.".into();
+                }
+                KeyCode::Char('r') => self.poll_services(message).await,
+                _ => {}
+            }
+            return false;
+        }
+        if self.confirm_clear_broadcast {
+            self.confirm_clear_broadcast = false;
+            if matches!(key, KeyCode::Char('y') | KeyCode::Char('Y')) {
+                self.clear_broadcast(message).await;
+            } else {
+                *message = "Xbox Broadcast sign-in kept.".into();
+            }
+            return false;
+        }
         if self.handle_java_view(key, message).await {
             return false;
         }
@@ -411,14 +585,39 @@ impl ServerEditor {
             }
             KeyCode::Up => self.selected = self.selected.saturating_sub(1),
             KeyCode::Down => {
-                self.selected = (self.selected + 1).min(self.fields().len().saturating_sub(1))
+                let count = if self.tab == 1 {
+                    3
+                } else {
+                    self.fields().len()
+                };
+                self.selected = (self.selected + 1).min(count.saturating_sub(1))
             }
             KeyCode::PageUp => self.selected = self.selected.saturating_sub(6),
             KeyCode::PageDown => {
-                self.selected = (self.selected + 6).min(self.fields().len().saturating_sub(1))
+                let count = if self.tab == 1 {
+                    3
+                } else {
+                    self.fields().len()
+                };
+                self.selected = (self.selected + 6).min(count.saturating_sub(1))
             }
             KeyCode::Enter | KeyCode::Char('e') => {
-                if let Some(field) = self.fields().get(self.selected).copied() {
+                if self.tab == 1 {
+                    match self.selected {
+                        0 => self.toggle_service(true, message).await,
+                        1 if self
+                            .broadcast
+                            .as_ref()
+                            .is_some_and(|status| status.has_saved_auth) =>
+                        {
+                            self.confirm_clear_broadcast = true;
+                            *message = "Clear Xbox Broadcast sign-in on this host for all servers? y confirms; any other key cancels.".into();
+                        }
+                        1 => self.setup_broadcast(message).await,
+                        2 => self.toggle_service(false, message).await,
+                        _ => {}
+                    }
+                } else if let Some(field) = self.fields().get(self.selected).copied() {
                     if matches!(field, Field::Eula) {
                         if self.eula != Some(true) {
                             self.confirm_eula = true;
@@ -694,44 +893,75 @@ impl ServerEditor {
         let active = ["GENERAL", "SERVICES", "JAVA"][self.tab];
         paint(out, x + 2, y + 5, w - 4, active, Color::DarkGrey)?;
         if self.tab == 1 {
-            paint(
-                out,
-                x + 2,
-                y + 7,
-                w - 4,
-                &format!(
-                    "Xbox Broadcast: {}",
+            let setup = self
+                .broadcast
+                .as_ref()
+                .is_some_and(|status| status.has_saved_auth);
+            let rows = [
+                format!(
+                    "Xbox Broadcast        {}  ·  Enter to {}",
                     if self.server.xbox_broadcast_enabled == Some(true) {
                         "Enabled"
                     } else {
                         "Disabled"
-                    }
+                    },
+                    if self.server.xbox_broadcast_enabled == Some(true) {
+                        "disable"
+                    } else {
+                        "enable"
+                    },
                 ),
-                Color::White,
-            )?;
-            paint(
-                out,
-                x + 2,
-                y + 9,
-                w - 4,
-                &format!(
-                    "Playit: {}",
+                format!(
+                    "Xbox Broadcast sign-in  {}  ·  Enter to {}",
+                    if setup { "Saved" } else { "Not set up" },
+                    if setup { "clear" } else { "set up" }
+                ),
+                format!(
+                    "Playit                {}  ·  Enter to {}",
                     if self.server.playit_enabled == Some(true) {
                         "Enabled"
                     } else {
                         "Disabled"
-                    }
+                    },
+                    if self.server.playit_enabled == Some(true) {
+                        "disable"
+                    } else {
+                        "enable"
+                    },
                 ),
-                Color::White,
-            )?;
+            ];
+            for (index, row) in rows.iter().enumerate() {
+                paint(
+                    out,
+                    x + 2,
+                    y + 7 + index as u16 * 2,
+                    w - 4,
+                    &format!("{} {row}", if self.selected == index { ">" } else { " " }),
+                    if self.selected == index {
+                        Color::Green
+                    } else {
+                        Color::White
+                    },
+                )?;
+            }
             paint(
                 out,
                 x + 2,
-                y + 12,
+                y + 15,
                 w - 4,
-                "Setup and start controls are coming in the Services step.",
+                "Broadcast sign-in is shared across servers on this host. Playit setup comes later.",
                 Color::DarkGrey,
             )?;
+            if self.confirm_clear_broadcast {
+                paint(
+                    out,
+                    x + 2,
+                    y + 17,
+                    w - 4,
+                    "Clear shared Xbox Broadcast sign-in? y Confirm  any other key Cancel",
+                    Color::Yellow,
+                )?;
+            }
         } else {
             if self.tab == 2 {
                 paint(
@@ -803,6 +1033,79 @@ impl ServerEditor {
             Color::DarkGrey,
         )?;
         self.draw_java_view(out, width, height)?;
+        if self.broadcast_setup_open {
+            let modal_width = width.saturating_sub(40).clamp(40, 82);
+            let modal_x = (width - modal_width) / 2;
+            let modal_y = (height.saturating_sub(14)) / 2;
+            for line in modal_y..modal_y + 14 {
+                paint(
+                    out,
+                    modal_x,
+                    line,
+                    modal_width,
+                    &" ".repeat(modal_width as usize),
+                    Color::Black,
+                )?;
+            }
+            box_outline(out, modal_x, modal_y, modal_width, 14)?;
+            paint(
+                out,
+                modal_x + 2,
+                modal_y + 1,
+                modal_width - 4,
+                "SIGN IN TO XBOX BROADCAST",
+                Color::White,
+            )?;
+            paint(
+                out,
+                modal_x + 2,
+                modal_y + 3,
+                modal_width - 4,
+                "Open this Microsoft page in a browser and enter the device code:",
+                Color::DarkGrey,
+            )?;
+            if let Some(prompt) = &self.broadcast_prompt {
+                paint(
+                    out,
+                    modal_x + 2,
+                    modal_y + 5,
+                    modal_width - 4,
+                    prompt
+                        .link_url
+                        .as_deref()
+                        .unwrap_or("Waiting for sign-in link…"),
+                    Color::White,
+                )?;
+                paint(
+                    out,
+                    modal_x + 2,
+                    modal_y + 7,
+                    modal_width - 4,
+                    &format!(
+                        "Device code: {}",
+                        prompt.code.as_deref().unwrap_or("Waiting for code…")
+                    ),
+                    Color::Green,
+                )?;
+            } else {
+                paint(
+                    out,
+                    modal_x + 2,
+                    modal_y + 5,
+                    modal_width - 4,
+                    "Waiting for Xbox Broadcast to provide a device code…",
+                    Color::DarkGrey,
+                )?;
+            }
+            paint(
+                out,
+                modal_x + 2,
+                modal_y + 11,
+                modal_width - 4,
+                "Closes automatically after sign-in. r Refresh  Esc Close",
+                Color::DarkGrey,
+            )?;
+        }
         Ok(())
     }
 }

@@ -207,6 +207,8 @@ pub struct BroadcastStatusDto {
     pub bedrock_broadcast_running: bool,
     /// True after MCXboxBroadcast has established its Xbox LIVE session.
     pub authenticated: bool,
+    #[serde(default)]
+    pub has_saved_auth: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gamertag: Option<String>,
 }

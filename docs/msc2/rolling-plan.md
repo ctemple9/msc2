@@ -230,6 +230,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.23 only.
 - **Commit:** `P22.23: add java runtime views to tui`
 
+### P22.24 — Control services and Xbox Broadcast sign-in in the TUI
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-api/src/dto/networking.rs`; `crates/msc-agent/src/routes/networking.rs`; `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/server_editor.rs`; `crates/msc-agent/tests/xbox_broadcast_routes.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Make Broadcast and Playit enablement selectable in the selected server's Services tab. Expose whether the host has saved Xbox Broadcast device sign-in. When it is missing, Setup enables and starts Broadcast and shows the agent's Microsoft link and device code; poll status and close the view after authentication. When sign-in is saved, Clear asks for explicit confirmation because it removes shared host credentials for all servers. Playit account setup remains the later dedicated Services slice.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Manage Servers with `m`, select a server, and press `2` for Services. Use Up/Down and Enter to toggle Broadcast and Playit, then reopen the editor to confirm each value. With Broadcast sign-in absent, select Setup and confirm the live Microsoft URL and code appear; complete sign-in and confirm the view closes automatically. Reopen Services to confirm Clear is offered. Confirm that choosing Clear requires `y` and that another key cancels. No test command is part of this step.
+- **Batch:** P22.24 only.
+- **Commit:** `P22.24: control services and broadcast sign-in in tui`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

@@ -11,12 +11,13 @@ fn broadcast_route_dtos_match_the_frozen_wire_names_and_redact_nothing_by_accide
         xbox_broadcast_running: true,
         bedrock_broadcast_running: false,
         authenticated: false,
+        has_saved_auth: false,
         gamertag: None,
     })
     .unwrap();
     assert_eq!(
         status,
-        json!({"xboxBroadcastRunning": true, "bedrockBroadcastRunning": false, "authenticated": false})
+        json!({"xboxBroadcastRunning": true, "bedrockBroadcastRunning": false, "authenticated": false, "hasSavedAuth": false})
     );
 
     let prompt = serde_json::to_value(BroadcastAuthPromptDto {

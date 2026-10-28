@@ -1756,6 +1756,7 @@ pub async fn broadcast_status(State(state): State<NetworkingState>) -> Response 
             xbox_broadcast_running: false,
             bedrock_broadcast_running: false,
             authenticated: false,
+            has_saved_auth: false,
             gamertag: None,
         })
         .into_response();
@@ -1783,6 +1784,14 @@ pub async fn broadcast_status(State(state): State<NetworkingState>) -> Response 
                 xbox_broadcast_running: running && !is_bedrock,
                 bedrock_broadcast_running: running && is_bedrock,
                 authenticated,
+                has_saved_auth: read_broadcast_auth(&broadcast_auth_file())
+                    .ok()
+                    .flatten()
+                    .is_some()
+                    || read_broadcast_auth(&server_broadcast_auth_file(&server))
+                        .ok()
+                        .flatten()
+                        .is_some(),
                 gamertag: status
                     .gamertag
                     .or(configured_gamertag.filter(|_| authenticated)),

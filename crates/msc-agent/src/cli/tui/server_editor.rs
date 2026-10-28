@@ -5,7 +5,8 @@ use std::io::{self, Stdout};
 use crossterm::event::KeyCode;
 use crossterm::style::Color;
 use msc_api::dto::{
-    GeyserConfigResponseDto, JavaConfigResponseDto, RamConfigResponseDto,
+    GeyserConfigResponseDto, JavaConfigResponseDto, JavaRuntimeDto, JavaRuntimeInstallResultDto,
+    JavaRuntimesResponseDto, OperationDto, OperationStateDto, RamConfigResponseDto,
     ServerDirectorySizeResponseDto, ServerDto, ServerEulaResultDto, SettingsResponseDto,
 };
 use serde_json::{Value, json};
@@ -27,7 +28,27 @@ pub(super) struct ServerEditor {
     size: Option<u64>,
     eula: Option<bool>,
     refresh_needed: bool,
+    java_view: JavaView,
 }
+
+#[derive(Default)]
+enum JavaView {
+    #[default]
+    None,
+    Detected {
+        runtimes: Vec<JavaRuntimeDto>,
+        selected: usize,
+    },
+    Install {
+        selected: usize,
+    },
+    Installing {
+        operation_id: String,
+        major: i64,
+    },
+}
+
+const INSTALL_MAJORS: [i64; 4] = [25, 21, 17, 8];
 
 #[derive(Clone, Copy)]
 enum Field {
@@ -58,6 +79,7 @@ impl ServerEditor {
             size: None,
             eula: None,
             refresh_needed: false,
+            java_view: JavaView::None,
         };
         editor.reload().await;
         editor
@@ -182,6 +204,141 @@ impl ServerEditor {
             Field::JvmFlags => "Extra JVM Flags",
         }
     }
+    pub(super) async fn poll_operation(&mut self, message: &mut String) {
+        let JavaView::Installing {
+            operation_id,
+            major,
+        } = &self.java_view
+        else {
+            return;
+        };
+        let id = operation_id.clone();
+        let major = *major;
+        let Ok(client) = SharedClient::connect_local().await else {
+            return;
+        };
+        let Ok(operation) = client
+            .get_json::<OperationDto>(&format!("/v1/operations/{id}"))
+            .await
+        else {
+            *message = "Could not check Java installation. Press r to retry.".into();
+            return;
+        };
+        match operation.state {
+            OperationStateDto::Succeeded => {
+                *message = format!("Java {major} installed. Press d to select a runtime.");
+                self.java_view = JavaView::None;
+                self.reload().await;
+            }
+            OperationStateDto::Failed | OperationStateDto::Cancelled => {
+                *message = operation
+                    .error
+                    .map_or_else(|| "Java installation failed.".into(), |error| error.message);
+                self.java_view = JavaView::Install {
+                    selected: INSTALL_MAJORS
+                        .iter()
+                        .position(|candidate| *candidate == major)
+                        .unwrap_or(0),
+                };
+            }
+            _ => {
+                *message = operation
+                    .status_line
+                    .unwrap_or_else(|| format!("Installing Java {major}…"))
+            }
+        }
+    }
+
+    async fn detect_runtimes(&mut self, message: &mut String) {
+        match SharedClient::connect_local().await {
+            Ok(client) => match client
+                .get_json::<JavaRuntimesResponseDto>("/v1/java-runtimes")
+                .await
+            {
+                Ok(result) => {
+                    let selected = result
+                        .runtimes
+                        .iter()
+                        .position(|runtime| {
+                            self.java
+                                .as_ref()
+                                .and_then(|java| java.executable_path.as_deref())
+                                == Some(runtime.executable_path.as_str())
+                        })
+                        .unwrap_or(0);
+                    self.java_view = JavaView::Detected {
+                        runtimes: result.runtimes,
+                        selected,
+                    };
+                    message.clear();
+                }
+                Err(error) => *message = error.to_string(),
+            },
+            Err(error) => *message = error.to_string(),
+        }
+    }
+
+    async fn handle_java_view(&mut self, key: KeyCode, message: &mut String) -> bool {
+        match &mut self.java_view {
+            JavaView::None => return false,
+            JavaView::Detected { runtimes, selected } => match key {
+                KeyCode::Esc => self.java_view = JavaView::None,
+                KeyCode::Up => *selected = selected.saturating_sub(1),
+                KeyCode::Down => *selected = (*selected + 1).min(runtimes.len().saturating_sub(1)),
+                KeyCode::Char('r') => self.detect_runtimes(message).await,
+                KeyCode::Char('i') => self.java_view = JavaView::Install { selected: 0 },
+                KeyCode::Enter => {
+                    if let Some(runtime) = runtimes.get(*selected) {
+                        let path = runtime.executable_path.clone();
+                        self.post(
+                            "/v1/config/java-runtime",
+                            json!({"executablePath":path}),
+                            message,
+                        )
+                        .await;
+                        self.java_view = JavaView::None;
+                    }
+                }
+                _ => {}
+            },
+            JavaView::Install { selected } => match key {
+                KeyCode::Esc => self.java_view = JavaView::None,
+                KeyCode::Up => *selected = selected.saturating_sub(1),
+                KeyCode::Down => *selected = (*selected + 1).min(INSTALL_MAJORS.len() - 1),
+                KeyCode::Enter => {
+                    let major = INSTALL_MAJORS[*selected];
+                    match SharedClient::connect_local().await {
+                        Ok(client) => match client
+                            .post_json::<_, JavaRuntimeInstallResultDto>(
+                                "/v1/java-runtimes/install",
+                                &json!({"major":major}),
+                            )
+                            .await
+                        {
+                            Ok(result) if result.success => {
+                                self.java_view = JavaView::Installing {
+                                    operation_id: result.operation_id,
+                                    major,
+                                };
+                                *message = format!("Installing Java {major}…");
+                            }
+                            Ok(result) => *message = result.message,
+                            Err(error) => *message = error.to_string(),
+                        },
+                        Err(error) => *message = error.to_string(),
+                    }
+                }
+                _ => {}
+            },
+            JavaView::Installing { .. } => {
+                if matches!(key, KeyCode::Char('r') | KeyCode::Enter) {
+                    self.poll_operation(message).await;
+                }
+            }
+        }
+        true
+    }
+
     pub(super) fn needs_refresh(&self) -> bool {
         self.refresh_needed
     }
@@ -189,6 +346,9 @@ impl ServerEditor {
         self.refresh_needed = false;
     }
     pub(super) async fn handle(&mut self, key: KeyCode, message: &mut String) -> bool {
+        if self.handle_java_view(key, message).await {
+            return false;
+        }
         if self.confirm_eula {
             self.confirm_eula = false;
             if matches!(key, KeyCode::Char('y') | KeyCode::Char('Y')) {
@@ -225,6 +385,10 @@ impl ServerEditor {
         }
         match key {
             KeyCode::Esc => return true,
+            KeyCode::Char('d') if self.tab == 2 => self.detect_runtimes(message).await,
+            KeyCode::Char('i') if self.tab == 2 => {
+                self.java_view = JavaView::Install { selected: 0 }
+            }
             KeyCode::Char('1'..='3') => {
                 if let KeyCode::Char(digit) = key {
                     let tab = digit as usize - '1' as usize;
@@ -379,6 +543,131 @@ impl ServerEditor {
             Err(error) => *message = error.to_string(),
         }
     }
+    fn draw_java_view(&self, out: &mut Stdout, width: u16, height: u16) -> io::Result<()> {
+        let (title, count, selected) = match &self.java_view {
+            JavaView::None => return Ok(()),
+            JavaView::Detected { runtimes, selected } => {
+                ("DETECTED JAVA RUNTIMES", runtimes.len(), *selected)
+            }
+            JavaView::Install { selected } => ("INSTALL JAVA", INSTALL_MAJORS.len(), *selected),
+            JavaView::Installing { major, .. } => ("INSTALLING JAVA", 1, *major as usize),
+        };
+        let w = width.saturating_sub(36).min(88);
+        let x = (width - w) / 2;
+        let h = (count as u16 * 3 + 9).min(height.saturating_sub(6)).max(12);
+        let y = (height - h) / 2;
+        for line in y..y + h {
+            paint(out, x, line, w, &" ".repeat(w as usize), Color::Black)?;
+        }
+        box_outline(out, x, y, w, h)?;
+        paint(out, x + 2, y + 1, w - 4, title, Color::White)?;
+        match &self.java_view {
+            JavaView::Detected { runtimes, .. } => {
+                if runtimes.is_empty() {
+                    paint(
+                        out,
+                        x + 2,
+                        y + 4,
+                        w - 4,
+                        "No runtimes detected. Esc closes; i opens Install Java.",
+                        Color::DarkGrey,
+                    )?;
+                }
+                for (index, runtime) in runtimes.iter().enumerate().take(((h - 7) / 3) as usize) {
+                    let row = y + 3 + index as u16 * 3;
+                    let label = runtime
+                        .major_version
+                        .map_or("Java ?".into(), |major| format!("Java {major}"));
+                    paint(
+                        out,
+                        x + 2,
+                        row,
+                        w - 4,
+                        &format!(
+                            "{} {}  {}",
+                            if selected == index { ">" } else { " " },
+                            label,
+                            runtime.name
+                        ),
+                        if selected == index {
+                            Color::Green
+                        } else {
+                            Color::White
+                        },
+                    )?;
+                    paint(
+                        out,
+                        x + 4,
+                        row + 1,
+                        w - 6,
+                        &runtime.executable_path,
+                        Color::DarkGrey,
+                    )?;
+                }
+                paint(
+                    out,
+                    x + 2,
+                    y + h - 2,
+                    w - 4,
+                    "↑↓ Choose  Enter Use  r Refresh  Esc Close",
+                    Color::DarkGrey,
+                )?;
+            }
+            JavaView::Install { .. } => {
+                paint(
+                    out,
+                    x + 2,
+                    y + 3,
+                    w - 4,
+                    "Choose the Java version for this host.",
+                    Color::DarkGrey,
+                )?;
+                for (index, major) in INSTALL_MAJORS.iter().enumerate() {
+                    paint(
+                        out,
+                        x + 2,
+                        y + 5 + index as u16 * 2,
+                        w - 4,
+                        &format!("{} Java {major}", if selected == index { ">" } else { " " }),
+                        if selected == index {
+                            Color::Green
+                        } else {
+                            Color::White
+                        },
+                    )?;
+                }
+                paint(
+                    out,
+                    x + 2,
+                    y + h - 2,
+                    w - 4,
+                    "↑↓ Choose  Enter Install  Esc Cancel",
+                    Color::DarkGrey,
+                )?;
+            }
+            JavaView::Installing { major, .. } => {
+                paint(
+                    out,
+                    x + 2,
+                    y + 4,
+                    w - 4,
+                    &format!("Installing Java {major}. Status refreshes automatically."),
+                    Color::Green,
+                )?;
+                paint(
+                    out,
+                    x + 2,
+                    y + h - 2,
+                    w - 4,
+                    "r Check status",
+                    Color::DarkGrey,
+                )?;
+            }
+            JavaView::None => {}
+        }
+        Ok(())
+    }
+
     pub(super) fn draw(&self, out: &mut Stdout, width: u16, height: u16) -> io::Result<()> {
         let x = 12;
         let y = 4;
@@ -495,6 +784,16 @@ impl ServerEditor {
                 )?;
             }
         }
+        if self.tab == 2 && matches!(self.java_view, JavaView::None) {
+            paint(
+                out,
+                x + 2,
+                y + h - 4,
+                w - 4,
+                "d Detect Java runtimes    i Install Java",
+                Color::Green,
+            )?;
+        }
         paint(
             out,
             x + 2,
@@ -503,6 +802,7 @@ impl ServerEditor {
             "Tab/1-3 Switch  ↑↓ Select  Enter Edit  Esc Close",
             Color::DarkGrey,
         )?;
+        self.draw_java_view(out, width, height)?;
         Ok(())
     }
 }

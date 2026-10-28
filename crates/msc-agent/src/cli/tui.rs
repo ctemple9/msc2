@@ -304,6 +304,9 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             if !manage_open && wizard.is_none() && last_refresh.elapsed() >= REFRESH_INTERVAL {
                 worlds_ui.poll_operation(&mut message).await;
                 components_ui.poll_operation(&mut message).await;
+                if let Some(editor) = &mut server_editor {
+                    editor.poll_operation(&mut message).await;
+                }
                 refresh(&mut snapshot, &mut message).await;
                 worlds_ui.refreshed();
                 components_ui.refreshed();

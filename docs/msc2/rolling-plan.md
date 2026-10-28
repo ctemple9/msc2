@@ -221,6 +221,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.22 only.
 - **Commit:** `P22.22: edit server configuration in tui`
 
+### P22.23 — Detect and install Java runtimes in the TUI
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/server_editor.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Add Detected Java Runtimes and Install Java views to the selected Java server editor. Detect lists the host's runtimes and lets the owner select an executable through the existing host-wide Java configuration route. Install offers Java 25, 21, 17, and 8 through the agent's durable install operation, reports progress, and refreshes the editor after completion. These controls are absent for Bedrock servers.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Manage Servers with `m`, select a Java server, and press `3` for Java. Press `d` to inspect detected runtimes, use Up/Down and Enter to choose one, and reopen the editor to confirm the executable path. Press `i` to inspect the four install choices; Esc cancels. Optionally install a needed runtime and confirm progress and subsequent detection. Select a Bedrock server and confirm no Java tab appears. No test command is part of this step.
+- **Batch:** P22.23 only.
+- **Commit:** `P22.23: add java runtime views to tui`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

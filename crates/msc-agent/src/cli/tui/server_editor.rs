@@ -5,10 +5,11 @@ use std::io::{self, Stdout};
 use crossterm::event::KeyCode;
 use crossterm::style::Color;
 use msc_api::dto::{
-    BroadcastAuthPromptDto, BroadcastSimpleResultDto, BroadcastStatusDto, GeyserConfigResponseDto,
+    BroadcastAuthPromptDto, BroadcastAutoStartDto, BroadcastJarDownloadResultDto,
+    BroadcastJarStatusDto, BroadcastSimpleResultDto, BroadcastStatusDto, GeyserConfigResponseDto,
     JavaConfigResponseDto, JavaRuntimeDto, JavaRuntimeInstallResultDto, JavaRuntimesResponseDto,
-    OperationDto, OperationStateDto, RamConfigResponseDto, ServerDirectorySizeResponseDto,
-    ServerDto, ServerEulaResultDto, SettingsResponseDto,
+    OperationDto, OperationStateDto, PlayitActionResultDto, PlayitStatusDto, RamConfigResponseDto,
+    ServerDirectorySizeResponseDto, ServerDto, ServerEulaResultDto, SettingsResponseDto,
 };
 use serde_json::{Value, json};
 
@@ -36,6 +37,18 @@ pub(super) struct ServerEditor {
     broadcast_operation_id: Option<String>,
     broadcast_enabled_before_setup: bool,
     confirm_clear_broadcast: bool,
+    service_detail: Option<ServiceDetail>,
+    service_selected: usize,
+    playit: Option<PlayitStatusDto>,
+    broadcast_autostart: Option<bool>,
+    broadcast_jar: Option<BroadcastJarStatusDto>,
+    service_operation_id: Option<String>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ServiceDetail {
+    Broadcast,
+    Playit,
 }
 
 #[derive(Default)]
@@ -93,6 +106,12 @@ impl ServerEditor {
             broadcast_operation_id: None,
             broadcast_enabled_before_setup: false,
             confirm_clear_broadcast: false,
+            service_detail: None,
+            service_selected: 0,
+            playit: None,
+            broadcast_autostart: None,
+            broadcast_jar: None,
+            service_operation_id: None,
         };
         editor.reload().await;
         editor
@@ -123,7 +142,21 @@ impl ServerEditor {
         self.geyser = geyser.ok();
         self.size = size.ok().and_then(|size| size.size_bytes);
         self.eula = eula.ok().and_then(|eula| eula.accepted);
+        self.refresh_services().await;
+    }
+    async fn refresh_services(&mut self) {
         self.refresh_broadcast().await;
+        let Ok(client) = SharedClient::connect_local().await else {
+            return;
+        };
+        let (playit, autostart, jar) = tokio::join!(
+            client.get_json::<PlayitStatusDto>("/v1/playit"),
+            client.get_json::<BroadcastAutoStartDto>("/v1/broadcast/autostart"),
+            client.get_json::<BroadcastJarStatusDto>("/v1/broadcast/jar-status"),
+        );
+        self.playit = playit.ok();
+        self.broadcast_autostart = autostart.ok().map(|value| value.enabled);
+        self.broadcast_jar = jar.ok();
     }
     async fn refresh_broadcast(&mut self) {
         let Ok(client) = SharedClient::connect_local().await else {
@@ -148,7 +181,32 @@ impl ServerEditor {
         if self.tab != 1 && !self.broadcast_setup_open {
             return;
         }
-        self.refresh_broadcast().await;
+        self.refresh_services().await;
+        if let Some(id) = self.service_operation_id.clone()
+            && let Ok(client) = SharedClient::connect_local().await
+            && let Ok(operation) = client
+                .get_json::<OperationDto>(&format!("/v1/operations/{id}"))
+                .await
+        {
+            match operation.state {
+                OperationStateDto::Succeeded => {
+                    self.service_operation_id = None;
+                    *message = "Service operation completed.".into();
+                    self.refresh_services().await;
+                }
+                OperationStateDto::Failed | OperationStateDto::Cancelled => {
+                    self.service_operation_id = None;
+                    *message = operation
+                        .error
+                        .map_or_else(|| "Service operation failed.".into(), |error| error.message);
+                }
+                _ => {
+                    *message = operation
+                        .status_line
+                        .unwrap_or_else(|| "Service operation in progress…".into())
+                }
+            }
+        }
         if self.broadcast_setup_open
             && let Some(id) = self.broadcast_operation_id.clone()
             && let Ok(client) = SharedClient::connect_local().await
@@ -223,6 +281,180 @@ impl ServerEditor {
             },
             Err(error) => *message = error.to_string(),
         }
+    }
+
+    fn broadcast_running(&self) -> bool {
+        self.broadcast
+            .as_ref()
+            .is_some_and(|status| status.xbox_broadcast_running || status.bedrock_broadcast_running)
+    }
+
+    async fn service_start_stop(&mut self, broadcast: bool, message: &mut String) {
+        if (broadcast && self.broadcast.is_none()) || (!broadcast && self.playit.is_none()) {
+            *message = "Service status is unavailable. Press r to refresh.".into();
+            return;
+        }
+        let running = if broadcast {
+            self.broadcast_running()
+        } else {
+            self.playit.as_ref().is_some_and(|status| status.is_running)
+        };
+        let enabled = if broadcast {
+            self.server.xbox_broadcast_enabled == Some(true)
+        } else {
+            self.server.playit_enabled == Some(true)
+        };
+        if !running && !enabled {
+            *message = "Enable this service before starting it.".into();
+            return;
+        }
+        if !running
+            && broadcast
+            && !self
+                .broadcast
+                .as_ref()
+                .is_some_and(|status| status.has_saved_auth)
+        {
+            self.setup_broadcast(message).await;
+            return;
+        }
+        if !running
+            && !broadcast
+            && !self
+                .playit
+                .as_ref()
+                .is_some_and(|status| status.has_secret_key)
+        {
+            *message =
+                "Playit account setup is required before starting. Its setup view comes next."
+                    .into();
+            return;
+        }
+        let route = match (broadcast, running) {
+            (true, true) => "/v1/broadcast/stop",
+            (true, false) => "/v1/broadcast/start",
+            (false, true) => "/v1/playit/stop",
+            (false, false) => "/v1/playit/start",
+        };
+        match SharedClient::connect_local().await {
+            Ok(client) if broadcast => match client
+                .post_json::<_, BroadcastSimpleResultDto>(route, &json!({}))
+                .await
+            {
+                Ok(result) => {
+                    self.service_operation_id = result.operation_id;
+                    *message = if running {
+                        "Xbox Broadcast stop requested."
+                    } else {
+                        "Xbox Broadcast start requested."
+                    }
+                    .into();
+                    self.refresh_services().await;
+                }
+                Err(error) => *message = error.to_string(),
+            },
+            Ok(client) => match client
+                .post_json::<_, PlayitActionResultDto>(route, &json!({}))
+                .await
+            {
+                Ok(result) => {
+                    self.service_operation_id = result.operation_id;
+                    *message = result.message.unwrap_or(result.result);
+                    self.refresh_services().await;
+                }
+                Err(error) => *message = error.to_string(),
+            },
+            Err(error) => *message = error.to_string(),
+        }
+    }
+
+    async fn toggle_broadcast_autostart(&mut self, message: &mut String) {
+        let enabled = !self.broadcast_autostart.unwrap_or(false);
+        match SharedClient::connect_local().await {
+            Ok(client) => match client
+                .post_json::<_, BroadcastAutoStartDto>(
+                    "/v1/broadcast/autostart",
+                    &BroadcastAutoStartDto { enabled },
+                )
+                .await
+            {
+                Ok(result) => {
+                    self.broadcast_autostart = Some(result.enabled);
+                    *message = format!(
+                        "Xbox Broadcast host autostart {}.",
+                        if result.enabled {
+                            "enabled"
+                        } else {
+                            "disabled"
+                        }
+                    );
+                }
+                Err(error) => *message = error.to_string(),
+            },
+            Err(error) => *message = error.to_string(),
+        }
+    }
+
+    async fn update_broadcast_jar(&mut self, message: &mut String) {
+        if self.broadcast_running() {
+            *message = "Stop Xbox Broadcast before updating its JAR.".into();
+            return;
+        }
+        match SharedClient::connect_local().await {
+            Ok(client) => match client
+                .post_json::<_, BroadcastJarDownloadResultDto>(
+                    "/v1/broadcast/download-jar",
+                    &json!({}),
+                )
+                .await
+            {
+                Ok(result) if result.success => {
+                    self.service_operation_id = result.operation_id;
+                    *message = result.message;
+                }
+                Ok(result) => *message = result.message,
+                Err(error) => *message = error.to_string(),
+            },
+            Err(error) => *message = error.to_string(),
+        }
+    }
+
+    async fn handle_service_detail(&mut self, key: KeyCode, message: &mut String) -> bool {
+        let Some(detail) = self.service_detail else {
+            return false;
+        };
+        let last = if detail == ServiceDetail::Broadcast {
+            4
+        } else {
+            1
+        };
+        match key {
+            KeyCode::Esc => self.service_detail = None,
+            KeyCode::Up => self.service_selected = self.service_selected.saturating_sub(1),
+            KeyCode::Down => self.service_selected = (self.service_selected + 1).min(last),
+            KeyCode::Char('r') => self.refresh_services().await,
+            KeyCode::Enter | KeyCode::Char('e') => match (detail, self.service_selected) {
+                (ServiceDetail::Broadcast, 0) => self.service_start_stop(true, message).await,
+                (ServiceDetail::Broadcast, 1) => self.toggle_service(true, message).await,
+                (ServiceDetail::Broadcast, 2) => self.toggle_broadcast_autostart(message).await,
+                (ServiceDetail::Broadcast, 3)
+                    if self
+                        .broadcast
+                        .as_ref()
+                        .is_some_and(|status| status.has_saved_auth) =>
+                {
+                    self.confirm_clear_broadcast = true;
+                    *message = "Clear Xbox Broadcast sign-in on this host for all servers? y confirms; any other key cancels.".into();
+                }
+                (ServiceDetail::Broadcast, 3) => self.setup_broadcast(message).await,
+                (ServiceDetail::Broadcast, 4) => self.update_broadcast_jar(message).await,
+                (ServiceDetail::Playit, 0) => self.service_start_stop(false, message).await,
+                (ServiceDetail::Playit, 1) => self.toggle_service(false, message).await,
+                _ => {}
+            },
+            _ => {}
+        }
+        true
     }
 
     async fn setup_broadcast(&mut self, message: &mut String) {
@@ -603,6 +835,9 @@ impl ServerEditor {
             }
             return false;
         }
+        if self.tab == 1 && self.handle_service_detail(key, message).await {
+            return false;
+        }
         match key {
             KeyCode::Esc => return true,
             KeyCode::Char('d') if self.tab == 2 => self.detect_runtimes(message).await,
@@ -632,7 +867,7 @@ impl ServerEditor {
             KeyCode::Up => self.selected = self.selected.saturating_sub(1),
             KeyCode::Down => {
                 let count = if self.tab == 1 {
-                    3
+                    2
                 } else {
                     self.fields().len()
                 };
@@ -641,7 +876,7 @@ impl ServerEditor {
             KeyCode::PageUp => self.selected = self.selected.saturating_sub(6),
             KeyCode::PageDown => {
                 let count = if self.tab == 1 {
-                    3
+                    2
                 } else {
                     self.fields().len()
                 };
@@ -649,20 +884,13 @@ impl ServerEditor {
             }
             KeyCode::Enter | KeyCode::Char('e') => {
                 if self.tab == 1 {
-                    match self.selected {
-                        0 => self.toggle_service(true, message).await,
-                        1 if self
-                            .broadcast
-                            .as_ref()
-                            .is_some_and(|status| status.has_saved_auth) =>
-                        {
-                            self.confirm_clear_broadcast = true;
-                            *message = "Clear Xbox Broadcast sign-in on this host for all servers? y confirms; any other key cancels.".into();
-                        }
-                        1 => self.setup_broadcast(message).await,
-                        2 => self.toggle_service(false, message).await,
-                        _ => {}
-                    }
+                    self.service_detail = Some(if self.selected == 0 {
+                        ServiceDetail::Broadcast
+                    } else {
+                        ServiceDetail::Playit
+                    });
+                    self.service_selected = 0;
+                    self.refresh_services().await;
                 } else if let Some(field) = self.fields().get(self.selected).copied() {
                     if matches!(field, Field::Eula) {
                         if self.eula != Some(true) {
@@ -913,6 +1141,241 @@ impl ServerEditor {
         Ok(())
     }
 
+    fn draw_services(&self, out: &mut Stdout, x: u16, y: u16, w: u16) -> io::Result<()> {
+        let broadcast_state = if self.broadcast.is_none() {
+            "Unavailable"
+        } else if self.broadcast_running() {
+            "Running"
+        } else {
+            "Stopped"
+        };
+        let playit_state = match self.playit.as_ref() {
+            None => "Unavailable",
+            Some(status) if status.is_running => "Running",
+            Some(_) => "Stopped",
+        };
+        let broadcast_enabled = self.server.xbox_broadcast_enabled == Some(true);
+        let playit_enabled = self.server.playit_enabled == Some(true);
+        if let Some(detail) = self.service_detail {
+            let title = if detail == ServiceDetail::Broadcast {
+                "XBOX BROADCAST"
+            } else {
+                "PLAYIT"
+            };
+            paint(out, x + 2, y + 5, w - 4, title, Color::White)?;
+            if detail == ServiceDetail::Broadcast {
+                paint(
+                    out,
+                    x + 2,
+                    y + 7,
+                    w - 4,
+                    &format!("Status: {broadcast_state}"),
+                    Color::White,
+                )?;
+                let signed_in = self
+                    .broadcast
+                    .as_ref()
+                    .is_some_and(|status| status.has_saved_auth);
+                let jar = self.broadcast_jar.as_ref();
+                let jar_label = jar
+                    .and_then(|jar| jar.version.as_deref())
+                    .unwrap_or("not installed");
+                let rows = [
+                    format!(
+                        "{} Xbox Broadcast",
+                        if self.broadcast_running() {
+                            "Stop"
+                        } else {
+                            "Start"
+                        }
+                    ),
+                    format!(
+                        "For this server: {}",
+                        if broadcast_enabled {
+                            "Enabled"
+                        } else {
+                            "Disabled"
+                        }
+                    ),
+                    format!(
+                        "Start automatically on this host: {}",
+                        if self.broadcast_autostart == Some(true) {
+                            "On"
+                        } else {
+                            "Off"
+                        }
+                    ),
+                    format!(
+                        "Microsoft sign-in: {}",
+                        if signed_in {
+                            "Clear saved sign-in"
+                        } else {
+                            "Set up"
+                        }
+                    ),
+                    format!(
+                        "{} helper JAR  ·  {}",
+                        if jar.is_some_and(|jar| jar.installed) {
+                            "Update"
+                        } else {
+                            "Download"
+                        },
+                        jar_label
+                    ),
+                ];
+                for (index, row) in rows.iter().enumerate() {
+                    paint(
+                        out,
+                        x + 2,
+                        y + 10 + index as u16 * 2,
+                        w - 4,
+                        &format!(
+                            "{} {row}",
+                            if self.service_selected == index {
+                                ">"
+                            } else {
+                                " "
+                            }
+                        ),
+                        if self.service_selected == index {
+                            Color::Green
+                        } else {
+                            Color::White
+                        },
+                    )?;
+                }
+                paint(
+                    out,
+                    x + 2,
+                    y + 23,
+                    w - 4,
+                    "Autostart and sign-in are shared across servers on this host.",
+                    Color::DarkGrey,
+                )?;
+                if self.confirm_clear_broadcast {
+                    paint(
+                        out,
+                        x + 2,
+                        y + 25,
+                        w - 4,
+                        "Clear shared sign-in? y Confirm  any other key Cancel",
+                        Color::Yellow,
+                    )?;
+                }
+            } else {
+                paint(
+                    out,
+                    x + 2,
+                    y + 7,
+                    w - 4,
+                    &format!("Status: {playit_state}"),
+                    Color::White,
+                )?;
+                let account = if self
+                    .playit
+                    .as_ref()
+                    .is_some_and(|status| status.has_secret_key)
+                {
+                    "Configured"
+                } else {
+                    "Setup required"
+                };
+                paint(
+                    out,
+                    x + 2,
+                    y + 9,
+                    w - 4,
+                    &format!("Account: {account}"),
+                    Color::DarkGrey,
+                )?;
+                let rows = [
+                    format!(
+                        "{} Playit",
+                        if self.playit.as_ref().is_some_and(|status| status.is_running) {
+                            "Stop"
+                        } else {
+                            "Start"
+                        }
+                    ),
+                    format!(
+                        "For this server: {}",
+                        if playit_enabled {
+                            "Enabled"
+                        } else {
+                            "Disabled"
+                        }
+                    ),
+                ];
+                for (index, row) in rows.iter().enumerate() {
+                    paint(
+                        out,
+                        x + 2,
+                        y + 12 + index as u16 * 2,
+                        w - 4,
+                        &format!(
+                            "{} {row}",
+                            if self.service_selected == index {
+                                ">"
+                            } else {
+                                " "
+                            }
+                        ),
+                        if self.service_selected == index {
+                            Color::Green
+                        } else {
+                            Color::White
+                        },
+                    )?;
+                }
+                paint(
+                    out,
+                    x + 2,
+                    y + 18,
+                    w - 4,
+                    "Playit account setup will be added in the dedicated setup step.",
+                    Color::DarkGrey,
+                )?;
+            }
+        } else {
+            let rows = [
+                format!(
+                    "Xbox Broadcast  {broadcast_state}  ·  {}",
+                    if broadcast_enabled {
+                        "Enabled"
+                    } else {
+                        "Disabled"
+                    }
+                ),
+                format!(
+                    "Playit          {playit_state}  ·  {}",
+                    if playit_enabled {
+                        "Enabled"
+                    } else {
+                        "Disabled"
+                    }
+                ),
+            ];
+            for (index, row) in rows.iter().enumerate() {
+                paint(
+                    out,
+                    x + 2,
+                    y + 8 + index as u16 * 3,
+                    w - 4,
+                    &format!(
+                        "{} {row}  ·  Enter for controls",
+                        if self.selected == index { ">" } else { " " }
+                    ),
+                    if self.selected == index {
+                        Color::Green
+                    } else {
+                        Color::White
+                    },
+                )?;
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn draw(&self, out: &mut Stdout, width: u16, height: u16) -> io::Result<()> {
         let x = 12;
         let y = 4;
@@ -939,75 +1402,7 @@ impl ServerEditor {
         let active = ["GENERAL", "SERVICES", "JAVA"][self.tab];
         paint(out, x + 2, y + 5, w - 4, active, Color::DarkGrey)?;
         if self.tab == 1 {
-            let setup = self
-                .broadcast
-                .as_ref()
-                .is_some_and(|status| status.has_saved_auth);
-            let rows = [
-                format!(
-                    "Xbox Broadcast        {}  ·  Enter to {}",
-                    if self.server.xbox_broadcast_enabled == Some(true) {
-                        "Enabled"
-                    } else {
-                        "Disabled"
-                    },
-                    if self.server.xbox_broadcast_enabled == Some(true) {
-                        "disable"
-                    } else {
-                        "enable"
-                    },
-                ),
-                format!(
-                    "Xbox Broadcast sign-in  {}  ·  Enter to {}",
-                    if setup { "Saved" } else { "Not set up" },
-                    if setup { "clear" } else { "set up" }
-                ),
-                format!(
-                    "Playit                {}  ·  Enter to {}",
-                    if self.server.playit_enabled == Some(true) {
-                        "Enabled"
-                    } else {
-                        "Disabled"
-                    },
-                    if self.server.playit_enabled == Some(true) {
-                        "disable"
-                    } else {
-                        "enable"
-                    },
-                ),
-            ];
-            for (index, row) in rows.iter().enumerate() {
-                paint(
-                    out,
-                    x + 2,
-                    y + 7 + index as u16 * 2,
-                    w - 4,
-                    &format!("{} {row}", if self.selected == index { ">" } else { " " }),
-                    if self.selected == index {
-                        Color::Green
-                    } else {
-                        Color::White
-                    },
-                )?;
-            }
-            paint(
-                out,
-                x + 2,
-                y + 15,
-                w - 4,
-                "Broadcast sign-in is shared across servers on this host. Playit setup comes later.",
-                Color::DarkGrey,
-            )?;
-            if self.confirm_clear_broadcast {
-                paint(
-                    out,
-                    x + 2,
-                    y + 17,
-                    w - 4,
-                    "Clear shared Xbox Broadcast sign-in? y Confirm  any other key Cancel",
-                    Color::Yellow,
-                )?;
-            }
+            self.draw_services(out, x, y, w)?;
         } else {
             if self.tab == 2 {
                 paint(
@@ -1075,7 +1470,13 @@ impl ServerEditor {
             x + 2,
             y + h - 2,
             w - 4,
-            "Tab/1-3 Switch  ↑↓ Select  Enter Edit  Esc Close",
+            if self.tab == 1 && self.service_detail.is_some() {
+                "↑↓ Select  Enter Act  r Refresh  Esc Services"
+            } else if self.tab == 1 {
+                "Tab/1-3 Switch  ↑↓ Select  Enter Open  Esc Close"
+            } else {
+                "Tab/1-3 Switch  ↑↓ Select  Enter Edit  Esc Close"
+            },
             Color::DarkGrey,
         )?;
         self.draw_java_view(out, width, height)?;

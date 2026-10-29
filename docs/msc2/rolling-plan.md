@@ -248,6 +248,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.25 only.
 - **Commit:** `P22.25: stop broadcast on tui setup cancellation`
 
+### P22.26 — Give TUI services their own control views
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/server_editor.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Show Xbox Broadcast and Playit as two selectable entries in the server editor's Services tab. Enter opens a service detail view. Broadcast detail reads running status, supports Start/Stop, per-server enablement, host-wide autostart, Microsoft sign-in setup or clear, and shared helper JAR download/update. Playit detail reads running and account status and supports Start/Stop and per-server enablement. Use the agent's existing routes and operation status for live progress; Playit account setup remains its later dedicated step.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Manage Servers with `m`, select a server, and press `2`. Confirm the Services tab lists only Broadcast and Playit with live state. Enter each detail view and use Up/Down and Enter to control enabled state and Start/Stop; verify status changes after refresh (`r`) or the automatic refresh. In Broadcast detail, toggle host autostart, inspect Setup/Clear and the JAR version, and use Update while stopped. Esc returns to the two-service list. No test command is part of this step.
+- **Batch:** P22.26 only.
+- **Commit:** `P22.26: add service control views to tui`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

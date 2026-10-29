@@ -26,6 +26,7 @@ use msc_api::dto::{
     BroadcastJarStatusDto, ComponentsStatusDto, PerformanceSnapshotDto, RemoteApiStatus, ServerDto,
     SettingsResponseDto, SimpleResultDto, WorldSlotsResponseDto,
 };
+use msc_infrastructure::console_buffer::ConsoleLine;
 use msc_infrastructure::service::ServiceState;
 
 use super::service::{self, AgentAction, LocalAgentStatus};
@@ -85,6 +86,7 @@ struct Snapshot {
     addons: Option<AddonsResponseDto>,
     broadcast_jar: Option<BroadcastJarStatusDto>,
     settings: Option<SettingsResponseDto>,
+    console_lines: Option<Vec<ConsoleLine>>,
 }
 
 struct ViewState<'a> {
@@ -104,6 +106,7 @@ struct ViewState<'a> {
     server_editor: Option<&'a server_editor::ServerEditor>,
     initiate: Option<&'a initiate::InitiateUi>,
     initiate_hidden: bool,
+    console_expanded: bool,
 }
 
 async fn load() -> Result<Snapshot, CliError> {
@@ -209,6 +212,18 @@ async fn load() -> Result<Snapshot, CliError> {
             None, None, None, None, None, None, None, None, None, None, None, None,
         )
     };
+    let console_lines = if active_server_id.is_some() {
+        if let Ok(client) = SharedClient::connect_local().await {
+            client
+                .get_json::<Vec<ConsoleLine>>("/v1/console/tail?n=40")
+                .await
+                .ok()
+        } else {
+            None
+        }
+    } else {
+        None
+    };
     Ok(Snapshot {
         service,
         servers,
@@ -227,6 +242,7 @@ async fn load() -> Result<Snapshot, CliError> {
         addons,
         broadcast_jar,
         settings,
+        console_lines,
     })
 }
 
@@ -358,6 +374,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     let mut server_editor: Option<server_editor::ServerEditor> = None;
     let mut initiate: Option<initiate::InitiateUi> = None;
     let mut initiate_hidden = false;
+    let mut console_expanded = false;
     let mut message = String::new();
     let mut confirm_stop = false;
     let mut last_refresh = Instant::now();
@@ -386,6 +403,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 server_editor: server_editor.as_ref(),
                 initiate: initiate.as_ref(),
                 initiate_hidden,
+                console_expanded,
             },
         )
         .map_err(terminal_error)?;
@@ -577,6 +595,10 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             continue;
         }
         if workspace_open {
+            if key.code == KeyCode::Char('c') {
+                console_expanded = !console_expanded;
+                continue;
+            }
             if tab_index == 6
                 && files_ui
                     .handle(key.code, &snapshot, &mut stdout, &mut message)
@@ -824,6 +846,7 @@ fn draw(
             view.files,
             view.message,
             view.initiate.filter(|_| view.initiate_hidden),
+            view.console_expanded,
             width,
             height,
         )?;
@@ -1184,6 +1207,7 @@ fn draw_workspace(
     files_ui: &files::FilesUi,
     message: &str,
     hidden_initiate: Option<&initiate::InitiateUi>,
+    console_expanded: bool,
     width: u16,
     height: u16,
 ) -> io::Result<()> {
@@ -1724,41 +1748,79 @@ fn draw_workspace(
             Color::DarkGrey,
         )?;
     }
-    paint(
-        out,
-        main_x,
-        height - 6,
-        main_w,
-        &"─".repeat(main_w as usize),
-        Color::DarkGrey,
-    )?;
-    paint(
-        out,
-        main_x,
-        height - 5,
-        main_w,
-        &format!(
-            "Console  {}",
-            if snapshot.connection_error.is_some() {
-                "Reconnecting"
-            } else if server.is_none() {
-                "No server"
-            } else if snapshot.active_server_running {
-                "Running"
-            } else {
-                "Stopped"
-            }
-        ),
-        Color::DarkGrey,
-    )?;
-    paint(
-        out,
-        main_x,
-        height - 4,
-        main_w,
-        &"─".repeat(main_w as usize),
-        Color::DarkGrey,
-    )?;
+    let console_status = if snapshot.connection_error.is_some() {
+        "Reconnecting"
+    } else if server.is_none() {
+        "No server"
+    } else if snapshot.active_server_running {
+        "Running"
+    } else {
+        "Stopped"
+    };
+    if console_expanded {
+        let top = height.saturating_sub(11);
+        paint(
+            out,
+            main_x,
+            top,
+            main_w,
+            &"─".repeat(main_w as usize),
+            Color::DarkGrey,
+        )?;
+        paint(
+            out,
+            main_x,
+            top + 1,
+            main_w,
+            &format!("Console  {console_status}  [c Collapse]"),
+            Color::DarkGrey,
+        )?;
+        let lines = snapshot.console_lines.as_deref().unwrap_or(&[]);
+        let visible = height.saturating_sub(top + 4).min(6) as usize;
+        for (index, line) in lines.iter().rev().take(visible).rev().enumerate() {
+            paint(
+                out,
+                main_x,
+                top + 2 + index as u16,
+                main_w,
+                &line.text,
+                Color::White,
+            )?;
+        }
+        paint(
+            out,
+            main_x,
+            height - 2,
+            main_w,
+            &"─".repeat(main_w as usize),
+            Color::DarkGrey,
+        )?;
+    } else {
+        paint(
+            out,
+            main_x,
+            height - 6,
+            main_w,
+            &"─".repeat(main_w as usize),
+            Color::DarkGrey,
+        )?;
+        paint(
+            out,
+            main_x,
+            height - 5,
+            main_w,
+            &format!("Console  {console_status}  [c Expand]"),
+            Color::DarkGrey,
+        )?;
+        paint(
+            out,
+            main_x,
+            height - 4,
+            main_w,
+            &"─".repeat(main_w as usize),
+            Color::DarkGrey,
+        )?;
+    }
     paint(
         out,
         main_x,
@@ -1776,7 +1838,7 @@ fn draw_workspace(
         main_x,
         height - 2,
         main_w,
-        "1–7 Switch tab   s Start/Stop   a Agents   m Manage   Esc Back",
+        "1–7 Switch tab   s Start/Stop   c Console   a Agents   m Manage   Esc Back",
         Color::DarkGrey,
     )?;
     Ok(())

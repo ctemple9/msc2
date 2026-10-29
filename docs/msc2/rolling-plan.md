@@ -365,6 +365,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.38 only.
 - **Commit:** `P22.38: detect saved broadcast auth across servers`
 
+### P22.39 — Show and collapse the selected server console
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Fetch the active server's console tail with workspace refreshes, show recent server output in the console panel, and let `c` collapse or expand it while keeping the running/stopped state visible.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, select a server, start it, and confirm the console displays that server's live log lines. Press `c` to collapse and expand the feed, and confirm switching the active server shows its own console. No test command is part of this step.
+- **Batch:** P22.39 only.
+- **Commit:** `P22.39: show selected server console in tui`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

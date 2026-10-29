@@ -401,6 +401,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.42 only.
 - **Commit:** `P22.42: add storage inventory and reviewed actions to tui`
 
+### P22.43 — Correct Storage selection and macOS scan errors
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/app_settings.rs`; `crates/msc-infrastructure/src/source_tree.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Highlight the active Storage tab. Clear macOS errno before directory enumeration so a normal end of directory does not inherit an unrelated socket error and falsely mark inventory partial.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Shift+S → 3, confirm Storage is highlighted, press r to refresh and inspect coverage. Genuine unreadable sources remain reported. No tests run.
+- **Batch:** P22.43 only.
+- **Commit:** `P22.43: fix storage highlight and macos directory scan errors`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

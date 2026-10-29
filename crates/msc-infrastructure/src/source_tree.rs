@@ -191,6 +191,11 @@ fn children_with_names(
         unsafe {
             *libc::__errno_location() = 0;
         }
+        // readdir leaves errno unchanged on normal end-of-directory.
+        #[cfg(target_os = "macos")]
+        unsafe {
+            *libc::__error() = 0;
+        }
         let entry = unsafe { libc::readdir(directory.0) };
         if entry.is_null() {
             let error = io::Error::last_os_error();

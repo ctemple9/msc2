@@ -347,6 +347,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.36 only.
 - **Commit:** `P22.36: reuse saved broadcast sign-in in initiate`
 
+### P22.37 — Align the initiate connection summary
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/initiate.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Lay out available connection methods in aligned label and address columns. Identify local connections as same Wi-Fi, public and Playit as usable from other networks, and show the Xbox Broadcast gamertag in the same value column. Omit unavailable methods.
+- **Verify:** Run `cargo run -p msc-agent -- tui` and finish Initiate with local, Playit, public forwarding, and Xbox Broadcast available. Confirm method names align in the left column and addresses or gamertag align in the right column, with network-use hints; then check a server with fewer configured methods shows only applicable rows. No test command is part of this step.
+- **Batch:** P22.37 only.
+- **Commit:** `P22.37: align initiate connection summary`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

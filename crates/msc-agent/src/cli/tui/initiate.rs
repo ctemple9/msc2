@@ -667,18 +667,15 @@ impl InitiateUi {
                 } else {
                     self.server.game_port
                 };
+                let mut connections = Vec::new();
                 if let Some(port) = port {
-                    paint(
-                        out,
-                        x + 2,
-                        y + 8,
-                        w - 4,
-                        &format!(
-                            "Local  {}:{port}",
+                    connections.push((
+                        "Local (same Wi-Fi)",
+                        format!(
+                            "{}:{port}",
                             self.server.host_address.as_deref().unwrap_or("localhost")
                         ),
-                        Color::White,
-                    )?;
+                    ));
                 }
                 if let Some(playit) = &self.playit {
                     let address = if self.server.server_type == "bedrock" {
@@ -687,29 +684,18 @@ impl InitiateUi {
                         &playit.java_address
                     };
                     if let Some(address) = address {
-                        paint(
-                            out,
-                            x + 2,
-                            y + 10,
-                            w - 4,
-                            &format!("Playit {address}"),
-                            Color::White,
-                        )?;
+                        connections.push(("Playit (any network)", address.clone()));
                     }
                 }
-                if let Some(address) = self
-                    .connectivity
-                    .as_ref()
-                    .and_then(|connectivity| connectivity.join_address.as_deref())
+                if let Some(connectivity) = &self.connectivity
+                    && let Some(address) = connectivity.join_address.as_deref()
                 {
-                    paint(
-                        out,
-                        x + 2,
-                        y + 12,
-                        w - 4,
-                        &format!("Public {address}"),
-                        Color::White,
-                    )?;
+                    let method = if connectivity.join_address_source == "duckdns" {
+                        "DuckDNS"
+                    } else {
+                        "port forwarding"
+                    };
+                    connections.push(("Public (different Wi-Fi)", format!("{address} · {method}")));
                 }
                 if self.server.xbox_broadcast_enabled == Some(true) {
                     let gamertag = self
@@ -717,19 +703,22 @@ impl InitiateUi {
                         .as_ref()
                         .and_then(|status| status.gamertag.as_deref())
                         .unwrap_or("Signed in");
+                    connections.push(("Xbox Broadcast", gamertag.to_string()));
+                }
+                for (index, (label, value)) in connections.iter().enumerate() {
                     paint(
                         out,
                         x + 2,
-                        y + 13,
+                        y + 8 + index as u16 * 2,
                         w - 4,
-                        &format!("Xbox Broadcast {gamertag}"),
+                        &format!("{label:<26}{value}"),
                         Color::White,
                     )?;
                 }
                 paint(
                     out,
                     x + 2,
-                    y + 16,
+                    y + 17,
                     w - 4,
                     "Future starts are manual. Enter/Esc Done",
                     Color::DarkGrey,

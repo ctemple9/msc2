@@ -9,6 +9,7 @@ mod initiate;
 mod performance;
 mod server_editor;
 mod settings;
+mod storage;
 mod world_settings;
 mod worlds;
 

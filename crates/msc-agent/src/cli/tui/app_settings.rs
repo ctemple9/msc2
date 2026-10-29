@@ -16,6 +16,7 @@ use crate::cli::transport::SharedClient;
 #[derive(Default)]
 pub(super) struct AppSettingsUi {
     open: bool,
+    storage: super::storage::StorageUi,
     tab: usize,
     selected: usize,
     input: Option<Input>,
@@ -77,6 +78,17 @@ impl AppSettingsUi {
     pub(super) async fn handle(&mut self, key: KeyCode) -> bool {
         if !self.open {
             return false;
+        }
+        if self.tab == 2
+            && !matches!(
+                key,
+                KeyCode::Tab | KeyCode::BackTab | KeyCode::Char('1' | '2' | '3')
+            )
+        {
+            if !self.storage.handle(key).await {
+                self.open = false;
+            }
+            return true;
         }
         if let Some(confirm) = self.confirm.take() {
             match (confirm, key) {
@@ -182,7 +194,7 @@ impl AppSettingsUi {
         match key {
             KeyCode::Esc => self.open = false,
             KeyCode::Tab | KeyCode::Right => {
-                self.tab = (self.tab + 1).min(1);
+                self.tab = (self.tab + 1).min(2);
                 self.selected = 0;
             }
             KeyCode::BackTab | KeyCode::Left => {
@@ -191,6 +203,10 @@ impl AppSettingsUi {
             }
             KeyCode::Char('1') => self.tab = 0,
             KeyCode::Char('2') => self.tab = 1,
+            KeyCode::Char('3') => {
+                self.tab = 2;
+                self.storage.load().await;
+            }
             KeyCode::Up => self.selected = self.selected.saturating_sub(1),
             KeyCode::Down => {
                 self.selected = (self.selected + 1).min(if self.tab == 0 { 4 } else { 2 })
@@ -283,6 +299,9 @@ impl AppSettingsUi {
             }
             KeyCode::Char('r') => self.poll_playit().await,
             _ => {}
+        }
+        if self.tab == 2 {
+            self.storage.load().await;
         }
         true
     }
@@ -404,6 +423,9 @@ impl AppSettingsUi {
     }
 
     pub(super) async fn poll_services(&mut self) {
+        if self.tab == 2 {
+            self.storage.poll().await;
+        }
         if self.playit_operation.is_some() {
             self.poll_playit().await;
         }
@@ -594,7 +616,7 @@ impl AppSettingsUi {
             x + 2,
             y + 3,
             w - 4,
-            "1 General     2 Services",
+            "1 General     2 Services     3 Storage",
             Color::DarkGrey,
         )?;
         let (active_tab_x, active_tab_label, active_tab_width) = if self.tab == 0 {
@@ -610,6 +632,10 @@ impl AppSettingsUi {
             active_tab_label,
             Color::Green,
         )?;
+        if self.tab == 2 {
+            self.storage.draw(out, x + 2, y + 5, w - 4, h - 7)?;
+            return Ok(());
+        }
         if self.tab == 0 {
             paint(out, x + 2, y + 5, w - 4, "UPDATES", Color::DarkGrey)?;
             paint(

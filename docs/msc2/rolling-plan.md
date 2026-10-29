@@ -392,6 +392,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.41 only.
 - **Commit:** `P22.41: add host-wide settings to tui`
 
+### P22.42 — Add Storage navigation and reviewed actions to the TUI
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/app_settings.rs`; `crates/msc-agent/src/cli/tui/storage.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Add Settings section 3 with cached local computer inventory, explicit bounded scan and cancellation, paged inventory loading, category/server/group navigation, volume capacity and coverage details, local folder opening, and existing candidate/review/confirmation/result APIs for map cache, old downloads, obsolete builds, servers, worlds, and backups. The host-local TUI lists this computer only. Removal authority remains with existing services.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, press Shift+S then 3. Open This computer, refresh with r, navigate categories and Servers → server → section, inspect paths with Enter and open eligible local folders with o. Confirm protected candidates cannot be selected; inspect removal candidates using the displayed shortcuts, select with Space, review with Enter, and confirm only with the exact service phrase. Check cancellation with x and per-item cleanup outcomes. No tests were run.
+- **Batch:** P22.42 only.
+- **Commit:** `P22.42: add storage inventory and reviewed actions to tui`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

@@ -14,7 +14,7 @@ use msc_api::dto::{
 };
 use serde_json::{Value, json};
 
-use super::{box_outline, paint};
+use super::{box_outline, paint, paint_microsoft_link};
 use crate::cli::transport::{SharedClient, encode_query_component};
 
 pub(super) struct ServerEditor {
@@ -2007,7 +2007,7 @@ impl ServerEditor {
                 Color::DarkGrey,
             )?;
             if let Some(prompt) = &self.broadcast_prompt {
-                paint(
+                paint_microsoft_link(
                     out,
                     modal_x + 2,
                     modal_y + 5,
@@ -2016,7 +2016,6 @@ impl ServerEditor {
                         .link_url
                         .as_deref()
                         .unwrap_or("Waiting for sign-in link…"),
-                    Color::White,
                 )?;
                 paint(
                     out,

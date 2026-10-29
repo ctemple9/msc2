@@ -16,7 +16,9 @@ use std::time::{Duration, Instant};
 
 use crossterm::cursor::{Hide, MoveTo, Show};
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
-use crossterm::style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor};
+use crossterm::style::{
+    Attribute, Color, Print, ResetColor, SetAttribute, SetBackgroundColor, SetForegroundColor,
+};
 use crossterm::terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::{execute, queue};
 use msc_api::dto::{
@@ -1962,6 +1964,25 @@ fn paint(
         MoveTo(x, y),
         SetForegroundColor(color),
         Print(clipped),
+        ResetColor
+    )
+}
+
+fn paint_microsoft_link(out: &mut Stdout, x: u16, y: u16, width: u16, url: &str) -> io::Result<()> {
+    const MICROSOFT_LINK: &str = "https://www.microsoft.com/link";
+    if url != MICROSOFT_LINK {
+        return paint(out, x, y, width, url, Color::White);
+    }
+    let visible: String = url.chars().take(width as usize).collect();
+    queue!(
+        out,
+        MoveTo(x, y),
+        SetForegroundColor(Color::Cyan),
+        SetAttribute(Attribute::Underlined),
+        Print("\x1b]8;;https://www.microsoft.com/link\x1b\\"),
+        Print(visible),
+        Print("\x1b]8;;\x1b\\"),
+        SetAttribute(Attribute::NoUnderline),
         ResetColor
     )
 }

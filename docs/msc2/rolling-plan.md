@@ -302,6 +302,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.31 only.
 - **Commit:** `P22.31: reuse cli credentials for tui polling`
 
+### P22.32 — Make the Xbox Broadcast sign-in URL clickable
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/server_editor.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Render the fixed Microsoft device sign-in URL in the Broadcast setup sheet as an underlined OSC 8 terminal hyperlink. Supporting terminals can open it with their normal link click, including when the TUI runs over SSH; the visible URL remains available where hyperlinks are unsupported. Only the expected Microsoft URL receives terminal hyperlink control sequences, so a helper-provided string cannot inject terminal controls.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Xbox Broadcast sign-in, and click the underlined Microsoft URL using the terminal's link-click gesture. Confirm the Microsoft device sign-in page opens in the browser and the device code remains visible in the TUI. In a terminal without link support, confirm the URL is still readable. No test command is part of this step.
+- **Batch:** P22.32 only.
+- **Commit:** `P22.32: link xbox broadcast sign-in in tui`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

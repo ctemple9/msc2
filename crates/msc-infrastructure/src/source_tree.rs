@@ -191,11 +191,6 @@ fn children_with_names(
         unsafe {
             *libc::__errno_location() = 0;
         }
-        // readdir leaves errno unchanged on normal end-of-directory.
-        #[cfg(target_os = "macos")]
-        unsafe {
-            *libc::__error() = 0;
-        }
         let entry = unsafe { libc::readdir(directory.0) };
         if entry.is_null() {
             let error = io::Error::last_os_error();
@@ -214,6 +209,30 @@ fn children_with_names(
             .map_err(|_| invalid("source names must be valid text"))?;
         if portable {
             portable_name(text)?;
+        }
+        if !portable {
+            // Storage measures regular files and directories. Unix sockets and
+            // pipes are live IPC endpoints: opening them can fail or block and
+            // must not terminate enumeration of the remaining disk files.
+            let mut metadata: libc::stat = unsafe { std::mem::zeroed() };
+            if unsafe {
+                libc::fstatat(
+                    root.as_raw_fd(),
+                    name.as_ptr(),
+                    &mut metadata,
+                    libc::AT_SYMLINK_NOFOLLOW,
+                )
+            } != 0
+            {
+                return Err(io::Error::last_os_error());
+            }
+            let kind = metadata.st_mode & libc::S_IFMT;
+            if matches!(
+                kind,
+                libc::S_IFSOCK | libc::S_IFIFO | libc::S_IFCHR | libc::S_IFBLK
+            ) {
+                continue;
+            }
         }
         let fd = unsafe {
             libc::openat(

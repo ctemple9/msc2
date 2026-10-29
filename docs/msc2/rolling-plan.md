@@ -419,6 +419,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.44 only.
 - **Commit:** `P22.44: fix storage rescan and show removal actions`
 
+### P22.45 — Skip IPC endpoints during storage measurement
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-infrastructure/src/source_tree.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Identify Unix socket, pipe, and device entries without opening them during storage traversal. Skip those non-file endpoints so socket-open errors do not terminate the directory inventory. Keep archive validation and symlink protections unchanged. Remove the redundant macOS errno reset introduced in P22.43; the original reset already existed.
+- **Verify:** With the rebuilt background agent installed, open Storage and refresh. Confirm directories containing agent/WebKit IPC endpoints no longer produce socket-open error 102 and remaining ordinary files are measured. Genuine installation/capacity/permission coverage warnings remain visible. No tests run.
+- **Batch:** P22.45 only.
+- **Commit:** `P22.45: skip ipc endpoints during storage scans`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

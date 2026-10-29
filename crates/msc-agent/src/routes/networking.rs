@@ -90,6 +90,19 @@ fn read_broadcast_auth(path: &Path) -> Result<Option<Vec<u8>>, String> {
     Ok(Some(bytes))
 }
 
+fn has_broadcast_auth(servers: &[ConfigServer]) -> bool {
+    read_broadcast_auth(&broadcast_auth_file())
+        .ok()
+        .flatten()
+        .is_some()
+        || servers.iter().any(|server| {
+            read_broadcast_auth(&server_broadcast_auth_file(server))
+                .ok()
+                .flatten()
+                .is_some()
+        })
+}
+
 fn broadcast_auth_identity(bytes: &[u8]) -> Option<String> {
     let json: serde_json::Value = serde_json::from_slice(bytes).ok()?;
     json.get("xboxUserProfile")?
@@ -1777,22 +1790,14 @@ pub async fn broadcast_status(State(state): State<NetworkingState>) -> Response 
             let authenticated =
                 status.gamertag.is_some() || status.snapshot.status == HelperStatus::Running;
             let is_bedrock = server.server_type == ServerType::Bedrock;
-            let configured_gamertag = state
-                .lifecycle
-                .app_config_snapshot()
-                .xbox_broadcast_alt_gamertag;
+            let config = state.lifecycle.app_config_snapshot();
+            let has_saved_auth = has_broadcast_auth(&config.servers);
+            let configured_gamertag = config.xbox_broadcast_alt_gamertag;
             Json(BroadcastStatusDto {
                 xbox_broadcast_running: running && !is_bedrock,
                 bedrock_broadcast_running: running && is_bedrock,
                 authenticated,
-                has_saved_auth: read_broadcast_auth(&broadcast_auth_file())
-                    .ok()
-                    .flatten()
-                    .is_some()
-                    || read_broadcast_auth(&server_broadcast_auth_file(&server))
-                        .ok()
-                        .flatten()
-                        .is_some(),
+                has_saved_auth,
                 gamertag: status
                     .gamertag
                     .or(configured_gamertag.filter(|_| authenticated)),

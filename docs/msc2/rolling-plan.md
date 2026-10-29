@@ -356,6 +356,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.37 only.
 - **Commit:** `P22.37: align initiate connection summary`
 
+### P22.38 — Detect Broadcast sign-in saved by another server
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/routes/networking.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Make Broadcast status report host sign-in as available when its cache is still stored under another server directory. This matches the existing migration behavior that copies a prior server's cache into the host-wide and newly selected server paths before launch.
+- **Verify:** With a valid Broadcast cache under an existing server directory and no host-wide cache, open Initiate for a new server with Broadcast enabled. Confirm the status reports saved sign-in and Initiate treats it as configured without asking for another setup or device code. No test command is part of this step.
+- **Batch:** P22.38 only.
+- **Commit:** `P22.38: detect saved broadcast auth across servers`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

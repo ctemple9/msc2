@@ -437,6 +437,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.46 only.
 - **Commit:** `P22.46: correct storage coverage and capacity reporting`
 
+### P22.47 — Make Storage folder and removal controls explicit
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/storage.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Label removal rows and shortcuts consistently, including Remove servers, Remove worlds, and Remove backups. Display candidate titles and empty-state feedback. Resolve server/group rows to their inventory directory for folder opening and report opener errors instead of discarding them. Keep server/world selection singular and require explicit candidate selection before review.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Storage → This computer → Servers, select a server and press o; confirm Finder opens its folder. Press t/w/b and confirm the matching Remove view appears, including a clear message for an empty backup list. Select an eligible candidate with Space and Enter to review; Esc cancels. No tests run.
+- **Batch:** P22.47 only.
+- **Commit:** `P22.47: clarify storage removal and repair folder controls`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

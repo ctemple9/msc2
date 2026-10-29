@@ -118,15 +118,12 @@ impl StorageUi {
         };
         for (key, title) in match self.path.get(1).map(String::as_str) {
             Some("servers") => vec![
-                ('t', "Remove a server…"),
-                ('w', "Remove a saved world…"),
-                ('b', "Manage backups…"),
+                ('t', "Remove servers…"),
+                ('w', "Remove worlds…"),
+                ('b', "Remove backups…"),
             ],
-            Some("cache") => vec![
-                ('m', "Review map cache removal…"),
-                ('d', "Review old downloads…"),
-            ],
-            Some("agent") => vec![('a', "Review obsolete builds…")],
+            Some("cache") => vec![('m', "Remove map cache…"), ('d', "Remove old downloads…")],
+            Some("agent") => vec![('a', "Remove obsolete builds…")],
             _ => vec![],
         } {
             rows.push((format!("@{key}"), title.into(), 0));
@@ -240,49 +237,57 @@ impl StorageUi {
             .map_or(rows.len(), |c| c.items.len());
         match key {
             KeyCode::Char('o') => {
-                if let Some((id, _, _)) = rows.get(self.selected) {
-                    if let Some(item) = self.items().into_iter().find(|item| &item.id == id) {
-                        if let Some(path) = &item.display_path {
-                            let path = std::path::PathBuf::from(path);
-                            match std::fs::symlink_metadata(&path) {
-                                Ok(metadata) if !metadata.file_type().is_symlink() => {
-                                    let folder = if metadata.is_dir() {
-                                        path.as_path()
+                let path = if let Some(candidates) = &self.candidates {
+                    candidates
+                        .items
+                        .get(self.selected)
+                        .and_then(|item| item.display_path.clone())
+                } else {
+                    rows.get(self.selected).and_then(|(id, _, _)| {
+                        let items = self.items();
+                        if let Some(item) = items.iter().find(|item| &item.id == id) {
+                            return item.display_path.clone();
+                        }
+                        // A server/group row has an aggregate ID, not a file ID.
+                        // Resolve its common directory from its inventory paths.
+                        if self
+                            .path
+                            .get(1)
+                            .is_some_and(|category| category == "servers")
+                        {
+                            let paths: Vec<_> = items
+                                .iter()
+                                .filter(|item| {
+                                    if self.path.len() == 2 {
+                                        item.server_id.as_deref().unwrap_or("unassigned") == id
+                                    } else if self.path.len() == 3 {
+                                        &item.group == id
                                     } else {
-                                        path.parent().unwrap_or(&path)
-                                    };
-                                    let program = if cfg!(target_os = "macos") {
-                                        "open"
-                                    } else if cfg!(windows) {
-                                        "explorer"
-                                    } else {
-                                        "xdg-open"
-                                    };
-                                    match tokio::process::Command::new(program)
-                                        .arg(folder)
-                                        .stdin(std::process::Stdio::null())
-                                        .stdout(std::process::Stdio::null())
-                                        .stderr(std::process::Stdio::null())
-                                        .spawn()
-                                    {
-                                        Ok(mut child) => {
-                                            tokio::spawn(async move {
-                                                let _ = child.wait().await;
-                                            });
-                                            self.message =
-                                                "Folder open requested on this computer.".into();
-                                        }
-                                        Err(error) => self.message = error.to_string(),
+                                        false
+                                    }
+                                })
+                                .filter_map(|item| item.display_path.as_ref())
+                                .collect();
+                            let mut common = std::path::PathBuf::from(paths.first()?);
+                            if !common.is_dir() {
+                                common.pop();
+                            }
+                            for path in paths {
+                                while !std::path::Path::new(path).starts_with(&common) {
+                                    if !common.pop() {
+                                        return None;
                                     }
                                 }
-                                _ => {
-                                    self.message =
-                                        "Folder unavailable or changed; refresh inventory.".into()
-                                }
                             }
+                            return Some(common.display().to_string());
                         }
-                    }
-                }
+                        None
+                    })
+                };
+                self.message = match path {
+                    Some(path) => open_folder(&path).await,
+                    None => "Select a server or a file entry to open its folder.".into(),
+                };
             }
             KeyCode::Up => self.selected = self.selected.saturating_sub(1),
             KeyCode::Down => self.selected = (self.selected + 1).min(count.saturating_sub(1)),
@@ -326,6 +331,11 @@ impl StorageUi {
                         if self.chosen.contains(&item.id) {
                             self.chosen.retain(|id| id != &item.id)
                         } else {
+                            if self.candidates.as_ref().is_some_and(|c| {
+                                matches!(c.action.as_str(), "remove-server" | "remove-world")
+                            }) {
+                                self.chosen.clear();
+                            }
                             self.chosen.push(item.id.clone());
                         }
                     }
@@ -333,7 +343,10 @@ impl StorageUi {
             }
             KeyCode::Enter if self.candidates.is_some() => {
                 if let Some(candidates) = &self.candidates {
-                    if !self.chosen.is_empty() {
+                    if self.chosen.is_empty() {
+                        self.message =
+                            "Select an eligible item with Space before reviewing removal.".into();
+                    } else {
                         let result=async {let c=SharedClient::connect_local().await?;c.post_json::<_,StorageReviewDto>("/v1/host/storage/reviews",&json!({"hostId":candidates.host_id,"category":candidates.category,"action":candidates.action,"itemIds":self.chosen})).await}.await;
                         match result {
                             Ok(r) => {
@@ -392,6 +405,15 @@ impl StorageUi {
                         if let Some(server) = self.path.get(2) {
                             c.items.retain(|i| i.server_id.as_ref() == Some(server));
                         }
+                        self.message = if c.items.is_empty() {
+                            format!(
+                                "No {} found in this scope. Esc Back.",
+                                removal_name(&c.action).trim_start_matches("Remove ")
+                            )
+                        } else {
+                            "Space selects eligible items; Enter reviews removal; Esc cancels."
+                                .into()
+                        };
                         self.candidates = Some(c);
                         self.chosen.clear();
                         self.selected = 0;
@@ -450,6 +472,10 @@ impl StorageUi {
             lines.push(format!("Type exactly: {}", review.confirmation));
             lines.push(self.confirmation.clone());
         } else if let Some(c) = &self.candidates {
+            lines.push(removal_name(&c.action).into());
+            if c.items.is_empty() {
+                lines.push("No items found in this scope. Esc Back.".into());
+            }
             for (n, item) in c.items.iter().enumerate() {
                 lines.push(format!(
                     "{} [{}] {} · {}",
@@ -510,7 +536,7 @@ impl StorageUi {
             x,
             y + h - 1,
             w,
-            "Reviews: m Maps d Downloads a Old builds t Server w World b Backups",
+            "Remove: m Map cache d Downloads a Old builds t Servers w Worlds b Backups",
             Color::DarkGrey,
         )
     }
@@ -537,5 +563,57 @@ fn size(bytes: u64) -> String {
         format!("{:.1} MiB", bytes as f64 / (1u64 << 20) as f64)
     } else {
         format!("{bytes} B")
+    }
+}
+
+fn removal_name(action: &str) -> &str {
+    match action {
+        "remove-server" => "Remove servers",
+        "remove-world" => "Remove worlds",
+        "delete-backups" => "Remove backups",
+        "map-cache" => "Remove map cache",
+        "old-downloads" => "Remove old downloads",
+        "obsolete-builds" => "Remove obsolete builds",
+        _ => "Remove items",
+    }
+}
+async fn open_folder(path: &str) -> String {
+    let path = std::path::PathBuf::from(path);
+    let metadata = match std::fs::symlink_metadata(&path) {
+        Ok(metadata) if !metadata.file_type().is_symlink() => metadata,
+        _ => return "Folder unavailable or changed; refresh inventory.".into(),
+    };
+    let folder = if metadata.is_dir() {
+        path.as_path()
+    } else {
+        let Some(parent) = path.parent() else {
+            return "Folder unavailable.".into();
+        };
+        parent
+    };
+    let program = if cfg!(target_os = "macos") {
+        "open"
+    } else if cfg!(windows) {
+        "explorer"
+    } else {
+        "xdg-open"
+    };
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        tokio::process::Command::new(program)
+            .arg(folder)
+            .stdin(std::process::Stdio::null())
+            .kill_on_drop(true)
+            .output(),
+    )
+    .await;
+    match result {
+        Ok(Ok(output)) if output.status.success() => format!("Opened {}", folder.display()),
+        Ok(Ok(output)) => format!(
+            "Could not open folder: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ),
+        Ok(Err(error)) => format!("Could not open folder: {error}"),
+        Err(_) => "Folder opener timed out. Use the displayed path on this computer.".into(),
     }
 }

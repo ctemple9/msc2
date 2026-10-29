@@ -410,6 +410,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.43 only.
 - **Commit:** `P22.43: fix storage highlight and macos directory scan errors`
 
+### P22.44 — Fix Storage rescan and expose removal rows
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/storage.rs`; `crates/msc-agent/src/cli/tui/app_settings.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Decode scan acceptance using its actual operationId response, retain the operation for polling, and display actionable review rows under Servers, Cache, and Agent. Correct Storage highlight position so the trailing character is not duplicated.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Shift+S → 3, press r and confirm scanning completes without a missing-state decode error. Open Servers and select Remove a server with Enter. Space selects eligible candidates; Enter opens the existing review and requires its exact confirmation. Esc cancels. Confirm Cache and Agent also show their applicable review rows. No tests run.
+- **Batch:** P22.44 only.
+- **Commit:** `P22.44: fix storage rescan and show removal actions`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

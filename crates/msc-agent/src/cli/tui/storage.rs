@@ -84,7 +84,7 @@ impl StorageUi {
         let items = self.items();
         let grouped = self.path.len() == 1
             || (self.path.get(1).is_some_and(|s| s == "servers") && self.path.len() < 4);
-        if grouped {
+        let mut rows = if grouped {
             let mut groups: BTreeMap<String, (String, u64)> = BTreeMap::new();
             for item in items {
                 let key = match self.path.len() {
@@ -115,7 +115,23 @@ impl StorageUi {
                 .into_iter()
                 .map(|i| (i.id.clone(), i.label.clone(), i.logical_bytes))
                 .collect()
+        };
+        for (key, title) in match self.path.get(1).map(String::as_str) {
+            Some("servers") => vec![
+                ('t', "Remove a server…"),
+                ('w', "Remove a saved world…"),
+                ('b', "Manage backups…"),
+            ],
+            Some("cache") => vec![
+                ('m', "Review map cache removal…"),
+                ('d', "Review old downloads…"),
+            ],
+            Some("agent") => vec![('a', "Review obsolete builds…")],
+            _ => vec![],
+        } {
+            rows.push((format!("@{key}"), title.into(), 0));
         }
+        rows
     }
     pub async fn poll(&mut self) {
         let Some((id, cleanup)) = self.operation.clone() else {
@@ -273,12 +289,15 @@ impl StorageUi {
             KeyCode::Char('r') => {
                 let result = async {
                     let c = SharedClient::connect_local().await?;
-                    c.post_json::<_, StorageScanDto>("/v1/host/storage/scans", &json!({}))
+                    c.post_json::<_, Value>("/v1/host/storage/scans", &json!({}))
                         .await
                 }
                 .await;
                 match result {
-                    Ok(s) => self.operation = Some((s.operation_id, false)),
+                    Ok(s) => {
+                        self.operation = s["operationId"].as_str().map(|id| (id.to_owned(), false));
+                        self.message = "Storage scan started…".into();
+                    }
                     Err(e) => self.message = e.to_string(),
                 }
             }
@@ -328,6 +347,9 @@ impl StorageUi {
             }
             KeyCode::Enter => {
                 if let Some((id, _, _)) = rows.get(self.selected) {
+                    if let Some(action) = id.strip_prefix('@').and_then(|s| s.chars().next()) {
+                        return Box::pin(self.handle(KeyCode::Char(action))).await;
+                    }
                     if self.path.len() < 2
                         || (self.path.get(1).is_some_and(|s| s == "servers") && self.path.len() < 4)
                     {
@@ -442,12 +464,16 @@ impl StorageUi {
                 ));
             }
         } else {
-            for (n, (_, name, bytes)) in self.rows().iter().enumerate() {
+            for (n, (id, name, bytes)) in self.rows().iter().enumerate() {
                 lines.push(format!(
                     "{} {:<32} {}",
                     if n == self.selected { ">" } else { " " },
                     name,
-                    size(*bytes)
+                    if id.starts_with('@') {
+                        String::new()
+                    } else {
+                        size(*bytes)
+                    }
                 ));
             }
             if self.path.len() == 1 {

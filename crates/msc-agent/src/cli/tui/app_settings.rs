@@ -622,7 +622,7 @@ impl AppSettingsUi {
         let (active_tab_x, active_tab_label, active_tab_width) = match self.tab {
             0 => (x + 2, "1 General", 9),
             1 => (x + 16, "2 Services", 10),
-            _ => (x + 30, "3 Storage", 9),
+            _ => (x + 31, "3 Storage", 9),
         };
         paint(
             out,

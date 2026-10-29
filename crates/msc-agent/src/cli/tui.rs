@@ -107,21 +107,15 @@ struct ViewState<'a> {
 async fn load() -> Result<Snapshot, CliError> {
     let service = service::local_agent_status()?;
     let (servers, active_server_id, active_server_running, connection_error) =
-        if service.report.state == ServiceState::Running {
-            match SharedClient::connect_local().await {
-                Ok(client) => match client.get_json::<Vec<ServerDto>>("/v1/servers").await {
-                    Ok(servers) => match client.get_json::<RemoteApiStatus>("/v1/status").await {
-                        Ok(status) => {
-                            (Some(servers), status.active_server_id, status.running, None)
-                        }
-                        Err(error) => (Some(servers), None, false, Some(error.to_string())),
-                    },
-                    Err(error) => (None, None, false, Some(error.to_string())),
+        match SharedClient::connect_local().await {
+            Ok(client) => match client.get_json::<Vec<ServerDto>>("/v1/servers").await {
+                Ok(servers) => match client.get_json::<RemoteApiStatus>("/v1/status").await {
+                    Ok(status) => (Some(servers), status.active_server_id, status.running, None),
+                    Err(error) => (Some(servers), None, false, Some(error.to_string())),
                 },
                 Err(error) => (None, None, false, Some(error.to_string())),
-            }
-        } else {
-            (None, None, false, None)
+            },
+            Err(error) => (None, None, false, Some(error.to_string())),
         };
     let (
         performance,
@@ -253,6 +247,10 @@ async fn selected_server_action(
     message: &mut String,
 ) -> Option<initiate::InitiateUi> {
     refresh(snapshot, message).await;
+    if let Some(error) = &snapshot.connection_error {
+        *message = format!("Cannot control the server while the agent is unavailable: {error}");
+        return None;
+    }
     let server = snapshot.active_server_id.as_deref().and_then(|id| {
         snapshot
             .servers
@@ -392,7 +390,10 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
         if !event::poll(Duration::from_millis(250)).map_err(terminal_error)? {
             if let Some(flow) = &mut initiate
                 && last_initiate_poll.elapsed() >= Duration::from_secs(1)
-                && snapshot.active_server_id.as_deref() == Some(flow.server_id())
+                && snapshot
+                    .active_server_id
+                    .as_deref()
+                    .is_none_or(|id| id == flow.server_id())
             {
                 flow.poll().await;
                 last_initiate_poll = Instant::now();
@@ -469,17 +470,10 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 initiate_hidden = true;
                 message = "Initiation hidden. Press i to resume or d to discard setup.".into();
             }
-            if let Some(broadcast) = flow.take_service_request()
-                && let Some(server) = snapshot.active_server_id.as_deref().and_then(|id| {
-                    snapshot
-                        .servers
-                        .as_ref()?
-                        .iter()
-                        .find(|server| server.id == id)
-                })
-            {
+            if let Some(broadcast) = flow.take_service_request() {
                 server_editor = Some(
-                    server_editor::ServerEditor::open_service(server.clone(), broadcast).await,
+                    server_editor::ServerEditor::open_service(flow.server().clone(), broadcast)
+                        .await,
                 );
             }
             if close {
@@ -756,7 +750,21 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
 
 async fn refresh(snapshot: &mut Snapshot, message: &mut String) {
     match load().await {
-        Ok(next) => *snapshot = next,
+        Ok(mut next) => {
+            if next.connection_error.is_some() || next.servers.is_none() {
+                // A failed API read must not erase the selected server from
+                // the screen or make an open initiation lose its server context.
+                if next.servers.is_none() {
+                    next.servers = snapshot.servers.take();
+                }
+                next.active_server_id = snapshot.active_server_id.take();
+                next.active_server_running = snapshot.active_server_running;
+                if next.connection_error.is_none() {
+                    next.connection_error = Some("Agent service is unavailable.".into());
+                }
+            }
+            *snapshot = next;
+        }
         Err(error) => *message = error.to_string(),
     }
 }
@@ -862,7 +870,7 @@ fn draw(
         8,
         18,
         action,
-        if server.is_some() {
+        if server.is_some() && snapshot.connection_error.is_none() {
             Color::White
         } else {
             Color::DarkGrey
@@ -940,7 +948,9 @@ fn draw(
         Some(false) => "No",
         None => "Unavailable",
     };
-    let connection = if snapshot.servers.is_some() {
+    let connection = if snapshot.connection_error.is_some() {
+        "Reconnecting"
+    } else if snapshot.servers.is_some() {
         "Connected"
     } else if snapshot.service.report.state == ServiceState::Running {
         "Unavailable"
@@ -1207,7 +1217,7 @@ fn draw_workspace(
         8,
         18,
         action,
-        if server.is_some() {
+        if server.is_some() && snapshot.connection_error.is_none() {
             Color::White
         } else {
             Color::DarkGrey
@@ -1727,7 +1737,9 @@ fn draw_workspace(
         main_w,
         &format!(
             "Console  {}",
-            if server.is_none() {
+            if snapshot.connection_error.is_some() {
+                "Reconnecting"
+            } else if server.is_none() {
                 "No server"
             } else if snapshot.active_server_running {
                 "Running"
@@ -1745,7 +1757,18 @@ fn draw_workspace(
         &"─".repeat(main_w as usize),
         Color::DarkGrey,
     )?;
-    paint(out, main_x, height - 3, main_w, message, Color::DarkGrey)?;
+    paint(
+        out,
+        main_x,
+        height - 3,
+        main_w,
+        if message.is_empty() {
+            snapshot.connection_error.as_deref().unwrap_or("")
+        } else {
+            message
+        },
+        Color::DarkGrey,
+    )?;
     paint(
         out,
         main_x,

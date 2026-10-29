@@ -68,6 +68,10 @@ impl InitiateUi {
         &self.server.id
     }
 
+    pub(super) fn server(&self) -> &ServerDto {
+        &self.server
+    }
+
     pub(super) fn take_hide_request(&mut self) -> bool {
         std::mem::take(&mut self.hide_requested)
     }

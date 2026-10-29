@@ -284,6 +284,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.29 only.
 - **Commit:** `P22.29: connect server sidebar and hidden initiation`
 
+### P22.30 — Keep initiation attached during a transient agent status loss
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/initiate.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Read the agent API even when the service manager briefly reports the service stopped. Keep the last selected server visible across a failed API read, mark the connection as reconnecting, and refuse ordinary server actions until the API responds. Let the initiation poll continue while its server remains selected, and open Playit or Xbox Broadcast setup from the initiation's own server record instead of a transiently empty screen snapshot. Host inspection during the reported failure found the launchd agent process still running and the server selected in saved configuration; the TUI had lost its read, not the server data.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, initiate a new server with Playit or Xbox Broadcast enabled, and press Enter on the enabled connection after pass one. Confirm its setup view opens. If the agent connection briefly drops, confirm the selected server name remains visible with a reconnecting state and the setup view remains reachable after reconnection. No test command is part of this step.
+- **Batch:** P22.30 only.
+- **Commit:** `P22.30: retain initiation context across agent status loss`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

@@ -43,6 +43,7 @@ pub(super) struct InitiateUi {
     safety_cap: bool,
     ordinary_start: bool,
     hide_requested: bool,
+    pass_two_stop_requested: bool,
 }
 
 impl InitiateUi {
@@ -63,6 +64,7 @@ impl InitiateUi {
             safety_cap: false,
             ordinary_start: false,
             hide_requested: false,
+            pass_two_stop_requested: false,
         }
     }
 
@@ -122,6 +124,9 @@ impl InitiateUi {
     async fn start_pass(&mut self, phase: Phase) {
         let result = async {
             let client = SharedClient::connect_local().await?;
+            if phase == Phase::PassTwo && self.server.playit_enabled == Some(true) {
+                let _: Value = client.post_json("/v1/playit/start", &json!({})).await?;
+            }
             client
                 .post_json::<_, SimpleResultDto>("/v1/start", &json!({}))
                 .await
@@ -245,6 +250,43 @@ impl InitiateUi {
         };
         if let Some(line) = &operation.status_line {
             self.status = line.clone();
+        }
+        if self.phase == Phase::PassTwo
+            && !self.pass_two_stop_requested
+            && operation
+                .status_line
+                .as_deref()
+                .is_some_and(|line| line.to_ascii_lowercase().contains("ready"))
+        {
+            self.refresh_connections().await;
+            let playit_ready = self.server.playit_enabled != Some(true)
+                || self.playit.as_ref().is_some_and(|status| {
+                    status.is_running
+                        && if self.server.server_type == "bedrock" {
+                            status.bedrock_address.is_some()
+                        } else {
+                            status.java_address.is_some()
+                        }
+                });
+            let broadcast_ready = self.server.xbox_broadcast_enabled != Some(true)
+                || self.broadcast.as_ref().is_some_and(|status| {
+                    status.authenticated
+                        && (status.xbox_broadcast_running || status.bedrock_broadcast_running)
+                });
+            if playit_ready && broadcast_ready {
+                match client
+                    .post_json::<_, SimpleResultDto>("/v1/stop", &json!({}))
+                    .await
+                {
+                    Ok(_) => {
+                        self.pass_two_stop_requested = true;
+                        self.phase = Phase::WaitFinalStop;
+                        self.status = "Connections are ready. Stopping the server…".into();
+                        return;
+                    }
+                    Err(error) => self.status = error.to_string(),
+                }
+            }
         }
         match operation.state {
             OperationStateDto::Failed | OperationStateDto::Cancelled => {

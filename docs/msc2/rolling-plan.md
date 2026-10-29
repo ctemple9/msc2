@@ -329,6 +329,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.34 only.
 - **Commit:** `P22.34: finish initiate connection summary`
 
+### P22.35 — Stop the second initiate pass when connections are ready
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/initiate.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Start the configured Playit helper for pass two, then have the TUI check the server's ready status and enabled helper addresses/authentication. Request a server stop once the required connections are ready, matching the renderer's initiate flow so the completion sheet appears without waiting for the safety cap.
+- **Verify:** Run `cargo run -p msc-agent -- tui` and initiate a Java server with Playit and Xbox Broadcast enabled. Confirm pass two starts the required helper, then stops the server after the server and enabled connections report ready and shows the completion sheet. Also verify a disabled helper does not block the stop. No test command is part of this step.
+- **Batch:** P22.35 only.
+- **Commit:** `P22.35: stop initiate pass when ready`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

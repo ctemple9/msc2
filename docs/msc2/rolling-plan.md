@@ -275,6 +275,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.28 only.
 - **Commit:** `P22.28: add tui initiate and server controls`
 
+### P22.29 — Connect the server sidebar and hidden initiation controls
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/initiate.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Replace the Agents page's “Start soon” label with the selected server's Initiate, Start, or Stop action and bind `s` to it on both the Agents and server pages. Keep agent service start/stop on its own selectable action. Esc hides an unfinished initiation without dropping its in-session progress; the sidebar then offers `i` to resume and `d` to discard. Discard stops a running server before calling the agent's first-start discard route, which keeps generated world data. Continue polling a hidden flow only while its server is selected.
+- **Verify:** Run `cargo run -p msc-agent -- tui`. On Agents, select a fresh server and confirm the sidebar says Initiate; press `s` and confirm the EULA screen opens. Press Esc, confirm Resume and Discard appear on the sidebar, then press `i` and confirm the same initiation screen returns. Hide it again and press `d`; confirm the actions disappear and the existing world remains. For a server that has finished initiation, confirm the sidebar says Start when stopped and Stop when running, and `s` performs each action. No test command is part of this step.
+- **Batch:** P22.29 only.
+- **Commit:** `P22.29: connect server sidebar and hidden initiation`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

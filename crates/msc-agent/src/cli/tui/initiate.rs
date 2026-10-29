@@ -41,6 +41,7 @@ pub(super) struct InitiateUi {
     console: Vec<ConsoleLine>,
     safety_cap: bool,
     ordinary_start: bool,
+    hide_requested: bool,
 }
 
 impl InitiateUi {
@@ -59,7 +60,16 @@ impl InitiateUi {
             console: Vec::new(),
             safety_cap: false,
             ordinary_start: false,
+            hide_requested: false,
         }
+    }
+
+    pub(super) fn server_id(&self) -> &str {
+        &self.server.id
+    }
+
+    pub(super) fn take_hide_request(&mut self) -> bool {
+        std::mem::take(&mut self.hide_requested)
     }
 
     pub(super) fn take_service_request(&mut self) -> Option<bool> {
@@ -335,9 +345,23 @@ impl InitiateUi {
     }
 
     pub(super) async fn handle(&mut self, key: KeyCode) -> bool {
+        if key == KeyCode::Esc
+            && matches!(
+                self.phase,
+                Phase::Prepare
+                    | Phase::PassOne
+                    | Phase::WaitFirstStop
+                    | Phase::Connections
+                    | Phase::PassTwo
+                    | Phase::WaitFinalStop
+                    | Phase::Failed
+            )
+        {
+            self.hide_requested = true;
+            return false;
+        }
         match self.phase {
             Phase::Prepare => match key {
-                KeyCode::Esc => return true,
                 KeyCode::Char(' ') if self.server.server_type == "java" => {
                     self.eula_accepted = !self.eula_accepted
                 }
@@ -377,11 +401,7 @@ impl InitiateUi {
                     return true;
                 }
             }
-            Phase::Failed => {
-                if matches!(key, KeyCode::Esc) {
-                    return true;
-                }
-            }
+            Phase::Failed => {}
             _ => {}
         }
         false
@@ -550,7 +570,7 @@ impl InitiateUi {
                     x + 2,
                     y + 17,
                     w - 4,
-                    "Enter Set up/Manage  d Defer selected  c Continue  r Refresh",
+                    "Enter Set up/Manage  d Defer selected  c Continue  Esc Hide",
                     Color::DarkGrey,
                 )?;
                 paint(out, x + 2, y + 15, w - 4, &self.status, Color::DarkGrey)?;

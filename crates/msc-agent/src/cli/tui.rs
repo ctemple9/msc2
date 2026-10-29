@@ -101,6 +101,7 @@ struct ViewState<'a> {
     wizard: Option<&'a create::Wizard>,
     server_editor: Option<&'a server_editor::ServerEditor>,
     initiate: Option<&'a initiate::InitiateUi>,
+    initiate_hidden: bool,
 }
 
 async fn load() -> Result<Snapshot, CliError> {
@@ -247,6 +248,82 @@ async fn server_lifecycle_action(path: &str) -> Result<SimpleResultDto, CliError
     client.post_json(path, &serde_json::json!({})).await
 }
 
+async fn selected_server_action(
+    snapshot: &mut Snapshot,
+    message: &mut String,
+) -> Option<initiate::InitiateUi> {
+    refresh(snapshot, message).await;
+    let server = snapshot.active_server_id.as_deref().and_then(|id| {
+        snapshot
+            .servers
+            .as_ref()?
+            .iter()
+            .find(|server| server.id == id)
+    });
+    let Some(server) = server else {
+        *message = "Select a server in Manage first.".into();
+        return None;
+    };
+    if snapshot.active_server_running {
+        *message = match server_lifecycle_action("/v1/stop").await {
+            Ok(_) => "Stop requested. Waiting for the server to shut down.".into(),
+            Err(error) => error.to_string(),
+        };
+    } else if server.first_start_required == Some(true) {
+        return Some(initiate::InitiateUi::new(server.clone()));
+    } else {
+        *message = match server_lifecycle_action("/v1/start").await {
+            Ok(_) => "Start requested. Watch the server status and console.".into(),
+            Err(error) => error.to_string(),
+        };
+    }
+    refresh(snapshot, message).await;
+    None
+}
+
+async fn discard_hidden_initiation(server_id: &str) -> Result<(), String> {
+    let client = SharedClient::connect_local()
+        .await
+        .map_err(|e| e.to_string())?;
+    let status: RemoteApiStatus = client
+        .get_json("/v1/status")
+        .await
+        .map_err(|e| e.to_string())?;
+    if status.running {
+        if status.active_server_id.as_deref() != Some(server_id) {
+            return Err("Select the server with the hidden setup before discarding it.".into());
+        }
+        server_lifecycle_action("/v1/stop")
+            .await
+            .map_err(|e| e.to_string())?;
+        for _ in 0..60 {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            let current: RemoteApiStatus = client
+                .get_json("/v1/status")
+                .await
+                .map_err(|e| e.to_string())?;
+            if !current.running {
+                break;
+            }
+        }
+    }
+    let current: RemoteApiStatus = client
+        .get_json("/v1/status")
+        .await
+        .map_err(|e| e.to_string())?;
+    if current.running {
+        return Err("The server is still stopping. Try again when it stops.".into());
+    }
+    let _: SimpleResultDto = client
+        .post_json(
+            "/v1/first-start/discard",
+            &serde_json::json!({"serverId": server_id}),
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     if common.json {
         return Err(CliError::usage(
@@ -280,6 +357,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     let mut wizard: Option<create::Wizard> = None;
     let mut server_editor: Option<server_editor::ServerEditor> = None;
     let mut initiate: Option<initiate::InitiateUi> = None;
+    let mut initiate_hidden = false;
     let mut message = String::new();
     let mut confirm_stop = false;
     let mut last_refresh = Instant::now();
@@ -307,12 +385,14 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 wizard: wizard.as_ref(),
                 server_editor: server_editor.as_ref(),
                 initiate: initiate.as_ref(),
+                initiate_hidden,
             },
         )
         .map_err(terminal_error)?;
         if !event::poll(Duration::from_millis(250)).map_err(terminal_error)? {
             if let Some(flow) = &mut initiate
                 && last_initiate_poll.elapsed() >= Duration::from_secs(1)
+                && snapshot.active_server_id.as_deref() == Some(flow.server_id())
             {
                 flow.poll().await;
                 last_initiate_poll = Instant::now();
@@ -381,8 +461,14 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             }
             continue;
         }
-        if let Some(flow) = &mut initiate {
+        if let Some(flow) = &mut initiate
+            && !initiate_hidden
+        {
             let close = flow.handle(key.code).await;
+            if flow.take_hide_request() {
+                initiate_hidden = true;
+                message = "Initiation hidden. Press i to resume or d to discard setup.".into();
+            }
             if let Some(broadcast) = flow.take_service_request()
                 && let Some(server) = snapshot.active_server_id.as_deref().and_then(|id| {
                     snapshot
@@ -398,9 +484,42 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             }
             if close {
                 initiate = None;
+                initiate_hidden = false;
                 refresh(&mut snapshot, &mut message).await;
             }
             continue;
+        }
+        if initiate_hidden
+            && initiate
+                .as_ref()
+                .is_some_and(|flow| snapshot.active_server_id.as_deref() == Some(flow.server_id()))
+        {
+            match key.code {
+                KeyCode::Char('i') => {
+                    initiate_hidden = false;
+                    workspace_open = true;
+                    continue;
+                }
+                KeyCode::Char('d') => {
+                    let id = initiate
+                        .as_ref()
+                        .expect("hidden initiation exists")
+                        .server_id()
+                        .to_string();
+                    match discard_hidden_initiation(&id).await {
+                        Ok(()) => {
+                            initiate = None;
+                            initiate_hidden = false;
+                            refresh(&mut snapshot, &mut message).await;
+                            message =
+                                "Setup progress discarded. The existing world was kept.".into();
+                        }
+                        Err(error) => message = format!("Could not discard setup: {error}"),
+                    }
+                    continue;
+                }
+                _ => {}
+            }
         }
         if manage_open {
             let server_count = snapshot.servers.as_ref().map_or(0, Vec::len);
@@ -495,31 +614,18 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 continue;
             }
             if key.code == KeyCode::Char('s') {
-                refresh(&mut snapshot, &mut message).await;
-                if let Some(server) = snapshot.active_server_id.as_deref().and_then(|id| {
-                    snapshot
-                        .servers
-                        .as_ref()?
-                        .iter()
-                        .find(|server| server.id == id)
-                }) {
-                    if snapshot.active_server_running {
-                        message = match server_lifecycle_action("/v1/stop").await {
-                            Ok(_) => "Stop requested. Waiting for the server to shut down.".into(),
-                            Err(error) => error.to_string(),
-                        };
-                        refresh(&mut snapshot, &mut message).await;
-                    } else if server.first_start_required == Some(true) {
-                        initiate = Some(initiate::InitiateUi::new(server.clone()));
-                    } else {
-                        message = match server_lifecycle_action("/v1/start").await {
-                            Ok(_) => "Start requested. Watch the server status and console.".into(),
-                            Err(error) => error.to_string(),
-                        };
-                        refresh(&mut snapshot, &mut message).await;
-                    }
-                } else {
-                    message = "Select a server in Manage first.".into();
+                if initiate_hidden
+                    && !snapshot.active_server_running
+                    && initiate.as_ref().is_some_and(|flow| {
+                        snapshot.active_server_id.as_deref() == Some(flow.server_id())
+                    })
+                {
+                    message = "Setup is hidden. Press i to resume or d to discard it.".into();
+                    continue;
+                }
+                if let Some(flow) = selected_server_action(&mut snapshot, &mut message).await {
+                    initiate = Some(flow);
+                    initiate_hidden = false;
                 }
                 continue;
             }
@@ -563,7 +669,22 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                         .into();
                 }
             }
-            KeyCode::Char('s') => selected = 2,
+            KeyCode::Char('s') => {
+                if initiate_hidden
+                    && !snapshot.active_server_running
+                    && initiate.as_ref().is_some_and(|flow| {
+                        snapshot.active_server_id.as_deref() == Some(flow.server_id())
+                    })
+                {
+                    message = "Setup is hidden. Press i to resume or d to discard it.".into();
+                    continue;
+                }
+                if let Some(flow) = selected_server_action(&mut snapshot, &mut message).await {
+                    initiate = Some(flow);
+                    initiate_hidden = false;
+                    workspace_open = true;
+                }
+            }
             KeyCode::Char('e') => selected = 3,
             KeyCode::Char('r') => selected = 4,
             KeyCode::Char('R') => {
@@ -692,6 +813,7 @@ fn draw(
             view.settings,
             view.files,
             view.message,
+            view.initiate.filter(|_| view.initiate_hidden),
             width,
             height,
         )?;
@@ -710,7 +832,7 @@ fn draw(
         }
         if let Some(editor) = view.server_editor {
             editor.draw(out, width, height)?;
-        } else if let Some(initiate) = view.initiate {
+        } else if let Some(initiate) = view.initiate.filter(|_| !view.initiate_hidden) {
             initiate.draw(out, width, height)?;
         }
         return out.flush();
@@ -720,7 +842,32 @@ fn draw(
     }
     paint(out, 2, 3, 18, "CURRENT HOST", Color::DarkGrey)?;
     paint(out, 2, 5, 18, host_name, Color::White)?;
-    paint(out, 2, 8, 18, "Start       soon", Color::DarkGrey)?;
+    let server = snapshot.active_server_id.as_deref().and_then(|id| {
+        snapshot
+            .servers
+            .as_ref()?
+            .iter()
+            .find(|server| server.id == id)
+    });
+    let action = if snapshot.active_server_running {
+        "Stop           s"
+    } else if server.is_some_and(|server| server.first_start_required == Some(true)) {
+        "Initiate       s"
+    } else {
+        "Start          s"
+    };
+    paint(
+        out,
+        2,
+        8,
+        18,
+        action,
+        if server.is_some() {
+            Color::White
+        } else {
+            Color::DarkGrey
+        },
+    )?;
     paint(out, 2, 10, 18, "Manage         m", Color::White)?;
     paint(out, 2, 12, 18, "Agents         a", Color::Green)?;
     paint(out, 2, 16, 18, "SELECTED SERVER", Color::DarkGrey)?;
@@ -737,6 +884,14 @@ fn draw(
         .map(|server| server.name.as_str())
         .unwrap_or("No server selected");
     paint(out, 2, 18, 18, selected_server, Color::White)?;
+    if view.initiate_hidden
+        && view
+            .initiate
+            .is_some_and(|flow| snapshot.active_server_id.as_deref() == Some(flow.server_id()))
+    {
+        paint(out, 2, 20, 18, "Resume init.   i", Color::Green)?;
+        paint(out, 2, 21, 18, "Discard setup  d", Color::White)?;
+    }
 
     let main_x = 24;
     let main_w = width - main_x - 2;
@@ -827,7 +982,7 @@ fn draw(
             } else {
                 "Start agent service"
             },
-            "s",
+            "Enter",
             true,
         ),
         (
@@ -987,7 +1142,7 @@ fn draw(
         main_x,
         height - 1,
         main_w,
-        "↑↓ Move   Enter Select   s/e/r Action   m Servers   Esc/q Quit",
+        "↑↓ Move   Enter Select   s Server   m Servers   e/r Agent action   Esc/q Quit",
         Color::DarkGrey,
     )?;
     if view.manage_open {
@@ -1016,6 +1171,7 @@ fn draw_workspace(
     settings_ui: &settings::SettingsUi,
     files_ui: &files::FilesUi,
     message: &str,
+    hidden_initiate: Option<&initiate::InitiateUi>,
     width: u16,
     height: u16,
 ) -> io::Result<()> {
@@ -1059,6 +1215,12 @@ fn draw_workspace(
     )?;
     paint(out, 2, 10, 18, "Manage         m", Color::White)?;
     paint(out, 2, 12, 18, "Agents         a", Color::White)?;
+    if hidden_initiate
+        .is_some_and(|flow| snapshot.active_server_id.as_deref() == Some(flow.server_id()))
+    {
+        paint(out, 2, 16, 18, "Resume init.   i", Color::Green)?;
+        paint(out, 2, 17, 18, "Discard setup  d", Color::White)?;
+    }
 
     let main_x = 24;
     let main_w = width - main_x - 2;

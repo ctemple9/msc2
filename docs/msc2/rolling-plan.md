@@ -428,6 +428,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.45 only.
 - **Commit:** `P22.45: skip ipc endpoints during storage scans`
 
+### P22.46 — Correct storage discovery coverage and service capacity
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/routes/storage/inventory.rs`; `crates/msc-infrastructure/src/storage/capacity.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Replace the preliminary desktop-not-inspected sentinel after successful native discovery while retaining actual native findings and failures. Fall back to filesystem available blocks when macOS important-usage capacity is unavailable or zero in a background service. This remains a dated availability observation, not reclaimable space.
+- **Verify:** Install the prepared rebuilt app and Repair agent, then refresh TUI Storage. Confirm the redundant not-inspected warning is gone, filesystem capacity appears, and any actual source or discovery errors remain visible. No tests run.
+- **Batch:** P22.46 only.
+- **Commit:** `P22.46: correct storage coverage and capacity reporting`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

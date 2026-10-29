@@ -90,6 +90,14 @@ pub(super) fn discover(lifecycle: &LifecycleRoutesState, host: &str) -> Result<M
             option_env!("MSC2_RELEASE_PUBLIC_KEY_HEX"),
         ) {
             Ok(found) => {
+                // Native discovery supersedes the preliminary inventory's
+                // explicit not-yet-inspected placeholder. Keep actual findings.
+                ownership.entries.retain(|entry| {
+                    !(entry.kind == uninstall::EntryKind::Installation
+                        && entry.path.is_none()
+                        && entry.identity == "Desktop/package inspection"
+                        && entry.evidence == "Local native inspection required")
+                });
                 for installation in found.installations {
                     if let native::Installation::MacBundle { path } = installation {
                         desktop.push(path);

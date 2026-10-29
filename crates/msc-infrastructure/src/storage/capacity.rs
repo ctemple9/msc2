@@ -8,16 +8,13 @@ pub fn available_space(path: &Path) -> io::Result<u64> {
 
 #[cfg(target_os = "macos")]
 pub fn available_space(path: &Path) -> io::Result<u64> {
-    let available = macos_available_space(path)?;
-    // A service may receive a successful zero from the reclaimable-capacity
-    // service even when the filesystem has free blocks. That is unavailable
-    // information, not evidence of a full disk.
-    if available == 0 && fs2::available_space(path)? > 0 {
-        return Err(io::Error::other(
-            "macOS available capacity returned zero despite free space",
-        ));
+    // Important-usage capacity can be unavailable or spuriously zero in a
+    // background service. Filesystem free blocks remain a valid, conservative
+    // availability sample; neither value is a promise of reclaimable space.
+    match macos_available_space(path) {
+        Ok(available) if available > 0 => Ok(available),
+        _ => fs2::available_space(path),
     }
-    Ok(available)
 }
 
 #[cfg(target_os = "macos")]

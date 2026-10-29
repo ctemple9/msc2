@@ -338,6 +338,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.35 only.
 - **Commit:** `P22.35: stop initiate pass when ready`
 
+### P22.36 — Reuse saved Broadcast sign-in during Initiate
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/initiate.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Treat host-saved Xbox Broadcast credentials as configured in Initiate, label them as host-configured, and prevent Enter from reopening helper setup when no sign-in is needed.
+- **Verify:** On a host with saved Broadcast credentials, open Initiate for a server with Broadcast enabled. Confirm the connection row says it is configured on this host, Enter does not open another setup view or request a code, and the flow continues to pass two. On a host without saved credentials, confirm setup remains available. No test command is part of this step.
+- **Batch:** P22.36 only.
+- **Commit:** `P22.36: reuse saved broadcast sign-in in initiate`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

@@ -388,7 +388,10 @@ impl InitiateUi {
     }
 
     fn open_service(&mut self, broadcast: bool) {
-        if broadcast && !self.playit_ready() {
+        if broadcast && self.broadcast_ready() {
+            self.error.clear();
+            self.status = "Xbox Broadcast is already configured on this host.".into();
+        } else if broadcast && !self.playit_ready() {
             self.error = "Finish or defer Playit before setting up Xbox Broadcast.".into();
         } else {
             self.error.clear();
@@ -589,7 +592,7 @@ impl InitiateUi {
                 let broadcast = if self.server.xbox_broadcast_enabled != Some(true) {
                     "Deferred"
                 } else if self.broadcast_ready() {
-                    "Signed in"
+                    "Configured on this host"
                 } else {
                     "Setup required"
                 };

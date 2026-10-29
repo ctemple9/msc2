@@ -1433,7 +1433,7 @@ impl ServerEditor {
             let title = if detail == ServiceDetail::Broadcast {
                 "XBOX BROADCAST"
             } else {
-                "PLAYIT"
+                "PLAYIT.GG"
             };
             paint(out, x + 2, y + 5, w - 4, title, Color::White)?;
             if detail == ServiceDetail::Broadcast {

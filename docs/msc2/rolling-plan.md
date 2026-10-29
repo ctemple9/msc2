@@ -311,6 +311,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.32 only.
 - **Commit:** `P22.32: link xbox broadcast sign-in in tui`
 
+### P22.33 — Correct the Playit service heading
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/server_editor.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Label the Playit service detail view “PLAYIT.GG” so its heading uses the service's proper name.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Manage Server → Services → Playit.gg, and confirm the heading reads “PLAYIT.GG”. No test command is part of this step.
+- **Batch:** P22.33 only.
+- **Commit:** `P22.33: correct playit service heading`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

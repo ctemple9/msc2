@@ -293,6 +293,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.30 only.
 - **Commit:** `P22.30: retain initiation context across agent status loss`
 
+### P22.31 — Reuse local CLI credentials during Playit setup
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/transport.rs`; `crates/msc-agent/src/cli/tui/server_editor.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Cache the OS-authorized local CLI credential in process memory for four minutes, below the agent's five-minute lifetime, instead of issuing a new credential for every TUI poll and API read. On an unauthorized response after an agent restart, renew once and retry the request. Show Playit submission errors inside the setup form so they are not hidden behind the sheet. This addresses the observed 128-live-credential cap that prevented the Playit request from being sent; no account password is cached by the transport.
+- **Verify:** After existing temporary credentials expire, run `cargo run -p msc-agent -- tui`, open Playit setup for an enabled server, enter the account details, and submit. Confirm the form advances to setup progress or shows a specific error inside the sheet instead of appearing stuck with the CLI credential-limit message in the background. Leave the TUI open for several minutes and confirm its agent connection remains usable. No test command is part of this step.
+- **Batch:** P22.31 only.
+- **Commit:** `P22.31: reuse cli credentials for tui polling`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

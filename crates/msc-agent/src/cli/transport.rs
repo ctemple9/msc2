@@ -8,7 +8,8 @@
 use std::io;
 #[cfg(any(target_os = "linux", target_os = "macos", test))]
 use std::path::PathBuf;
-use std::time::Duration;
+use std::sync::OnceLock;
+use std::time::{Duration, Instant};
 
 use axum::http::{Method, StatusCode, Uri};
 use serde::de::DeserializeOwned;
@@ -24,6 +25,33 @@ use crate::cli::CliError;
 const LOCAL_API_BASE_URL: &str = "http://127.0.0.1:48001";
 const LOCAL_RESPONSE_LIMIT: usize = 1024;
 const LOCAL_EXCHANGE_TIMEOUT: Duration = Duration::from_secs(2);
+const CACHED_CREDENTIAL_LIFETIME: Duration = Duration::from_secs(4 * 60);
+
+struct CachedCredential {
+    token: String,
+    issued_at: Instant,
+}
+
+fn credential_cache() -> &'static tokio::sync::Mutex<Option<CachedCredential>> {
+    static CACHE: OnceLock<tokio::sync::Mutex<Option<CachedCredential>>> = OnceLock::new();
+    CACHE.get_or_init(|| tokio::sync::Mutex::new(None))
+}
+
+async fn cached_local_cli_token(rejected_token: Option<&str>) -> Result<String, CliError> {
+    let mut cache = credential_cache().lock().await;
+    if let Some(current) = cache.as_ref()
+        && current.issued_at.elapsed() < CACHED_CREDENTIAL_LIFETIME
+        && rejected_token != Some(current.token.as_str())
+    {
+        return Ok(current.token.clone());
+    }
+    let token = acquire_local_cli_token().await?;
+    *cache = Some(CachedCredential {
+        token: token.clone(),
+        issued_at: Instant::now(),
+    });
+    Ok(token)
+}
 
 #[derive(Deserialize)]
 struct LocalCliExchangeResponse {
@@ -42,7 +70,7 @@ impl SharedClient {
     pub(crate) async fn connect_local() -> Result<Self, CliError> {
         Ok(Self {
             base_url: LOCAL_API_BASE_URL.to_string(),
-            token: acquire_local_cli_token().await?,
+            token: cached_local_cli_token(None).await?,
         })
     }
 
@@ -134,17 +162,40 @@ impl SharedClient {
             .map_err(|err| CliError::internal(format!(
                 "the local agent API at {host}:{port} is unavailable; confirm the agent is installed and running: {err}"
             )))?;
-        let response = send_http_request(
+        let mut response = send_http_request(
             stream,
             &method,
             authority.as_str(),
             &target,
             &self.token,
-            body.map(|body| (content_type, body)),
+            body.clone().map(|body| (content_type, body)),
             response_timeout,
         )
         .await
         .map_err(CliError::internal)?;
+        if response.status == StatusCode::UNAUTHORIZED.as_u16() {
+            // The agent may have restarted and forgotten the cached token.
+            // Authentication rejects the request before any POST can run.
+            let token = cached_local_cli_token(Some(&self.token)).await?;
+            let retry_stream = tokio::net::TcpStream::connect((host.as_str(), port))
+                .await
+                .map_err(|err| {
+                    CliError::internal(format!(
+                        "the local agent API at {host}:{port} is unavailable: {err}"
+                    ))
+                })?;
+            response = send_http_request(
+                retry_stream,
+                &method,
+                authority.as_str(),
+                &target,
+                &token,
+                body.map(|body| (content_type, body)),
+                response_timeout,
+            )
+            .await
+            .map_err(CliError::internal)?;
+        }
         let status = StatusCode::from_u16(response.status)
             .map_err(|err| CliError::internal(format!("response status was invalid: {err}")))?;
 

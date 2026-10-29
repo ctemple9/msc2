@@ -55,6 +55,7 @@ enum PlayitView {
         email: String,
         password: String,
         field: usize,
+        error: String,
     },
     Running {
         operation_id: String,
@@ -516,6 +517,7 @@ impl ServerEditor {
                             email: String::new(),
                             password: String::new(),
                             field: 0,
+                            error: String::new(),
                         }
                     };
                 }
@@ -574,13 +576,16 @@ impl ServerEditor {
 
     async fn submit_playit_setup(&mut self, message: &mut String) {
         let PlayitView::Form {
-            email, password, ..
+            email,
+            password,
+            error,
+            ..
         } = &mut self.playit_view
         else {
             return;
         };
         if email.trim().is_empty() || password.is_empty() {
-            *message = "Enter both Playit email and password.".into();
+            *error = "Enter both Playit email and password.".into();
             return;
         }
         let body = json!({"email":email.trim(), "password":password, "accountOnly":false});
@@ -598,9 +603,9 @@ impl ServerEditor {
                     };
                     *message = "Playit setup started.".into();
                 }
-                Err(error) => *message = error.to_string(),
+                Err(reason) => *error = reason.to_string(),
             },
-            Err(error) => *message = error.to_string(),
+            Err(reason) => *error = reason.to_string(),
         }
     }
 
@@ -667,11 +672,13 @@ impl ServerEditor {
                 email,
                 password,
                 field,
+                error,
             } => match key {
                 KeyCode::Esc => self.playit_view = PlayitView::None,
                 KeyCode::Tab | KeyCode::Down => *field = (*field + 1).min(2),
                 KeyCode::BackTab | KeyCode::Up => *field = field.saturating_sub(1),
                 KeyCode::Backspace => {
+                    error.clear();
                     if *field == 0 {
                         email.pop();
                     } else if *field == 1 {
@@ -679,6 +686,7 @@ impl ServerEditor {
                     }
                 }
                 KeyCode::Char(c) if !c.is_control() => {
+                    error.clear();
                     if *field == 0 {
                         email.push(c);
                     } else if *field == 1 {
@@ -706,6 +714,7 @@ impl ServerEditor {
                         email: String::new(),
                         password: String::new(),
                         field: 0,
+                        error: String::new(),
                     }
                 }
                 _ => {}
@@ -1663,6 +1672,7 @@ impl ServerEditor {
                 email,
                 password,
                 field,
+                error,
             } => {
                 paint(
                     out,
@@ -1699,6 +1709,9 @@ impl ServerEditor {
                     "Accounts requiring a second factor cannot finish in this flow yet.",
                     Color::Yellow,
                 )?;
+                if !error.is_empty() {
+                    paint(out, x + 2, y + 15, w - 4, error, Color::Yellow)?;
+                }
                 paint(
                     out,
                     x + 2,

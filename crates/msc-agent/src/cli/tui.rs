@@ -1,6 +1,7 @@
 //! Host-local terminal client. Screens delegate service changes and server
 //! reads to the existing CLI paths.
 
+mod app_settings;
 mod components;
 mod create;
 mod files;
@@ -101,6 +102,7 @@ struct ViewState<'a> {
     performance: &'a performance::PerformanceUi,
     components: &'a components::ComponentsUi,
     settings: &'a settings::SettingsUi,
+    app_settings: &'a app_settings::AppSettingsUi,
     files: &'a files::FilesUi,
     wizard: Option<&'a create::Wizard>,
     server_editor: Option<&'a server_editor::ServerEditor>,
@@ -369,6 +371,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     let mut performance_ui = performance::PerformanceUi::default();
     let mut components_ui = components::ComponentsUi::default();
     let mut settings_ui = settings::SettingsUi::default();
+    let mut app_settings_ui = app_settings::AppSettingsUi::default();
     let mut files_ui = files::FilesUi::default();
     let mut wizard: Option<create::Wizard> = None;
     let mut server_editor: Option<server_editor::ServerEditor> = None;
@@ -381,6 +384,9 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     let mut last_initiate_poll = Instant::now();
 
     loop {
+        if app_settings_ui.should_quit() {
+            break;
+        }
         performance_ui.record(&snapshot);
         draw(
             &mut stdout,
@@ -398,6 +404,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 performance: &performance_ui,
                 components: &components_ui,
                 settings: &settings_ui,
+                app_settings: &app_settings_ui,
                 files: &files_ui,
                 wizard: wizard.as_ref(),
                 server_editor: server_editor.as_ref(),
@@ -418,6 +425,10 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 flow.poll().await;
                 last_initiate_poll = Instant::now();
             }
+            if app_settings_ui.is_open() && last_refresh.elapsed() >= Duration::from_secs(1) {
+                app_settings_ui.poll_services().await;
+                last_refresh = Instant::now();
+            }
             if !manage_open && wizard.is_none() && last_refresh.elapsed() >= REFRESH_INTERVAL {
                 worlds_ui.poll_operation(&mut message).await;
                 components_ui.poll_operation(&mut message).await;
@@ -436,6 +447,10 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             continue;
         };
         if key.kind != KeyEventKind::Press {
+            continue;
+        }
+        if app_settings_ui.is_open() {
+            app_settings_ui.handle(key.code).await;
             continue;
         }
         if confirm_stop {
@@ -668,6 +683,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                     refresh(&mut snapshot, &mut message).await;
                     last_refresh = Instant::now();
                 }
+                KeyCode::Char('S') => app_settings_ui.open().await,
                 _ => {}
             }
             continue;
@@ -710,7 +726,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 last_refresh = Instant::now();
             }
             KeyCode::Char('?') => message = "Help screen is not connected yet.".into(),
-            KeyCode::Char('S') => message = "Settings screen is not connected yet.".into(),
+            KeyCode::Char('S') => app_settings_ui.open().await,
             KeyCode::Enter => {
                 match selected {
                     0 => {
@@ -868,6 +884,7 @@ fn draw(
         } else if let Some(initiate) = view.initiate.filter(|_| !view.initiate_hidden) {
             initiate.draw(out, width, height)?;
         }
+        view.app_settings.draw(out, width, height)?;
         return out.flush();
     }
     for y in 2..height - 1 {
@@ -1193,6 +1210,7 @@ fn draw(
     if let Some(wizard) = view.wizard {
         wizard.draw(out, width, height)?;
     }
+    view.app_settings.draw(out, width, height)?;
     out.flush()
 }
 

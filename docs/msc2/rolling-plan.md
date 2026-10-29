@@ -383,6 +383,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.40 only.
 - **Commit:** `P22.40: show live readings in performance chart headings`
 
+### P22.41 — Add host-wide settings to the TUI
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/Cargo.toml`; `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/app_settings.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Open a General/Services overlay with Shift+S. General supports signed update checks and confirmed installation, host configuration reset, full host reset, and reviewed local uninstall. Services supports setting/clearing the agent's CurseForge API key and managing the shared Playit account, status, and saved addresses. Omit Preload tabs and defer Storage to the follow-up screenshots.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, press Shift+S, and confirm General and Services switch correctly. Check updates and confirm current/available/error states; on a staged release, confirm installation requires an explicit y confirmation. Set, replace, and clear a CurseForge key; set up Playit and confirm progress/status refresh, then clear it. Confirm both host reset modes require the exact `RESET AGENT` phrase and uninstall shows its preview and requires `UNINSTALL MSC 2`. No test command is part of this step.
+- **Batch:** P22.41 only.
+- **Commit:** `P22.41: add host-wide settings to tui`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

@@ -374,6 +374,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.39 only.
 - **Commit:** `P22.39: show selected server console in tui`
 
+### P22.40 — Show live readings in performance chart headings
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/performance.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Replace the descriptive hints in the TPS, CPU, and memory chart headings with the current reading, using the same units and formatting as the metric summary above.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Performance for a running server, and confirm each chart heading displays its current TPS, CPU percentage, or memory used and limit. Confirm missing metrics display an em dash and the memory scale remains visible on the graph. No test command is part of this step.
+- **Batch:** P22.40 only.
+- **Commit:** `P22.40: show live readings in performance chart headings`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

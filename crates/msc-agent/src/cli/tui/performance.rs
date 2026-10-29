@@ -103,6 +103,9 @@ impl PerformanceUi {
         let players = metric
             .and_then(|value| value.players_online)
             .map_or_else(|| "—".into(), |value| value.to_string());
+        let tps_title = format!("TPS HISTORY · {tps}");
+        let cpu_title = format!("CPU HISTORY · {cpu}");
+        let memory_title = format!("MEMORY HISTORY · {memory}");
         for (row, label, value) in [
             (6, "TPS", tps),
             (7, "CPU", cpu),
@@ -146,26 +149,10 @@ impl PerformanceUi {
         let memory_scale_label =
             memory_scale.map_or_else(|| "—".into(), |value| format!("{:.1}G", value / 1024.0));
         let charts = [
+            (tps_title.as_str(), &self.tps, 20.0, Color::Green, "20"),
+            (cpu_title.as_str(), &self.cpu, 100.0, Color::Cyan, "100"),
             (
-                "TPS HISTORY · 20 is healthy",
-                &self.tps,
-                20.0,
-                Color::Green,
-                "20",
-            ),
-            (
-                "CPU HISTORY · percent",
-                &self.cpu,
-                100.0,
-                Color::Cyan,
-                "100",
-            ),
-            (
-                if limit.is_some() {
-                    "MEMORY HISTORY · used / limit"
-                } else {
-                    "MEMORY HISTORY · relative scale"
-                },
+                memory_title.as_str(),
                 &self.memory_used_mb,
                 memory_scale.unwrap_or(1.0).max(1.0),
                 Color::Magenta,

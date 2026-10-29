@@ -6,8 +6,8 @@ use std::io::{self, Stdout};
 use crossterm::event::KeyCode;
 use crossterm::style::Color;
 use msc_api::dto::{
-    BroadcastStatusDto, OperationDto, OperationStateDto, PlayitStatusDto, RemoteApiStatus,
-    ServerDto, SimpleResultDto,
+    BroadcastStatusDto, ConnectivityResponseDto, OperationDto, OperationStateDto, PlayitStatusDto,
+    RemoteApiStatus, ServerDto, SimpleResultDto,
 };
 use msc_infrastructure::console_buffer::ConsoleLine;
 use serde_json::{Value, json};
@@ -36,6 +36,7 @@ pub(super) struct InitiateUi {
     error: String,
     playit: Option<PlayitStatusDto>,
     broadcast: Option<BroadcastStatusDto>,
+    connectivity: Option<ConnectivityResponseDto>,
     connection_selected: usize,
     service_request: Option<bool>,
     console: Vec<ConsoleLine>,
@@ -55,6 +56,7 @@ impl InitiateUi {
             error: String::new(),
             playit: None,
             broadcast: None,
+            connectivity: None,
             connection_selected: 0,
             service_request: None,
             console: Vec::new(),
@@ -90,6 +92,7 @@ impl InitiateUi {
         if self.server.xbox_broadcast_enabled == Some(true) {
             self.broadcast = client.get_json("/v1/broadcast/status").await.ok();
         }
+        self.connectivity = client.get_json("/v1/connectivity").await.ok();
     }
 
     async fn refresh_server(&mut self) {
@@ -198,6 +201,9 @@ impl InitiateUi {
         if self.phase == Phase::Connections {
             self.refresh_server().await;
             self.refresh_connections().await;
+            if self.playit_ready() && self.broadcast_ready() {
+                self.start_pass(Phase::PassTwo).await;
+            }
             return;
         }
         if matches!(self.phase, Phase::WaitFirstStop | Phase::WaitFinalStop) {
@@ -646,10 +652,39 @@ impl InitiateUi {
                         )?;
                     }
                 }
+                if let Some(address) = self
+                    .connectivity
+                    .as_ref()
+                    .and_then(|connectivity| connectivity.join_address.as_deref())
+                {
+                    paint(
+                        out,
+                        x + 2,
+                        y + 12,
+                        w - 4,
+                        &format!("Public {address}"),
+                        Color::White,
+                    )?;
+                }
+                if self.server.xbox_broadcast_enabled == Some(true) {
+                    let gamertag = self
+                        .broadcast
+                        .as_ref()
+                        .and_then(|status| status.gamertag.as_deref())
+                        .unwrap_or("Signed in");
+                    paint(
+                        out,
+                        x + 2,
+                        y + 13,
+                        w - 4,
+                        &format!("Xbox Broadcast {gamertag}"),
+                        Color::White,
+                    )?;
+                }
                 paint(
                     out,
                     x + 2,
-                    y + 14,
+                    y + 16,
                     w - 4,
                     "Future starts are manual. Enter/Esc Done",
                     Color::DarkGrey,

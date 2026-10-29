@@ -320,6 +320,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.33 only.
 - **Commit:** `P22.33: correct playit service heading`
 
+### P22.34 — Finish initiation after connection setup
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/initiate.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Match the renderer's automatic second pass once every enabled connection is configured or deferred. Refresh the completion sheet's connectivity data and show the available public address and Xbox Broadcast gamertag alongside the existing local and Playit addresses; omit rows for disabled or unavailable services.
+- **Verify:** Run `cargo run -p msc-agent -- tui` and initiate a server with Playit and Xbox Broadcast enabled. After both setup flows complete, confirm the second pass begins without an extra Continue key, stops, and displays the applicable local, public, Playit, and Broadcast details. Also verify servers with a service disabled omit that service's row. No test command is part of this step.
+- **Batch:** P22.34 only.
+- **Commit:** `P22.34: finish initiate connection summary`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

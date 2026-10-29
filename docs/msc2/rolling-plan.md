@@ -257,6 +257,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.26 only.
 - **Commit:** `P22.26: add service control views to tui`
 
+### P22.27 — Set up Playit from TUI Services
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/server_editor.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Add a masked email/password form to Playit detail, submit native setup through the agent, show operation progress and cancellation, then show completion and public addresses. Let the owner review existing setup and confirm a host-wide local reset. The password is dropped from TUI state after the setup request is accepted.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Manage Servers with `m`, select a server, press `2`, open Playit, and select Set up Playit. Enter account details and confirm the progress view advances to completion and displays reported addresses. Repeat and press Esc during progress to request cancellation. Reopen Playit setup to inspect the completed state; press `r` and confirm or cancel the host-wide reset prompt. No test command is part of this step.
+- **Batch:** P22.27 only.
+- **Commit:** `P22.27: add playit setup to tui`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

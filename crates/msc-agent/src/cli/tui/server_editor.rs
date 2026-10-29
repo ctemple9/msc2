@@ -8,8 +8,9 @@ use msc_api::dto::{
     BroadcastAuthPromptDto, BroadcastAutoStartDto, BroadcastJarDownloadResultDto,
     BroadcastJarStatusDto, BroadcastSimpleResultDto, BroadcastStatusDto, GeyserConfigResponseDto,
     JavaConfigResponseDto, JavaRuntimeDto, JavaRuntimeInstallResultDto, JavaRuntimesResponseDto,
-    OperationDto, OperationStateDto, PlayitActionResultDto, PlayitStatusDto, RamConfigResponseDto,
-    ServerDirectorySizeResponseDto, ServerDto, ServerEulaResultDto, SettingsResponseDto,
+    OperationDto, OperationStateDto, PlayitActionResultDto, PlayitResetResultDto,
+    PlayitSetupAcceptedDto, PlayitStatusDto, RamConfigResponseDto, ServerDirectorySizeResponseDto,
+    ServerDto, ServerEulaResultDto, SettingsResponseDto,
 };
 use serde_json::{Value, json};
 
@@ -43,6 +44,27 @@ pub(super) struct ServerEditor {
     broadcast_autostart: Option<bool>,
     broadcast_jar: Option<BroadcastJarStatusDto>,
     service_operation_id: Option<String>,
+    playit_view: PlayitView,
+}
+
+#[derive(Default)]
+enum PlayitView {
+    #[default]
+    None,
+    Form {
+        email: String,
+        password: String,
+        field: usize,
+    },
+    Running {
+        operation_id: String,
+        status: String,
+        progress: Option<(u64, u64)>,
+        cancelling: bool,
+    },
+    Complete,
+    Failed(String),
+    ConfirmReset,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -112,6 +134,7 @@ impl ServerEditor {
             broadcast_autostart: None,
             broadcast_jar: None,
             service_operation_id: None,
+            playit_view: PlayitView::None,
         };
         editor.reload().await;
         editor
@@ -182,6 +205,7 @@ impl ServerEditor {
             return;
         }
         self.refresh_services().await;
+        self.poll_playit_setup(message).await;
         if let Some(id) = self.service_operation_id.clone()
             && let Ok(client) = SharedClient::connect_local().await
             && let Ok(operation) = client
@@ -426,7 +450,7 @@ impl ServerEditor {
         let last = if detail == ServiceDetail::Broadcast {
             4
         } else {
-            1
+            2
         };
         match key {
             KeyCode::Esc => self.service_detail = None,
@@ -450,9 +474,216 @@ impl ServerEditor {
                 (ServiceDetail::Broadcast, 4) => self.update_broadcast_jar(message).await,
                 (ServiceDetail::Playit, 0) => self.service_start_stop(false, message).await,
                 (ServiceDetail::Playit, 1) => self.toggle_service(false, message).await,
+                (ServiceDetail::Playit, 2) => {
+                    self.playit_view = if self
+                        .playit
+                        .as_ref()
+                        .is_some_and(|status| status.has_secret_key)
+                    {
+                        PlayitView::Complete
+                    } else {
+                        PlayitView::Form {
+                            email: String::new(),
+                            password: String::new(),
+                            field: 0,
+                        }
+                    };
+                }
                 _ => {}
             },
             _ => {}
+        }
+        true
+    }
+
+    async fn poll_playit_setup(&mut self, message: &mut String) {
+        let PlayitView::Running { operation_id, .. } = &self.playit_view else {
+            return;
+        };
+        let id = operation_id.clone();
+        let Ok(client) = SharedClient::connect_local().await else {
+            return;
+        };
+        let Ok(operation) = client
+            .get_json::<OperationDto>(&format!("/v1/operations/{id}"))
+            .await
+        else {
+            return;
+        };
+        match operation.state {
+            OperationStateDto::Succeeded => {
+                self.playit_view = PlayitView::Complete;
+                self.refresh_services().await;
+                *message = "Playit setup complete.".into();
+            }
+            OperationStateDto::Cancelled => {
+                self.playit_view = PlayitView::None;
+                self.refresh_services().await;
+                *message = "Playit setup cancelled.".into();
+            }
+            OperationStateDto::Failed => {
+                let error = operation
+                    .error
+                    .map_or_else(|| "Playit setup failed.".into(), |error| error.message);
+                self.playit_view = PlayitView::Failed(error.clone());
+                *message = error;
+            }
+            _ => {
+                if let PlayitView::Running {
+                    status, progress, ..
+                } = &mut self.playit_view
+                {
+                    *status = operation
+                        .status_line
+                        .unwrap_or_else(|| "Setting up Playit…".into());
+                    *progress = operation.progress.map(|value| (value.current, value.total));
+                }
+            }
+        }
+    }
+
+    async fn submit_playit_setup(&mut self, message: &mut String) {
+        let PlayitView::Form {
+            email, password, ..
+        } = &mut self.playit_view
+        else {
+            return;
+        };
+        if email.trim().is_empty() || password.is_empty() {
+            *message = "Enter both Playit email and password.".into();
+            return;
+        }
+        let body = json!({"email":email.trim(), "password":password, "accountOnly":false});
+        match SharedClient::connect_local().await {
+            Ok(client) => match client
+                .post_json::<_, PlayitSetupAcceptedDto>("/v1/playit/setup", &body)
+                .await
+            {
+                Ok(result) => {
+                    self.playit_view = PlayitView::Running {
+                        operation_id: result.operation_id,
+                        status: "Starting native Playit setup.".into(),
+                        progress: None,
+                        cancelling: false,
+                    };
+                    *message = "Playit setup started.".into();
+                }
+                Err(error) => *message = error.to_string(),
+            },
+            Err(error) => *message = error.to_string(),
+        }
+    }
+
+    async fn cancel_playit_setup(&mut self, message: &mut String) {
+        let PlayitView::Running {
+            operation_id,
+            cancelling,
+            ..
+        } = &self.playit_view
+        else {
+            return;
+        };
+        if *cancelling {
+            return;
+        }
+        let id = operation_id.clone();
+        match SharedClient::connect_local().await {
+            Ok(client) => match client
+                .post_json::<_, OperationDto>(&format!("/v1/operations/{id}/cancel"), &json!({}))
+                .await
+            {
+                Ok(_) => {
+                    if let PlayitView::Running {
+                        cancelling, status, ..
+                    } = &mut self.playit_view
+                    {
+                        *cancelling = true;
+                        *status = "Cancelling Playit setup…".into();
+                    }
+                    *message = "Waiting for Playit setup to stop safely.".into();
+                }
+                Err(error) => {
+                    *message = error.to_string();
+                    self.poll_playit_setup(message).await;
+                }
+            },
+            Err(error) => *message = error.to_string(),
+        }
+    }
+
+    async fn reset_playit(&mut self, message: &mut String) {
+        match SharedClient::connect_local().await {
+            Ok(client) => match client
+                .post_json::<_, PlayitResetResultDto>("/v1/playit/reset", &json!({}))
+                .await
+            {
+                Ok(result) => {
+                    self.playit_view = PlayitView::None;
+                    self.refresh_services().await;
+                    *message = result
+                        .message
+                        .unwrap_or_else(|| "Playit local setup cleared.".into());
+                }
+                Err(error) => *message = error.to_string(),
+            },
+            Err(error) => *message = error.to_string(),
+        }
+    }
+
+    async fn handle_playit_view(&mut self, key: KeyCode, message: &mut String) -> bool {
+        match &mut self.playit_view {
+            PlayitView::None => return false,
+            PlayitView::Form {
+                email,
+                password,
+                field,
+            } => match key {
+                KeyCode::Esc => self.playit_view = PlayitView::None,
+                KeyCode::Tab | KeyCode::Down => *field = (*field + 1).min(2),
+                KeyCode::BackTab | KeyCode::Up => *field = field.saturating_sub(1),
+                KeyCode::Backspace => {
+                    if *field == 0 {
+                        email.pop();
+                    } else if *field == 1 {
+                        password.pop();
+                    }
+                }
+                KeyCode::Char(c) if !c.is_control() => {
+                    if *field == 0 {
+                        email.push(c);
+                    } else if *field == 1 {
+                        password.push(c);
+                    }
+                }
+                KeyCode::Enter if *field < 2 => *field += 1,
+                KeyCode::Enter => self.submit_playit_setup(message).await,
+                _ => {}
+            },
+            PlayitView::Running { .. } => match key {
+                KeyCode::Esc => self.cancel_playit_setup(message).await,
+                KeyCode::Char('r') => self.poll_playit_setup(message).await,
+                _ => {}
+            },
+            PlayitView::Complete => match key {
+                KeyCode::Esc | KeyCode::Enter => self.playit_view = PlayitView::None,
+                KeyCode::Char('r') => self.playit_view = PlayitView::ConfirmReset,
+                _ => {}
+            },
+            PlayitView::Failed(_) => match key {
+                KeyCode::Esc => self.playit_view = PlayitView::None,
+                KeyCode::Enter => {
+                    self.playit_view = PlayitView::Form {
+                        email: String::new(),
+                        password: String::new(),
+                        field: 0,
+                    }
+                }
+                _ => {}
+            },
+            PlayitView::ConfirmReset => match key {
+                KeyCode::Char('y') | KeyCode::Char('Y') => self.reset_playit(message).await,
+                _ => self.playit_view = PlayitView::Complete,
+            },
         }
         true
     }
@@ -781,6 +1012,9 @@ impl ServerEditor {
         self.refresh_needed = false;
     }
     pub(super) async fn handle(&mut self, key: KeyCode, message: &mut String) -> bool {
+        if self.handle_playit_view(key, message).await {
+            return false;
+        }
         if self.broadcast_setup_open {
             match key {
                 KeyCode::Esc => self.cancel_broadcast_setup(message).await,
@@ -1305,6 +1539,11 @@ impl ServerEditor {
                             "Disabled"
                         }
                     ),
+                    if account == "Configured" {
+                        "Manage Playit setup".to_string()
+                    } else {
+                        "Set up Playit".to_string()
+                    },
                 ];
                 for (index, row) in rows.iter().enumerate() {
                     paint(
@@ -1330,9 +1569,9 @@ impl ServerEditor {
                 paint(
                     out,
                     x + 2,
-                    y + 18,
+                    y + 20,
                     w - 4,
-                    "Playit account setup will be added in the dedicated setup step.",
+                    "Playit account setup is shared across this host.",
                     Color::DarkGrey,
                 )?;
             }
@@ -1372,6 +1611,219 @@ impl ServerEditor {
                     },
                 )?;
             }
+        }
+        Ok(())
+    }
+
+    fn draw_playit_view(&self, out: &mut Stdout, width: u16, height: u16) -> io::Result<()> {
+        if matches!(self.playit_view, PlayitView::None) {
+            return Ok(());
+        }
+        let w = width.saturating_sub(36).clamp(44, 94);
+        let h = 20;
+        let x = width.saturating_sub(w) / 2;
+        let y = height.saturating_sub(h) / 2;
+        for line in y..y + h {
+            paint(out, x, line, w, &" ".repeat(w as usize), Color::Black)?;
+        }
+        box_outline(out, x, y, w, h)?;
+        paint(out, x + 2, y + 1, w - 4, "SET UP PLAYIT", Color::White)?;
+        match &self.playit_view {
+            PlayitView::Form {
+                email,
+                password,
+                field,
+            } => {
+                paint(
+                    out,
+                    x + 2,
+                    y + 3,
+                    w - 4,
+                    "Sign in to Playit on this host. Server tunnels will be configured.",
+                    Color::DarkGrey,
+                )?;
+                let rows = [
+                    format!("Email     {email}"),
+                    format!("Password  {}", "*".repeat(password.chars().count())),
+                    "Set up Playit".to_string(),
+                ];
+                for (index, row) in rows.iter().enumerate() {
+                    paint(
+                        out,
+                        x + 2,
+                        y + 6 + index as u16 * 2,
+                        w - 4,
+                        &format!("{} {row}", if *field == index { ">" } else { " " }),
+                        if *field == index {
+                            Color::Green
+                        } else {
+                            Color::White
+                        },
+                    )?;
+                }
+                paint(
+                    out,
+                    x + 2,
+                    y + 13,
+                    w - 4,
+                    "Accounts requiring a second factor cannot finish in this flow yet.",
+                    Color::Yellow,
+                )?;
+                paint(
+                    out,
+                    x + 2,
+                    y + 17,
+                    w - 4,
+                    "Tab/↑↓ Select  Enter Next/Set up  Esc Cancel",
+                    Color::DarkGrey,
+                )?;
+            }
+            PlayitView::Running {
+                status,
+                progress,
+                cancelling,
+                ..
+            } => {
+                paint(
+                    out,
+                    x + 2,
+                    y + 3,
+                    w - 4,
+                    "Setting up your Playit tunnels through the agent.",
+                    Color::White,
+                )?;
+                paint(out, x + 2, y + 5, w - 4, status, Color::Green)?;
+                if let Some((current, total)) = progress {
+                    paint(
+                        out,
+                        x + 2,
+                        y + 7,
+                        w - 4,
+                        &format!("Stage {current} of {total}"),
+                        Color::DarkGrey,
+                    )?;
+                }
+                paint(
+                    out,
+                    x + 2,
+                    y + 10,
+                    w - 4,
+                    "Signing in · Agent · Java · Bedrock · Voice · Addresses",
+                    Color::DarkGrey,
+                )?;
+                paint(
+                    out,
+                    x + 2,
+                    y + 13,
+                    w - 4,
+                    "Your password is not retained in this view.",
+                    Color::DarkGrey,
+                )?;
+                paint(
+                    out,
+                    x + 2,
+                    y + 17,
+                    w - 4,
+                    if *cancelling {
+                        "Waiting for setup to stop…  r Refresh"
+                    } else {
+                        "r Refresh  Esc Cancel setup"
+                    },
+                    Color::DarkGrey,
+                )?;
+            }
+            PlayitView::Complete => {
+                paint(
+                    out,
+                    x + 2,
+                    y + 3,
+                    w - 4,
+                    "Playit is ready on this host.",
+                    Color::Green,
+                )?;
+                if let Some(status) = &self.playit {
+                    let addresses = [
+                        ("Java", status.java_address.as_deref()),
+                        ("Bedrock", status.bedrock_address.as_deref()),
+                        ("Voice", status.voice_address.as_deref()),
+                    ];
+                    for (index, (name, address)) in addresses.iter().enumerate() {
+                        paint(
+                            out,
+                            x + 2,
+                            y + 6 + index as u16 * 2,
+                            w - 4,
+                            &format!(
+                                "{name:<8} {}",
+                                address.unwrap_or("Waiting for public address")
+                            ),
+                            Color::White,
+                        )?;
+                    }
+                }
+                paint(
+                    out,
+                    x + 2,
+                    y + 14,
+                    w - 4,
+                    "Reset clears shared Playit setup on this host.",
+                    Color::Yellow,
+                )?;
+                paint(
+                    out,
+                    x + 2,
+                    y + 17,
+                    w - 4,
+                    "r Reset local setup  Enter/Esc Done",
+                    Color::DarkGrey,
+                )?;
+            }
+            PlayitView::Failed(error) => {
+                paint(
+                    out,
+                    x + 2,
+                    y + 3,
+                    w - 4,
+                    "Playit setup failed.",
+                    Color::Yellow,
+                )?;
+                paint(out, x + 2, y + 6, w - 4, error, Color::White)?;
+                paint(
+                    out,
+                    x + 2,
+                    y + 17,
+                    w - 4,
+                    "Enter Retry  Esc Close",
+                    Color::DarkGrey,
+                )?;
+            }
+            PlayitView::ConfirmReset => {
+                paint(
+                    out,
+                    x + 2,
+                    y + 4,
+                    w - 4,
+                    "Clear Playit account and addresses on this host?",
+                    Color::Yellow,
+                )?;
+                paint(
+                    out,
+                    x + 2,
+                    y + 7,
+                    w - 4,
+                    "This stops managed Playit helpers for all local servers.",
+                    Color::White,
+                )?;
+                paint(
+                    out,
+                    x + 2,
+                    y + 17,
+                    w - 4,
+                    "y Confirm  any other key Cancel",
+                    Color::DarkGrey,
+                )?;
+            }
+            PlayitView::None => {}
         }
         Ok(())
     }
@@ -1553,6 +2005,7 @@ impl ServerEditor {
                 Color::DarkGrey,
             )?;
         }
+        self.draw_playit_view(out, width, height)?;
         Ok(())
     }
 }

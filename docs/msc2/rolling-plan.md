@@ -266,6 +266,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.27 only.
 - **Commit:** `P22.27: add playit setup to tui`
 
+### P22.28 — Initiate and control servers from the TUI
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/initiate.rs`; `crates/msc-agent/src/cli/tui/server_editor.rs`; `crates/msc-agent/src/routes/lifecycle.rs`; `crates/msc-agent/src/routes/networking.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Connect `s` in the selected-server workspace to Start, Stop, or the one-time Initiate view. Initiate accepts the Java EULA, follows the agent's first start operation and stopped state, offers Playit and Xbox Broadcast setup through the existing Services controls, lets either connection be deferred, then starts pass two and waits for its operation and stopped state before showing completion. Bedrock skips the EULA. A deferred Playit choice updates the active first-start coordinator, as Broadcast already does. If a stale first-start request becomes an ordinary launch because a world already exists, the TUI stops it and reports the recovery condition instead of sending a second uncontrolled Start. The agent remains the timing authority for readiness, helper timeouts (75 seconds for Playit and 60 for Broadcast), and the 10-minute second-pass safety cap; the TUI polls its state once a second and adds no competing timeout.
+- **Verify:** Run `cargo run -p msc-agent -- tui`. Select a new Java server, press `s`, accept the EULA with Space, and press Enter. Confirm pass one creates files and stops before the connection choices appear. Set up or defer each enabled connection, press `c`, and confirm pass two starts, checks the connections, stops, and only then shows completion. Check a new Bedrock server omits the EULA. After initiation, press `s` to start and again to stop a server, and confirm the sidebar follows its state. No test command is part of this step.
+- **Batch:** P22.28 only.
+- **Commit:** `P22.28: add tui initiate and server controls`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

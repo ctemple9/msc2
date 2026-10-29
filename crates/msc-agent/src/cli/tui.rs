@@ -4,6 +4,7 @@
 mod components;
 mod create;
 mod files;
+mod initiate;
 mod performance;
 mod server_editor;
 mod settings;
@@ -99,6 +100,7 @@ struct ViewState<'a> {
     files: &'a files::FilesUi,
     wizard: Option<&'a create::Wizard>,
     server_editor: Option<&'a server_editor::ServerEditor>,
+    initiate: Option<&'a initiate::InitiateUi>,
 }
 
 async fn load() -> Result<Snapshot, CliError> {
@@ -240,6 +242,11 @@ async fn select_server(server_id: &str) -> Result<(), CliError> {
     Ok(())
 }
 
+async fn server_lifecycle_action(path: &str) -> Result<SimpleResultDto, CliError> {
+    let client = SharedClient::connect_local().await?;
+    client.post_json(path, &serde_json::json!({})).await
+}
+
 pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     if common.json {
         return Err(CliError::usage(
@@ -272,9 +279,11 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     let mut files_ui = files::FilesUi::default();
     let mut wizard: Option<create::Wizard> = None;
     let mut server_editor: Option<server_editor::ServerEditor> = None;
+    let mut initiate: Option<initiate::InitiateUi> = None;
     let mut message = String::new();
     let mut confirm_stop = false;
     let mut last_refresh = Instant::now();
+    let mut last_initiate_poll = Instant::now();
 
     loop {
         performance_ui.record(&snapshot);
@@ -297,10 +306,17 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 files: &files_ui,
                 wizard: wizard.as_ref(),
                 server_editor: server_editor.as_ref(),
+                initiate: initiate.as_ref(),
             },
         )
         .map_err(terminal_error)?;
         if !event::poll(Duration::from_millis(250)).map_err(terminal_error)? {
+            if let Some(flow) = &mut initiate
+                && last_initiate_poll.elapsed() >= Duration::from_secs(1)
+            {
+                flow.poll().await;
+                last_initiate_poll = Instant::now();
+            }
             if !manage_open && wizard.is_none() && last_refresh.elapsed() >= REFRESH_INTERVAL {
                 worlds_ui.poll_operation(&mut message).await;
                 components_ui.poll_operation(&mut message).await;
@@ -362,6 +378,27 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             } else if editor.needs_refresh() {
                 refresh(&mut snapshot, &mut message).await;
                 editor.refreshed();
+            }
+            continue;
+        }
+        if let Some(flow) = &mut initiate {
+            let close = flow.handle(key.code).await;
+            if let Some(broadcast) = flow.take_service_request()
+                && let Some(server) = snapshot.active_server_id.as_deref().and_then(|id| {
+                    snapshot
+                        .servers
+                        .as_ref()?
+                        .iter()
+                        .find(|server| server.id == id)
+                })
+            {
+                server_editor = Some(
+                    server_editor::ServerEditor::open_service(server.clone(), broadcast).await,
+                );
+            }
+            if close {
+                initiate = None;
+                refresh(&mut snapshot, &mut message).await;
             }
             continue;
         }
@@ -454,6 +491,35 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 if worlds_ui.needs_refresh() {
                     refresh(&mut snapshot, &mut message).await;
                     worlds_ui.refreshed();
+                }
+                continue;
+            }
+            if key.code == KeyCode::Char('s') {
+                refresh(&mut snapshot, &mut message).await;
+                if let Some(server) = snapshot.active_server_id.as_deref().and_then(|id| {
+                    snapshot
+                        .servers
+                        .as_ref()?
+                        .iter()
+                        .find(|server| server.id == id)
+                }) {
+                    if snapshot.active_server_running {
+                        message = match server_lifecycle_action("/v1/stop").await {
+                            Ok(_) => "Stop requested. Waiting for the server to shut down.".into(),
+                            Err(error) => error.to_string(),
+                        };
+                        refresh(&mut snapshot, &mut message).await;
+                    } else if server.first_start_required == Some(true) {
+                        initiate = Some(initiate::InitiateUi::new(server.clone()));
+                    } else {
+                        message = match server_lifecycle_action("/v1/start").await {
+                            Ok(_) => "Start requested. Watch the server status and console.".into(),
+                            Err(error) => error.to_string(),
+                        };
+                        refresh(&mut snapshot, &mut message).await;
+                    }
+                } else {
+                    message = "Select a server in Manage first.".into();
                 }
                 continue;
             }
@@ -644,6 +710,8 @@ fn draw(
         }
         if let Some(editor) = view.server_editor {
             editor.draw(out, width, height)?;
+        } else if let Some(initiate) = view.initiate {
+            initiate.draw(out, width, height)?;
         }
         return out.flush();
     }
@@ -970,7 +1038,25 @@ fn draw_workspace(
         server.map_or("No server selected", |server| server.name.as_str()),
         Color::White,
     )?;
-    paint(out, 2, 8, 18, "Start       soon", Color::DarkGrey)?;
+    let action = if snapshot.active_server_running {
+        "Stop           s"
+    } else if server.is_some_and(|server| server.first_start_required == Some(true)) {
+        "Initiate       s"
+    } else {
+        "Start          s"
+    };
+    paint(
+        out,
+        2,
+        8,
+        18,
+        action,
+        if server.is_some() {
+            Color::White
+        } else {
+            Color::DarkGrey
+        },
+    )?;
     paint(out, 2, 10, 18, "Manage         m", Color::White)?;
     paint(out, 2, 12, 18, "Agents         a", Color::White)?;
 
@@ -1478,7 +1564,7 @@ fn draw_workspace(
         height - 5,
         main_w,
         &format!(
-            "Console  {}  ·  controls coming next",
+            "Console  {}",
             if server.is_none() {
                 "No server"
             } else if snapshot.active_server_running {
@@ -1503,7 +1589,7 @@ fn draw_workspace(
         main_x,
         height - 2,
         main_w,
-        "1–7 Switch tab   a Agents   m Manage   Esc Back",
+        "1–7 Switch tab   s Start/Stop   a Agents   m Manage   Esc Back",
         Color::DarkGrey,
     )?;
     Ok(())

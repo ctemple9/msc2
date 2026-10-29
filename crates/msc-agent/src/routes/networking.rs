@@ -1281,6 +1281,7 @@ pub async fn update_playit_enabled(
         Ok::<_, &str>(())
     }) {
         Ok(()) => {
+            state.lifecycle.update_playit_lifecycle(&server_id, enabled);
             if let Some(server) = state
                 .lifecycle
                 .app_config_snapshot()

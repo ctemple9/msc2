@@ -106,6 +106,36 @@ enum Field {
 }
 
 impl ServerEditor {
+    pub(super) async fn open_service(server: ServerDto, broadcast: bool) -> Self {
+        let mut editor = Self::open(server).await;
+        editor.tab = 1;
+        editor.service_detail = Some(if broadcast {
+            ServiceDetail::Broadcast
+        } else {
+            ServiceDetail::Playit
+        });
+        editor.service_selected = if broadcast {
+            if editor
+                .broadcast
+                .as_ref()
+                .is_some_and(|status| status.has_saved_auth)
+            {
+                0
+            } else {
+                3
+            }
+        } else if editor
+            .playit
+            .as_ref()
+            .is_some_and(|status| status.has_secret_key)
+        {
+            0
+        } else {
+            2
+        };
+        editor
+    }
+
     pub(super) async fn open(server: ServerDto) -> Self {
         let mut editor = Self {
             server,

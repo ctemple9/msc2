@@ -64,6 +64,8 @@ export function createTauriPlatform(dependencies: TauriPlatformDependencies): Pl
     credentialFor: async (_hostId: string) => null,
     agentHealthCheck: dependencies.agentHealthCheck,
     agentServiceStatus: dependencies.agentServiceStatus,
+    agentIndicatorEnabled: dependencies.agentIndicatorEnabled,
+    setAgentIndicatorEnabled: dependencies.setAgentIndicatorEnabled,
     manageAgentService: dependencies.manageAgentService,
     previewLocalUninstall:
       dependencies.previewLocalUninstall ??
@@ -241,6 +243,9 @@ export async function loadTauriPlatform(): Promise<PlatformAdapter> {
       invoke<UninstallScheduled>('uninstall_local', { request }),
     agentHealthCheck: () => invoke<boolean>('agent_health_check'),
     agentServiceStatus: () => invoke<AgentServiceStatus>('agent_service_status'),
+    agentIndicatorEnabled: () => invoke<boolean>('agent_indicator_enabled'),
+    setAgentIndicatorEnabled: (enabled: boolean) =>
+      invoke<void>('set_agent_indicator_enabled', { enabled }),
     manageAgentService: (action: AgentServiceAction) =>
       invoke<AgentServiceStatus>('manage_agent_service', { action }),
     checkForUpdates: () => invoke<UpdateCheckResult>('check_for_updates'),

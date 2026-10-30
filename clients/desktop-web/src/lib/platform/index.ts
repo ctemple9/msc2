@@ -32,6 +32,8 @@ export interface AgentPreparationPlatform {
   readonly kind: PlatformAdapter['kind'];
   agentHealthCheck(): Promise<boolean>;
   agentServiceStatus(): Promise<AgentServiceStatus>;
+  agentIndicatorEnabled?(): Promise<boolean>;
+  setAgentIndicatorEnabled?(enabled: boolean): Promise<void>;
   manageAgentService(action: AgentServiceAction): Promise<AgentServiceStatus>;
 }
 

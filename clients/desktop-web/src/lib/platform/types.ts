@@ -228,6 +228,8 @@ export interface PlatformAdapter {
   credentialFor(hostId: string): Promise<string | null>;
   agentHealthCheck(): Promise<boolean>;
   agentServiceStatus(): Promise<AgentServiceStatus>;
+  agentIndicatorEnabled?(): Promise<boolean>;
+  setAgentIndicatorEnabled?(enabled: boolean): Promise<void>;
   manageAgentService(action: AgentServiceAction): Promise<AgentServiceStatus>;
   previewLocalUninstall(installers: readonly string[]): Promise<UninstallInventory>;
   uninstallLocal(request: LocalUninstallRequest): Promise<UninstallScheduled>;
@@ -256,6 +258,8 @@ export interface TauriPlatformDependencies {
   onCloseRequested(handler: () => void): Promise<() => void>;
   agentHealthCheck(): Promise<boolean>;
   agentServiceStatus(): Promise<AgentServiceStatus>;
+  agentIndicatorEnabled?(): Promise<boolean>;
+  setAgentIndicatorEnabled?(enabled: boolean): Promise<void>;
   manageAgentService(action: AgentServiceAction): Promise<AgentServiceStatus>;
   previewLocalUninstall?(installers: readonly string[]): Promise<UninstallInventory>;
   uninstallLocal?(request: LocalUninstallRequest): Promise<UninstallScheduled>;

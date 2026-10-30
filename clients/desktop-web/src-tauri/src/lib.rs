@@ -815,6 +815,18 @@ async fn agent_service_status() -> Result<AgentServiceStatus, String> {
         .map_err(|error| format!("Could not check the agent service: {error}"))?
 }
 
+#[tauri::command]
+fn agent_indicator_enabled() -> Result<bool, String> {
+    indicator_startup::enabled()
+}
+
+#[tauri::command]
+async fn set_agent_indicator_enabled(enabled: bool) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || indicator_startup::set_enabled(enabled))
+        .await
+        .map_err(|error| error.to_string())?
+}
+
 fn agent_service_status_blocking() -> Result<AgentServiceStatus, String> {
     let expected_binary = expected_local_agent_binary()?;
     service_manager()?
@@ -1907,6 +1919,8 @@ pub fn run() {
             open_external_url,
             reveal_in_file_manager,
             agent_service_status,
+            agent_indicator_enabled,
+            set_agent_indicator_enabled,
             agent_health_check,
             quit_app,
             manage_agent_service,

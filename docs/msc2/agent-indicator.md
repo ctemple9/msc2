@@ -10,6 +10,12 @@ Its menu provides **Open MSC 2** and **Quit indicator**. Quitting it leaves the
 agent and Minecraft servers running. The indicator appears again at the next
 login or when the desktop app starts.
 
+On the local **Agent** page, **Show indicator** brings it back immediately.
+The **Enable agent indicator** checkbox saves whether the companion should run;
+turning it off hides the icon and removes login startup. Enabling it starts the
+companion immediately, including in development builds. Quitting from the icon
+menu only ends the current companion session and leaves this setting enabled.
+
 ## Desktop startup
 
 After a release desktop build finds or installs a local agent, it registers the

@@ -91,6 +91,9 @@
   let statsBusy = false;
 
   let status: AgentServiceStatus | undefined;
+  let indicatorEnabled = true;
+  let indicatorBusy = false;
+  let indicatorAvailable = false;
   let busy = false;
   let errorMessage = '';
   let pairingCode = '';
@@ -243,13 +246,32 @@
     const requestedHostId = hostId;
     const request = ++statusRequest;
     try {
-      const nextStatus = await (await getPlatform()).agentServiceStatus();
+      const platform = await getPlatform();
+      const nextStatus = await platform.agentServiceStatus();
+      const enabled = (await platform.agentIndicatorEnabled?.()) ?? true;
+      if (request === statusRequest && active && isLocalDesktopHost && hostId === requestedHostId) {
+        indicatorAvailable = !!platform.setAgentIndicatorEnabled;
+        indicatorEnabled = enabled;
+      }
       if (request === statusRequest && active && isLocalDesktopHost && hostId === requestedHostId)
         status = nextStatus;
     } catch (error) {
       if (request === statusRequest && active && isLocalDesktopHost && hostId === requestedHostId) {
         errorMessage = formatConnectionFailure(error, 'msc-agent');
       }
+    }
+  }
+
+  async function setIndicator(enabled: boolean): Promise<void> {
+    if (!isLocalDesktopHost || indicatorBusy) return;
+    indicatorBusy = true;
+    try {
+      await (await getPlatform()).setAgentIndicatorEnabled?.(enabled);
+      indicatorEnabled = enabled;
+    } catch (error) {
+      errorMessage = formatConnectionFailure(error, 'msc-agent');
+    } finally {
+      indicatorBusy = false;
     }
   }
 
@@ -450,6 +472,26 @@
               >
             </div>
             <p class="small-detail">{status?.detail ?? 'Checking the local agent service…'}</p>
+            {#if indicatorAvailable}
+              <h3>Agent indicator</h3>
+              <p class="small-detail">
+                Show the helmet in this computer’s system bar while the local agent runs.
+              </p>
+              <label
+                ><input
+                  type="checkbox"
+                  checked={indicatorEnabled}
+                  disabled={indicatorBusy}
+                  onchange={(event) => void setIndicator(event.currentTarget.checked)}
+                /> Enable agent indicator</label
+              >
+              <div class="actions">
+                <Button
+                  disabled={indicatorBusy || !indicatorEnabled}
+                  onclick={() => void setIndicator(true)}>Show indicator</Button
+                >
+              </div>
+            {/if}
           {/if}
         {:else}
           <p class="detail">

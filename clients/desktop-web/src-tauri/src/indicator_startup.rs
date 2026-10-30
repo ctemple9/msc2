@@ -1,6 +1,9 @@
 //! Register the graphical companion only for desktop-package users.
 
 pub(super) fn install() -> Result<(), String> {
+    if !enabled()? {
+        return Ok(());
+    }
     if cfg!(debug_assertions) {
         return Ok(());
     }
@@ -78,6 +81,35 @@ pub(super) fn install() -> Result<(), String> {
     }
     command.spawn().map_err(|error| error.to_string())?;
     Ok(())
+}
+
+pub(super) fn enabled() -> Result<bool, String> {
+    let path = super::agent_data_directory()?.join("agent-indicator-disabled");
+    Ok(!path.exists())
+}
+
+pub(super) fn set_enabled(enabled: bool) -> Result<(), String> {
+    let directory = super::agent_data_directory()?;
+    std::fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
+    let path = directory.join("agent-indicator-disabled");
+    if !enabled {
+        std::fs::write(path, b"disabled\n").map_err(|error| error.to_string())?;
+        return remove();
+    }
+    match std::fs::remove_file(path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.to_string()),
+    }
+    if cfg!(debug_assertions) {
+        std::process::Command::new(std::env::current_exe().map_err(|error| error.to_string())?)
+            .arg("--agent-indicator")
+            .spawn()
+            .map_err(|error| error.to_string())?;
+        Ok(())
+    } else {
+        install()
+    }
 }
 
 pub(super) fn remove() -> Result<(), String> {

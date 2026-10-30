@@ -162,6 +162,14 @@ The helmet appears only while the local agent runs. A small companion process ow
 **Batch:** solo
 **Commit:** `P23.15: share the desktop and indicator application context`
 
+#### P23.16 — Control the indicator from the local Agent page
+**Status:** awaiting Cameron verification
+**Files:** `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `clients/desktop-web/src/lib/platform/`, `clients/desktop-web/src-tauri/src/lib.rs`, `clients/desktop-web/src-tauri/src/indicator_startup.rs`, `docs/msc2/agent-indicator.md`, `docs/msc2/rolling-plan.md`
+**What:** Add a saved Enable agent indicator setting and a Show indicator action for restoring the companion after quitting it. Scope controls to the local desktop host. Enabling also works in debug builds without registering a development executable at login.
+**Verify:** `cd clients/desktop-web && npx tauri dev` — open the local Agent page, use Show indicator after quitting its menu, then disable and re-enable the setting.
+**Batch:** solo
+**Commit:** `P23.16: control the indicator from the local Agent page`
+
 **Phase 22 disposition:** Cameron accepted the current TUI on 2026-10-30. Detailed P22 records and their original verification commands are in the archive.
 
 ## Archived owner-testing details

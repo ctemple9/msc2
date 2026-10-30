@@ -78,6 +78,14 @@ The previous phase work is finished. The old Phase 16 acceptance packet and owne
 **Batch:** solo
 **Commit:** `P23.5: improve contributor entry point`
 
+#### P23.6 — Clarify the host and control-device introduction
+**Status:** done; verification waived by Cameron
+**Files:** `README.md`, `docs/msc2/rolling-plan.md`
+**What:** Address readers who are new to MSC 2 in the host and control-device explanation.
+**Verify:** `rg -n 'If you are new to MSC 2' README.md`
+**Batch:** solo
+**Commit:** `P23.6: clarify the host and control-device introduction`
+
 **Phase 22 disposition:** Cameron accepted the current TUI on 2026-10-30. Detailed P22 records and their original verification commands are in the archive.
 
 ## Archived owner-testing details

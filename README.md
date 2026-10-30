@@ -195,7 +195,7 @@ is a control panel; it is not the thing keeping Minecraft alive.
 
 ## A simple way to think about it
 
-If you are new to servers, there are two computers to think about:
+If you are new to MSC 2, there are two computers to think about:
 
 1. The **host** is the computer that runs the Minecraft world. It can sit in a
    closet with the lid closed and no monitor attached.

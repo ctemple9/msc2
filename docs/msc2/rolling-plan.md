@@ -581,6 +581,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.62 only.
 - **Commit:** `P22.62: reorder agent panels and space sidebar actions`
 
+### P22.63 — Activate a highlighted server from Manage
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Add Manage Servers a Make active using the existing server-selection API. Keep the sheet open, refresh the selected server data, and preserve API selection restrictions. Enter retains its editor behavior with an explicit Edit label.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Manage, highlight another server and press a. Confirm its active marker and selected-server label update without opening the editor. Confirm Enter still opens the editor and rejected activation reports the API reason. No tests run.
+- **Batch:** P22.63 only.
+- **Commit:** `P22.63: activate highlighted server from manage sheet`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

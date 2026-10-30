@@ -679,6 +679,26 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                             .map_or(0, |list| list.len().saturating_sub(1)),
                     );
                 }
+                KeyCode::Char('a') => {
+                    if let Some(server) = snapshot
+                        .servers
+                        .as_ref()
+                        .and_then(|list| list.get(manage_selected))
+                    {
+                        let id = server.id.clone();
+                        let name = server.name.clone();
+                        match select_server(&id).await {
+                            Ok(()) => {
+                                snapshot_generation += 1;
+                                refresh(&mut snapshot, &mut message).await;
+                                message = format!("Active server: {name}");
+                            }
+                            Err(error) => message = error.to_string(),
+                        }
+                    } else {
+                        message = "Select a server to make active.".into();
+                    }
+                }
                 KeyCode::Enter => {
                     if let Some(server) = snapshot
                         .servers
@@ -2287,7 +2307,7 @@ fn draw_manage(
         x + 2,
         y + dialog_h - 2,
         dialog_w - 4,
-        "t Transfer   c Create server   ↑↓ Move   Enter Select   Esc Close",
+        "t Transfer   c Create server   a Make active   ↑↓ Move   Enter Edit   Esc Close",
         Color::DarkGrey,
     )
 }

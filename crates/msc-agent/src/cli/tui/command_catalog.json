@@ -1,0 +1,707 @@
+[
+  {
+    "name": "tp",
+    "description": "Teleport a player to another player or to coordinates",
+    "category": "Players",
+    "argumentSlots": [
+      {
+        "kind": "player",
+        "label": "target player"
+      },
+      {
+        "kind": "player",
+        "label": "destination player"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "teleport",
+    "description": "Alias for tp — teleport to player or coordinates",
+    "category": "Players",
+    "argumentSlots": [
+      {
+        "kind": "player",
+        "label": "target player"
+      },
+      {
+        "kind": "coordinates",
+        "label": "destination x y z"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "give",
+    "description": "Give a player one or more items",
+    "category": "Players",
+    "argumentSlots": [
+      {
+        "kind": "player",
+        "label": "player"
+      },
+      {
+        "kind": "freeText",
+        "label": "item id (e.g. diamond_sword)"
+      },
+      {
+        "kind": "integer",
+        "label": "count"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "kick",
+    "description": "Remove a player from the server",
+    "category": "Players",
+    "argumentSlots": [
+      {
+        "kind": "player",
+        "label": "player"
+      },
+      {
+        "kind": "freeText",
+        "label": "reason (optional)"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "ban",
+    "description": "Permanently ban a player by name",
+    "category": "Players",
+    "argumentSlots": [
+      {
+        "kind": "player",
+        "label": "player"
+      },
+      {
+        "kind": "freeText",
+        "label": "reason (optional)"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": false
+  },
+  {
+    "name": "ban-ip",
+    "description": "Ban a player by IP address",
+    "category": "Players",
+    "argumentSlots": [
+      {
+        "kind": "freeText",
+        "label": "ip address or player name"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": false
+  },
+  {
+    "name": "pardon",
+    "description": "Unban a previously banned player",
+    "category": "Players",
+    "argumentSlots": [
+      {
+        "kind": "player",
+        "label": "player"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": false
+  },
+  {
+    "name": "op",
+    "description": "Grant operator (admin) status to a player",
+    "category": "Players",
+    "argumentSlots": [
+      {
+        "kind": "player",
+        "label": "player"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "deop",
+    "description": "Revoke operator status from a player",
+    "category": "Players",
+    "argumentSlots": [
+      {
+        "kind": "player",
+        "label": "player"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "msg",
+    "description": "Send a private message to a player",
+    "category": "Players",
+    "argumentSlots": [
+      {
+        "kind": "player",
+        "label": "player"
+      },
+      {
+        "kind": "freeText",
+        "label": "message"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "tell",
+    "description": "Alias for msg — send a private message",
+    "category": "Players",
+    "argumentSlots": [
+      {
+        "kind": "player",
+        "label": "player"
+      },
+      {
+        "kind": "freeText",
+        "label": "message"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "kill",
+    "description": "Kill a player or entity",
+    "category": "Players",
+    "argumentSlots": [
+      {
+        "kind": "player",
+        "label": "player"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "gamemode",
+    "description": "Change a player's game mode",
+    "category": "Players",
+    "argumentSlots": [
+      {
+        "kind": "keyword",
+        "label": "mode",
+        "options": [
+          "survival",
+          "creative",
+          "adventure",
+          "spectator"
+        ]
+      },
+      {
+        "kind": "player",
+        "label": "player (optional)"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "effect",
+    "description": "Apply a status effect to a player",
+    "category": "Players",
+    "argumentSlots": [
+      {
+        "kind": "player",
+        "label": "player"
+      },
+      {
+        "kind": "freeText",
+        "label": "effect id (e.g. speed, jump_boost)"
+      },
+      {
+        "kind": "integer",
+        "label": "duration (seconds)"
+      },
+      {
+        "kind": "integer",
+        "label": "amplifier (0 = level I)"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "xp",
+    "description": "Give experience points or levels to a player",
+    "category": "Players",
+    "argumentSlots": [
+      {
+        "kind": "freeText",
+        "label": "amount (use L suffix for levels, e.g. 5L)"
+      },
+      {
+        "kind": "player",
+        "label": "player"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": false
+  },
+  {
+    "name": "experience",
+    "description": "Add or set experience points or levels",
+    "category": "Players",
+    "argumentSlots": [
+      {
+        "kind": "keyword",
+        "label": "action",
+        "options": [
+          "add",
+          "set",
+          "query"
+        ]
+      },
+      {
+        "kind": "player",
+        "label": "player"
+      },
+      {
+        "kind": "integer",
+        "label": "amount"
+      },
+      {
+        "kind": "keyword",
+        "label": "type",
+        "options": [
+          "points",
+          "levels"
+        ]
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": false
+  },
+  {
+    "name": "clear",
+    "description": "Clear a player's inventory or a specific item",
+    "category": "Players",
+    "argumentSlots": [
+      {
+        "kind": "player",
+        "label": "player"
+      },
+      {
+        "kind": "freeText",
+        "label": "item (optional)"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "time",
+    "description": "Set absolute time, add ticks, or query the world time",
+    "category": "World",
+    "argumentSlots": [
+      {
+        "kind": "keyword",
+        "label": "action",
+        "options": [
+          "set",
+          "add",
+          "query"
+        ]
+      },
+      {
+        "kind": "freeText",
+        "label": "value or day/night/noon/midnight"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "weather",
+    "description": "Change the current weather",
+    "category": "World",
+    "argumentSlots": [
+      {
+        "kind": "keyword",
+        "label": "type",
+        "options": [
+          "clear",
+          "rain",
+          "thunder"
+        ]
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "difficulty",
+    "description": "Set the game difficulty",
+    "category": "World",
+    "argumentSlots": [
+      {
+        "kind": "keyword",
+        "label": "level",
+        "options": [
+          "peaceful",
+          "easy",
+          "normal",
+          "hard"
+        ]
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "gamerule",
+    "description": "Set or query a game rule",
+    "category": "World",
+    "argumentSlots": [
+      {
+        "kind": "freeText",
+        "label": "rule name"
+      },
+      {
+        "kind": "freeText",
+        "label": "value (omit to query)"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "setworldspawn",
+    "description": "Set the world spawn point",
+    "category": "World",
+    "argumentSlots": [
+      {
+        "kind": "coordinates",
+        "label": "x y z"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "spawnpoint",
+    "description": "Set a player's personal spawn point",
+    "category": "World",
+    "argumentSlots": [
+      {
+        "kind": "player",
+        "label": "player"
+      },
+      {
+        "kind": "coordinates",
+        "label": "x y z"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "list",
+    "description": "List all currently online players",
+    "category": "Server Admin",
+    "argumentSlots": [],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "seed",
+    "description": "Display the current world seed",
+    "category": "Server Admin",
+    "argumentSlots": [],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "say",
+    "description": "Broadcast a message to all players",
+    "category": "Server Admin",
+    "argumentSlots": [
+      {
+        "kind": "freeText",
+        "label": "message"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "title",
+    "description": "Display a title on screen for a player",
+    "category": "Server Admin",
+    "argumentSlots": [
+      {
+        "kind": "player",
+        "label": "player"
+      },
+      {
+        "kind": "keyword",
+        "label": "type",
+        "options": [
+          "title",
+          "subtitle",
+          "actionbar",
+          "clear",
+          "reset"
+        ]
+      },
+      {
+        "kind": "freeText",
+        "label": "text (omit for clear/reset)"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "save-all",
+    "description": "Force save all loaded chunks to disk",
+    "category": "Server Admin",
+    "argumentSlots": [],
+    "supportsJava": true,
+    "supportsBedrock": false
+  },
+  {
+    "name": "save-off",
+    "description": "Disable automatic chunk saving",
+    "category": "Server Admin",
+    "argumentSlots": [],
+    "supportsJava": true,
+    "supportsBedrock": false
+  },
+  {
+    "name": "save-on",
+    "description": "Re-enable automatic chunk saving",
+    "category": "Server Admin",
+    "argumentSlots": [],
+    "supportsJava": true,
+    "supportsBedrock": false
+  },
+  {
+    "name": "reload",
+    "description": "Reload server configuration and plugins",
+    "category": "Server Admin",
+    "argumentSlots": [],
+    "supportsJava": true,
+    "supportsBedrock": false
+  },
+  {
+    "name": "stop",
+    "description": "Gracefully stop the server",
+    "category": "Server Admin",
+    "argumentSlots": [],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "whitelist",
+    "description": "Manage the server whitelist",
+    "category": "Server Admin",
+    "argumentSlots": [
+      {
+        "kind": "keyword",
+        "label": "action",
+        "options": [
+          "on",
+          "off",
+          "add",
+          "remove",
+          "list",
+          "reload"
+        ]
+      },
+      {
+        "kind": "player",
+        "label": "player (for add/remove)"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": false
+  },
+  {
+    "name": "allowlist",
+    "description": "Manage the BDS allowlist (Bedrock equivalent of whitelist)",
+    "category": "Server Admin",
+    "argumentSlots": [
+      {
+        "kind": "keyword",
+        "label": "action",
+        "options": [
+          "on",
+          "off",
+          "add",
+          "remove",
+          "list",
+          "reload"
+        ]
+      },
+      {
+        "kind": "player",
+        "label": "player (for add/remove)"
+      }
+    ],
+    "supportsJava": false,
+    "supportsBedrock": true
+  },
+  {
+    "name": "banlist",
+    "description": "Display the current ban list",
+    "category": "Server Admin",
+    "argumentSlots": [
+      {
+        "kind": "keyword",
+        "label": "type (optional)",
+        "options": [
+          "players",
+          "ips"
+        ]
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": false
+  },
+  {
+    "name": "enchant",
+    "description": "Enchant the item in a player's hand",
+    "category": "Game Rules",
+    "argumentSlots": [
+      {
+        "kind": "player",
+        "label": "player"
+      },
+      {
+        "kind": "freeText",
+        "label": "enchantment id"
+      },
+      {
+        "kind": "integer",
+        "label": "level"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "attribute",
+    "description": "Query or modify an entity attribute",
+    "category": "Game Rules",
+    "argumentSlots": [
+      {
+        "kind": "player",
+        "label": "player"
+      },
+      {
+        "kind": "freeText",
+        "label": "attribute name"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": false
+  },
+  {
+    "name": "setblock",
+    "description": "Place a specific block at given coordinates",
+    "category": "Creative",
+    "argumentSlots": [
+      {
+        "kind": "coordinates",
+        "label": "x y z"
+      },
+      {
+        "kind": "freeText",
+        "label": "block id"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "fill",
+    "description": "Fill a region with a block type",
+    "category": "Creative",
+    "argumentSlots": [
+      {
+        "kind": "coordinates",
+        "label": "from x y z"
+      },
+      {
+        "kind": "coordinates",
+        "label": "to x y z"
+      },
+      {
+        "kind": "freeText",
+        "label": "block id"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "clone",
+    "description": "Copy a region of blocks to another location",
+    "category": "Creative",
+    "argumentSlots": [
+      {
+        "kind": "coordinates",
+        "label": "from x y z"
+      },
+      {
+        "kind": "coordinates",
+        "label": "to x y z"
+      },
+      {
+        "kind": "coordinates",
+        "label": "destination x y z"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "summon",
+    "description": "Spawn an entity at given coordinates",
+    "category": "Creative",
+    "argumentSlots": [
+      {
+        "kind": "freeText",
+        "label": "entity id"
+      },
+      {
+        "kind": "coordinates",
+        "label": "x y z"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": true
+  },
+  {
+    "name": "particle",
+    "description": "Create a particle effect at coordinates",
+    "category": "Creative",
+    "argumentSlots": [
+      {
+        "kind": "freeText",
+        "label": "particle name"
+      },
+      {
+        "kind": "coordinates",
+        "label": "x y z"
+      }
+    ],
+    "supportsJava": true,
+    "supportsBedrock": false
+  }
+]

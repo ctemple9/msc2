@@ -9,6 +9,7 @@ mod files;
 mod guides;
 mod initiate;
 mod notes;
+mod palette;
 mod performance;
 mod server_editor;
 mod settings;
@@ -111,6 +112,7 @@ struct ViewState<'a> {
     transfer: &'a transfer::TransferUi,
     notes: Option<&'a notes::Editor>,
     guides: &'a guides::Guides,
+    palette: &'a palette::Palette,
     files: &'a files::FilesUi,
     wizard: Option<&'a create::Wizard>,
     server_editor: Option<&'a server_editor::ServerEditor>,
@@ -389,6 +391,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     let mut transfer_ui = transfer::TransferUi::default();
     let mut notes_editor: Option<notes::Editor> = None;
     let mut guides_ui = guides::Guides::default();
+    let mut palette_ui = palette::Palette::default();
     let mut files_ui = files::FilesUi::default();
     let mut wizard: Option<create::Wizard> = None;
     let mut server_editor: Option<server_editor::ServerEditor> = None;
@@ -446,6 +449,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 transfer: &transfer_ui,
                 notes: notes_editor.as_ref(),
                 guides: &guides_ui,
+                palette: &palette_ui,
                 files: &files_ui,
                 wizard: wizard.as_ref(),
                 server_editor: server_editor.as_ref(),
@@ -492,6 +496,10 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             continue;
         };
         if key.kind != KeyEventKind::Press {
+            continue;
+        }
+        if palette_ui.open {
+            palette_ui.handle(key.code).await;
             continue;
         }
         if guides_ui.open {
@@ -691,6 +699,10 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             continue;
         }
         if workspace_open {
+            if key.code == KeyCode::Char('p') && console_expanded {
+                palette_ui.open(&snapshot).await;
+                continue;
+            }
             if key.code == KeyCode::Char('n') && tab_index == 0 {
                 if let Some(server) = snapshot.servers.as_ref().and_then(|servers| {
                     servers
@@ -1026,6 +1038,7 @@ fn draw(
         view.app_settings.draw(out, width, height)?;
         view.transfer.draw(out, width, height)?;
         view.guides.draw(out, width, height)?;
+        view.palette.draw(out, width, height)?;
         if let Some(editor) = view.notes {
             editor.draw(out, width, height)?;
         }
@@ -1357,6 +1370,7 @@ fn draw(
     view.app_settings.draw(out, width, height)?;
     view.transfer.draw(out, width, height)?;
     view.guides.draw(out, width, height)?;
+    view.palette.draw(out, width, height)?;
     if let Some(editor) = view.notes {
         editor.draw(out, width, height)?;
     }
@@ -2006,7 +2020,7 @@ fn draw_workspace(
             main_x,
             top + 1,
             main_w,
-            &format!("Console  {console_status}  [c Collapse]"),
+            &format!("Console  {console_status}  [c Collapse]  [p Command palette]"),
             Color::DarkGrey,
         )?;
         let lines = snapshot.console_lines.as_deref().unwrap_or(&[]);

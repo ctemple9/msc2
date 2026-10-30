@@ -545,6 +545,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.58 only.
 - **Commit:** `P22.58: space component sections and expand addon lists`
 
+### P22.59 — Add a console command palette
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `crates/msc-agent/src/cli/tui/palette.rs`; `crates/msc-agent/src/cli/tui/command_catalog.json`; `docs/msc2/rolling-plan.md`.
+- **What:** Review desktop CommandPaletteSheet and console model registry. Open an opaque palette with p while the console is expanded. Snapshot the desktop command definitions with their argument slots, categories and edition flags. Support search, category filtering, argument entry, keyword/player cycling, preview and explicit send through the existing command API. Offer capability-supported same-day time presets separately from numeric absolute time. Bind ordinary sends to the original server ID and check current selection before dispatch. Surface API errors and retain all backend safety checks. The TUI uses manual argument entry for gamerules rather than the desktop's separate catalog picker.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, expand console with c and press p. Search/filter commands, select a command and enter arguments (Right cycles suggestions). Confirm preview before Enter sends and Esc cancels. Confirm Java/Bedrock filtering, online-player suggestions, advertised same-day shortcuts and stopped-server errors. Change the active server before sending and confirm refusal. No tests run; no gameplay command executed by the agent.
+- **Batch:** P22.59 only.
+- **Commit:** `P22.59: add console command palette to tui`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

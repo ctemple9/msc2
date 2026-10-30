@@ -40,7 +40,7 @@ The previous phase work is finished. The old Phase 16 acceptance packet and owne
 ### Repository presentation polish
 
 #### P23.1 — Correct stale public documentation claims
-**Status:** awaiting Cameron verification
+**Status:** done; Cameron waived verification for the presentation polish steps
 **Files:** `README.md`, `CONTRIBUTING.md`, `docs/msc2/rolling-plan.md`
 **What:** Align the map availability statement with the published v0.1.38 release and remove the contributing guide's claim that pull requests run an active CI workflow.
 **Verify:** `rg -n 'saved-terrain maps are included|Saved-terrain maps are included|Pull requests do not currently run|v0.1.18 release|CI workflow describes' README.md CONTRIBUTING.md`
@@ -48,11 +48,12 @@ The previous phase work is finished. The old Phase 16 acceptance packet and owne
 **Commit:** `P23.1: correct stale public documentation claims`
 
 #### P23.2 — Shorten and structure the README
-**Status:** planned
+**Status:** done; verification waived by Cameron
 **Files:** `README.md`, `docs/msc2/rolling-plan.md`
-**What:** Keep the first-use path and current capabilities easy to scan; move historical release detail behind existing release-note links without losing important support limits.
+**What:** Keep the first-use path and current capabilities easy to scan; move historical release detail behind existing release-note links without losing important support limits. Removed the older release-by-release narrative while retaining the current platform, security, update, and macOS repair guidance.
 **Verify:** `git diff HEAD^ HEAD -- README.md`
 **Batch:** solo
+**Commit:** `P23.2: shorten README release history`
 
 #### P23.3 — Add current product screenshots
 **Status:** planned

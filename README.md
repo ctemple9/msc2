@@ -39,6 +39,20 @@ The published v0.1.38 download predates the TUI and does not include
 `msc tui`. To use it now from this repository, run
 `cargo run -p msc-agent -- tui` at the project root.
 
+## Start your first server
+
+1. Open MSC 2, or use `msc`/`msc tui` on a headless host. The desktop app can
+   connect to a headless agent from another computer.
+2. Choose **Add Server**.
+3. Choose **Java** or **Bedrock**, then select the Minecraft version and server
+   software.
+4. Configure the world and connection method.
+5. Create and start the server.
+6. Complete the EULA and connection setup when MSC 2 asks you to.
+
+For a first Java server, **Paper** is a good default. For a first Bedrock
+server, choose **Bedrock Dedicated Server**.
+
 ## What MSC 2 does
 
 ### Manages Java and Bedrock servers
@@ -187,20 +201,6 @@ They can be the same computer. They can also be different computers. The
 players' consoles, phones, and gaming PCs are separate again: they connect to
 the Minecraft server but do not need MSC 2 installed.
 
-## Start your first server
-
-1. Open MSC 2, or use `msc`/`msc tui` on a headless host. The desktop app can
-   connect to a headless agent from another computer.
-2. Choose **Add Server**.
-3. Choose **Java** or **Bedrock**, then select the Minecraft version and server
-   software.
-4. Configure the world and connection method.
-5. Create and start the server.
-6. Complete the EULA and connection setup when MSC 2 asks you to.
-
-For a first Java server, **Paper** is a good default. For a first Bedrock
-server, choose **Bedrock Dedicated Server**.
-
 ## New here?
 
 You do not need to read a Minecraft server administration manual before using
@@ -300,38 +300,11 @@ entry in `SHA256SUMS` before installing. The Phase 16 acceptance record
 (P16.29) is still open; this prerelease has not passed the full physical
 release acceptance gate.
 
-v0.1.38 includes the Intel Bedrock renderer checksum fix and the libdeflate
-compiler flag correction. It signs the bundled macOS tools and notarizes and
-staples the disk images for both architectures. See its
-[release notes](docs/msc2/release/v0.1.38.md).
-The v0.1.33 through v0.1.35 and v0.1.37 release candidates were not published.
-
-v0.1.32 gives Java and Bedrock saved-terrain maps the same persistent renderer,
-camera-led detail, optional pre-render, and incremental refresh path. It also
-corrects Bedrock block models, biome names and colours, and Depth camera jumps.
-See its [release notes](docs/msc2/release/v0.1.32.md).
-
-v0.1.31 added native file imports, storage management and service-setting
-improvements. See its [release notes](docs/msc2/release/v0.1.31.md).
-
-v0.1.30 corrects XboxBroadcast cancellation during Bedrock status polling and
-keeps helper downloads outside the broadcast state lock. See its
-[release notes](docs/msc2/release/v0.1.30.md).
-
-v0.1.29 fixes automatic remote SSH pairing on Macs whose SSH search path or
-pairing-storage settings differ from the desktop-installed agent. Pairing stays
-automatic without manual codes or shell-profile workarounds.
-
-Overview, Performance and Components now use lightweight running status instead
-of repeatedly scanning mod JARs for hidden health cards. The desktop continues
-watching long shutdowns and returns from Stopping to Start automatically. Intel
-Mac Bedrock VM workers exit after cleanup so stopped status and first-start
-completion can advance. See the [release notes](docs/msc2/release/v0.1.29.md).
-
-On Intel macOS, install the updated app and use **Repair agent** to register its
-matching agent and Bedrock helper before the next Bedrock start. Live acceptance
-of these fixes remains open. Existing root-owned Bedrock data still requires
-the one-time ownership repair described in the release history.
+Read the [v0.1.38 release notes](docs/msc2/release/v0.1.38.md) for the latest
+fixes and the [release history](docs/msc2/release/) for earlier changes. On
+Intel macOS, use **Repair agent** after installing the updated app to register
+its matching agent and Bedrock helper before the next Bedrock start. Existing
+root-owned Bedrock data still requires a one-time ownership repair.
 
 **macOS 0.1.25/0.1.26:** stop the Minecraft server, quit MSC 2, manually install
 v0.1.38 from its disk image, and repair the agent once. The older updater's helper

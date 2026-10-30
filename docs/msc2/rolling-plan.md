@@ -599,6 +599,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.64 only.
 - **Commit:** `P22.64: exit tui after host reset is accepted`
 
+### P22.65 — Treat refresh without a selected server as success
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Only report a failed component refresh when a server is selected and the agent connection is valid. An agent with no selected server intentionally skips component reads and now reports a successful TUI refresh. Retain same-server cached inventory only for applicable selected-server reads.
+- **Verify:** Run `cargo run -p msc-agent -- tui` on an empty agent, press Shift+R and confirm TUI refreshed without a component warning. Select a server when available and confirm genuine component read failures retain the existing warning. No reset, server creation, or tests run.
+- **Batch:** P22.65 only.
+- **Commit:** `P22.65: handle empty agent refresh without inventory warning`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

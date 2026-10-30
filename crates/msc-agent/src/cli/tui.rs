@@ -997,7 +997,10 @@ fn apply_refresh(
                     next.connection_error = Some("Agent service is unavailable.".into());
                 }
             }
-            if next.active_server_id == snapshot.active_server_id {
+            if next.active_server_id.is_some()
+                && next.active_server_id == snapshot.active_server_id
+                && next.connection_error.is_none()
+            {
                 if next.components.is_none() || next.addons.is_none() {
                     *message = "Component inventory refresh failed; keeping any previously loaded inventory. Shift+R retries.".into();
                 }
@@ -1008,7 +1011,9 @@ fn apply_refresh(
                     next.addons = snapshot.addons.take();
                 }
             }
-            if next.connection_error.is_none() && next.components.is_some() && next.addons.is_some()
+            if next.connection_error.is_none()
+                && (next.active_server_id.is_none()
+                    || (next.components.is_some() && next.addons.is_some()))
             {
                 *message = "TUI refreshed.".into();
             }

@@ -536,6 +536,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.57 only.
 - **Commit:** `P22.57: add handbook and interactive router guides to tui`
 
+### P22.58 — Space Components sections and expand long add-on lists
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui/components.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Add blank space between Server, Mods/Plugins, and Crossplay headings and rows. Limit the summary to the first ten add-ons; only when more exist, add See all with the total. Open a separate scrollable full add-on view with existing component actions and Esc back to summary. Preserve all original add-on indices for mutations.
+- **Verify:** Run `cargo run -p msc-agent -- tui`, open Components for a server with a few plugins and confirm spacing. For a server with 11 or more add-ons, confirm only the first ten are in summary, See all appears, Enter opens the full scrollable list, actions target the selected add-on, and Esc returns to summary. No tests run.
+- **Batch:** P22.58 only.
+- **Commit:** `P22.58: space component sections and expand addon lists`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

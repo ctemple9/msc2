@@ -17,6 +17,7 @@ use crate::cli::transport::SharedClient;
 #[derive(Default)]
 pub(super) struct ComponentsUi {
     selected: usize,
+    all_addons: bool,
     action: usize,
     mode: Mode,
     versions: Option<VersionsResponseDto>,
@@ -38,15 +39,26 @@ enum Row {
     Software,
     Addon(usize),
     Broadcast,
+    SeeAll,
 }
 
-fn rows(snapshot: &Snapshot) -> Vec<Row> {
+fn rows(snapshot: &Snapshot, all: bool) -> Vec<Row> {
     if snapshot.active_server_id.is_none() {
         return Vec::new();
     }
+    if all {
+        return snapshot
+            .addons
+            .as_ref()
+            .map(|addons| (0..addons.addons.len()).map(Row::Addon).collect())
+            .unwrap_or_default();
+    }
     let mut rows = vec![Row::Software];
     if let Some(addons) = &snapshot.addons {
-        rows.extend((0..addons.addons.len()).map(Row::Addon));
+        rows.extend((0..addons.addons.len().min(10)).map(Row::Addon));
+        if addons.addons.len() > 10 {
+            rows.push(Row::SeeAll);
+        }
     }
     // Broadcast is configurable for Java and Bedrock servers alike.
     rows.push(Row::Broadcast);
@@ -102,7 +114,7 @@ impl ComponentsUi {
         snapshot: &Snapshot,
         message: &mut String,
     ) -> bool {
-        let all_rows = rows(snapshot);
+        let all_rows = rows(snapshot, self.all_addons);
         self.selected = self.selected.min(all_rows.len().saturating_sub(1));
         if let Mode::Versions(index) = &mut self.mode {
             match key {
@@ -338,13 +350,18 @@ impl ComponentsUi {
                             }
                         }
                     }
-                    None => self.mode = Mode::List,
+                    None | Some(Row::SeeAll) => self.mode = Mode::List,
                 },
                 _ => {}
             }
             return true;
         }
         match key {
+            KeyCode::Esc if self.all_addons => {
+                self.all_addons = false;
+                self.selected = 11;
+                true
+            }
             KeyCode::Up => {
                 self.selected = self.selected.saturating_sub(1);
                 true
@@ -354,6 +371,11 @@ impl ComponentsUi {
                 true
             }
             KeyCode::Enter => {
+                if matches!(all_rows.get(self.selected), Some(Row::SeeAll)) {
+                    self.all_addons = true;
+                    self.selected = 0;
+                    return true;
+                }
                 if !all_rows.is_empty() {
                     self.mode = Mode::Actions;
                     self.action = 0;
@@ -382,9 +404,8 @@ impl ComponentsUi {
                 Color::DarkGrey,
             );
         }
-        let all_rows = rows(snapshot);
-        paint(out, x, 6, width, "COMPONENTS", Color::DarkGrey)?;
-        paint(out, x, 8, width, "SERVER", Color::DarkGrey)?;
+        let all_rows = rows(snapshot, self.all_addons);
+        let hint_y = height.saturating_sub(8);
         let server_name = snapshot.active_server_id.as_ref().and_then(|id| {
             snapshot
                 .servers
@@ -392,107 +413,159 @@ impl ComponentsUi {
                 .iter()
                 .find(|server| &server.id == id)
         });
-        let software = snapshot
-            .components
-            .as_ref()
-            .and_then(|components| components.components.first());
-        let name = software.map_or_else(
-            || {
-                server_name.map_or("Server software unavailable".into(), |server| {
-                    server.server_type.clone()
-                })
-            },
-            |component| component.name.clone(),
-        );
-        let version = software
-            .and_then(|component| component.installed_label.as_deref())
-            .unwrap_or("Version unavailable");
-        self.row(out, x, width, 9, 0, &format!("{name} · {version}"))?;
-        let mut y = 11;
-        let hint_y = height.saturating_sub(8);
-        if let Some(addons) = &snapshot.addons {
-            if addons.server_supports_addons {
-                let flavor = server_name
-                    .and_then(|server| server.java_flavor.as_deref())
-                    .unwrap_or("");
-                let kind = if matches!(flavor, "fabric" | "forge" | "neoforge" | "quilt") {
-                    "MODS"
-                } else {
-                    "PLUGINS"
-                };
+        if self.all_addons {
+            paint(out, x, 6, width, "ALL MODS / PLUGINS", Color::White)?;
+            if let Some(addons) = &snapshot.addons {
+                let visible = hint_y.saturating_sub(9).max(1) as usize;
+                let start = (self.selected + 1).saturating_sub(visible);
+                for (index, addon) in addons.addons.iter().enumerate().skip(start).take(visible) {
+                    self.row(
+                        out,
+                        x,
+                        width,
+                        9 + (index - start) as u16,
+                        index,
+                        &format!(
+                            "{} · {} · {}",
+                            addon.display_name,
+                            addon.current_version.as_deref().unwrap_or(&addon.jar_stem),
+                            if addon.is_enabled {
+                                "Enabled"
+                            } else {
+                                "Disabled"
+                            }
+                        ),
+                    )?;
+                }
+            }
+        } else {
+            paint(out, x, 6, width, "COMPONENTS", Color::DarkGrey)?;
+            paint(out, x, 8, width, "SERVER", Color::DarkGrey)?;
+            let software = snapshot
+                .components
+                .as_ref()
+                .and_then(|components| components.components.first());
+            let name = software.map_or_else(
+                || {
+                    server_name.map_or("Server software unavailable".into(), |server| {
+                        server.server_type.clone()
+                    })
+                },
+                |component| component.name.clone(),
+            );
+            let version = software
+                .and_then(|component| component.installed_label.as_deref())
+                .unwrap_or("Version unavailable");
+            self.row(out, x, width, 9, 0, &format!("{name} · {version}"))?;
+            let mut y = 12;
+
+            if let Some(addons) = &snapshot.addons {
+                if addons.server_supports_addons {
+                    let flavor = server_name
+                        .and_then(|server| server.java_flavor.as_deref())
+                        .unwrap_or("");
+                    let kind = if matches!(flavor, "fabric" | "forge" | "neoforge" | "quilt") {
+                        "MODS"
+                    } else {
+                        "PLUGINS"
+                    };
+                    paint(
+                        out,
+                        x,
+                        y,
+                        width,
+                        &format!("{kind} · {} installed", addons.addons.len()),
+                        Color::DarkGrey,
+                    )?;
+                    y += 2;
+                    if addons.addons.is_empty() && y < hint_y.saturating_sub(2) {
+                        paint(out, x + 2, y, width - 2, "None installed.", Color::DarkGrey)?;
+                        y += 1;
+                    }
+                    let visible = (hint_y.saturating_sub(y + 5) as usize).min(10);
+                    let start = match all_rows.get(self.selected) {
+                        Some(Row::Addon(index)) => (index + 1).saturating_sub(visible),
+                        _ => 0,
+                    };
+                    for (index, addon) in addons
+                        .addons
+                        .iter()
+                        .enumerate()
+                        .take(10)
+                        .skip(start)
+                        .take(visible)
+                    {
+                        let state = if addon.is_enabled {
+                            "Enabled"
+                        } else {
+                            "Disabled"
+                        };
+                        self.row(
+                            out,
+                            x,
+                            width,
+                            y,
+                            index + 1,
+                            &format!(
+                                "{} · {} · {state}",
+                                addon.display_name,
+                                addon.current_version.as_deref().unwrap_or(&addon.jar_stem)
+                            ),
+                        )?;
+                        y += 1;
+                    }
+                    if addons.addons.len() > 10 {
+                        self.row(
+                            out,
+                            x,
+                            width,
+                            y,
+                            11,
+                            &format!(
+                                "See all {} {}…",
+                                addons.addons.len(),
+                                kind.to_ascii_lowercase()
+                            ),
+                        )?;
+                        y += 1;
+                    }
+                }
+            } else {
                 paint(
                     out,
                     x,
                     y,
                     width,
-                    &format!("{kind} · {} installed", addons.addons.len()),
+                    "Add-on inventory unavailable.",
                     Color::DarkGrey,
                 )?;
                 y += 1;
-                if addons.addons.is_empty() && y < hint_y.saturating_sub(2) {
-                    paint(out, x + 2, y, width - 2, "None installed.", Color::DarkGrey)?;
-                    y += 1;
-                }
-                let visible = hint_y.saturating_sub(y + 2) as usize;
-                let start = match all_rows.get(self.selected) {
-                    Some(Row::Addon(index)) => (index + 1).saturating_sub(visible),
-                    _ => 0,
-                };
-                for (index, addon) in addons.addons.iter().enumerate().skip(start).take(visible) {
-                    let state = if addon.is_enabled {
-                        "Enabled"
-                    } else {
-                        "Disabled"
-                    };
-                    self.row(
-                        out,
-                        x,
-                        width,
-                        y,
-                        index + 1,
-                        &format!(
-                            "{} · {} · {state}",
-                            addon.display_name,
-                            addon.current_version.as_deref().unwrap_or(&addon.jar_stem)
-                        ),
-                    )?;
-                    y += 1;
-                }
             }
-        } else {
-            paint(
-                out,
-                x,
-                y,
-                width,
-                "Add-on inventory unavailable.",
-                Color::DarkGrey,
-            )?;
-            y += 1;
-        }
-        if matches!(all_rows.last(), Some(Row::Broadcast)) && y + 1 < hint_y {
-            paint(out, x, y, width, "CROSSPLAY", Color::DarkGrey)?;
-            y += 1;
-            let enabled = server_name
-                .and_then(|server| server.xbox_broadcast_enabled)
-                .unwrap_or(false);
-            let jar = snapshot.broadcast_jar.as_ref();
-            let status = match jar {
-                Some(jar) if jar.installed => "JAR installed",
-                Some(_) => "JAR missing",
-                None => "JAR status unavailable",
-            };
-            self.row(
-                out,
-                x,
-                width,
-                y,
-                all_rows.len() - 1,
-                &format!(
-                    "MCXboxBroadcast · {} · {status}",
-                    if enabled { "Enabled" } else { "Disabled" }
-                ),
-            )?;
+            y += 2;
+            if matches!(all_rows.last(), Some(Row::Broadcast)) && y + 1 < hint_y {
+                paint(out, x, y, width, "CROSSPLAY", Color::DarkGrey)?;
+                y += 2;
+                let enabled = server_name
+                    .and_then(|server| server.xbox_broadcast_enabled)
+                    .unwrap_or(false);
+                let jar = snapshot.broadcast_jar.as_ref();
+                let status = match jar {
+                    Some(jar) if jar.installed => "JAR installed",
+                    Some(_) => "JAR missing",
+                    None => "JAR status unavailable",
+                };
+                self.row(
+                    out,
+                    x,
+                    width,
+                    y,
+                    all_rows.len() - 1,
+                    &format!(
+                        "MCXboxBroadcast · {} · {status}",
+                        if enabled { "Enabled" } else { "Disabled" }
+                    ),
+                )?;
+            }
         }
         paint(
             out,
@@ -545,7 +618,7 @@ impl ComponentsUi {
                             .into(),
                         ]
                     }
-                    None => Vec::new(),
+                    None | Some(Row::SeeAll) => Vec::new(),
                 };
                 for (index, action) in actions.iter().enumerate() {
                     paint(

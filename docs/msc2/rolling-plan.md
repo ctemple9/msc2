@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-**Current priority:** Repository presentation polish, requested by Cameron on 2026-10-30. Earlier phase history and acceptance records remain available in the archive.
+**Current priority:** Implement the agent-owned running indicator approved by Cameron on 2026-10-30. Repository presentation polish remains recorded below; screenshots are deferred to Cameron.
 
 ## Phases
 
@@ -109,6 +109,46 @@ The previous phase work is finished. The old Phase 16 acceptance packet and owne
 **Verify:** Refresh `docs/msc2/agent-indicator-preview.html` in a browser.
 **Batch:** solo
 **Commit:** `P23.9: show the indicator only while the agent runs`
+
+### Agent running indicator
+
+The helmet appears only while the local agent runs. A small companion process owns the graphical icon in the signed-in user's session; the agent continues to work on headless hosts without it. The companion receives local agent lifecycle state through an event-driven connection, not periodic HTTP health checks. Losing the connection removes the icon. Only the desktop package registers the companion at login.
+
+#### P23.10 — Plan the agent running indicator
+**Status:** done; implementation pending
+**Files:** `docs/msc2/rolling-plan.md`
+**What:** Record the agent-owned status channel, separate user-session indicator, and per-platform startup and packaging work as bounded steps.
+**Verify:** `sed -n '/### Agent running indicator/,/Phase 22 disposition/p' docs/msc2/rolling-plan.md`
+**Batch:** solo
+**Commit:** `P23.10: plan the agent running indicator`
+
+#### P23.11 — Add the local agent lifecycle channel
+**Status:** planned
+**Files:** `crates/msc-agent/src/`, `docs/msc2/rolling-plan.md`
+**What:** Expose an authenticated, host-local connection that stays open while the agent runs and closes on shutdown or crash. Reuse the existing local IPC and owner boundary on macOS, Windows, and Linux where possible. Keep the headless agent free of GUI dependencies and avoid periodic HTTP requests.
+**Verify:** `cargo check -p msc-agent`
+**Batch:** solo
+
+#### P23.12 — Build the running-only helmet companion
+**Status:** planned
+**Files:** `clients/desktop-web/src-tauri/`, `docs/msc2/rolling-plan.md`
+**What:** Launch a separate user-session process with the approved pixel helmet in the native system bar. Show it only while connected to the local agent channel; hide it immediately on disconnect and reconnect with bounded backoff. Provide Open MSC 2 and Quit indicator without changing agent lifecycle.
+**Verify:** `cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml`
+**Batch:** solo
+
+#### P23.13 — Register the companion with desktop installations
+**Status:** planned
+**Files:** `clients/desktop-web/src-tauri/`, `packaging/macos/`, `packaging/windows/`, `packaging/linux/`, `docs/msc2/rolling-plan.md`
+**What:** Start one indicator companion per signed-in desktop user at login on macOS, Windows, and Linux where a tray is available. Include it in desktop installs, updates, repair, and removal; leave standalone headless packages unchanged.
+**Verify:** `git diff HEAD^ HEAD -- clients/desktop-web/src-tauri packaging`
+**Batch:** solo
+
+#### P23.14 — Document and inspect platform behavior
+**Status:** planned
+**Files:** `README.md`, `docs/msc2/rolling-plan.md`, packaging files if inspection finds a defect
+**What:** Explain the indicator's local-only meaning and login-session limits. Inspect startup and removal paths on all platforms; hand physical macOS, Windows, and Linux checks to Cameron without running test suites unless he requests them.
+**Verify:** `git diff HEAD^ HEAD -- README.md docs/msc2/rolling-plan.md packaging`
+**Batch:** solo
 
 **Phase 22 disposition:** Cameron accepted the current TUI on 2026-10-30. Detailed P22 records and their original verification commands are in the archive.
 

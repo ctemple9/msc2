@@ -500,6 +500,15 @@ result. No up-front Plan/Read move, test run, or release gate is implied.
 - **Batch:** P22.53 only.
 - **Commit:** `P22.53: separate import and export transfer views`
 
+### P22.54 — Keep navigation responsive during snapshot refresh
+
+- **Status:** Implementation committed; owner verification pending.
+- **Files:** `crates/msc-agent/src/cli/tui.rs`; `docs/msc2/rolling-plan.md`.
+- **What:** Run automatic snapshot reload and Shift+R reload in one bounded background task while continuing keyboard handling and drawing the last snapshot. Do not queue overlapping reloads. Guard publication with selected server identity and a generation advanced by explicit refreshes after mutations. Abort the task when the TUI exits. Initial loading, explicit mutation refreshes and sheet-specific requests retain their existing behavior.
+- **Verify:** Run `cargo run -p msc-agent -- tui`. While the automatic refresh is inspecting components, switch Players/Overview/Performance and open/close Manage Servers; confirm keypresses respond without waiting for inspection. Press Shift+R and continue navigation while Refreshing is shown. Switch selected servers during a refresh and confirm late results never restore the previous server. No tests run.
+- **Batch:** P22.54 only.
+- **Commit:** `P22.54: refresh tui snapshots without blocking navigation`
+
 ## macOS owner testing — 0.1.32
 
 **Started:** October 21, 2026

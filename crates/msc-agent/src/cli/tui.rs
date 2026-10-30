@@ -391,9 +391,30 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
     let mut message = String::new();
     let mut confirm_stop = false;
     let mut last_refresh = Instant::now();
+    let mut snapshot_generation = 0u64;
+    let mut refresh_task: Option<(
+        u64,
+        Option<String>,
+        tokio::task::JoinHandle<Result<Snapshot, CliError>>,
+    )> = None;
     let mut last_initiate_poll = Instant::now();
 
     loop {
+        if refresh_task
+            .as_ref()
+            .is_some_and(|(_, _, task)| task.is_finished())
+        {
+            if let Some((generation, server, task)) = refresh_task.take() {
+                if let Ok(result) = task.await {
+                    if generation == snapshot_generation && server == snapshot.active_server_id {
+                        apply_refresh(result, &mut snapshot, &mut message);
+                        worlds_ui.refreshed();
+                        components_ui.refreshed();
+                    }
+                }
+            }
+            last_refresh = Instant::now();
+        }
         if app_settings_ui.should_quit() {
             break;
         }
@@ -447,9 +468,13 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                     editor.poll_operation(&mut message).await;
                     editor.poll_services(&mut message).await;
                 }
-                refresh(&mut snapshot, &mut message).await;
-                worlds_ui.refreshed();
-                components_ui.refreshed();
+                if refresh_task.is_none() {
+                    refresh_task = Some((
+                        snapshot_generation,
+                        snapshot.active_server_id.clone(),
+                        tokio::spawn(load()),
+                    ));
+                }
                 last_refresh = Instant::now();
             }
             continue;
@@ -476,6 +501,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                         Err(error) => error.to_string(),
                     };
                     confirm_stop = false;
+                    snapshot_generation += 1;
                     refresh(&mut snapshot, &mut message).await;
                 }
                 _ => {
@@ -495,6 +521,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                 create::Outcome::Created(note) => {
                     wizard = None;
                     message = note;
+                    snapshot_generation += 1;
                     refresh(&mut snapshot, &mut message).await;
                     manage_open = false;
                     workspace_open = true;
@@ -507,6 +534,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             if editor.handle(key.code, &mut message).await {
                 server_editor = None;
             } else if editor.needs_refresh() {
+                snapshot_generation += 1;
                 refresh(&mut snapshot, &mut message).await;
                 editor.refreshed();
             }
@@ -529,6 +557,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             if close {
                 initiate = None;
                 initiate_hidden = false;
+                snapshot_generation += 1;
                 refresh(&mut snapshot, &mut message).await;
             }
             continue;
@@ -554,6 +583,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                         Ok(()) => {
                             initiate = None;
                             initiate_hidden = false;
+                            snapshot_generation += 1;
                             refresh(&mut snapshot, &mut message).await;
                             message =
                                 "Setup progress discarded. The existing world was kept.".into();
@@ -579,7 +609,16 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                     manage_open = false;
                 }
                 KeyCode::Char('R') => {
-                    refresh(&mut snapshot, &mut message).await;
+                    if refresh_task.is_none() {
+                        refresh_task = Some((
+                            snapshot_generation,
+                            snapshot.active_server_id.clone(),
+                            tokio::spawn(load()),
+                        ));
+                        message = "Refreshing TUI…".into();
+                    } else {
+                        message = "TUI refresh is already running.".into();
+                    }
                     manage_selected = manage_selected.min(
                         snapshot
                             .servers
@@ -600,6 +639,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                                 manage_open = false;
                                 workspace_open = true;
                                 tab_index = 0;
+                                snapshot_generation += 1;
                                 refresh(&mut snapshot, &mut message).await;
                                 message = format!("Selected server: {name}");
                                 if let Some(server) =
@@ -636,6 +676,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             }
             if tab_index == 5 && settings_ui.handle(key.code, &snapshot, &mut message).await {
                 if settings_ui.needs_refresh() {
+                    snapshot_generation += 1;
                     refresh(&mut snapshot, &mut message).await;
                     settings_ui.refreshed();
                 }
@@ -647,6 +688,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                     .await
             {
                 if components_ui.needs_refresh() {
+                    snapshot_generation += 1;
                     refresh(&mut snapshot, &mut message).await;
                     components_ui.refreshed();
                 }
@@ -654,6 +696,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             }
             if tab_index == 2 && worlds_ui.handle(key.code, &snapshot, &mut message).await {
                 if worlds_ui.needs_refresh() {
+                    snapshot_generation += 1;
                     refresh(&mut snapshot, &mut message).await;
                     worlds_ui.refreshed();
                 }
@@ -693,7 +736,16 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                     }
                 }
                 KeyCode::Char('R') => {
-                    refresh(&mut snapshot, &mut message).await;
+                    if refresh_task.is_none() {
+                        refresh_task = Some((
+                            snapshot_generation,
+                            snapshot.active_server_id.clone(),
+                            tokio::spawn(load()),
+                        ));
+                        message = "Refreshing TUI…".into();
+                    } else {
+                        message = "TUI refresh is already running.".into();
+                    }
                     last_refresh = Instant::now();
                 }
                 KeyCode::Char('S') => app_settings_ui.open().await,
@@ -735,7 +787,16 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             KeyCode::Char('e') => selected = 3,
             KeyCode::Char('r') => selected = 4,
             KeyCode::Char('R') => {
-                refresh(&mut snapshot, &mut message).await;
+                if refresh_task.is_none() {
+                    refresh_task = Some((
+                        snapshot_generation,
+                        snapshot.active_server_id.clone(),
+                        tokio::spawn(load()),
+                    ));
+                    message = "Refreshing TUI…".into();
+                } else {
+                    message = "TUI refresh is already running.".into();
+                }
                 last_refresh = Instant::now();
             }
             KeyCode::Char('?') => message = "Help screen is not connected yet.".into(),
@@ -765,6 +826,7 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                                 Ok(()) => "Agent service started.".into(),
                                 Err(error) => error.to_string(),
                             };
+                            snapshot_generation += 1;
                             refresh(&mut snapshot, &mut message).await;
                         }
                     }
@@ -784,12 +846,14 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
                                 .into(),
                                 Err(error) => error.to_string(),
                             };
+                            snapshot_generation += 1;
                             refresh(&mut snapshot, &mut message).await;
                         } else {
                             message = "Install the agent service to change boot startup.".into();
                         }
                     }
                     _ => {
+                        snapshot_generation += 1;
                         refresh(&mut snapshot, &mut message).await;
                     }
                 }
@@ -798,11 +862,22 @@ pub async fn run(common: CommonArgs) -> Result<(), CliError> {
             _ => {}
         }
     }
+    if let Some((_, _, task)) = refresh_task {
+        task.abort();
+    }
     Ok(())
 }
 
 async fn refresh(snapshot: &mut Snapshot, message: &mut String) {
-    match load().await {
+    apply_refresh(load().await, snapshot, message);
+}
+
+fn apply_refresh(
+    result: Result<Snapshot, CliError>,
+    snapshot: &mut Snapshot,
+    message: &mut String,
+) {
+    match result {
         Ok(mut next) => {
             if next.connection_error.is_some() || next.servers.is_none() {
                 // A failed API read must not erase the selected server from
